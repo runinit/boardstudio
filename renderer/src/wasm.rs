@@ -7,6 +7,8 @@ use crate::{
     is_stale_scene_revision,
     math::{component_model_transform, pcb_model_transform},
 };
+// Keep stack helpers private while exercising the same source in native tests.
+include!("mechanical.rs");
 use js_sys::{Float32Array, Object, Reflect};
 use serde::Deserialize;
 use std::hash::{Hash, Hasher};
@@ -170,14 +172,6 @@ struct BodyInput {
     id: String,
     name: String,
     mesh: MeshInput,
-}
-
-#[derive(Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct StackLayerInput {
-    id: String,
-    z: f32,
-    thickness: f32,
 }
 
 #[derive(Default, Deserialize)]
@@ -1495,28 +1489,6 @@ fn box_data(size: [f32; 3]) -> MeshData {
         }
     }
     data
-}
-
-fn stack_index(stack: &[StackLayerInput], id: &str) -> i32 {
-    let Some(layer) = stack.iter().find(|layer| layer.id == id) else {
-        return -1;
-    };
-    let center = layer.z + layer.thickness / 2.;
-    let mut heights = stack
-        .iter()
-        .map(|layer| layer.z + layer.thickness / 2.)
-        .filter(|height| *height > center + 0.001)
-        .collect::<Vec<_>>();
-    heights.sort_by(|a, b| b.total_cmp(a));
-    heights.dedup_by(|a, b| (*a - *b).abs() < 0.001);
-    heights.len() as i32
-}
-fn explode_offset(index: i32) -> f32 {
-    if index <= 0 {
-        0.0
-    } else {
-        -(index as f32) * 2.4
-    }
 }
 
 #[wasm_bindgen(js_name = decodeStl)]

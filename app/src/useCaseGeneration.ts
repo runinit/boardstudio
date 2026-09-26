@@ -1,5 +1,5 @@
-import type { CasePreviewResult } from '@boardstudio/v2-cad';
-import type { MechanicalAssembly, ProjectDoc, SceneDelta } from '@boardstudio/v2-contracts';
+import type { CasePreviewResult, CadProgress } from '@boardstudio/v2-cad';
+import type { CaseAssemblyIR, MechanicalAssembly, ProjectDoc, SceneDelta } from '@boardstudio/v2-contracts';
 import type { MutableRefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CaseClient } from './CaseClient';
@@ -11,6 +11,21 @@ import type { GenerationState } from './generationState';
 import { effectiveCaseDocument, effectiveCaseScene, mechanicalFingerprint } from './hardwareInstances';
 import { prepareCase } from './prepareCase';
 import { resolveMechanical } from './resolveMechanical';
+
+export async function generateCasePreview(
+  core: CoreClient,
+  getCad: () => CaseClient,
+  ir: CaseAssemblyIR,
+  isCurrent: () => boolean,
+  onProgress: (progress: CadProgress) => void,
+): Promise<CasePreviewResult | undefined> {
+  const prepared = await prepareCase(core, ir);
+  if (!isCurrent()) return undefined;
+  const result = await getCad().preview(prepared, onProgress);
+  if (!isCurrent()) return undefined;
+  if (result.revision !== ir.revision) throw new Error('CAD returned a different case revision');
+  return result;
+}
 
 type Inputs = {
   project: ProjectDoc;
@@ -149,13 +164,15 @@ export function useCaseGeneration({ project, scene, selectedBoardId, selectedIns
         if (assembly.generationBlocked) { setGeneration({ status: 'blocked' }); return; }
         ir = assembly.case;
       }
-      const prepared = await prepareCase(client.current!, ir);
-      if (!isCurrent()) return;
-      caseClient.current ??= new CaseClient();
-      const started = performance.now();
-      const result = await caseClient.current.preview(prepared, progress => {
+      let started = 0;
+      const result = await generateCasePreview(client.current!, () => {
+        caseClient.current ??= new CaseClient();
+        started = performance.now();
+        return caseClient.current;
+      }, ir, isCurrent, progress => {
         if (isCurrent()) setGeneration({ status: 'running', revision: document.revision, progress });
       });
+      if (!result) return;
       if (!isCurrent()) return;
       performance.measure('boardstudio.cad.preview', { start: started, end: performance.now() });
       setCasePreview({ context, result });

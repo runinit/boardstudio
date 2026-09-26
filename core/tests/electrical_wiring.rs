@@ -159,6 +159,214 @@ fn wired_document() -> ProjectDoc {
     doc
 }
 
+fn resolve_wired(
+    document: ProjectDoc,
+    mode: ElectricalMode,
+) -> boardstudio_core::electrical::ElectricalPlan {
+    boardstudio_core::electrical::resolve(ElectricalPlanRequest {
+        instance_id: None,
+        document,
+        mode,
+        locks: BTreeMap::new(),
+        controller_profile: Some("ceoloide/mcu_nice_nano".into()),
+        board_id: Some("board-a".into()),
+        controller_part_id: Some("mcu-left".into()),
+    })
+}
+
+fn add_peripheral(document: &mut ProjectDoc, id: &str, source: &str, terminals: &[&str]) {
+    let definition_id = format!("def/{id}");
+    let terminal_map = terminals
+        .iter()
+        .map(|terminal| ((*terminal).into(), vec![(*terminal).into()]))
+        .collect();
+    document.definitions.push(definition(
+        &definition_id,
+        PartKind::Utility,
+        terminal_map,
+        Some(source),
+    ));
+    document.parts.push(part(id, &definition_id));
+    document.boards[0].part_ids.push(id.into());
+}
+
+#[test]
+fn rgb_chain_and_battery_power_switch_map_to_shared_power_nets() {
+    let mut document = wired_document();
+    let controller = document
+        .definitions
+        .iter_mut()
+        .find(|item| item.id == "mcu")
+        .unwrap();
+    for terminal in ["RAW", "VCC"] {
+        controller
+            .terminals
+            .insert(terminal.into(), vec![terminal.into()]);
+        let mut pad = controller.pads[0].clone();
+        pad.id = terminal.into();
+        pad.number = terminal.into();
+        controller.pads.push(pad);
+    }
+    add_peripheral(
+        &mut document,
+        "rgb-a",
+        "ceoloide/led_sk6812mini-e",
+        &["P1", "P2", "P3", "P4"],
+    );
+    add_peripheral(
+        &mut document,
+        "rgb-b",
+        "ceoloide/led_sk6812mini-e",
+        &["P1", "P2", "P3", "P4"],
+    );
+    add_peripheral(
+        &mut document,
+        "battery",
+        "ceoloide/battery_connector_jst_ph_2",
+        &["BAT_P", "BAT_N"],
+    );
+    add_peripheral(
+        &mut document,
+        "power",
+        "ceoloide/power_switch_smd_side",
+        &["from", "to"],
+    );
+    let plan = resolve_wired(document.clone(), ElectricalMode::Matrix);
+    let net = |suffix: &str| {
+        plan.nets
+            .iter()
+            .find(|net| net.id.ends_with(suffix))
+            .unwrap()
+    };
+    let rgb_chain = net("/rgb-chain/rgb-a");
+    assert!(
+        rgb_chain
+            .pins
+            .iter()
+            .any(|pin| pin.part_id == "rgb-a" && pin.pad_id == "P2")
+    );
+    assert!(
+        rgb_chain
+            .pins
+            .iter()
+            .any(|pin| pin.part_id == "rgb-b" && pin.pad_id == "P4")
+    );
+    let battery = net("/power/bat_p");
+    assert!(battery.pins.iter().any(|pin| pin.part_id == "battery"));
+    assert!(battery.pins.iter().any(|pin| pin.part_id == "power"));
+    let raw = net("/power/raw");
+    assert!(
+        raw.pins
+            .iter()
+            .any(|pin| pin.part_id == "power" && pin.pad_id == "to")
+    );
+    assert!(
+        raw.pins
+            .iter()
+            .any(|pin| pin.part_id == "mcu-left" && pin.pad_id == "RAW")
+    );
+    assert!(!raw.pins.iter().any(|pin| pin.part_id == "battery"));
+    assert_eq!(rgb_chain.pins.len(), 2);
+    assert!(
+        plan.peripherals
+            .iter()
+            .find(|item| item.part_id == "rgb-b")
+            .unwrap()
+            .gpio_terminals
+            .is_empty()
+    );
+
+    // Without a switch, BAT_P must connect directly to the controller RAW terminal.
+    document.parts.retain(|part| part.id != "power");
+    document.boards[0].part_ids.retain(|id| id != "power");
+    let unswitched = resolve_wired(document, ElectricalMode::Matrix);
+    assert!(
+        !unswitched
+            .nets
+            .iter()
+            .any(|net| net.id.ends_with("/power/bat_p"))
+    );
+    let raw = unswitched
+        .nets
+        .iter()
+        .find(|net| net.id.ends_with("/power/raw"))
+        .unwrap();
+    assert!(
+        raw.pins
+            .iter()
+            .any(|pin| pin.part_id == "battery" && pin.pad_id == "BAT_P")
+    );
+    assert!(
+        raw.pins
+            .iter()
+            .any(|pin| pin.part_id == "mcu-left" && pin.pad_id == "RAW")
+    );
+}
+
+#[test]
+fn direct_mode_constructs_controller_and_ground_nets_deterministically() {
+    let first = resolve_wired(wired_document(), ElectricalMode::Direct);
+    let second = resolve_wired(wired_document(), ElectricalMode::Direct);
+    assert_eq!(first.nets, second.nets);
+    assert!(
+        first
+            .nets
+            .iter()
+            .any(|net| net.id.ends_with("/direct/matrix/m/r0c0"))
+    );
+    assert!(first.nets.iter().any(|net| net.id.ends_with("/power/gnd")));
+    assert_eq!(first.diagnostics, second.diagnostics);
+    assert_eq!(first.assignments, second.assignments);
+    let assignment = first
+        .assignments
+        .iter()
+        .find(|item| item.key_id == "matrix/m/r0c0")
+        .unwrap();
+    let direct = first
+        .nets
+        .iter()
+        .find(|net| net.id.ends_with("/direct/matrix/m/r0c0"))
+        .unwrap();
+    assert_eq!(
+        direct
+            .pins
+            .iter()
+            .map(|pin| (pin.part_id.as_str(), pin.pad_id.as_str()))
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([
+            ("matrix/m/r0c0", "2"),
+            ("mcu-left", assignment.column_pin.as_str()),
+        ])
+    );
+}
+
+#[test]
+fn reverse_diode_direction_places_cathodes_on_matrix_rows() {
+    let mut document = wired_document();
+    document.matrices[0].diode_direction = Some(DiodeDirection::Col2row);
+    let plan = resolve_wired(document, ElectricalMode::Matrix);
+    let row = plan
+        .nets
+        .iter()
+        .find(|net| net.id.ends_with("/row/0"))
+        .unwrap();
+    assert!(
+        row.pins
+            .iter()
+            .any(|pin| pin.part_id.ends_with("/diode") && pin.pad_id == "K")
+    );
+    let link = plan
+        .nets
+        .iter()
+        .find(|net| net.id.ends_with("/link/matrix/m/r0c0"))
+        .unwrap();
+    assert!(
+        link.pins
+            .iter()
+            .any(|pin| pin.part_id.ends_with("/diode") && pin.pad_id == "A")
+    );
+}
+
 #[test]
 fn resolver_scopes_board_and_honors_controller_and_locks() {
     let doc = wired_document();

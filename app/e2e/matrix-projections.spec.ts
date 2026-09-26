@@ -78,14 +78,26 @@ test('cancelled and superseded draft replies cannot restore an obsolete ghost', 
 });
 
 test('switching boards cancels a held placement draft', async ({ page }) => {
+  await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
+  const boardPicker = page.getByRole('combobox', { name: 'Selected board' });
+  const firstBoard = await boardPicker.inputValue();
+  await page.getByRole('button', { name: 'New board', exact: true }).click();
+  await expect(boardPicker).not.toHaveValue(firstBoard);
+  const secondBoard = await boardPicker.inputValue();
+  await boardPicker.selectOption(firstBoard);
   await page.evaluate(() => { window.matrixDraftTest.hold = true; });
   await configureMatrix(page, 2, 2);
   await expect.poll(() => page.evaluate(() => window.matrixDraftTest.requests)).toBe(1);
-  await page.getByRole('button', { name: 'New board', exact: true }).click();
-  await expect(page.locator('.is-placement-preview')).toHaveCount(0);
+  await boardPicker.selectOption(secondBoard);
   await page.evaluate(() => window.matrixDraftTest.release(0));
+  await expect.poll(() => page.evaluate(() => window.matrixDraftTest.replies)).toBe(1);
   await nextPaint(page);
+  await expect(page.locator('svg.wb-canvas')).not.toHaveClass(/is-placing-matrix/);
   await expect(page.locator('.is-placement-preview')).toHaveCount(0);
+  await page.locator('svg.wb-canvas').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
+  await boardPicker.selectOption(firstBoard);
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
 });
 

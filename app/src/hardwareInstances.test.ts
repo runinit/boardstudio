@@ -2,7 +2,9 @@ import { expect, test } from 'vitest';
 import type { PhysicalBoardInstance, SceneDelta } from '@boardstudio/v2-contracts';
 import { demoProject } from './demo';
 import { createMechanicalConfiguration } from './mechanicalPresets';
-import { effectiveCaseDocument, effectiveCaseScene, mechanicalFingerprint, updateInstanceMechanical, flipPhysicalPoint } from './hardwareInstances';
+import { effectiveCaseDocument, effectiveCaseScene, mechanicalFingerprint, updateInstanceMechanical } from './hardwareInstances';
+
+const flipPhysicalPoint = (point: { x: number; y: number; z: number }, pcbThickness: number) => ({ x: -point.x, y: point.y, z: -pcbThickness - point.z });
 
 const instance = (id: string, flipped = false): PhysicalBoardInstance => ({
   id, name: id, boardId: 'main-board', half: flipped ? 'right' : 'left', role: flipped ? 'peripheral' : 'central',

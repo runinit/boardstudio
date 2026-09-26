@@ -69,6 +69,7 @@ export type Drag = {
   ids: string[];
   origins: { id: string; at: Vec2 }[];
   pointerStart: Vec2;
+  clientStart: Vec2;
   pending: { id: string; at: Vec2 }[];
   transactionId: string;
   pointerId: number;
@@ -79,6 +80,7 @@ export type Drag = {
   matrixCell?: { matrixId: string; row: number; column: number; offset: Vec2; assemblyId?: string };
   matrixScope?: { kind: 'matrix'; origin: Vec2 } | { kind: 'row' | 'column'; index: number; offset: Vec2 };
   pendingMatrix?: Matrix;
+  matrixStart?: Matrix;
 };
 
 export type SelectionScope = {
@@ -90,7 +92,8 @@ export type SelectionScope = {
 };
 
 export type StaggerDrag = {
-  matrixId: string;
+  matrixStart: Matrix;
+  transactionId: string;
   axis: 'row' | 'column';
   index: number;
   startClient: Vec2;

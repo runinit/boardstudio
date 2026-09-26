@@ -22,12 +22,16 @@ opening a project invalidates it. Async callbacks keep using current document
 references and captured revision/context guards. Export protection is persisted
 only after the artifact is produced, before its download.
 
-The workbench keeps shared selection state and pointer transaction lifetimes.
+The workbench keeps shared selection state and pointer transaction references.
 `useWorkbenchSelection` handles selection actions; `useWorkbenchTree` derives the
-object tree. `createCanvasCamera` handles camera actions, and `CanvasObjects`
-renders geometry. `MatrixInspector`, `InspectorControls`, and `createLibraryActions`
-separate inspector rendering from library document edits. Existing panel mounts,
-keyboard handlers, and drag transactions remain coordinated by the workbench.
+object tree. `createCanvasInteractions` owns drag, stagger, splay, and pan updates,
+including the final pointer sample, captured transaction identity, and rollback.
+Escape and board/mode switches cancel active edits; opening another project
+discards captured work without replaying it into the new document.
+`createCanvasCamera` handles camera actions, and `CanvasObjects` renders geometry.
+`MatrixInspectorPanel`, `CaseInspectorPanel`, and `PartsInspectorPanel` compose
+selection-specific controls through explicit action callbacks. Document mutations
+remain in the workbench and `createLibraryActions`.
 
 Parts preview construction and placement are separate: `sampleAssembly` produces
 an isolated preview document; `assemblyPlacement` creates document snapshots.
@@ -40,6 +44,11 @@ and net-preserving saves. Its terminal remapper validates every placed instance
 before changing any cloned nets. Authored and imported parts keep their separate
 editing path. Placement uses one discriminated state for standalone parts, matrices,
 mirrored pairs, and setup; cancellation invalidates pending matrix projections.
+
+Case preview race tests exercise `generateCasePreview`, the preparation and CAD
+preview sequence used by `useCaseGeneration`. CAD creation remains lazy until
+preparation succeeds for the current context. Full export uses the separate CAD
+request path.
 
 ## Rust ownership and privacy
 
@@ -61,9 +70,15 @@ foam-contour, body-construction, and finalization stages. Part geometry returns
 PCB reference holes, component volumes, profile openings, and foam exclusions;
 construction returns bodies and additional stack layers. Ordered diagnostics flow
 through the resolver's shared callback until final validation. Electrical resolution
-separates key discovery, required signals,
-GPIO allocation, net finalization, and reversible-jumper checks. Their diagnostic
-ordering and public entrypoints remain unchanged.
+separates key discovery, required signals, GPIO allocation, net construction,
+net finalization, and reversible-jumper checks. Net construction returns peripheral,
+RGB, and key nets plus assignments and ordered diagnostics before jumper aliases
+are applied. Their diagnostic ordering and public entrypoints remain unchanged.
+
+The renderer's private stack ranking and explosion helpers share one source file
+between the WASM module and native regression tests; there is no parallel
+TypeScript implementation. Mechanical footprint and profile points share one
+private mirror/rotation transform.
 
 ## Current project format
 

@@ -6,6 +6,10 @@ mod geometry;
 mod math;
 mod wrl;
 
+#[cfg(test)]
+#[path = "mechanical.rs"]
+mod mechanical;
+
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 

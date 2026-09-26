@@ -316,7 +316,7 @@ test('matrix rows and columns are nested beneath their matrix in the CAD tree', 
   await expect(page.getByRole('button', { name: 'Select: Column', exact: true })).toBeVisible();
 });
 
-test('legacy matrix diode direction is editable and survives matrix edits', async ({ page }) => {
+test('matrix diode direction is editable and survives matrix edits', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('treeitem', { name: /^Matrix 1/ }).click();
 

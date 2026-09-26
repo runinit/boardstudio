@@ -1,4 +1,4 @@
-import type { MechanicalConfiguration, PhysicalBoardInstance, ProjectDoc, SceneDelta, Vec2, Vec3 } from '@boardstudio/v2-contracts';
+import type { MechanicalConfiguration, PhysicalBoardInstance, ProjectDoc, SceneDelta, Vec2 } from '@boardstudio/v2-contracts';
 
 const constructionKeys = [
   'method', 'mount', 'integratedPlateFrame', 'bottomStyle', 'middleFrame', 'plateThickness',
@@ -7,11 +7,6 @@ const constructionKeys = [
 ] as const satisfies readonly (keyof MechanicalConfiguration)[];
 
 const reflect = (point: Vec2): Vec2 => ({ x: -point.x, y: point.y });
-
-/** A physical half turns over about the PCB midplane; it is not a flat mirror. */
-export function flipPhysicalPoint(point: Vec3, pcbThickness: number): Vec3 {
-  return { x: -point.x, y: point.y, z: -pcbThickness - point.z };
-}
 
 export function effectiveCaseDocument(document: ProjectDoc, instance?: PhysicalBoardInstance): ProjectDoc {
   if (!instance) return document;

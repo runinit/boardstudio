@@ -25,13 +25,38 @@ export function remapDefinitionNets(document: ProjectDoc, original: PartDefiniti
     oldPads.forEach((pad) => pads.add(pad));
     oldPadsByPart.set(partId, pads);
   }
+  const retained = (pin: Net['pins'][number]) => !oldPadsByPart.get(pin.partId)?.has(pin.padId);
+  const pinKey = (partId: string, padId: string) => JSON.stringify([partId, padId]);
+  const destinationNets = new Map<string, Set<string>>();
+  for (const net of document.nets) {
+    for (const pin of net.pins.filter(retained)) {
+      const key = pinKey(pin.partId, pin.padId);
+      const owners = destinationNets.get(key) ?? new Set<string>();
+      owners.add(net.id);
+      destinationNets.set(key, owners);
+    }
+  }
+  // Old terminal pads are released together, so exchanging pads remains valid.
+  for (const { partId, newPads, netId } of assignments) {
+    for (const padId of newPads) {
+      const key = pinKey(partId, padId);
+      const owners = destinationNets.get(key);
+      if (owners && [...owners].some((owner) => owner !== netId)) {
+        return { ok: false, error: `Cannot apply these generator settings: destination pad ${padId} would be assigned to multiple nets.` };
+      }
+      destinationNets.set(key, new Set([netId]));
+    }
+  }
   const nets = document.nets.map((net) => ({
     ...net,
-    pins: net.pins.filter((pin) => !oldPadsByPart.get(pin.partId)?.has(pin.padId)),
+    pins: net.pins.filter(retained),
   }));
   const byId = new Map(nets.map((net) => [net.id, net]));
   for (const { partId, newPads, netId } of assignments) {
-    byId.get(netId)?.pins.push(...newPads.map((padId) => ({ partId, padId })));
+    const net = byId.get(netId)!;
+    for (const padId of newPads) {
+      if (!net.pins.some((pin) => pin.partId === partId && pin.padId === padId)) net.pins.push({ partId, padId });
+    }
   }
   return { ok: true, nets };
 }

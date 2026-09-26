@@ -2,7 +2,7 @@ import { expect, test, vi } from 'vitest';
 import type { CaseResult, SceneDelta } from '@boardstudio/v2-contracts';
 import { casePreviewContextMatches, currentCaseResult, reusableCaseResult } from './casePreviewContext';
 import type { CasePreviewContext } from './casePreviewContext';
-import { buildCasePreview } from './buildCasePreview';
+import { generateCasePreview } from './useCaseGeneration';
 
 function context(): CasePreviewContext {
   const scene = { revision: 7 } as SceneDelta;
@@ -41,9 +41,9 @@ test('an in-flight CAD reply is rejected after a board switch without a revision
   let current = captured;
   const core = { request: vi.fn(async () => ({ kind: 'case-prepared', ir: { revision: 7, bodies: [] } })) };
   let finish!: (value: CaseResult) => void;
-  const cad = { request: vi.fn(() => new Promise<CaseResult>(resolve => { finish = resolve; })) };
-  const pending = buildCasePreview(core as never, cad as never, { revision: 7, bodies: [] }, () => casePreviewContextMatches(captured, current));
-  await vi.waitFor(() => expect(cad.request).toHaveBeenCalledOnce());
+  const cad = { preview: vi.fn(() => new Promise<CaseResult>(resolve => { finish = resolve; })) };
+  const pending = generateCasePreview(core as never, () => cad as never, { revision: 7, bodies: [] }, () => casePreviewContextMatches(captured, current), vi.fn());
+  await vi.waitFor(() => expect(cad.preview).toHaveBeenCalledOnce());
   current = { ...captured, boardId: 'right' };
   finish(result());
   await expect(pending).resolves.toBeUndefined();
@@ -55,12 +55,12 @@ test('a draft scene arriving during preparation prevents starting CAD', async ()
   let current = captured;
   let finish!: (value: unknown) => void;
   const core = { request: vi.fn(() => new Promise(resolve => { finish = resolve; })) };
-  const cad = { request: vi.fn() };
-  const pending = buildCasePreview(core as never, cad as never, { revision: 7, bodies: [] }, () => casePreviewContextMatches(captured, current));
+  const cad = { preview: vi.fn() };
+  const pending = generateCasePreview(core as never, cad as never, { revision: 7, bodies: [] }, () => casePreviewContextMatches(captured, current), vi.fn());
   current = { ...captured, scene: { ...captured.scene } };
   finish({ kind: 'case-prepared', ir: { revision: 7, bodies: [] } });
   await expect(pending).resolves.toBeUndefined();
-  expect(cad.request).not.toHaveBeenCalled();
+  expect(cad.preview).not.toHaveBeenCalled();
 });
 
 

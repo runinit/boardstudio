@@ -156,7 +156,7 @@ fn normalized_processes(config: &MechanicalConfiguration) -> Vec<MechanicalPartP
     processes
 }
 
-fn transform_footprint_polygon(part: &Part, points: &[Vec2]) -> Vec<Vec2> {
+fn transform_part_points(part: &Part, points: &[Vec2]) -> Vec<Vec2> {
     let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
     points
         .iter()
@@ -273,7 +273,7 @@ fn add_foam_clearance(
     let expanded = expanded_clearance(points, margin, revision)?;
     target.push(Contour {
         hole: true,
-        points: transform_footprint_polygon(part, &expanded),
+        points: transform_part_points(part, &expanded),
     });
     Ok(())
 }
@@ -531,24 +531,6 @@ fn resolve_foam_contours(base: &[Contour], clearances: &[Contour]) -> Result<Vec
         return Ok(base.to_vec());
     }
     subtract_foam_exclusions(base, clearances)
-}
-
-fn transform_part_points(part: &Part, points: &[Vec2]) -> Vec<Vec2> {
-    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
-    points
-        .iter()
-        .map(|point| {
-            let x = if part.side == Side::Back {
-                -point.x
-            } else {
-                point.x
-            };
-            Vec2 {
-                x: part.pose.at.x + x * cos - point.y * sin,
-                y: part.pose.at.y + x * sin + point.y * cos,
-            }
-        })
-        .collect()
 }
 
 struct PartGeometry {

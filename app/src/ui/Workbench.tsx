@@ -1,3 +1,5 @@
+import { CaseInspectorPanel } from './CaseInspectorPanel';
+import { PartsInspectorPanel } from './PartsInspectorPanel';
 import { createCanvasCamera } from './createCanvasCamera';
 import { createLibraryActions } from './createLibraryActions';
 import { catalogue as ergogenCatalogue, parameters as ergogenParameterSchema, isErgogen, normalizeDefinition } from '@boardstudio/v2-ergogen';
@@ -24,36 +26,34 @@ import { matrixWithAssembly } from './assemblyPlacement';
 import { assemblyPreset, type SwitchOrientation } from './assemblyPresets';
 import { aspectBounds, cameraBounds, getBounds } from './canvasBounds';
 import { MatrixGhost, ScenePart, SplayHandles } from './CanvasObjects';
-import { CaseGenerationControls } from './CaseGenerationControls';
 import { caseReadiness, mechanicalFindings } from './caseReadiness';
 import { CommandMenu, ToolIcon } from './CommandMenu';
 import { mirrorExistingHalf } from './existingHalf';
 import { ExistingHalfSetup } from './ExistingHalfSetup';
 import { FindingList } from './FindingList';
 import { findingTarget, presentedFindings } from './findings';
-import { GeneratorFields } from './GeneratorFields';
-import { CaseNumber, ConstraintNumber, Coordinate, DraftInput, Measure, ModelVector, OrientationControl } from './InspectorControls';
+import { ConstraintNumber, Coordinate, Measure } from './InspectorControls';
 import { InspectorSection } from './InspectorSection';
 import { findKeycapOverlaps, keycapReflowDeltas, type KeycapPlacement, type KeycapResize } from './keycapReflow';
-import { KeySizeControls } from './KeySizeControls';
 import { LibraryWorkspace } from './LibraryWorkspace';
 import { matrixCellId, matrixSceneAdapter, type MatrixScene } from './matrixGeometry';
-import { CellInspector, MatrixEditor } from './MatrixInspector';
 import { matrixWithPreset } from './matrixPresets';
 import { resizeMatrix } from './matrixResize';
 import { MechanicalAssemblyPanel } from './MechanicalAssemblyPanel';
+import { MatrixInspectorPanel } from './MatrixInspectorPanel';
 import { MirrorPairIcon, MirroredPairSetup, pairAt, type PairSetup } from './MirroredPairSetup';
-import { DefinitionKeycapControls, OutlineInspector, PartOutlineControls } from './OutlineInspector';
+import { OutlineInspector, PartOutlineControls } from './OutlineInspector';
 import { partCatalogLabel, partCatalogSearchText, partChoices } from './partsCatalog';
 import { movePlacement, type PlacementState } from './placementState';
+import { createCanvasInteractions } from './createCanvasInteractions';
 import { PartsLibrary } from './PartsLibrary';
-import { alignmentDelta, snapOrigin, snapPart } from './placementGeometry';
+import { alignmentDelta, snapPart } from './placementGeometry';
 import { selectionOutline } from './selectionOutline';
 import { useWorkbenchSelection } from './useWorkbenchSelection';
 import { usePartsEditing } from './usePartsEditing';
 import { useWorkbenchTree } from './useWorkbenchTree';
 import { WiringPanel } from './WiringPanel';
-import { PITCH_MM, courtyardSize, createPart, definitionIssues, formatSize, isTyping, localMatrixDelta, makeId, nudgeLargeStep, nudgeStep, pointFromEvent, snapDelta, unit, withCell } from './workbenchGeometry';
+import { PITCH_MM, createPart, isTyping, localMatrixDelta, makeId, nudgeLargeStep, nudgeStep, pointFromEvent, snapDelta, unit, withCell } from './workbenchGeometry';
 import { ArrowIcon, BrandMark, CursorIcon, FitIcon, ModeIcon, PartGlyph, ProjectIcon, RedoIcon, ScopeIcon, UndoIcon } from './WorkbenchIcons';
 import { WorkbenchLayers, footprintLayers } from './WorkbenchLayers';
 import { WorkbenchTree } from './WorkbenchTree';
@@ -511,20 +511,17 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
+        if (cancelInteractions()) return;
         if (event.shiftKey) onRedo();
         else onUndo();
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
         event.preventDefault();
+        if (cancelInteractions()) return;
         onRedo();
       }
       if (event.key === 'Escape') {
-        if (splayDrag.current) {
-          const drag = splayDrag.current;
-          commitMatrix(drag.matrix, 'preview', drag.transactionId);
-          if (drag.target.hasPointerCapture(drag.pointerId)) drag.target.releasePointerCapture(drag.pointerId);
-          splayDrag.current = null; return;
-        }
+        if (cancelInteractions()) return;
         if (existingHalfOpen) { setExistingHalfOpen(false); return; }
         if (transformTool) { setTransformTool(null); setOriginPicking(false); setSnapGuide(undefined); return; }
         if (originPicking) { setOriginPicking(false); return; }
@@ -585,12 +582,14 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   };
 
   const selectBoard = (id: string) => {
+    cancelInteractions();
     if (onSelectBoard) onSelectBoard(id);
     else setLocalBoardId(id);
   };
 
   const changeMode = (next: Mode) => {
     if (next !== mode) {
+      cancelInteractions();
       cameraViews.current.set(`${selectedBoardId}:${mode}`, { zoom, pan });
       const camera = cameraViews.current.get(`${selectedBoardId}:${next}`);
       setZoom(camera?.zoom ?? 1);
@@ -832,7 +831,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   };
 
   const editDefinition = selectedLibraryDefinition;
-  const { attachModel, updateModel, updateDefinition, updateCourtyard, updatePad, commitPadField, commitPadNumber, addDefinitionPad, removeDefinitionPad } = createLibraryActions({ activeModelDefinition, onImportModel, document, emit, editDefinition, setDefinitionError });
+  const libraryActions = createLibraryActions({ activeModelDefinition, onImportModel, document, emit, editDefinition, setDefinitionError });
 
   const addCustomDefinition = () => {
     const definition: PartDefinition = {
@@ -1004,12 +1003,6 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     selectScope({ kind: 'matrix', matrixId: placed.id });
   };
 
-  const snapSplayOrigin = (point: Vec2, matrix: Matrix, free: boolean) => {
-    const rect = svgRef.current?.getBoundingClientRect();
-    const snapped = !free && geometrySnap ? snapOrigin(point, visibleParts, definitions, rect ? viewBounds.width / rect.width * 8 : 1) : undefined;
-    setSnapGuide(snapped);
-    return free ? point : snapped?.at ?? snapDelta(point, matrix.pitch, snapFraction);
-  };
   const drawOutline = (event: React.MouseEvent<SVGSVGElement>) => {
     if (suppressClick.current) return;
     if (originPicking && scope?.matrixId && scope.column !== undefined) {
@@ -1049,290 +1042,6 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     setOutlineActive(false);
   };
 
-  const startDrag = (event: React.PointerEvent<SVGGElement>, part: Part) => {
-    if (part.locked || outlineActive || pendingPart || matrixGhost) return;
-    if (event.button === 1 || spaceDown.current) return;
-    const pointerStart = pointFromEvent(event, svgRef.current);
-    if (!pointerStart) return;
-    event.stopPropagation();
-    if (event.ctrlKey || event.metaKey || event.shiftKey) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const matrixCell = matrixPartLookup.get(part.id);
-    const matrix = matrixCell ? matrixMap.get(matrixCell.matrixId) : undefined;
-    const activeScope: SelectionScope = matrixCell && !matrixCell.assemblyId && selectionMode !== 'component'
-      ? { kind: selectionMode, matrixId: matrixCell.matrixId, row: matrixCell.row, column: matrixCell.column }
-      : { kind: 'component', ...(matrixCell ?? {}), partId: part.id };
-    const usesMatrixScope = Boolean(matrix && matrixCell && activeScope.matrixId === matrix.id
-      && (activeScope.kind === 'matrix' || activeScope.kind === 'row' || activeScope.kind === 'column'));
-    const matrixScope = usesMatrixScope && matrix && matrixCell
-      ? activeScope.kind === 'matrix'
-        ? { kind: 'matrix' as const, origin: matrix!.origin }
-        : activeScope.kind === 'row'
-          ? { kind: 'row' as const, index: matrixCell!.row, offset: matrix?.rowOffsets?.[matrixCell!.row] ?? { x: 0, y: 0 } }
-          : activeScope.kind === 'column'
-            ? { kind: 'column' as const, index: matrixCell!.column, offset: matrix?.columnOffsets?.[matrixCell!.column] ?? { x: 0, y: 0 } }
-            : undefined
-      : undefined;
-    const ids = usesMatrixScope && matrix && matrixCell
-      ? matrix.partIds.filter((id) => {
-        const cell = matrixPartLookup.get(id);
-        if (!cell) return false;
-        if (matrixScope?.kind === 'row') return cell.row === matrixScope.index;
-        if (matrixScope?.kind === 'column') return cell.column === matrixScope.index;
-        return true;
-      })
-      : selected.includes(part.id) ? selected : [part.id];
-    setScope(activeScope);
-    setSelectionMode(activeScope.kind);
-    if (!selected.includes(part.id) && matrixCell && !matrixCell.assemblyId) {
-      setSelectionAnchor({ matrixId: matrixCell.matrixId, row: matrixCell.row, column: matrixCell.column });
-    }
-    setOutlineSettingsOpen(false);
-    const origins = ids.map((id) => parts.get(id)).filter((item): item is Part => Boolean(item)).map((item) => ({ id: item.id, at: item.pose.at }));
-    setSelected(ids);
-    setRightOpen(true);
-    const transactionId = makeId();
-    transaction.current = transactionId;
-    dragRef.current = {
-      ids,
-      origins,
-      pointerStart,
-      pending: origins,
-      transactionId,
-      pointerId: event.pointerId,
-      target: event.currentTarget,
-      bounds,
-      frame: null,
-      moved: false,
-      ...(matrixScope && matrix ? { matrixScope, pendingMatrix: matrix } : {}),
-      ...(matrixCell && matrix && ids.length === 1 ? {
-        matrixCell: {
-          ...matrixCell,
-          offset: matrixCell.assemblyId
-            ? matrixCellOverrides.get(matrix.id)?.get(`${matrixCell.row}:${matrixCell.column}`)?.assemblies?.find((assembly) => assembly.id === matrixCell.assemblyId)?.offset ?? { x: 0, y: 0 }
-            : matrixCellOverrides.get(matrix.id)?.get(`${matrixCell.row}:${matrixCell.column}`)?.offset ?? { x: 0, y: 0 },
-        },
-        pendingMatrix: matrix,
-      } : {}),
-    };
-  };
-
-  const moveDrag = (event: React.PointerEvent<SVGGElement>) => {
-    const drag = dragRef.current;
-    if (!drag || event.pointerId !== drag.pointerId) return;
-    const point = pointFromEvent(event, svgRef.current);
-    if (!point) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const dx = point.x - drag.pointerStart.x;
-    const dy = point.y - drag.pointerStart.y;
-    if (drag.matrixScope && drag.pendingMatrix) {
-      const matrix = drag.pendingMatrix;
-      const pointerDelta = { x: dx, y: dy };
-      const local = drag.matrixScope.kind === 'matrix' ? pointerDelta : localMatrixDelta(matrix, pointerDelta, drag.matrixScope.kind === 'column' ? drag.matrixScope.index : 0);
-      const delta = event.altKey ? local : snapDelta(local, matrix.pitch, snapFraction);
-      if (drag.matrixScope.kind === 'matrix') {
-        drag.pendingMatrix = { ...matrix, origin: { x: drag.matrixScope.origin.x + delta.x, y: drag.matrixScope.origin.y + delta.y } };
-      } else {
-        const offsets = drag.matrixScope.kind === 'row' ? [...(matrix.rowOffsets ?? [])] : [...(matrix.columnOffsets ?? [])];
-        while (offsets.length <= drag.matrixScope.index) offsets.push({ x: 0, y: 0 });
-        offsets[drag.matrixScope.index] = { x: drag.matrixScope.offset.x + delta.x, y: drag.matrixScope.offset.y + delta.y };
-        drag.pendingMatrix = drag.matrixScope.kind === 'row'
-          ? { ...matrix, rowOffsets: offsets }
-          : { ...matrix, columnOffsets: offsets };
-      }
-      drag.moved = true;
-      if (drag.frame !== null) return;
-      drag.frame = window.requestAnimationFrame(() => {
-        drag.frame = null;
-        if (drag.pendingMatrix) commitMatrix(drag.pendingMatrix, 'preview', drag.transactionId);
-      });
-      return;
-    }
-    if (drag.matrixCell && drag.pendingMatrix) {
-      const matrix = drag.pendingMatrix;
-      const local = localMatrixDelta(matrix, { x: dx, y: dy }, drag.matrixCell.column);
-      const moved = event.altKey ? local : snapDelta(local, matrix.pitch, snapFraction);
-      const offset = { x: drag.matrixCell.offset.x + moved.x, y: drag.matrixCell.offset.y + moved.y };
-      const currentCell = matrixCellOverrides.get(matrix.id)?.get(`${drag.matrixCell.row}:${drag.matrixCell.column}`);
-      drag.pendingMatrix = drag.matrixCell.assemblyId && drag.matrixCell.assemblyId !== 'diode'
-        ? withCell(matrix, drag.matrixCell.row, drag.matrixCell.column, {
-          assemblies: (currentCell?.assemblies ?? []).map((assembly) => assembly.id === drag.matrixCell!.assemblyId ? { ...assembly, offset } : assembly),
-        })
-        : withCell(matrix, drag.matrixCell.row, drag.matrixCell.column, { offset });
-      drag.moved = true;
-      if (drag.frame !== null) return;
-      drag.frame = window.requestAnimationFrame(() => {
-        drag.frame = null;
-        if (drag.pendingMatrix) commitMatrix(drag.pendingMatrix, 'preview', drag.transactionId);
-      });
-      return;
-    }
-    drag.pending = drag.origins.map(({ id, at }) => ({ id, at: { x: at.x + dx, y: at.y + dy } }));
-    const keyUnit = (scope?.matrixId ? matrixMap.get(scope.matrixId)?.pitch : undefined) ?? { x: PITCH_MM, y: PITCH_MM };
-    if (!event.altKey) {
-      const snapped = snapDelta({ x: dx, y: dy }, keyUnit, snapFraction);
-      drag.pending = drag.origins.map(({ id, at }) => ({ id, at: { x: at.x + snapped.x, y: at.y + snapped.y } }));
-    }
-    if (!event.altKey && geometrySnap && drag.origins.length === 1) {
-      const original = parts.get(drag.origins[0].id);
-      if (original) {
-        const moving = { ...original, pose: { ...original.pose, at: { x: drag.origins[0].at.x + dx, y: drag.origins[0].at.y + dy } } };
-        const snap = snapPart(moving, visibleParts.filter((part) => !drag.ids.includes(part.id)), definitions, 2, gapSnap ? effectiveGap : null);
-        setSnapGuide(snap);
-        if (snap) drag.pending = [{ id: original.id, at: snap.at }];
-      }
-    } else setSnapGuide(undefined);
-    drag.moved = true;
-    if (drag.frame !== null) return;
-    drag.frame = window.requestAnimationFrame(() => {
-      drag.frame = null;
-      emit({ kind: 'move-parts', positions: drag.pending }, drag.ids, 'preview', drag.transactionId);
-    });
-  };
-
-  const endDrag = (event: React.PointerEvent<SVGGElement>) => {
-    setSnapGuide(undefined);
-    const drag = dragRef.current;
-    if (!drag || event.pointerId !== drag.pointerId) return;
-    event.stopPropagation();
-    if (drag.frame !== null) window.cancelAnimationFrame(drag.frame);
-    if (drag.moved) {
-      suppressClick.current = true;
-      if (drag.pendingMatrix) {
-        commitMatrix(drag.pendingMatrix, 'preview', drag.transactionId);
-        commitMatrix(drag.pendingMatrix, 'commit', drag.transactionId);
-      } else {
-        emit({ kind: 'move-parts', positions: drag.pending }, drag.ids, 'preview', drag.transactionId);
-        emit({ kind: 'move-parts', positions: drag.pending }, drag.ids, 'commit', drag.transactionId);
-      }
-      window.setTimeout(() => { suppressClick.current = false; }, 0);
-    }
-    if (drag.target.hasPointerCapture(drag.pointerId)) drag.target.releasePointerCapture(drag.pointerId);
-    dragRef.current = null;
-  };
-
-  const startStagger = (event: React.PointerEvent<SVGElement>, matrix: Matrix, axis: 'row' | 'column', index: number) => {
-    if (event.button !== 0) return;
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const values = axis === 'row' ? matrix.rowOffsets : matrix.columnOffsets;
-    const offset = values?.[index] ?? { x: 0, y: 0 };
-    staggerDragRef.current = {
-      matrixId: matrix.id,
-      axis,
-      index,
-      startClient: { x: event.clientX, y: event.clientY },
-      worldPerPixel: { x: viewBounds.width / rect.width, y: viewBounds.height / rect.height },
-      offset,
-      pointerId: event.pointerId,
-      target: event.currentTarget,
-      pending: matrix,
-    };
-    selectScope(axis === 'row'
-      ? { kind: 'row', matrixId: matrix.id, row: index }
-      : { kind: 'column', matrixId: matrix.id, column: index });
-  };
-
-  const startSplay = (event: React.PointerEvent<SVGGElement>, kind: 'origin' | 'angle') => {
-    const matrix = scope?.matrixId ? matrixMap.get(scope.matrixId) : undefined;
-    if (!matrix || scope?.column === undefined || event.button !== 0) return;
-    const point = pointFromEvent(event, svgRef.current);
-    if (!point) return;
-    const origin = matrixScenes.get(matrix.id)?.basis(scope.column)?.splayOrigin;
-    if (!origin) return;
-    event.preventDefault(); event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    splayDrag.current = { matrix, origin, column: scope.column, kind, pointerId: event.pointerId,
-      startAngle: Math.atan2(point.y - origin.y, point.x - origin.x), target: event.currentTarget, transactionId: makeId(), bounds };
-  };
-
-  const moveCanvasPointer = (event: React.PointerEvent<SVGSVGElement>) => {
-    const splay = splayDrag.current;
-    if (splay && splay.pointerId === event.pointerId) {
-      const point = pointFromEvent(event, svgRef.current);
-      if (!point) return;
-      if (splay.kind === 'origin') splay.pending = { kind: 'origin', world: snapSplayOrigin(point, splay.matrix, event.altKey) };
-      else {
-        const origin = splay.origin;
-        const angle = Math.atan2(point.y - origin.y, point.x - origin.x) - splay.startAngle;
-        const delta = Math.atan2(Math.sin(angle), Math.cos(angle)) * 180 / Math.PI * (splay.matrix.mirror === 'x' || splay.matrix.mirror === 'y' ? -1 : 1);
-        const value = (splay.matrix.columnSplays?.[splay.column] ?? 0) + delta;
-        splay.pending = { kind: 'angle', angle: event.altKey ? value : Math.round(value), affect: splayAffect };
-      }
-      commitSplay(splay.matrix, splay.column, splay.pending, 'preview', splay.transactionId);
-      event.preventDefault(); return;
-    }
-    if (originPicking && selectedMatrix) {
-      const point = pointFromEvent(event, svgRef.current);
-      if (point) snapSplayOrigin(point, selectedMatrix, event.altKey);
-    }
-    if (pendingPart) {
-      const point = pointFromEvent(event, svgRef.current);
-      if (point) setPlacement((current) => movePlacement(current, snapPlacement(point, event.altKey)));
-    }
-    if (matrixGhost && mode === 'Design' && !panDrag.current) {
-      const point = pointFromEvent(event, svgRef.current);
-      if (point) setPlacement((current) => movePlacement(current, point));
-    }
-    const panState = panDrag.current;
-    if (panState && event.pointerId === panState.pointerId) {
-      const rect = svgRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const dx = (event.clientX - panState.startX) / rect.width * panState.width;
-      const dy = -(event.clientY - panState.startY) / rect.height * panState.height;
-      setPan({ x: panState.pan.x - dx, y: panState.pan.y - dy });
-      event.preventDefault();
-      return;
-    }
-    const drag = staggerDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const matrix = matrixMap.get(drag.matrixId);
-    if (!matrix) return;
-    const local = localMatrixDelta(matrix, {
-      x: (event.clientX - drag.startClient.x) * drag.worldPerPixel.x,
-      y: -(event.clientY - drag.startClient.y) * drag.worldPerPixel.y,
-    }, drag.axis === 'column' ? drag.index : 0);
-    const delta = event.altKey ? local : snapDelta(local, matrix.pitch, snapFraction);
-    const offset = { x: drag.offset.x + delta.x, y: drag.offset.y + delta.y };
-    const values = drag.axis === 'row' ? [...(matrix.rowOffsets ?? [])] : [...(matrix.columnOffsets ?? [])];
-    while (values.length <= drag.index) values.push({ x: 0, y: 0 });
-    values[drag.index] = offset;
-    drag.pending = drag.axis === 'row' ? { ...matrix, rowOffsets: values } : { ...matrix, columnOffsets: values };
-    commitMatrix(drag.pending, 'preview', transaction.current);
-    event.preventDefault();
-  };
-
-  const endCanvasPointer = (event: React.PointerEvent<SVGSVGElement>) => {
-    setSnapGuide(undefined);
-    const splay = splayDrag.current;
-    if (splay && splay.pointerId === event.pointerId) {
-      if (splay.pending) {
-        if (event.type === 'pointercancel') commitMatrix(splay.matrix, 'preview', splay.transactionId);
-        else commitSplay(splay.matrix, splay.column, splay.pending, 'commit', splay.transactionId);
-      }
-      if (splay.target.hasPointerCapture(splay.pointerId)) splay.target.releasePointerCapture(splay.pointerId);
-      splayDrag.current = null;
-      suppressClick.current = true;
-      window.setTimeout(() => { suppressClick.current = false; }, 0);
-      return;
-    }
-    const panState = panDrag.current;
-    if (panState && event.pointerId === panState.pointerId) {
-      if (svgRef.current?.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId);
-      panDrag.current = null;
-      return;
-    }
-    const drag = staggerDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (drag.pending !== matrixMap.get(drag.matrixId)) commitMatrix(drag.pending, 'commit', transaction.current);
-    if (drag.target.hasPointerCapture(drag.pointerId)) drag.target.releasePointerCapture(drag.pointerId);
-    staggerDragRef.current = null;
-  };
-
   wheelZoom.current = (event: WheelEvent) => {
     const nextZoom = Math.min(4, Math.max(0.25, zoom * Math.exp(-event.deltaY * 0.001)));
     zoomAt(event.clientX, event.clientY, nextZoom);
@@ -1356,6 +1065,25 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     .filter(({ first, second }) => selectedIds.has(first.id) || selectedIds.has(second.id))
     .flatMap(({ first, second }) => [first.reference, second.reference]))];
   const effectiveGap = gapOverride.trim() && Number.isFinite(Number(gapOverride)) && Number(gapOverride) >= 0 ? Number(gapOverride) : selectedMatrix?.edgeGap?.x ?? 1;
+
+  const { startDrag, moveDrag, endDrag, startStagger, startSplay, moveCanvasPointer, endCanvasPointer, snapSplayOrigin, cancelInteractions } = createCanvasInteractions({
+    refs: { dragRef, staggerDragRef, splayDrag, panDrag, svgRef, suppressClick, spaceDown, transaction },
+    selection: { selected, scope, selectionMode, setScope, setSelectionMode, setSelectionAnchor, setSelected, setOutlineSettingsOpen, setRightOpen, selectScope },
+    layout: { matrixPartLookup, matrixMap, matrixCellOverrides, matrixScenes, parts, definitions, visibleParts, bounds },
+    snapping: { snapFraction, geometrySnap, gapSnap, effectiveGap, setSnapGuide },
+    placement: { outlineActive, pendingPart, matrixGhost, mode, originPicking, selectedMatrix, splayAffect, snapPlacement, setPlacement },
+    camera: { viewBounds, setPan },
+    edits: { emit, commitMatrix, commitSplay },
+  });
+  const interactionContext = useRef({ documentId: document.id, projectSession });
+  useEffect(() => {
+    const previous = interactionContext.current;
+    const sameProject = previous.documentId === document.id && previous.projectSession === projectSession;
+    cancelInteractions(sameProject ? 'restore' : 'discard');
+    interactionContext.current = { documentId: document.id, projectSession };
+  }, [document.id, projectSession, selectedBoardId]);
+  useEffect(() => () => { cancelInteractions('discard'); }, []);
+
   const linkedSelection = partnerLayout && (scope?.kind !== 'component' || (activePart && matrixPartLookup.has(activePart.id) && !matrixPartLookup.get(activePart.id)?.assemblyId));
   const movingCounterparts = new Set(linkedSelection ? matrixMap.get(partnerLayout.matrixId)?.partIds ?? [] : []);
   const alignTargets = visibleParts.filter((part) => !selectedIds.has(part.id) && !movingCounterparts.has(part.id));
@@ -1591,137 +1319,27 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         ? <section className="wb-mechanical-panel"><h3>Mechanical stack belongs to {configuredBoard?.name ?? caseDocument.mechanical.boardId}</h3><p>This board shows its authored case bodies. Select a physical assembly to configure a separate case.</p><button className="wb-secondary" disabled={!configuredBoard} onClick={() => configuredBoard && selectBoard(configuredBoard.id)}>Show configured board</button></section>
         : <MechanicalAssemblyPanel readiness={mechanicalReadiness} diagnosticsRequest={diagnosticsRequest} onDiagnosticsShown={() => setDiagnosticsRequest(0)} generationTarget={caseActionsTarget} onRevealDiagnostics={revealMechanicalInspector} document={caseDocument} boardId={selectedBoardId} projectSession={projectSession} definitions={libraryDefinitions} configuration={caseDocument.mechanical} assembly={mechanicalAssembly} onChange={(configuration) => emit({ kind: 'set-mechanical', configuration }, [document.id])} onResolve={onResolveMechanical} onCancel={onCancelGeneration} generation={generation} onExport={onExportMechanical} onMechanicalProfile={onMechanicalProfile} onExtractMechanicalProfile={onExtractMechanicalProfile} onEditParts={(definitionId) => { changeMode('Library'); setLibraryChoice(definitionId); setLibraryAssembly(null); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} onShowFinding={showFinding} selectedLayer={selectedMechanicalLayer} onSelectLayer={setSelectedMechanicalLayer} />;
       if (generatedCase) return <>{instanceSetup}{mechanicalPanel}<p className="wb-empty-note">Generated assembly preview · {document.caseBodies.filter((body) => body.boardId === selectedBoardId).length} authored case bodies remain saved. Disable the mechanical stack to preview and edit them.</p></>;
-      const caseFindings = activeCaseBody ? scene.findings.filter((finding) => finding.scope === 'case' && (finding.targetIds.length === 0 || finding.targetIds.includes(activeCaseBody.id))) : [];
-      return <>
-        {instanceSetup}
-        {mechanicalPanel}
-        <div className="wb-panel-rule" />
-        <div className="wb-inspect-head"><h2>Case stack</h2><button className="wb-case-new-body" onClick={addCaseBody} disabled={!selectedBoard}>+ New case body</button></div>
-        <CaseGenerationControls target={caseActionsTarget} onConfigure={!document.mechanical ? () => {
-          revealMechanicalInspector();
-          requestAnimationFrame(() => globalThis.document.querySelector<HTMLButtonElement>('.wb-mech-start button')?.focus());
-        } : undefined} generation={generation} onGenerate={activeCaseBody ? onResolveMechanical : undefined} onCancel={onCancelGeneration}>
-          <span className="wb-mech-revision">{!activeCaseBody ? 'Add a case body to generate geometry.' : casePreview?.revision === scene.revision && caseReady ? 'Preview current' : 'Generate builds the current case solids'}</span>
-        </CaseGenerationControls>
-        {document.caseBodies.some((body) => !selectedBoard || body.boardId === selectedBoard.id) && <div className="wb-case-body-list">{document.caseBodies.filter((body) => !selectedBoard || body.boardId === selectedBoard.id).map((body, index) => <button className={`wb-case-body-tab ${body.id === activeCaseBody?.id ? 'is-active' : ''}`} key={body.id} onClick={() => setCaseBodyId(body.id)}>
-          <span>{String(index + 1).padStart(2, '0')}</span><strong>{body.name}</strong><small>{body.kind}</small>
-        </button>)}</div>}
-        {!activeCaseBody ? <div className="wb-case-empty"><p>{selectedBoard ? 'Add a plate, tray, or lid to begin the case stack.' : 'Add a board before creating a case body.'}</p></div> : <>
-          <div className="wb-case-controls">
-            <label className="wb-case-select"><span>Body type</span><select value={activeCaseBody.kind} onChange={(event) => {
-              const kind = event.target.value as CaseBody['kind'];
-              updateCaseBody({ kind, wallHeight: activeCaseBody.wallHeight ?? 14, wallThickness: activeCaseBody.wallThickness ?? 2 });
-            }}>
-              <option value="plate">Plate</option><option value="tray">Tray</option><option value="lid">Lid</option>
-            </select></label>
-            <div className="wb-case-measures">
-              <CaseNumber label="Thickness" value={activeCaseBody.thickness} unit="mm" validation="positive" onCommit={(value) => updateCaseBody({ thickness: value })} />
-              <CaseNumber label="Clearance" value={activeCaseBody.clearance} unit="mm" validation="nonnegative" onCommit={(value) => updateCaseBody({ clearance: value })} />
-              <CaseNumber label="Z offset" value={activeCaseBody.z ?? 0} unit="mm" validation="finite" onCommit={(value) => updateCaseBody({ z: value })} />
-              {activeCaseBody.kind !== 'plate' && <><CaseNumber label="Wall height" value={activeCaseBody.wallHeight ?? 14} unit="mm" validation="positive" onCommit={(value) => updateCaseBody({ wallHeight: value })} />
-              <CaseNumber label="Wall thickness" value={activeCaseBody.wallThickness ?? 2} unit="mm" validation="positive" onCommit={(value) => updateCaseBody({ wallThickness: value })} /></>}
-            </div>
-          </div>
-          <InspectorSection title="Mounting" detail={`${activeCaseBody.mounts?.length ?? 0} mounts`} defaultOpen={Boolean(activeCaseBody.mounts?.length)}>
-          <div className="wb-case-section-head"><h3 className="wb-subtitle">Mounts <small>{activeCaseBody.mounts?.length ?? 0}</small></h3><button onClick={addMount}>+ Add mount</button></div>
-          {(activeCaseBody.mounts ?? []).map((mount, index) => <div className="wb-mount-editor" key={mount.id}>
-            <div className="wb-mount-head"><strong>Mount {index + 1}</strong><button aria-label={`Remove mount ${index + 1}`} onClick={() => removeMount(mount.id)}>Remove</button></div>
-            <label className="wb-case-select"><span>Type</span><select value={mount.kind} onChange={(event) => updateMount(mount.id, { kind: event.target.value as 'hole' | 'boss' })}><option value="hole">Hole</option><option value="boss">Boss</option></select></label>
-            <div className="wb-case-measures">
-              <CaseNumber label="X position" value={mount.at.x} unit="mm" validation="finite" onCommit={(value) => updateMount(mount.id, { at: { ...mount.at, x: value } })} />
-              <CaseNumber label="Y position" value={mount.at.y} unit="mm" validation="finite" onCommit={(value) => updateMount(mount.id, { at: { ...mount.at, y: value } })} />
-              <CaseNumber label="Hole diameter" value={mount.holeDiameter} unit="mm" validation="positive" onCommit={(value) => updateMount(mount.id, { holeDiameter: value })} />
-              {mount.kind === 'boss' && <>
-                <CaseNumber label="Boss diameter" value={mount.bossDiameter ?? 5} unit="mm" validation="positive" onCommit={(value) => updateMount(mount.id, { bossDiameter: value })} />
-                <CaseNumber label="Height" value={mount.height ?? 5} unit="mm" validation="positive" onCommit={(value) => updateMount(mount.id, { height: value })} />
-              </>}
-            </div>
-          </div>)}
-          </InspectorSection>
-          <InspectorSection title="Gasket channel" detail={activeCaseBody.gasket ? "Configured" : "Optional"} defaultOpen={Boolean(activeCaseBody.gasket)}>
-          <div className="wb-case-section-head"><h3 className="wb-subtitle">Gasket channel</h3>{activeCaseBody.gasket ? <button onClick={() => updateCaseBody({ gasket: undefined })}>Remove</button> : <button onClick={() => updateCaseBody({ gasket: { inset: 2, width: 2, depth: 1.5 } })}>+ Add gasket</button>}</div>
-          {activeCaseBody.gasket && <div className="wb-case-measures wb-gasket-measures">
-            <CaseNumber label="Inset" value={activeCaseBody.gasket.inset} unit="mm" validation="nonnegative" onCommit={(value) => updateCaseBody({ gasket: { ...activeCaseBody.gasket!, inset: value } })} />
-            <CaseNumber label="Width" value={activeCaseBody.gasket.width} unit="mm" validation="positive" onCommit={(value) => updateCaseBody({ gasket: { ...activeCaseBody.gasket!, width: value } })} />
-            <CaseNumber label="Depth" value={activeCaseBody.gasket.depth} unit="mm" validation="positive" onCommit={(value) => updateCaseBody({ gasket: { ...activeCaseBody.gasket!, depth: value } })} />
-          </div>}
-          </InspectorSection>
-        </>}
-        {caseFindings.length > 0 && <InspectorSection title="Clearance review" defaultOpen><FindingList document={document} onShow={showFinding} findings={caseFindings} /></InspectorSection>}
-      </>;
+      return <CaseInspectorPanel bodies={document.caseBodies} activeCaseBody={activeCaseBody} selectedBoard={selectedBoard}
+        findings={scene.findings} findingDocument={document} onShowFinding={showFinding}
+        mechanicalPanel={mechanicalPanel} instanceSetup={instanceSetup} caseActionsTarget={caseActionsTarget}
+        generation={generation} canConfigure={!document.mechanical} previewCurrent={casePreview?.revision === scene.revision && caseReady}
+        onConfigure={() => { revealMechanicalInspector(); requestAnimationFrame(() => globalThis.document.querySelector<HTMLButtonElement>('.wb-mech-start button')?.focus()); }}
+        onResolveMechanical={onResolveMechanical} onCancelGeneration={onCancelGeneration}
+        setCaseBodyId={setCaseBodyId} addCaseBody={addCaseBody} updateCaseBody={updateCaseBody}
+        addMount={addMount} updateMount={updateMount} removeMount={removeMount}
+      />;
     }
-    if (mode === 'Library') {
-      return <>
-        <section aria-label="Saved assemblies"><h2>Assemblies</h2><button onClick={() => setEditingAssembly({ id: makeId(), name: 'New assembly', members: [] })}>New assembly</button>{(document.assemblies ?? []).map(assembly => <div key={assembly.id}><button onClick={() => setEditingAssembly(assembly)}>{assembly.name}</button><button aria-label={`Duplicate ${assembly.name}`} onClick={() => setEditingAssembly({ ...structuredClone(assembly), id: makeId(), name: `${assembly.name} copy` })}>Duplicate</button></div>)}</section>
-        <div className="wb-inspect-head"><h2>{libraryAssembly ? assemblyName(libraryAssembly) : (selectedLibraryDefinition ? partCatalogLabel(selectedLibraryDefinition) : 'Select a part')}</h2></div>
-        {libraryAssembly && <section aria-label="Assembly settings"><p className="wb-empty-note">{matrixPresetDefinitions[libraryAssembly].led ? 'SK6812 MINI-E mounted underneath, shining through the PCB into the switch. The LED sits opposite the socket or solder pins.' : 'Switch footprint with an underside diode.'}</p><OrientationControl value={assemblyOrientation} onChange={setAssemblyOrientation} /><button className="wb-primary" onClick={() => beginMatrixPlacement(1, 1, libraryAssembly)}>Place key assembly</button><button className="wb-secondary" onClick={() => setEditingAssembly(assemblyPreset(libraryAssembly, libraryDefinitions, assemblyOrientation))}>Customize 3D assembly</button></section>}
-        {!libraryAssembly && selectedLibraryDefinition && <section className="wb-library-preview" aria-label="Selected footprint settings">
-          <p className="wb-inspector-description">{selectedLibraryDefinition.kind === 'switch' ? 'Switch footprint' : selectedLibraryDefinition.kind === 'custom' ? 'Custom component' : 'Component footprint'} · {formatSize(selectedLibraryDefinition.courtyard)}</p>
-          <button className="wb-primary wb-place-part" disabled={Boolean(generatorPreview?.error)} onClick={() => scope?.kind === 'key' ? placeLibraryDefinition(selectedLibraryDefinition) : beginPartPlacement(selectedLibraryDefinition)}>{scope?.kind === 'key' ? 'Apply to selected key' : 'Place component'} <ArrowIcon /></button>
-          {ergogenGenerator && <fieldset className="wb-generator-settings">
-            <legend>Part options</legend>
-            {ergogenGenerator && <GeneratorFields definition={selectedLibraryDefinition} edits={libraryParameters} onChange={updateGenerator} onImportModel={onImportModel} error={generatorPreview?.error} />}
-            {generatorPreview?.error && <p className="wb-generator-error" role="alert">{generatorPreview.error}</p>}
-            {previewCompilePending && <p role="status">Compiling footprint preview…</p>}
-            {previewCompileError && <p className="wb-generator-error" role="alert">{previewCompileError}</p>}
-            <button className="wb-secondary" disabled={Boolean(generatorPreview?.error || previewCompilePending || previewCompileError)} onClick={saveGenerator}>Apply generator settings</button>
-          </fieldset>}
-          {selectedLibraryDefinition.envelopeNotice && <p className="wb-empty-note">{selectedLibraryDefinition.envelopeNotice}</p>}
-          {!ergogenGenerator && <InspectorSection title="Keycap & outline" defaultOpen={selectedLibraryDefinition.kind === 'switch'}>
-            <DefinitionKeycapControls definition={selectedLibraryDefinition} onChange={(keycap) => updateDefinition({ keycap })} />
-            {selectedLibraryDefinition.kind !== 'switch' && <p className="wb-empty-note">The component courtyard defines its outline contribution. Adjust the edge margin after placing it.</p>}
-          </InspectorSection>}
-        </section>}
-        {!libraryAssembly && editDefinition && !editDefinition.generator && <InspectorSection title="Edit footprint" detail="Custom geometry" defaultOpen={editDefinition.pads.length === 0}>
-        {editDefinition && <section className="wb-definition-editor" aria-label="Custom component definition editor">
-          <label>Name<DraftInput ariaLabel="Definition name" value={editDefinition.name} onCommit={(value) => updateDefinition({ name: value })} /></label>
-          <label>Kind<select aria-label="Definition kind" value={editDefinition.kind} onChange={(event) => updateDefinition({ kind: event.target.value as PartDefinition['kind'] })}>
-            <option value="switch">Switch</option><option value="controller">Controller</option><option value="connector">Connector</option><option value="encoder">Encoder</option><option value="passive">Passive</option><option value="custom">Custom</option>
-          </select></label>
-          <div className="wb-definition-dimensions"><strong>Rectangular courtyard <small>mm</small></strong>
-            <label>Width<DraftInput ariaLabel="Courtyard width" type="number" min="0.01" step="0.1" value={courtyardSize(editDefinition.courtyard).x} onCommit={(value) => updateCourtyard('x', value)} /></label>
-            <label>Height<DraftInput ariaLabel="Courtyard height" type="number" min="0.01" step="0.1" value={courtyardSize(editDefinition.courtyard).y} onCommit={(value) => updateCourtyard('y', value)} /></label>
-          </div>
-          <div className="wb-definition-pad-heading"><strong>Pads <small>{editDefinition.pads.length}</small></strong><button type="button" disabled={Boolean(editDefinition.kicadSource)} onClick={addDefinitionPad}>+ Add pad</button></div>
-          {editDefinition.kicadSource && <p className="wb-empty-note">Imported pad geometry stays linked to its original KiCad source. Edit the footprint envelope, reference, nets, and attached models here.</p>}
-          {editDefinition.pads.map((pad, index) => <fieldset className="wb-definition-pad" key={index} disabled={Boolean(editDefinition.kicadSource)}>
-            <legend>Pad {index + 1}</legend>
-            <div className="wb-definition-pad-grid">
-              <label>ID<DraftInput ariaLabel={`Pad ${index + 1} ID`} value={pad.id} onCommit={(value) => commitPadField(pad.id, 'id', value)} /></label>
-              <label>Number<DraftInput ariaLabel={`Pad ${index + 1} number`} value={pad.number} onCommit={(value) => commitPadField(pad.id, 'number', value)} /></label>
-              <label>X<DraftInput ariaLabel={`Pad ${index + 1} X`} type="number" step="0.1" value={pad.at.x} onCommit={(value) => commitPadNumber(pad.id, 'atX', value)} /></label>
-              <label>Y<DraftInput ariaLabel={`Pad ${index + 1} Y`} type="number" step="0.1" value={pad.at.y} onCommit={(value) => commitPadNumber(pad.id, 'atY', value)} /></label>
-              <label>Width<DraftInput ariaLabel={`Pad ${index + 1} width`} type="number" min="0.01" step="0.1" value={pad.size.x} onCommit={(value) => commitPadNumber(pad.id, 'sizeX', value)} /></label>
-              <label>Height<DraftInput ariaLabel={`Pad ${index + 1} height`} type="number" min="0.01" step="0.1" value={pad.size.y} onCommit={(value) => commitPadNumber(pad.id, 'sizeY', value)} /></label>
-              <label>Shape<select aria-label={`Pad ${index + 1} shape`} value={pad.shape} onChange={(event) => updatePad(pad.id, { shape: event.target.value as PartDefinition['pads'][number]['shape'] })}>
-                <option value="circle">Circle</option><option value="oval">Oval</option><option value="rect">Rectangle</option><option value="roundrect">Rounded rectangle</option>
-              </select></label>
-              <label>Drill<DraftInput ariaLabel={`Pad ${index + 1} drill`} type="number" min="0.01" step="0.1" placeholder="None" value={pad.drill ?? ''} onCommit={(value) => commitPadNumber(pad.id, 'drill', value)} /></label>
-            </div>
-            <button className="wb-definition-remove-pad" type="button" onClick={() => removeDefinitionPad(pad.id)}>Remove pad</button>
-          </fieldset>)}
-          <ul className="wb-definition-validation" aria-live="polite">{definitionIssues(editDefinition).map((issue) => <li key={issue}>{issue}</li>)}</ul>
-          {definitionError && <p className="wb-definition-error" role="alert">{definitionError}</p>}
-          <p className="wb-model-bound">Definitions in use stay in the library; edits apply to every placed instance.</p>
-        </section>}
-        </InspectorSection>}
-        {!libraryAssembly && !ergogenGenerator && onImportModel && <InspectorSection title="3D model" detail={activeModelDefinition?.models?.[0] ? "Attached" : "Optional"}>
-          <section className="wb-model-import" aria-label="3D model binding">
-          {activeModelDefinition?.models?.[0] ? <p className="wb-model-bound">Bound asset: {document.assets.find((asset) => asset.id === activeModelDefinition.models![0]?.assetId)?.name ?? activeModelDefinition.models![0].assetId}</p> : <p className="wb-model-bound">No model attached to this definition.</p>}
-          <label className="wb-footprint-import">Attach STEP / STL / WRL model<input type="file" accept=".step,.stp,.stl,.wrl,model/step,model/vrml" disabled={!activeModelDefinition} onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            if (file) attachModel(file);
-            event.currentTarget.value = '';
-          }} /></label>
-          {activeModelDefinition?.models?.[0] && <div className="wb-model-transforms">
-            <h4>Model alignment</h4>
-            <ModelVector title="Offset" value={activeModelDefinition.models![0].offset} unit="mm" validation="finite" onCommit={(axis, value) => updateModel('offset', axis, value)} />
-            <ModelVector title="Rotation" value={activeModelDefinition.models![0].rotation} unit="°" validation="finite" onCommit={(axis, value) => updateModel('rotation', axis, value)} />
-            <ModelVector title="Scale" value={activeModelDefinition.models![0].scale} unit="×" validation="positive" onCommit={(axis, value) => updateModel('scale', axis, value)} />
-          </div>}
-        </section></InspectorSection>}
-      </>;
-    }
+    if (mode === 'Library') return <PartsInspectorPanel
+      document={document} libraryAssembly={libraryAssembly} libraryDefinitions={libraryDefinitions}
+      assemblyOrientation={assemblyOrientation} setAssemblyOrientation={setAssemblyOrientation} setEditingAssembly={setEditingAssembly}
+      onPlaceAssembly={(preset) => beginMatrixPlacement(1, 1, preset)}
+      onPlaceDefinition={(definition) => scope?.kind === 'key' ? placeLibraryDefinition(definition) : beginPartPlacement(definition)}
+      applyToKey={scope?.kind === 'key'} selectedLibraryDefinition={selectedLibraryDefinition}
+      editDefinition={editDefinition} activeModelDefinition={activeModelDefinition} onImportModel={onImportModel}
+      definitionError={definitionError} actions={libraryActions}
+      generator={{ enabled: ergogenGenerator, edits: libraryParameters, error: generatorPreview?.error,
+        compilePending: previewCompilePending, compileError: previewCompileError, onChange: updateGenerator, onSave: saveGenerator }}
+    />;
     if (mode === 'Export') {
       const outputs: { label: string; ready: boolean; detail: string; kind: ExportKind }[] = [
         { label: 'KiCad board', ready: boardReady && wiring?.ready === true, detail: 'Resolved wiring, placements and edge cuts · ready for routing', kind: 'kicad' },
@@ -1745,20 +1363,33 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         <button className="wb-primary wb-export-action" onClick={() => onExport('project')}>Save .boardstudio project <ArrowIcon /></button>
       </>;
     }
-    if (selectedMatrix && scope && scope.kind !== 'component') return <>
-      <div className="wb-inspect-head wb-matrix-detail-heading"><h2>{selectionTitle}</h2></div>
-      {scope.kind === 'matrix' && <div className="wb-object-actions"><label>{activeLayout ? 'Layout name' : 'Matrix name'}<DraftInput ariaLabel={activeLayout ? 'Layout name' : 'Matrix name'} value={activeLayout?.name ?? selectedMatrix.name ?? selectionTitle} onCommit={(name) => { if (name.trim()) activeLayout ? emit({ kind: 'set-layout', layout: { ...activeLayout, name: name.trim() } }, [activeLayout.id]) : commitMatrix({ ...selectedMatrix, name: name.trim() }); }} /></label></div>}
-      {activeLayout && <div className="wb-layout-link"><strong><MirrorPairIcon />{partnerLayout ? `Linked to ${partnerLayout.name}` : 'Independent layout'}</strong><p>{partnerLayout ? 'Key assemblies, diodes and components mirror across both halves. Replace a component on one half to keep it local.' : 'Geometry and components can be edited independently.'}</p>{linkedLayout && <button className="wb-secondary" onClick={() => emit({ kind: 'set-layout', layout: { ...linkedLayout, mirrorLink: undefined } }, [linkedLayout.id])}>Unlink halves</button>}</div>}
-      {(['key', 'row', 'column', 'matrix'].includes(scope.kind)) && selectedKeycaps.length > 0 && <>
-        <KeySizeControls key={JSON.stringify(scope)} items={selectedKeycaps.map(({ placement, pitch, gap }) => ({ size: placement.size, pitch, gap }))} onCommit={commitKeycapResize} />
-        {selectedKeycapOverlapReferences.length > 0 && <p className="wb-key-size-warning" role="status">Keycaps overlap: {selectedKeycapOverlapReferences.slice(0, 8).join(', ')}{selectedKeycapOverlapReferences.length > 8 ? ` and ${selectedKeycapOverlapReferences.length - 8} more` : ''}. Adjust their rows or columns to clear the overlap.</p>}
-      </>}
-      {scope.kind === 'matrix'
-        ? <MatrixEditor catalog={libraryDefinitions} document={document} onEdit={onEdit} scope={scope} onDuplicateDesign={onDuplicateDesign} />
-        : <CellInspector projection={matrixScenes.get(selectedMatrix.id)} onSplay={(column, change) => commitSplay(selectedMatrix, column, change)} splayAffect={splayAffect} onAffectChange={setSplayAffect} onPickOrigin={() => { setTransformTool('origin'); setOriginPicking(true); setRightOpen(false); }} matrix={selectedMatrix} scope={scope} definitions={libraryDefinitions} parts={treeParts} members={memberMaps.get(selectedMatrix.id) ?? new Map()} isMirrorTarget={Boolean(activeLayout?.mirrorLink)} onChange={(matrix, definitions) => commitMatrix(matrix, 'commit', undefined, definitions)} />}
-      {scope.kind === 'matrix' && <InspectorSection title="Matrix actions"><button className="wb-secondary" onClick={() => { emit({ kind: 'remove-matrix', id: selectedMatrix.id }, [selectedMatrix.id, ...selectedMatrix.partIds]); setScope(null); setSelected([]); }}>Delete matrix</button></InspectorSection>}
-
-    </>;
+    if (selectedMatrix && scope && scope.kind !== 'component') return <MatrixInspectorPanel
+      title={selectionTitle}
+      matrix={selectedMatrix}
+      scope={scope}
+      layout={activeLayout}
+      partnerLayout={partnerLayout}
+      linkedLayout={linkedLayout}
+      selectedKeycaps={selectedKeycaps}
+      overlapReferences={selectedKeycapOverlapReferences}
+      onKeycapResize={commitKeycapResize}
+      onEdit={onEdit}
+      onLayoutChange={(layout) => emit({ kind: 'set-layout', layout }, [layout.id])}
+      onUnlink={(layout) => emit({ kind: 'set-layout', layout: { ...layout, mirrorLink: undefined } }, [layout.id])}
+      onDuplicateDesign={onDuplicateDesign}
+      document={document}
+      catalog={libraryDefinitions}
+      projection={matrixScenes.get(selectedMatrix.id)}
+      onSplay={(column, change) => commitSplay(selectedMatrix, column, change)}
+      splayAffect={splayAffect}
+      onSplayAffectChange={setSplayAffect}
+      onPickOrigin={() => { setTransformTool('origin'); setOriginPicking(true); setRightOpen(false); }}
+      parts={treeParts}
+      members={memberMaps.get(selectedMatrix.id) ?? new Map()}
+      isMirrorTarget={Boolean(activeLayout?.mirrorLink)}
+      onChange={(matrix, definitions) => commitMatrix(matrix, 'commit', undefined, definitions)}
+      onDelete={() => { emit({ kind: 'remove-matrix', id: selectedMatrix.id }, [selectedMatrix.id, ...selectedMatrix.partIds]); setScope(null); setSelected([]); }}
+    />;
     return <>
       <div className="wb-inspect-head"><h2>{selectionTitle}</h2>
         {activePart?.locked && <span className="wb-mini-tag is-locked">Locked</span>}</div>
@@ -1962,7 +1593,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             if (event.key === 'Enter') { event.preventDefault(); placeMatrixAt(matrixGhost.origin); }
             if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = PITCH_MM * (snapFraction || 0.25); setPlacement((current) => current.kind === 'matrix' || current.kind === 'mirrored-pair' ? movePlacement(current, { x: current.matrix.origin.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.matrix.origin.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); }
             return;
-          } if (!pendingPart) return; if (event.key === 'Enter') { event.preventDefault(); placePendingPart(placementPoint); } if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction ? PITCH_MM * snapFraction : nudgeStep; setPlacement((current) => current.kind === 'part' ? movePlacement(current, { x: current.point.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.point.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); } }} ref={svgRef} className={`wb-canvas ${matrixGhost ? 'is-placing-matrix' : ''}`} style={{ display: mode === 'Case' || mode === 'Library' || (mode === 'Design' && assembly3d) ? 'none' : undefined }} viewBox={`${viewBounds.minX} ${-viewBounds.maxY} ${viewBounds.width} ${viewBounds.height}`} role="application" aria-label="Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." onPointerDown={startCanvasPan} onPointerMove={moveCanvasPointer} onPointerUp={endCanvasPointer} onPointerCancel={endCanvasPointer} onClickCapture={(event) => { if (matrixGhost) { event.stopPropagation(); drawOutline(event); } }} onClick={drawOutline} onDoubleClick={finishOutline}>
+          } if (!pendingPart) return; if (event.key === 'Enter') { event.preventDefault(); placePendingPart(placementPoint); } if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction ? PITCH_MM * snapFraction : nudgeStep; setPlacement((current) => current.kind === 'part' ? movePlacement(current, { x: current.point.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.point.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); } }} ref={svgRef} className={`wb-canvas ${matrixGhost ? 'is-placing-matrix' : ''}`} style={{ display: mode === 'Case' || mode === 'Library' || (mode === 'Design' && assembly3d) ? 'none' : undefined }} viewBox={`${viewBounds.minX} ${-viewBounds.maxY} ${viewBounds.width} ${viewBounds.height}`} role="application" aria-label="Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." onPointerDown={startCanvasPan} onPointerMove={moveCanvasPointer} onPointerUp={endCanvasPointer} onPointerCancel={endCanvasPointer} onLostPointerCapture={endCanvasPointer} onClickCapture={(event) => { if (matrixGhost) { event.stopPropagation(); drawOutline(event); } }} onClick={drawOutline} onDoubleClick={finishOutline}>
             <defs><pattern id="wb-grid-small" width={unit / 2} height={unit / 2} patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="0.12" fill="var(--wb-grid-large)" stroke="none" /></pattern></defs>
             <rect x={viewBounds.minX} y={-viewBounds.maxY} width={viewBounds.width} height={viewBounds.height} fill="url(#wb-grid-small)" />
             <g transform="scale(1,-1)" style={outlineActive || pendingPart || originPicking ? { pointerEvents: 'none' } : undefined}>

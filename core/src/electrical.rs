@@ -367,6 +367,247 @@ fn required_signals<'a>(
     functions.into_iter().collect()
 }
 
+struct NetConstruction<'a> {
+    doc: &'a ProjectDoc,
+    keys: &'a [MatrixKey<'a>],
+    controller: Option<&'a Part>,
+    controller_definition: Option<&'a PartDefinition>,
+    peripherals: &'a [crate::electrical_peripherals::PeripheralRequirement],
+    rgb_parts: &'a [String],
+    allocated: &'a BTreeMap<String, &'a crate::electrical_profiles::PinCapability>,
+    locks: &'a BTreeMap<String, String>,
+    mode: ElectricalMode,
+    columns: usize,
+    diode_direction: &'a str,
+    prefix: &'a str,
+}
+
+#[derive(Default)]
+struct ConstructedNets {
+    nets: BTreeMap<String, Net>,
+    assignments: Vec<ElectricalAssignment>,
+    peripheral_pins: BTreeMap<String, String>,
+    diagnostics: Vec<ElectricalDiagnostic>,
+}
+
+fn construct_nets(input: NetConstruction<'_>) -> ConstructedNets {
+    let NetConstruction {
+        doc,
+        keys,
+        controller,
+        controller_definition,
+        peripherals,
+        rgb_parts,
+        allocated,
+        locks,
+        mode,
+        columns,
+        diode_direction,
+        prefix,
+    } = input;
+    let mut result = ConstructedNets::default();
+    let has_power_switch = peripherals
+        .iter()
+        .any(|peripheral| peripheral.kind == "power-switch");
+    for peripheral in peripherals {
+        let Some(part) = doc.parts.iter().find(|part| part.id == peripheral.part_id) else {
+            continue;
+        };
+        let Some(definition) = definition(doc, part) else {
+            continue;
+        };
+        for (terminal, function) in &peripheral.gpio_terminals {
+            let connections = pins(definition, terminal, &part.id);
+            if connections.is_empty() {
+                diagnostic(
+                    &mut result.diagnostics,
+                    "peripheral-terminal-missing",
+                    format!("{} has no available {terminal} terminal", part.reference),
+                    Some(&part.id),
+                );
+            }
+            add_net(&mut result.nets, prefix, function, connections);
+            if let (Some(controller), Some(definition), Some(pin)) =
+                (controller, controller_definition, allocated.get(function))
+            {
+                add_net(
+                    &mut result.nets,
+                    prefix,
+                    function,
+                    pins(definition, pin.terminal, &controller.id),
+                );
+                result
+                    .peripheral_pins
+                    .insert(function.clone(), pin.firmware_gpio.into());
+            }
+        }
+        for (terminal, destination) in &peripheral.fixed_terminals {
+            let target = if destination == "BAT_P" && !has_power_switch {
+                "RAW"
+            } else {
+                destination.as_str()
+            };
+            let function = format!("power/{}", target.to_lowercase());
+            add_net(
+                &mut result.nets,
+                prefix,
+                &function,
+                pins(definition, terminal, &part.id),
+            );
+            if let (Some(controller), Some(definition)) = (controller, controller_definition) {
+                if target != "BAT_P" {
+                    add_net(
+                        &mut result.nets,
+                        prefix,
+                        &function,
+                        pins(definition, target, &controller.id),
+                    );
+                }
+            }
+        }
+    }
+    for pair in rgb_parts.windows(2) {
+        let Some(previous) = doc.parts.iter().find(|part| part.id == pair[0]) else {
+            continue;
+        };
+        let Some(next) = doc.parts.iter().find(|part| part.id == pair[1]) else {
+            continue;
+        };
+        let (Some(previous_def), Some(next_def)) =
+            (definition(doc, previous), definition(doc, next))
+        else {
+            continue;
+        };
+        let mut connections = pins(previous_def, "P2", &previous.id);
+        connections.extend(pins(next_def, "P4", &next.id));
+        if connections.len() < 2 {
+            diagnostic(
+                &mut result.diagnostics,
+                "rgb-terminal-missing",
+                "RGB chain needs reviewed DIN and DOUT pads",
+                Some(&previous.id),
+            );
+        }
+        add_net(
+            &mut result.nets,
+            prefix,
+            &format!("rgb-chain/{}", previous.id),
+            connections,
+        );
+    }
+    for (index, key) in keys.iter().enumerate() {
+        let row = if mode == ElectricalMode::Direct {
+            0
+        } else {
+            index / columns.max(1)
+        };
+        let column = if mode == ElectricalMode::Direct {
+            index
+        } else {
+            index % columns.max(1)
+        };
+        let row_function = format!("row/{row}");
+        let column_function = format!("column/{column}");
+        let row_cap = allocated.get(&row_function);
+        let col_cap = allocated.get(&column_function);
+        let direct = allocated.get(&key.part.id);
+        let switch_row = pins(key.definition, terminal(key.definition, true), &key.part.id);
+        let switch_column = pins(
+            key.definition,
+            terminal(key.definition, false),
+            &key.part.id,
+        );
+        if mode == ElectricalMode::Direct {
+            add_net(
+                &mut result.nets,
+                prefix,
+                &format!("direct/{}", key.part.id),
+                switch_column,
+            );
+            add_net(&mut result.nets, prefix, "power/gnd", switch_row);
+            if let (Some(controller), Some(definition), Some(pin)) =
+                (controller, controller_definition, direct)
+            {
+                add_net(
+                    &mut result.nets,
+                    prefix,
+                    &format!("direct/{}", key.part.id),
+                    pins(definition, pin.terminal, &controller.id),
+                );
+                add_net(
+                    &mut result.nets,
+                    prefix,
+                    "power/gnd",
+                    pins(definition, "GND", &controller.id),
+                );
+            }
+        } else {
+            add_net(&mut result.nets, prefix, &column_function, switch_column);
+            if let Some((diode, definition)) = key.diode {
+                if let Some((anode, cathode)) = diode_terminals(definition) {
+                    let (row_terminal, link_terminal) = if diode_direction == "row2col" {
+                        (anode, cathode)
+                    } else {
+                        (cathode, anode)
+                    };
+                    add_net(
+                        &mut result.nets,
+                        prefix,
+                        &row_function,
+                        pins(definition, row_terminal, &diode.id),
+                    );
+                    let mut link = switch_row;
+                    link.extend(pins(definition, link_terminal, &diode.id));
+                    add_net(
+                        &mut result.nets,
+                        prefix,
+                        &format!("link/{}", key.part.id),
+                        link,
+                    );
+                }
+            }
+            if let (Some(controller), Some(definition)) = (controller, controller_definition) {
+                if let Some(pin) = row_cap {
+                    add_net(
+                        &mut result.nets,
+                        prefix,
+                        &row_function,
+                        pins(definition, pin.terminal, &controller.id),
+                    );
+                }
+                if let Some(pin) = col_cap {
+                    add_net(
+                        &mut result.nets,
+                        prefix,
+                        &column_function,
+                        pins(definition, pin.terminal, &controller.id),
+                    );
+                }
+            }
+        }
+        result.assignments.push(ElectricalAssignment {
+            key_id: key.part.id.clone(),
+            matrix_id: key.matrix.id.clone(),
+            row: row as u32,
+            column: column as u32,
+            row_pin: row_cap
+                .map(|pin| pin.terminal.to_string())
+                .unwrap_or_default(),
+            column_pin: col_cap
+                .or(direct)
+                .map(|pin| pin.terminal.to_string())
+                .unwrap_or_default(),
+            row_firmware_gpio: row_cap.map(|pin| pin.firmware_gpio.to_string()),
+            column_firmware_gpio: col_cap.map(|pin| pin.firmware_gpio.to_string()),
+            direct_gpio: direct.map(|pin| pin.firmware_gpio.to_string()),
+            locked: locks.contains_key(&key.part.id)
+                || locks.contains_key(&row_function)
+                || locks.contains_key(&column_function),
+        });
+    }
+    result
+}
+
 pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
     let doc = &request.document;
     let board = request
@@ -664,202 +905,24 @@ pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
         vec![]
     };
     let prefix = format!("generated/electrical/{}/", board.id);
-    let mut nets = BTreeMap::new();
-    let has_power_switch = plan
-        .peripherals
-        .iter()
-        .any(|peripheral| peripheral.kind == "power-switch");
-    for peripheral in &plan.peripherals {
-        let Some(part) = doc.parts.iter().find(|part| part.id == peripheral.part_id) else {
-            continue;
-        };
-        let Some(definition) = definition(doc, part) else {
-            continue;
-        };
-        for (terminal, function) in &peripheral.gpio_terminals {
-            let connections = pins(definition, terminal, &part.id);
-            if connections.is_empty() {
-                diagnostic(
-                    &mut plan.diagnostics,
-                    "peripheral-terminal-missing",
-                    format!("{} has no available {terminal} terminal", part.reference),
-                    Some(&part.id),
-                );
-            }
-            add_net(&mut nets, &prefix, function, connections);
-            if let (Some(controller), Some(definition), Some(pin)) =
-                (controller, controller_definition, allocated.get(function))
-            {
-                add_net(
-                    &mut nets,
-                    &prefix,
-                    function,
-                    pins(definition, pin.terminal, &controller.id),
-                );
-                plan.peripheral_pins
-                    .insert(function.clone(), pin.firmware_gpio.into());
-            }
-        }
-        for (terminal, destination) in &peripheral.fixed_terminals {
-            let target = if destination == "BAT_P" && !has_power_switch {
-                "RAW"
-            } else {
-                destination.as_str()
-            };
-            let function = format!("power/{}", target.to_lowercase());
-            add_net(
-                &mut nets,
-                &prefix,
-                &function,
-                pins(definition, terminal, &part.id),
-            );
-            if let (Some(controller), Some(definition)) = (controller, controller_definition) {
-                if target != "BAT_P" {
-                    add_net(
-                        &mut nets,
-                        &prefix,
-                        &function,
-                        pins(definition, target, &controller.id),
-                    );
-                }
-            }
-        }
-    }
-    for pair in rgb_parts.windows(2) {
-        let Some(previous) = doc.parts.iter().find(|part| part.id == pair[0]) else {
-            continue;
-        };
-        let Some(next) = doc.parts.iter().find(|part| part.id == pair[1]) else {
-            continue;
-        };
-        let (Some(previous_def), Some(next_def)) =
-            (definition(doc, previous), definition(doc, next))
-        else {
-            continue;
-        };
-        let mut connections = pins(previous_def, "P2", &previous.id);
-        connections.extend(pins(next_def, "P4", &next.id));
-        if connections.len() < 2 {
-            diagnostic(
-                &mut plan.diagnostics,
-                "rgb-terminal-missing",
-                "RGB chain needs reviewed DIN and DOUT pads",
-                Some(&previous.id),
-            );
-        }
-        add_net(
-            &mut nets,
-            &prefix,
-            &format!("rgb-chain/{}", previous.id),
-            connections,
-        );
-    }
-    for (index, key) in keys.iter().enumerate() {
-        let row = if plan.mode == ElectricalMode::Direct {
-            0
-        } else {
-            index / columns.max(1)
-        };
-        let column = if plan.mode == ElectricalMode::Direct {
-            index
-        } else {
-            index % columns.max(1)
-        };
-        let row_function = format!("row/{row}");
-        let column_function = format!("column/{column}");
-        let row_cap = allocated.get(&row_function);
-        let col_cap = allocated.get(&column_function);
-        let direct = allocated.get(&key.part.id);
-        let switch_row = pins(key.definition, terminal(key.definition, true), &key.part.id);
-        let switch_column = pins(
-            key.definition,
-            terminal(key.definition, false),
-            &key.part.id,
-        );
-        if plan.mode == ElectricalMode::Direct {
-            add_net(
-                &mut nets,
-                &prefix,
-                &format!("direct/{}", key.part.id),
-                switch_column,
-            );
-            add_net(&mut nets, &prefix, "power/gnd", switch_row);
-            if let (Some(controller), Some(definition), Some(pin)) =
-                (controller, controller_definition, direct)
-            {
-                add_net(
-                    &mut nets,
-                    &prefix,
-                    &format!("direct/{}", key.part.id),
-                    pins(definition, pin.terminal, &controller.id),
-                );
-                add_net(
-                    &mut nets,
-                    &prefix,
-                    "power/gnd",
-                    pins(definition, "GND", &controller.id),
-                );
-            }
-        } else {
-            add_net(&mut nets, &prefix, &column_function, switch_column);
-            if let Some((diode, definition)) = key.diode {
-                if let Some((anode, cathode)) = diode_terminals(definition) {
-                    let (row_terminal, link_terminal) = if plan.diode_direction == "row2col" {
-                        (anode, cathode)
-                    } else {
-                        (cathode, anode)
-                    };
-                    add_net(
-                        &mut nets,
-                        &prefix,
-                        &row_function,
-                        pins(definition, row_terminal, &diode.id),
-                    );
-                    let mut link = switch_row;
-                    link.extend(pins(definition, link_terminal, &diode.id));
-                    add_net(&mut nets, &prefix, &format!("link/{}", key.part.id), link);
-                }
-            }
-            if let (Some(controller), Some(definition)) = (controller, controller_definition) {
-                if let Some(pin) = row_cap {
-                    add_net(
-                        &mut nets,
-                        &prefix,
-                        &row_function,
-                        pins(definition, pin.terminal, &controller.id),
-                    );
-                }
-                if let Some(pin) = col_cap {
-                    add_net(
-                        &mut nets,
-                        &prefix,
-                        &column_function,
-                        pins(definition, pin.terminal, &controller.id),
-                    );
-                }
-            }
-        }
-        plan.assignments.push(ElectricalAssignment {
-            key_id: key.part.id.clone(),
-            matrix_id: key.matrix.id.clone(),
-            row: row as u32,
-            column: column as u32,
-            row_pin: row_cap
-                .map(|pin| pin.terminal.to_string())
-                .unwrap_or_default(),
-            column_pin: col_cap
-                .or(direct)
-                .map(|pin| pin.terminal.to_string())
-                .unwrap_or_default(),
-            row_firmware_gpio: row_cap.map(|pin| pin.firmware_gpio.to_string()),
-            column_firmware_gpio: col_cap.map(|pin| pin.firmware_gpio.to_string()),
-            direct_gpio: direct.map(|pin| pin.firmware_gpio.to_string()),
-            locked: locks.contains_key(&key.part.id)
-                || locks.contains_key(&row_function)
-                || locks.contains_key(&column_function),
-        });
-    }
-    plan.nets = finalize_nets(nets, &prefix, &doc.nets, &mut plan.diagnostics);
+    let constructed = construct_nets(NetConstruction {
+        doc,
+        keys: &keys,
+        controller,
+        controller_definition,
+        peripherals: &plan.peripherals,
+        rgb_parts: &rgb_parts,
+        allocated: &allocated,
+        locks: &locks,
+        mode: plan.mode,
+        columns,
+        diode_direction: &plan.diode_direction,
+        prefix: &prefix,
+    });
+    plan.assignments = constructed.assignments;
+    plan.peripheral_pins = constructed.peripheral_pins;
+    plan.diagnostics.extend(constructed.diagnostics);
+    plan.nets = finalize_nets(constructed.nets, &prefix, &doc.nets, &mut plan.diagnostics);
     let instance = request.instance_id.as_ref().and_then(|id| {
         doc.hardware
             .as_ref()?

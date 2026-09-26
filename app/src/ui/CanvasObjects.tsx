@@ -97,6 +97,7 @@ export const ScenePart = memo(({ part, definition, active, constrained, handlers
   onPointerMove={(event) => handlers.current?.moveDrag(event)}
   onPointerUp={(event) => handlers.current?.endDrag(event)}
   onPointerCancel={(event) => handlers.current?.endDrag(event)}
+  onLostPointerCapture={(event) => handlers.current?.endDrag(event)}
   onClick={(event) => { event.stopPropagation(); handlers.current?.choosePart(part.id, { additive: event.ctrlKey || event.metaKey, range: event.shiftKey }); }}
   onKeyDown={(event) => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handlers.current?.choosePart(part.id, { additive: event.ctrlKey || event.metaKey, range: event.shiftKey }); }
