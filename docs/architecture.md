@@ -33,6 +33,12 @@ discards captured work without replaying it into the new document.
 selection-specific controls through explicit action callbacks. Document mutations
 remain in the workbench and `createLibraryActions`.
 
+`planKeycapResize` plans keycap dimensions and neighbour reflow from the current
+document and resolved placements. It maps linked-half selections to canonical
+cells and returns one document edit with affected IDs, without mutating its inputs.
+The workbench submits that edit through the existing undo path; core layout
+resolution remains responsible for propagating mirrored positions.
+
 Parts preview construction and placement are separate: `sampleAssembly` produces
 an isolated preview document; `assemblyPlacement` creates document snapshots.
 `assemblyCatalog` is the preset registry used by recipes and selectors.

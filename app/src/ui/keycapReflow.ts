@@ -25,7 +25,7 @@ const addDelta = (deltas: Map<string, Vec2>, id: string, delta: Vec2) => {
 };
 
 /** Moves the keys on the same row or column far enough to keep the selected caps apart. */
-export function keycapReflowDeltas(resizes: KeycapResize[], placements: KeycapPlacement[]): Map<string, Vec2> {
+export function keycapReflowDeltas(resizes: KeycapResize[], placements: readonly KeycapPlacement[]): Map<string, Vec2> {
   const deltas = new Map<string, Vec2>();
   const resizeById = new Map(resizes.map((resize) => [resize.id, resize]));
   const halfExtent = (placement: KeycapPlacement, axis: Vec2, size = placement.size) => {

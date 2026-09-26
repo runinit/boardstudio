@@ -34,7 +34,7 @@ import { FindingList } from './FindingList';
 import { findingTarget, presentedFindings } from './findings';
 import { ConstraintNumber, Coordinate, Measure } from './InspectorControls';
 import { InspectorSection } from './InspectorSection';
-import { findKeycapOverlaps, keycapReflowDeltas, type KeycapPlacement, type KeycapResize } from './keycapReflow';
+import { findKeycapOverlaps, type KeycapPlacement } from './keycapReflow';
 import { LibraryWorkspace } from './LibraryWorkspace';
 import { matrixCellId, matrixSceneAdapter, type MatrixScene } from './matrixGeometry';
 import { matrixWithPreset } from './matrixPresets';
@@ -45,6 +45,7 @@ import { MirrorPairIcon, MirroredPairSetup, pairAt, type PairSetup } from './Mir
 import { OutlineInspector, PartOutlineControls } from './OutlineInspector';
 import { partCatalogLabel, partCatalogSearchText, partChoices } from './partsCatalog';
 import { movePlacement, type PlacementState } from './placementState';
+import { planKeycapResize } from './planKeycapResize';
 import { createCanvasInteractions } from './createCanvasInteractions';
 import { PartsLibrary } from './PartsLibrary';
 import { alignmentDelta, snapPart } from './placementGeometry';
@@ -53,7 +54,7 @@ import { useWorkbenchSelection } from './useWorkbenchSelection';
 import { usePartsEditing } from './usePartsEditing';
 import { useWorkbenchTree } from './useWorkbenchTree';
 import { WiringPanel } from './WiringPanel';
-import { PITCH_MM, createPart, isTyping, localMatrixDelta, makeId, nudgeLargeStep, nudgeStep, pointFromEvent, snapDelta, unit, withCell } from './workbenchGeometry';
+import { PITCH_MM, createPart, isTyping, localMatrixDelta, makeId, nudgeLargeStep, nudgeStep, pointFromEvent, snapDelta, unit } from './workbenchGeometry';
 import { ArrowIcon, BrandMark, CursorIcon, FitIcon, ModeIcon, PartGlyph, ProjectIcon, RedoIcon, ScopeIcon, UndoIcon } from './WorkbenchIcons';
 import { WorkbenchLayers, footprintLayers } from './WorkbenchLayers';
 import { WorkbenchTree } from './WorkbenchTree';
@@ -1108,82 +1109,10 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     setKeyboardStatus(`Aligned selection to ${alignTarget.reference}. Reference unchanged.`);
   };
   const commitKeycapResize = (units: Vec2, axis?: 'x' | 'y') => {
-    const placementById = new Map(keycapPlacements.map((placement) => [placement.id, placement]));
-    const resizeByCell = new Map<string, KeycapResize>();
-    const updatedSizes = new Map<string, Vec2>();
-
-    for (const { placement } of selectedKeycaps) {
-      const owner = boardLayouts.find((layout) => layout.matrixId === placement.matrixId);
-      const canonicalLayout = owner?.mirrorLink
-        ? boardLayouts.find((layout) => layout.id === owner.mirrorLink?.sourceId)
-        : owner;
-      const matrixId = canonicalLayout?.matrixId ?? placement.matrixId;
-      const matrix = matrixMap.get(matrixId);
-      const cell = `${placement.row}:${placement.column}`;
-      const id = memberMaps.get(matrixId)?.get(cell) ?? placement.id;
-      const sourcePlacement = placementById.get(id) ?? placement;
-      if (!matrix) continue;
-
-      const oldSize = sourcePlacement.size;
-      const gap = matrix.edgeGap ?? { x: 1, y: 1 };
-      const nextSize = {
-        x: axis === 'y' ? oldSize.x : Math.max(1, units.x * matrix.pitch.x - gap.x),
-        y: axis === 'x' ? oldSize.y : Math.max(1, units.y * matrix.pitch.y - gap.y),
-      };
-      if (nextSize.x === oldSize.x && nextSize.y === oldSize.y) continue;
-
-      const basis = matrixScenes.get(matrixId)?.basis(placement.column);
-      const rotation = sourcePlacement.rotation * Math.PI / 180;
-      const alignAxis = (vector: Vec2, reference: Vec2 | undefined): Vec2 => reference
-        && vector.x * reference.x + vector.y * reference.y < 0
-        ? { x: -vector.x, y: -vector.y }
-        : vector;
-      const axisX = alignAxis({ x: Math.cos(rotation), y: Math.sin(rotation) }, basis?.axisX);
-      const axisY = alignAxis({ x: -Math.sin(rotation), y: Math.cos(rotation) }, basis?.axisY);
-      const resize: KeycapResize = { ...sourcePlacement, matrixId, size: oldSize, nextSize, axisX, axisY };
-      resizeByCell.set(`${matrixId}:${cell}`, resize);
-      updatedSizes.set(id, nextSize);
-
-      const pairedLayout = canonicalLayout?.mirrorLink
-        ? boardLayouts.find((layout) => layout.id === canonicalLayout.mirrorLink?.sourceId)
-        : boardLayouts.find((layout) => layout.mirrorLink?.sourceId === canonicalLayout?.id);
-      const pairedId = pairedLayout ? memberMaps.get(pairedLayout.matrixId)?.get(cell) : undefined;
-      if (pairedId) updatedSizes.set(pairedId, nextSize);
+    const plan = planKeycapResize({ document, layouts: boardLayouts, matrices: matrixMap, projections: matrixScenes, placements: keycapPlacements, selectedIds, units, axis });
+    if (plan) {
+      emit({ kind: 'replace-document', document: plan.document }, plan.targetIds);
     }
-
-    if (updatedSizes.size === 0) return;
-
-    const reflow = keycapReflowDeltas([...resizeByCell.values()], keycapPlacements);
-    const updatedMatrices = new Map<string, Matrix>();
-    for (const [id, delta] of reflow) {
-      const cell = matrixPartLookup.get(id);
-      const matrix = cell ? updatedMatrices.get(cell.matrixId) ?? matrixMap.get(cell.matrixId) : undefined;
-      if (!cell || !matrix) continue;
-      const existingOffset = matrix.cells?.find((item) => item.row === cell.row && item.column === cell.column)?.offset ?? { x: 0, y: 0 };
-      const local = localMatrixDelta(matrix, delta, cell.column);
-      updatedMatrices.set(cell.matrixId, withCell(matrix, cell.row, cell.column, {
-        offset: { x: existingOffset.x + local.x, y: existingOffset.y + local.y },
-      }));
-    }
-
-    const nextDocument: ProjectDoc = {
-      ...document,
-      parts: document.parts.map((part) => {
-        const size = updatedSizes.get(part.id);
-        const delta = reflow.get(part.id);
-        if (!size && !delta) return part;
-        const position = parts.get(part.id)?.pose.at ?? part.pose.at;
-        return {
-          ...part,
-          ...(size ? { keycap: size } : {}),
-          ...(delta ? { pose: { ...part.pose, at: { x: position.x + delta.x, y: position.y + delta.y } } } : {}),
-        };
-      }),
-      matrices: document.matrices.map((matrix) => updatedMatrices.get(matrix.id) ?? matrix),
-    };
-    emit({ kind: 'replace-document', document: nextDocument }, [
-      ...new Set([...updatedSizes.keys(), ...reflow.keys(), ...updatedMatrices.keys()]),
-    ]);
   };
   const groupOutline = useMemo(() => selected.length > 1 || (scope && ['matrix', 'row', 'column'].includes(scope.kind))
     ? selectionOutline(visibleParts.filter((part) => selectedIds.has(part.id)), definitions)
