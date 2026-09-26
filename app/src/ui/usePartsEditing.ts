@@ -59,13 +59,8 @@ export function usePartsEditing({ document, selectedDefinition, previewDefinitio
 
   const updateGenerator = (parameter: string, value: JsonValue) => setEdits((current) => ({ ...current, [parameter]: value }));
   const saveGenerator = () => {
-    if (!selectedDefinition?.generator || !definition?.generator || generatorPreview?.error) return;
-    const normalized = isErgogen(definition.generator.source) ? normalizeDefinition(definition) : definition;
-    const geometry = libraryPreviewFor(definition, currentResults)?.geometry;
-    if (!isErgogen(normalized.generator?.source) && !geometry) return;
-    const next = isErgogen(normalized.generator?.source)
-      ? normalized
-      : { ...normalized, pads: geometry!.pads.map((pad) => ({ ...pad })), courtyard: geometry!.courtyard.map((point) => ({ ...point })) };
+    if (!selectedDefinition || !isErgogen(selectedDefinition.generator?.source) || !definition?.generator || !isErgogen(definition.generator.source) || generatorPreview?.error) return;
+    const next = normalizeDefinition(definition);
     const original = document.definitions.find((item) => item.id === next.id) ?? selectedDefinition;
     const result = remapDefinitionNets(document, original, next);
     if (!result.ok) {
