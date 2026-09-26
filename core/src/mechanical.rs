@@ -63,7 +63,10 @@ fn inferred_switch_family(
 fn is_switch_position(part: &Part, definition: &PartDefinition) -> bool {
     matches!(definition.kind, PartKind::Switch)
         || inferred_switch_family(part, definition).is_some()
-        || definition.generator.as_ref().is_some_and(|g| g.source.ends_with("/switch_choc_v1_v2"))
+        || definition
+            .generator
+            .as_ref()
+            .is_some_and(|g| g.source.ends_with("/switch_choc_v1_v2"))
 }
 
 fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
@@ -345,31 +348,37 @@ fn subtract_foam_exclusions(
         .collect())
 }
 
-pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembly {
-    let mut result = MechanicalAssembly {
-        gasket_supports:vec![],gasket_tracks:vec![],generated_hardware:vec![],
-        pcb_reference: None,
-        suggested_mounts: vec![],
-        nominal_plate_contours: vec![],
-        revision: document.revision,
-        plate_contours: contours.to_vec(),
-        case: CaseAssemblyIR {
-            revision: document.revision,
-            bodies: vec![],
-        },
-        stack: vec![],
-        diagnostics: vec![],
-        generation_blocked: false,
-    };
-    let Some(config) = &document.mechanical else {
-        return result;
-    };
-    let mut effective_config = config.clone();
+struct ResolutionInputs {
+    config: MechanicalConfiguration,
+    incompatible_switches: Vec<String>,
+}
+
+/// Resolve configuration and switch fit before any geometry is emitted.
+/// Keeping this stage independent makes profile authority and fit diagnostics
+/// testable without coupling them to case construction.
+fn resolve_profiles(
+    document: &ProjectDoc,
+    config: &MechanicalConfiguration,
+) -> Option<ResolutionInputs> {
     let board = document
         .boards
         .iter()
-        .find(|board| board.id == config.board_id);
-    // An explicit part fit is authoritative for every use of its definition.
+        .find(|board| board.id == config.board_id)?;
+    let switch_parts = document
+        .parts
+        .iter()
+        .filter_map(|part| {
+            if !board.part_ids.contains(&part.id) {
+                return None;
+            }
+            let definition = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)?;
+            is_switch_position(part, definition).then_some((part, definition))
+        })
+        .collect::<Vec<_>>();
+    let mut effective_config = config.clone();
     for definition in &document.definitions {
         if let Some(profile) = &definition.mechanical_profile {
             effective_config
@@ -380,24 +389,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             effective_config.profiles.push(inherited);
         }
     }
-    let switch_parts = board
-        .into_iter()
-        .flat_map(|board| {
-            document.parts.iter().filter_map(move |part| {
-                if !board.part_ids.contains(&part.id) {
-                    return None;
-                }
-                let definition = document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == part.definition_id)?;
-                is_switch_position(part, definition).then_some((part, definition))
-            })
-        })
-        .collect::<Vec<_>>();
-    if let Some(board) = board {
-        effective_config.pcb_thickness = board.thickness;
-    }
+    effective_config.pcb_thickness = board.thickness;
     if effective_config.battery.is_none() {
         effective_config.battery_height = 0.0;
     }
@@ -409,19 +401,16 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             .find(|profile| profile.definition_id == part.definition_id)
             .and_then(|profile| profile.switch_family)
             .or_else(|| inferred_switch_family(part, definition));
-        let Some(family) = family else {
-            continue;
-        };
+        let Some(family) = family else { continue };
         if !effective_config
             .profiles
             .iter()
             .any(|profile| profile.definition_id == part.definition_id)
         {
-            let gap = switch_mounting_datum(family) - effective_config.plate_thickness;
             if let Ok(mut profile) = builtin_profile(
                 part.definition_id.clone(),
                 profile_source_for_family(family),
-                gap,
+                switch_mounting_datum(family) - effective_config.plate_thickness,
             ) {
                 profile.switch_family = Some(family);
                 effective_config.profiles.push(profile);
@@ -432,9 +421,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             .iter_mut()
             .find(|profile| profile.definition_id == part.definition_id)
         {
-            if profile.switch_family.is_none() {
-                profile.switch_family = Some(family);
-            }
+            profile.switch_family.get_or_insert(family);
             profile.plate_to_pcb = switch_mounting_datum(family) - effective_config.plate_thickness;
         }
     }
@@ -446,7 +433,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             .and_then(|profile| profile.switch_family)
             .or_else(|| inferred_switch_family(part, definition))
     });
-    let incompatible_switches = resolved_family
+    let mut incompatible_switches = resolved_family
         .map(|family| {
             let datum = switch_mounting_datum(family);
             switch_parts
@@ -464,7 +451,6 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let mut incompatible_switches = incompatible_switches;
     for (part, definition) in &switch_parts {
         let assigned = effective_config
             .profiles
@@ -482,9 +468,114 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         effective_config.plate_to_pcb =
             switch_mounting_datum(family) - effective_config.plate_thickness;
     }
-    if effective_config.mount == MechanicalMount::Gasket && effective_config.gasket_travel.is_none() {
+    if effective_config.mount == MechanicalMount::Gasket && effective_config.gasket_travel.is_none()
+    {
         effective_config.gasket_travel = Some(0.3);
     }
+    Some(ResolutionInputs {
+        config: effective_config,
+        incompatible_switches,
+    })
+}
+
+fn build_stack(
+    config: &MechanicalConfiguration,
+    pcb_bottom: f64,
+    bottom_foam_z: f64,
+    battery_z: f64,
+    battery_height: f64,
+    bottom_z: f64,
+) -> Vec<MechanicalStackLayer> {
+    [
+        ("plate", config.plate_to_pcb, config.plate_thickness),
+        ("plate-foam", 0.0, config.plate_foam_thickness),
+        ("pcb", pcb_bottom, config.pcb_thickness),
+        ("bottom-foam", bottom_foam_z, config.bottom_foam_thickness),
+        ("battery", battery_z, battery_height),
+        ("bottom", bottom_z, config.bottom_thickness),
+    ]
+    .into_iter()
+    .filter(|(_, _, thickness)| *thickness > 0.0)
+    .map(|(id, z, thickness)| MechanicalStackLayer {
+        id: id.into(),
+        z,
+        thickness,
+    })
+    .collect()
+}
+
+fn dimensions_are_valid(config: &MechanicalConfiguration) -> bool {
+    let dimensions = [
+        config.plate_thickness,
+        config.pcb_thickness,
+        config.bottom_thickness,
+        config.wall_thickness,
+        config.plate_to_pcb,
+    ];
+    let clearances = [
+        config.plate_foam_thickness,
+        config.bottom_foam_thickness,
+        config.battery_height,
+        config.clearance,
+    ];
+    dimensions
+        .iter()
+        .all(|value| value.is_finite() && *value > 0.0)
+        && clearances
+            .iter()
+            .all(|value| value.is_finite() && *value >= 0.0)
+}
+
+fn resolve_foam_contours(base: &[Contour], clearances: &[Contour]) -> Result<Vec<Contour>, String> {
+    if clearances.is_empty() {
+        return Ok(base.to_vec());
+    }
+    subtract_foam_exclusions(base, clearances)
+}
+
+fn transform_part_points(part: &Part, points: &[Vec2]) -> Vec<Vec2> {
+    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+    points
+        .iter()
+        .map(|point| {
+            let x = if part.side == Side::Back {
+                -point.x
+            } else {
+                point.x
+            };
+            Vec2 {
+                x: part.pose.at.x + x * cos - point.y * sin,
+                y: part.pose.at.y + x * sin + point.y * cos,
+            }
+        })
+        .collect()
+}
+
+pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembly {
+    let mut result = MechanicalAssembly {
+        gasket_supports: vec![],
+        gasket_tracks: vec![],
+        generated_hardware: vec![],
+        pcb_reference: None,
+        suggested_mounts: vec![],
+        nominal_plate_contours: vec![],
+        revision: document.revision,
+        plate_contours: contours.to_vec(),
+        case: CaseAssemblyIR {
+            revision: document.revision,
+            bodies: vec![],
+        },
+        stack: vec![],
+        diagnostics: vec![],
+        generation_blocked: false,
+    };
+    let Some(config) = &document.mechanical else {
+        return result;
+    };
+    let profile_stage = resolve_profiles(document, config);
+    let (effective_config, incompatible_switches) = profile_stage
+        .map(|stage| (stage.config, stage.incompatible_switches))
+        .unwrap_or_else(|| (config.clone(), Vec::new()));
     let config = &effective_config;
     let mut frame_contours = contours.to_vec();
     if config.wall_thickness.is_finite()
@@ -538,22 +629,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             incompatible_switches,
         );
     }
-    let dimensions = [
-        config.plate_thickness,
-        config.pcb_thickness,
-        config.bottom_thickness,
-        config.wall_thickness,
-        config.plate_to_pcb,
-    ];
-    let clearances = [
-        config.plate_foam_thickness,
-        config.bottom_foam_thickness,
-        config.battery_height,
-        config.clearance,
-    ];
-    if dimensions.iter().any(|v| !v.is_finite() || *v <= 0.0)
-        || clearances.iter().any(|v| !v.is_finite() || *v < 0.0)
-    {
+    if !dimensions_are_valid(config) {
         issue(
             "dimensions",
             Severity::Error,
@@ -697,8 +773,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             .definitions
             .iter()
             .find(|definition| definition.id == part.definition_id);
-        let is_switch =
-            definition.is_some_and(|definition| is_switch_position(part, definition));
+        let is_switch = definition.is_some_and(|definition| is_switch_position(part, definition));
         if !part.pose.at.x.is_finite()
             || !part.pose.at.y.is_finite()
             || !part.pose.rotation.is_finite()
@@ -1032,17 +1107,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             let transformed = CaseOpening {
                 z: volume.z,
                 height: volume.height,
-                points: volume
-                    .points
-                    .iter()
-                    .map(|p| {
-                        let x = if part.side == Side::Back { -p.x } else { p.x };
-                        Vec2 {
-                            x: part.pose.at.x + x * cos - p.y * sin,
-                            y: part.pose.at.y + x * sin + p.y * cos,
-                        }
-                    })
-                    .collect(),
+                points: transform_part_points(part, &volume.points),
             };
             if transformed.points.len() < 3
                 || transformed
@@ -1110,17 +1175,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             profile_openings.push(CaseOpening {
                 z: opening.z,
                 height: opening.height,
-                points: opening
-                    .points
-                    .iter()
-                    .map(|p| {
-                        let x = if part.side == Side::Back { -p.x } else { p.x };
-                        Vec2 {
-                            x: part.pose.at.x + x * cos - p.y * sin,
-                            y: part.pose.at.y + x * sin + p.y * cos,
-                        }
-                    })
-                    .collect(),
+                points: transform_part_points(part, &opening.points),
             });
         }
         for polygon in profile.clearances.iter().flatten() {
@@ -1318,22 +1373,14 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     // PCB top is the stable zero plane; layers below it have negative Z.
     let battery_z = bottom_foam_z - battery_height;
     let bottom_z = battery_z - config.bottom_thickness;
-    for (id, z, thickness) in [
-        ("plate", config.plate_to_pcb, config.plate_thickness),
-        ("plate-foam", 0.0, config.plate_foam_thickness),
-        ("pcb", pcb_bottom, config.pcb_thickness),
-        ("bottom-foam", bottom_foam_z, config.bottom_foam_thickness),
-        ("battery", battery_z, battery_height),
-        ("bottom", bottom_z, config.bottom_thickness),
-    ] {
-        if thickness > 0.0 {
-            result.stack.push(MechanicalStackLayer {
-                id: id.into(),
-                z,
-                thickness,
-            });
-        }
-    }
+    result.stack.extend(build_stack(
+        config,
+        pcb_bottom,
+        bottom_foam_z,
+        battery_z,
+        battery_height,
+        bottom_z,
+    ));
     for (part_id, volume) in &component_volumes {
         if let Some(battery) = &config.battery {
             let hx = battery.size.x / 2.0;
@@ -1434,10 +1481,8 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             );
         }
     }
-    let plate_foam_contours = if plate_foam_clearances.is_empty() {
-        result.plate_contours.clone()
-    } else {
-        match subtract_foam_exclusions(&result.plate_contours, &plate_foam_clearances) {
+    let plate_foam_contours =
+        match resolve_foam_contours(&result.plate_contours, &plate_foam_clearances) {
             Ok(contours) => contours,
             Err(message) => {
                 issue(
@@ -1448,12 +1493,9 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
                 );
                 result.plate_contours.clone()
             }
-        }
-    };
-    let bottom_foam_contours = if bottom_foam_clearances.is_empty() {
-        bottom_foam_contours
-    } else {
-        match subtract_foam_exclusions(&bottom_foam_contours, &bottom_foam_clearances) {
+        };
+    let bottom_foam_contours =
+        match resolve_foam_contours(&bottom_foam_contours, &bottom_foam_clearances) {
             Ok(contours) => contours,
             Err(message) => {
                 issue(
@@ -1464,8 +1506,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
                 );
                 bottom_foam_contours
             }
-        }
-    };
+        };
     let board_id = config.board_id.clone();
     let sheet_bottom = config.bottom_style == Some(MechanicalBottomStyle::Sheet)
         || config.part_processes.iter().flatten().any(|process| {
@@ -1703,7 +1744,13 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     if config.mount == MechanicalMount::Gasket && !result.generation_blocked {
         if let Err(message) = gasket::generate(document, config, &mut result) {
             result.generation_blocked = true;
-            result.diagnostics.push(Finding {id:"mechanical:gasket-layout".into(),severity:Severity::Error,scope:Scope::Case,message,target_ids:vec!["plate".into()]});
+            result.diagnostics.push(Finding {
+                id: "mechanical:gasket-layout".into(),
+                severity: Severity::Error,
+                scope: Scope::Case,
+                message,
+                target_ids: vec!["plate".into()],
+            });
         }
     }
     if let Err(message) = crate::case::prepare(&result.case) {
@@ -1844,7 +1891,7 @@ mod tests {
     use super::*;
     fn config() -> MechanicalConfiguration {
         MechanicalConfiguration {
-            gasket_layout:None,
+            gasket_layout: None,
             hardware: None,
             critical_fits: None,
             bottom_style: None,
@@ -2096,36 +2143,95 @@ mod tests {
     }
     #[test]
     fn gasket_mode_places_discrete_supports_and_retaining_frame_from_defaults() {
-        let mut doc=ProjectDoc::empty("gaskets","Gaskets");
-        doc.boards.push(Board{id:"board".into(),name:"Board".into(),outline_ids:vec![],part_ids:vec![],net_ids:vec![],thickness:1.6,traces:vec![],vias:vec![]});
-        let mut settings=config();settings.mount=MechanicalMount::Gasket;
-        doc.mechanical=Some(settings);
-        let contours=vec![Contour{hole:false,points:vec![Vec2{x:0.,y:0.},Vec2{x:130.,y:0.},Vec2{x:130.,y:90.},Vec2{x:0.,y:90.}]}];
-        let result=resolve(&doc,&contours);
-        assert!(!result.generation_blocked,"{:?}",result.diagnostics);
-        assert!(result.case.bodies.iter().any(|b|b.body.id=="retainer"));
-        assert_eq!(result.case.bodies.iter().filter(|b|b.body.id.starts_with("gasket:")).count(),12);
+        let mut doc = ProjectDoc::empty("gaskets", "Gaskets");
+        doc.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let mut settings = config();
+        settings.mount = MechanicalMount::Gasket;
+        doc.mechanical = Some(settings);
+        let contours = vec![Contour {
+            hole: false,
+            points: vec![
+                Vec2 { x: 0., y: 0. },
+                Vec2 { x: 130., y: 0. },
+                Vec2 { x: 130., y: 90. },
+                Vec2 { x: 0., y: 90. },
+            ],
+        }];
+        let result = resolve(&doc, &contours);
+        assert!(!result.generation_blocked, "{:?}", result.diagnostics);
+        assert!(result.case.bodies.iter().any(|b| b.body.id == "retainer"));
+        assert_eq!(
+            result
+                .case
+                .bodies
+                .iter()
+                .filter(|b| b.body.id.starts_with("gasket:"))
+                .count(),
+            12
+        );
     }
 
     #[test]
     fn manual_gasket_anchors_are_exact_persistent_and_invalidated_by_outline_changes() {
         let mut doc = ProjectDoc::empty("gaskets", "Gaskets");
-        doc.boards.push(Board { id:"board".into(),name:"Board".into(),outline_ids:vec![],part_ids:vec![],net_ids:vec![],thickness:1.6,traces:vec![],vias:vec![] });
-        let mut settings=config(); settings.mount=MechanicalMount::Gasket;
-        doc.mechanical=Some(settings);
-        let mut contours=vec![Contour{hole:false,points:vec![Vec2{x:0.,y:0.},Vec2{x:130.,y:0.},Vec2{x:130.,y:90.},Vec2{x:0.,y:90.}]}];
-        let first=resolve(&doc,&contours);
-        let support=&first.gasket_supports[0];
-        let anchor=support.anchor+0.0007;
-        doc.mechanical.as_mut().unwrap().gasket_layout=Some(MechanicalGasketLayout {length:12.,width:3.,thickness:2.,compression:0.15,supports:vec![MechanicalGasketAnchor{id:support.id.clone(),region_id:support.region_id.clone(),outline_key:support.outline_key.clone(),anchor,unlinked:false}]});
-        let moved=resolve(&doc,&contours);
-        assert!(!moved.generation_blocked,"{:?}",moved.diagnostics);
-        assert!((moved.gasket_supports[0].anchor-anchor).abs()<1e-9);
-        let saved=serde_json::to_string(&doc).unwrap();
-        let reopened:ProjectDoc=serde_json::from_str(&saved).unwrap();
-        assert_eq!(moved.gasket_supports,resolve(&reopened,&contours).gasket_supports);
-        contours[0].points[1].x+=1.;
-        assert!(resolve(&doc,&contours).generation_blocked);
+        doc.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let mut settings = config();
+        settings.mount = MechanicalMount::Gasket;
+        doc.mechanical = Some(settings);
+        let mut contours = vec![Contour {
+            hole: false,
+            points: vec![
+                Vec2 { x: 0., y: 0. },
+                Vec2 { x: 130., y: 0. },
+                Vec2 { x: 130., y: 90. },
+                Vec2 { x: 0., y: 90. },
+            ],
+        }];
+        let first = resolve(&doc, &contours);
+        let support = &first.gasket_supports[0];
+        let anchor = support.anchor + 0.0007;
+        doc.mechanical.as_mut().unwrap().gasket_layout = Some(MechanicalGasketLayout {
+            length: 12.,
+            width: 3.,
+            thickness: 2.,
+            compression: 0.15,
+            supports: vec![MechanicalGasketAnchor {
+                id: support.id.clone(),
+                region_id: support.region_id.clone(),
+                outline_key: support.outline_key.clone(),
+                anchor,
+                unlinked: false,
+            }],
+        });
+        let moved = resolve(&doc, &contours);
+        assert!(!moved.generation_blocked, "{:?}", moved.diagnostics);
+        assert!((moved.gasket_supports[0].anchor - anchor).abs() < 1e-9);
+        let saved = serde_json::to_string(&doc).unwrap();
+        let reopened: ProjectDoc = serde_json::from_str(&saved).unwrap();
+        assert_eq!(
+            moved.gasket_supports,
+            resolve(&reopened, &contours).gasket_supports
+        );
+        contours[0].points[1].x += 1.;
+        assert!(resolve(&doc, &contours).generation_blocked);
     }
 
     #[test]
@@ -2169,16 +2275,43 @@ mod tests {
             .find(|b| b.body.id == "bottom")
             .unwrap()
             .body;
-        let strips = resolved.case.bodies.iter().filter(|b|b.body.id.starts_with("gasket:")).collect::<Vec<_>>();
-        assert_eq!(strips.len(),12);
+        let strips = resolved
+            .case
+            .bodies
+            .iter()
+            .filter(|b| b.body.id.starts_with("gasket:"))
+            .collect::<Vec<_>>();
+        assert_eq!(strips.len(), 12);
         for strip in strips {
-            if strip.body.id.ends_with(":lower") {assert!((strip.body.z.unwrap()+strip.body.thickness-3.5).abs()<1e-9);}
-            else {assert!((strip.body.z.unwrap()-5.0).abs()<1e-9);}
+            if strip.body.id.ends_with(":lower") {
+                assert!((strip.body.z.unwrap() + strip.body.thickness - 3.5).abs() < 1e-9);
+            } else {
+                assert!((strip.body.z.unwrap() - 5.0).abs() < 1e-9);
+            }
         }
-        let retainer=resolved.case.bodies.iter().find(|b|b.body.id=="retainer").unwrap();
-        assert!((bottom.z.unwrap()+bottom.thickness-retainer.body.z.unwrap()).abs()<1e-9);
-        assert!(bottom.mounts.as_ref().unwrap().iter().all(|m|m.id.starts_with("closure:")));
-        assert!(bottom.openings.as_ref().unwrap().iter().any(|o|(o.z-1.8).abs()<1e-9));
+        let retainer = resolved
+            .case
+            .bodies
+            .iter()
+            .find(|b| b.body.id == "retainer")
+            .unwrap();
+        assert!((bottom.z.unwrap() + bottom.thickness - retainer.body.z.unwrap()).abs() < 1e-9);
+        assert!(
+            bottom
+                .mounts
+                .as_ref()
+                .unwrap()
+                .iter()
+                .all(|m| m.id.starts_with("closure:"))
+        );
+        assert!(
+            bottom
+                .openings
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|o| (o.z - 1.8).abs() < 1e-9)
+        );
     }
     #[test]
     fn cable_exit_regenerates_single_foam_envelope_without_mutation() {
@@ -2378,38 +2511,78 @@ mod tests {
                 for row in 0..5 {
                     for column in 0..7 {
                         let index = half * 35 + row * 7 + column;
-                        doc.parts.push(serde_json::from_value(serde_json::json!({
-                            "id":format!("switch-{index}"), "definitionId":definition_id,
-                            "reference":format!("SW{index}"), "side":"back",
-                            "pose":{"at":{"x":half as f64 * 160.0 + column as f64 * 19.0 + 15.0,
-                                "y": row as f64 * 19.0 + 15.0},"rotation":0}
-                        })).unwrap());
+                        doc.parts.push(
+                            serde_json::from_value(serde_json::json!({
+                                "id":format!("switch-{index}"), "definitionId":definition_id,
+                                "reference":format!("SW{index}"), "side":"back",
+                                "pose":{"at":{"x":half as f64 * 160.0 + column as f64 * 19.0 + 15.0,
+                                    "y": row as f64 * 19.0 + 15.0},"rotation":0}
+                            }))
+                            .unwrap(),
+                        );
                     }
                 }
             }
-            doc.boards.push(Board { id:"board".into(), name:"Board".into(),
-                outline_ids:vec![], part_ids:doc.parts.iter().map(|p|p.id.clone()).collect(),
-                net_ids:vec![], thickness:1.6, traces:vec![], vias:vec![] });
+            doc.boards.push(Board {
+                id: "board".into(),
+                name: "Board".into(),
+                outline_ids: vec![],
+                part_ids: doc.parts.iter().map(|p| p.id.clone()).collect(),
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            });
             let mut settings = config();
-            settings.plate_thickness = if source.ends_with("switch_mx") { 1.5 } else { 1.3 };
-            settings.plate_to_pcb = if source.ends_with("switch_mx") { 3.5 } else { 2.2 };
+            settings.plate_thickness = if source.ends_with("switch_mx") {
+                1.5
+            } else {
+                1.3
+            };
+            settings.plate_to_pcb = if source.ends_with("switch_mx") {
+                3.5
+            } else {
+                2.2
+            };
             settings.plate_foam_thickness = 0.0;
             doc.mechanical = Some(settings);
-            let outlines = (0..2).map(|half| {
-                let x = half as f64 * 160.0;
-                Contour { hole:false, points:vec![Vec2{x,y:0.0},Vec2{x:x+145.0,y:0.0},
-                    Vec2{x:x+145.0,y:105.0},Vec2{x,y:105.0}] }
-            }).collect::<Vec<_>>();
+            let outlines = (0..2)
+                .map(|half| {
+                    let x = half as f64 * 160.0;
+                    Contour {
+                        hole: false,
+                        points: vec![
+                            Vec2 { x, y: 0.0 },
+                            Vec2 {
+                                x: x + 145.0,
+                                y: 0.0,
+                            },
+                            Vec2 {
+                                x: x + 145.0,
+                                y: 105.0,
+                            },
+                            Vec2 { x, y: 105.0 },
+                        ],
+                    }
+                })
+                .collect::<Vec<_>>();
             let assembly = resolve(&doc, &outlines);
             assert!(!assembly.generation_blocked, "{:?}", assembly.diagnostics);
-            let openings = assembly.plate_contours.iter().filter(|c|c.hole).collect::<Vec<_>>();
-            assert_eq!(openings.len(),70,"{definition_id}");
+            let openings = assembly
+                .plate_contours
+                .iter()
+                .filter(|c| c.hole)
+                .collect::<Vec<_>>();
+            assert_eq!(openings.len(), 70, "{definition_id}");
             for opening in openings {
-                for axis in [true,false] {
-                    let values = opening.points.iter().map(|p|if axis {p.x}else{p.y});
-                    let min = values.clone().fold(f64::INFINITY,f64::min);
-                    let max = values.fold(f64::NEG_INFINITY,f64::max);
-                    assert!((max-min-14.0).abs()<0.001,"{definition_id}: {min}..{max}");
+                for axis in [true, false] {
+                    let values = opening.points.iter().map(|p| if axis { p.x } else { p.y });
+                    let min = values.clone().fold(f64::INFINITY, f64::min);
+                    let max = values.fold(f64::NEG_INFINITY, f64::max);
+                    assert!(
+                        (max - min - 14.0).abs() < 0.001,
+                        "{definition_id}: {min}..{max}"
+                    );
                 }
             }
         }
@@ -2451,14 +2624,20 @@ mod tests {
                 traces: vec![],
                 vias: vec![],
             });
-            doc.parts.push(serde_json::from_value(serde_json::json!({
-                "id":"switch", "definitionId":"switch-def", "reference":"SW1",
-                "pose":{"at":{"x":50,"y":50},"rotation":0}, "side":"front"
-            })).unwrap());
-            doc.definitions.push(serde_json::from_value(serde_json::json!({
-                "id":"switch-def", "name":"Switch", "kind":"switch", "courtyard":[], "pads":[],
-                "generator":{"source":source,"version":"1","parameters":parameters}
-            })).unwrap());
+            doc.parts.push(
+                serde_json::from_value(serde_json::json!({
+                    "id":"switch", "definitionId":"switch-def", "reference":"SW1",
+                    "pose":{"at":{"x":50,"y":50},"rotation":0}, "side":"front"
+                }))
+                .unwrap(),
+            );
+            doc.definitions.push(
+                serde_json::from_value(serde_json::json!({
+                    "id":"switch-def", "name":"Switch", "kind":"switch", "courtyard":[], "pads":[],
+                    "generator":{"source":source,"version":"1","parameters":parameters}
+                }))
+                .unwrap(),
+            );
             let mut configuration = config();
             configuration.plate_thickness = plate_thickness;
             configuration.plate_to_pcb = gap;
@@ -2475,19 +2654,42 @@ mod tests {
             }];
 
             let assembly = resolve(&doc, &outline);
-            assert!(!assembly.generation_blocked, "{source}: {:#?}", assembly.diagnostics);
-            let plate = assembly.stack.iter().find(|layer| layer.id == "plate").unwrap();
+            assert!(
+                !assembly.generation_blocked,
+                "{source}: {:#?}",
+                assembly.diagnostics
+            );
+            let plate = assembly
+                .stack
+                .iter()
+                .find(|layer| layer.id == "plate")
+                .unwrap();
             assert_eq!(plate.z, gap, "{source} mounting datum gap");
             assert_eq!(plate.thickness, plate_thickness, "{source} plate preset");
-            let cutout = assembly.plate_contours.iter().find(|contour| contour.hole).unwrap();
-            let min_x = cutout.points.iter().map(|point| point.x).fold(f64::INFINITY, f64::min);
-            let max_x = cutout.points.iter().map(|point| point.x).fold(f64::NEG_INFINITY, f64::max);
+            let cutout = assembly
+                .plate_contours
+                .iter()
+                .find(|contour| contour.hole)
+                .unwrap();
+            let min_x = cutout
+                .points
+                .iter()
+                .map(|point| point.x)
+                .fold(f64::INFINITY, f64::min);
+            let max_x = cutout
+                .points
+                .iter()
+                .map(|point| point.x)
+                .fold(f64::NEG_INFINITY, f64::max);
             let expected_width = match family {
                 MechanicalSwitchFamily::Mx => 14.0,
                 MechanicalSwitchFamily::ChocV1 => 14.0,
                 MechanicalSwitchFamily::ChocV2 => 14.0,
             };
-            assert!((max_x - min_x - expected_width).abs() < 0.01, "{source} cutout width");
+            assert!(
+                (max_x - min_x - expected_width).abs() < 0.01,
+                "{source} cutout width"
+            );
         }
     }
 
@@ -2504,10 +2706,13 @@ mod tests {
             traces: vec![],
             vias: vec![],
         });
-        doc.parts.push(serde_json::from_value(serde_json::json!({
-            "id":"switch", "definitionId":"imported", "reference":"SW1",
-            "pose":{"at":{"x":50,"y":50},"rotation":0}, "side":"front"
-        })).unwrap());
+        doc.parts.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"switch", "definitionId":"imported", "reference":"SW1",
+                "pose":{"at":{"x":50,"y":50},"rotation":0}, "side":"front"
+            }))
+            .unwrap(),
+        );
         doc.definitions.push(serde_json::from_value(serde_json::json!({
             "id":"imported", "name":"Imported switch", "kind":"switch", "courtyard":[], "pads":[]
         })).unwrap());
@@ -2525,7 +2730,12 @@ mod tests {
 
         let unresolved = resolve(&doc, &outline);
         assert!(unresolved.generation_blocked);
-        assert!(unresolved.diagnostics.iter().any(|finding| finding.id == "mechanical:switch-family"));
+        assert!(
+            unresolved
+                .diagnostics
+                .iter()
+                .any(|finding| finding.id == "mechanical:switch-family")
+        );
 
         let family = MechanicalSwitchFamily::ChocV1;
         let mut profile = builtin_profile(
@@ -2542,7 +2752,15 @@ mod tests {
         configuration.profiles.push(profile);
         let selected = resolve(&doc, &outline);
         assert!(!selected.generation_blocked, "{:#?}", selected.diagnostics);
-        assert_eq!(selected.stack.iter().find(|layer| layer.id == "plate").unwrap().z, 2.2);
+        assert_eq!(
+            selected
+                .stack
+                .iter()
+                .find(|layer| layer.id == "plate")
+                .unwrap()
+                .z,
+            2.2
+        );
     }
     #[test]
     fn duplicate_rings_ignore_winding_start_and_closure() {
