@@ -551,219 +551,29 @@ fn transform_part_points(part: &Part, points: &[Vec2]) -> Vec<Vec2> {
         .collect()
 }
 
-pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembly {
-    let mut result = MechanicalAssembly {
-        gasket_supports: vec![],
-        gasket_tracks: vec![],
-        generated_hardware: vec![],
-        pcb_reference: None,
-        suggested_mounts: vec![],
-        nominal_plate_contours: vec![],
-        revision: document.revision,
-        plate_contours: contours.to_vec(),
-        case: CaseAssemblyIR {
-            revision: document.revision,
-            bodies: vec![],
-        },
-        stack: vec![],
-        diagnostics: vec![],
-        generation_blocked: false,
-    };
-    let Some(config) = &document.mechanical else {
-        return result;
-    };
-    let profile_stage = resolve_profiles(document, config);
-    let (effective_config, incompatible_switches) = profile_stage
-        .map(|stage| (stage.config, stage.incompatible_switches))
-        .unwrap_or_else(|| (config.clone(), Vec::new()));
-    let config = &effective_config;
-    let mut frame_contours = contours.to_vec();
-    if config.wall_thickness.is_finite()
-        && config.clearance.is_finite()
-        && config.wall_thickness > 0.0
-        && config.clearance >= 0.0
-    {
-        match expanded_outline(
-            contours,
-            config.wall_thickness + config.clearance,
-            document.revision,
-        ) {
-            Ok(expanded) => {
-                frame_contours = expanded;
-                result.plate_contours = frame_contours.clone();
-            }
-            Err(message) => {
-                result.generation_blocked = true;
-                result.diagnostics.push(Finding {
-                    id: "mechanical:frame-outline".into(),
-                    severity: Severity::Error,
-                    scope: Scope::Case,
-                    message,
-                    target_ids: vec![],
-                });
-            }
-        }
-    }
+struct PartGeometry {
+    pcb_reference_contours: Vec<Contour>,
+    component_volumes: Vec<(String, CaseOpening)>,
+    profile_openings: Vec<CaseOpening>,
+    plate_foam_clearances: Vec<Contour>,
+    bottom_foam_clearances: Vec<Contour>,
+}
+
+fn collect_part_geometry(
+    document: &ProjectDoc,
+    config: &MechanicalConfiguration,
+    board: &Board,
+    contours: &[Contour],
+    plate_contours: &mut Vec<Contour>,
+    issue: &mut impl FnMut(&str, Severity, &str, Vec<String>),
+) -> PartGeometry {
     let mut pcb_reference_contours = contours.to_vec();
-    let mut component_volumes: Vec<(String, CaseOpening)> = Vec::new();
+    let mut component_volumes = Vec::new();
     let mut profile_openings = Vec::new();
     let mut plate_foam_clearances = Vec::new();
     let mut bottom_foam_clearances = Vec::new();
-    let mut issue = |id: &str, severity: Severity, message: &str, targets: Vec<String>| {
-        if severity == Severity::Error {
-            result.generation_blocked = true;
-        }
-        result.diagnostics.push(Finding {
-            id: format!("mechanical:{id}"),
-            severity,
-            scope: Scope::Case,
-            message: message.into(),
-            target_ids: targets,
-        });
-    };
-    if !incompatible_switches.is_empty() {
-        issue(
-            "switch-family",
-            Severity::Error,
-            "Switches with different mounting heights cannot share one plate; split the assembly or choose compatible switch fits.",
-            incompatible_switches,
-        );
-    }
-    if !dimensions_are_valid(config) {
-        issue(
-            "dimensions",
-            Severity::Error,
-            "Assembly thicknesses must be positive and clearances nonnegative finite millimetres.",
-            vec![],
-        );
-        return result;
-    }
     let pcb_bottom = -config.pcb_thickness;
     let bottom_foam_z = pcb_bottom - config.bottom_foam_thickness;
-    if contours.iter().any(|c| {
-        c.points.len() < 3
-            || c.points
-                .iter()
-                .any(|p| !p.x.is_finite() || !p.y.is_finite())
-    }) {
-        issue(
-            "contours",
-            Severity::Error,
-            "Assembly contours must contain finite closed polygons.",
-            vec![],
-        );
-        return result;
-    }
-    if config
-        .mounts
-        .iter()
-        .chain(config.closure_mounts.iter().flatten())
-        .any(|m| {
-            !m.at.x.is_finite()
-                || !m.at.y.is_finite()
-                || !m.hole_diameter.is_finite()
-                || m.hole_diameter <= 0.0
-        })
-    {
-        issue(
-            "mount-geometry",
-            Severity::Error,
-            "Mount positions and diameters must be finite and diameters positive.",
-            vec![],
-        );
-        return result;
-    }
-    if contours.is_empty() {
-        issue(
-            "outline",
-            Severity::Error,
-            "An assembly requires a resolved board outline.",
-            vec![],
-        );
-    }
-    if config.plate_foam_thickness > config.plate_to_pcb {
-        issue(
-            "foam-engagement",
-            Severity::Error,
-            "Plate foam exceeds the plate-to-PCB clearance.",
-            vec!["plate-foam".into()],
-        );
-    }
-    if config.integrated_plate_frame && config.method == PlateMethod::PcbFr4 {
-        issue(
-            "fr4-integrated-frame",
-            Severity::Error,
-            "A planar PCB-FR4 plate cannot encode an integrated case rim.",
-            vec!["plate".into()],
-        );
-    }
-    if config.integrated_plate_frame && config.mount == MechanicalMount::Gasket {
-        issue(
-            "gasket-rigid-frame",
-            Severity::Error,
-            "A gasket plate must remain mechanically separate from the rigid frame.",
-            vec!["plate".into()],
-        );
-    }
-    if config.mount == MechanicalMount::Gasket
-        && !config.gasket_travel.is_some_and(|travel| {
-            travel.is_finite() && travel > 0.0 && travel < config.plate_to_pcb
-        })
-    {
-        issue(
-            "gasket-travel",
-            Severity::Error,
-            "Gasket mounting requires positive travel smaller than the plate-to-PCB clearance, keeping the plate clear of the rigid rim.",
-            vec!["plate".into()],
-        );
-    }
-
-    if config.mounts.is_empty() && config.mount != MechanicalMount::Gasket {
-        issue(
-            "mounts",
-            Severity::Warning,
-            "No mounting points are configured; choose supported mounting locations before manufacturing.",
-            vec![],
-        );
-    }
-    if config.method == PlateMethod::PcbFr4 {
-        issue(
-            "fr4-routing",
-            Severity::Warning,
-            "Sharp internal rectangular corners require a reviewed routing radius; PCB process capability is not implied by a valid plate outline.",
-            vec!["plate".into()],
-        );
-    }
-    let Some(board) = document
-        .boards
-        .iter()
-        .find(|board| board.id == config.board_id)
-    else {
-        issue(
-            "board",
-            Severity::Error,
-            "Select an existing board for the mechanical assembly.",
-            vec![],
-        );
-        return result;
-    };
-    let mut seen_stabilizers = std::collections::BTreeSet::new();
-    for stabilizer in config.stabilizers.iter().flatten() {
-        if !seen_stabilizers.insert(&stabilizer.part_id)
-            || !board.part_ids.contains(&stabilizer.part_id)
-            || !document.parts.iter().any(|p| p.id == stabilizer.part_id)
-            || !stabilizer.units.is_finite()
-            || stabilizer.units <= 0.0
-            || stabilizer.rotation.is_some_and(|v| !v.is_finite())
-        {
-            issue(
-                &format!("stabilizer-override:{}", stabilizer.part_id),
-                Severity::Error,
-                "Stabilizer overrides require a unique existing board part, positive finite units and finite rotation.",
-                vec![stabilizer.part_id.clone()],
-            );
-        }
-    }
     for part in document
         .parts
         .iter()
@@ -1234,15 +1044,33 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
                     })
                     .collect(),
             };
-            if !result
-                .plate_contours
+            if !plate_contours
                 .iter()
                 .any(|existing| same_ring(existing, &cutout))
             {
-                result.plate_contours.push(cutout);
+                plate_contours.push(cutout);
             }
         }
     }
+    PartGeometry {
+        pcb_reference_contours,
+        component_volumes,
+        profile_openings,
+        plate_foam_clearances,
+        bottom_foam_clearances,
+    }
+}
+
+struct BatterySpace {
+    height: f64,
+    bottom_foam_contours: Vec<Contour>,
+}
+
+fn resolve_battery_space(
+    config: &MechanicalConfiguration,
+    contours: &[Contour],
+    issue: &mut impl FnMut(&str, Severity, &str, Vec<String>),
+) -> Option<BatterySpace> {
     let battery_height = config
         .battery
         .as_ref()
@@ -1259,7 +1087,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
                 "Battery dimensions must be positive finite millimetres.",
                 vec!["battery".into()],
             );
-            return result;
+            return None;
         }
         let margin = config.clearance;
         let hx = battery.size.x / 2.0 + margin;
@@ -1370,6 +1198,547 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             vec!["battery".into()],
         );
     }
+    Some(BatterySpace {
+        height: battery_height,
+        bottom_foam_contours,
+    })
+}
+
+struct ConstructionGeometry {
+    plate_contours: Vec<Contour>,
+    frame_contours: Vec<Contour>,
+    plate_foam_contours: Vec<Contour>,
+    bottom_foam_contours: Vec<Contour>,
+    profile_openings: Vec<CaseOpening>,
+    suspension_bosses: Vec<Mount>,
+    bottom_z: f64,
+    bottom_foam_z: f64,
+    battery_z: f64,
+    support_height: f64,
+}
+
+struct ConstructedBodies {
+    bodies: Vec<CaseIR>,
+    stack: Vec<MechanicalStackLayer>,
+}
+
+fn construct_bodies(
+    revision: u64,
+    config: &MechanicalConfiguration,
+    geometry: ConstructionGeometry,
+    issue: &mut impl FnMut(&str, Severity, &str, Vec<String>),
+) -> ConstructedBodies {
+    let ConstructionGeometry {
+        plate_contours,
+        frame_contours,
+        plate_foam_contours,
+        bottom_foam_contours,
+        profile_openings,
+        suspension_bosses,
+        bottom_z,
+        bottom_foam_z,
+        battery_z,
+        support_height,
+    } = geometry;
+    let mut bodies: Vec<CaseIR> = Vec::new();
+    let mut stack = Vec::new();
+    let board_id = config.board_id.clone();
+    let sheet_bottom = config.bottom_style == Some(MechanicalBottomStyle::Sheet)
+        || config.part_processes.iter().flatten().any(|process| {
+            process.part_id == "bottom"
+                && matches!(process.method, PlateMethod::PcbFr4 | PlateMethod::CutSheet)
+        });
+
+    if sheet_bottom && !config.middle_frame.unwrap_or(false) && !config.integrated_plate_frame {
+        issue(
+            "sheet-enclosure",
+            Severity::Warning,
+            "A sheet bottom without a middle frame leaves the assembly sides open.",
+            vec!["bottom".into()],
+        );
+    }
+    if config.middle_frame.unwrap_or(false) && (!sheet_bottom || config.integrated_plate_frame) {
+        issue(
+            "middle-frame-configuration",
+            Severity::Error,
+            "A separate middle frame requires a sheet bottom and a separate plate.",
+            vec!["middle-frame".into()],
+        );
+    }
+    let frame_outer = frame_contours.clone();
+    for (id, kind, z, thickness, body_contours) in [
+        (
+            "plate",
+            if config.integrated_plate_frame {
+                CaseKind::Lid
+            } else {
+                CaseKind::Plate
+            },
+            if config.integrated_plate_frame {
+                bottom_z + config.bottom_thickness
+            } else {
+                config.plate_to_pcb
+            },
+            config.plate_thickness,
+            plate_contours,
+        ),
+        (
+            "bottom",
+            if config.integrated_plate_frame || sheet_bottom {
+                CaseKind::Plate
+            } else {
+                CaseKind::Tray
+            },
+            bottom_z,
+            config.bottom_thickness,
+            frame_contours,
+        ),
+        (
+            "plate-foam",
+            CaseKind::Plate,
+            0.0,
+            config.plate_foam_thickness,
+            plate_foam_contours,
+        ),
+        (
+            "bottom-foam",
+            CaseKind::Plate,
+            bottom_foam_z,
+            config.bottom_foam_thickness,
+            bottom_foam_contours,
+        ),
+    ] {
+        if thickness <= 0.0 {
+            continue;
+        }
+        bodies.push(CaseIR {
+            revision: revision,
+            contours: body_contours,
+            body: CaseBody {
+                openings: if (id == "bottom" && !config.integrated_plate_frame)
+                    || (id == "plate" && config.integrated_plate_frame)
+                {
+                    let mut openings = config.openings.clone().unwrap_or_default();
+                    openings.extend(profile_openings.clone());
+                    Some(openings)
+                } else {
+                    None
+                },
+                id: id.into(),
+                name: id.into(),
+                board_id: board_id.clone(),
+                kind,
+                thickness,
+                clearance: 0.0,
+                material_id: None,
+                z: Some(z),
+                wall_height: if (id == "bottom" && !config.integrated_plate_frame)
+                    || (id == "plate" && config.integrated_plate_frame)
+                {
+                    Some(
+                        config.plate_to_pcb
+                            - bottom_z
+                            - config.bottom_thickness
+                            - if config.mount == MechanicalMount::Gasket {
+                                config.gasket_travel.unwrap_or(0.0)
+                            } else {
+                                0.0
+                            },
+                    )
+                } else {
+                    None
+                },
+                wall_thickness: Some(config.wall_thickness),
+                mounts: Some(if id == "bottom" {
+                    let mut mounts = config.closure_mounts.clone().unwrap_or_default();
+                    mounts.extend(suspension_bosses.clone());
+                    mounts
+                } else if id == "plate" && config.mount == MechanicalMount::Rigid {
+                    let mut mounts: Vec<Mount> = config
+                        .mounts
+                        .iter()
+                        .map(|mount| {
+                            let mut hole = mount.clone();
+                            hole.kind = MountKind::Hole;
+                            hole.height = None;
+                            hole.boss_diameter = None;
+                            hole
+                        })
+                        .collect();
+                    if config.integrated_plate_frame {
+                        mounts.extend(config.closure_mounts.clone().unwrap_or_default());
+                    }
+                    mounts
+                } else {
+                    vec![]
+                }),
+                gasket: None,
+            },
+        });
+    }
+    if sheet_bottom && config.middle_frame.unwrap_or(false) && !config.integrated_plate_frame {
+        if let Some(bottom) = bodies.iter().find(|body| body.body.id == "bottom") {
+            let mut frame = bottom.clone();
+            frame.body.id = "middle-frame".into();
+            frame.body.name = "Middle frame".into();
+            frame.body.kind = CaseKind::Tray;
+            frame.body.wall_height = Some(config.plate_to_pcb - bottom_z - config.bottom_thickness);
+            frame.contours = frame_outer;
+            if let Ok(prepared) = crate::case::prepare(&CaseAssemblyIR {
+                revision: revision,
+                bodies: vec![frame.clone()],
+            }) {
+                let mut rings = Vec::new();
+                for region in &prepared.bodies[0].regions {
+                    rings.push(Contour {
+                        hole: false,
+                        points: region.outer.clone(),
+                    });
+                    rings.extend(region.cavities.iter().map(|points| Contour {
+                        hole: true,
+                        points: points.clone(),
+                    }));
+                }
+                frame.contours = rings;
+                frame.body.kind = CaseKind::Plate;
+                frame.body.z = Some(bottom_z + config.bottom_thickness);
+                frame.body.thickness = config.plate_to_pcb - bottom_z - config.bottom_thickness;
+                frame.body.wall_height = None;
+                frame.body.gasket = None;
+                stack.push(MechanicalStackLayer {
+                    id: "middle-frame".into(),
+                    z: frame.body.z.unwrap(),
+                    thickness: frame.body.thickness,
+                });
+                bodies.push(frame);
+            }
+        }
+    }
+    if sheet_bottom {
+        if let Some(bottom) = bodies.iter_mut().find(|body| body.body.id == "bottom") {
+            for mount in bottom.body.mounts.iter_mut().flatten() {
+                mount.kind = MountKind::Hole;
+                mount.boss_diameter = None;
+                mount.height = None;
+            }
+        }
+        for support in &suspension_bosses {
+            let Some(diameter) = support.boss_diameter else {
+                continue;
+            };
+            let ring = |diameter: f64, hole: bool| Contour {
+                hole,
+                points: (0..64)
+                    .map(|index| {
+                        let angle = index as f64 * std::f64::consts::TAU / 64.0;
+                        Vec2 {
+                            x: support.at.x + diameter / 2.0 * angle.cos(),
+                            y: support.at.y + diameter / 2.0 * angle.sin(),
+                        }
+                    })
+                    .collect(),
+            };
+            let id = format!("spacer:{}", support.id);
+            bodies.push(CaseIR {
+                revision: revision,
+                contours: vec![ring(diameter, false), ring(support.hole_diameter, true)],
+                body: CaseBody {
+                    id: id.clone(),
+                    name: id.clone(),
+                    board_id: config.board_id.clone(),
+                    kind: CaseKind::Plate,
+                    thickness: support_height,
+                    clearance: 0.0,
+                    material_id: None,
+                    z: Some(battery_z),
+                    wall_height: None,
+                    wall_thickness: None,
+                    mounts: None,
+                    gasket: None,
+                    openings: None,
+                },
+            });
+            stack.push(MechanicalStackLayer {
+                id,
+                z: battery_z,
+                thickness: support_height,
+            });
+        }
+    }
+    ConstructedBodies { bodies, stack }
+}
+
+fn finalize_assembly(
+    document: &ProjectDoc,
+    config: &MechanicalConfiguration,
+    result: &mut MechanicalAssembly,
+) {
+    crate::mechanical_checks::apply_allowance(config, result);
+    if config.mount == MechanicalMount::Gasket && !result.generation_blocked {
+        if let Err(message) = gasket::generate(document, config, result) {
+            result.generation_blocked = true;
+            result.diagnostics.push(Finding {
+                id: "mechanical:gasket-layout".into(),
+                severity: Severity::Error,
+                scope: Scope::Case,
+                message,
+                target_ids: vec!["plate".into()],
+            });
+        }
+    }
+    if let Err(message) = crate::case::prepare(&result.case) {
+        result.generation_blocked = true;
+        result.diagnostics.push(Finding {
+            id: "mechanical:case-preparation".into(),
+            severity: Severity::Error,
+            scope: Scope::Case,
+            message,
+            target_ids: vec![],
+        });
+    }
+    result.suggested_mounts =
+        crate::mechanical_checks::propose_mounts(config, &result.plate_contours);
+    result.diagnostics.extend(crate::mechanical_checks::check(
+        config,
+        &result.plate_contours,
+    ));
+    result
+        .diagnostics
+        .extend(crate::mechanical_checks::check_specifications(
+            config,
+            &result.case,
+        ));
+}
+
+pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembly {
+    let mut result = MechanicalAssembly {
+        gasket_supports: vec![],
+        gasket_tracks: vec![],
+        generated_hardware: vec![],
+        pcb_reference: None,
+        suggested_mounts: vec![],
+        nominal_plate_contours: vec![],
+        revision: document.revision,
+        plate_contours: contours.to_vec(),
+        case: CaseAssemblyIR {
+            revision: document.revision,
+            bodies: vec![],
+        },
+        stack: vec![],
+        diagnostics: vec![],
+        generation_blocked: false,
+    };
+    let Some(config) = &document.mechanical else {
+        return result;
+    };
+    let profile_stage = resolve_profiles(document, config);
+    let (effective_config, incompatible_switches) = profile_stage
+        .map(|stage| (stage.config, stage.incompatible_switches))
+        .unwrap_or_else(|| (config.clone(), Vec::new()));
+    let config = &effective_config;
+    let mut frame_contours = contours.to_vec();
+    if config.wall_thickness.is_finite()
+        && config.clearance.is_finite()
+        && config.wall_thickness > 0.0
+        && config.clearance >= 0.0
+    {
+        match expanded_outline(
+            contours,
+            config.wall_thickness + config.clearance,
+            document.revision,
+        ) {
+            Ok(expanded) => {
+                frame_contours = expanded;
+                result.plate_contours = frame_contours.clone();
+            }
+            Err(message) => {
+                result.generation_blocked = true;
+                result.diagnostics.push(Finding {
+                    id: "mechanical:frame-outline".into(),
+                    severity: Severity::Error,
+                    scope: Scope::Case,
+                    message,
+                    target_ids: vec![],
+                });
+            }
+        }
+    }
+    let mut issue = |id: &str, severity: Severity, message: &str, targets: Vec<String>| {
+        if severity == Severity::Error {
+            result.generation_blocked = true;
+        }
+        result.diagnostics.push(Finding {
+            id: format!("mechanical:{id}"),
+            severity,
+            scope: Scope::Case,
+            message: message.into(),
+            target_ids: targets,
+        });
+    };
+    if !incompatible_switches.is_empty() {
+        issue(
+            "switch-family",
+            Severity::Error,
+            "Switches with different mounting heights cannot share one plate; split the assembly or choose compatible switch fits.",
+            incompatible_switches,
+        );
+    }
+    if !dimensions_are_valid(config) {
+        issue(
+            "dimensions",
+            Severity::Error,
+            "Assembly thicknesses must be positive and clearances nonnegative finite millimetres.",
+            vec![],
+        );
+        return result;
+    }
+    let pcb_bottom = -config.pcb_thickness;
+    let bottom_foam_z = pcb_bottom - config.bottom_foam_thickness;
+    if contours.iter().any(|c| {
+        c.points.len() < 3
+            || c.points
+                .iter()
+                .any(|p| !p.x.is_finite() || !p.y.is_finite())
+    }) {
+        issue(
+            "contours",
+            Severity::Error,
+            "Assembly contours must contain finite closed polygons.",
+            vec![],
+        );
+        return result;
+    }
+    if config
+        .mounts
+        .iter()
+        .chain(config.closure_mounts.iter().flatten())
+        .any(|m| {
+            !m.at.x.is_finite()
+                || !m.at.y.is_finite()
+                || !m.hole_diameter.is_finite()
+                || m.hole_diameter <= 0.0
+        })
+    {
+        issue(
+            "mount-geometry",
+            Severity::Error,
+            "Mount positions and diameters must be finite and diameters positive.",
+            vec![],
+        );
+        return result;
+    }
+    if contours.is_empty() {
+        issue(
+            "outline",
+            Severity::Error,
+            "An assembly requires a resolved board outline.",
+            vec![],
+        );
+    }
+    if config.plate_foam_thickness > config.plate_to_pcb {
+        issue(
+            "foam-engagement",
+            Severity::Error,
+            "Plate foam exceeds the plate-to-PCB clearance.",
+            vec!["plate-foam".into()],
+        );
+    }
+    if config.integrated_plate_frame && config.method == PlateMethod::PcbFr4 {
+        issue(
+            "fr4-integrated-frame",
+            Severity::Error,
+            "A planar PCB-FR4 plate cannot encode an integrated case rim.",
+            vec!["plate".into()],
+        );
+    }
+    if config.integrated_plate_frame && config.mount == MechanicalMount::Gasket {
+        issue(
+            "gasket-rigid-frame",
+            Severity::Error,
+            "A gasket plate must remain mechanically separate from the rigid frame.",
+            vec!["plate".into()],
+        );
+    }
+    if config.mount == MechanicalMount::Gasket
+        && !config.gasket_travel.is_some_and(|travel| {
+            travel.is_finite() && travel > 0.0 && travel < config.plate_to_pcb
+        })
+    {
+        issue(
+            "gasket-travel",
+            Severity::Error,
+            "Gasket mounting requires positive travel smaller than the plate-to-PCB clearance, keeping the plate clear of the rigid rim.",
+            vec!["plate".into()],
+        );
+    }
+
+    if config.mounts.is_empty() && config.mount != MechanicalMount::Gasket {
+        issue(
+            "mounts",
+            Severity::Warning,
+            "No mounting points are configured; choose supported mounting locations before manufacturing.",
+            vec![],
+        );
+    }
+    if config.method == PlateMethod::PcbFr4 {
+        issue(
+            "fr4-routing",
+            Severity::Warning,
+            "Sharp internal rectangular corners require a reviewed routing radius; PCB process capability is not implied by a valid plate outline.",
+            vec!["plate".into()],
+        );
+    }
+    let Some(board) = document
+        .boards
+        .iter()
+        .find(|board| board.id == config.board_id)
+    else {
+        issue(
+            "board",
+            Severity::Error,
+            "Select an existing board for the mechanical assembly.",
+            vec![],
+        );
+        return result;
+    };
+    let mut seen_stabilizers = std::collections::BTreeSet::new();
+    for stabilizer in config.stabilizers.iter().flatten() {
+        if !seen_stabilizers.insert(&stabilizer.part_id)
+            || !board.part_ids.contains(&stabilizer.part_id)
+            || !document.parts.iter().any(|p| p.id == stabilizer.part_id)
+            || !stabilizer.units.is_finite()
+            || stabilizer.units <= 0.0
+            || stabilizer.rotation.is_some_and(|v| !v.is_finite())
+        {
+            issue(
+                &format!("stabilizer-override:{}", stabilizer.part_id),
+                Severity::Error,
+                "Stabilizer overrides require a unique existing board part, positive finite units and finite rotation.",
+                vec![stabilizer.part_id.clone()],
+            );
+        }
+    }
+    let PartGeometry {
+        pcb_reference_contours,
+        component_volumes,
+        profile_openings,
+        plate_foam_clearances,
+        bottom_foam_clearances,
+    } = collect_part_geometry(
+        document,
+        config,
+        board,
+        contours,
+        &mut result.plate_contours,
+        &mut issue,
+    );
+    let Some(BatterySpace {
+        height: battery_height,
+        bottom_foam_contours,
+    }) = resolve_battery_space(config, contours, &mut issue)
+    else {
+        return result;
+    };
     // PCB top is the stable zero plane; layers below it have negative Z.
     let battery_z = bottom_foam_z - battery_height;
     let bottom_z = battery_z - config.bottom_thickness;
@@ -1507,274 +1876,26 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
                 bottom_foam_contours
             }
         };
-    let board_id = config.board_id.clone();
-    let sheet_bottom = config.bottom_style == Some(MechanicalBottomStyle::Sheet)
-        || config.part_processes.iter().flatten().any(|process| {
-            process.part_id == "bottom"
-                && matches!(process.method, PlateMethod::PcbFr4 | PlateMethod::CutSheet)
-        });
-
-    if sheet_bottom && !config.middle_frame.unwrap_or(false) && !config.integrated_plate_frame {
-        issue(
-            "sheet-enclosure",
-            Severity::Warning,
-            "A sheet bottom without a middle frame leaves the assembly sides open.",
-            vec!["bottom".into()],
-        );
-    }
-    if config.middle_frame.unwrap_or(false) && (!sheet_bottom || config.integrated_plate_frame) {
-        issue(
-            "middle-frame-configuration",
-            Severity::Error,
-            "A separate middle frame requires a sheet bottom and a separate plate.",
-            vec!["middle-frame".into()],
-        );
-    }
-    let frame_outer = frame_contours.clone();
-    for (id, kind, z, thickness, body_contours) in [
-        (
-            "plate",
-            if config.integrated_plate_frame {
-                CaseKind::Lid
-            } else {
-                CaseKind::Plate
-            },
-            if config.integrated_plate_frame {
-                bottom_z + config.bottom_thickness
-            } else {
-                config.plate_to_pcb
-            },
-            config.plate_thickness,
-            result.plate_contours.clone(),
-        ),
-        (
-            "bottom",
-            if config.integrated_plate_frame || sheet_bottom {
-                CaseKind::Plate
-            } else {
-                CaseKind::Tray
-            },
-            bottom_z,
-            config.bottom_thickness,
-            frame_contours,
-        ),
-        (
-            "plate-foam",
-            CaseKind::Plate,
-            0.0,
-            config.plate_foam_thickness,
-            plate_foam_contours,
-        ),
-        (
-            "bottom-foam",
-            CaseKind::Plate,
-            bottom_foam_z,
-            config.bottom_foam_thickness,
-            bottom_foam_contours,
-        ),
-    ] {
-        if thickness <= 0.0 {
-            continue;
-        }
-        result.case.bodies.push(CaseIR {
-            revision: document.revision,
-            contours: body_contours,
-            body: CaseBody {
-                openings: if (id == "bottom" && !config.integrated_plate_frame)
-                    || (id == "plate" && config.integrated_plate_frame)
-                {
-                    let mut openings = config.openings.clone().unwrap_or_default();
-                    openings.extend(profile_openings.clone());
-                    Some(openings)
-                } else {
-                    None
-                },
-                id: id.into(),
-                name: id.into(),
-                board_id: board_id.clone(),
-                kind,
-                thickness,
-                clearance: 0.0,
-                material_id: None,
-                z: Some(z),
-                wall_height: if (id == "bottom" && !config.integrated_plate_frame)
-                    || (id == "plate" && config.integrated_plate_frame)
-                {
-                    Some(
-                        config.plate_to_pcb
-                            - bottom_z
-                            - config.bottom_thickness
-                            - if config.mount == MechanicalMount::Gasket {
-                                config.gasket_travel.unwrap_or(0.0)
-                            } else {
-                                0.0
-                            },
-                    )
-                } else {
-                    None
-                },
-                wall_thickness: Some(config.wall_thickness),
-                mounts: Some(if id == "bottom" {
-                    let mut mounts = config.closure_mounts.clone().unwrap_or_default();
-                    mounts.extend(suspension_bosses.clone());
-                    mounts
-                } else if id == "plate" && config.mount == MechanicalMount::Rigid {
-                    let mut mounts: Vec<Mount> = config
-                        .mounts
-                        .iter()
-                        .map(|mount| {
-                            let mut hole = mount.clone();
-                            hole.kind = MountKind::Hole;
-                            hole.height = None;
-                            hole.boss_diameter = None;
-                            hole
-                        })
-                        .collect();
-                    if config.integrated_plate_frame {
-                        mounts.extend(config.closure_mounts.clone().unwrap_or_default());
-                    }
-                    mounts
-                } else {
-                    vec![]
-                }),
-                gasket: None,
-            },
-        });
-    }
-    if sheet_bottom && config.middle_frame.unwrap_or(false) && !config.integrated_plate_frame {
-        if let Some(bottom) = result
-            .case
-            .bodies
-            .iter()
-            .find(|body| body.body.id == "bottom")
-        {
-            let mut frame = bottom.clone();
-            frame.body.id = "middle-frame".into();
-            frame.body.name = "Middle frame".into();
-            frame.body.kind = CaseKind::Tray;
-            frame.body.wall_height = Some(config.plate_to_pcb - bottom_z - config.bottom_thickness);
-            frame.contours = frame_outer;
-            if let Ok(prepared) = crate::case::prepare(&CaseAssemblyIR {
-                revision: document.revision,
-                bodies: vec![frame.clone()],
-            }) {
-                let mut rings = Vec::new();
-                for region in &prepared.bodies[0].regions {
-                    rings.push(Contour {
-                        hole: false,
-                        points: region.outer.clone(),
-                    });
-                    rings.extend(region.cavities.iter().map(|points| Contour {
-                        hole: true,
-                        points: points.clone(),
-                    }));
-                }
-                frame.contours = rings;
-                frame.body.kind = CaseKind::Plate;
-                frame.body.z = Some(bottom_z + config.bottom_thickness);
-                frame.body.thickness = config.plate_to_pcb - bottom_z - config.bottom_thickness;
-                frame.body.wall_height = None;
-                frame.body.gasket = None;
-                result.stack.push(MechanicalStackLayer {
-                    id: "middle-frame".into(),
-                    z: frame.body.z.unwrap(),
-                    thickness: frame.body.thickness,
-                });
-                result.case.bodies.push(frame);
-            }
-        }
-    }
-    if sheet_bottom {
-        if let Some(bottom) = result
-            .case
-            .bodies
-            .iter_mut()
-            .find(|body| body.body.id == "bottom")
-        {
-            for mount in bottom.body.mounts.iter_mut().flatten() {
-                mount.kind = MountKind::Hole;
-                mount.boss_diameter = None;
-                mount.height = None;
-            }
-        }
-        for support in &suspension_bosses {
-            let Some(diameter) = support.boss_diameter else {
-                continue;
-            };
-            let ring = |diameter: f64, hole: bool| Contour {
-                hole,
-                points: (0..64)
-                    .map(|index| {
-                        let angle = index as f64 * std::f64::consts::TAU / 64.0;
-                        Vec2 {
-                            x: support.at.x + diameter / 2.0 * angle.cos(),
-                            y: support.at.y + diameter / 2.0 * angle.sin(),
-                        }
-                    })
-                    .collect(),
-            };
-            let id = format!("spacer:{}", support.id);
-            result.case.bodies.push(CaseIR {
-                revision: document.revision,
-                contours: vec![ring(diameter, false), ring(support.hole_diameter, true)],
-                body: CaseBody {
-                    id: id.clone(),
-                    name: id.clone(),
-                    board_id: config.board_id.clone(),
-                    kind: CaseKind::Plate,
-                    thickness: support_height,
-                    clearance: 0.0,
-                    material_id: None,
-                    z: Some(battery_z),
-                    wall_height: None,
-                    wall_thickness: None,
-                    mounts: None,
-                    gasket: None,
-                    openings: None,
-                },
-            });
-            result.stack.push(MechanicalStackLayer {
-                id,
-                z: battery_z,
-                thickness: support_height,
-            });
-        }
-    }
-    crate::mechanical_checks::apply_allowance(config, &mut result);
-    if config.mount == MechanicalMount::Gasket && !result.generation_blocked {
-        if let Err(message) = gasket::generate(document, config, &mut result) {
-            result.generation_blocked = true;
-            result.diagnostics.push(Finding {
-                id: "mechanical:gasket-layout".into(),
-                severity: Severity::Error,
-                scope: Scope::Case,
-                message,
-                target_ids: vec!["plate".into()],
-            });
-        }
-    }
-    if let Err(message) = crate::case::prepare(&result.case) {
-        result.generation_blocked = true;
-        result.diagnostics.push(Finding {
-            id: "mechanical:case-preparation".into(),
-            severity: Severity::Error,
-            scope: Scope::Case,
-            message,
-            target_ids: vec![],
-        });
-    }
-    result.suggested_mounts =
-        crate::mechanical_checks::propose_mounts(config, &result.plate_contours);
-    result.diagnostics.extend(crate::mechanical_checks::check(
+    let constructed = construct_bodies(
+        document.revision,
         config,
-        &result.plate_contours,
-    ));
-    result
-        .diagnostics
-        .extend(crate::mechanical_checks::check_specifications(
-            config,
-            &result.case,
-        ));
+        ConstructionGeometry {
+            plate_contours: result.plate_contours.clone(),
+            frame_contours,
+            plate_foam_contours,
+            bottom_foam_contours,
+            profile_openings,
+            suspension_bosses,
+            bottom_z,
+            bottom_foam_z,
+            battery_z,
+            support_height,
+        },
+        &mut issue,
+    );
+    result.case.bodies = constructed.bodies;
+    result.stack.extend(constructed.stack);
+    finalize_assembly(document, config, &mut result);
     result
 }
 

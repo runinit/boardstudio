@@ -56,8 +56,12 @@ and body cache lifetimes. Existing WASM entrypoints are re-exported unchanged.
 Nested ownership lets children use private ancestor types and helpers without
 widening field or helper visibility.
 
-Mechanical resolution has private profile, stack, foam-contour, and opening
-transform stages. Electrical resolution separates key discovery, required signals,
+Mechanical resolution has private profile, part-geometry, battery-space, stack,
+foam-contour, body-construction, and finalization stages. Part geometry returns
+PCB reference holes, component volumes, profile openings, and foam exclusions;
+construction returns bodies and additional stack layers. Ordered diagnostics flow
+through the resolver's shared callback until final validation. Electrical resolution
+separates key discovery, required signals,
 GPIO allocation, net finalization, and reversible-jumper checks. Their diagnostic
 ordering and public entrypoints remain unchanged.
 

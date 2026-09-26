@@ -223,3 +223,66 @@ fn hardware_and_critical_fit_specs_persist_and_match_generated_parts() {
             })
     );
 }
+
+#[test]
+fn mechanical_diagnostics_keep_validation_order_before_outline_checks() {
+    let mut doc = document();
+    let mut config = configuration();
+    config["plateThickness"] = json!(0.0);
+    doc["mechanical"] = config;
+    let result = request(
+        &mut CoreEngine::new(),
+        json!({"kind":"resolve-mechanical","id":"order","document":doc,"contours":[]}),
+    );
+    let findings = result["assembly"]["diagnostics"].as_array().unwrap();
+    assert_eq!(
+        findings
+            .iter()
+            .map(|finding| finding["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["mechanical:frame-outline", "mechanical:dimensions"]
+    );
+}
+
+#[test]
+fn battery_stack_and_body_preserve_declared_layer_order() {
+    let mut doc = document();
+    let mut config = configuration();
+    config["battery"] = json!({
+        "size":{"x":20,"y":10,"z":3},
+        "at":{"x":30,"y":20},
+        "cableExit":{"x":30,"y":20},
+        "cableWidth":2
+    });
+    doc["mechanical"] = config;
+    let result = request(
+        &mut CoreEngine::new(),
+        json!({"kind":"resolve-mechanical","id":"battery","document":doc,"contours":contours()}),
+    );
+    let assembly = &result["assembly"];
+    let stack = assembly["stack"].as_array().unwrap();
+    let ids: Vec<_> = stack
+        .iter()
+        .map(|layer| layer["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "plate",
+            "plate-foam",
+            "pcb",
+            "bottom-foam",
+            "battery",
+            "bottom"
+        ]
+    );
+    assert_eq!(
+        assembly["case"]["bodies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|body| body["body"]["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["plate", "bottom", "plate-foam", "bottom-foam"]
+    );
+}
