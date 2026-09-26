@@ -1,7 +1,7 @@
 use boardstudio_core::CoreEngine;
 use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
 use boardstudio_core::model::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn definition(
     id: &str,
@@ -174,6 +174,35 @@ fn resolver_scopes_board_and_honors_controller_and_locks() {
         controller_part_id: Some("mcu-left".into()),
     });
     assert_eq!(plan.assignments.len(), 4);
+    let assignment_pins = plan
+        .assignments
+        .iter()
+        .map(|assignment| (assignment.key_id.as_str(), (assignment.row_pin.as_str(), assignment.column_pin.as_str())))
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(
+        assignment_pins,
+        BTreeMap::from([
+            ("matrix/m/r0c0", ("P1", "P21")),
+            ("matrix/m/r0c1", ("P19", "P21")),
+            ("matrix/m/r1c0", ("P1", "P20")),
+            ("matrix/m/r1c1", ("P19", "P20")),
+        ])
+    );
+    let row_zero = plan.nets.iter().find(|net| net.id.ends_with("/row/0")).unwrap();
+    let row_zero_pins = row_zero
+        .pins
+        .iter()
+        .map(|pin| (pin.part_id.as_str(), pin.pad_id.as_str()))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        row_zero_pins,
+        BTreeSet::from([
+            ("matrix/m/r0c0/diode", "A"),
+            ("matrix/m/r1c0/diode", "A"),
+            ("mcu-left", "P1"),
+        ])
+    );
+    assert!(plan.diagnostics.iter().all(|item| item.code != "protected-pin-change"));
     assert!(plan.assignments.iter().any(|a| a.locked));
     assert!(
         plan.diagnostics

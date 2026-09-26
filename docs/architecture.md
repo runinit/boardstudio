@@ -35,6 +35,12 @@ an isolated preview document; `assemblyPlacement` creates document snapshots.
 `AssemblyViewer` is the single preview model-loading owner. Export model packaging
 has its own asset resolver because it packages source files rather than meshes.
 
+`usePartsEditing` owns generator drafts, asynchronous compilation, preview state,
+and net-preserving saves. Its terminal remapper validates every placed instance
+before changing any cloned nets. Authored and imported parts keep their separate
+editing path. Placement uses one discriminated state for standalone parts, matrices,
+mirrored pairs, and setup; cancellation invalidates pending matrix projections.
+
 ## Rust ownership and privacy
 
 `core/src/artifact/kicad.rs` retains shared formatting, footprint serialization,
@@ -49,6 +55,11 @@ The construction child owns solid building; its cache child owns preview-region
 and body cache lifetimes. Existing WASM entrypoints are re-exported unchanged.
 Nested ownership lets children use private ancestor types and helpers without
 widening field or helper visibility.
+
+Mechanical resolution has private profile, stack, foam-contour, and opening
+transform stages. Electrical resolution separates key discovery, required signals,
+GPIO allocation, net finalization, and reversible-jumper checks. Their diagnostic
+ordering and public entrypoints remain unchanged.
 
 ## Current project format
 
