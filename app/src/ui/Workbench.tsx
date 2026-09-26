@@ -4,7 +4,6 @@ import { catalogue as ergogenCatalogue, parameters as ergogenParameterSchema, is
 import React, { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CaseBody,
-  CompiledFootprint,
   Constraint,
   EditCommand,
   JsonValue,
@@ -28,18 +27,15 @@ import { MatrixGhost, ScenePart, SplayHandles } from './CanvasObjects';
 import { CaseGenerationControls } from './CaseGenerationControls';
 import { caseReadiness, mechanicalFindings } from './caseReadiness';
 import { CommandMenu, ToolIcon } from './CommandMenu';
-import { runLatest } from './compileLatest';
 import { mirrorExistingHalf } from './existingHalf';
 import { ExistingHalfSetup } from './ExistingHalfSetup';
 import { FindingList } from './FindingList';
 import { findingTarget, presentedFindings } from './findings';
 import { GeneratorFields } from './GeneratorFields';
-import { generatorDraft, generatorParameters } from './generatorSettings';
 import { CaseNumber, ConstraintNumber, Coordinate, DraftInput, Measure, ModelVector, OrientationControl } from './InspectorControls';
 import { InspectorSection } from './InspectorSection';
 import { findKeycapOverlaps, keycapReflowDeltas, type KeycapPlacement, type KeycapResize } from './keycapReflow';
 import { KeySizeControls } from './KeySizeControls';
-import { libraryPreviewFor, libraryPreviewsToCompile } from './libraryPreview';
 import { LibraryWorkspace } from './LibraryWorkspace';
 import { matrixCellId, matrixSceneAdapter, type MatrixScene } from './matrixGeometry';
 import { CellInspector, MatrixEditor } from './MatrixInspector';
@@ -53,6 +49,7 @@ import { PartsLibrary } from './PartsLibrary';
 import { alignmentDelta, snapOrigin, snapPart } from './placementGeometry';
 import { selectionOutline } from './selectionOutline';
 import { useWorkbenchSelection } from './useWorkbenchSelection';
+import { usePartsEditing } from './usePartsEditing';
 import { useWorkbenchTree } from './useWorkbenchTree';
 import { WiringPanel } from './WiringPanel';
 import { PITCH_MM, courtyardSize, createPart, definitionIssues, formatSize, isTyping, localMatrixDelta, makeId, nudgeLargeStep, nudgeStep, pointFromEvent, snapDelta, unit, withCell } from './workbenchGeometry';
@@ -156,9 +153,6 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [matrixRows, setMatrixRows] = useState('');
   const [matrixColumns, setMatrixColumns] = useState('');
   const [matrixPreset, setMatrixPreset] = useState<MatrixPresetId>('mx-solder');
-  const [libraryParameters, setLibraryParameters] = useState<Record<string, JsonValue>>({});
-  const [compiledPreview, setCompiledPreview] = useState<{ key: string; results: CompiledFootprint[]; error?: string; pending: boolean }>({ key: '', results: [], pending: false });
-  const compileSequence = useRef(0);
   const [matrixGhost, setMatrixGhost] = useState<Matrix | null>(null);
   const [matrixGhostDefinitions, setMatrixGhostDefinitions] = useState<PartDefinition[]>([]);
   const [matrixGhostScenes, setMatrixGhostScenes] = useState<MatrixScene[]>([]);
@@ -276,91 +270,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   }, [availableLibrary, librarySearch]);
   const selectedLibraryDefinition = libraryDefinitions.find((definition) => definition.id === libraryChoice) ?? (!librarySearch.trim() ? availableLibrary.find(definition => definition.id === 'ergogen:ceoloide/switch_mx') : undefined) ?? filteredLibrary[0] ?? availableLibrary[0];
   const ergogenGenerator = isErgogen(selectedLibraryDefinition?.generator?.source);
-  const parameterSchema = useMemo(() => generatorParameters(selectedLibraryDefinition), [selectedLibraryDefinition?.generator?.source]);
-  const generatorPreview = useMemo(() => selectedLibraryDefinition
-    ? generatorDraft(selectedLibraryDefinition, libraryParameters, new Map(document.assets.map((asset) => [asset.id, asset.name])))
-    : undefined, [selectedLibraryDefinition, libraryParameters, document.assets]);
-  const previewDefinition = libraryRecipeEntries[0]?.definition ?? generatorPreview?.definition;
-  const libraryPreviewDefinitions = useMemo(() => previewDefinition
-    ? [previewDefinition, ...libraryCompanions.map((entry) => entry.definition)]
-    : [], [previewDefinition, libraryCompanions]);
-  const compileDefinitions = useMemo(() => libraryPreviewsToCompile(libraryPreviewDefinitions), [libraryPreviewDefinitions]);
-  const libraryCompileKey = JSON.stringify(compileDefinitions.map((definition) => [definition.id, definition]));
-  const currentCompileResults = compiledPreview.key === libraryCompileKey && !compiledPreview.pending ? compiledPreview.results : [];
-  const currentCompiledPreview = previewDefinition ? libraryPreviewFor(previewDefinition, currentCompileResults) : undefined;
-  const previewCompilePending = compileDefinitions.length > 0 && (compiledPreview.key !== libraryCompileKey || compiledPreview.pending);
-  const previewCompileError = compiledPreview.key === libraryCompileKey ? compiledPreview.error : undefined;
-  const libraryCompiled = useMemo(() => libraryPreviewDefinitions
-    .map((definition) => libraryPreviewFor(definition, currentCompileResults))
-    .filter((entry): entry is CompiledFootprint => Boolean(entry)), [libraryPreviewDefinitions, currentCompileResults]);
-  useEffect(() => {
-    if (!compileDefinitions.length) return;
-    const definitions = compileDefinitions;
-    setCompiledPreview({ key: libraryCompileKey, results: [], pending: true });
-    return runLatest(compileSequence, () => compileFootprints(definitions.map((definition) => ({
-      id: `library-preview:${definition.id}`,
-      definition,
-      side: 'front',
-    }))), (results) => {
-      setCompiledPreview(results.length === definitions.length
-        ? { key: libraryCompileKey, results, pending: false }
-        : { key: libraryCompileKey, results: [], error: 'Rust returned an incomplete footprint preview batch.', pending: false });
-    }, (cause) => {
-      setCompiledPreview({ key: libraryCompileKey, results: [], error: cause instanceof Error ? cause.message : String(cause), pending: false });
-    });
-  }, [compileFootprints, libraryCompileKey]);
-  useEffect(() => {
-    const defaults: Record<string, JsonValue> = {};
-    for (const [key, parameter] of Object.entries(parameterSchema)) {
-      if (parameter.value !== undefined) defaults[key] = parameter.value as JsonValue;
-    }
-    Object.assign(defaults, selectedLibraryDefinition?.generator?.parameters ?? {});
-    setLibraryParameters(defaults);
-  }, [selectedLibraryDefinition?.id, selectedLibraryDefinition?.generator?.parameters, parameterSchema]);
-  const updateGenerator = (parameter: string, value: JsonValue) => {
-    setLibraryParameters((current) => ({ ...current, [parameter]: value }));
-  };
-  const saveGenerator = () => {
-    if (!selectedLibraryDefinition?.generator || !previewDefinition?.generator || generatorPreview?.error) return;
-    const definition = isErgogen(previewDefinition.generator.source) ? normalizeDefinition(previewDefinition) : previewDefinition;
-    const ir = currentCompiledPreview?.geometry;
-    if (!isErgogen(definition.generator?.source) && !ir) return;
-    const next = isErgogen(definition.generator?.source)
-      ? definition
-      : { ...definition, pads: ir!.pads.map((pad) => ({ ...pad })), courtyard: ir!.courtyard.map((point) => ({ ...point })) };
-    const original = document.definitions.find((entry) => entry.id === next.id) ?? selectedLibraryDefinition;
-    const instances = document.parts.filter((part) => part.definitionId === next.id);
-    let nets = document.nets.map((net) => ({ ...net, pins: [...net.pins] }));
-    for (const part of instances) {
-      const oldTerminals = Object.entries(original.terminals ?? {});
-      const assignments = oldTerminals.map(([terminal, oldPads]) => ({
-        terminal,
-        oldPads,
-        netIds: [...new Set(document.nets.filter((net) => net.pins.some((pin) => pin.partId === part.id && oldPads.includes(pin.padId))).map((net) => net.id))],
-      }));
-      for (const { terminal, netIds } of assignments) {
-        const assignment = netIds;
-        if (!assignment.length) continue;
-        const newPads = next.terminals?.[terminal];
-        if (assignment.length > 1 || !newPads?.length) {
-          setDefinitionError(`Cannot apply these generator settings: assigned ${terminal} terminal pads would be lost or are split across nets.`);
-          return;
-        }
-      }
-      const assignedOldPads = new Set(assignments.flatMap(({ oldPads }) => oldPads));
-      nets = nets.map((net) => ({ ...net, pins: net.pins.filter((pin) => pin.partId !== part.id || !assignedOldPads.has(pin.padId)) }));
-      for (const { terminal, netIds } of assignments) {
-        if (!netIds.length) continue;
-        const newPads = next.terminals?.[terminal] ?? [];
-        nets.find((net) => net.id === netIds[0])?.pins.push(...newPads.map((padId) => ({ partId: part.id, padId })));
-      }
-    }
-    const saved = document.definitions.some((entry) => entry.id === next.id)
-      ? document.definitions.map((entry) => entry.id === next.id ? next : entry)
-      : [...document.definitions, next];
-    setDefinitionError('');
-    emit({ kind: 'replace-document', document: { ...document, definitions: saved, nets } }, [next.id, ...instances.map((part) => part.id)]);
-  };
+  const recipePreviewDefinitions = useMemo(() => libraryRecipeEntries.map((entry) => entry.definition), [libraryRecipeEntries]);
+  const { edits: libraryParameters, updateGenerator, generatorPreview, previewDefinition, compiledDefinitions: libraryCompiled, compilePending: previewCompilePending, compileError: previewCompileError, saveGenerator } = usePartsEditing({
+    document, selectedDefinition: selectedLibraryDefinition, previewDefinitions: recipePreviewDefinitions,
+    compileFootprints, onEdit, setDefinitionError,
+  });
   const poses = useMemo(() => new Map(scene.transforms.map((item) => [item.id, item.pose])), [scene.transforms]);
   const treeParts = useMemo(() => new Map(document.parts.map((part) => [part.id, part])), [document.parts]);
   const parts = useMemo(() => new Map(document.parts.map((part) => [part.id, { ...part, pose: poses.get(part.id) ?? part.pose }])), [document.parts, poses]);
