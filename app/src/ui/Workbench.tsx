@@ -42,9 +42,10 @@ import { CellInspector, MatrixEditor } from './MatrixInspector';
 import { matrixWithPreset } from './matrixPresets';
 import { resizeMatrix } from './matrixResize';
 import { MechanicalAssemblyPanel } from './MechanicalAssemblyPanel';
-import { MirrorPairIcon, MirroredPairSetup, pairAt, type PairPlacement, type PairSetup } from './MirroredPairSetup';
+import { MirrorPairIcon, MirroredPairSetup, pairAt, type PairSetup } from './MirroredPairSetup';
 import { DefinitionKeycapControls, OutlineInspector, PartOutlineControls } from './OutlineInspector';
 import { partCatalogLabel, partCatalogSearchText, partChoices } from './partsCatalog';
+import { movePlacement, type PlacementState } from './placementState';
 import { PartsLibrary } from './PartsLibrary';
 import { alignmentDelta, snapOrigin, snapPart } from './placementGeometry';
 import { selectionOutline } from './selectionOutline';
@@ -133,8 +134,10 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [expandedTree, setExpandedTree] = useState<Set<string>>(() => new Set());
   const [treeGrouping, setTreeGrouping] = useState<'column' | 'row'>(() => { try { return localStorage.getItem('boardstudio:v2:tree-grouping') === 'row' ? 'row' : 'column'; } catch { return 'column'; } });
   const [addPartOpen, setAddPartOpen] = useState(false);
-  const [pendingPart, setPendingPart] = useState<PartDefinition | null>(null);
-  const [placementPoint, setPlacementPoint] = useState<Vec2>({ x: 0, y: 0 });
+  const [placement, setPlacement] = useState<PlacementState>({ kind: 'idle' });
+  const pendingPart = placement.kind === 'part' ? placement.definition : null;
+  const placementPoint = placement.kind === 'part' ? placement.point : { x: 0, y: 0 };
+  const pendingLayoutId = placement.kind === 'part' ? placement.layoutId : '';
   const addPartRef = useRef<HTMLButtonElement>(null);
   const [hoveredPart, setHoveredPart] = useState<string | null>(null);
   const [librarySearch, setLibrarySearch] = useState('');
@@ -145,18 +148,23 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [selectedMechanicalLayer, setSelectedMechanicalLayer] = useState('');
   const [libraryAssembly, setLibraryAssembly] = useState<MatrixPresetId | null>(null);
   const [assemblyOrientation, setAssemblyOrientation] = useState<SwitchOrientation>('south');
-  const [matrixSetup, setMatrixSetup] = useState(false);
-  const [pairSetup, setPairSetup] = useState(false);
-  const [pairPlacement, setPairPlacement] = useState<PairPlacement | null>(null);
+  const matrixSetup = placement.kind === 'matrix-setup';
+  const pairSetup = placement.kind === 'pair-setup';
+  const pairPlacement = placement.kind === 'mirrored-pair' ? placement.pair : null;
   const [layoutTargetId, setLayoutTargetId] = useState('');
-  const [pendingLayoutId, setPendingLayoutId] = useState('');
   const [matrixRows, setMatrixRows] = useState('');
   const [matrixColumns, setMatrixColumns] = useState('');
   const [matrixPreset, setMatrixPreset] = useState<MatrixPresetId>('mx-solder');
-  const [matrixGhost, setMatrixGhost] = useState<Matrix | null>(null);
-  const [matrixGhostDefinitions, setMatrixGhostDefinitions] = useState<PartDefinition[]>([]);
+  const matrixGhost = placement.kind === 'matrix' || placement.kind === 'mirrored-pair' ? placement.matrix : null;
+  const matrixGhostDefinitions = placement.kind === 'matrix' || placement.kind === 'mirrored-pair' ? placement.definitions : [];
   const [matrixGhostScenes, setMatrixGhostScenes] = useState<MatrixScene[]>([]);
   const matrixDraftSeq = useRef(0);
+  const cancelPlacement = () => {
+    matrixDraftSeq.current += 1;
+    setPlacement({ kind: 'idle' });
+    setMatrixGhostScenes([]);
+    setSnapGuide(undefined);
+  };
   const matrixGhostProjections = useMemo(() => new Map(matrixGhostScenes.map((projection) => [projection.matrixId, matrixSceneAdapter(projection)])), [matrixGhostScenes]);
   const [snapFraction, setSnapFraction] = useState(0.25);
   const [zoom, setZoom] = useState(1);
@@ -445,10 +453,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   useEffect(() => {
     if (selectedBoardIdProp === undefined && selectedBoard) setLocalBoardId(selectedBoard.id);
     setBoardName(selectedBoard?.name ?? '');
-    setPendingPart(null);
-    setMatrixGhost(null);
-    setPairPlacement(null);
-    setPairSetup(false);
+    cancelPlacement();
     setAddPartOpen(false);
     setSelected([]);
     setScope(null);
@@ -529,11 +534,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         setScope(null);
         setSelectionMode('key');
         setSelectionAnchor(null);
-        setMatrixGhost(null);
-        setMatrixSetup(false);
-        setPairSetup(false);
-        setPairPlacement(null);
-        setPendingPart(null);
+        cancelPlacement();
         setAddPartOpen(false);
         if (addPartOpen) addPartRef.current?.focus();
       }
@@ -598,15 +599,12 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     if (next === 'Design' || next === 'PCB' || next === 'Case') setLastDesignMode(next);
     setCommandMenu(null);
     setOriginPicking(false);
-    setPairSetup(false);
-    setPairPlacement(null);
-    setMatrixGhost(null);
+    cancelPlacement();
     setShowFindings(false);
     setInspectorTab('properties');
     setLeftOpen(false);
     setMode(next);
     setScriptsOpen(false);
-    setPendingPart(null);
     setAddPartOpen(false);
 
   };
@@ -905,7 +903,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     commitMatrix({ ...matrix, cells: nextCells }, 'commit', undefined, definitions);
   };
 
-  const createGuidedMatrix = () => { setPairSetup(false); setPairPlacement(null); setMatrixSetup(true); setAddPartOpen(false); setLeftOpen(true); if (!compactObjects) objectsPanel.setMode('pinned'); setMatrixRows(''); setMatrixColumns(''); };
+  const createGuidedMatrix = () => { setPlacement({ kind: 'matrix-setup' }); setAddPartOpen(false); setLeftOpen(true); if (!compactObjects) objectsPanel.setMode('pinned'); setMatrixRows(''); setMatrixColumns(''); };
 
   const beginMatrixPlacement = (rows: number, columns: number, preset: MatrixPresetId, pair?: PairSetup) => {
     const definition = libraryDefinitions.find((item) => item.id === 'ergogen:ceoloide/switch_mx');
@@ -923,14 +921,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       cells: [],
     };
     const prepared = matrixWithPreset(matrix, preset, assemblyOrientation);
-    setMatrixGhost(prepared.matrix);
-    setMatrixGhostDefinitions(prepared.definitions);
-    setPairPlacement(pair ? { ...pair, leftId: makeId(), rightId: makeId(), rightMatrixId: makeId() } : null);
-    setPairSetup(false);
-    setMatrixSetup(false);
+    setPlacement(pair
+      ? { kind: 'mirrored-pair', matrix: prepared.matrix, definitions: prepared.definitions, pair: { ...pair, leftId: makeId(), rightId: makeId(), rightMatrixId: makeId() } }
+      : { kind: 'matrix', matrix: prepared.matrix, definitions: prepared.definitions });
     setLeftOpen(false);
     setRightOpen(false);
-    setPendingPart(null);
     setOutlineSettingsOpen(false);
     setMode('Design');
     setScope(null);
@@ -968,16 +963,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   }, [pendingPart, Boolean(matrixGhost), mode]);
 
   const beginPartPlacement = (definition: PartDefinition) => {
-    setPendingPart(definition);
-    setPendingLayoutId(layoutTargetId);
-    setPairPlacement(null);
-    setPairSetup(false);
-    setPlacementPoint(snapDelta({ x: (viewBounds.minX + viewBounds.maxX) / 2, y: (viewBounds.minY + viewBounds.maxY) / 2 }, { x: PITCH_MM, y: PITCH_MM }, snapFraction));
+    setPlacement({ kind: 'part', definition, layoutId: layoutTargetId, point: snapDelta({ x: (viewBounds.minX + viewBounds.maxX) / 2, y: (viewBounds.minY + viewBounds.maxY) / 2 }, { x: PITCH_MM, y: PITCH_MM }, snapFraction) });
     setAddPartOpen(false);
     setLeftOpen(false);
     setRightOpen(false);
     setOutlineActive(false);
-    setMatrixGhost(null);
     setMode('Design');
   };
 
@@ -985,7 +975,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     if (!pendingPart || !selectedBoard) return;
     const part = { ...createPart(pendingPart, document.parts), pose: { at, rotation: 0 } };
     emit({ kind: 'replace-document', document: documentWithPart(part, pendingPart, pendingLayoutId) }, [part.id, selectedBoard.id]);
-    setPendingPart(null);
+    cancelPlacement();
     setScope({ kind: 'component', partId: part.id });
     setSelected([part.id]);
     setOutlineSettingsOpen(false);
@@ -1009,8 +999,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     const required = [...libraryDefinitions, ...matrixGhostDefinitions].filter((definition) => needed.has(definition.id) && !definitions.has(definition.id));
     emit(pair ? { kind: 'create-mirrored-pair', matrix: placed, left: pair.left, right: pair.right, definitions: required } : { kind: 'set-matrix', matrix: placed, definitions: required }, [placed.id, ...required.map((definition) => definition.id)]);
     if (pair) setExpandedTree((current) => new Set([...current, `half:${pair.left.id}`, `half:${pair.right.id}`]));
-    setPairPlacement(null);
-    setMatrixGhost(null);
+    cancelPlacement();
     setExpandedTree((current) => new Set(current).add(`matrix:${placed.id}`));
     selectScope({ kind: 'matrix', matrixId: placed.id });
   };
@@ -1283,11 +1272,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     }
     if (pendingPart) {
       const point = pointFromEvent(event, svgRef.current);
-      if (point) setPlacementPoint(snapPlacement(point, event.altKey));
+      if (point) setPlacement((current) => movePlacement(current, snapPlacement(point, event.altKey)));
     }
     if (matrixGhost && mode === 'Design' && !panDrag.current) {
       const point = pointFromEvent(event, svgRef.current);
-      if (point) setMatrixGhost((current) => current ? { ...current, origin: point } : current);
+      if (point) setPlacement((current) => movePlacement(current, point));
     }
     const panState = panDrag.current;
     if (panState && event.pointerId === panState.pointerId) {
@@ -1847,7 +1836,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
   const addContent = <>
     <section className="wb-add-section" aria-label="Layouts"><h3>Layouts</h3>
-      <button className="wb-add-matrix wb-pair-icon" aria-label="Mirrored pair…" onClick={() => { changeMode('Design'); setPairSetup(true); setMatrixSetup(false); setRightOpen(false); }}><MirrorPairIcon /><span>Mirrored pair…<small>Linked halves, independent hardware</small></span></button>
+      <button className="wb-add-matrix wb-pair-icon" aria-label="Mirrored pair…" onClick={() => { changeMode('Design'); setPlacement({ kind: 'pair-setup' }); setRightOpen(false); }}><MirrorPairIcon /><span>Mirrored pair…<small>Linked halves, independent hardware</small></span></button>
       <button className="wb-add-matrix" disabled={!unpairedMatrices.length} onClick={() => { setExistingHalfOpen(true); setAddPartOpen(false); }}><MirrorPairIcon /><span>Mirror existing half…<small>Link a copy of your current layouts</small></span></button>
       <button className="wb-add-matrix" aria-label="Matrix…" onClick={createGuidedMatrix}><ScopeIcon kind="matrix" /><span>Matrix…<small>Rows, columns & key assemblies</small></span></button>
     </section>
@@ -1923,7 +1912,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         {matrixSetup && <form className="wb-matrix-setup" aria-label="New matrix" onSubmit={(event) => { event.preventDefault(); const rows = Number(matrixRows); const columns = Number(matrixColumns); if (Number.isInteger(rows) && rows > 0 && Number.isInteger(columns) && columns > 0 && rows * columns <= 4096) beginMatrixPlacement(rows, columns, matrixPreset); }}>
           <h3>New matrix</h3><label>Rows<input autoFocus aria-label="New matrix rows" type="number" min="1" max="4096" required value={matrixRows} onChange={(event) => setMatrixRows(event.target.value)} /></label><label>Columns<input aria-label="New matrix columns" type="number" min="1" max="4096" required value={matrixColumns} onChange={(event) => setMatrixColumns(event.target.value)} /></label>
           <label>Key assembly<select aria-label="New matrix assembly" value={matrixPreset} onChange={(event) => setMatrixPreset(event.target.value as MatrixPresetId)}>{(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => <option key={id} value={id}>{assemblyName(id)}</option>)}</select></label>
-          <p>Choose dimensions, then click the board to place.</p><button type="submit" disabled={!matrixRows || !matrixColumns || Number(matrixRows) * Number(matrixColumns) > 4096}>Continue to placement</button><button type="button" onClick={() => setMatrixSetup(false)}>Cancel</button>
+          <p>Choose dimensions, then click the board to place.</p><button type="submit" disabled={!matrixRows || !matrixColumns || Number(matrixRows) * Number(matrixColumns) > 4096}>Continue to placement</button><button type="button" onClick={cancelPlacement}>Cancel</button>
         </form>}
         <WorkbenchTree entries={treeEntries} />
         <div className="wb-inventory-foot"><strong>{selectionTitle.split(' · ').at(-1)}</strong><span>{selectedBoard?.name} / {viewLabel}{selectedMatrix ? ` / ${activeLayout?.name || selectedMatrix.name || selectionTitle.split(' · ')[0]}` : ''}</span><span>{selected.length ? `${selected.length} selected` : 'Select an object to edit'}</span></div>
@@ -1971,9 +1960,9 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         <div className={`wb-canvas-stage wb-layer-surface ${leftOpen || rightOpen ? 'has-drawer' : ''} ${mode === 'Design' && !showFootprints ? 'is-layout-simplified' : ''}`}>
           <svg tabIndex={0} onKeyDown={(event) => { if (matrixGhost) {
             if (event.key === 'Enter') { event.preventDefault(); placeMatrixAt(matrixGhost.origin); }
-            if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = PITCH_MM * (snapFraction || 0.25); setMatrixGhost((matrix) => matrix ? { ...matrix, origin: { x: matrix.origin.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: matrix.origin.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) } } : null); }
+            if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = PITCH_MM * (snapFraction || 0.25); setPlacement((current) => current.kind === 'matrix' || current.kind === 'mirrored-pair' ? movePlacement(current, { x: current.matrix.origin.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.matrix.origin.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); }
             return;
-          } if (!pendingPart) return; if (event.key === 'Enter') { event.preventDefault(); placePendingPart(placementPoint); } if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction ? PITCH_MM * snapFraction : nudgeStep; setPlacementPoint((point) => ({ x: point.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: point.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) })); } }} ref={svgRef} className={`wb-canvas ${matrixGhost ? 'is-placing-matrix' : ''}`} style={{ display: mode === 'Case' || mode === 'Library' || (mode === 'Design' && assembly3d) ? 'none' : undefined }} viewBox={`${viewBounds.minX} ${-viewBounds.maxY} ${viewBounds.width} ${viewBounds.height}`} role="application" aria-label="Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." onPointerDown={startCanvasPan} onPointerMove={moveCanvasPointer} onPointerUp={endCanvasPointer} onPointerCancel={endCanvasPointer} onClickCapture={(event) => { if (matrixGhost) { event.stopPropagation(); drawOutline(event); } }} onClick={drawOutline} onDoubleClick={finishOutline}>
+          } if (!pendingPart) return; if (event.key === 'Enter') { event.preventDefault(); placePendingPart(placementPoint); } if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction ? PITCH_MM * snapFraction : nudgeStep; setPlacement((current) => current.kind === 'part' ? movePlacement(current, { x: current.point.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.point.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); } }} ref={svgRef} className={`wb-canvas ${matrixGhost ? 'is-placing-matrix' : ''}`} style={{ display: mode === 'Case' || mode === 'Library' || (mode === 'Design' && assembly3d) ? 'none' : undefined }} viewBox={`${viewBounds.minX} ${-viewBounds.maxY} ${viewBounds.width} ${viewBounds.height}`} role="application" aria-label="Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." onPointerDown={startCanvasPan} onPointerMove={moveCanvasPointer} onPointerUp={endCanvasPointer} onPointerCancel={endCanvasPointer} onClickCapture={(event) => { if (matrixGhost) { event.stopPropagation(); drawOutline(event); } }} onClick={drawOutline} onDoubleClick={finishOutline}>
             <defs><pattern id="wb-grid-small" width={unit / 2} height={unit / 2} patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="0.12" fill="var(--wb-grid-large)" stroke="none" /></pattern></defs>
             <rect x={viewBounds.minX} y={-viewBounds.maxY} width={viewBounds.width} height={viewBounds.height} fill="url(#wb-grid-small)" />
             <g transform="scale(1,-1)" style={outlineActive || pendingPart || originPicking ? { pointerEvents: 'none' } : undefined}>
@@ -2013,7 +2002,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
           </svg>
           {(mode === 'Design' || mode === 'PCB') && !assembly3d && <WorkbenchLayers layers={mode === 'PCB' ? [...pcbLayers, 'Edge.Cuts', 'Courtyards', 'Pads', 'Holes', 'References'] : ['Keys', 'Components', 'Keycaps', 'Footprints', 'Board']} hidden={mode === 'Design' ? new Set([...hiddenLayers, ...(!showFootprints ? ['Footprints'] : [])]) : hiddenLayers} onToggle={(layer) => layer === 'Footprints' ? setShowFootprints(!showFootprints) : toggleLayer(layer)} />}
           {existingHalfOpen && <ExistingHalfSetup matrices={unpairedMatrices} axis={Math.max(0, ...selectionOutline(visibleParts, definitions).map((point) => point.x)) + 12} onCancel={() => setExistingHalfOpen(false)} onCreate={(matrices, axis) => { try { const next = mirrorExistingHalf(document, matrices, axis, makeId); emit({ kind: 'replace-document', document: next }, matrices.map((matrix) => matrix.id)); setExistingHalfOpen(false); setZoom(1); setPan({ x: 0, y: 0 }); return undefined; } catch (error) { return String(error instanceof Error ? error.message : error); } }} />}
-          {pairSetup && mode === 'Design'  && <MirroredPairSetup presets={(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => ({ id, name: assemblyName(id) }))} onPreview={(setup) => beginMatrixPlacement(setup.rows, setup.columns, setup.preset as MatrixPresetId, setup)} onCancel={() => { setPairSetup(false); (compactObjects && !leftOpen ? window.document.getElementById('wb-objects-toggle') : addPartRef.current)?.focus(); }} />}
+          {pairSetup && mode === 'Design'  && <MirroredPairSetup presets={(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => ({ id, name: assemblyName(id) }))} onPreview={(setup) => beginMatrixPlacement(setup.rows, setup.columns, setup.preset as MatrixPresetId, setup)} onCancel={() => { cancelPlacement(); (compactObjects && !leftOpen ? window.document.getElementById('wb-objects-toggle') : addPartRef.current)?.focus(); }} />}
           {mode === 'Library' && !editingAssembly && <LibraryWorkspace document={document} definition={previewDefinition} title={libraryAssembly ? assemblyName(libraryAssembly) : previewDefinition ? partCatalogLabel(previewDefinition) : undefined} companions={libraryCompanions} rotation={libraryRecipeEntries[0]?.rotation ?? 0} compiled={libraryCompiled} compilePending={previewCompilePending} compileError={previewCompileError} mechanicalProfile={(previewDefinition as (PartDefinition & { mechanicalProfile?: MechanicalPartProfile }) | undefined)?.mechanicalProfile} onSaveMechanicalProfile={(profile) => { if (!previewDefinition) return; const snapshot = { ...previewDefinition, mechanicalProfile: profile }; const nextDefinitions = document.definitions.some((entry) => entry.id === previewDefinition.id) ? document.definitions.map((entry) => entry.id === previewDefinition.id ? snapshot : entry) : [...document.definitions, snapshot]; emit({ kind: 'replace-document', document: { ...document, definitions: nextDefinitions } }, [previewDefinition.id]); }} onMechanicalProfile={onMechanicalProfile} onExtractMechanicalProfile={onExtractMechanicalProfile} show3d={library3dOpen} onViewChange={setLibrary3dOpen} colorScheme={colorScheme} />}
           {mode === 'Library' && editingAssembly && <React.Suspense fallback={<p>Loading assembly editor…</p>}><AssemblyEditor key={editingAssembly.id} document={document} initial={editingAssembly} matrixName={selectedMatrix ? selectedMatrix.name?.trim() || `Matrix ${document.matrices.indexOf(selectedMatrix) + 1}` : 'selected matrix'} onApply={selectedMatrix ? assembly => { const prepared = matrixWithAssembly(selectedMatrix, assembly, libraryDefinitions, document.revision); emit({ kind: 'set-matrix', ...prepared }, [selectedMatrix.id]); } : undefined} definitions={libraryDefinitions} boardId={selectedBoard?.id} colorScheme={colorScheme} onChange={next => emit({ kind: 'replace-document', document: next }, [editingAssembly.id])} onClose={() => setEditingAssembly(null)} onPlace={next => { emit({ kind: 'replace-document', document: next }, []); setEditingAssembly(null); changeMode('Design'); setAssembly3d(true); }} /></React.Suspense>}
           {(mode === 'Case' || (mode === 'Design' && assembly3d)) && selectedBoard && <React.Suspense fallback={<p role="status">Loading assembly viewer…</p>}><AssemblyViewer document={assemblyDocument} boardId={selectedBoard.id} contours={assemblyContours} bodies={showCaseGeometry ? caseBodies?.map(body => ({ id: body.id, name: body.name, mesh: body })) : undefined} generation={showCaseGeometry ? generation : undefined} onGasketChange={configuration => emit({ kind: 'set-mechanical', configuration }, [document.id])} mechanical={showCaseGeometry && generatedCase && mechanicalAssembly?.revision === caseDocument.revision ? mechanicalAssembly : undefined} selectedLayer={selectedMechanicalLayer} onSelectLayer={setSelectedMechanicalLayer} colorScheme={colorScheme} onSelect={reference => { const part = document.parts.find(p => p.reference === reference); if (part) choosePart(part.id); }} /></React.Suspense>}

@@ -77,6 +77,18 @@ test('cancelled and superseded draft replies cannot restore an obsolete ghost', 
   await expect(page.locator('.is-placement-preview')).toHaveCount(0);
 });
 
+test('switching boards cancels a held placement draft', async ({ page }) => {
+  await page.evaluate(() => { window.matrixDraftTest.hold = true; });
+  await configureMatrix(page, 2, 2);
+  await expect.poll(() => page.evaluate(() => window.matrixDraftTest.requests)).toBe(1);
+  await page.getByRole('button', { name: 'New board', exact: true }).click();
+  await expect(page.locator('.is-placement-preview')).toHaveCount(0);
+  await page.evaluate(() => window.matrixDraftTest.release(0));
+  await nextPaint(page);
+  await expect(page.locator('.is-placement-preview')).toHaveCount(0);
+  await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
+});
+
 test('paired drafts share one request and translate together', async ({ page }) => {
   await page.getByRole('button', { name: 'Add object', exact: true }).click();
   await page.getByRole('button', { name: 'Mirrored pair…', exact: true }).click();
