@@ -1,3 +1,4 @@
+import { navigateWorkspace, openWorkspaceSettings } from './workspace-navigation';
 import { zipSync, strToU8 } from 'fflate';
 import { catalogue } from '@boardstudio/v2-ergogen';
 import { demoProject } from '../src/demo';
@@ -8,7 +9,7 @@ for (const source of ['ceoloide/switch_choc_v1_v2', 'ceoloide/switch_gateron_ks2
     await page.goto('/');
 
     await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-    await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+    await navigateWorkspace(page, 'Parts');
     await page.getByRole('searchbox', { name: 'Search footprints' }).fill(source);
     await page.getByRole('listbox', { name: 'Footprint library', exact: true }).getByRole('option').click();
     await expect(page.getByRole('checkbox', { name: 'include_keycap', exact: true })).toBeChecked();
@@ -44,7 +45,7 @@ for (const source of ['ceoloide/switch_choc_v1_v2', 'ceoloide/switch_gateron_ks2
 test('keycap outline resizes with settings, survives undo and reload, and leaves component courtyards intact', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   const search = page.getByRole('searchbox', { name: 'Search footprints' });
   const library = page.getByRole('listbox', { name: 'Footprint library', exact: true });
   await search.fill('ceoloide/switch_mx');
@@ -65,7 +66,7 @@ test('keycap outline resizes with settings, survives undo and reload, and leaves
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await expect.poll(keycapBox).toEqual(resized);
   await page.reload();
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await search.fill('ceoloide/switch_mx');
   await library.getByRole('option', { name: /MX switch/ }).click();
   await expect.poll(keycapBox).toEqual(resized);
@@ -78,7 +79,7 @@ test('keycap outline resizes with settings, survives undo and reload, and leaves
   await page.getByRole('button', { name: 'Apply generator settings' }).click();
   await expect(savedRevision).not.toHaveAttribute('data-revision', previousRevision!);
   await page.reload();
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await search.fill('ceoloide/switch_mx');
   await library.getByRole('option', { name: /MX switch/ }).click();
   await expect(page.getByRole('checkbox', { name: 'include_keycap', exact: true })).not.toBeChecked();
@@ -93,7 +94,7 @@ test('keycap outline resizes with settings, survives undo and reload, and leaves
 test('bundled Ergogen generators are searchable, editable, and previewed', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   const search = page.getByRole('searchbox', { name: 'Search footprints' });
   await search.fill('ceoloide/utility_filled_zone');
   await expect(page.getByRole('region', { name: 'Utilities' })).toBeVisible();
@@ -111,7 +112,7 @@ test('bundled Ergogen generators are searchable, editable, and previewed', async
 test('saved Ergogen parameters return when switching library items', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   const search = page.getByRole('searchbox', { name: 'Search footprints' });
   await search.fill('ceoloide/switch_mx');
   await page.getByRole('option', { name: /MX switch/ }).first().click();
@@ -134,7 +135,7 @@ test('saved Ergogen parameters return when switching library items', async ({ pa
 test('attaching a model to an unsaved generator definition stays within the workbench', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('searchbox', { name: 'Search footprints' }).fill('ceoloide/switch_mx');
   await page.getByRole('option', { name: /MX switch/ }).first().click();
   await page.locator('summary').filter({ hasText: '3D model placement' }).click();
@@ -145,14 +146,14 @@ test('attaching a model to an unsaved generator definition stays within the work
   await expect(page.getByRole('textbox', { name: 'switch_3dmodel_filename' })).not.toHaveValue(/^boardstudio-asset:/);
   await page.getByRole('button', { name: 'Redo' }).click();
   await expect(page.getByRole('textbox', { name: 'switch_3dmodel_filename' })).toHaveValue(/^boardstudio-asset:/);
-  await expect(page.getByRole('tab', { name: 'Design' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Layout' })).toBeVisible();
 });
 
 test('bundled MX models load and generator settings are grouped', async ({ page }, info) => {
   test.setTimeout(60_000);
   await page.goto('/');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('searchbox', { name: 'Search footprints' }).fill('ceoloide/switch_mx');
   await page.getByRole('option', { name: /MX switch/ }).click();
   await page.getByRole('checkbox', { name: 'hotswap', exact: true }).check();
@@ -164,7 +165,7 @@ test('bundled MX models load and generator settings are grouped', async ({ page 
   await expect(page.getByRole('group', { name: 'Footprint options', exact: true })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'reversible', exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('mx-desktop.png') });
-  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await openWorkspaceSettings(page);
   await page.getByRole('combobox', { name: 'Color theme' }).selectOption('dark');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: info.outputPath('mx-desktop-dark.png') });
@@ -172,7 +173,7 @@ test('bundled MX models load and generator settings are grouped', async ({ page 
   if (!await page.locator('.wb-inspector-content').isVisible()) await page.getByRole('button', { name: 'Inspect', exact: true }).click();
   await expect.poll(() => page.locator('.wb-inspector-content').evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await page.screenshot({ path: info.outputPath('mx-narrow.png') });
-  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await openWorkspaceSettings(page);
   await page.getByRole('combobox', { name: 'Color theme' }).selectOption('light');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: info.outputPath('mx-narrow-light.png') });
@@ -187,7 +188,7 @@ test('model failures can retry and parts without models do not keep loading', as
   await page.route(modelUrl, (route) => route.request().resourceType() === 'fetch' ? route.abort() : route.continue());
   await page.goto('/');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   const search = page.getByRole('searchbox', { name: 'Search footprints' });
   await search.fill('ceoloide/switch_mx');
   await page.getByRole('option', { name: /MX switch/ }).click();

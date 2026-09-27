@@ -1,10 +1,11 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 const assemblies = ['MX Solder', 'MX Hotswap', 'Choc V1 Solder', 'Choc V1 Hotswap', 'MX RGB', 'Choc V1 RGB', 'MX Hotswap RGB', 'Choc V1 Hotswap RGB'];
 
 test('all assembly previews show centred keycaps and preserve the project', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   const root = page.locator('.wb-root');
   const revision = await root.getAttribute('data-revision');
   const preview = page.getByRole('img', { name: 'Footprint preview' });
@@ -33,7 +34,7 @@ test('all assembly previews show centred keycaps and preserve the project', asyn
 test('assembly 3D view stays in the library and returns to the same 2D preview', async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Key assemblies' }).getByRole('option', { name: 'MX Hotswap RGB', exact: true }).click();
   const preview = page.getByRole('img', { name: 'Footprint preview' });
   const outline = await preview.locator('.wb-preview-keycap').getAttribute('points');
@@ -51,7 +52,7 @@ for (const theme of ['dark', 'light']) {
     await page.addInitScript(theme => localStorage.setItem('boardstudio:v2:theme', theme), theme);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
-    await page.getByRole('tab', { name: 'Parts' }).click();
+    await navigateWorkspace(page, 'Parts');
     await page.getByRole('listbox', { name: 'Key assemblies' }).getByRole('option', { name: 'Choc V1 Hotswap RGB', exact: true }).click();
     for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: 900 });

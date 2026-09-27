@@ -30,10 +30,10 @@ test('reset requires confirmation, clears local projects and assets, and starts 
     };
   }));
   await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await page.getByRole('button', { name: 'Workspace settings', exact: true }).click();
   page.once('dialog', dialog => dialog.dismiss());
   await page.getByRole('button', { name: 'Reset local projects…', exact: true }).click();
   expect(await storedCounts(page)).toEqual([2, 1]);
-  await page.getByRole('button', { name: 'Project', exact: true }).click();
   page.once('dialog', async dialog => {
     expect(dialog.message()).toContain('cannot be undone');
     await dialog.accept();

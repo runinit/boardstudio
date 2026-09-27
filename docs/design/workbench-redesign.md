@@ -40,9 +40,12 @@ proposal with keyboard and narrow-screen alternatives.
 ## Selected direction for refinement
 
 The implemented local direction replaces the bottom worktray with a **right-docked
-inspector**, reduces top controls, brings Layout/PCB/Case into a unified Design
-tree, and applies the approved light/dark token refresh. Parts remains a
-separate page. This supersedes the previous bottom-dock hybrid.
+inspector**, reduces top controls, and applies the approved light/dark token
+refresh. The later [workflow overhaul](workflow-overhaul.md) supersedes this
+navigation proposal: direct Layout/PCB/Case/Parts tabs share one 56px header
+outside the docks, the object tree is contextual to the active view, and Export
+is a dedicated page.
+Parts remains a separate page. The earlier bottom-dock hybrid is superseded.
 
 The user confirmed that selecting a branch switches the main canvas view and its
 tools while shared objects remain linked. It does not place all editing modes
@@ -52,9 +55,12 @@ The local light and dark visual studies informed the implemented structure,
 including the persisted System theme option. Those exploratory images are not
 repository assets; see DESIGN.md for the current interface rules.
 
-- **Global header:** Design and Parts on the left; Export, undo/redo, and the
-  project menu on the right.
-  PCB and Case leave the global navigation. Appearance remains in project settings.
+- **Global header:** The workflow overhaul supersedes this proposal with one
+  56px row containing project identity, save state, direct Layout/PCB/Case/Parts
+  tabs, and Export. At 820px and below, tabs become a native Workspace selector.
+  Setup guide and Workspace settings are pages reached from the project menu,
+  each with explicit Back/Close. Desktop Undo/Redo live in the canvas footer;
+  compact actions remain in the project menu.
 - **Left navigator:** Main board contains Layout, PCB, and Case branches. Layout
   contains matrices and keys. PCB currently exposes board and parts; nets and
   layers are planned. Case currently exposes bodies; feature editing is planned.
@@ -79,8 +85,8 @@ repository assets; see DESIGN.md for the current interface rules.
 
 On narrower desktop screens, the left navigator collapses at 980px and the
 right inspector at 820px; phone access uses explicit drawers/sheets. The
-inspector can be resized from 300–480px on desktop. Wide screens use the 60px /
-64px / 60px header, toolbar, and footer rhythm from 1440px upward.
+inspector can be resized from 300–480px on desktop. The 56px header remains a
+single row; at 820px and below direct tabs become the native Workspace selector.
 
 ### Compact commands without losing direct editing
 
@@ -172,8 +178,9 @@ implementation.
 
 ## Shared shell and control hierarchy
 
-1. **Project header.** One project-name menu, Design/Parts/Export, local save state,
-   undo, and redo. Remove redundant name labeling and repeated workspace titles.
+1. **Project header.** One 56px row with project identity/menu, adjacent save
+   state, direct Layout/PCB/Case/Parts tabs, and Export. Desktop Undo/Redo sit in
+   the canvas footer; compact actions remain in the project menu.
 2. **Stable tool strip.** Selection scope, creation, transforms, relationships,
    snapping, and view controls have predictable groups. Context changes the
    actions within a group without moving unrelated controls.
@@ -313,9 +320,10 @@ pending, conflicting, or missing reference. Color supplements icons and text.
 ## Project menu and inspector
 
 The project title is the menu trigger and has an explicit rename action. Group
-New/Open/Save copy together; keep Appearance and workspace preferences separate
-from Geometry scripts. Use consistent menu rows, visible keyboard shortcuts only
-where supported, predictable dismissal, and focus returning to the trigger.
+New/Open/Save, Setup guide, and Workspace settings in the menu. Workspace
+settings owns Appearance and panel restoration and provides Back/Close. Use
+consistent menu rows, visible keyboard shortcuts only where supported,
+predictable dismissal, and focus returning to the trigger.
 
 The inspector follows the selection, with a short breadcrumb and object count.
 Its main sections are **Transform**, **Geometry/parameters**, **Relationships**,

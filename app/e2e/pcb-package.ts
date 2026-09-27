@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { readFile } from 'node:fs/promises';
 import { expect, type Page } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
@@ -6,7 +7,8 @@ import { strFromU8, unzipSync } from 'fflate';
 // retaining the production wiring gate and inspecting the actual board files.
 export async function downloadDraftBoard(page: Page, { reviewExistingConnections = false } = {}) {
   if (reviewExistingConnections) {
-    await page.getByRole('treeitem', { name: 'PCB', exact: true }).click();
+    await navigateWorkspace(page, 'Layout');
+    await navigateWorkspace(page, 'PCB');
     await page.getByText('Review existing connections', { exact: true }).click();
     await page.getByRole('button', { name: 'Use automatic wiring for these connections', exact: true }).click();
     await expect(page.getByText('Review existing connections', { exact: true })).toHaveCount(0);

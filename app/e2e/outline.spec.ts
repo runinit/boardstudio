@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { chooseScope } from './selection';
 import { configureMatrix } from './matrix-setup';
 import { expect, test, type Page } from '@playwright/test';
@@ -154,7 +155,7 @@ test('deleted matrix corners remain empty after resizing and rotation follows th
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await configureMatrix(page);
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
   await chooseScope(page, 'key');
@@ -178,11 +179,11 @@ test('deleted matrix corners remain empty after resizing and rotation follows th
 test('definition keycaps update the outline and per-instance overrides can be reset', async ({ page }) => {
   await openCustomSwitchProject(page);
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Footprint library', exact: true }).getByRole('option', { name: 'Fixture switch', exact: true }).click();
   await page.getByLabel('Definition keycap width', { exact: true }).fill('30');
   await page.getByLabel('Definition keycap width', { exact: true }).blur();
-  await page.getByRole('tab', { name: 'Design', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
   await expect.poll(async () => contains(await contours(page), { x: -18, y: 0 })).toBe(true);
   await page.getByRole('button', { name: /^SW1, Fixture switch,/ }).click();
   await chooseScope(page, 'component');
@@ -201,9 +202,10 @@ test('a newly introduced library definition joins the board automatic envelope',
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.locator('.wb-project-file-input').setInputFiles({ name: 'empty.boardstudio', mimeType: 'application/zip', buffer: Buffer.from(zipSync({ 'project.json': strToU8(JSON.stringify(doc)) })) });
+  await expect(page.getByRole('button', { name: 'Project', exact: true })).toHaveAttribute('title', 'Project menu — Empty import');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Project name' })).toHaveValue('Empty import');
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('option', { name: 'Choc V1 / V2 switch', exact: true }).click();
   await page.getByRole('button', { name: 'Place component', exact: true }).click();
   await page.keyboard.press('Enter');

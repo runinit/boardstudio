@@ -15,7 +15,7 @@ test('desktop scopes and compact review retain status and fit actions', async ({
   await page.setViewportSize({ width, height: 844 });
   const inspect = page.getByRole('button', { name: 'Inspect', exact: true });
   if (await inspect.getAttribute('aria-expanded') === 'true') await inspect.click();
-  await expect(page.locator('.wb-compact-board')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Workspace', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Select:/ })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Selection scope' })).toBeHidden();
   await expect(page.locator('.wb-save-state summary')).toHaveAccessibleName('Saved locally');

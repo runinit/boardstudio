@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test, type Locator } from '@playwright/test';
 
 test('sidebars resize, collapse, restore and retain preferences without changing selection', async ({ page }) => {
@@ -114,7 +115,7 @@ for (const theme of ['dark', 'light'] as const) {
     await page.keyboard.press('Escape');
     await page.locator('.wb-topbar').getByRole('button', { name: 'Export', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Export package', exact: true })).toBeVisible();
-    await page.getByRole('tab', { name: 'Design', exact: true }).click();
+    await navigateWorkspace(page, 'Layout');
     await page.setViewportSize({ width: 390, height: 844 });
     const close = page.getByRole('button', { name: 'Close panels', exact: true });
     if (await close.isVisible()) await close.click({ position: { x: 2, y: 100 } });
@@ -128,6 +129,8 @@ for (const theme of ['dark', 'light'] as const) {
     await page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true }).click();
     await page.getByRole('button', { name: 'Add object', exact: true }).click();
     await expect(add).toBeVisible();
+    // Wait for the drawer's slide-in before measuring its final bounds.
+    await expect.poll(async () => (await add.boundingBox())?.x ?? -1).toBeGreaterThanOrEqual(0);
     const bounds = (await add.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);

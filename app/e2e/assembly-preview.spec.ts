@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test, type Locator } from '@playwright/test';
 
 async function openLayers(page: import('@playwright/test').Page) {
@@ -58,10 +59,10 @@ const pcbWithoutModels=`(kicad_pcb (version 20241229) (general (thickness 1.6))
 const stl='solid part\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 2 0 0\nvertex 0 3 0\nendloop\nendfacet\nendsolid part';
 
 test('Design shows PCB and case bodies with view-only visibility controls',async({page})=>{
-  await page.goto('/');await page.getByRole('treeitem',{name:'Case',exact:true}).click();
+  await page.goto('/');await navigateWorkspace(page, 'Case');
   await page.getByRole('button',{name:'Generate',exact:true}).click();
   await expect(page.getByText('Preview current',{exact:true})).toBeVisible({timeout:45000});
-  await page.getByRole('treeitem',{name:'Layout',exact:true}).click();
+  await navigateWorkspace(page, 'Layout');
   await page.getByRole('button',{name:'3D assembly',exact:true}).click();
   await expect(page.getByLabel('Complete PCB assembly preview')).toBeVisible();
   await expect(page.getByText(/1.6 mm PCB/)).toBeVisible();
@@ -95,6 +96,8 @@ test('routed reference and STL mapping survive reopening and undo',async({page})
 });
 
 test('renders front and rear PCB layers with no component models attached', async ({ page }, testInfo) => {
+  // Reserve enough drawing height for the fixed pixel thresholds below the workflow bar.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.getByRole('button', { name: '3D assembly', exact: true }).click();
   await page.getByText('Routed PCB reference', { exact: true }).click();
@@ -179,14 +182,14 @@ test('renders front and rear PCB layers with no component models attached', asyn
 });
 
 test('custom assembly saves member placement and places it on the board',async({page})=>{
-  await page.goto('/');await page.getByRole('tab',{name:'Parts',exact:true}).click();
+  await page.goto('/');await navigateWorkspace(page, 'Parts');
   await page.getByRole('button',{name:'New assembly',exact:true}).click();
   const editor=page.locator('.wb-assembly-editor-layout');await editor.getByRole('textbox',{name:'Name',exact:true}).fill('Test assembly');
   await editor.getByRole('button',{name:'Add component',exact:true}).click();
   await editor.getByRole('combobox',{name:'Component',exact:true}).selectOption('ergogen:ceoloide/switch_mx');
   await editor.getByRole('button',{name:'Save assembly',exact:true}).click();await expect(editor.getByText(/Assembly saved/)).toBeVisible();
   await editor.getByRole('button',{name:'Place on selected board',exact:true}).click();
-  await expect(page.getByRole('tab',{name:'Design',exact:true})).toHaveAttribute('aria-selected','true');await expect(page.getByLabel('Complete PCB assembly preview')).toBeVisible();
+  await expect(page.getByRole('tab',{name:'Layout',exact:true})).toHaveAttribute('aria-selected','true');await expect(page.getByLabel('Complete PCB assembly preview')).toBeVisible();
 });
 
 test('applies a configured assembly to an existing matrix with undo', async ({page}) => {
@@ -194,12 +197,12 @@ test('applies a configured assembly to an existing matrix with undo', async ({pa
   await page.goto('/');
   await page.getByRole('treeitem', {name:'Matrix 1 15 keys',exact:true}).click();
   const revision = Number(await page.locator('.wb-root').getAttribute('data-revision'));
-  await page.getByRole('tab',{name:'Parts',exact:true}).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('option',{name:'Choc V1 Hotswap',exact:true}).click();
   await page.getByRole('button',{name:'Customize 3D assembly',exact:true}).click();
   await page.getByRole('button',{name:'Apply to Matrix 1',exact:true}).click();
   await expect(page.locator('.wb-root')).toHaveAttribute('data-revision',String(revision + 1));
-  await page.getByRole('tab',{name:'Design',exact:true}).click();
+  await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(30);
   await expect(page.getByRole('treeitem',{name:'Matrix 1 15 keys',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'3D assembly',exact:true}).click();

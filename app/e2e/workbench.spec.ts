@@ -1,9 +1,10 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { chooseScope } from './selection';
 import { configureMatrix } from './matrix-setup';
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync } from 'fflate';
-import { buildCase } from '@boardstudio/v2-cad';
+import { buildCase, readStepModel } from '@boardstudio/v2-cad';
 import { prepareCase } from '../../cad/test/native-prepare.mjs';
 import { downloadDraftBoard } from './pcb-package';
 import { openCustomSwitchProject } from './custom-switch';
@@ -77,7 +78,7 @@ test('moves a focused part with arrow keys and keeps each nudge undoable', async
 test('previews and exports the case assembly as STEP', async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(page.getByLabel('Complete PCB assembly preview')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByText('Preview current')).toBeVisible();
@@ -85,12 +86,20 @@ test('previews and exports the case assembly as STEP', async ({ page }) => {
 
   const download = page.waitForEvent('download');
   await page.locator('.wb-export-row').filter({ hasText: 'Case STEP' }).getByRole('button', { name: 'Export' }).click();
-  expect((await download).suggestedFilename()).toBe('Starter keyboard-case.step');
+  const exported = await download;
+  expect(exported.suggestedFilename()).toBe('Starter keyboard-case.step');
+  const model = await readStepModel(new Uint8Array(await readFile((await exported.path())!)));
+  expect(model.mesh.positions.length).toBeGreaterThan(0);
+  expect(model.mesh.normals.length).toBe(model.mesh.positions.length);
+  expect(Array.from(model.mesh.positions).every(Number.isFinite)).toBe(true);
+  expect(model.bounds.max[0]).toBeGreaterThan(model.bounds.min[0]);
+  expect(model.bounds.max[1]).toBeGreaterThan(model.bounds.min[1]);
+  expect(model.bounds.max[2] - model.bounds.min[2]).toBeCloseTo(3, 5);
 });
 
 test('packages a local model with relative KiCad paths', async ({ page }) => {
   await openCustomSwitchProject(page);
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('option', { name: 'Fixture switch', exact: true }).click();
   await page.locator('.wb-inspector-section > summary').filter({ hasText: '3D model' }).click();
   await page.locator('.wb-model-import input[type=file]').setInputFiles({
@@ -121,7 +130,7 @@ test('runs a bounded script to add an outline hole', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Rhai source' }).fill('rect("extra", "hole", 30.0, -10.0, 3.0, 3.0, 0.0, "subtract");');
   await page.getByRole('checkbox', { name: 'Enable on Apply' }).check();
   await page.getByRole('button', { name: /Apply script/ }).click();
-  await page.getByRole('tab', { name: 'Design' }).click();
+  await navigateWorkspace(page, 'Layout');
 
   await expect(page.locator('.wb-outline-shape.is-hole')).toHaveCount(1);
 });
@@ -130,7 +139,7 @@ test('builds a new keyboard from a matrix and previews its outline', async ({ pa
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
   await configureMatrix(page);
   await expect(page.locator('.wb-matrix-cell')).toHaveCount(30);
@@ -144,12 +153,12 @@ test('edits a guided matrix, scopes the tree, staggers a row, and zooms the canv
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
-  await page.getByRole('treeitem', { name: 'PCB', exact: true }).click();
+  await navigateWorkspace(page, 'PCB');
   await expect(page.getByRole('combobox', { name: 'Pin for Row 1', exact: true })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Pin for Column 1', exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: 'Design' }).click();
+  await navigateWorkspace(page, 'Layout');
 
   await page.getByRole('button', { name: 'Objects options', exact: true }).click();
   await page.getByRole('combobox', { name: 'Tree grouping' }).selectOption('row');
@@ -188,7 +197,7 @@ test('canvas drags follow the selected matrix, row, and column scope', async ({ 
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
 
   const drag = async (part: import('@playwright/test').Locator) => {
@@ -224,7 +233,7 @@ test('row and column scope drags follow the key under the pointer', async ({ pag
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
 
   const drag = async (part: import('@playwright/test').Locator) => {
@@ -264,7 +273,7 @@ test('matrix scope drag follows world direction on a rotated mirrored matrix', a
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
   await page.getByRole('spinbutton', { name: 'Rotation' }).fill('90');
   await page.getByRole('spinbutton', { name: 'Rotation' }).blur();
@@ -293,7 +302,7 @@ test('matrix rows and columns are nested beneath their matrix in the CAD tree', 
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
   const matrix = page.getByRole('treeitem', { name: /^Matrix 1/ });
   const row = page.getByRole('treeitem', { name: /^Row 1/ });
@@ -382,7 +391,7 @@ test('snaps part drags unless Alt is held and pans with Space-drag', async ({ pa
 
 test('previews a library footprint and keeps generator geometry in sync', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Footprint library' }).getByRole('option', { name: 'MX switch', exact: true }).click();
   const preview = page.getByRole('region', { name: 'Parts canvas' }).getByRole('img', { name: 'Footprint preview' });
   await expect(preview).toBeVisible();
@@ -398,9 +407,9 @@ test('duplicates a matrix as a separate preset project', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
-  await expect(page.getByText('Saved locally')).toBeVisible();
+  await expect(page.getByLabel('Saved locally', { exact: true })).toBeVisible();
   const originalId = await page.evaluate(() => localStorage.getItem('boardstudio-v2-active-project'));
   expect(originalId).toBeTruthy();
 
@@ -434,7 +443,7 @@ test('keeps board outlines and KiCad exports scoped to the selected board', asyn
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
   await expect(page.getByRole('treeitem', { name: /60 parts/ }).first()).toBeVisible();
 
@@ -450,6 +459,7 @@ test('keeps board outlines and KiCad exports scoped to the selected board', asyn
   const result = await downloadDraftBoard(page);
   expect(result.boardName).toBe('Board_2.kicad_pcb');
 
+  await page.getByRole('button', { name: 'Back to Layout', exact: true }).click();
   await page.getByRole('combobox', { name: 'Selected board' }).selectOption({ label: 'Main board' });
   await expect(page.getByRole('treeitem', { name: /60 parts/ }).first()).toBeVisible();
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
@@ -460,10 +470,10 @@ test('creates a case from a new keyboard project', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: '+ New case body' }).click();
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByText('Preview current')).toBeVisible({ timeout: 30_000 });
@@ -478,7 +488,7 @@ test('saves and reopens a v2 project archive', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.locator('.wb-project-file-input').setInputFiles(await archive.path());
@@ -490,8 +500,8 @@ test('authors a custom component and exports a KiCad footprint library', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('button', { name: 'New custom component' }).click();
   const editor = page.getByRole('complementary', { name: 'Parts inspector' });
   await expect(editor.getByRole('heading', { level: 2, name: 'Custom component 1', exact: true })).toBeVisible();
@@ -519,7 +529,7 @@ test('shows attached STEP components in the 3D case preview', async ({ page }) =
   }));
 
   await openCustomSwitchProject(page);
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('option', { name: 'Fixture switch', exact: true }).click();
   await page.locator('.wb-inspector-section > summary').filter({ hasText: '3D model' }).click();
   await page.locator('.wb-model-import input[type=file]').setInputFiles({
@@ -528,8 +538,8 @@ test('shows attached STEP components in the 3D case preview', async ({ page }) =
     buffer: Buffer.from(model.step),
   });
   await expect(page.getByText('Bound asset: preview.step')).toBeVisible();
-  await page.getByRole('tab', { name: 'Design', exact: true }).click();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
+  await navigateWorkspace(page, 'Case');
   await expect(page.getByText('15 / 15 models · 1.6 mm PCB', { exact: true })).toBeVisible({ timeout: 30_000 });
 });
 

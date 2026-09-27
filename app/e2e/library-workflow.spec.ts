@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { zipSync, strToU8 } from 'fflate';
 import { demoProject } from '../src/demo';
 import { chooseScope } from './selection';
@@ -8,7 +9,7 @@ import { prepareCase } from '../../cad/test/native-prepare.mjs';
 
 test('Parts uses a searchable categorized catalogue and a selected component inspector', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   const catalog = page.getByRole('complementary', { name: 'Part inventory' });
   await expect(catalog.getByRole('tree')).toHaveCount(0);
   await expect(catalog.getByRole('listbox', { name: 'Key assemblies' })).toBeVisible();
@@ -81,7 +82,7 @@ for (const theme of ['light', 'dark']) {
   test(`${theme} Parts library and inspector fit desktop and narrow screens`, async ({ page }) => {
     await page.addInitScript((theme) => localStorage.setItem('boardstudio:v2:theme', theme), theme);
     await page.goto('/');
-    await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+    await navigateWorkspace(page, 'Parts');
     await expect(page.getByRole('img', { name: 'Footprint preview' })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Objects', exact: true }).click();
@@ -98,12 +99,12 @@ for (const theme of ['light', 'dark']) {
 
 test('key assembly placement can cancel and commits its companions in one undo step', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('option', { name: 'MX Hotswap RGB', exact: true }).click();
   await page.getByRole('button', { name: 'Place key assembly' }).click();
   await page.keyboard.press('Escape');
   await expect(page.locator('.wb-scene-part')).toHaveCount(15);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('button', { name: 'Place key assembly' }).click();
   await page.getByRole('button', { name: 'Ghost key, row 1, column 1', exact: true }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
@@ -121,7 +122,7 @@ test('Parts renders an attached model through the visible 3D control', async ({ 
   document.definitions.push({ ...document.definitions[0], generator: undefined, id: 'custom-model-switch', name: 'Custom model switch' });
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.locator('.wb-project-file-input').setInputFiles({ name: 'custom-switch.boardstudio', mimeType: 'application/zip', buffer: Buffer.from(zipSync({ 'project.json': strToU8(JSON.stringify(document)) })) });
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('option', { name: 'Custom model switch', exact: true }).click();
   await page.locator('.wb-inspector-section > summary').filter({ hasText: '3D model' }).click();
   await page.locator('.wb-model-import input[type=file]').setInputFiles({

@@ -66,6 +66,29 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
       onSelect: () => { setScope(null); setSelected([]); setOutlineSettingsOpen(false); if (!boardExpanded) toggleTree(boardKey); },
     });
     if (!boardExpanded) return rows;
+    if (mode === 'PCB' || mode === 'Case') {
+      const entries: TreeEntry[] = [rows[0]];
+      for (const part of treeVisibleParts) entries.push({
+        id: `${mode}:${part.id}`, label: part.reference,
+        detail: mode === 'PCB' ? `${definitions.get(part.definitionId)?.name ?? 'Component'} · ${part.side}` : `${definitions.get(part.definitionId)?.name ?? 'Part'} · Reference`,
+        kind: 'component', level: 1, selected: scope?.kind === 'component' && scope.partId === part.id,
+        onSelect: () => selectScope({ kind: 'component', partId: part.id }),
+      });
+      if (mode === 'Case') {
+        const bodies = document.caseBodies.filter(body => body.boardId === selectedBoardId);
+        for (const body of bodies) entries.push({
+          id: `case:${body.id}`, label: body.name, kind: 'case', level: 1,
+          selected: activeCaseBody?.id === body.id,
+          onSelect: () => { setCaseBodyId(body.id); setRightOpen(true); },
+        });
+        for (const layer of mechanicalAssembly?.stack ?? []) if (!bodies.some(body => body.id === layer.id)) entries.push({
+          id: `case-generated:${layer.id}`, label: layer.id, detail: 'Generated assembly', kind: 'case', level: 1,
+          selected: selectedMechanicalLayer === layer.id,
+          onSelect: () => { setSelectedMechanicalLayer(layer.id); setRightOpen(true); },
+        });
+      }
+      return entries;
+    }
     const memberIds = new Set<string>();
     for (const matrix of visibleMatrices) {
       for (const id of matrix.partIds) memberIds.add(id);
@@ -221,38 +244,6 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
           detail: linked ? 'Linked' : 'Independent', selected: mode === 'Design' && scope?.kind === 'matrix' && scope.matrixId === layout.matrixId,
           onToggle: () => toggleTree(key), onSelect: () => { changeMode('Design'); selectScope({ kind: 'matrix', matrixId: layout.matrixId }); },
         }, ...(expanded ? (groups.get(layout.id) ?? []).map((entry) => ({ ...entry, level: entry.level + (half.label ? 1 : 0) })) : []));
-      }
-    }
-    for (const branch of ['PCB', 'Case'] as const) {
-      const key = `${branch}:${selectedBoardId}`;
-      const expanded = expandedTree.has(key);
-      result.push({
-        id: key, label: branch, kind: branch === 'PCB' ? 'pcb' : 'case', level: 1,
-        expandable: true, expanded, selected: mode === branch,
-        onToggle: () => toggleTree(key), onSelect: () => changeMode(branch)
-      });
-      if (expanded && branch === 'PCB') {
-        for (const part of treeVisibleParts) result.push({
-          id: `pcb:${part.id}`, label: part.reference,
-          detail: part.side, kind: 'component', level: 2, selected: mode === 'PCB' && selected.includes(part.id),
-          onSelect: () => { changeMode('PCB'); selectScope({ kind: 'component', partId: part.id }); }
-        });
-      }
-      if (expanded && branch === 'Case') {
-        for (const part of treeVisibleParts) result.push({
-          id: `case-reference:${part.id}`, label: part.reference, detail: `${definitions.get(part.definitionId)?.name ?? 'Part'} · Reference electronics`, kind: 'component', level: 2, selected: mode === 'Case' && scope?.kind === 'component' && scope.partId === part.id,
-          onSelect: () => { changeMode('Case'); selectScope({ kind: 'component', partId: part.id }); }
-        });
-        for (const body of document.caseBodies.filter((body) => body.boardId === selectedBoardId)) result.push({
-          id: `case:${body.id}`, label: body.name, kind: 'case', level: 2, selected: mode === 'Case' && activeCaseBody?.id === body.id,
-          onSelect: () => { changeMode('Case'); setCaseBodyId(body.id); setRightOpen(true); }
-        });
-        const knownBodyIds = new Set(document.caseBodies.filter((body) => body.boardId === selectedBoardId).map((body) => body.id));
-        for (const layer of mechanicalAssembly?.stack ?? []) if (!knownBodyIds.has(layer.id)) result.push({
-          id: `case-generated:${layer.id}`, label: layer.id, detail: 'Generated assembly', kind: 'case', level: 2,
-          selected: mode === 'Case' && selectedMechanicalLayer === layer.id,
-          onSelect: () => { changeMode('Case'); setSelectedMechanicalLayer(layer.id); setRightOpen(true); },
-        });
       }
     }
     return result;

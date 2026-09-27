@@ -5,7 +5,7 @@ for (const [id, layout] of Object.entries(measurements)) {
   test(`${layout.name} opens as editable parts and persists`, async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Project', exact: true }).click();
-    await page.getByRole('combobox', { name: 'Open demo keyboard' }).selectOption(id);
+    await page.getByRole('button', { name: `Start ${layout.name}`, exact: true }).click();
     const count = layout.keys.length * 2 + layout.keys.filter(key => key.width >= 2).length + (layout.split ? 3 : 2);
     await expect(page.locator('.wb-scene-part')).toHaveCount(count);
     await expect(page.getByRole('button', { name: 'Project', exact: true })).toHaveAttribute('title', `Project menu — ${layout.name}`);

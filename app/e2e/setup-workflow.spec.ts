@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProjectDoc } from '@boardstudio/v2-contracts';
 async function start(page: Page, matrix = false) {
@@ -36,7 +37,7 @@ test('project reversible layout applies to matrices at the origin', async ({ pag
   await expect(page.getByRole('img', { name: '2 rows by 3 columns matrix preview' })).toBeVisible();
   await expect(page.getByLabel('Selected board')).toHaveCount(0);
   await page.getByRole('button', { name: 'Create matrix' }).click();
-  await page.getByRole('button', { name: 'Skip guide' }).click();
+  await page.getByRole('button', { name: 'Back to objects' }).click();
   await page.getByRole('treeitem', { name: 'Matrix 1 6 keys', exact: true }).click();
   await expect(page.getByRole('spinbutton', { name: 'Origin X mm', exact: true })).toHaveValue('0');
   await expect(page.getByRole('spinbutton', { name: 'Origin Y mm', exact: true })).toHaveValue('0');
@@ -93,7 +94,7 @@ test('export closes with its button, Escape, and toggle', async ({ page }) => {
   await page.goto('/');
   const toggle = page.getByRole('button', { name: 'Export', exact: true }).first();
   await toggle.click();
-  await page.getByRole('button', { name: 'Close export', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Layout', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Export package' })).toHaveCount(0);
   await toggle.click();
   await page.keyboard.press('Escape');
@@ -112,7 +113,7 @@ test('compact construction and export controls stay reachable', async ({ page })
   await expect(page.getByRole('region', { name: 'Project setup guide' })).toBeVisible();
   await page.getByRole('button', { name: /Review & export/ }).click();
   await page.getByRole('button', { name: 'Open export options', exact: true }).click();
-  const close = page.getByRole('button', { name: 'Close export', exact: true });
+  const close = page.getByRole('button', { name: 'Back to Layout', exact: true });
   await expect(close).toBeInViewport();
   await page.screenshot({ animations: 'disabled', path: '/tmp/boardstudio-export-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -168,7 +169,7 @@ test('reversible parts and wireless case defaults carry through setup', async ({
   await page.getByRole('tab', { name: 'Parts', exact: true }).click();
   await page.locator('[role="option"][title="ceoloide/mcu_supermini_nrf52840"]').click();
   await expect(page.getByLabel('reversible', { exact: true })).toBeChecked();
-  await page.getByRole('tab', { name: 'Design', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
   await page.getByRole('button', { name: 'Continue to layout' }).click();
   await page.getByRole('button', { name: 'Add key matrix' }).click();
   await page.getByLabel('New matrix rows').fill('5');

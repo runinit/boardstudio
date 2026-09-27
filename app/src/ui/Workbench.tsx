@@ -1,6 +1,7 @@
 import { constructionDefinition } from '../projectConstruction';
-import { demos, type DemoId } from '../demos/keyboards';
+import { ProjectLibrary, ProjectLibraryIcon } from './ProjectLibrary';
 import { SetupGuide } from './SetupGuide';
+import { WorkflowNavigation, WorkflowReturn } from './WorkflowNavigation';
 import { deriveSetupGuide, type SetupGuideStage } from './setupGuide';
 import { useSetupGuide } from './useSetupGuide';
 import { CaseInspectorPanel } from './CaseInspectorPanel';
@@ -68,7 +69,7 @@ import { usePartsEditing } from './usePartsEditing';
 import { useWorkbenchTree } from './useWorkbenchTree';
 import { WiringPanel } from './WiringPanel';
 import { PITCH_MM, createPart, isTyping, localMatrixDelta, makeId, nudgeLargeStep, nudgeStep, pointFromEvent, snapDelta, unit } from './workbenchGeometry';
-import { ArrowIcon, BrandMark, CursorIcon, FitIcon, ModeIcon, PartGlyph, ProjectIcon, RedoIcon, ScopeIcon, UndoIcon } from './WorkbenchIcons';
+import { ArrowIcon, BrandMark, CursorIcon, FitIcon, ModeIcon, PartGlyph, RedoIcon, ScopeIcon, UndoIcon } from './WorkbenchIcons';
 import { WorkbenchLayers, footprintLayers } from './WorkbenchLayers';
 import { WorkbenchTree } from './WorkbenchTree';
 import { Drag, ExportKind, Mode, Props, SceneHandlers, SelectionScope, StaggerDrag, SplayDrag, PanDrag } from './workbenchTypes';
@@ -80,12 +81,13 @@ import './unified-workbench.css';
 import './workspace-panels.css';
 import './setup-guide.css';
 import './outline-editor.css';
+import './workflow.css';
+import './project-library.css';
 
 const AssemblyEditor = lazy(() => import('./AssemblyEditor').then(m => ({ default: m.AssemblyEditor })));
 const AssemblyViewer = lazy(() => import('./AssemblyViewer').then(m => ({ default: m.AssemblyViewer })));
 const BoardReferencePanel = lazy(() => import('./BoardReferencePanel').then(m => ({ default: m.BoardReferencePanel })));
 
-const modes: Mode[] = ['Design', 'Library'];
 type ThemePreference = 'system' | 'light' | 'dark';
 const THEME_KEY = 'boardstudio:v2:theme';
 
@@ -106,7 +108,7 @@ const systemColorScheme = (): 'light' | 'dark' => {
   }
 };
 
-const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onResetLocalProjects, onOpenDemo, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, caseInstanceId, instanceControls, setupControls, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
+const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onOpenSavedProject, onResetLocalProjects, onOpenDemo, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, caseInstanceId, instanceControls, setupControls, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
   const caseDocument = physicalCaseDocument ?? document;
   const caseScene = physicalCaseScene ?? scene;
   const [caseActionsTarget, setCaseActionsTarget] = useState<HTMLDivElement | null>(null);
@@ -115,6 +117,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [guidePlacement, setGuidePlacement] = useState<SetupGuideStage | null>(null);
   const guideVisible = guide.open && !guidePlacement && mode !== 'Library';
   const [lastDesignMode, setLastDesignMode] = useState<Mode>('Design');
+  const navigationProject = useRef(document.id);
   const [commandMenu, setCommandMenu] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<'properties' | 'relations'>('properties');
   const [showFindings, setShowFindings] = useState(false);
@@ -144,6 +147,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
   const [systemScheme, setSystemScheme] = useState(systemColorScheme);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [projectPage, setProjectPage] = useState<'project' | 'settings'>('project');
   const projectTriggerRef = useRef<HTMLButtonElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -230,6 +234,37 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [constraintY, setConstraintY] = useState('0');
   const [constraintRotation, setConstraintRotation] = useState('0');
   const colorScheme = themePreference === 'system' ? systemScheme : themePreference;
+  const inspectorPage = showFindings ? 'Layout findings' : scriptsOpen ? 'Geometry scripts' : outlineSettingsOpen && mode === 'Design' ? 'Board outline' : null;
+  const closeInspectorPage = () => {
+    setShowFindings(false);
+    setScriptsOpen(false);
+    setOutlineSettingsOpen(false);
+    setOutlineSelection(null);
+    setInspectorTab('properties');
+    requestAnimationFrame(() => globalThis.document.querySelector<HTMLElement>('#wb-inspector .wb-inspector-content :is(input, select, button):not(:disabled)')?.focus());
+  };
+  const revealInspector = () => {
+    setRightOpen(true);
+    if (compactObjects) setLeftOpen(false);
+    if (!compactInspector) inspectorPanel.setMode('pinned');
+  };
+
+  useEffect(() => {
+    if (navigationProject.current === document.id) return;
+    navigationProject.current = document.id;
+    setMode('Design');
+    setLastDesignMode('Design');
+    setShowFindings(false);
+    setScriptsOpen(false);
+    setOutlineSettingsOpen(false);
+    setCommandMenu(null);
+    setProjectMenuOpen(false);
+    setEditingAssembly(null);
+    setAssembly3d(false);
+    setScope(null);
+    setSelected([]);
+    setInspectorTab('properties');
+  }, [document.id]);
 
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -647,8 +682,12 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     setShowFindings(false);
     setInspectorTab('properties');
     setLeftOpen(false);
+    if (next === 'Export') setRightOpen(false);
     setMode(next);
     setScriptsOpen(false);
+    setOutlineSettingsOpen(false);
+    setTransformTool(null);
+    setProjectMenuOpen(false);
     setAddPartOpen(false);
 
   };
@@ -1161,7 +1200,6 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const getModeDetails = () => {
     if (scriptsOpen) return <>
       <div className="wb-inspect-head"><h2>Geometry scripts</h2></div>
-      <button className="wb-secondary" onClick={() => setScriptsOpen(false)}>Back to inspector</button>
         <div className="wb-script-heading"><h3 className="wb-subtitle">Scripts</h3><button onClick={addScript}>+ New script</button></div>
         {document.scripts.length > 0 && <label className="wb-script-select-label">Active script<select aria-label="Active script" value={activeScript?.id ?? ''} onChange={(event) => setActiveScriptId(event.target.value)}>
           {document.scripts.map((script) => <option key={script.id} value={script.id}>{script.name}</option>)}
@@ -1271,7 +1309,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     />;
     if (mode === 'Export') {
       const outputs: { label: string; ready: boolean; detail: string; kind: ExportKind }[] = [
-        { label: 'KiCad board', ready: boardReady && wiring?.ready === true, detail: 'Resolved wiring, placements and edge cuts · ready for routing', kind: 'kicad' },
+        { label: 'KiCad board', ready: boardReady && wiring?.ready === true, detail: 'Placements, resolved wiring, and board edges for KiCad', kind: 'kicad' },
         { label: 'Draft KiCad board', ready: boardReady, detail: 'Incomplete wiring with a findings report', kind: 'kicad-draft' },
         { label: 'ZMK firmware', ready: Boolean(wiring?.ready && wiring.controller && wiring.assignments?.length), detail: 'ZMK v0.3.0 configuration and editable starter keymap', kind: 'firmware' },
         { label: 'KiCad footprints', ready: document.definitions.length > 0, detail: 'Component footprint library', kind: 'footprints' },
@@ -1280,14 +1318,17 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         { label: generatedCase ? 'Authored Case STEP' : 'Case STEP', ready: authoredCaseReady, detail: 'Saved authored case bodies', kind: 'case-step' },
       ];
       return <>
-        <div className="wb-inspect-head wb-export-heading"><h2>Export package</h2><button type="button" className="wb-secondary" onClick={closeExport}>Close export</button></div>
-        <p className="wb-empty-note">Each file reflects the last committed revision. Review readiness before packaging.</p>
+        <div className="wb-inspect-head"><h1>Export package</h1></div>
+        <p className="wb-export-intro">Choose a handoff for {selectedBoard?.name ?? 'this board'}. Downloads use the current committed design; routing and mechanical fit still need downstream review.</p>
+        <h2>Design files</h2>
         <div className="wb-export-list">{outputs.map((output) => <div className="wb-export-row" key={output.label}>
           <span className={`wb-ready-dot ${output.ready ? 'is-ready' : ''}`} />
-          <span><strong>{output.label}</strong><small>{output.detail}</small></span>
+          <span><strong>{output.label}</strong><small>{output.detail}</small>{!output.ready && <small className="wb-export-reason">{output.kind === 'firmware' || output.kind === 'kicad' ? 'Review the layout and resolve controller wiring in PCB.' : output.kind === 'case-step' ? 'Add and generate case geometry in Case.' : 'Review the board outline and layout findings.'}</small>}</span>
           <button className="wb-export-status wb-export-button" aria-label={`Export ${output.label}`} disabled={!output.ready} onClick={() => onExport(output.kind, selectedBoardId || undefined)}>{output.ready ? 'Export' : 'Needs work'}</button>
         </div>)}</div>
         {generatedCase && <div className="wb-export-row"><span className={`wb-ready-dot ${generatedCaseReady ? 'is-ready' : ''}`} /><span><strong>Generated mechanical package</strong><small>STEP/STL parts, outlines, specifications and FR4 plate project</small></span><button className="wb-export-status wb-export-button" disabled={!generatedCaseReady} onClick={onExportMechanical}>{generatedCaseReady ? 'Export' : 'Needs work'}</button></div>}
+        <div className="wb-export-next"><span>Need to finish something?</span><button onClick={() => { changeMode('PCB'); setScope(null); setSelected([]); revealInspector(); }}>Review wiring</button><button onClick={() => { changeMode('Case'); revealInspector(); }}>Review case</button></div>
+        <h2>Portable project</h2><p>Keep an editable copy of the whole project, including all boards.</p>
         {onEmbedUsedModelsChange && <label className="wb-export-option"><input type="checkbox" aria-label="Embed used models" checked={embedUsedModels} onChange={(event) => onEmbedUsedModelsChange(event.target.checked)} /><span><strong>Embed used models</strong><small>Include attached 3D model files used in this project.</small></span></label>}
         <button className="wb-primary wb-export-action" onClick={() => onExport('project')}>Save .boardstudio project <ArrowIcon /></button>
       </>;
@@ -1415,7 +1456,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   };
   const dismissGuide = () => {
     guide.setOpen(false);
-    requestAnimationFrame(() => globalThis.document.getElementById('wb-objects-tab')?.focus());
+    requestAnimationFrame(() => projectTriggerRef.current?.focus({ preventScroll: true }));
   };
   const reopenGuide = () => {
     if (mode === 'Library') changeMode('Design');
@@ -1467,74 +1508,71 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       ].map((group) => <details className="wb-add-category" key={group.name} open={group.name === 'Components'}><summary>{group.name}</summary><div className="wb-add-part-results">{availableLibrary.filter(group.match).map((definition) => <button key={definition.id} onClick={() => beginPartPlacement(definition)}><PartGlyph kind={definition.kind} /><span>{partCatalogLabel(definition)}</span></button>)}</div></details>)}
       <button className="wb-add-browse" data-close-menu onClick={() => { changeMode('Library'); setLeftOpen(true); if (!compactObjects) objectsPanel.setMode('pinned'); }}>Browse all parts<ArrowIcon /></button>
     </section>
-    <section className="wb-add-section" aria-label="Board geometry"><h3>Board geometry</h3><button data-close-menu onClick={() => { setOutlineSettingsOpen(true); setRightOpen(true); setLeftOpen(false); if (!compactInspector) inspectorPanel.setMode('pinned'); }}>Board outline…</button><button data-close-menu onClick={() => { setScriptsOpen(true); setRightOpen(true); if (!compactInspector) inspectorPanel.setMode('pinned'); }}>Geometry scripts…</button></section>
+    <section className="wb-add-section" aria-label="Board geometry"><h3>Board geometry</h3><button data-close-menu onClick={() => { changeMode('Design'); setOutlineSettingsOpen(true); revealInspector(); }}>Board outline…</button><button data-close-menu onClick={() => { changeMode('Design'); setScriptsOpen(true); revealInspector(); }}>Geometry scripts…</button></section>
   </>;
 
   sceneHandlers.current = { startDrag, moveDrag, endDrag, choosePart, nudgePart, hoverPart: setHoveredPart };
 
-  return <main className={`wb-root wb-unified is-${mode.toLowerCase()}`} data-objects-mode={objectsPanel.mode} data-inspector-mode={inspectorPanel.mode} data-revision={document.revision} style={{
+  return <main className={`wb-root wb-unified is-${mode.toLowerCase()}`} data-guide-open={guideVisible} data-objects-mode={objectsPanel.mode} data-inspector-mode={inspectorPanel.mode} data-revision={document.revision} style={{
     ...(objectsPanel.width ? { '--wb-navigator-width': `${objectsPanel.width}px` } : {}),
     ...(inspectorPanel.width ? { '--wb-inspector-width': `${inspectorPanel.width}px` } : {}),
   } as React.CSSProperties}>
     <header className="wb-topbar">
-      <a className="wb-brand" href="#workbench" aria-label="Board Studio workbench">
-        <span className="wb-brand-mark"><BrandMark /></span><span>BOARD<span className="wb-brand-light">STUDIO</span> <span className="wb-brand-version">v2</span></span>
-      </a>
-      <span className="wb-compact-board" title={selectedBoard?.name ?? document.name}>{selectedBoard?.name ?? document.name}</span>
-      <nav className="wb-modes" role="tablist" aria-label="Design stage">
-        {modes.map((item) => <button key={item} role="tab" aria-selected={item === 'Design' ? designView : mode === item} className={`wb-mode ${(item === 'Design' ? designView : mode === item) ? 'is-active' : ''}`} onClick={() => changeMode(item === 'Design' ? lastDesignMode : item)}><span>{item === 'Library' ? 'Parts' : item}</span></button>)}
-      </nav>
-      <div className="wb-top-actions">
-        {compactObjects && <button id="wb-objects-toggle" className="wb-icon-button wb-panel-toggle" aria-label="Objects" title="Objects" aria-expanded={leftOpen} aria-controls="wb-inventory" onClick={() => { setLeftOpen(!leftOpen); setRightOpen(false); }}><PanelIcon side="left" /></button>}
-        {compactInspector && <button id="wb-inspector-toggle" className={`wb-icon-button wb-panel-toggle${mode === 'Case' ? ' wb-case-settings-toggle' : ''}`} aria-label={mode === 'Case' ? 'Case settings' : 'Inspect'} title={mode === 'Case' ? 'Case settings' : 'Inspect'} aria-expanded={rightOpen} aria-controls="wb-inspector" onClick={() => { setRightOpen(!rightOpen); setLeftOpen(false); }}><PanelIcon side="right" />{mode === 'Case' && <span>Case settings</span>}</button>}
-        <details className={`wb-save-state is-${saveStatus ?? 'unknown'}`} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}><summary aria-label={saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving locally' : saveStatus === 'failed' ? 'Local save failed' : 'Local save status unavailable'}><i aria-hidden="true" /><span>{saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving…' : saveStatus === 'failed' ? 'Save failed' : 'Save status'}</span></summary><div role="status">{saveStatus === 'saved' ? 'Changes are saved in this browser. Use Save project copy for a portable backup.' : saveStatus === 'saving' ? 'Saving changes in this browser…' : saveStatus === 'failed' ? 'Changes could not be saved locally. Check available browser storage before editing further.' : 'Local save status is unavailable.'}</div></details>
-        <button className="wb-icon-button wb-history-action" aria-label="Undo" title="Undo (Ctrl+Z)" onClick={onUndo}><UndoIcon /></button>
-        <button className="wb-icon-button wb-history-action" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" onClick={onRedo}><RedoIcon /></button>
-        <button className="wb-icon-button wb-export-trigger" aria-label="Export" title="Export" aria-pressed={mode === 'Export'} onClick={() => { if (mode === 'Export') { closeExport(); return; } changeMode('Export'); setRightOpen(true); if (!compactInspector) inspectorPanel.setMode('pinned'); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" /></svg></button>
       <div className="wb-project-menu">
-        <button ref={projectTriggerRef} className="wb-project-trigger" aria-expanded={projectMenuOpen} aria-controls="wb-project-dropdown" aria-label="Project" title={`Project menu — ${document.name}`} onClick={() => setProjectMenuOpen((open) => !open)}><ProjectIcon /></button>
-        {projectMenuOpen && <div id="wb-project-dropdown" className="wb-project-dropdown" aria-label="Project menu">
-          <label className="wb-project-title"><span>Project</span><input aria-label="Project name" title="Rename project" value={projectName} onChange={(event) => setProjectName(event.target.value)} onBlur={commitProjectName} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') setProjectName(document.name); }} /></label>
-          <div className="wb-project-actions">
-            <button className="wb-compact-action" onClick={() => { setProjectMenuOpen(false); onUndo(); }}>Undo</button>
-            <button className="wb-compact-action" onClick={() => { setProjectMenuOpen(false); onRedo(); }}>Redo</button>
-            <button className="wb-compact-action" onClick={() => { setProjectMenuOpen(false); changeMode('Export'); setRightOpen(true); }}>Export…</button>
-            <button onClick={() => { setProjectMenuOpen(false); reopenGuide(); }}>Setup guide…</button>
-            {onNewProject && <button onClick={() => { setProjectMenuOpen(false); onNewProject(); }}>New project</button>}
-            {onImport && <button className="wb-open-project" onClick={() => projectFileRef.current?.click()}>Open project…</button>}
-            <button onClick={() => { setProjectMenuOpen(false); onExport('project'); }}>Save project copy…</button>
-            {onResetLocalProjects && <button onClick={() => {
-              setProjectMenuOpen(false);
-              if (!window.confirm('Reset all local projects? This deletes every saved project and imported asset in this browser, then starts an empty project. This cannot be undone. Save a project copy first if you want to keep your work.')) return;
-              changeMode('Design');
-              setScope(null); setSelected([]);
-              onResetLocalProjects();
-            }}>Reset local projects…</button>}
+        <button ref={projectTriggerRef} className="wb-project-trigger" aria-expanded={projectMenuOpen} aria-controls="wb-project-dropdown" aria-label="Project" title={`Project menu — ${document.name}`} onClick={() => { setProjectMenuOpen(open => !open); setProjectPage('project'); setCommandMenu(null); }}><span className="wb-brand-mark"><BrandMark /></span><span className="wb-project-name">{document.name}</span><ToolIcon name="chevron" /></button>
+        {projectMenuOpen && <div id="wb-project-dropdown" className="wb-project-dropdown" data-page={projectPage} aria-label="Project menu" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setProjectMenuOpen(false); projectTriggerRef.current?.focus({ preventScroll: true }); } }}>
+          <div className="wb-project-menu-heading"><strong>{projectPage === 'settings' ? 'Workspace settings' : 'Keyboards'}</strong><button type="button" aria-label="Close project menu" onClick={() => { setProjectMenuOpen(false); projectTriggerRef.current?.focus({ preventScroll: true }); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button></div>
+          {projectPage === 'settings' ? <div className="wb-workspace-preferences">
+            <button className="wb-back-link" onClick={() => { setProjectPage('project'); requestAnimationFrame(() => globalThis.document.getElementById('wb-preferences-entry')?.focus({ preventScroll: true })); }}><ArrowIcon />Back to project menu</button>
+          <label>Appearance<select aria-label="Color theme" value={themePreference} onChange={event => chooseTheme(event.target.value as ThemePreference)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+          <div className="wb-menu-section"><strong>Panels</strong><p>Restore the Objects and Inspect panels to their default size and pinned position.</p><button onClick={() => { objectsPanel.reset(); inspectorPanel.reset(); setLeftOpen(false); setRightOpen(false); }}>Restore default panels</button></div>
+          {onResetLocalProjects && <button className="wb-secondary" onClick={() => {
+            if (!window.confirm('Reset all local projects? This deletes every saved project and imported asset in this browser, then starts an empty project. This cannot be undone. Save a project copy first if you want to keep your work.')) return;
+            setProjectMenuOpen(false);
+            changeMode('Design');
+            setScope(null); setSelected([]);
+            onResetLocalProjects();
+          }}>Reset local projects…</button>}
+          <p>Workspace preferences apply in this browser. Board dimensions, wiring, and case settings belong to their editing views.</p>
+          </div> : <>
+          <div className="wb-keyboard-library-actions">
+            {onNewProject && <button className="wb-library-new" onClick={() => { setProjectMenuOpen(false); onNewProject(); }}><ProjectLibraryIcon name="new" />New project</button>}
+            {onImport && <button className="wb-open-project" onClick={() => projectFileRef.current?.click()}><ProjectLibraryIcon name="open" />Open project…</button>}
           </div>
-          {onImport && <input ref={projectFileRef} className="wb-project-file-input" type="file" accept=".boardstudio" onChange={(event) => {
+          <div className="wb-keyboard-current-project">
+            <label className="wb-project-title"><span>Current project</span><input aria-label="Project name" title="Rename project" value={projectName} onChange={event => setProjectName(event.target.value)} onBlur={commitProjectName} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') setProjectName(document.name); }} /></label>
+            <button title="Save project copy…" onClick={() => { setProjectMenuOpen(false); onExport('project'); }}><ProjectLibraryIcon name="download" /><span>Save project copy…</span></button>
+          </div>
+          {onImport && <input ref={projectFileRef} className="wb-project-file-input" type="file" accept=".boardstudio" tabIndex={-1} onChange={event => {
             const file = event.currentTarget.files?.[0];
             if (file) onImport(file);
             event.currentTarget.value = '';
             setProjectMenuOpen(false);
           }} />}
-          {onOpenDemo && <label className="wb-theme-setting">Demo keyboard<select aria-label="Open demo keyboard" value="" onChange={(event) => {
-            if (!event.target.value) return;
-            setProjectMenuOpen(false);
-            onOpenDemo(event.target.value as DemoId);
-          }}><option value="" disabled>Choose a demo…</option>{demos.map(demo => <option key={demo.id} value={demo.id}>{demo.name}</option>)}</select></label>}
-          <label className="wb-theme-setting">Appearance<select aria-label="Color theme" value={themePreference} onChange={(event) => chooseTheme(event.target.value as ThemePreference)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+          <ProjectLibrary document={document} onOpen={onOpenSavedProject && (id => { setProjectMenuOpen(false); onOpenSavedProject(id); })} onOpenDemo={onOpenDemo && (id => { setProjectMenuOpen(false); onOpenDemo(id); })} />
+          <div className="wb-project-workspace-actions">
+            <div className="wb-project-history"><button className="wb-compact-action" onClick={() => { setProjectMenuOpen(false); onUndo(); }}><UndoIcon />Undo</button><button className="wb-compact-action" onClick={() => { setProjectMenuOpen(false); onRedo(); }}><RedoIcon />Redo</button></div>
+            <button onClick={() => { setProjectMenuOpen(false); reopenGuide(); }}><ProjectLibraryIcon name="guide" />Setup guide</button>
+            <button id="wb-preferences-entry" onClick={() => { setProjectPage('settings'); requestAnimationFrame(() => globalThis.document.querySelector<HTMLElement>('.wb-workspace-preferences .wb-back-link')?.focus({ preventScroll: true })); }}><ProjectLibraryIcon name="settings" />Workspace settings</button>
+          </div>
+          </>}
         </div>}
       </div>
+      <details className={`wb-save-state is-${saveStatus ?? 'unknown'}`} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}><summary aria-label={saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving locally' : saveStatus === 'failed' ? 'Local save failed' : 'Local save status unavailable'}><i aria-hidden="true" /><span>{saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving…' : saveStatus === 'failed' ? 'Save failed' : 'Save status'}</span></summary><div role="status">{saveStatus === 'saved' ? 'Changes are saved in this browser. Use Save project copy for a portable backup.' : saveStatus === 'saving' ? 'Saving changes in this browser…' : saveStatus === 'failed' ? 'Changes could not be saved locally. Check available browser storage before editing further.' : 'Local save status is unavailable.'}</div></details>
+      <WorkflowNavigation mode={mode} onNavigate={changeMode} />
+      <div className="wb-top-actions">
+        {compactObjects && mode !== 'Export' && <button id="wb-objects-toggle" className="wb-icon-button wb-panel-toggle" aria-label="Objects" title="Objects" aria-expanded={leftOpen} aria-controls="wb-inventory" onClick={() => { setLeftOpen(!leftOpen); setRightOpen(false); }}><PanelIcon side="left" /></button>}
+        {compactInspector && mode !== 'Export' && <button id="wb-inspector-toggle" className="wb-icon-button wb-panel-toggle" aria-label={mode === 'Case' ? 'Case settings' : 'Inspect'} title={mode === 'Case' ? 'Case settings' : 'Inspect'} aria-expanded={rightOpen} aria-controls="wb-inspector" onClick={() => { setRightOpen(!rightOpen); setLeftOpen(false); }}><PanelIcon side="right" /></button>}
+        <button className="wb-icon-button wb-export-trigger" aria-label="Export" title="Export" aria-pressed={mode === 'Export'} onClick={() => mode === 'Export' ? closeExport() : changeMode('Export')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" /></svg><span>Export</span></button>
       </div>
     </header>
     <p className="wb-keyboard-status" role="status" aria-label="Keyboard movement" aria-live="polite">{keyboardStatus}</p>
     <section className="wb-workspace" id="workbench">
-      <WorkspacePanel options={<label>Group objects<select aria-label="Tree grouping" value={treeGrouping} onChange={(event) => { const value = event.target.value as 'row' | 'column'; setTreeGrouping(value); try { localStorage.setItem('boardstudio:v2:tree-grouping', value); } catch { /* Session only. */ } }}><option value="column">Columns</option><option value="row">Rows</option></select></label>} side="left" label={guideVisible ? 'Setup guide' : 'Part inventory'} settings={objectsPanel} compact={compactObjects} open={leftOpen} onClose={() => setLeftOpen(false)} toolbar={<>
+      {(mode !== 'Export' || guideVisible) && <WorkspacePanel options={<label>Group objects<select aria-label="Tree grouping" value={treeGrouping} onChange={(event) => { const value = event.target.value as 'row' | 'column'; setTreeGrouping(value); try { localStorage.setItem('boardstudio:v2:tree-grouping', value); } catch { /* Session only. */ } }}><option value="column">Columns</option><option value="row">Rows</option></select></label>} side="left" label={guideVisible ? 'Setup guide' : 'Part inventory'} settings={objectsPanel} compact={compactObjects} open={leftOpen} onClose={() => setLeftOpen(false)} toolbar={<>
         <span className="wb-panel-title">{mode === 'Library' ? 'Parts' : guideVisible ? 'Setup' : 'Objects'}</span>
       </>} primaryAction={!guideVisible && (mode === 'Design' || mode === 'PCB') && <button ref={addPartRef} className="wb-add-trigger" aria-label="Add object" aria-expanded={addPartOpen} aria-controls="wb-add-part" onClick={() => { setAddPartOpen((open) => !open); setCommandMenu(null); }}><ToolIcon name="add" /> Add object</button>}>
 
-        {mode !== 'Library' && <div className="wb-setup-navigation" role="group" aria-label="Workspace navigation"><button type="button" aria-pressed={guideVisible} onClick={reopenGuide}>Guide</button><button type="button" id="wb-objects-tab" aria-pressed={!guideVisible} onClick={dismissGuide}>Objects</button></div>}
-        {guideVisible && guideStages ? <SetupGuide boardName={selectedBoard?.name ?? 'Select a board'} stages={guideStages} currentStep={guide.currentStep} onStepChange={chooseSetupStage} onDismiss={dismissGuide} currentStepContent={guideContent} /> : mode === 'Library' ? <PartsLibrary definitions={libraryDefinitions} assemblies={(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => ({ id, name: assemblyName(id), definitionId: matrixPresetDefinitions[id].definitionId }))} query={librarySearch} selected={libraryAssembly ? `assembly:${libraryAssembly}` : selectedLibraryDefinition?.id ?? ''} onCreate={addCustomDefinition} onImport={onImportFootprint} onSearch={setLibrarySearch} onSelect={(id) => { setEditingAssembly(null); setScriptsOpen(false); setLibraryChoice(id); setLibraryAssembly(null); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} onAssembly={(id) => { setEditingAssembly(null); setScriptsOpen(false); const preset = id as MatrixPresetId; setLibraryAssembly(preset); setLibraryChoice(matrixPresetDefinitions[preset].definitionId); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} /> : addPartOpen ? <div id="wb-add-part" className="wb-add-inventory" role="dialog" aria-label="Add" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setAddPartOpen(false); addPartRef.current?.focus(); } }} onClick={(event) => { if ((event.target as Element).closest('[data-close-menu]')) setAddPartOpen(false); }}>{addContent}</div> : <>
+        {guideVisible && guideStages ? <SetupGuide boardName={selectedBoard?.name ?? 'Select a board'} stages={guideStages} currentStep={guide.currentStep} onStepChange={chooseSetupStage} onDismiss={dismissGuide} currentStepContent={guideContent} /> : mode === 'Library' ? <PartsLibrary definitions={libraryDefinitions} assemblies={(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => ({ id, name: assemblyName(id), definitionId: matrixPresetDefinitions[id].definitionId }))} query={librarySearch} selected={libraryAssembly ? `assembly:${libraryAssembly}` : selectedLibraryDefinition?.id ?? ''} onCreate={addCustomDefinition} onImport={onImportFootprint} onSearch={setLibrarySearch} onSelect={(id) => { setEditingAssembly(null); setScriptsOpen(false); setLibraryChoice(id); setLibraryAssembly(null); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} onAssembly={(id) => { setEditingAssembly(null); setScriptsOpen(false); const preset = id as MatrixPresetId; setLibraryAssembly(preset); setLibraryChoice(matrixPresetDefinitions[preset].definitionId); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} /> : addPartOpen ? <div id="wb-add-part" className="wb-add-inventory" role="dialog" aria-label="Add" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setAddPartOpen(false); addPartRef.current?.focus(); } }} onClick={(event) => { if ((event.target as Element).closest('[data-close-menu]')) setAddPartOpen(false); }}><div className="wb-add-heading"><strong>Add to {selectedBoard?.name ?? 'board'}</strong><button className="wb-back-link" onClick={() => { setAddPartOpen(false); addPartRef.current?.focus(); }}><ArrowIcon />Back to objects</button></div>{addContent}</div> : <>
 
         {!matrixSetup && <div className="wb-board-picker"><label htmlFor="wb-board-select">Board</label><div><select id="wb-board-select" aria-label="Selected board" value={selectedBoardId} onChange={(event) => selectBoard(event.target.value)}>{document.boards.map((board) => <option key={board.id} value={board.id}>{board.name}</option>)}</select><button type="button" onClick={addBoard} aria-label="New board"><ToolIcon name="add" /></button></div></div>}
 
@@ -1547,12 +1585,12 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         <WorkbenchTree entries={treeEntries} />
         <div className="wb-inventory-foot"><strong>{selectionTitle.split(' · ').at(-1)}</strong><span>{selectedBoard?.name} / {viewLabel}{selectedMatrix ? ` / ${activeLayout?.name || selectedMatrix.name || selectionTitle.split(' · ')[0]}` : ''}</span><span>{selected.length ? `${selected.length} selected` : 'Select an object to edit'}</span></div>
         </>}
-      </WorkspacePanel>
+      </WorkspacePanel>}
 
-      <section className={`wb-canvas-column${mode === 'Case' ? ' is-case-workbench' : ''}`} aria-label={`${mode === 'Library' ? 'Parts' : mode} canvas`}>
+      {mode === 'Export' ? <section className="wb-export-workspace" aria-label="Export workspace"><div className="wb-export-content"><WorkflowReturn returnMode={lastDesignMode} onNavigate={closeExport} />{getModeDetails()}</div></section> : <section className={`wb-canvas-column${mode === 'Case' ? ' is-case-workbench' : ''}`} aria-label={`${mode === 'Library' ? 'Parts' : mode} canvas`}>
+        {mode === 'Library' && <div className="wb-task-return"><WorkflowReturn returnMode={lastDesignMode} onNavigate={changeMode} /></div>}
         <div hidden={outlineActive} className={`wb-canvas-toolbar ${mode === 'Design' || mode === 'PCB' ? `is-floating ${commandMenu ? 'is-expanded' : ''}` : ''}`} role="toolbar" aria-label={`${viewLabel} commands`}>
-          {outlineFeature ? <div className="wb-outline-canvas-context"><OutlineToolIcon kind={outlineFeature.kind === 'part-envelope' ? 'connect' : outlineFeature.operation} /><strong>Outline points</strong><span>{outlineGrid} mm snap</span><button aria-label="Finish editing outline points" onClick={() => setOutlineSelection(null)}>Done</button></div> : mode === 'Design' || mode === 'PCB' ? <>
-            <div className="wb-scope-shortcuts" role="group" aria-label="Selection types">{(['key', 'row', 'column', 'matrix', 'component'] as const).map((kind) => <button key={kind} title={`Choose ${kind === 'component' ? 'part' : kind} selection`} aria-label={`Select ${kind}`} aria-pressed={selectionMode === kind} aria-description={!scope ? 'Choose a selection type, then click a key.' : undefined} onClick={() => changeScope(kind)}><ScopeIcon kind={kind} /></button>)}</div>
+          {outlineFeature ? <div className="wb-outline-canvas-context"><OutlineToolIcon kind={outlineFeature.kind === 'part-envelope' ? 'connect' : outlineFeature.operation} /><strong>Outline points</strong><span>{outlineGrid} mm snap</span><button aria-label="Finish editing outline points" onClick={() => setOutlineSelection(null)}>Done</button></div> : (mode === 'Design' && !assembly3d) || mode === 'PCB' ? <>
             <CommandMenu triggerClassName="wb-compact-select" panelClassName="wb-compact-select-panel" attached id="wb-select-menu" label={`Select: ${selectionMode === 'component' ? 'Part' : selectionMode[0].toUpperCase() + selectionMode.slice(1)}`} icon={<ScopeIcon kind={selectionMode} />} open={commandMenu === 'select'} onOpenChange={(open) => { setCommandMenu(open ? 'select' : null); setAddPartOpen(false); }}>
               <p>{!scope ? 'Choose a selection type, then click a key.' : 'Choose the extent of your selection. The change applies now.'}</p>
               <div role="group" aria-label="Selection scope">{(['matrix', 'row', 'column', 'key', 'component'] as const).map((kind) => <button key={kind} data-close-menu aria-pressed={selectionMode === kind} onClick={() => changeScope(kind)}><ScopeIcon kind={kind} />{kind === 'component' ? 'Part' : kind[0].toUpperCase() + kind.slice(1)}</button>)}</div>
@@ -1561,16 +1599,16 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             <CommandMenu attached id="wb-transform-menu" label="Transform" icon={<ToolIcon name="transform" />} open={commandMenu === 'transform'} onOpenChange={(open) => setCommandMenu(open ? 'transform' : null)}>
               <p>Drag the selection to move it. Arrow keys move parts precisely.</p>
               {(['stagger', 'splay', 'origin'] as const).map((tool) => <button key={tool} aria-pressed={transformTool === tool} disabled={!selectedMatrix} onClick={() => { setTransformTool(transformTool === tool ? null : tool); if (tool !== 'stagger' || scope?.kind !== 'row') changeScope('column'); setCommandMenu(null); }}><ToolIcon name={tool} />{tool[0].toUpperCase() + tool.slice(1)}</button>)}
-              <button data-close-menu onClick={() => { setInspectorTab('properties'); setRightOpen(true); }} disabled={!scope}>Position & rotation</button>
-              <button data-close-menu disabled={!selectedMatrix} onClick={() => { changeScope('column'); setInspectorTab('properties'); setRightOpen(true); }}>Splay & origin</button>
-              <button data-close-menu disabled={!selectedMatrix} onClick={() => { changeScope('row'); setInspectorTab('properties'); setRightOpen(true); }}>Row offsets</button>
+              <button data-close-menu onClick={() => { setInspectorTab('properties'); revealInspector(); }} disabled={!scope}>Position & rotation</button>
+              <button data-close-menu disabled={!selectedMatrix} onClick={() => { changeScope('column'); setInspectorTab('properties'); revealInspector(); }}>Splay & origin</button>
+              <button data-close-menu disabled={!selectedMatrix} onClick={() => { changeScope('row'); setInspectorTab('properties'); revealInspector(); }}>Row offsets</button>
             </CommandMenu>
             <CommandMenu attached id="wb-align-menu" label="Align" icon={<ToolIcon name="align" />} open={commandMenu === 'align'} onOpenChange={(open) => setCommandMenu(open ? 'align' : null)}>
               <label>Reference part<select aria-label="Alignment reference" disabled={!alignTargets.length} value={alignTarget?.id ?? ''} onChange={(event) => setAlignTargetId(event.target.value)}>{!alignTargets.length && <option value="">No independent reference parts</option>}{alignTargets.map((part) => <option value={part.id} key={part.id}>{part.reference}</option>)}</select></label>
               <p>Align envelope bounds once. The reference stays fixed. Rotated shapes use axis bounds.</p>
               <div className="wb-align-grid">{([['x', 'min', 'Left'], ['x', 'center', 'Center X'], ['x', 'max', 'Right'], ['y', 'max', 'Top'], ['y', 'center', 'Center Y'], ['y', 'min', 'Bottom']] as const).map(([axis, anchor, label]) => <button data-close-menu key={label} disabled={!activeParts.length || !alignTarget || selectionLocked || scope?.kind === 'row'} onClick={() => alignSelection(axis, anchor)}>{label}</button>)}</div>
               {(selectionLocked || scope?.kind === 'row') && <p>{selectionLocked ? 'Unlock or remove the driving constraint before aligning.' : 'A row can cross differently splayed columns. Align individual keys or a column.'}</p>}
-              <button data-close-menu disabled={!scope} onClick={() => { setInspectorTab('relations'); setRightOpen(true); }}>Relationships</button>
+              <button data-close-menu disabled={!scope} onClick={() => { setInspectorTab('relations'); revealInspector(); }}>Relationships</button>
             </CommandMenu>
             <CommandMenu attached id="wb-snap-menu" label="Snap" icon={<ToolIcon name="snap" />} open={commandMenu === 'snap'} onOpenChange={(open) => setCommandMenu(open ? 'snap' : null)}>
               <label>Grid step<select aria-label="Snap increment" value={snapFraction} onChange={(event) => setSnapFraction(Number(event.target.value))}><option value={0}>Off</option><option value={0.125}>⅛u</option><option value={0.25}>¼u</option><option value={0.5}>½u</option><option value={1}>1u</option></select></label>
@@ -1579,12 +1617,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
               <label className="wb-menu-check"><input type="checkbox" checked={gapSnap} onChange={(event) => setGapSnap(event.target.checked)} disabled={!geometrySnap} /> Envelope gap</label>
               <label>Gap (mm)<input aria-label="Snap gap" type="number" min="0" step="0.1" placeholder={String(selectedMatrix?.edgeGap?.x ?? 1)} value={gapOverride} onChange={(event) => setGapOverride(event.target.value)} /></label>
               <p>Standalone parts snap at corners, midpoints and centers. Gaps use rectangular edges; keycap envelope when available, courtyard otherwise.</p>
-              <label className="wb-menu-check"><input type="checkbox" checked={showFootprints} onChange={(event) => setShowFootprints(event.target.checked)} /> Show footprint detail</label>
             </CommandMenu>
           </> : <div className="wb-canvas-context"><ModeIcon mode={mode} /><strong>{viewLabel}</strong><span>{mode === 'Case' ? 'Assembly & components' : mode === 'Library' ? 'Footprint & model preview' : assembly3d ? 'PCB assembly' : 'Artifacts & readiness'}</span></div>}
           {transformTool && <button className="wb-command-trigger wb-transform-active" aria-label="Finish transform" title="Finish transform (Esc)" onClick={() => { setTransformTool(null); setOriginPicking(false); }}><ToolIcon name={transformTool} />{transformTool[0].toUpperCase() + transformTool.slice(1)} · Done</button>}
         </div>
-          {mode === 'Design' && !outlineActive && <div className="wb-design-view-toggle" role="group" aria-label="Design view"><button aria-pressed={!assembly3d} onClick={() => setAssembly3d(false)}>2D</button><button aria-pressed={assembly3d} onClick={() => setAssembly3d(true)}>3D assembly</button></div>}
+          {mode === 'Design' && !outlineActive && <div className="wb-design-view-toggle" role="group" aria-label="Design view"><button aria-pressed={!assembly3d} onClick={() => setAssembly3d(false)}>2D</button><button aria-pressed={assembly3d} onClick={() => { cancelInteractions(); setCommandMenu(null); setTransformTool(null); cancelPlacement(); setAssembly3d(true); }}>3D assembly</button>{!assembly3d && <button aria-pressed={showFootprints} onClick={() => setShowFootprints(!showFootprints)}>Footprints</button>}</div>}
         {mode === 'Case' && <div className="wb-case-action-bar" ref={setCaseActionsTarget} />}
         <div className={`wb-canvas-stage wb-layer-surface ${leftOpen || rightOpen ? 'has-drawer' : ''} ${mode === 'Design' && !showFootprints ? 'is-layout-simplified' : ''}`}>
           <svg tabIndex={0} onKeyDown={(event) => { if (matrixGhost) {
@@ -1635,7 +1672,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
           {mode === 'Library' && !editingAssembly && <LibraryWorkspace document={document} definition={previewDefinition} title={libraryAssembly ? assemblyName(libraryAssembly) : previewDefinition ? partCatalogLabel(previewDefinition) : undefined} companions={libraryCompanions} rotation={libraryRecipeEntries[0]?.rotation ?? 0} compiled={libraryCompiled} compilePending={previewCompilePending} compileError={previewCompileError} mechanicalProfile={(previewDefinition as (PartDefinition & { mechanicalProfile?: MechanicalPartProfile }) | undefined)?.mechanicalProfile} onSaveMechanicalProfile={(profile) => { if (!previewDefinition) return; const snapshot = { ...previewDefinition, mechanicalProfile: profile }; const nextDefinitions = document.definitions.some((entry) => entry.id === previewDefinition.id) ? document.definitions.map((entry) => entry.id === previewDefinition.id ? snapshot : entry) : [...document.definitions, snapshot]; emit({ kind: 'replace-document', document: { ...document, definitions: nextDefinitions } }, [previewDefinition.id]); }} onMechanicalProfile={onMechanicalProfile} onExtractMechanicalProfile={onExtractMechanicalProfile} show3d={library3dOpen} onViewChange={setLibrary3dOpen} colorScheme={colorScheme} />}
           {mode === 'Library' && editingAssembly && <React.Suspense fallback={<p>Loading assembly editor…</p>}><AssemblyEditor key={editingAssembly.id} document={document} initial={editingAssembly} matrixName={selectedMatrix ? selectedMatrix.name?.trim() || `Matrix ${document.matrices.indexOf(selectedMatrix) + 1}` : 'selected matrix'} onApply={selectedMatrix ? assembly => { const prepared = matrixWithAssembly(selectedMatrix, assembly, libraryDefinitions, document.revision); emit({ kind: 'set-matrix', ...prepared }, [selectedMatrix.id]); } : undefined} definitions={libraryDefinitions} boardId={selectedBoard?.id} colorScheme={colorScheme} onChange={next => emit({ kind: 'replace-document', document: next }, [editingAssembly.id])} onClose={() => setEditingAssembly(null)} onPlace={next => { emit({ kind: 'replace-document', document: next }, []); setEditingAssembly(null); changeMode('Design'); setAssembly3d(true); }} /></React.Suspense>}
           {(mode === 'Case' || (mode === 'Design' && assembly3d)) && selectedBoard && <React.Suspense fallback={<p role="status">Loading assembly viewer…</p>}><AssemblyViewer document={assemblyDocument} boardId={selectedBoard.id} contours={assemblyContours} bodies={showCaseGeometry ? caseBodies?.map(body => ({ id: body.id, name: body.name, mesh: body })) : undefined} generation={showCaseGeometry ? generation : undefined} onGasketChange={configuration => emit({ kind: 'set-mechanical', configuration }, [document.id])} mechanical={showCaseGeometry && generatedCase && mechanicalAssembly?.revision === caseDocument.revision ? mechanicalAssembly : undefined} selectedLayer={selectedMechanicalLayer} onSelectLayer={setSelectedMechanicalLayer} colorScheme={colorScheme} onSelect={reference => { const part = document.parts.find(p => p.reference === reference); if (part) choosePart(part.id); }} /></React.Suspense>}
-          {mode !== 'Case' && mode !== 'Library' && !assembly3d && !matrixGhost && !pendingPart && visibleParts.length === 0 && visibleContours.length === 0 && visibleMatrices.length === 0 && <div className="wb-canvas-empty"><div className="wb-empty-cursor"><CursorIcon /></div><h2>Start with the geometry</h2><p>Place keys or components to generate an outline that follows your layout.</p><button className="wb-primary" onClick={() => changeMode('Library')}>Browse parts <ArrowIcon /></button></div>}
+          {!guideVisible && mode !== 'Case' && mode !== 'Library' && !assembly3d && !matrixGhost && !pendingPart && visibleParts.length === 0 && visibleContours.length === 0 && visibleMatrices.length === 0 && <div className="wb-canvas-empty"><div className="wb-empty-cursor"><CursorIcon /></div><h2>Build your keyboard layout</h2><p>Start with a key matrix. Its switches and companions create the board outline as you edit.</p><button className="wb-primary" onClick={() => { dismissGuide(); changeMode('Design'); createGuidedMatrix(); }}>Add key matrix <ArrowIcon /></button><button className="wb-empty-secondary" onClick={() => changeMode('Library')}>Browse individual parts</button></div>}
           {snapGuide && <div className="wb-canvas-hint" role="status">{snapGuide.label}</div>}
           {originPicking && <div className="wb-canvas-hint" role="status">Pick splay origin · Click the canvas · Esc cancels</div>}
           {matrixGhost && pairPlacement && <div className="wb-canvas-hint" role="status">Place linked halves · Click to place · Esc cancels</div>}
@@ -1643,19 +1680,21 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
           {outlineActive && <OutlineDrawingBar mode={outlineOperation} count={outlineDraft.length} grid={outlineGrid} onGrid={setOutlineGrid} onUndo={() => setOutlineDraft(points => points.slice(0, -1))} onCancel={cancelOutlineDrawing} onFinish={finishOutline} />}
         </div>
 
-      </section>
+      </section>}
 
-      <WorkspacePanel side="right" label={`${mode === 'Library' ? 'Parts' : mode} inspector`} settings={inspectorPanel} compact={compactInspector} open={rightOpen} onClose={() => setRightOpen(false)}>
-        <div className="wb-inspector-content" key={`${mode}:${scriptsOpen}:${mode === 'Library' ? libraryAssembly ?? selectedLibraryDefinition?.id : `${selectedBoardId}:${scope?.matrixId}:${scope?.kind}:${scope?.row}:${scope?.column}:${activePart?.id}`}`}>
-          {(mode === 'Design' || mode === 'Case') && selectedBoard && <React.Suspense fallback={null}><BoardReferencePanel document={document} boardId={selectedBoard.id} onChange={next => emit({ kind: 'replace-document', document: next }, [selectedBoard.id])} /></React.Suspense>}
-          {designView && !scriptsOpen && !outlineSettingsOpen && <>{mode === 'Design' && selectedMatrix && scope?.kind !== 'component' && <><div className="wb-inspect-head wb-selection-heading"><h2 aria-label={selectionTitle}>{selectionTitle.split(' · ').at(-1)}</h2></div><p className="wb-selection-summary">{scope?.kind === 'matrix' ? `${selectedMatrix.rows} rows · ${selectedMatrix.columns} columns` : `${activeParts.length} keys selected`}</p></>}<div className="wb-selection-breadcrumb">{selectedBoard?.name} / {viewLabel}{selectedMatrix ? ` / ${activeLayout?.name || selectedMatrix.name || selectionTitle.split(' · ')[0]}` : ''}</div><div className="wb-inspector-tabs" role="tablist" aria-label="Inspector details"><button role="tab" aria-selected={inspectorTab === 'properties'} onClick={() => setInspectorTab('properties')}>Properties</button><button role="tab" aria-selected={inspectorTab === 'relations'} onClick={() => setInspectorTab('relations')}>Relations</button></div></>}
-          {showFindings ? <><div className="wb-inspect-head"><h2 ref={findingsHeading} tabIndex={-1}>Layout findings</h2><button className="wb-secondary" onClick={() => setShowFindings(false)}>Back</button></div><FindingList document={document} onShow={showFinding} findings={scene.findings} /></> : inspectorTab === 'relations' && designView && !scriptsOpen && !outlineSettingsOpen ? <><h2>Relationships</h2><p className="wb-empty-note">{partnerLayout ? `Key assemblies, diodes and components mirror with ${partnerLayout.name}. Replace a component on one half to keep it local.` : activeLayout ? 'This layout is independent. Its geometry and components can be edited separately.' : activeConstraint ? `${parts.get(activeConstraint.sourcePartId)?.reference} drives ${activePart?.reference}.` : 'No saved placement relationship on this selection.'}</p>{activePart && <button className="wb-secondary" onClick={() => { changeMode('Design'); setScope({ kind: 'component', partId: activePart.id }); setInspectorTab('properties'); }}>Edit placement relationship</button>}<p className="wb-empty-note">Matrix rows and columns share pitch, stagger and splay. Edit those in Properties.</p></> : mode === 'Case' ? null : getModeDetails()}
+      {mode !== 'Export' && <WorkspacePanel side="right" label={`${mode === 'Library' ? 'Parts' : mode} inspector`} settings={inspectorPanel} compact={compactInspector} open={rightOpen} onClose={() => setRightOpen(false)}>
+        {inspectorPage && <div className="wb-inspector-return"><button className="wb-back-link" onClick={closeInspectorPage}><ArrowIcon />Back to selection</button><span>{inspectorPage}</span></div>}
+        <div className="wb-inspector-content" onKeyDown={event => { if (event.key === 'Escape' && inspectorPage) { event.stopPropagation(); closeInspectorPage(); } }} key={`${mode}:${scriptsOpen}:${mode === 'Library' ? libraryAssembly ?? selectedLibraryDefinition?.id : `${selectedBoardId}:${scope?.matrixId}:${scope?.kind}:${scope?.row}:${scope?.column}:${activePart?.id}`}`}>
+          {designView && !inspectorPage && <>{mode === 'Design' && selectedMatrix && scope?.kind !== 'component' && <><div className="wb-inspect-head wb-selection-heading"><h2 aria-label={selectionTitle}>{selectionTitle.split(' · ').at(-1)}</h2></div><p className="wb-selection-summary">{scope?.kind === 'matrix' ? `${selectedMatrix.rows} rows · ${selectedMatrix.columns} columns` : `${activeParts.length} keys selected`}</p></>}<div className="wb-selection-breadcrumb">{selectedBoard?.name} / {viewLabel}{selectedMatrix ? ` / ${activeLayout?.name || selectedMatrix.name || selectionTitle.split(' · ')[0]}` : ''}</div>{mode === 'Design' && Boolean(scope || activePart) && <div className="wb-inspector-tabs" role="tablist" aria-label="Inspector details"><button role="tab" aria-selected={inspectorTab === 'properties'} onClick={() => setInspectorTab('properties')}>Properties</button><button role="tab" aria-selected={inspectorTab === 'relations'} onClick={() => setInspectorTab('relations')}>Relations</button></div>}</>}
+          {showFindings ? <><div className="wb-inspect-head"><h2 ref={findingsHeading} tabIndex={-1}>Layout findings</h2></div><FindingList document={document} onShow={showFinding} findings={scene.findings} /></> : inspectorTab === 'relations' && designView && !scriptsOpen && !outlineSettingsOpen ? <><h2>Relationships</h2><p className="wb-empty-note">{partnerLayout ? `Key assemblies, diodes and components mirror with ${partnerLayout.name}. Replace a component on one half to keep it local.` : activeLayout ? 'This layout is independent. Its geometry and components can be edited separately.' : activeConstraint ? `${parts.get(activeConstraint.sourcePartId)?.reference} drives ${activePart?.reference}.` : 'No saved placement relationship on this selection.'}</p>{activePart && <button className="wb-secondary" onClick={() => { changeMode('Design'); setScope({ kind: 'component', partId: activePart.id }); setInspectorTab('properties'); }}>Edit placement relationship</button>}<p className="wb-empty-note">Matrix rows and columns share pitch, stagger and splay. Edit those in Properties.</p></> : mode === 'Case' ? null : getModeDetails()}
           {mode === 'Case' && <div hidden={showFindings || inspectorTab === 'relations'}>{getModeDetails()}</div>}
+          {(mode === 'Design' || mode === 'Case') && !inspectorPage && selectedBoard && <React.Suspense fallback={null}><BoardReferencePanel document={document} boardId={selectedBoard.id} onChange={next => emit({ kind: 'replace-document', document: next }, [selectedBoard.id])} /></React.Suspense>}
         </div>
-      </WorkspacePanel>
-      {((compactObjects && leftOpen) || (compactInspector && rightOpen)) && <button className="wb-drawer-scrim" aria-label="Close panels" onClick={() => { setLeftOpen(false); setRightOpen(false); }} />}
+      </WorkspacePanel>}
+      {((compactObjects && leftOpen && (mode !== 'Export' || guideVisible)) || (compactInspector && rightOpen && mode !== 'Export')) && <button className="wb-drawer-scrim" aria-label="Close panels" onClick={() => { setLeftOpen(false); setRightOpen(false); }} />}
     </section>
-    <footer className="wb-canvas-footer">
+    {mode !== 'Export' && <footer className="wb-canvas-footer">
+      <div className="wb-edit-history"><button className="wb-history-action" aria-label="Undo" title="Undo (Ctrl+Z)" onClick={onUndo}><UndoIcon /></button><button className="wb-history-action" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" onClick={onRedo}><RedoIcon /></button></div>
       {mode === 'Case' || (mode === 'Design' && assembly3d) || (mode === 'Library' && editingAssembly) ? <>
         <span className="wb-footer-view">3D · mm</span>
         <div className="wb-footer-center"><span>Drag to orbit · Scroll to zoom</span></div>
@@ -1668,7 +1707,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         <button className="wb-findings-status" onClick={() => { setShowFindings(!showFindings); setRightOpen(true); setLeftOpen(false); if (!compactInspector) inspectorPanel.setMode('pinned'); }}><ToolIcon name="warning" />Layout findings: {presentedFindings(scene.findings, document).length}</button>
         {generatedCase && <button className="wb-findings-status" onClick={reviewMechanicalFindings}>Mechanical findings: {visibleMechanicalFindings.length}</button>}
       </div>
-    </footer>
+    </footer>}
   </main>;
 };
 

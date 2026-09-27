@@ -6,7 +6,7 @@ async function createMatrix(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await configureMatrix(page);
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
 }

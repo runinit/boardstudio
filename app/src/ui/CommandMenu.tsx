@@ -47,11 +47,12 @@ export function CommandMenu({ attached = false, triggerClassName = '', panelClas
   }, [open, onOpenChange, trigger]);
   const close = () => { onOpenChange(false); trigger.current?.focus(); };
   return <>
-    <button ref={trigger} className={`wb-command-trigger ${triggerClassName}`} aria-expanded={open} aria-controls={id} onClick={() => onOpenChange(!open)}>{icon}<span>{label}</span><ToolIcon name="chevron" /></button>
+    <button ref={trigger} className={`wb-command-trigger ${triggerClassName}`} aria-label={label} title={label} aria-expanded={open} aria-controls={id} onClick={() => onOpenChange(!open)}>{icon}<span>{label}</span><ToolIcon name="chevron" /></button>
     {open && <CommandPanel attached={attached}><div className={`wb-command-panel ${panelClassName} ${attached ? 'is-attached' : ''}`} id={id} role="dialog" aria-label={label} ref={panel} style={attached ? undefined : position}
       onKeyDown={(event) => {
         if (event.key === 'Escape') { event.stopPropagation(); close(); }
       }} onClick={(event) => { if ((event.target as Element).closest('[data-close-menu]')) close(); }}>
+      <div className="wb-command-heading"><strong>{label}</strong><button type="button" aria-label={`Close ${label}`} onClick={close}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button></div>
       {children}
     </div></CommandPanel>}
   </>;

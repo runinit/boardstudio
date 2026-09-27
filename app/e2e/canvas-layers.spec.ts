@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('keycap layers and PCB visibility are view-only and preserve selection', async ({ page }) => {
@@ -10,7 +11,7 @@ test('keycap layers and PCB visibility are view-only and preserve selection', as
   await expect(page.locator('.wb-keycap-overlay')).toHaveCount(0);
   await layers.getByRole('button', { name: 'Show Keycaps', exact: true }).click();
   await expect(page.locator('.wb-keycap-overlay').first()).toBeVisible();
-  await page.getByRole('treeitem', { name: 'PCB', exact: true }).click();
+  await navigateWorkspace(page, 'PCB');
   await expect(page.locator('.wb-keycap-overlay')).toHaveCount(0);
   await expect(page.locator('.wb-scene-footprint .wb-part-pad').first()).toBeVisible();
   await layers.getByRole('button', { name: 'Hide Pads', exact: true }).click();

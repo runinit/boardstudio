@@ -1,8 +1,9 @@
+import { navigateWorkspace, openWorkspaceSettings } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('findings are scoped and mechanical review opens a closed compact inspector', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   await expect(page.getByRole('button', { name: /Layout findings: \d+/ })).toBeVisible();
   const mechanical = page.getByRole('button', { name: /Mechanical findings: \d+/ });
@@ -20,7 +21,7 @@ test('findings are scoped and mechanical review opens a closed compact inspector
 
 test('unavailable case layers retain visibility choices after generation', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   const layers = page.getByRole('region', { name: 'Canvas layers' });
   await layers.getByRole('button', { name: 'Layers', exact: true }).click();
@@ -37,7 +38,7 @@ test('unavailable case layers retain visibility choices after generation', async
 
 test('compact case settings stay labeled and disclosure choices survive edits', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   await expect(page.locator('.wb-mech-revision').first()).toContainText('Configuration resolved');
   const construction = page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Construction' });
@@ -47,7 +48,8 @@ test('compact case settings stay labeled and disclosure choices survive edits', 
   await expect(construction.locator('..')).not.toHaveAttribute('open');
   await page.setViewportSize({ width: 390, height: 844 });
   const settings = page.getByRole('button', { name: 'Case settings', exact: true });
-  await expect(settings).toContainText('Case settings');
+  await expect(settings).toBeVisible();
+  await expect(settings).toHaveAccessibleName('Case settings');
   if (await settings.getAttribute('aria-expanded') === 'true') await settings.click();
   await settings.click();
   await expect(construction).toBeVisible();
@@ -58,12 +60,12 @@ test('compact case settings stay labeled and disclosure choices survive edits', 
 test('case controls reflow in a 200 percent zoom-equivalent viewport in both themes', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   for (const theme of ['light', 'dark']) {
-    await page.getByRole('button', { name: 'Project', exact: true }).click();
+    await openWorkspaceSettings(page);
     await page.getByRole('combobox', { name: 'Color theme', exact: true }).selectOption(theme);
-    await page.getByRole('button', { name: 'Project', exact: true }).click();
+    await page.getByRole('button', { name: 'Close project menu', exact: true }).click();
     // Browser zoom halves the CSS viewport; CSS zoom alone does not update media queries.
     await page.setViewportSize({ width: 720, height: 500 });
     const controls = page.getByRole('region', { name: 'Case generation' });

@@ -126,7 +126,12 @@ Bundled model previews report missing files or download failures with a retry
 action. Imported generator settings are grouped into dimensions, footprint
 options, identification, connections, model placement, and advanced parameters.
 
-Project → Appearance selects System, Light, or Dark and persists locally.
+The single-row header provides direct Layout, PCB, Case, and Parts navigation;
+at 820px and below these use the native Workspace selector. Project menu →
+Setup guide opens the guide, and Project menu → Workspace settings owns
+appearance and restoring the navigator and inspector panel layout. Both pages
+provide an explicit Back/Close path. Export remains a dedicated header action;
+Parts and Export provide explicit returns to the prior design view.
 Keycap overlays follow the current saved member poses while disabled slots
 retain their parametric frame. Starter metadata uses the same negative-Y row
 direction as its existing switches. Editing a matrix retains its switch

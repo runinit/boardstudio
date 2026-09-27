@@ -1,3 +1,4 @@
+import { openWorkspaceSettings } from './workspace-navigation';
 import { chooseScope } from './selection';
 import { configureMatrix } from './matrix-setup';
 import { expect, test } from '@playwright/test';
@@ -113,7 +114,7 @@ test('command controls remain fixed through zoom and pan and both themes persist
   expect(await scope.boundingBox()).toEqual(beforeScope);
   expect(await snap.boundingBox()).toEqual(beforeSnap);
   for (const theme of ['dark', 'light']) {
-    await page.getByRole('button', { name: 'Project', exact: true }).click();
+    await openWorkspaceSettings(page);
     await page.getByRole('combobox', { name: 'Color theme' }).selectOption(theme);
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
@@ -155,7 +156,7 @@ test('generated overlays track rotation, mirroring, stagger and disabled slots',
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await configureMatrix(page);
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
   await editNumber(page, 'Rotation °', '37');
@@ -253,9 +254,9 @@ test('column stagger and splay update following keys and support undo, redo and 
   await expect(page.getByRole('spinbutton', { name: 'Splay °', exact: true })).toHaveValue('15');
   for (const theme of ['dark', 'light']) {
     await page.setViewportSize({ width: 1420, height: 900 });
-    await page.getByRole('button', { name: 'Project', exact: true }).click();
+    await openWorkspaceSettings(page);
     await page.getByRole('combobox', { name: 'Color theme' }).selectOption(theme);
-    await page.getByRole('button', { name: 'Project', exact: true }).click();
+    await page.getByRole('button', { name: 'Close project menu', exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     if (!(await page.getByRole('spinbutton', { name: 'Splay °', exact: true }).isVisible())) {
       await page.getByRole('button', { name: 'Inspect', exact: true }).click();

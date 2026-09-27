@@ -6,7 +6,7 @@ import { catalogue as ergogenCatalogue } from '@boardstudio/v2-ergogen';
 import type { MutableRefObject } from 'react';
 import { ExportClient } from './ExportClient';
 import { effectiveCaseDocument, effectiveCaseScene, updateInstanceMechanical } from './hardwareInstances';
-import { saveAsset, unpackProject, resetLocalProjects } from './storage';
+import { loadProject, saveAsset, unpackProject, resetLocalProjects } from './storage';
 import { matrixWithPreset } from './ui/matrixPresets';
 import { openKeyboardDemo, type DemoId } from './demos/keyboards';
 
@@ -56,7 +56,8 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
         }
         operation = { kind: 'replace-document', document: withClosureClearance(withConfiguration()) };
       }
-      const baseRevision = operation.kind === 'replace-document'
+      // Derived mechanical replacements are constructed from the current queued document.
+      const baseRevision = command.operation.kind === 'replace-document'
         ? command.baseRevision
         : current.revision;
       const request: CoreRequest = {
@@ -97,6 +98,24 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
       const reply = await client.current.request({ id: crypto.randomUUID(), kind: 'open', document });
 
       await accept(reply, 'open');
+    });
+  }
+
+  function openSavedProject(projectId: string): void {
+    schedule(async () => {
+      if (!client.current || projectId === projectRef.current.id) return;
+      const document = await loadProject(projectId);
+      if (!document) throw new Error('This keyboard is no longer saved in this browser. Open a project file to restore it.');
+      const core = client.current;
+      const previous = projectRef.current;
+      const reply = await core.request({ id: crypto.randomUUID(), kind: 'open', document });
+      try {
+        await accept(reply, 'open');
+      } catch (error) {
+        // A failed local save leaves the UI on the old document; keep the core aligned.
+        if (reply.kind === 'scene') await core.request({ id: crypto.randomUUID(), kind: 'open', document: previous });
+        throw error;
+      }
     });
   }
 
@@ -297,5 +316,5 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     });
   }
 
-  return { edit, history, importProject, newProject, openDemo, duplicateDesign, importPart, importModel };
+  return { edit, history, importProject, newProject, openSavedProject, openDemo, duplicateDesign, importPart, importModel };
 }

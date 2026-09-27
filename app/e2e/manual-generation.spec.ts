@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { splitFixture } from './splitMechanicalFixture';
 import type { MechanicalAssembly } from '@boardstudio/v2-contracts';
@@ -45,7 +46,7 @@ async function setup(page: Page) {
   await page.reload();
   await page.getByRole('button', { name: /^Collapse left half$/i }).click({ timeout: 10000 });
   await page.getByRole('button', { name: /^Collapse right half$/i }).click({ timeout: 10000 });
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click({ timeout: 15000 });
+  await page.getByRole('tab', { name: 'Case', exact: true }).click({ timeout: 15000 });
   await expect.poll(() => page.evaluate(() => (window as any).__generationAudit.assemblies.length)).toBeGreaterThan(0);
   return page.locator('.wb-mechanical-panel');
 }
@@ -157,7 +158,7 @@ test('gaskets create six linked support pairs, a retainer and editable preview h
   await page.reload();
   await page.getByRole('button', { name: /^Collapse left half$/i }).click();
   await page.getByRole('button', { name: /^Collapse right half$/i }).click();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect.poll(() => page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1)?.gasketSupports[0].anchor)).toBe(movedSource.anchor);
   expect(await page.evaluate(() => (window as any).__generationAudit.requests.filter((request: any) => request.kind === 'preview').length)).toBe(0);
 

@@ -1,3 +1,4 @@
+import { navigateWorkspace } from '../e2e/workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('Pages subpath loads workers, CAD, models and offline exports', async ({ page, context }) => {
@@ -18,9 +19,9 @@ test('Pages subpath loads workers, CAD, models and offline exports', async ({ pa
   await page.getByRole('button', { name: '3D model', exact: true }).click();
   await expect(page.getByText('2 / 2 models · 1.6 mm PCB', { exact: true })).toBeVisible({ timeout: 45_000 });
   expect(wasmRequests.some((url) => /boardstudio_renderer_wasm_bg/i.test(url) && new URL(url).pathname.startsWith('/boardstudio/'))).toBe(true);
-  await page.getByRole('tab', { name: 'Design', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
   const wasmBeforeCad = wasmRequests.length;
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
   await expect.poll(() => wasmRequests.length).toBeGreaterThan(wasmBeforeCad);
@@ -31,7 +32,7 @@ test('Pages subpath loads workers, CAD, models and offline exports', async ({ pa
   await context.setOffline(true);
   await page.reload();
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
   await page.locator('.wb-topbar').getByRole('button', { name: 'Export', exact: true }).click();

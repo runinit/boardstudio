@@ -42,6 +42,22 @@ export async function loadProject(id: string): Promise<ProjectDoc | undefined> {
   });
 }
 
+export async function listProjects(): Promise<ProjectDoc[]> {
+  const db = await openDb();
+
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(PROJECT_STORE).objectStore(PROJECT_STORE).getAll();
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result as ProjectDoc[]);
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
 export async function saveProject(doc: ProjectDoc): Promise<void> {
   const db = await openDb();
 

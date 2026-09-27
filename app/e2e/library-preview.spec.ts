@@ -1,8 +1,9 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('Parts saves standard and custom fits without changing the document on cancel', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   const library = page.getByRole('listbox', { name: 'Footprint library' });
   await library.getByRole('option', { name: 'MX switch', exact: true }).click();
   const revision = await page.locator('.wb-root').getAttribute('data-revision');
@@ -30,7 +31,7 @@ test('Parts saves standard and custom fits without changing the document on canc
 
 test('preview layers and part visibility change only the drawing', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Footprint library' }).getByRole('option', { name: /SK6812 MINI-E/ }).click();
 
   const preview = page.getByRole('img', { name: 'Footprint preview' });
@@ -54,7 +55,7 @@ test('preview layers and part visibility change only the drawing', async ({ page
 
 test('named footprint graphics layers can be hidden independently', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Footprint library' }).getByRole('option', { name: /Choc V1 \/ V2 switch/ }).click();
 
   const layers = page.getByRole('region', { name: 'Canvas layers' });
@@ -81,7 +82,7 @@ test('named footprint graphics layers can be hidden independently', async ({ pag
 test('assembly companions can be hidden without hiding the switch', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('button', { name: 'Objects', exact: true }).click();
   await page.getByRole('listbox', { name: 'Key assemblies' }).getByRole('option', { name: 'MX RGB', exact: true }).click();
   await page.getByRole('button', { name: 'Inspect', exact: true }).click();
@@ -100,7 +101,7 @@ test('assembly companions can be hidden without hiding the switch', async ({ pag
 
 test('shows live generated footprint geometry in the library workspace', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Footprint library' }).getByRole('option', { name: /SK6812 MINI-E/ }).click();
 
   const workspace = page.getByRole('region', { name: 'Parts canvas' });
@@ -116,7 +117,7 @@ test('shows live generated footprint geometry in the library workspace', async (
 
 test('standard parts use their footprint defaults without pad tuning', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   const preview = page.getByRole('region', { name: 'Parts canvas' }).getByRole('img', { name: 'Footprint preview' });
   const pad = preview.locator('rect').first();
   const initialWidth = await pad.getAttribute('width');
@@ -124,14 +125,14 @@ test('standard parts use their footprint defaults without pad tuning', async ({ 
   await expect(page.getByRole('region', { name: 'Custom component definition editor' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '+ New script' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Place component', exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: 'Design' }).click();
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Layout');
+  await navigateWorkspace(page, 'Parts');
   await expect(preview.locator('rect').first()).toHaveAttribute('width', initialWidth!);
 });
 
 test('RGB assembly companion retains saved model settings and uses the preset mounting configuration', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Footprint library' }).getByRole('option', { name: 'SK6812 MINI-E', exact: true }).click();
   await page.locator('summary').filter({ hasText: '3D model placement' }).click();
   await page.getByRole('textbox', { name: 'led_3dmodel_xyz_offset', exact: true }).fill('[0, 0, 1]');

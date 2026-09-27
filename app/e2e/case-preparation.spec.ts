@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('lazily loads CAD and prepares a current case preview and STEP export offline', async ({ page, context }) => {
@@ -24,7 +25,7 @@ test('lazily loads CAD and prepares a current case preview and STEP export offli
   await expect.poll(() => wasmRequests.size).toBeGreaterThan(0);
   expect([...wasmRequests].some((url) => /boardstudio_renderer_wasm_bg/i.test(url))).toBe(false);
   const wasmBeforeCase = wasmRequests.size;
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
   await expect.poll(() => wasmRequests.size).toBeGreaterThan(wasmBeforeCase);
@@ -97,7 +98,7 @@ test('lazily loads CAD and prepares a current case preview and STEP export offli
   await context.setOffline(true);
   await page.reload();
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
 

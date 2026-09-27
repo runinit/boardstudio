@@ -6,7 +6,7 @@ async function createMatrix(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await configureMatrix(page);
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
 }
@@ -56,7 +56,9 @@ test('Escape cancels a matrix drag and restores every affected key', async ({ pa
 
 test('switching boards cancels an active drag without carrying it across boards', async ({ page }) => {
   await createMatrix(page);
+  const beforeBoard = Number(await page.locator('.wb-root').getAttribute('data-revision'));
   await page.getByRole('button', { name: 'New board', exact: true }).click();
+  await expect(page.locator('.wb-root')).toHaveAttribute('data-revision', String(beforeBoard + 1));
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
   await page.getByRole('combobox', { name: 'Selected board' }).selectOption({ label: 'Main board' });
   await expect(page.getByRole('treeitem', { name: /60 parts/ }).first()).toBeVisible();

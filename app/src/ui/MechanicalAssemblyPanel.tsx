@@ -380,6 +380,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
     initializedScopes.current.add(draftScope);
     onChange(config);
   }, [draftScope, config?.closureMounts, config?.mount, assembly?.revision]);
+  const initializingMounts = configuration?.closureMounts === undefined && configuration?.mount !== 'gasket' && Boolean(assembly?.suggestedMounts.length);
   const closureScrews = () => (assembly?.suggestedMounts ?? []).map(mount => ({ ...mount, id: `auto-closure/${mount.id}`, kind: 'boss' as const, holeDiameter: 2.2, height: config!.plateToPcb + config!.pcbThickness + Math.max(config!.bottomFoamThickness, config!.batteryHeight) }));
   const layers = assembly?.stack ?? [];
   const findings = mechanicalFindings(assembly, document);
@@ -406,9 +407,10 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
   return <div className="wb-mechanical-panel">
     {!config && <div className="wb-inspect-head"><h2>Case construction</h2></div>}
     {!config ? <div className="wb-mech-start"><p>Resolve the keyboard stack from assigned part profiles, plate settings, and the case outline.</p><button className="wb-primary" disabled={!document.boards.length} onClick={() => onChange(createMechanicalConfiguration(document, boardId))}>Configure mechanical stack</button></div> : <>
-      <CaseGenerationControls target={generationTarget} generation={generation} readiness={readiness} onGenerate={onResolve} onCancel={onCancel} onExport={onExport}>
+      {/* Authored controls own the canvas until the initial configuration is committed. */}
+      {configuration && <CaseGenerationControls target={generationTarget} generation={generation} readiness={initializingMounts ? { ...readiness, canExport: false, message: 'Saving mounting defaults…' } : readiness} onGenerate={initializingMounts ? undefined : onResolve} onCancel={onCancel} onExport={onExport}>
         <span className="wb-mech-revision">{assembly ? `Configuration resolved · r${assembly.revision}` : 'Configuration resolving'}</span>
-      </CaseGenerationControls>
+      </CaseGenerationControls>}
       <InspectorSection title="Construction" detail={manufacturingMethods[config.method]} defaultOpen>
         <CaseChoice label="Method" value={config.method} options={manufacturingMethods} onChange={value => update({ method: value as MechanicalConfiguration['method'] })}/>
         <CaseChoice label="Mount style" value={config.mount} options={{ tray: 'Tray', rigid: 'Rigid', gasket: 'Gasket' }} onChange={value => update({ mount: value as MechanicalConfiguration['mount'], ...(value === 'gasket' ? { closureMounts: config.closureMounts?.filter(mount => !mount.id.startsWith('auto-closure/')), gasketLayout: config.gasketLayout ?? defaultGasketLayout(), gasketTravel: config.gasketTravel ?? 0.3, integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false } : {}) })}/>

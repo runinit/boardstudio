@@ -1,21 +1,22 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { chooseScope } from './selection';
 import { expect, test } from '@playwright/test';
 
 test('unified Design branches share selection and restore the active view', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('tab', { name: 'PCB', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'PCB', exact: true })).toBeVisible();
   await page.getByRole('treeitem', { name: 'Column 3 3 keys', exact: true }).click();
   const count = await page.locator('.wb-scene-part').count();
-  await page.getByRole('treeitem', { name: 'PCB', exact: true }).click();
+  await navigateWorkspace(page, 'PCB');
   await expect(page.getByRole('region', { name: 'PCB canvas', exact: true })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Design', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'PCB', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.wb-scene-part')).toHaveCount(count);
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
-  await page.getByRole('tab', { name: 'Design', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
+  await page.getByRole('button', { name: 'Back to PCB', exact: true }).click();
   await expect(page.getByRole('region', { name: 'PCB canvas', exact: true })).toBeVisible();
-  await page.getByRole('treeitem', { name: 'Layout', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
   await expect(page.getByRole('spinbutton', { name: 'Splay °', exact: true })).toBeVisible();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(page.getByRole('region', { name: 'Case canvas', exact: true })).toBeVisible();
 });
 

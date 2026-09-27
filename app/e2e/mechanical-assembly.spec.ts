@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProjectDoc } from '@boardstudio/v2-contracts';
 
@@ -19,7 +20,7 @@ async function saved(page: Page): Promise<ProjectDoc> {
 
 async function configure(page: Page) {
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   await expect(page.getByText('Configuration resolved', { exact: false })).toBeVisible();
   return page.locator('.wb-mechanical-panel');
@@ -38,7 +39,7 @@ test('mechanical configuration is opt-in, undoable and persistent without replac
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Flat sheet', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(panel.getByRole('button', { name: 'Flat sheet', exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect((await saved(page)).caseBodies).toEqual(originalBodies);
   await panel.locator('summary').filter({ hasText: 'Configuration management' }).click();
@@ -117,7 +118,7 @@ test('hardware and critical-fit drawing specifications persist with undo', async
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await expect.poll(async () => (await saved(page)).mechanical?.criticalFits?.[0]?.label).toBe('Switch retention');
   await page.reload();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(panel.getByRole('textbox', { name: 'Thread for hardware 1', exact: true })).toHaveValue('M2 x 0.4 - 6g');
   await expect(panel.getByRole('textbox', { name: 'Label for critical fit 1', exact: true })).toHaveValue('Switch retention');
 });
@@ -127,7 +128,7 @@ test('generated preview separates saved authored bodies and scopes configuration
   await expect(page.getByRole('combobox', { name: 'Body type', exact: true })).toHaveCount(0);
   await expect(page.getByText(/Generated assembly preview.*authored case bodies remain saved/)).toBeVisible();
   await page.getByRole('button', { name: 'New board', exact: true }).click();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(page.getByText(/Mechanical stack belongs to/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Disable mechanical stack', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Show configured board', exact: true }).click();

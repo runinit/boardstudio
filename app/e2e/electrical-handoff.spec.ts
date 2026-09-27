@@ -1,3 +1,4 @@
+import { navigateWorkspace, openSetupGuide } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync, strFromU8 } from 'fflate';
@@ -14,9 +15,9 @@ test('configured Case keeps physical half selection and setup available', async 
     };
   });
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
-  await page.getByRole('button', { name: 'Guide', exact: true }).click();
+  await openSetupGuide(page);
   await page.getByRole('button', { name: /Project & hardware/ }).click();
   await page.getByRole('button', { name: 'Split keyboard', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Reversible layout' }).click();
@@ -30,8 +31,7 @@ test('configured Case keeps physical half selection and setup available', async 
   const physical = await page.evaluate(() => (window as any).__physicalPreviews.at(-1));
   expect(Math.max(...physical.contours.flatMap((contour: any) => contour.points.map((point: any) => point.x)))).toBeLessThan(20);
   expect(physical.parts.find((part: any) => part.reference === 'SW5').side).toBe('back');
-  await page.getByRole('button', { name: 'Objects', exact: true }).click();
-  await page.getByRole('treeitem', { name: 'Layout', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
   await page.getByRole('button', { name: '3D assembly', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__physicalPreviews.at(-1)?.parts.find((part: any) => part.reference === 'SW5')?.pose.at.x)).toBeGreaterThan(70);
   const canonical = await page.evaluate(() => (window as any).__physicalPreviews.at(-1));
@@ -62,7 +62,7 @@ test('real MCU wiring exports a protected PCB package and matching editable firm
     db.close();localStorage.setItem('boardstudio-v2-active-project',document.id);
   },fixture());
   await page.reload();
-  await page.getByRole('treeitem',{name:'PCB',exact:true}).click();
+  await navigateWorkspace(page, 'PCB');
   await expect(page.getByRole('button', { name: 'Apply wiring', exact: true })).toBeDisabled();
   await page.getByText('Review existing connections', { exact: true }).click();
   await page.getByRole('button', { name: 'Use automatic wiring for these connections', exact: true }).click();
@@ -83,7 +83,7 @@ test('real MCU wiring exports a protected PCB package and matching editable firm
   const firmware = unzipSync(await readFile((await (await firmwareDownload).path())!));
   expect(strFromU8(firmware['config/boards/shields/boardstudio/boardstudio.keymap'])).toContain('&kp A');
   expect(strFromU8(firmware['electrical-plan.json'])).toContain('P0.31');
-  await page.getByRole('treeitem',{name:'PCB',exact:true}).click();
+  await page.getByRole('button', { name: 'Back to PCB', exact: true }).click();
   await expect(page.getByText('Protected handoff',{exact:true})).toBeVisible();
   await expect(page.locator('.app-error')).toHaveCount(0);
 });

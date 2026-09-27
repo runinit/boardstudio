@@ -1,0 +1,115 @@
+/* Persistent navigation sits outside panels, so collapsing a dock never hides a view. */
+/* Panes own scrolling; focusing a moving drawer must not scroll the shell. */
+.wb-unified { overflow: clip; --wb-context-height: 0px; --wb-header-height: 44px; --wb-footer-height: 34px; }
+.wb-unified .wb-topbar { height: var(--wb-header-height); min-height: var(--wb-header-height); gap: 16px; padding-inline: 16px; }
+.wb-workflow-navigation { display: flex; align-self: stretch; min-width: 0; flex: 1; }
+.wb-workflow-tabs { display: flex; gap: 4px; }
+.wb-workflow-tabs button { display: inline-flex; align-items: center; gap: 8px; min-width: 76px; padding: 0 16px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--wb-muted); font-size: 14px; cursor: pointer; }
+.wb-workflow-tabs button[aria-selected='true'] { border-bottom-color: var(--wb-accent); color: var(--wb-selection-ink); font-weight: 600; }
+.wb-workflow-tabs button:hover { background: var(--wb-surface-soft); }
+.wb-workflow-tabs button:focus-visible, .wb-workflow-select:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -3px; }
+.wb-workflow-tabs svg { width: 17px; height: 17px; }
+.wb-workflow-select { display: none; }
+.wb-unified .wb-project-trigger { width: auto; max-width: 260px; min-height: 44px; gap: 10px; padding: 4px 8px 4px 0; }
+.wb-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.wb-project-trigger > svg:last-child { width: 12px; }
+.wb-project-trigger .wb-brand-mark { flex: none; width: 28px; height: 28px; color: var(--wb-accent); }
+.wb-project-trigger .wb-brand-mark svg { width: 26px; height: 26px; }
+.wb-unified .wb-topbar .wb-save-state { display: block; margin: 0; }
+.wb-unified .wb-topbar .wb-save-state summary { width: 32px; min-height: 44px; justify-content: center; padding: 6px; }
+.wb-unified .wb-topbar .wb-save-state summary span { display: none; }
+.wb-unified .wb-save-state > div { left: 0; right: auto; }
+.wb-unified .wb-export-trigger { display: inline-flex; align-items: center; gap: 6px; width: auto; min-height: 44px; margin-left: 0; padding-inline: 12px; }
+.wb-unified .wb-project-dropdown { left: 0; right: auto; width: 288px; max-height: calc(100dvh - 76px); overflow: auto; }
+.wb-project-menu-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--wb-rule); }
+.wb-project-menu-heading strong { font-size: 14px; font-weight: 600; }
+.wb-project-menu-heading button { display: grid; place-items: center; width: 36px; height: 36px; padding: 8px; border: 0; color: var(--wb-muted); background: transparent; cursor: pointer; }
+.wb-project-menu-heading svg { width: 18px; height: 18px; }
+.wb-project-workspace-actions { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--wb-rule); }
+.wb-project-workspace-actions button, .wb-workspace-preferences .wb-menu-section button { min-height: 36px; padding: 8px; border: 0; border-radius: 4px; background: transparent; color: var(--wb-ink); font: inherit; text-align: left; cursor: pointer; }
+.wb-project-workspace-actions button:hover, .wb-workspace-preferences .wb-menu-section button:hover { background: var(--wb-raised); }
+.wb-workspace-preferences { display: grid; gap: 12px; }
+.wb-workspace-preferences label { display: grid; gap: 6px; }
+.wb-workspace-preferences select { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: inherit; }
+.wb-workspace-preferences p { margin: 6px 0; color: var(--wb-muted); font-size: 12px; line-height: 1.5; }
+.wb-task-return { padding: 4px 18px; border-bottom: 1px solid var(--wb-rule); background: var(--wb-panel); }
+.wb-export-content > .wb-back-link { margin-bottom: 20px; }
+.wb-edit-history { display: flex; gap: 2px; padding-right: 10px; border-right: 1px solid var(--wb-rule); }
+.wb-unified .wb-edit-history button { width: 30px; min-height: 28px; }
+.wb-command-panel .wb-command-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--wb-rule); }
+.wb-command-panel .wb-command-heading button { width: 32px; min-height: 32px; padding: 6px; justify-content: center; }
+.wb-command-heading strong { font-weight: 600; }
+.wb-unified .wb-back-link { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 5px 0; border: 0; background: transparent; color: var(--wb-accent); text-align: left; cursor: pointer; }
+.wb-back-link svg { width: 16px; height: 16px; transform: rotate(180deg); }
+.wb-back-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.wb-inspector-return { display: grid; gap: 2px; padding: 6px 16px 10px; border-bottom: 1px solid var(--wb-rule); }
+.wb-inspector-return > span { color: var(--wb-muted); font-size: var(--wb-type-label); }
+.wb-add-heading { padding: 8px 0; display: grid; gap: 4px; border-bottom: 1px solid var(--wb-rule); }
+.wb-add-heading strong { font-size: var(--wb-type-body); }
+.wb-empty-secondary { min-height: 40px; margin-top: 6px; padding: 8px; border: 0; background: transparent; color: var(--wb-accent); cursor: pointer; }
+.wb-unified .wb-canvas-footer { height: 34px; min-height: 34px; font-size: 12px; padding-inline: 14px; gap: 12px; }
+.wb-unified .wb-canvas-footer button { font-size: 12px; }
+.wb-unified .wb-inspector-tabs { margin-bottom: 14px; }
+.wb-unified .wb-dock.is-compact, .wb-unified .wb-drawer-scrim { position: absolute; top: 0; bottom: 0; }
+.wb-setup-guide__header { flex-wrap: wrap; }
+.wb-setup-guide__skip { padding-inline: 0; border: 0; color: var(--wb-accent); }
+.wb-setup-guide__step-marker svg { width: 16px; height: 16px; }
+.wb-setup-guide__content h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.wb-setup-guide__steps { gap: 0; padding-bottom: 8px; }
+.wb-setup-guide__step { min-height: 40px; padding-block: 5px; }
+
+/* Export is a task page. Keep its actions with their prerequisites. */
+.wb-unified.is-export { --wb-footer-height: 0px; }
+.wb-export-workspace { grid-column: 1 / -1; grid-row: 1; min-width: 0; min-height: 0; overflow: auto; background: var(--wb-paper); }
+.wb-unified.is-export[data-guide-open='true'] .wb-export-workspace { grid-column: 2 / -1; }
+.wb-export-content { max-width: 920px; margin-inline: auto; padding: 36px 40px 48px; }
+.wb-export-content h1 { margin: 0; font: 600 28px/1.2 var(--wb-body); letter-spacing: -.02em; }
+.wb-export-content h2 { margin: 28px 0 10px; font-size: 16px; font-weight: 600; }
+.wb-export-content p { max-width: 70ch; color: var(--wb-muted); font-size: 13px; line-height: 1.55; }
+.wb-export-content .wb-inspect-head { margin-bottom: 12px; }
+.wb-export-content .wb-export-list { border-top: 1px solid var(--wb-rule); }
+.wb-export-content .wb-export-row { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--wb-rule); }
+.wb-export-content .wb-export-row strong { display: block; font-size: 14px; }
+.wb-export-content .wb-export-row small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.5; }
+.wb-export-content .wb-export-row .wb-export-reason { color: var(--wb-status-warning); }
+.wb-export-content .wb-export-button { min-height: 36px; padding: 6px 12px; font-size: 13px; }
+.wb-export-next { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-block: 16px; color: var(--wb-muted); }
+.wb-export-next button { padding: 6px 0; border: 0; color: var(--wb-accent); background: transparent; cursor: pointer; }
+.wb-export-content .wb-export-action { width: auto; min-height: 40px; padding-inline: 16px; }
+.wb-export-content .wb-export-option { margin: 16px 0; }
+
+@media (max-width: 1150px) {
+  .wb-unified .wb-project-trigger { max-width: 180px; }
+}
+@media (max-width: 820px) {
+  .wb-unified { --wb-footer-height: 44px; }
+  .wb-unified .wb-topbar { gap: 4px; padding-inline: 6px; }
+  .wb-unified .wb-top-actions { gap: 0; }
+  .wb-unified .wb-project-trigger > .wb-project-name, .wb-project-trigger > svg:last-child { display: none; }
+  .wb-unified .wb-topbar .wb-project-trigger { width: 44px; min-width: 44px; min-height: 44px; justify-content: center; padding: 4px; }
+  .wb-unified .wb-topbar .wb-save-state summary { width: 44px; }
+  .wb-unified .wb-topbar .wb-export-trigger { width: 48px; min-height: 44px; padding-inline: 4px; font-size: 13px; }
+  .wb-export-trigger > svg { display: none; }
+  .wb-workflow-tabs { display: none; }
+  .wb-workflow-navigation { align-items: center; }
+  .wb-workflow-select { display: block; width: 100%; max-width: 200px; min-width: 72px; height: 44px; padding: 4px; border: 0; border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: 14px var(--wb-body); }
+  .wb-unified .wb-back-link { min-height: 44px; }
+  .wb-edit-history { display: none; }
+  .wb-project-workspace-actions button, .wb-project-menu-heading button, .wb-workspace-preferences select, .wb-workspace-preferences .wb-menu-section button { min-height: 44px; }
+  .wb-project-menu-heading button { width: 44px; }
+  .wb-command-panel .wb-command-heading button { width: 44px; min-height: 44px; }
+  .wb-unified .wb-panel-actions .wb-panel-close { order: 2; }
+  .wb-export-content { padding: 24px 18px 36px; }
+  .wb-export-content h1 { font-size: 24px; }
+  .wb-export-content .wb-export-row { gap: 10px; }
+  .wb-export-content .wb-export-button, .wb-export-next button { min-height: 44px; }
+  .wb-unified .wb-canvas-footer { min-height: 44px; height: auto; }
+}
+@media (max-width: 420px) {
+  .wb-export-content .wb-export-row { grid-template-columns: 8px minmax(0, 1fr); }
+  .wb-export-content .wb-export-button { grid-column: 2; justify-self: start; }
+}
+@media (max-width: 380px) {
+  .wb-unified .wb-canvas-toolbar.is-floating .wb-command-trigger { padding-inline: 8px; gap: 4px; }
+  .wb-unified .wb-canvas-toolbar.is-floating .wb-command-trigger > svg:first-child { display: none; }
+}
