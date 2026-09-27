@@ -35,7 +35,6 @@ const expected = [
   'infused-kim/conn_molex_pico_ezmate_1x05',
   'infused-kim/icon_bat',
   'infused-kim/mounting_hole',
-  'infused-kim/nice_nano_pretty',
   'infused-kim/nice_view',
   'infused-kim/pads',
   'infused-kim/point_debugger',

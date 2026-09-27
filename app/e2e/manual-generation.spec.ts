@@ -104,7 +104,7 @@ test('split CAD is manual, cancellable, cached and independent of display change
 test('gaskets create six linked support pairs, a retainer and editable preview handles', async ({ page }, info) => {
   test.setTimeout(180_000);
   const panel = await setup(page);
-  await panel.getByRole('combobox', { name: 'Mount style', exact: true }).selectOption('gasket');
+  await panel.getByRole('button', { name: 'Gasket', exact: true }).click();
   await expect.poll(async () => page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1)?.gasketSupports.length)).toBe(12);
   const assembly: MechanicalAssembly = await page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1));
   expect(assembly.generationBlocked, JSON.stringify(assembly.diagnostics)).toBe(false);

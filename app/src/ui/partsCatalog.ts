@@ -22,5 +22,5 @@ export function partCatalogSearchText(definition: PartDefinition): string {
 const isAssemblySnapshot = (definition: PartDefinition) => !definition.kicadSource && /^(?:assembly-.+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/definition\//i.test(definition.id);
 
 export function partChoices(definitions: PartDefinition[], currentId?: string): PartDefinition[] {
-  return definitions.filter(definition => definition.id === currentId || !isAssemblySnapshot(definition));
+  return definitions.filter(definition => definition.generator?.source !== 'infused-kim/nice_nano_pretty' && (definition.id === currentId || !isAssemblySnapshot(definition)));
 }

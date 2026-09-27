@@ -10,9 +10,6 @@ import { openCustomSwitchProject } from './custom-switch';
 
 const placeGuidedMatrix = async (page: import('@playwright/test').Page) => {
   await configureMatrix(page);
-  const ghost = page.getByRole('button', { name: 'Ghost key, row 1, column 1' });
-  await expect(ghost).toBeVisible();
-  await ghost.click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
 };
 
@@ -137,8 +134,6 @@ test('builds a new keyboard from a matrix and previews its outline', async ({ pa
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
   await configureMatrix(page);
   await expect(page.locator('.wb-matrix-cell')).toHaveCount(30);
-  await expect(page.getByRole('button', { name: /^Ghost key, row 1, column 1/ })).toBeVisible();
-  await page.getByRole('button', { name: 'Ghost key, row 1, column 1' }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
   await expect(page.getByRole('treeitem', { name: /60 parts/ }).first()).toBeVisible();
   await expect(page.getByRole('treeitem', { name: /^Matrix 1/ })).toBeVisible();
@@ -152,8 +147,8 @@ test('edits a guided matrix, scopes the tree, staggers a row, and zooms the canv
   await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
   await page.getByRole('treeitem', { name: 'PCB', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: 'Pin for Scan row 1', exact: true })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Pin for Scan column 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Pin for Row 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Pin for Column 1', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Design' }).click();
 
   await page.getByRole('button', { name: 'Objects options', exact: true }).click();

@@ -80,7 +80,11 @@ export function useProjectSession({ caseClient, exportClient, previewCache, setS
       setSaveStatus('failed');
       throw cause;
     }
-    if (mode === 'open') setProjectSession((value) => value + 1);
+    if (mode === 'open') {
+      setProjectSession((value) => value + 1);
+      setReady(true);
+      setError('');
+    }
     projectRef.current = reply.document;
     setProject(reply.document);
     setScene(reply.scene);
@@ -105,7 +109,6 @@ export function useProjectSession({ caseClient, exportClient, previewCache, setS
       const reply = await core.request({ id: crypto.randomUUID(), kind: 'open', document });
 
       await accept(reply, 'open');
-      setReady(true);
     });
 
     if (import.meta.env.PROD && 'serviceWorker' in navigator) {

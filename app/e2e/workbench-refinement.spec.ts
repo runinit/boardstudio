@@ -157,7 +157,6 @@ test('generated overlays track rotation, mirroring, stagger and disabled slots',
   await page.getByRole('button', { name: 'New project' }).click();
   await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await configureMatrix(page);
-  await page.getByRole('button', { name: 'Ghost key, row 1, column 1' }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
   await editNumber(page, 'Rotation °', '37');
   await page.getByRole('combobox', { name: 'Mirror matrix' }).selectOption('x');

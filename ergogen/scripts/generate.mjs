@@ -13,7 +13,7 @@ const sources = [
 const definitions = [];
 for (const [namespace, directory] of sources) {
   for (const name of (await readdir(directory)).filter((file) => file.endsWith('.js')).sort()) {
-    if (namespace === 'infused-kim' && ['choc.js', 'diode.js'].includes(name)) continue;
+    if (namespace === 'infused-kim' && ['choc.js', 'diode.js', 'nice_nano_pretty.js'].includes(name)) continue;
     const source = await readFile(resolve(directory, name), 'utf8');
     const id = `${namespace}/${name.slice(0, -3)}`;
     definitions.push(`  ${JSON.stringify(id)}: (() => { const module = { exports: {} }; let prop_name, local_nets, pad_cnt, label, row_traces;\n${bindDefaults(source, id)}\nreturn module.exports; })(),`);

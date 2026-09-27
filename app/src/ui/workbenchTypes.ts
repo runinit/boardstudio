@@ -17,7 +17,7 @@ import type {
 } from '../../../contracts/src/index';
 import type { GenerationState } from '../generationState';
 import { type MatrixPresetId } from './assemblyCatalog';
-import { type SwitchOrientation } from './assemblyPresets';
+import { type SwitchOrientation, type AssemblyConstruction } from './assemblyPresets';
 import { getBounds } from './canvasBounds';
 import { type MatrixScene } from './matrixGeometry';
 import { type WiringAssignment } from './WiringPanel';
@@ -40,14 +40,17 @@ export type Props = {
   selectedBoardId?: string;
   onSelectBoard?: (boardId: string) => void;
   physicalCaseDocument?: ProjectDoc;
+  caseInstanceId?: string;
   physicalCaseScene?: SceneDelta;
   instanceControls?: ReactNode;
+  setupControls?: ReactNode;
   wiringStatus?: { current: boolean; ready: boolean; applied: boolean };
   wiring?: { existingConnections?: { names: string[]; pinCount: number; onReplace: () => void }; ready?: boolean; firmwareControls?: ReactNode; controller?: { name: string; detail?: string }; controllerOptions?: { id: string; name: string; detail?: string }[]; selectedControllerId?: string; onControllerChange?: (id: string) => void; topology?: string; onTopologyChange?: (topology: 'matrix' | 'direct') => void; assignments?: WiringAssignment[]; usedPins?: string[]; freePins?: string[]; findings?: string[]; onToggleLock?: (assignment: WiringAssignment) => void; onAssignPin?: (assignmentId: string, pin: string) => void; protectedSummary?: string; onReviewRemap?: () => void };
   onResolveWiring?: () => void;
   onApplyWiring?: () => void;
   onReviewWiring?: (assignment: WiringAssignment) => void;
   onNewProject?: () => void;
+  onResetLocalProjects?: () => void;
   onOpenDemo?: (variant: import('../demos/keyboards').DemoId) => void;
   onImport?: (file: File) => void;
   onImportFootprint?: (file: File) => void;
@@ -59,7 +62,7 @@ export type Props = {
   onExportMechanical?: () => void;
   onMechanicalProfile?: (definitionId: string, source: MechanicalBuiltinProfile, plateToPcb: number) => Promise<MechanicalPartProfile>;
   onExtractMechanicalProfile?: (source: string, mappings: MechanicalPurposeMapping[]) => Promise<MechanicalExtraction>;
-  onDuplicateDesign?: (matrixId: string, presetId: MatrixPresetId, orientation?: SwitchOrientation) => void;
+  onDuplicateDesign?: (matrixId: string, presetId: MatrixPresetId, orientation?: SwitchOrientation, construction?: AssemblyConstruction) => void;
   onProjectMatrices?: (matrices: Matrix[]) => Promise<MatrixScene[] | undefined>;
   onModeChange?: (mode: Mode) => void;
   caseBodies?: import('@boardstudio/v2-contracts').CaseBodyMesh[];

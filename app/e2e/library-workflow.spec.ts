@@ -36,10 +36,9 @@ test('matrix creation asks for dimensions and deletion removes its container wit
   await page.getByRole('button', { name: 'Add object', exact: true }).click();
   await page.getByRole('button', { name: 'Matrix…' }).click();
   await expect(page.getByRole('spinbutton', { name: 'New matrix rows' })).toHaveValue('');
-  await expect(page.getByRole('button', { name: 'Continue to placement' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Create matrix' })).toBeDisabled();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await configureMatrix(page, 2, 3);
-  await page.getByRole('button', { name: 'Ghost key, row 1, column 1', exact: true }).click();
   await expect(page.getByRole('treeitem', { name: 'Matrix 2 6 keys', exact: true })).toBeVisible();
   const name = page.getByRole('textbox', { name: 'Matrix name' });
   await name.fill('Thumb cluster');

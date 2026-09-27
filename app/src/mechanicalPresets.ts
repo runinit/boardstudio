@@ -100,7 +100,6 @@ export function createMechanicalConfiguration(
     wallThickness: 2,
     clearance: 0.3,
     mounts: [],
-    closureMounts: [],
     partProcesses: [
       makeProcess('plate', 'printed', thicknesses.plateThickness),
       makeProcess('plate-foam', 'printed', thicknesses.plateFoamThickness),

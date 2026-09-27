@@ -102,7 +102,9 @@ export const Ergogen2DPreview = ({ definition, at = { x: 0, y: 0 }, hideKeycap =
       }
       if (kind.endsWith('_text')) {
         const position = coords(child(form, 'at'));
-        const text = typeof form[1] === 'string' ? value(form[1]) : '';
+        const textNode = form[kind === 'fp_text' ? 2 : 1];
+        const text = typeof textNode === 'string' ? value(textNode) : '';
+        if (form.includes('hide') || (kind === 'fp_text' && value(String(form[1])) === 'reference')) return null;
         if (!position || !text) return null;
         return <text key={index} data-layer={graphicLayer(form)} x={position.x + at.x} y={-position.y - at.y} className="wb-ergogen-text">{text}</text>;
       }

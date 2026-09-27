@@ -3,10 +3,10 @@ import { emptyProject, type CoreReply, type CoreRequest } from '@boardstudio/v2-
 import type { CoreClient } from './CoreClient';
 import type { ExportClient } from './ExportClient';
 import { createProjectActions } from './createProjectActions';
-import { saveAsset, unpackProject } from './storage';
+import { saveAsset, unpackProject, resetLocalProjects } from './storage';
 import { catalogue } from '@boardstudio/v2-ergogen';
 
-vi.mock('./storage', () => ({ saveAsset: vi.fn(), unpackProject: vi.fn() }));
+vi.mock('./storage', () => ({ saveAsset: vi.fn(), unpackProject: vi.fn(), resetLocalProjects: vi.fn() }));
 
 function harness() {
   const projectRef = { current: emptyProject('existing', 'Existing project') };
@@ -142,4 +142,38 @@ it('restores the working project when a demo cannot be wired', async () => {
   expect(test.request).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'open', document: previous }));
   expect(test.accept).not.toHaveBeenCalled();
   expect(test.projectRef.current).toBe(previous);
+});
+
+
+it('restores the working core document if resetting storage fails', async () => {
+  const test = harness();
+  vi.mocked(resetLocalProjects).mockRejectedValueOnce(new Error('Storage unavailable'));
+  test.actions.newProject('reset');
+  await expect(test.run()).rejects.toThrow('Storage unavailable');
+  expect(test.request).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'open', document: test.projectRef.current }));
+  expect(test.accept).not.toHaveBeenCalled();
+  expect(test.onProjectCreated).not.toHaveBeenCalled();
+});
+
+it('resolves default closure screws and commits them with case settings in one edit', async () => {
+  const { demoProject } = await import('./demo');
+  const { createMechanicalConfiguration } = await import('./mechanicalPresets');
+  const test = harness();
+  const document = demoProject();
+  test.projectRef.current = document;
+  test.request.mockImplementation(async (input: CoreRequest) => {
+    if (input.kind === 'snapshot') return { kind: 'scene', document, scene: { boardContours: [], transforms: [] } } as unknown as CoreReply;
+    if (input.kind === 'resolve-mechanical') return { kind: 'mechanical-resolved', assembly: { suggestedMounts: [{ id: 'one', at: { x: 30, y: 20 }, kind: 'hole', holeDiameter: 3, bossDiameter: 6 }] } } as unknown as CoreReply;
+    return { kind: 'scene', document, scene: {} } as CoreReply;
+  });
+  test.actions.edit({ baseRevision: document.revision, transactionId: 'case', phase: 'commit', targetIds: [], operation: { kind: 'set-mechanical', configuration: createMechanicalConfiguration(document) } });
+  await test.run();
+  const edits = test.request.mock.calls.map(([request]) => request).filter(request => request.kind === 'edit');
+  expect(edits).toHaveLength(1);
+  const operation = edits[0].kind === 'edit' ? edits[0].command.operation : undefined;
+  expect(operation?.kind).toBe('replace-document');
+  if (operation?.kind === 'replace-document') {
+    expect(operation.document.mechanical?.closureMounts?.[0].kind).toBe('boss');
+    expect(operation.document.parts.some(part => part.id.startsWith('case-closure/'))).toBe(true);
+  }
 });

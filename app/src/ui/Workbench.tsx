@@ -1,3 +1,4 @@
+import { constructionDefinition } from '../projectConstruction';
 import { demos, type DemoId } from '../demos/keyboards';
 import { SetupGuide } from './SetupGuide';
 import { deriveSetupGuide, type SetupGuideStage } from './setupGuide';
@@ -28,6 +29,8 @@ import type {
 import { defaultOutlineSettings } from '../../../contracts/src/index';
 import { assemblyName, matrixPresetDefinitions, type MatrixPresetId } from './assemblyCatalog';
 import { matrixWithAssembly } from './assemblyPlacement';
+import { reversibleLayout } from '../projectConstruction';
+import { MatrixSetupPreview } from './MatrixSetupPreview';
 import { assemblyPreset, type SwitchOrientation } from './assemblyPresets';
 import { aspectBounds, cameraBounds, getBounds } from './canvasBounds';
 import { MatrixGhost, ScenePart, SplayHandles } from './CanvasObjects';
@@ -103,13 +106,14 @@ const systemColorScheme = (): 'light' | 'dark' => {
   }
 };
 
-const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onOpenDemo, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, instanceControls, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
+const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onResetLocalProjects, onOpenDemo, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, caseInstanceId, instanceControls, setupControls, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
   const caseDocument = physicalCaseDocument ?? document;
   const caseScene = physicalCaseScene ?? scene;
   const [caseActionsTarget, setCaseActionsTarget] = useState<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<Mode>('Design');
   const guide = useSetupGuide({ projectId: document.id, newProjectRequest: setupRequest });
-  const guideVisible = guide.open && mode !== 'Library';
+  const [guidePlacement, setGuidePlacement] = useState<SetupGuideStage | null>(null);
+  const guideVisible = guide.open && !guidePlacement && mode !== 'Library';
   const [lastDesignMode, setLastDesignMode] = useState<Mode>('Design');
   const [commandMenu, setCommandMenu] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<'properties' | 'relations'>('properties');
@@ -169,6 +173,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [layoutTargetId, setLayoutTargetId] = useState('');
   const [matrixRows, setMatrixRows] = useState('');
   const [matrixColumns, setMatrixColumns] = useState('');
+  const matrixConstruction = reversibleLayout(document) ? 'reversible' : 'single-sided';
   const [matrixPreset, setMatrixPreset] = useState<MatrixPresetId>('mx-solder');
   const matrixGhost = placement.kind === 'matrix' || placement.kind === 'mirrored-pair' ? placement.matrix : null;
   const [matrixGhostScenes, setMatrixGhostScenes] = useState<MatrixScene[]>([]);
@@ -293,12 +298,13 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
   const definitions = useMemo(() => new Map(document.definitions.map((item) => [item.id, item])), [document.definitions]);
   const libraryDefinitions = useMemo(() => {
-    const entries = new Map([...ergogenCatalogue(), ...importedPartDefinitions()].map((definition) => [definition.id, definition]));
+    const entries = new Map([...ergogenCatalogue(), ...importedPartDefinitions()].map(definition =>
+      [definition.id, constructionDefinition(definition, matrixConstruction === 'reversible')]));
     for (const definition of document.definitions) entries.set(definition.id, definition);
     return [...entries.values()];
-  }, [document.definitions]);
+  }, [document.definitions, matrixConstruction]);
   const availableLibrary = useMemo(() => partChoices(libraryDefinitions), [libraryDefinitions]);
-  const libraryRecipe = useMemo(() => libraryAssembly ? assemblyPreset(libraryAssembly, libraryDefinitions, assemblyOrientation) : undefined, [libraryAssembly, libraryDefinitions, assemblyOrientation]);
+  const libraryRecipe = useMemo(() => libraryAssembly ? assemblyPreset(libraryAssembly, libraryDefinitions, assemblyOrientation, matrixConstruction) : undefined, [libraryAssembly, libraryDefinitions, assemblyOrientation, matrixConstruction]);
   const libraryRecipeEntries = useMemo(() => libraryRecipe?.members.map(member => {
     const definition = libraryDefinitions.find(entry => entry.id === member.definitionId)!;
     return { definition: normalizeDefinition({ ...definition, generator: definition.generator && { ...definition.generator, parameters: { ...definition.generator.parameters, ...member.parameters } } }), at: member.pose.at, rotation: member.pose.rotation, side: member.side };
@@ -563,6 +569,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       }
       if (event.key === 'Escape') {
         if (cancelInteractions()) return;
+        if (mode === 'Export') { closeExport(); return; }
         if (existingHalfOpen) { setExistingHalfOpen(false); return; }
         if (transformTool) { setTransformTool(null); setOriginPicking(false); setSnapGuide(undefined); return; }
         if (originPicking) { setOriginPicking(false); return; }
@@ -595,7 +602,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       window.removeEventListener('keydown', handleKey);
       window.removeEventListener('keyup', releaseSpace);
     };
-  }, [onRedo, onUndo, selected, document.revision, outlineActive, outlineDraft, outlineOperation, outlineGrid, addPartOpen, scope, originPicking, existingHalfOpen, transformTool]);
+  }, [mode, lastDesignMode, onRedo, onUndo, selected, document.revision, outlineActive, outlineDraft, outlineOperation, outlineGrid, addPartOpen, scope, originPicking, existingHalfOpen, transformTool]);
 
   const emit = (operation: EditCommand['operation'], targetIds: string[], phase: EditCommand['phase'] = 'commit', transactionId?: string) => {
     const currentTransaction = transactionId ?? (phase === 'preview' ? transaction.current : makeId());
@@ -635,6 +642,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     if (next === 'Design' || next === 'PCB' || next === 'Case') setLastDesignMode(next);
     setCommandMenu(null);
     setOriginPicking(false);
+    setTransformTool(null);
     cancelPlacement();
     setShowFindings(false);
     setInspectorTab('properties');
@@ -644,6 +652,38 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     setAddPartOpen(false);
 
   };
+
+  const closeExport = () => {
+    changeMode(lastDesignMode);
+    if (guide.open) guide.setCurrentStep(lastDesignMode === 'PCB' ? 'wiring' : lastDesignMode === 'Case' ? 'case' : 'layout');
+    setLeftOpen(true);
+    setRightOpen(!compactInspector);
+  };
+
+  const chooseController = () => {
+    setGuidePlacement('wiring');
+    changeMode('Library');
+    setScope(null);
+    setSelected([]);
+    setLibrarySearch('controller');
+    setLeftOpen(true);
+    if (!compactObjects) objectsPanel.setMode('pinned');
+  };
+
+  useEffect(() => { setGuidePlacement(null); }, [document.id]);
+  useEffect(() => {
+    if (!guidePlacement || placement.kind !== 'idle' || mode === 'Library') return;
+    guide.setCurrentStep(guidePlacement);
+    setGuidePlacement(null);
+    if (guidePlacement === 'wiring') {
+      changeMode('PCB');
+      setScope(null);
+      setSelected([]);
+    }
+    setLeftOpen(true);
+    if (!compactObjects) objectsPanel.setMode('pinned');
+    if (compactInspector) setRightOpen(false);
+  }, [guidePlacement, placement.kind, mode]);
 
   const changeScope = (kind: SelectionScope['kind']) => {
     setSelectionMode(kind);
@@ -924,7 +964,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
   const placementActions = createWorkbenchPlacementActions({
     document, selectedBoard, selectedBoardId, definitions, libraryDefinitions, matrixMap, matrixCellOverrides,
-    scope, layoutTargetId, snapFraction, viewBounds, orientation: assemblyOrientation, placement, setPlacement,
+    scope, layoutTargetId, snapFraction, viewBounds, orientation: assemblyOrientation, construction: matrixConstruction, placement, setPlacement,
     cancelPlacement, emit, setAddPartOpen, setLeftOpen, setRightOpen, setOutlineActive, setOutlineSettingsOpen,
     setMode, setScope, setExpandedTree, setSelected, selectScope,
     addDefinition, setCell,
@@ -1143,7 +1183,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
     if (mode === 'PCB') {
       const builtinSwitch = activePart && activeDefinition?.kind === 'switch';
-      if (wiring && (!activePart || activeDefinition?.kind === 'controller')) return <WiringPanel {...wiring} onResolve={onResolveWiring} onApply={onApplyWiring} onReview={onReviewWiring} onToggleLock={onReviewWiring} />;
+      if (wiring && (!activePart || activeDefinition?.kind === 'controller')) return <WiringPanel {...wiring} onAddController={chooseController} onResolve={onResolveWiring} onApply={onApplyWiring} onReview={onReviewWiring} onToggleLock={onReviewWiring} />;
       if (builtinSwitch && activePart && activeDefinition) return <><div className="wb-inspect-head"><h2>{activePart.reference} · {activeDefinition.name}</h2><span className="wb-mini-tag">{selectedBoard?.name ?? 'Board'} / PCB</span></div><p className="wb-empty-note">Switch wiring is inherited from its key assembly and resolved by the board wiring plan.</p><InspectorSection title="Named terminals" detail={`${Object.keys(activeDefinition.terminals ?? {}).length}`} defaultOpen><div className="wb-net-map">{Object.entries(activeDefinition.terminals ?? {}).map(([terminal, padIds]) => { const net = boardNets.find((entry) => entry.pins.some((pin) => pin.partId === activePart.id && padIds.includes(pin.padId))); return <div className="wb-net-map-row" key={terminal}><span>{terminal}</span><strong>{net?.name ?? 'Unmapped'}</strong></div>; })}</div></InspectorSection><button className="wb-inspector-link" onClick={() => { setScope(null); setSelected([]); }}>Edit board wiring <ArrowIcon /></button></>;
       const assigned = boardNets.reduce((total, net) => total + net.pins.filter((pin) => selectedBoard?.partIds.includes(pin.partId) ?? true).length, 0);
       return <>
@@ -1206,8 +1246,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       const instanceSetup = !(guideVisible && guide.currentStep === 'project') && instanceControls && <div className="wb-case-instance-controls">{instanceControls}</div>;
       const mechanicalPanel = caseDocument.mechanical && !generatedCase
         ? <section className="wb-mechanical-panel"><h3>Mechanical stack belongs to {configuredBoard?.name ?? caseDocument.mechanical.boardId}</h3><p>This board shows its authored case bodies. Select a physical assembly to configure a separate case.</p><button className="wb-secondary" disabled={!configuredBoard} onClick={() => configuredBoard && selectBoard(configuredBoard.id)}>Show configured board</button></section>
-        : <MechanicalAssemblyPanel readiness={mechanicalReadiness} diagnosticsRequest={diagnosticsRequest} onDiagnosticsShown={() => setDiagnosticsRequest(0)} generationTarget={caseActionsTarget} onRevealDiagnostics={revealMechanicalInspector} document={caseDocument} boardId={selectedBoardId} projectSession={projectSession} definitions={libraryDefinitions} configuration={caseDocument.mechanical} assembly={mechanicalAssembly} onChange={(configuration) => emit({ kind: 'set-mechanical', configuration }, [document.id])} onResolve={onResolveMechanical} onCancel={onCancelGeneration} generation={generation} onExport={onExportMechanical} onMechanicalProfile={onMechanicalProfile} onExtractMechanicalProfile={onExtractMechanicalProfile} onEditParts={(definitionId) => { changeMode('Library'); setLibraryChoice(definitionId); setLibraryAssembly(null); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} onShowFinding={showFinding} selectedLayer={selectedMechanicalLayer} onSelectLayer={setSelectedMechanicalLayer} />;
-      if (generatedCase) return <>{instanceSetup}{mechanicalPanel}<p className="wb-empty-note">Generated assembly preview · {document.caseBodies.filter((body) => body.boardId === selectedBoardId).length} authored case bodies remain saved. Disable the mechanical stack to preview and edit them.</p></>;
+        : <MechanicalAssemblyPanel instanceId={caseInstanceId} readiness={mechanicalReadiness} diagnosticsRequest={diagnosticsRequest} onDiagnosticsShown={() => setDiagnosticsRequest(0)} generationTarget={caseActionsTarget} onRevealDiagnostics={revealMechanicalInspector} document={caseDocument} boardId={selectedBoardId} projectSession={projectSession} definitions={libraryDefinitions} configuration={caseDocument.mechanical} assembly={mechanicalAssembly} onChange={(configuration) => emit({ kind: 'set-mechanical', configuration }, [document.id])} onResolve={onResolveMechanical} onCancel={onCancelGeneration} generation={generation} onExport={onExportMechanical} onMechanicalProfile={onMechanicalProfile} onExtractMechanicalProfile={onExtractMechanicalProfile} onEditParts={(definitionId) => { changeMode('Library'); setLibraryChoice(definitionId); setLibraryAssembly(null); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} onShowFinding={showFinding} selectedLayer={selectedMechanicalLayer} onSelectLayer={setSelectedMechanicalLayer} />;
+      if (generatedCase) return <>{mechanicalPanel}{instanceSetup}<p className="wb-empty-note">Generated assembly preview · {document.caseBodies.filter((body) => body.boardId === selectedBoardId).length} authored case bodies remain saved. Disable the mechanical stack to preview and edit them.</p></>;
       return <CaseInspectorPanel bodies={document.caseBodies} activeCaseBody={activeCaseBody} selectedBoard={selectedBoard}
         findings={scene.findings} findingDocument={document} onShowFinding={showFinding}
         mechanicalPanel={mechanicalPanel} instanceSetup={instanceSetup} caseActionsTarget={caseActionsTarget}
@@ -1240,7 +1280,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         { label: generatedCase ? 'Authored Case STEP' : 'Case STEP', ready: authoredCaseReady, detail: 'Saved authored case bodies', kind: 'case-step' },
       ];
       return <>
-        <div className="wb-inspect-head"><h2>Export package</h2><span className="wb-mini-tag">v2</span></div>
+        <div className="wb-inspect-head wb-export-heading"><h2>Export package</h2><button type="button" className="wb-secondary" onClick={closeExport}>Close export</button></div>
         <p className="wb-empty-note">Each file reflects the last committed revision. Review readiness before packaging.</p>
         <div className="wb-export-list">{outputs.map((output) => <div className="wb-export-row" key={output.label}>
           <span className={`wb-ready-dot ${output.ready ? 'is-ready' : ''}`} />
@@ -1385,17 +1425,16 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   };
   const guideContent = guide.currentStep === 'project' ? <>
     <label>Project name<input aria-label="Project name" value={projectName} onChange={event => setProjectName(event.target.value)} onBlur={commitProjectName} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label>
-    <label>Board<select aria-label="Setup board" value={selectedBoardId} onChange={event => selectBoard(event.target.value)}>{document.boards.map(board => <option key={board.id} value={board.id}>{board.name}</option>)}</select></label>
-    {instanceControls}
+    {setupControls ?? instanceControls}
     <button className="wb-primary" onClick={() => chooseSetupStage('layout')}>Continue to layout</button>
   </> : guide.currentStep === 'layout' ? <>
     <p>Place keys with their switch, diode, and optional lighting assembly. Edit the layout on the canvas.</p>
-    <button className="wb-primary" onClick={() => { guide.setOpen(false); changeMode('Design'); createGuidedMatrix(); }}>Add key matrix</button>
+    <button className="wb-primary" onClick={() => { setGuidePlacement('layout'); changeMode('Design'); createGuidedMatrix(); }}>Add key matrix</button>
     <button className="wb-secondary" onClick={dismissGuide}>Edit existing objects</button>
     <button className="wb-secondary" onClick={() => chooseSetupStage('wiring')}>Continue to wiring</button>
   </> : guide.currentStep === 'wiring' ? <>
     <p>Place a controller, then review automatic pin assignments and reversible jumpers in PCB settings.</p>
-    <button className="wb-secondary" onClick={() => { guide.setOpen(false); changeMode('Library'); setLibrarySearch('controller'); setLeftOpen(true); if (!compactObjects) objectsPanel.setMode('pinned'); }}>Choose controller</button>
+    <button className="wb-secondary" onClick={chooseController}>Choose controller</button>
     <button className="wb-primary" onClick={() => showSetupControls('PCB')}>Review controller & wiring</button>
     <button className="wb-secondary" onClick={() => chooseSetupStage('case')}>Continue to case</button>
   </> : guide.currentStep === 'case' ? <>
@@ -1451,7 +1490,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         <details className={`wb-save-state is-${saveStatus ?? 'unknown'}`} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}><summary aria-label={saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving locally' : saveStatus === 'failed' ? 'Local save failed' : 'Local save status unavailable'}><i aria-hidden="true" /><span>{saveStatus === 'saved' ? 'Saved locally' : saveStatus === 'saving' ? 'Saving…' : saveStatus === 'failed' ? 'Save failed' : 'Save status'}</span></summary><div role="status">{saveStatus === 'saved' ? 'Changes are saved in this browser. Use Save project copy for a portable backup.' : saveStatus === 'saving' ? 'Saving changes in this browser…' : saveStatus === 'failed' ? 'Changes could not be saved locally. Check available browser storage before editing further.' : 'Local save status is unavailable.'}</div></details>
         <button className="wb-icon-button wb-history-action" aria-label="Undo" title="Undo (Ctrl+Z)" onClick={onUndo}><UndoIcon /></button>
         <button className="wb-icon-button wb-history-action" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" onClick={onRedo}><RedoIcon /></button>
-        <button className="wb-icon-button wb-export-trigger" aria-label="Export" title="Export" aria-pressed={mode === 'Export'} onClick={() => { changeMode('Export'); setRightOpen(true); if (!compactInspector) inspectorPanel.setMode('pinned'); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" /></svg></button>
+        <button className="wb-icon-button wb-export-trigger" aria-label="Export" title="Export" aria-pressed={mode === 'Export'} onClick={() => { if (mode === 'Export') { closeExport(); return; } changeMode('Export'); setRightOpen(true); if (!compactInspector) inspectorPanel.setMode('pinned'); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" /></svg></button>
       <div className="wb-project-menu">
         <button ref={projectTriggerRef} className="wb-project-trigger" aria-expanded={projectMenuOpen} aria-controls="wb-project-dropdown" aria-label="Project" title={`Project menu — ${document.name}`} onClick={() => setProjectMenuOpen((open) => !open)}><ProjectIcon /></button>
         {projectMenuOpen && <div id="wb-project-dropdown" className="wb-project-dropdown" aria-label="Project menu">
@@ -1464,6 +1503,13 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             {onNewProject && <button onClick={() => { setProjectMenuOpen(false); onNewProject(); }}>New project</button>}
             {onImport && <button className="wb-open-project" onClick={() => projectFileRef.current?.click()}>Open project…</button>}
             <button onClick={() => { setProjectMenuOpen(false); onExport('project'); }}>Save project copy…</button>
+            {onResetLocalProjects && <button onClick={() => {
+              setProjectMenuOpen(false);
+              if (!window.confirm('Reset all local projects? This deletes every saved project and imported asset in this browser, then starts an empty project. This cannot be undone. Save a project copy first if you want to keep your work.')) return;
+              changeMode('Design');
+              setScope(null); setSelected([]);
+              onResetLocalProjects();
+            }}>Reset local projects…</button>}
           </div>
           {onImport && <input ref={projectFileRef} className="wb-project-file-input" type="file" accept=".boardstudio" onChange={(event) => {
             const file = event.currentTarget.files?.[0];
@@ -1490,12 +1536,13 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         {mode !== 'Library' && <div className="wb-setup-navigation" role="group" aria-label="Workspace navigation"><button type="button" aria-pressed={guideVisible} onClick={reopenGuide}>Guide</button><button type="button" id="wb-objects-tab" aria-pressed={!guideVisible} onClick={dismissGuide}>Objects</button></div>}
         {guideVisible && guideStages ? <SetupGuide boardName={selectedBoard?.name ?? 'Select a board'} stages={guideStages} currentStep={guide.currentStep} onStepChange={chooseSetupStage} onDismiss={dismissGuide} currentStepContent={guideContent} /> : mode === 'Library' ? <PartsLibrary definitions={libraryDefinitions} assemblies={(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => ({ id, name: assemblyName(id), definitionId: matrixPresetDefinitions[id].definitionId }))} query={librarySearch} selected={libraryAssembly ? `assembly:${libraryAssembly}` : selectedLibraryDefinition?.id ?? ''} onCreate={addCustomDefinition} onImport={onImportFootprint} onSearch={setLibrarySearch} onSelect={(id) => { setEditingAssembly(null); setScriptsOpen(false); setLibraryChoice(id); setLibraryAssembly(null); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} onAssembly={(id) => { setEditingAssembly(null); setScriptsOpen(false); const preset = id as MatrixPresetId; setLibraryAssembly(preset); setLibraryChoice(matrixPresetDefinitions[preset].definitionId); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} /> : addPartOpen ? <div id="wb-add-part" className="wb-add-inventory" role="dialog" aria-label="Add" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setAddPartOpen(false); addPartRef.current?.focus(); } }} onClick={(event) => { if ((event.target as Element).closest('[data-close-menu]')) setAddPartOpen(false); }}>{addContent}</div> : <>
 
-        <div className="wb-board-picker"><label htmlFor="wb-board-select">Board</label><div><select id="wb-board-select" aria-label="Selected board" value={selectedBoardId} onChange={(event) => selectBoard(event.target.value)}>{document.boards.map((board) => <option key={board.id} value={board.id}>{board.name}</option>)}</select><button type="button" onClick={addBoard} aria-label="New board"><ToolIcon name="add" /></button></div></div>
+        {!matrixSetup && <div className="wb-board-picker"><label htmlFor="wb-board-select">Board</label><div><select id="wb-board-select" aria-label="Selected board" value={selectedBoardId} onChange={(event) => selectBoard(event.target.value)}>{document.boards.map((board) => <option key={board.id} value={board.id}>{board.name}</option>)}</select><button type="button" onClick={addBoard} aria-label="New board"><ToolIcon name="add" /></button></div></div>}
 
-        {matrixSetup && <form className="wb-matrix-setup" aria-label="New matrix" onSubmit={(event) => { event.preventDefault(); const rows = Number(matrixRows); const columns = Number(matrixColumns); if (Number.isInteger(rows) && rows > 0 && Number.isInteger(columns) && columns > 0 && rows * columns <= 4096) beginMatrixPlacement(rows, columns, matrixPreset); }}>
-          <h3>New matrix</h3><label>Rows<input autoFocus aria-label="New matrix rows" type="number" min="1" max="4096" required value={matrixRows} onChange={(event) => setMatrixRows(event.target.value)} /></label><label>Columns<input aria-label="New matrix columns" type="number" min="1" max="4096" required value={matrixColumns} onChange={(event) => setMatrixColumns(event.target.value)} /></label>
+        {matrixSetup && <form className="wb-matrix-setup" aria-label="New matrix" onSubmit={(event) => { event.preventDefault(); const rows = Number(matrixRows); const columns = Number(matrixColumns); if (Number.isInteger(rows) && rows > 0 && Number.isInteger(columns) && columns > 0 && rows * columns <= 4096) beginMatrixPlacement(rows, columns, matrixPreset, undefined, 'origin'); }}>
+          <h3>New matrix</h3><div className="wb-matrix-dimensions"><label>Rows<input autoFocus aria-label="New matrix rows" type="number" min="1" max="4096" required value={matrixRows} onChange={(event) => setMatrixRows(event.target.value)} /></label><label>Columns<input aria-label="New matrix columns" type="number" min="1" max="4096" required value={matrixColumns} onChange={(event) => setMatrixColumns(event.target.value)} /></label></div>
           <label>Key assembly<select aria-label="New matrix assembly" value={matrixPreset} onChange={(event) => setMatrixPreset(event.target.value as MatrixPresetId)}>{(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => <option key={id} value={id}>{assemblyName(id)}</option>)}</select></label>
-          <p>Choose dimensions, then click the board to place.</p><button type="submit" disabled={!matrixRows || !matrixColumns || Number(matrixRows) * Number(matrixColumns) > 4096}>Continue to placement</button><button type="button" onClick={cancelPlacement}>Cancel</button>
+          <MatrixSetupPreview rows={Number(matrixRows)} columns={Number(matrixColumns)} />
+          <p>Starts at X 0, Y 0. Move and edit it on the canvas.</p><button type="submit" disabled={!matrixRows || !matrixColumns || Number(matrixRows) * Number(matrixColumns) > 4096}>Create matrix</button><button type="button" onClick={cancelPlacement}>Cancel</button>
         </form>}
         <WorkbenchTree entries={treeEntries} />
         <div className="wb-inventory-foot"><strong>{selectionTitle.split(' · ').at(-1)}</strong><span>{selectedBoard?.name} / {viewLabel}{selectedMatrix ? ` / ${activeLayout?.name || selectedMatrix.name || selectionTitle.split(' · ')[0]}` : ''}</span><span>{selected.length ? `${selected.length} selected` : 'Select an object to edit'}</span></div>

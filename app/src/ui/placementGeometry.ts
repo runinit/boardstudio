@@ -58,6 +58,27 @@ export function snapPart(part: Part, targets: Part[], definitions: Map<string, P
       consider({ x, y: a.maxY }, { x, y: b.minY - gap }, label);
     }
   }
+  if (best && movingBounds && gap !== null && best.label.includes('envelope gap')) {
+    const snapped = polygonBounds(selectionOutline([{ ...part, pose: { ...part.pose, at: best.at } }], definitions))!;
+    let alignment: { axis: 'x' | 'y'; delta: number } | undefined;
+    for (const target of targets) {
+      if (target.id === part.id) continue;
+      const polygon = selectionOutline([target], definitions);
+      if (!axisAligned(polygon)) continue;
+      const b = polygonBounds(polygon)!;
+      const horizontal = Math.abs(snapped.minX - b.maxX - gap) < 0.0001 || Math.abs(b.minX - snapped.maxX - gap) < 0.0001;
+      const vertical = Math.abs(snapped.minY - b.maxY - gap) < 0.0001 || Math.abs(b.minY - snapped.maxY - gap) < 0.0001;
+      const candidates = horizontal ? [b.minY - snapped.minY, b.maxY - snapped.maxY] : vertical ? [b.minX - snapped.minX, b.maxX - snapped.maxX] : [];
+      for (const delta of candidates) {
+        if (Math.abs(delta) <= tolerance && (!alignment || Math.abs(delta) < Math.abs(alignment.delta))) alignment = { axis: horizontal ? 'y' : 'x', delta };
+      }
+    }
+    if (alignment) {
+      best.at[alignment.axis] += alignment.delta;
+      best.to[alignment.axis] += alignment.delta;
+      best.label += ' · edges aligned';
+    }
+  }
   return best;
 }
 

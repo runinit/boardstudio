@@ -34,6 +34,7 @@ test('linked construction propagates common dimensions while openings stay local
   expect(right.mechanical?.wallThickness).toBe(4);
   expect(left.mechanical?.openings).toHaveLength(1);
   expect(right.mechanical?.openings ?? []).toHaveLength(0);
+  expect(right.mechanical?.closureMounts).toBeUndefined();
 });
 
 test('mechanical fingerprints ignore wiring and revisions, but track physical edits and instances', () => {

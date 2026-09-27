@@ -31,15 +31,15 @@ test('mechanical configuration is opt-in, undoable and persistent without replac
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByText(/Generated CAD solids · 4 parts at revision/)).toBeVisible({ timeout: 60_000 });
   const originalBodies = (await saved(page)).caseBodies;
-  await panel.getByRole('combobox', { name: 'Bottom construction', exact: true }).selectOption('sheet');
+  await panel.getByRole('button', { name: 'Flat sheet', exact: true }).click();
   await expect.poll(async () => (await saved(page)).mechanical?.bottomStyle).toBe('sheet');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await expect(panel.getByRole('combobox', { name: 'Bottom construction', exact: true })).toHaveValue('shell');
+  await expect(panel.getByRole('button', { name: 'Tray shell', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
-  await expect(panel.getByRole('combobox', { name: 'Bottom construction', exact: true })).toHaveValue('sheet');
+  await expect(panel.getByRole('button', { name: 'Flat sheet', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
   await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
-  await expect(panel.getByRole('combobox', { name: 'Bottom construction', exact: true })).toHaveValue('sheet');
+  await expect(panel.getByRole('button', { name: 'Flat sheet', exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect((await saved(page)).caseBodies).toEqual(originalBodies);
   await panel.locator('summary').filter({ hasText: 'Configuration management' }).click();
   await panel.getByRole('button', { name: 'Disable mechanical stack', exact: true }).click();
@@ -50,15 +50,7 @@ test('mechanical configuration is opt-in, undoable and persistent without replac
 test('library profile resolves real cutouts and view controls leave the committed configuration unchanged', async ({ page }) => {
   test.setTimeout(90000);
   const panel = await configure(page);
-  await panel.locator('summary').filter({ hasText: 'Advanced source geometry' }).click();
-  await panel.getByRole('combobox', { name: 'Library fit profile', exact: true }).selectOption('mx-switch');
-  await panel.getByRole('combobox', { name: 'Assign library fit profile to', exact: true }).selectOption('ergogen:ceoloide/switch_mx');
-  await expect.poll(async () => (await saved(page)).mechanical?.profiles.length, { timeout: 30_000 }).toBe(1);
-  const profile = (await saved(page)).mechanical!.profiles[0];
-  expect(profile.cutouts).toHaveLength(1);
-  expect(profile.cutouts[0]).toHaveLength(4);
-  expect(Math.max(...profile.cutouts[0].map(p => p.x)) - Math.min(...profile.cutouts[0].map(p => p.x))).toBe(14);
-  expect(profile.source).toContain('14 x 14 mm');
+  await expect(panel.getByText('Advanced source geometry', { exact: true })).toHaveCount(0);
   await panel.locator('summary').filter({ hasText: 'Per-part process overrides' }).click();
   const materials = panel.getByRole('combobox', { name: 'Material', exact: true });
   await materials.first().selectOption('PLA');
@@ -76,15 +68,12 @@ test('library profile resolves real cutouts and view controls leave the committe
   await expect(page.getByText('Section at board centre · half removed', { exact: true })).toBeVisible();
   expect((await saved(page)).revision).toBe(revision);
   await page.reload();
-  expect((await saved(page)).mechanical!.profiles[0]).toEqual(profile);
+  expect((await saved(page)).mechanical!.profiles).toEqual([]);
 });
 
 test('clicking a generated solid selects its resolved stack layer', async ({ page }) => {
   test.setTimeout(90_000);
   const panel = await configure(page);
-  await panel.locator('summary').filter({ hasText: 'Advanced source geometry' }).click();
-  await panel.getByRole('combobox', { name: 'Library fit profile', exact: true }).selectOption('mx-switch');
-  await panel.getByRole('combobox', { name: 'Assign library fit profile to', exact: true }).selectOption('ergogen:ceoloide/switch_mx');
   await panel.locator('summary').filter({ hasText: 'Per-part process overrides' }).click();
   const materials = panel.getByRole('combobox', { name: 'Material', exact: true });
   await materials.first().selectOption('PLA');
@@ -165,9 +154,6 @@ test('generated-only boards keep their export ready when leaving the Case view',
     });
   });
   const panel = await configure(page);
-  await panel.locator('summary').filter({ hasText: 'Advanced source geometry' }).click();
-  await panel.getByRole('combobox', { name: 'Library fit profile', exact: true }).selectOption('mx-switch');
-  await panel.getByRole('combobox', { name: 'Assign library fit profile to', exact: true }).selectOption('ergogen:ceoloide/switch_mx');
   await panel.locator('summary').filter({ hasText: 'Per-part process overrides' }).click();
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Geometry current/)).toBeVisible({ timeout: 60000 });
