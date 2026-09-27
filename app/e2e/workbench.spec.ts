@@ -133,6 +133,7 @@ test('builds a new keyboard from a matrix and previews its outline', async ({ pa
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
   await configureMatrix(page);
   await expect(page.locator('.wb-matrix-cell')).toHaveCount(30);
@@ -148,6 +149,7 @@ test('edits a guided matrix, scopes the tree, staggers a row, and zooms the canv
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
   await page.getByRole('treeitem', { name: 'PCB', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Pin for Scan row 1', exact: true })).toBeVisible();
@@ -191,6 +193,7 @@ test('canvas drags follow the selected matrix, row, and column scope', async ({ 
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
 
   const drag = async (part: import('@playwright/test').Locator) => {
@@ -226,6 +229,7 @@ test('row and column scope drags follow the key under the pointer', async ({ pag
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
 
   const drag = async (part: import('@playwright/test').Locator) => {
@@ -265,6 +269,7 @@ test('matrix scope drag follows world direction on a rotated mirrored matrix', a
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
   await page.getByRole('spinbutton', { name: 'Rotation' }).fill('90');
   await page.getByRole('spinbutton', { name: 'Rotation' }).blur();
@@ -293,6 +298,7 @@ test('matrix rows and columns are nested beneath their matrix in the CAD tree', 
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
   const matrix = page.getByRole('treeitem', { name: /^Matrix 1/ });
   const row = page.getByRole('treeitem', { name: /^Row 1/ });
@@ -397,6 +403,7 @@ test('duplicates a matrix as a separate preset project', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
   await expect(page.getByText('Saved locally')).toBeVisible();
   const originalId = await page.evaluate(() => localStorage.getItem('boardstudio-v2-active-project'));
@@ -432,6 +439,7 @@ test('keeps board outlines and KiCad exports scoped to the selected board', asyn
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
   await expect(page.getByRole('treeitem', { name: /60 parts/ }).first()).toBeVisible();
 
@@ -457,6 +465,7 @@ test('creates a case from a new keyboard project', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await placeGuidedMatrix(page);
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
   await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
@@ -474,6 +483,7 @@ test('saves and reopens a v2 project archive', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.locator('.wb-project-file-input').setInputFiles(await archive.path());
@@ -485,6 +495,7 @@ test('authors a custom component and exports a KiCad footprint library', async (
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await page.getByRole('tab', { name: 'Parts' }).click();
   await page.getByRole('button', { name: 'New custom component' }).click();
   const editor = page.getByRole('complementary', { name: 'Parts inspector' });

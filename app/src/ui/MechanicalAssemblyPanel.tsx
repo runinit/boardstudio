@@ -39,6 +39,7 @@ import {
   switchMountingDatum,
 } from '../mechanicalPresets';
 import './mechanical-assembly.css';
+import { applyMechanicalExtraction, MechanicalProfileController } from './mechanicalProfileController';
 
 const numericFields = [
   ['plateThickness', 'Plate thickness'],
@@ -182,7 +183,7 @@ function ProfileEditor({ profile, definitions, onChange, onRemove, onExtract, on
     setExtracting(true); setExtractError('');
     try {
       const result = await onExtract(mappings);
-      onChange({ ...profile, source: definition?.name ? `KiCad ${definition.name}` : profile.source, sourceGeometry: result.sourceGeometry, pcbHoles: result.pcbHoles, clearances: result.clearanceEnvelopes, cutouts: result.plateCutouts });
+      onChange(applyMechanicalExtraction(profile, result, definition?.name));
     } catch (cause) {
       setExtractError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -279,10 +280,15 @@ function HardwareAndFits({ configuration, assembly, onChange }: {
 
 export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnosticsRequest = 0, onDiagnosticsShown, generationTarget, onRevealDiagnostics, document, boardId, projectSession, definitions, configuration, assembly, onChange: commitConfiguration, onResolve, onCancel, generation, onExport, onShowFinding, selectedLayer, onSelectLayer, onMechanicalProfile, onExtractMechanicalProfile, onEditParts }: Props) {
   const draftScope = `${document.id}:${boardId ?? configuration?.boardId ?? ''}:${projectSession ?? 0}`;
+  const currentDraftScope = React.useRef(draftScope);
+  currentDraftScope.current = draftScope;
   const draft = React.useRef(new MechanicalDraft(configuration, draftScope, document.revision));
   draft.current.receive(configuration, draftScope, document.revision);
   const [, redraw] = React.useReducer((value: number) => value + 1, 0);
   const config = draft.current.value;
+  const profileController = React.useRef(new MechanicalProfileController());
+  profileController.current.receive(config, draftScope);
+  React.useEffect(() => () => profileController.current.invalidate(), [draftScope]);
   const onChange = (next: MechanicalConfiguration | null) => {
     draft.current.submit(next); redraw(); commitConfiguration(next);
   };
@@ -293,6 +299,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
   });
   const [profilePending, setProfilePending] = React.useState(false);
   const [profileError, setProfileError] = React.useState('');
+  React.useEffect(() => { setProfilePending(false); setProfileError(''); }, [draftScope]);
   const diagnosticsRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const family = initialSwitchFamily(document, boardId ?? configuration?.boardId ?? '');
@@ -339,37 +346,10 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
     });
     onChange({ ...next, partProcesses });
   };
+  const profileFeedback = { setPending: setProfilePending, setError: setProfileError, update };
   const assignProfile = async (definitionId: string) => {
-    if (!config || !onMechanicalProfile || !profileSource || config.profiles.some((profile) => profile.definitionId === definitionId)) return;
-    const selectedFamily: MechanicalSwitchFamily | undefined = profileSource === 'mx-switch' ? 'mx'
-      : profileSource === 'choc-v1-switch' ? 'choc-v1'
-        : profileSource === 'choc-v2-switch' ? 'choc-v2' : undefined;
-    const familyChanged = selectedFamily !== undefined && selectedFamily !== profileSwitchFamily(config);
-    const plateThickness = familyChanged && selectedFamily
-      ? defaultPlateThickness(selectedFamily)
-      : config.plateThickness;
-    const plateToPcb = selectedFamily
-      ? plateToPcbGap(selectedFamily, plateThickness)
-      : config.plateToPcb;
-    setProfilePending(true); setProfileError('');
-    try {
-      const loaded = await onMechanicalProfile(definitionId, profileSource, plateToPcb);
-      const profile = selectedFamily
-        ? { ...loaded, switchFamily: selectedFamily, plateToPcb }
-        : loaded;
-      if (draft.current.value) update({
-        ...(familyChanged && selectedFamily ? {
-          plateThickness,
-          plateToPcb,
-          plateFoamThickness: defaultPlateFoamThickness(plateToPcb),
-        } : {}),
-        profiles: [...draft.current.value.profiles, profile],
-      });
-    } catch (cause) {
-      setProfileError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setProfilePending(false);
-    }
+    if (!onMechanicalProfile || !profileSource) return;
+    await profileController.current.assign(definitionId, profileSource, onMechanicalProfile, profileFeedback);
   };
   const selectProfileFamily = (definitionId: string, family: MechanicalSwitchFamily) => {
     if (!config) return;
@@ -444,7 +424,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
         {usedDefinitions.length === 0 ? <p className="wb-mech-hint">Place parts to assign mechanical profiles.</p> : <div className="wb-mech-profile-add"><label className="wb-mech-field"><span>Library fit profile</span><select aria-label="Library fit profile" value={profileSource} onChange={(event) => setProfileSource(event.target.value as typeof profileSource)}><option value="">Choose a switch family…</option><option value="mx-switch">MX switch</option><option value="choc-v1-switch">Choc v1 switch</option><option value="choc-v2-switch">Choc v2 switch</option><option value="mx-stab2u">MX stabilizer · 2u</option><option value="mx-stab625u">MX stabilizer · 6.25u</option></select><select aria-label="Assign library fit profile to" value="" disabled={profilePending || !onMechanicalProfile || !profileSource} onChange={(event) => void assignProfile(event.target.value)}><option value="">Choose a placed part type…</option>{usedDefinitions.filter((definition) => !config.profiles.some((profile) => profile.definitionId === definition.id)).map((definition) => <option key={definition.id} value={definition.id}>{definition.name}</option>)}</select></label><label className="wb-mech-field"><span>Custom KiCad geometry</span><select aria-label="Assign custom geometry profile to" value="" onChange={(event) => { const definitionId = event.target.value; if (!definitionId) return; const definition = usedDefinitions.find((entry) => entry.id === definitionId); if (!definition) return; const family = inferSwitchFamily(definition); update({ profiles: [...config.profiles, { definitionId, source: `KiCad ${definition.name}`, cutouts: [], plateToPcb: family ? plateToPcbGap(family, config.plateThickness) : config.plateToPcb, ...(family ? { switchFamily: family } : {}) }] }); }}><option value="">Choose imported part type…</option>{usedDefinitions.filter((definition) => Boolean(definition.kicadSource) && !config.profiles.some((profile) => profile.definitionId === definition.id)).map((definition) => <option key={definition.id} value={definition.id}>{definition.name}</option>)}</select></label></div>}
         {profilePending && <p className="wb-mech-hint" role="status">Loading library profile…</p>}
         {profileError && <p className="wb-mech-error" role="alert">{profileError}</p>}
-        {config.profiles.map((profile) => <ProfileEditor key={profile.definitionId} profile={profile} definitions={definitions} onSelectSwitchFamily={(family) => selectProfileFamily(profile.definitionId, family)} onExtract={onExtractMechanicalProfile ? (mappings) => onExtractMechanicalProfile(definitions.find((definition) => definition.id === profile.definitionId)?.kicadSource?.source ?? '', mappings) : undefined} onChange={(next) => update({ profiles: config.profiles.map((entry) => entry.definitionId === next.definitionId ? next : entry) })} onRemove={() => update({ profiles: config.profiles.filter((entry) => entry.definitionId !== profile.definitionId) })} />)}
+        {config.profiles.map((profile) => <ProfileEditor key={`${draftScope}:${profile.definitionId}`} profile={profile} definitions={definitions} onSelectSwitchFamily={(family) => selectProfileFamily(profile.definitionId, family)} onExtract={onExtractMechanicalProfile ? (mappings) => onExtractMechanicalProfile(definitions.find((definition) => definition.id === profile.definitionId)?.kicadSource?.source ?? '', mappings) : undefined} onChange={(next) => { if (currentDraftScope.current === draftScope && draft.current.value === config) update({ profiles: config.profiles.map((entry) => entry.definitionId === next.definitionId ? next : entry) }); }} onRemove={() => update({ profiles: config.profiles.filter((entry) => entry.definitionId !== profile.definitionId) })} />)}
       </InspectorSection>
       <InspectorSection title="Dimensions & clearances" detail="mm" defaultOpen>
         <div className="wb-mech-numbers">{numericFields.map(([key, label]) => <NumberField key={key} label={label} value={config[key]} onCommit={(value) => update({ [key]: value })} />)}</div>
@@ -551,10 +531,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
               change({ ...current, profile: shared });
             } else if (value === 'mx-stab2u' || value === 'mx-stab625u' || value === 'mx-switch') {
               if (!onMechanicalProfile) return;
-              setProfilePending(true); setProfileError('');
-              try { change({ ...current, profile: await onMechanicalProfile(part.definitionId, value, config.plateToPcb) }); }
-              catch (cause) { setProfileError(cause instanceof Error ? cause.message : String(cause)); }
-              finally { setProfilePending(false); }
+              await profileController.current.assignStabilizer(part.id, part.definitionId, value, onMechanicalProfile, profileFeedback);
             } else change({ ...current, profile: undefined });
           };
           return <div className="wb-mech-stabilizer" key={part.id}><strong>{part.reference}</strong><label className="wb-mech-field"><span>Mount</span><select value={current.kind} onChange={(event) => change({ ...current, kind: event.target.value as typeof current.kind })}><option value="none">None</option><option value="pcb-mount">PCB mount</option><option value="plate-mount">Plate mount</option></select></label><div className="wb-mech-numbers"><label className="wb-mech-field"><span>Key width</span><select value={current.units} onChange={(event) => change({ ...current, units: Number(event.target.value) })}><option value="2">2u</option><option value="6.25">6.25u</option></select></label><NumberField label="Rotation" value={current.rotation ?? 0} onCommit={(rotation) => change({ ...current, rotation })} min={-360}/></div>{current.kind === 'plate-mount' && <label className="wb-mech-field"><span>Plate opening profile</span><select value={current.profile ? current.profile.source : config.profiles.some((profile) => profile.definitionId === part.definitionId) ? 'shared' : ''} disabled={profilePending} onChange={(event) => void assignProfile(event.target.value)}><option value="">Choose cutout source…</option>{config.profiles.some((profile) => profile.definitionId === part.definitionId) && <option value="shared">Use assigned {definitions.find((definition) => definition.id === part.definitionId)?.name} profile</option>}<option value="mx-stab2u">Built-in 2u stabilizer</option><option value="mx-stab625u">Built-in 6.25u stabilizer</option></select></label>}</div>;

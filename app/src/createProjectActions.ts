@@ -18,9 +18,10 @@ type Inputs = {
   schedule: (work: () => Promise<void>) => void;
   accept: (reply: CoreReply, mode: 'open' | 'commit' | 'preview') => Promise<void>;
   ensureExportClient: () => ExportClient;
+  onProjectCreated?: (projectId: string) => void;
 };
 
-export function createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient }: Inputs) {
+export function createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated }: Inputs) {
   function edit(command: EditCommand): void {
     schedule(async () => {
       if (!client.current) {
@@ -87,6 +88,7 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
       const reply = await client.current.request({ id: crypto.randomUUID(), kind: 'open', document });
 
       await accept(reply, 'open');
+      if (reply.kind === 'scene') onProjectCreated?.(reply.document.id);
     });
   }
 

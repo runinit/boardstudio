@@ -50,9 +50,6 @@
 .wb-catalog-actions .wb-footprint-import { margin: 0; font-size: 12px; }
 .wb-catalog-actions .wb-inspector-link { justify-content: center; }
 .wb-parts-catalog [role='option'] { line-height: 1.4; }
-@media (min-width: 1101px) {
-  .wb-workspace { grid-template-columns: 240px minmax(0, 1fr) 320px; }
-}
 @media (max-width: 700px) {
   .wb-inspector { --inspector-space: 18px; }
   .wb-inspector-content .wb-inspector-section > summary { min-height: 48px; }
@@ -95,3 +92,11 @@
 .wb-unified .wb-inspector-content button { font-size: var(--wb-type-body); line-height: var(--wb-leading-ui); }
 .wb-unified .wb-inspector-content :is(.wb-part-title, .wb-selection-breadcrumb) { line-height: var(--wb-leading-copy); overflow-wrap: anywhere; }
 .wb-unified .wb-inspector-content .wb-constraint-number input { height: auto; min-height: 34px; padding-block: 6px; }
+.wb-unified .wb-inspector-content { padding: 24px; }
+.wb-unified .wb-inspector-tabs { display: flex; margin-bottom: 24px; border-bottom: 1px solid var(--wb-rule); }
+.wb-unified .wb-inspector-tabs button { flex: 1; min-height: 38px; padding: 0 8px; border: 0; border-bottom: 2px solid transparent; color: var(--wb-muted); background: transparent; cursor: pointer; font-size: 13px; }
+.wb-unified .wb-inspector-tabs button[aria-selected='true'] { border-bottom-color: var(--wb-accent); color: var(--wb-accent); font-weight: 600; }
+@media (max-width: 1150px) { .wb-unified .wb-inspector-content { padding: 18px; } }
+@media (min-width: 1440px) { .wb-unified .wb-inspector-content { padding-top: 20px; } }
+
+.wb-unified .wb-dock .wb-inspector-content { padding-top: 8px; }

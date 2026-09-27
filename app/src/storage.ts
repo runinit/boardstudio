@@ -100,7 +100,7 @@ export async function loadAsset(sha256: string): Promise<Uint8Array | undefined>
   });
 }
 
-export type ProjectPackOptions = {
+type ProjectPackOptions = {
   /** Include referenced bundled Ergogen models. Defaults to true. */
   embedUsedModels?: boolean;
 };

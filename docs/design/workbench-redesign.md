@@ -48,10 +48,9 @@ The user confirmed that selecting a branch switches the main canvas view and its
 tools while shared objects remain linked. It does not place all editing modes
 on one combined canvas.
 
-Current visual studies: [refreshed light mode](../../app/.impeccable/mocks/decision/unified-design-light-final.png)
-and [refreshed dark mode](../../app/.impeccable/mocks/decision/unified-design-dark.png).
-They represent the same implemented local structure with the existing persisted System
-theme option.
+The local light and dark visual studies informed the implemented structure,
+including the persisted System theme option. Those exploratory images are not
+repository assets; see DESIGN.md for the current interface rules.
 
 - **Global header:** Design and Parts on the left; Export, undo/redo, and the
   project menu on the right.
@@ -146,8 +145,8 @@ warning in each mode) were calculated at 5.87:1 or better. This validates those
 specified values only; it is not a contrast audit of generated raster pixels or
 proof of an implemented accessible interface.
 The historical study’s eight proposed geometry/action-on-canvas pairs passed their 3:1 target; use DESIGN.md for current runtime pairs.
-The exact proposed values and calculations are recorded in
-[the palette study](../../app/.impeccable/mocks/decision/unified-palette.json).
+The exploratory palette calculations were local study artifacts; DESIGN.md
+records the current runtime palette and its validation scope.
 
 ## Initial exploration
 
@@ -160,13 +159,9 @@ colors. They remain historical studies, not the current direction.
 | Selection ribbon | Fixed selection and action ribbon above tree, canvas, and inspector | Predictable command locations; the ribbon reserves height even for simple tasks |
 | Unified sidebar | Object tree and inspector stacked in one sidebar; toolbar above a wide canvas | More canvas width; long object trees compete with long property lists |
 
-The initial studies remain available: [relationship bench](../../app/.impeccable/mocks/decision/relationship-bench.png),
-[selection ribbon](../../app/.impeccable/mocks/decision/selection-ribbon.png), and
-[unified sidebar](../../app/.impeccable/mocks/decision/single-sidebar.png).
-The earlier [bottom-dock hybrid](../../app/.impeccable/mocks/decision/hybrid-worktray-final.png)
-is superseded by the current right-docked proposal.
-The [review page](http://127.0.0.1:41781/) shows the current mockups while
-its local server is running. Further refinements can be requested in chat.
+The relationship bench, selection ribbon, unified sidebar, and bottom-dock
+hybrid were local exploratory studies. The current right-docked design
+supersedes them; their mockups and temporary review server are not maintained.
 
 These generated comps explore composition and affordances. Their drawn geometry,
 small labels, and dimension placement are illustrative, not a measurement model.
@@ -331,9 +326,8 @@ unexpectedly move keyboard focus or discard an in-progress value.
 
 ## Consistency across workspaces
 
-The [workspace family study](../../app/.impeccable/mocks/workspace-family.png)
-shows Parts/footprint viewing, custom footprint editing, PCB placement, and
-Export together. It is an earlier control-vocabulary study; its old palette and
+The earlier workspace family study considered Parts/footprint viewing, custom
+footprint editing, PCB placement, and Export together. Its old palette and
 top-level PCB/Case navigation are superseded by the current unified Design proposal.
 
 | Workspace | Left context | Main surface and contextual actions | Inspector / details |

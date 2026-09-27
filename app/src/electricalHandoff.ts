@@ -32,7 +32,7 @@ export function pcbAssemblyFiles(plan: ElectricalPlan, draft: boolean, populatio
   return files;
 }
 
-export function assemblyInstructions(plan: ElectricalPlan, draft: boolean): string {
+function assemblyInstructions(plan: ElectricalPlan, draft: boolean): string {
   const lines = [
     '# PCB wiring and assembly', '',
     draft ? 'DRAFT: review the unresolved findings below before fabrication.' : 'Ready for routing. This package does not certify routed-board DRC or fabrication readiness.', '',
@@ -55,7 +55,7 @@ export function assemblyInstructions(plan: ElectricalPlan, draft: boolean): stri
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** Face diagrams use component-local coordinates, viewed from that face. */
-export function jumperDiagram(recipe: JumperRecipe): string {
+function jumperDiagram(recipe: JumperRecipe): string {
   const ys = recipe.sites.map(site => site.y);
   const minY = Math.min(...ys, 0);
   const maxY = Math.max(...ys, 1);

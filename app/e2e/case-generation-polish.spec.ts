@@ -33,6 +33,7 @@ test('blocked generation opens and focuses mechanical diagnostics', async ({ pag
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   const controls = page.getByRole('region', { name: 'Case generation' });

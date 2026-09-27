@@ -1,6 +1,6 @@
 import type { ElectricalPlan, PeripheralRequirement } from '@boardstudio/v2-contracts';
 
-export type PeripheralFirmware = { overlays: string[]; config: string[] };
+type PeripheralFirmware = { overlays: string[]; config: string[] };
 
 const pinFor = (plan: ElectricalPlan, name: string): string | undefined => {
   const bare = name.split('/').slice(1).join('/');

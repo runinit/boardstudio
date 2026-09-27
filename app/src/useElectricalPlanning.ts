@@ -1,8 +1,9 @@
 import type { CoreReply, EditCommand, ElectricalBoardConfiguration, ElectricalPlan, ProjectDoc } from '@boardstudio/v2-contracts';
 import type { MutableRefObject } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CoreClient } from './CoreClient';
 import { existingConnectionReview } from './electricalHandoff';
+import { canPublishElectricalPlan, isCurrentElectricalPlan, isWiringApplied, type ElectricalPlanContext } from './electricalPlanContext';
 import type { WiringAssignment } from './ui/WiringPanel';
 
 type Inputs = {
@@ -18,7 +19,9 @@ type Inputs = {
 };
 
 export function useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit }: Inputs) {
-  const [electricalPlan, setElectricalPlan] = useState<ElectricalPlan>();
+  const [electricalPlan, setElectricalPlan] = useState<ElectricalPlanContext>();
+  const selectedBoardRef = useRef(selectedBoardId);
+  selectedBoardRef.current = selectedBoardId;
 
   async function resolveWiring(document = projectRef.current, boardId = selectedBoardId, instanceId: string | null = null): Promise<ElectricalPlan> {
     if (!client.current) throw new Error('The project is still opening');
@@ -37,9 +40,16 @@ export function useElectricalPlanning({ project, projectRef, selectedBoardId, cl
   useEffect(() => {
     if (!ready) return;
     let current = true;
-    void resolveWiring(project, selectedBoardId).then(plan => { if (current) setElectricalPlan(plan); }).catch(cause => { if (current) setError(String(cause)); });
+    void resolveWiring(project, selectedBoardId).then(plan => { if (current && projectRef.current === project) setElectricalPlan({ document: project, plan }); }).catch(cause => { if (current) setError(String(cause)); });
     return () => { current = false; };
   }, [ready, project, selectedBoardId]);
+
+  async function refreshWiring(): Promise<void> {
+    const document = projectRef.current;
+    const boardId = selectedBoardId;
+    const plan = await resolveWiring(document, boardId);
+    if (canPublishElectricalPlan(document, boardId, projectRef.current, selectedBoardRef.current)) setElectricalPlan({ document, plan });
+  }
 
   function changeWiring(change: Partial<ElectricalBoardConfiguration>): void {
     const hardware = project.hardware ?? { topology: 'unibody' as const, transport: 'none' as const, boards: [], instances: [], sharedConstruction: null };
@@ -73,7 +83,7 @@ export function useElectricalPlanning({ project, projectRef, selectedBoardId, cl
     return definition?.kind === 'controller' || definition?.generator?.source.includes('/mcu_') ? [{ id: part.id, name: `${part.reference} · ${definition.name}` }] : [];
   });
 
-  const activePlan = electricalPlan?.revision === project.revision && electricalPlan.boardId === selectedBoardId ? electricalPlan : undefined;
+  const activePlan = isCurrentElectricalPlan(electricalPlan, project, selectedBoardId) ? electricalPlan.plan : undefined;
 
   const connectionReview = activePlan ? existingConnectionReview(project, activePlan) : [];
 
@@ -88,16 +98,12 @@ export function useElectricalPlanning({ project, projectRef, selectedBoardId, cl
     const plan = await resolveWiring(document, boardId);
     const errors = plan.diagnostics.filter(finding => finding.severity === 'error');
     if (!draft && errors.length) throw new Error(errors.map(finding => finding.message).join('\n'));
-    const prefix = `generated/electrical/${boardId}/`;
-    const current = document.nets.filter(net => net.id.startsWith(prefix));
-    const configuration = document.hardware?.boards.find(board => board.boardId === boardId);
-    const alreadyApplied = current.length === plan.nets.length && configuration?.mode === plan.mode && configuration.controllerPartId === plan.controllerPartId && plan.nets.every(net => JSON.stringify(current.find(item => item.id === net.id)) === JSON.stringify(net) && document.boards.find(board => board.id === boardId)?.netIds.includes(net.id));
-    if (alreadyApplied) return { document, plan };
+    if (isWiringApplied(document, plan)) return { document, plan };
     const reply = await client.current!.request({ id: crypto.randomUUID(), kind: 'apply-electrical', baseRevision: document.revision, plan, draft });
     if (reply.kind !== 'scene') throw new Error(reply.kind === 'error' ? reply.message : 'Expected applied wiring');
     await accept(reply, 'commit');
     return { document: reply.document, plan: await resolveWiring(reply.document, boardId) };
   }
 
-  return { setElectricalPlan, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments };
+  return { refreshWiring, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments };
 }

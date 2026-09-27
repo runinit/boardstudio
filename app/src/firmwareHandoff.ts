@@ -1,7 +1,7 @@
 import { peripheralFirmware } from './firmwarePeripherals';
 import type { ElectricalPlan, FirmwareKey, FirmwareRequest, FirmwareScanMode, PeripheralRequirement, ProjectDoc, ScanPin } from '@boardstudio/v2-contracts';
 
-export type FirmwareHandoffResult = { request: FirmwareRequest; warnings: string[] };
+type FirmwareHandoffResult = { request: FirmwareRequest; warnings: string[] };
 type PlanExtensions = ElectricalPlan & { moduleAliases?: Record<string, string>; peripheralTerminals?: Record<string, string>; jumpers?: unknown[]; instanceId?: string | null };
 
 function errors(plan: ElectricalPlan): string[] { return plan.diagnostics.filter(d => d.severity === 'error').map(d => d.message); }

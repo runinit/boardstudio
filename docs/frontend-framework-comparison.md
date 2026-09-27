@@ -2,8 +2,9 @@
 
 Research checked 2026-09-25 against the official framework documentation. This
 is a comparison for planning; it does not select a framework or authorize a UI
-migration. It builds on the [Rust migration research](rust-migration-research.md)
-and its separate [UI migration notes](rust-migration-roadmap.md).
+migration. Current frontend ownership and the no-cutover boundary are recorded
+in [current architecture and validation](architecture.md) and the
+[repository cleanup inventory](repository-cleanup.md).
 
 ## App context
 

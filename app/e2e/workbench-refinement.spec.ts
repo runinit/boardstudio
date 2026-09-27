@@ -155,6 +155,7 @@ test('generated overlays track rotation, mirroring, stagger and disabled slots',
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await configureMatrix(page);
   await page.getByRole('button', { name: 'Ghost key, row 1, column 1' }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
@@ -188,13 +189,13 @@ for (const theme of ['light', 'dark'] as const) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Inspect', exact: true }).click();
     await expect(page.getByRole('button', { name: /^Select:/ })).toBeVisible();
-    await page.getByRole('button', { name: 'Objects', exact: true }).click();
+    await page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true }).click();
     await page.getByRole('button', { name: 'Add object', exact: true }).click();
     await expect(page.getByRole('searchbox', { name: 'Search parts' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: 'Add', exact: true })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Objects', exact: true }).click();
+    await page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true }).click();
     await chooseScope(page, 'key');
     await page.getByRole('button', { name: 'Inspect', exact: true }).click();
     await page.getByRole('button', { name: /^SW1, MX switch/ }).click();

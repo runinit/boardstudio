@@ -22,14 +22,14 @@ type RendererInstance = {
   free(): void;
 };
 
-export type ModelMesh = {
+type ModelMesh = {
   positions: Float32Array;
   normals: Float32Array;
   colors?: Float32Array;
 };
 
-export type RendererState = { hidden: string[]; selectedLayer: string; view: string; mode: 'shaded' | 'wireframe' | 'hybrid'; theme: string };
-export type ObjectDrag = { start(id: string): number | undefined; move(point: { x: number; y: number }): void; end(cancelled: boolean): void };
+type RendererState = { hidden: string[]; selectedLayer: string; view: string; mode: 'shaded' | 'wireframe' | 'hybrid'; theme: string };
+type ObjectDrag = { start(id: string): number | undefined; move(point: { x: number; y: number }): void; end(cancelled: boolean): void };
 export type RendererCanvas = {
   setScene(scene: unknown): Promise<boolean>;
   setState(state: RendererState): void;

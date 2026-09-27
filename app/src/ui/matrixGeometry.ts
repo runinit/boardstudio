@@ -1,5 +1,5 @@
 import type { MatrixScene } from '@boardstudio/v2-contracts';
-export type { MatrixScene, MatrixColumnBasis } from '@boardstudio/v2-contracts';
+export type { MatrixScene } from '@boardstudio/v2-contracts';
 
 export function matrixSceneAdapter(scene: MatrixScene | undefined) {
   const cells = new Map((scene?.cells ?? []).map((cell) => [`${cell.row}:${cell.column}`, cell]));

@@ -250,14 +250,10 @@ The working character is calm, precise, and restrained: small controls, aligned 
 - Fixed canvas controls and independently scrolling side panels.
 - Light and dark palettes with a persisted System option.
 
-This document captures the working tree on 2026-09-24, based on revision
-`7703d27`, including the locally implemented unified workbench shell and inspector edits. The main sources
-are [workspace styles](app/src/ui/workbench.css),
-[inspector styles](app/src/ui/inspector.css), and
-[footprint workspace styles](app/src/ui/library-workspace.css).
-The review originals in `app/.impeccable/review/` support the desktop and narrow
-layout description; current source supplies the token values. The latest
-visual review also records the dark unified composition.
+The September 2026 cleanup preserves the unified workbench shell and its visual
+identity. Shell ownership is split by responsibility: [base workbench styles](app/src/ui/workbench.css) own tokens, controls, canvas and geometry; [unified shell styles](app/src/ui/unified-workbench.css) own the page hierarchy and grid; [panel behavior styles](app/src/ui/workspace-panels.css) own dock modes, rails, drawers, and scrims; [inspector styles](app/src/ui/inspector.css) own inspector content rhythm and field roles; and [setup guide styles](app/src/ui/setup-guide.css) own the optional left-panel guide. The [footprint workspace styles](app/src/ui/library-workspace.css) remain scoped to the footprint library.
+Exploratory review images are local artifacts; current source supplies the
+implemented layout and token values.
 
 ## Colors
 
@@ -310,7 +306,7 @@ sidecar together when the implementation's palette changes.
 
 **The Geometry Role Rule.** Keep canvas, board, key, pad, and selection roles separate from shell surfaces and status roles.
 
-[CasePreview](app/src/ui/CasePreview.tsx) uses a transparent WebGL background
+[AssemblyScene](app/src/ui/AssemblyScene.tsx) uses a transparent WebGL background
 over the shared canvas token, with board, key, and part geometry colors on
 its materials. Lighting remains specific to the 3D scene, so shaded materials
 are not flat swatches of those colors.
@@ -390,6 +386,22 @@ pointer presence, keyboard focus, and resizing prevent dismissal. Reveals use
 a short slide, removed under reduced motion. Narrow screens use explicit drawers
 opened from the header instead of hover behavior. Resizing supports pointer
 dragging and arrow keys. Add opens a create view within the Objects panel.
+
+The optional setup guide occupies the left panel alongside Objects navigation.
+Its Guide and Objects controls are native buttons with a 44px compact target;
+the current-step list is one bounded scrolling region and uses the same panel
+surface, rules, typography, and selection tokens as Objects. SetupGuide uses
+`is-current` and `is-ready` step states, with marker and accent treatment rather
+than nested cards. On narrow widths it follows the same left drawer and scrim
+behavior as Objects.
+
+The guide opens automatically after a new project is saved successfully. Its
+steps are Project & hardware, Layout & assemblies, Controller & wiring, optional
+Case, and Review & export. Skip guide, Objects, and the Project menu provide
+explicit exit/reentry paths. The open state and selected step are browser
+preferences scoped to the project; completion comes from the current document,
+selected board, wiring, and geometry. Steps remain freely navigable. Existing
+projects retain the ordinary workbench and each exporter remains authoritative.
 
 Recurring spacing uses compact 4px gaps, 8px inline separation, 12px field gaps,
 16px inspector insets, and 20px section endings. These are extracted repeated

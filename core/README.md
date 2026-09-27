@@ -53,6 +53,6 @@ When `diodes: true`, the core requires the `matrix-diode` definition, adds a
 stable row, column, and switch-link nets. This mode requires switch pad IDs
 `one` and `two`, plus diode pad IDs `anode` and `cathode`.
 RGB LED assemblies require pads `vdd`, `gnd`, `din`, and `dout`. The core
-maintains matrix-owned power nets, input/output endpoints, and a row-major
+maintains matrix-owned power nets, input/output endpoints, and deterministic
 DIN/DOUT chain across enabled cells. A `set-matrix` edit may include new
 definitions; registration and placement share one undo step.

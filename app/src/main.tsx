@@ -8,6 +8,7 @@ import type { ContextualCaseResult } from './casePreviewContext';
 import { createProjectActions } from './createProjectActions';
 import { createProjectExporter } from './createProjectExporter';
 import { releaseReviewedConnections } from './electricalHandoff';
+import { isWiringApplied } from './electricalPlanContext';
 import { FirmwareKeymapPanel } from './ui/FirmwareKeymapPanel';
 import { HardwareInstancesPanel } from './ui/HardwareInstancesPanel';
 import { Workbench } from './ui/Workbench';
@@ -20,6 +21,7 @@ function App() {
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [error, setError] = useState('');
   const [embedUsedModels, setEmbedUsedModels] = useState(true);
+  const [setupRequest, setSetupRequest] = useState<{ projectId: string; requestId: string }>();
   const [activeMode, setActiveMode] = useState<'Design' | 'PCB' | 'Case' | 'Library' | 'Export'>('Design');
   const caseClient = useRef<CaseClient | null>(null);
   const exportClient = useRef<ExportClient | null>(null);
@@ -31,9 +33,9 @@ function App() {
 
   const { physicalDocument, physicalScene, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly, cancelGeneration, generateCase } = useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, projectRef, committedScene, client, caseClient, previewCache, activeMode, ready, setError });
 
-  const { edit, history, importProject, newProject, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient });
+  const { edit, history, importProject, newProject, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated: projectId => setSetupRequest({ projectId, requestId: crypto.randomUUID() }) });
 
-  const { setElectricalPlan, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit });
+  const { refreshWiring, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit });
 
   const { exportFile, exportMechanical } = createProjectExporter({ projectRef, committedScene, client, caseClient, exportClient, selectedBoardId, selectedInstance, embedUsedModels, generation, currentPreviewContext, schedule, accept, ensureExportClient, resolveWiring, applyExportWiring });
 
@@ -80,10 +82,12 @@ function App() {
     <Workbench
       saveStatus={saveStatus}
       projectSession={projectSession}
+      setupRequest={setupRequest}
       document={project}
       scene={scene}
       physicalCaseDocument={physicalDocument}
       physicalCaseScene={physicalScene}
+      wiringStatus={{ current: Boolean(activePlan), ready: Boolean(activePlan && !activePlan.diagnostics.some(finding => finding.severity === 'error')), applied: Boolean(activePlan && isWiringApplied(project, activePlan)) }}
       wiring={{
         existingConnections: connectionReview.length ? {
           names: connectionReview.map(net => net.name),
@@ -107,7 +111,7 @@ function App() {
           await accept(await client.current!.request({ id: crypto.randomUUID(), kind: 'review-electrical-remap', baseRevision: projectRef.current.revision, boardId: selectedBoardId, expectedFingerprint: wiringConfiguration.protectedHandoff!.fingerprint }), 'commit');
         }) : undefined,
       }}
-      onResolveWiring={() => { schedule(async () => setElectricalPlan(await resolveWiring())); }}
+      onResolveWiring={() => schedule(refreshWiring)}
       onApplyWiring={activePlan && !activePlan.diagnostics.some(finding => finding.severity === 'error') ? applyWiring : undefined}
       onReviewWiring={assignment => {
         const locks = { ...wiringConfiguration?.locks };

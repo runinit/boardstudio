@@ -8,12 +8,14 @@ async function newProject(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(0);
 }
 
 async function openSetup(page: Page) {
-  if (await page.getByRole('button', { name: 'Objects', exact: true }).isVisible()) {
-    await page.getByRole('button', { name: 'Objects', exact: true }).click();
+  const objects = page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true });
+  if (await objects.isVisible() && await objects.getAttribute('aria-expanded') === 'false') {
+    await page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true }).click();
   }
   await page.getByRole('button', { name: 'Add object', exact: true }).click();
   await page.getByRole('button', { name: 'Mirrored pair…', exact: true }).click();
@@ -114,6 +116,7 @@ test('linked components keep both halves through save, reopen and geometry edits
   expect(saved.document.definitions.find((definition) => definition.id === component.definitionId)?.name).toBe('rotary encoder ec11 ec12');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.locator('.wb-project-file-input').setInputFiles(saved.path);
   await expect(page.locator('.wb-scene-part')).toHaveCount(27);
@@ -152,7 +155,7 @@ test('light setup fits a narrow viewport and retains keyboard cancellation', asy
   await page.screenshot({ path: testInfo.outputPath('light-narrow-pair-setup.png'), animations: 'disabled' });
   await setup.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(setup).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Objects', exact: true })).toBeFocused();
+  await expect(page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true })).toBeFocused();
 });
 
 

@@ -10,7 +10,7 @@ export type WiringAssignment = {
   status?: 'assigned' | 'available' | 'conflict' | 'unresolved';
 };
 
-export type WiringPanelProps = {
+type WiringPanelProps = {
   controller?: { name: string; detail?: string };
   controllerOptions?: { id: string; name: string; detail?: string }[];
   selectedControllerId?: string;

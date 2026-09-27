@@ -1,5 +1,5 @@
 /** Resolution for the read-only models shipped with the Ergogen library. */
-export type BundledModel = { id: string; url: string; filename: string };
+type BundledModel = { id: string; url: string; filename: string };
 
 const modelFiles = import.meta.glob('../../ergogen/library/vendor/*/3d_models/**/*.{step,stp,wrl,stl}', {
   eager: true,

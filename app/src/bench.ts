@@ -72,7 +72,7 @@ function paintedFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
-export async function runOutlineBenchmark(keys: 100 | 200): Promise<{ p50: number; p95: number; samples: number }> {
+async function runOutlineBenchmark(keys: 100 | 200): Promise<{ p50: number; p95: number; samples: number }> {
   const core = new CoreClient();
   const document = fixture(keys);
   const first = await core.request({ id: crypto.randomUUID(), kind: 'open', document });

@@ -28,6 +28,7 @@ export type ExportKind = 'project' | 'kicad' | 'kicad-draft' | 'firmware' | 'foo
 
 export type Props = {
   projectSession?: number;
+  setupRequest?: { projectId: string; requestId: string };
   document: ProjectDoc;
   saveStatus?: 'saving' | 'saved' | 'failed';
   scene: SceneDelta;
@@ -41,6 +42,7 @@ export type Props = {
   physicalCaseDocument?: ProjectDoc;
   physicalCaseScene?: SceneDelta;
   instanceControls?: ReactNode;
+  wiringStatus?: { current: boolean; ready: boolean; applied: boolean };
   wiring?: { existingConnections?: { names: string[]; pinCount: number; onReplace: () => void }; ready?: boolean; firmwareControls?: ReactNode; controller?: { name: string; detail?: string }; controllerOptions?: { id: string; name: string; detail?: string }[]; selectedControllerId?: string; onControllerChange?: (id: string) => void; topology?: string; onTopologyChange?: (topology: 'matrix' | 'direct') => void; assignments?: WiringAssignment[]; usedPins?: string[]; freePins?: string[]; findings?: string[]; onToggleLock?: (assignment: WiringAssignment) => void; onAssignPin?: (assignmentId: string, pin: string) => void; protectedSummary?: string; onReviewRemap?: () => void };
   onResolveWiring?: () => void;
   onApplyWiring?: () => void;

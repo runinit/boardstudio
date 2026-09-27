@@ -12,6 +12,7 @@ import { bundledModels } from '../bundledModels';
 import { sampleAssembly } from './sampleAssembly';
 import { placeAssembly } from './assemblyPlacement';
 import { storePreviewAsset } from './BoardReferencePanel';
+import { attachAssemblyAsset, saveAssembly, updateAssemblyMember, updateAssemblyModel } from './assemblyEditorController';
 const AssemblyViewer = lazy(() =>
   import('./AssemblyViewer').then((m) => ({ default: m.AssemblyViewer })),
 );
@@ -57,10 +58,7 @@ export function AssemblyEditor({
     setSaved(false);
   };
   const update = (id: string, patch: Partial<AssemblyMember>) =>
-    change({
-      ...draft,
-      members: draft.members.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-    });
+    change(updateAssemblyMember(draft, id, patch));
   const prepared = useMemo(() => {
     try {
       const first = definitions.find(
@@ -119,39 +117,23 @@ export function AssemblyEditor({
     }
   }, [document, draft, definitions]);
   const save = () => {
-    if (!draft.name.trim() || !draft.members.length) {
-      setError('Name the assembly and add at least one member');
+    const next = saveAssembly(document, draft, definitions);
+    if (typeof next === 'string') {
+      setError(next);
       return;
     }
-    const needed = new Set(draft.members.map((m) => m.definitionId));
-    const savedDefinitions = [
-      ...document.definitions,
-      ...definitions.filter(
-        (d) =>
-          needed.has(d.id) &&
-          !document.definitions.some((existing) => existing.id === d.id),
-      ),
-    ];
-    onChange({
-      ...document,
-      definitions: savedDefinitions,
-      assemblies: [
-        ...(document.assemblies ?? []).filter((a) => a.id !== draft.id),
-        draft,
-      ],
-    });
+    onChange(next);
     setSaved(true);
   };
   const attach = async (member: AssemblyMember, file: File) => {
     try {
-      if (!/\.(step|stp|stl|wrl)$/i.test(file.name))
-        throw new Error('Choose a STEP, STL, or WRL file');
-      const asset = await storePreviewAsset(file);
-      if (latestDocument.current !== document)
-        throw new Error(
-          'The project changed while importing. Please import the model again.',
-        );
-      onChange({ ...document, assets: [...document.assets, asset] });
+      const { asset, document: nextDocument } = await attachAssemblyAsset(
+        file,
+        () => latestDocument.current,
+        document,
+        storePreviewAsset,
+      );
+      onChange(nextDocument);
       update(member.id, {
         modelMode: 'custom',
         models: [
@@ -173,12 +155,7 @@ export function AssemblyEditor({
     index: number,
     patch: Partial<PartModel>,
   ) =>
-    update(member.id, {
-      modelMode: 'custom',
-      models: member.models.map((m, i) =>
-        i === index ? { ...m, ...patch } : m,
-      ),
-    });
+    change(updateAssemblyModel(draft, member, index, patch));
   return (
     <div className="wb-assembly-editor-layout">
       <div className="wb-assembly-editor">

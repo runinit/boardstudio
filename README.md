@@ -52,11 +52,14 @@ pnpm check
 pnpm test:perf
 ```
 
-`dev` builds the Rust WASM core and starts Vite. `check` runs native core,
+`dev` builds the Rust WASM core and starts Vite. `check` runs repository hygiene, native core,
 KiCad and CAD tests, app unit tests, generated-output and Rust-boundary checks,
 type checking, the app build, and functional Chromium browser tests. Timing-only
 scenarios run separately through `test:perf`. `precommit` prepares WASM and runs
 app and CAD type checks; it is not a substitute for `check`.
+`check:repo` checks authored module reachability, unused exports and runtime
+dependencies, and local documentation links. Its entrypoint exceptions and
+limitations are recorded in [`docs/repository-cleanup.md`](docs/repository-cleanup.md).
 Install Playwright Chromium with `pnpm --dir app exec playwright install
 chromium` if needed. `pnpm test:e2e:pages` checks the production build under
 `/boardstudio/` (also included in `check`). Run the development-server CAD
@@ -124,10 +127,10 @@ action. Imported generator settings are grouped into dimensions, footprint
 options, identification, connections, model placement, and advanced parameters.
 
 Project → Appearance selects System, Light, or Dark and persists locally.
-Keycap overlays follow saved member poses, including old row-major projects,
-while disabled slots retain their parametric frame. Starter metadata uses the
-same negative-Y row direction as its existing switches. Editing early matrices
-retains their existing switch identities and net references.
+Keycap overlays follow the current saved member poses while disabled slots
+retain their parametric frame. Starter metadata uses the same negative-Y row
+direction as its existing switches. Editing a matrix retains its switch
+identities and net references.
 
 ## Current handoff
 
@@ -195,11 +198,10 @@ configuration without changing project formats, footprint identities or exports.
 
 ## Repository maintenance
 
-The former v2 packages are now the root workspaces; the v1 app and compiler
-remain available in Git history. Package names and the project/storage formats
-are unchanged. See [the test audit](docs/test-audit.md) for retained coverage,
-removed duplication, and migration validation. Historical research documents
-record paths and measurements from their original revisions.
+The former v2 packages are now the root workspaces. Package names and the
+project/storage formats are unchanged. See the
+[repository cleanup inventory](docs/repository-cleanup.md) for retained
+coverage decisions and historical documentation dispositions.
 
 The trusted library is a provenance snapshot, including its original maintenance
 scripts. Its nested package is not a workspace: those historical scripts are

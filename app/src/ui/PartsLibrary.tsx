@@ -1,7 +1,7 @@
 import { partChoices, partCatalogSearchText, partCatalogLabel } from './partsCatalog';
 import type { PartDefinition } from '../../../contracts/src/index';
 
-export type AssemblyOption = { id: string; name: string; definitionId: string };
+type AssemblyOption = { id: string; name: string; definitionId: string };
 const categories: [PartDefinition['kind'] | 'utility', string][] = [['switch', 'Switches'], ['controller', 'Controllers'], ['connector', 'Connectors & sockets'], ['encoder', 'Encoders'], ['passive', 'Passives & LEDs'], ['utility', 'Utilities'], ['custom', 'Custom']];
 
 export function PartsLibrary({ definitions, assemblies, query, selected, onSearch, onSelect, onAssembly, onCreate, onImport }: {

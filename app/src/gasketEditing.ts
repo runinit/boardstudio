@@ -4,7 +4,7 @@ export function defaultGasketLayout(): MechanicalGasketLayout {
   return { length: 12, width: 3, thickness: 2, compression: 0.15, supports: [] };
 }
 
-export function projectGasket(point: Vec2, support: MechanicalGasketSupport, tracks: MechanicalGasketTrack[]): MechanicalGasketSupport | undefined {
+function projectGasket(point: Vec2, support: MechanicalGasketSupport, tracks: MechanicalGasketTrack[]): MechanicalGasketSupport | undefined {
   let best: MechanicalGasketSupport | undefined;
   let distance = Infinity;
   for (const track of tracks.filter(track => track.regionId === support.regionId)) {

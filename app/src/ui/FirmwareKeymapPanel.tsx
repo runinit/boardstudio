@@ -1,6 +1,6 @@
 import './firmware-keymap-panel.css';
 
-export type FirmwareKeymapKey = { id: string; label: string };
+type FirmwareKeymapKey = { id: string; label: string };
 
 type Props = {
   keys: FirmwareKeymapKey[];

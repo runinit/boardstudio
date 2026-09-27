@@ -3,8 +3,8 @@ import type { Pad, Part, PartDefinition, Vec2 } from '../../contracts/src/index.
 // @ts-expect-error Generated during prepare:catalog.
 import modules from '../generated/catalogue.mjs';
 
-export type ErgogenValue = string | number | boolean | ErgogenValue[] | { [key: string]: ErgogenValue };
-export type ErgogenParameter = { type: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'net' | 'anchor'; value: ErgogenValue | undefined };
+type ErgogenValue = string | number | boolean | ErgogenValue[] | { [key: string]: ErgogenValue };
+type ErgogenParameter = { type: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'net' | 'anchor'; value: ErgogenValue | undefined };
 type Generator = { params: Record<string, unknown>; body: (context: Record<string, unknown>) => string };
 export type Expression = string | Expression[];
 const generators = modules as Record<string, Generator>;
@@ -344,7 +344,7 @@ export function modelBindings(definition: PartDefinition, part?: Part): NonNulla
 
 function xy(x: number, y: number): string { return `${x} ${y}`; }
 
-export type RenderOptions = {
+type RenderOptions = {
   part?: Part;
   netIndex?: (name: string) => number;
 };

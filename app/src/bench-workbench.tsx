@@ -141,7 +141,7 @@ async function render(root: Root, document: ProjectDoc, scene: SceneDelta, onEdi
   return { layoutAt, paintedAt: performance.now() };
 }
 
-export async function runWorkbenchBenchmark(keys: Size, scope: Scope, captureStages: StageCapture = 'off'): Promise<Measurements> {
+async function runWorkbenchBenchmark(keys: Size, scope: Scope, captureStages: StageCapture = 'off'): Promise<Measurements> {
   const core = new CoreClient();
   const root = createRoot(document.getElementById('root')!);
   const project = fixture(keys);
@@ -235,7 +235,7 @@ function matrixFixture(keys: Size): { project: ProjectDoc; matrix: Matrix } {
   return { project, matrix: prepared.matrix };
 }
 
-export async function runMatrixBenchmark(keys: Size, scope: 'matrix' | 'row' | 'column'): Promise<Measurements> {
+async function runMatrixBenchmark(keys: Size, scope: 'matrix' | 'row' | 'column'): Promise<Measurements> {
   const core = new CoreClient();
   const root = createRoot(document.getElementById('root')!);
   const { project, matrix } = matrixFixture(keys);
@@ -341,7 +341,7 @@ document.addEventListener('pointermove', () => {
   }
 }, true);
 
-export async function preparePointerBenchmark(keys: Size): Promise<{ parts: number }> {
+async function preparePointerBenchmark(keys: Size): Promise<{ parts: number }> {
   closePointer?.();
 
   const core = new CoreClient();
@@ -399,13 +399,13 @@ export async function preparePointerBenchmark(keys: Size): Promise<{ parts: numb
   return { parts: project.parts.length };
 }
 
-export function beginPointerSample(): void {
+function beginPointerSample(): void {
   pointerResult = new Promise<number>((resolve, reject) => {
     pointerSample = { resolve, reject };
   });
 }
 
-export function waitPointerSample(): Promise<number> {
+function waitPointerSample(): Promise<number> {
   if (!pointerResult) {
     throw new Error('No pointer sample was started');
   }
@@ -413,11 +413,11 @@ export function waitPointerSample(): Promise<number> {
   return pointerResult;
 }
 
-export function closePointerBenchmark(): void {
+function closePointerBenchmark(): void {
   closePointer?.();
 }
 
-export function benchmarkDiagnostics() {
+function benchmarkDiagnostics() {
   const memory = performance as Performance & { memory?: { usedJSHeapSize: number } };
   const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
 
@@ -429,7 +429,7 @@ export function benchmarkDiagnostics() {
   };
 }
 
-export function startFrameTrace(): void {
+function startFrameTrace(): void {
   cancelAnimationFrame(frameId);
   frameTimes = [];
 
@@ -441,7 +441,7 @@ export function startFrameTrace(): void {
   frameId = requestAnimationFrame(sample);
 }
 
-export function stopFrameTrace(): { p95GapMs: number; gapsOver50Ms: number } {
+function stopFrameTrace(): { p95GapMs: number; gapsOver50Ms: number } {
   cancelAnimationFrame(frameId);
   const gaps = frameTimes.slice(1).map((time, index) => time - frameTimes[index]);
   return { p95GapMs: gaps.length ? percentiles(gaps).p95 : 0, gapsOver50Ms: gaps.filter((gap) => gap > 50).length };

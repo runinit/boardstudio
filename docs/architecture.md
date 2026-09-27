@@ -1,8 +1,9 @@
 # Current architecture and validation
 
-This describes the repository after the September 2026 cleanup. Migration reports
-and test audits retain their original evidence; their counts are not current
-coverage targets. Packages now live directly at the repository root.
+This describes the repository after the September 2026 cleanup. Superseded
+migration reports are removed; retained research and deletion decisions are
+listed in [the cleanup inventory](repository-cleanup.md). Packages live directly
+at the repository root.
 
 ## App ownership
 
@@ -31,7 +32,11 @@ discards captured work without replaying it into the new document.
 `createCanvasCamera` handles camera actions, and `CanvasObjects` renders geometry.
 `MatrixInspectorPanel`, `CaseInspectorPanel`, and `PartsInspectorPanel` compose
 selection-specific controls through explicit action callbacks. Document mutations
-remain in the workbench and `createLibraryActions`.
+are submitted through the workbench and `createLibraryActions`.
+`createWorkbenchPlacementActions` prepares and commits part, matrix, and mirrored
+pair placement using that same edit path. `createWorkbenchEditActions` holds the
+pure terminal assignment, definition replacement, and constraint builders.
+The workbench retains pointer transactions and projection cancellation.
 
 `planKeycapResize` plans keycap dimensions and neighbour reflow from the current
 document and resolved placements. It maps linked-half selections to canonical
@@ -44,12 +49,27 @@ an isolated preview document; `assemblyPlacement` creates document snapshots.
 `assemblyCatalog` is the preset registry used by recipes and selectors.
 `AssemblyViewer` is the single preview model-loading owner. Export model packaging
 has its own asset resolver because it packages source files rather than meshes.
+`assemblyEditorController` owns immutable member/model changes, assembly saves,
+and asset-import document guards. `MechanicalProfileController` owns asynchronous
+library/stabilizer profile assignment. It rejects responses after a scope change,
+newer mechanical configuration, superseding request, or editor unmount. The
+existing `MechanicalDraft` continues to reconcile queued edits and acknowledgments.
 
 `usePartsEditing` owns generator drafts, asynchronous compilation, preview state,
 and net-preserving saves. Its terminal remapper validates every placed instance
 before changing any cloned nets. Authored and imported parts keep their separate
 editing path. Placement uses one discriminated state for standalone parts, matrices,
 mirrored pairs, and setup; cancellation invalidates pending matrix projections.
+
+`useSetupGuide` persists only the guide's open state and selected step, scoped to
+the project ID in browser preferences. `createProjectActions` requests automatic
+opening only after a new document has been accepted and saved successfully.
+Opening/importing existing projects does not restart the guide. Completion is
+derived by `deriveSetupGuide` from the selected board, current layout, applied
+wiring, and existing case readiness; it is never saved as project data. Guide
+actions use the normal workbench controls and exporters retain their own checks.
+Electrical presentation captures the document object and board as well as the
+revision, so a response from another open project cannot become the active plan.
 
 Case preview race tests exercise `generateCasePreview`, the preparation and CAD
 preview sequence used by `useCaseGeneration`. CAD creation remains lazy until
@@ -113,7 +133,9 @@ changes are part of this removal. TypeScript checks unused locals and parameters
 
 ## Validation entrypoints
 
-- `pnpm check`: contract and generator-catalog drift, runtime imports, native and package tests,
+- `pnpm check:repo`: authored module/export reachability, runtime dependencies,
+  and local documentation links, with fixtures for the scanner itself.
+- `pnpm check`: repository hygiene, contract and generator-catalog drift, runtime imports, native and package tests,
   WASM and production builds, boundary checks, browser tests, and Pages checks.
 - `pnpm precommit`: core/CAD/renderer preparation and app/CAD typechecks.
 - `pnpm test:e2e:dev`: development-server loading regressions.

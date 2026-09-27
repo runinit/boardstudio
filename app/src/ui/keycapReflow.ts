@@ -17,7 +17,7 @@ export type KeycapResize = KeycapPlacement & {
   axisY: Vec2;
 };
 
-export type KeycapOverlap = { first: KeycapPlacement; second: KeycapPlacement };
+type KeycapOverlap = { first: KeycapPlacement; second: KeycapPlacement };
 
 const addDelta = (deltas: Map<string, Vec2>, id: string, delta: Vec2) => {
   const current = deltas.get(id) ?? { x: 0, y: 0 };

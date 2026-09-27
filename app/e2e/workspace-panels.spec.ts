@@ -118,14 +118,14 @@ for (const theme of ['dark', 'light'] as const) {
     await page.setViewportSize({ width: 390, height: 844 });
     const close = page.getByRole('button', { name: 'Close panels', exact: true });
     if (await close.isVisible()) await close.click({ position: { x: 2, y: 100 } });
-    await page.getByRole('button', { name: 'Objects', exact: true }).click();
+    await page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true }).click();
     await expect(page.locator('#wb-inventory')).toHaveAttribute('aria-hidden', 'false');
     await page.getByRole('button', { name: 'Inspect', exact: true }).click();
     await expect(page.locator('#wb-inventory')).toHaveAttribute('aria-hidden', 'true');
     await expect(page.locator('#wb-inspector')).toHaveAttribute('aria-hidden', 'false');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await close.click({ position: { x: 2, y: 100 } });
-    await page.getByRole('button', { name: 'Objects', exact: true }).click();
+    await page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true }).click();
     await page.getByRole('button', { name: 'Add object', exact: true }).click();
     await expect(add).toBeVisible();
     const bounds = (await add.boundingBox())!;
@@ -137,7 +137,7 @@ for (const theme of ['dark', 'light'] as const) {
         await page.keyboard.press('Escape');
         await page.setViewportSize({ width, height: 1000 });
         if (width < 700) {
-          const objects = page.getByRole('button', { name: 'Objects', exact: true });
+          const objects = page.locator('.wb-topbar').getByRole('button', { name: 'Objects', exact: true });
           if (await objects.getAttribute('aria-expanded') === 'false') await objects.click();
         }
         await page.getByRole('button', { name: 'Add object', exact: true }).click();
