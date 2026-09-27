@@ -434,14 +434,39 @@ impl Default for OutlineSettings {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "export-types", ts(optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineControlPoint {
+    pub at: Vec2,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part_id: Option<String>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+pub struct OutlineConnection {
+    pub id: String,
+    pub width: f64,
+    pub points: Vec<OutlineControlPoint>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum OutlineFeature {
     Polygon {
+        #[serde(default, rename = "anchorPartId", skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        anchor_part_id: Option<String>,
         id: String,
         points: Vec<Vec2>,
         operation: Operation,
     },
     Rect {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        rotation: Option<f64>,
+        #[serde(default, rename = "anchorPartId", skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        anchor_part_id: Option<String>,
         id: String,
         center: Vec2,
         size: Vec2,
@@ -449,6 +474,9 @@ pub enum OutlineFeature {
         operation: Operation,
     },
     PartEnvelope {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<OutlineConnection>>", optional))]
+        connections: Vec<OutlineConnection>,
         #[cfg_attr(feature = "export-types", ts(as = "Option<OutlineSettings>", optional))]
         #[serde(default)]
         settings: OutlineSettings,

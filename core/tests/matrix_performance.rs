@@ -60,6 +60,7 @@ fn guided_matrix_preview() {
         vec![pad("vdd"), pad("gnd"), pad("din"), pad("dout")],
     ));
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "edge".into(),
         part_ids: vec![],
         settings: Default::default(),

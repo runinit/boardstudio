@@ -129,3 +129,17 @@ describe('new-project setup entry', () => {
     expect(test.onProjectCreated).not.toHaveBeenCalled();
   });
 });
+
+it('restores the working project when a demo cannot be wired', async () => {
+  const test = harness();
+  const previous = test.projectRef.current;
+  test.request.mockImplementation(async (request: CoreRequest): Promise<CoreReply> => {
+    if (request.kind === 'open') return { kind: 'scene', document: request.document } as CoreReply;
+    return { id: request.id, kind: 'error', message: 'Demo wiring failed' } as CoreReply;
+  });
+  test.actions.openDemo('rgb');
+  await expect(test.run()).rejects.toThrow('Demo wiring failed');
+  expect(test.request).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'open', document: previous }));
+  expect(test.accept).not.toHaveBeenCalled();
+  expect(test.projectRef.current).toBe(previous);
+});

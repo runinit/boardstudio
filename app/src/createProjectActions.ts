@@ -7,6 +7,7 @@ import { ExportClient } from './ExportClient';
 import { updateInstanceMechanical } from './hardwareInstances';
 import { saveAsset, unpackProject } from './storage';
 import { matrixWithPreset } from './ui/matrixPresets';
+import { openKeyboardDemo, type DemoId } from './demos/keyboards';
 
 const ERGOGEN_DEFINITIONS = ergogenCatalogue();
 const MAX_PROJECT_BYTES = 128 * 1024 * 1024;
@@ -99,6 +100,22 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     });
   }
 
+  function openDemo(variant: DemoId): void {
+    schedule(async () => {
+      const core = client.current;
+      if (!core) return;
+      const previous = projectRef.current;
+      try {
+        const reply = await openKeyboardDemo(variant, request => core.request(request));
+        await accept(reply, 'open');
+      } catch (error) {
+        // Demo construction uses the core; restore the working project on failure.
+        await core.request({ id: crypto.randomUUID(), kind: 'open', document: previous });
+        throw error;
+      }
+    });
+  }
+
   function duplicateDesign(matrixId: string, presetId: Parameters<typeof matrixWithPreset>[1], orientation?: Parameters<typeof matrixWithPreset>[2]): void {
     schedule(async () => {
       if (!client.current) {
@@ -112,7 +129,7 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
         throw new Error('Select a matrix to duplicate the design');
       }
 
-      const variant = matrixWithPreset(matrix, presetId, orientation);
+      const variant = matrixWithPreset(matrix, presetId, orientation, original.definitions);
       const document: ProjectDoc = {
         ...structuredClone(original),
         id: crypto.randomUUID(),
@@ -251,5 +268,5 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     });
   }
 
-  return { edit, history, importProject, newProject, duplicateDesign, importPart, importModel };
+  return { edit, history, importProject, newProject, openDemo, duplicateDesign, importPart, importModel };
 }

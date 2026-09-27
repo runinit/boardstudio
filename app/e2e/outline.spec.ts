@@ -88,6 +88,7 @@ test('draws additions and persistent cutouts without duplicate double-click vert
   await clickPoint(page, { x: 4, y: -1 });
   await clickPoint(page, { x: 4, y: -4 });
   await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Remove addition 1' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Draw cutout' }).click();
@@ -96,6 +97,7 @@ test('draws additions and persistent cutouts without duplicate double-click vert
   await clickPoint(page, { x: 11, y: -11 }, true);
   await expect(page.locator('.wb-outline-shape.is-hole')).toHaveCount(1);
   expect(contains(await contours(page), { x: 10, y: -9 })).toBe(false);
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByLabel('Outline margin').fill('5');
   await page.getByLabel('Outline margin').blur();
   await expect(page.locator('.wb-outline-shape.is-hole')).toHaveCount(1);

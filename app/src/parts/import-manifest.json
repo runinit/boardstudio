@@ -1,0 +1,111 @@
+{
+  "formatVersion": 1,
+  "entries": [
+    {
+      "id": "kicad:marbastlib/STAB_MX_2u",
+      "name": "MX PCB stabilizer \u00b7 2u",
+      "kind": "custom",
+      "file": "sources/STAB_MX_2u.kicad_mod",
+      "sha256": "e6dbfefba073f23abe8a003656cee4d54d051cb21535850f3332c651f54c9bfc",
+      "repository": "https://github.com/ebastler/marbastlib",
+      "revision": "6b0a9a73f579e377816d60b58eac2b3252de7868",
+      "sourcePath": "footprints/marbastlib-mx.pretty/STAB_MX_2u.kicad_mod",
+      "license": "CERN-OHL-P-2.0",
+      "licenseFile": "sources/LICENSE",
+      "mechanical": {
+        "plateToPcb": 5,
+        "mappings": [
+          {
+            "kind": "line",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "arc",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "line",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "kind": "arc",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "sourceId": "pad-0-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-1-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-2-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-3-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kicad:marbastlib/STAB_MX_6.25u",
+      "name": "MX PCB stabilizer \u00b7 6.25u",
+      "kind": "custom",
+      "file": "sources/STAB_MX_6.25u.kicad_mod",
+      "sha256": "c0ddbafba01affa537638cd7ddec12c17ec0ea15c1e1436886f0a3d7b67a2d4d",
+      "repository": "https://github.com/ebastler/marbastlib",
+      "revision": "6b0a9a73f579e377816d60b58eac2b3252de7868",
+      "sourcePath": "footprints/marbastlib-mx.pretty/STAB_MX_6.25u.kicad_mod",
+      "license": "CERN-OHL-P-2.0",
+      "licenseFile": "sources/LICENSE",
+      "mechanical": {
+        "plateToPcb": 5,
+        "mappings": [
+          {
+            "kind": "line",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "arc",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "line",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "kind": "arc",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "sourceId": "pad-0-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-1-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-2-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-3-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          }
+        ]
+      }
+    }
+  ]
+}

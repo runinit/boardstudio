@@ -1,0 +1,5208 @@
+{
+  "corne": {
+    "name": "Corne",
+    "split": true,
+    "choc": false,
+    "repository": "https://github.com/foostan/crkbd",
+    "revision": "1f56ad19bf50435666d2d86269726450e3b08eff",
+    "path": "corne-cherry/pcb/corne-cherry.kicad_pcb",
+    "sha256": "25a860dc9c79b08fe19173a2956b163ace871eafeb2d87243318b57d540e1bc7",
+    "licenseFile": "licenses/corne.txt",
+    "keys": [
+      {
+        "reference": "SW4",
+        "x": 77.1075,
+        "y": 28.655,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW3",
+        "x": 58.1075,
+        "y": 31.03,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 96.1075,
+        "y": 31.03,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 115.1075,
+        "y": 33.405,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW1",
+        "x": 20.1075,
+        "y": 35.78,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 39.1075,
+        "y": 35.78,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 77.1075,
+        "y": 47.655,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 58.1075,
+        "y": 50.03,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 96.1075,
+        "y": 50.03,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 115.1075,
+        "y": 52.405,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW7",
+        "x": 20.1075,
+        "y": 54.78,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 39.1075,
+        "y": 54.78,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 77.1075,
+        "y": 66.655,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 58.1075,
+        "y": 69.03,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 96.1075,
+        "y": 69.03,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 115.1075,
+        "y": 71.405,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW13",
+        "x": 20.1075,
+        "y": 73.78,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 39.1075,
+        "y": 73.78,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 86.6075,
+        "y": 88.655,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 107.6075,
+        "y": 91.405,
+        "rotation": -15,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 129.8575,
+        "y": 95.155,
+        "rotation": 60,
+        "width": 1.5
+      }
+    ]
+  },
+  "lily58": {
+    "name": "Lily58",
+    "split": true,
+    "choc": false,
+    "repository": "https://github.com/kata0510/Lily58",
+    "revision": "58c649797c185b7b32b9928d4546665153cfacfd",
+    "path": "Pro/PCB/Lily58_Pro.kicad_pcb",
+    "sha256": "078339300973d987cb5f50bae0221c713f09d7d404fbf40783abe05a3a659615",
+    "licenseFile": "licenses/lily58.txt",
+    "keys": [
+      {
+        "reference": "SW3",
+        "x": 158.6,
+        "y": 46.21,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 139.5,
+        "y": 47.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW4",
+        "x": 177.6,
+        "y": 47.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW1",
+        "x": 120.5,
+        "y": 50,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 196.7,
+        "y": 52.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 215.7,
+        "y": 53.9,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 158.6,
+        "y": 65.3,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 177.6,
+        "y": 66.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 139.5,
+        "y": 66.7,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW7",
+        "x": 120.5,
+        "y": 69.1,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 196.7,
+        "y": 71.3,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 215.7,
+        "y": 72.8,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 158.6,
+        "y": 84.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 139.5,
+        "y": 85.7,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 177.6,
+        "y": 85.7,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW13",
+        "x": 120.5,
+        "y": 88.1,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 196.7,
+        "y": 90.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 215.7,
+        "y": 92,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW25",
+        "x": 101.4,
+        "y": 97.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 158.6,
+        "y": 103.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 139.5,
+        "y": 104.8,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW22",
+        "x": 177.6,
+        "y": 104.8,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 120.5,
+        "y": 107.1,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW23",
+        "x": 196.7,
+        "y": 109.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW24",
+        "x": 215.75,
+        "y": 111,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW28",
+        "x": 149,
+        "y": 123.75,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW29",
+        "x": 168.1,
+        "y": 123.75,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW27",
+        "x": 130,
+        "y": 126,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW26",
+        "x": 105,
+        "y": 127,
+        "rotation": -60,
+        "width": 1
+      }
+    ]
+  },
+  "sweep": {
+    "name": "Ferris Sweep",
+    "split": true,
+    "choc": true,
+    "repository": "https://github.com/davidphilipbarr/Sweep",
+    "revision": "8ba72a256d627567660ecc0b6f51bb18fa8badb5",
+    "path": "Sweep v2.2/sweepv2.kicad_pcb",
+    "sha256": "efb6f443e0062d38ddb2a0fcf4d05a032eb11ac84d0fb6adff2244dc1b580bb3",
+    "licenseFile": "licenses/sweep.txt",
+    "keys": [
+      {
+        "reference": "SW4",
+        "x": 175.856,
+        "y": 30.382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 193.856,
+        "y": 35.882,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW3",
+        "x": 157.856,
+        "y": 37.382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 211.856,
+        "y": 38.382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 175.856,
+        "y": 47.498,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 139.856,
+        "y": 49.382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 193.856,
+        "y": 52.832,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 157.856,
+        "y": 54.356,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 211.836,
+        "y": 55.372,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 175.856,
+        "y": 64.516,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 139.856,
+        "y": 66.382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 193.856,
+        "y": 69.85,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 157.856,
+        "y": 71.374,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 211.836,
+        "y": 72.39,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 139.856,
+        "y": 83.382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 203.826,
+        "y": 90.082,
+        "rotation": -15,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 222.386,
+        "y": 98.082,
+        "rotation": -30,
+        "width": 1
+      }
+    ]
+  },
+  "chocofi": {
+    "name": "Chocofi",
+    "split": true,
+    "choc": true,
+    "repository": "https://github.com/pashutk/chocofi",
+    "revision": "273676d11b06785fb5a1a94860a39fc36c38baba",
+    "path": "pcb/chocofi.kicad_pcb",
+    "sha256": "1e8f65fc5cc3df280c716f6b1d3e730757d445d84b1a809a7a87aea7d593a9fc",
+    "licenseFile": "licenses/chocofi.txt",
+    "keys": [
+      {
+        "reference": "SW4",
+        "x": 121.91,
+        "y": 52.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW3",
+        "x": 103.91,
+        "y": 58.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 139.91,
+        "y": 59.02,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 157.91,
+        "y": 61.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 121.91,
+        "y": 69.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 85.91,
+        "y": 70.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 103.91,
+        "y": 75.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 139.91,
+        "y": 76.02,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 157.91,
+        "y": 78.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 121.91,
+        "y": 86.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 85.91,
+        "y": 87.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 103.91,
+        "y": 92.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 139.91,
+        "y": 93.025,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 157.91,
+        "y": 95.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 85.91,
+        "y": 104.4,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 134.01,
+        "y": 112.99,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 154.06,
+        "y": 115.58,
+        "rotation": -15,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 174.66,
+        "y": 118.79,
+        "rotation": 60,
+        "width": 1
+      }
+    ]
+  },
+  "reviung41": {
+    "name": "REVIUNG41",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/gtips/reviung",
+    "revision": "110154f56a292466c993ccd726df4a8772b5e0cf",
+    "path": "reviung41/pcb/ver1.3/reviung41.kicad_pcb",
+    "sha256": "838430da6e53ea10e27541b74c827c47b50e15ded791ca02d24f1a0329f7b111",
+    "licenseFile": "licenses/reviung41.txt",
+    "keys": [
+      {
+        "reference": "SW21",
+        "x": 193.05,
+        "y": 71.67,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW4",
+        "x": 96.39,
+        "y": 71.69,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW22",
+        "x": 212.44,
+        "y": 71.81,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW3",
+        "x": 77.02,
+        "y": 71.83,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW23",
+        "x": 231.81,
+        "y": 71.94,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 57.67,
+        "y": 71.99,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW1",
+        "x": 38.28,
+        "y": 72.1,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW24",
+        "x": 251.15,
+        "y": 72.1,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 174.92,
+        "y": 78.41,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 114.54,
+        "y": 78.48,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 132.71,
+        "y": 85.19,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 156.77,
+        "y": 85.19,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW27",
+        "x": 196.34,
+        "y": 90.41,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 93.07,
+        "y": 90.44,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 73.71,
+        "y": 90.55,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW28",
+        "x": 215.77,
+        "y": 90.55,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 54.31,
+        "y": 90.71,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW29",
+        "x": 235.1,
+        "y": 90.71,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW7",
+        "x": 34.95,
+        "y": 90.83,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW30",
+        "x": 254.49,
+        "y": 90.83,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW26",
+        "x": 178.21,
+        "y": 97.18,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 111.22,
+        "y": 97.22,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW25",
+        "x": 160.04,
+        "y": 103.92,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 129.37,
+        "y": 103.94,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 89.75462,
+        "y": 109.198371,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW33",
+        "x": 199.67,
+        "y": 109.21,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW34",
+        "x": 219.06,
+        "y": 109.32,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 70.37,
+        "y": 109.35,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 51.03,
+        "y": 109.46,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW35",
+        "x": 238.41,
+        "y": 109.48,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW13",
+        "x": 31.63,
+        "y": 109.62,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW36",
+        "x": 257.78,
+        "y": 109.62,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW32",
+        "x": 181.52,
+        "y": 115.93,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 107.91,
+        "y": 115.95,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW31",
+        "x": 163.39,
+        "y": 122.69,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 126.06,
+        "y": 122.71,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW41",
+        "x": 204.77,
+        "y": 130.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW37",
+        "x": 84.53,
+        "y": 130.57,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW40",
+        "x": 180.03,
+        "y": 141.71,
+        "rotation": 15,
+        "width": 1
+      },
+      {
+        "reference": "SW38",
+        "x": 109.302261,
+        "y": 141.714882,
+        "rotation": -15,
+        "width": 1
+      },
+      {
+        "reference": "SW39",
+        "x": 144.72,
+        "y": 145,
+        "rotation": 0,
+        "width": 2
+      }
+    ]
+  },
+  "totem": {
+    "name": "TOTEM",
+    "split": true,
+    "choc": true,
+    "repository": "https://github.com/GEIGEIGEIST/TOTEM",
+    "revision": "410e566dd47466c0b69279f0d4b3646998c663d4",
+    "path": "PCB/totem_0-3/totem_0_3.kicad_pcb",
+    "sha256": "24d24a6ebd93a1008745b08eee5886e577f228f358219a5f313152f3a4e1d0be",
+    "licenseFile": "licenses/totem.txt",
+    "keys": [
+      {
+        "reference": "SWL3",
+        "x": 85.129229,
+        "y": 54.167968,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL4",
+        "x": 103.129241,
+        "y": 62.604447,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL2",
+        "x": 64.530814,
+        "y": 64.446731,
+        "rotation": 4,
+        "width": 1
+      },
+      {
+        "reference": "SWL5",
+        "x": 121.129205,
+        "y": 65.324549,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL8",
+        "x": 85.129229,
+        "y": 71.168188,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL9",
+        "x": 103.129241,
+        "y": 79.604667,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL1",
+        "x": 44.350509,
+        "y": 79.997401,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SWL7",
+        "x": 65.71669,
+        "y": 81.405539,
+        "rotation": 4,
+        "width": 1
+      },
+      {
+        "reference": "SWL10",
+        "x": 121.129205,
+        "y": 82.324769,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL13",
+        "x": 85.129229,
+        "y": 88.168408,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL14",
+        "x": 103.129241,
+        "y": 96.604887,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL6",
+        "x": 47.302565,
+        "y": 96.739348,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SWL12",
+        "x": 66.902565,
+        "y": 98.364348,
+        "rotation": 4,
+        "width": 1
+      },
+      {
+        "reference": "SWL15",
+        "x": 121.129205,
+        "y": 99.324989,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL16",
+        "x": 31.152565,
+        "y": 109.089348,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SWL11",
+        "x": 50.254623,
+        "y": 113.481299,
+        "rotation": 10,
+        "width": 1
+      },
+      {
+        "reference": "SWL17",
+        "x": 98.103165,
+        "y": 117.314348,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SWL18",
+        "x": 118.027565,
+        "y": 120.089348,
+        "rotation": -15,
+        "width": 1
+      },
+      {
+        "reference": "SWL19",
+        "x": 136.477565,
+        "y": 127.764348,
+        "rotation": -30,
+        "width": 1
+      }
+    ]
+  },
+  "klor": {
+    "name": "KLOR",
+    "split": true,
+    "choc": false,
+    "repository": "https://github.com/GEIGEIGEIST/KLOR",
+    "revision": "e2f9c2cde5200189e57c4f89eeff90686cc359fe",
+    "path": "PCB/klor1_3/klor1_3.kicad_pcb",
+    "sha256": "4955cae6514bbd91c52e26a32a3b8930c4e71bbc3d18698a8dbcf5bf94d9996a",
+    "licenseFile": "licenses/klor.txt",
+    "keys": [
+      {
+        "reference": "SW3",
+        "x": 159.111399,
+        "y": 59.602664,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 140.061399,
+        "y": 68.602664,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW4",
+        "x": 180.883028,
+        "y": 70.026882,
+        "rotation": -4,
+        "width": 1
+      },
+      {
+        "reference": "SW1",
+        "x": 121.067969,
+        "y": 71.602664,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 159.111399,
+        "y": 78.67526,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 202.703987,
+        "y": 84.524715,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW7",
+        "x": 140.061399,
+        "y": 87.67526,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 179.552591,
+        "y": 89.053017,
+        "rotation": -4,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 121.067969,
+        "y": 90.67526,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 159.111399,
+        "y": 97.747857,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 218.994302,
+        "y": 101.686825,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 199.392065,
+        "y": 103.307554,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW13",
+        "x": 140.061399,
+        "y": 106.747857,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 178.222154,
+        "y": 108.079154,
+        "rotation": -4,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 121.067969,
+        "y": 109.747857,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 215.682381,
+        "y": 120.469666,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 196.080143,
+        "y": 122.090396,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "SW22",
+        "x": 143.011399,
+        "y": 128.697857,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 121.897154,
+        "y": 131.578941,
+        "rotation": 15,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 102.247154,
+        "y": 139.831736,
+        "rotation": 30,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 85.372154,
+        "y": 152.89383,
+        "rotation": 45,
+        "width": 1
+      }
+    ]
+  },
+  "cantor": {
+    "name": "Cantor",
+    "split": true,
+    "choc": true,
+    "repository": "https://github.com/diepala/cantor",
+    "revision": "13f8bc03bb8a894c7c2871ae64845d5ef927c328",
+    "path": "Cantor_Classic/keyboard_pcb.kicad_pcb",
+    "sha256": "c20140c589c1ef393db769f83cfb69a4c94c137528d758de38a88a4fe17b6373",
+    "licenseFile": "licenses/cantor.txt",
+    "keys": [
+      {
+        "reference": "K03",
+        "x": 128,
+        "y": 53,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K02",
+        "x": 110,
+        "y": 58,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K04",
+        "x": 146,
+        "y": 58,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K05",
+        "x": 164,
+        "y": 60,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K00",
+        "x": 74,
+        "y": 70,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K01",
+        "x": 92,
+        "y": 70,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K13",
+        "x": 128,
+        "y": 70,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K12",
+        "x": 110,
+        "y": 75,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K14",
+        "x": 146,
+        "y": 75,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K15",
+        "x": 164,
+        "y": 77,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K10",
+        "x": 74,
+        "y": 87,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K11",
+        "x": 92,
+        "y": 87,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K23",
+        "x": 128,
+        "y": 87,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K22",
+        "x": 110,
+        "y": 92,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K24",
+        "x": 146,
+        "y": 92,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K25",
+        "x": 164,
+        "y": 94,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K20",
+        "x": 74,
+        "y": 104,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K21",
+        "x": 92,
+        "y": 104,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "K30",
+        "x": 141,
+        "y": 113,
+        "rotation": 5,
+        "width": 1
+      },
+      {
+        "reference": "K31",
+        "x": 163,
+        "y": 114,
+        "rotation": -10,
+        "width": 1
+      },
+      {
+        "reference": "K32",
+        "x": 184,
+        "y": 121,
+        "rotation": -25,
+        "width": 1
+      }
+    ]
+  },
+  "gh60": {
+    "name": "GH60 · ANSI",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/komar007/gh60",
+    "revision": "e7948cf44dbd3d43eb70296023a6fe3f471b44ba",
+    "path": "keyboard.kicad_pcb",
+    "sha256": "a99aafb9f1ca77c5cac67037d161fa849b9b200de5dec9f63964520af3ff3daf",
+    "licenseFile": null,
+    "keys": [
+      {
+        "reference": "S01",
+        "x": 71.4375,
+        "y": 73.81875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S06",
+        "x": 90.4875,
+        "y": 73.81875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S11",
+        "x": 109.5375,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S16",
+        "x": 128.5875,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S21",
+        "x": 147.6375,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S26",
+        "x": 166.6875,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S31",
+        "x": 185.7375,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S36",
+        "x": 204.7875,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S41",
+        "x": 223.8375,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S46",
+        "x": 242.8875,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S51",
+        "x": 261.9375,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S56",
+        "x": 280.9875,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S61",
+        "x": 300.0375,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S66",
+        "x": 328.6125,
+        "y": 73.82002,
+        "rotation": 0,
+        "width": 2
+      },
+      {
+        "reference": "S67",
+        "x": 333.375,
+        "y": 92.86875,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "S02",
+        "x": 76.2,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "S07",
+        "x": 100.0125,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S12",
+        "x": 119.0625,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S17",
+        "x": 138.1125,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S22",
+        "x": 157.1625,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S27",
+        "x": 176.2125,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S32",
+        "x": 195.2625,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S37",
+        "x": 214.3125,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S42",
+        "x": 233.3625,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S47",
+        "x": 252.4125,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S52",
+        "x": 271.4625,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S57",
+        "x": 290.5125,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S62",
+        "x": 309.5625,
+        "y": 92.87002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S68",
+        "x": 326.23125,
+        "y": 111.91875,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "S03",
+        "x": 78.58252,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1.75
+      },
+      {
+        "reference": "S08",
+        "x": 104.775,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S13",
+        "x": 123.825,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S18",
+        "x": 142.875,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S23",
+        "x": 161.925,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S28",
+        "x": 180.975,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S33",
+        "x": 200.025,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S38",
+        "x": 219.075,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S43",
+        "x": 238.125,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S48",
+        "x": 257.175,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S53",
+        "x": 276.225,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S58",
+        "x": 295.275,
+        "y": 111.92002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S04",
+        "x": 83.34375,
+        "y": 130.96875,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "S14",
+        "x": 114.3,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S19",
+        "x": 133.35,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S24",
+        "x": 152.4,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S29",
+        "x": 171.45,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S34",
+        "x": 190.5,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S39",
+        "x": 209.55,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S44",
+        "x": 228.6,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S49",
+        "x": 247.65,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S54",
+        "x": 266.7,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S59",
+        "x": 285.75,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "S69",
+        "x": 321.47002,
+        "y": 130.97002,
+        "rotation": 0,
+        "width": 2.75
+      },
+      {
+        "reference": "S05",
+        "x": 73.81875,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "S10",
+        "x": 97.63125,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "S15",
+        "x": 121.44375,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "S30",
+        "x": 192.88125,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 6.25
+      },
+      {
+        "reference": "S55",
+        "x": 264.31875,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "S60",
+        "x": 288.13125,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "S65",
+        "x": 311.94375,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "S70",
+        "x": 335.75625,
+        "y": 150.01875,
+        "rotation": 0,
+        "width": 1.25
+      }
+    ]
+  },
+  "discipline": {
+    "name": "Discipline · ANSI",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/coseyfannitutti/discipline",
+    "revision": "f3b887110dab14ada007cea96483e4f3e65ca78c",
+    "path": "discipline-pcb.kicad_pcb",
+    "sha256": "1fb4e0691fd960440c3bbffb53d03528750075b75b8363f7f0ea90fafb045910",
+    "licenseFile": "licenses/discipline.txt",
+    "keys": [
+      {
+        "reference": "SW1",
+        "x": 65.88125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 84.93125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW3",
+        "x": 103.98125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW4",
+        "x": 123.03125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 142.08125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 161.13125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW7",
+        "x": 180.18125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 199.23125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 218.28125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 237.33125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 256.38125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 275.43125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW13",
+        "x": 294.48125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 323.05625,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 2
+      },
+      {
+        "reference": "SW15",
+        "x": 351.63125,
+        "y": 89.69375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 70.64375,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "SW17",
+        "x": 94.45625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 113.50625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 132.55625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 151.60625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 170.65625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW22",
+        "x": 189.70625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW23",
+        "x": 208.75625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW24",
+        "x": 227.80625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW25",
+        "x": 246.85625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW26",
+        "x": 265.90625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW27",
+        "x": 284.95625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW28",
+        "x": 304.00625,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW29",
+        "x": 327.81825,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "SW30",
+        "x": 351.63125,
+        "y": 108.74375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW31",
+        "x": 73.02505,
+        "y": 127.78362,
+        "rotation": 0,
+        "width": 1.75
+      },
+      {
+        "reference": "SW32",
+        "x": 99.21875,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW33",
+        "x": 118.26875,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW34",
+        "x": 137.31875,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW35",
+        "x": 156.36825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW36",
+        "x": 175.41825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW37",
+        "x": 194.46825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW38",
+        "x": 213.51825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW39",
+        "x": 232.56825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW40",
+        "x": 251.61825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW41",
+        "x": 270.66825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW42",
+        "x": 289.71825,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW43",
+        "x": 320.67525,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "SW44",
+        "x": 351.63125,
+        "y": 127.79375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW45",
+        "x": 77.78745,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "SW46",
+        "x": 108.74375,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW47",
+        "x": 127.79375,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW48",
+        "x": 146.84375,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW49",
+        "x": 165.89425,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW50",
+        "x": 184.94425,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW51",
+        "x": 203.99425,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW52",
+        "x": 223.04425,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW53",
+        "x": 242.09425,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW54",
+        "x": 261.14425,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW55",
+        "x": 280.19425,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW56",
+        "x": 306.38725,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1.75
+      },
+      {
+        "reference": "SW57",
+        "x": 332.58125,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW58",
+        "x": 351.63125,
+        "y": 146.84375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW59",
+        "x": 68.26245,
+        "y": 165.88362,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW61",
+        "x": 115.88745,
+        "y": 165.88362,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW63",
+        "x": 256.410884,
+        "y": 165.88362,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW68",
+        "x": 294.521528,
+        "y": 165.88362,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW60",
+        "x": 92.07505,
+        "y": 165.89375,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW62",
+        "x": 187.32525,
+        "y": 165.89375,
+        "rotation": 0,
+        "width": 6.25
+      },
+      {
+        "reference": "SW64",
+        "x": 275.466206,
+        "y": 165.89375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW65",
+        "x": 313.53125,
+        "y": 165.89375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW66",
+        "x": 332.58125,
+        "y": 165.89375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW67",
+        "x": 351.63125,
+        "y": 165.89375,
+        "rotation": 0,
+        "width": 1
+      }
+    ]
+  },
+  "mysterium": {
+    "name": "Mysterium · ANSI",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/coseyfannitutti/mysterium",
+    "revision": "5e5ab18d8d9608759e5f50ad9e62fc7329271551",
+    "path": "mysterium-pcb.kicad_pcb",
+    "sha256": "dee1f0f51fdf5ebf93690aee18d2e1bd6d435ad0588a80b0d23e7e0a75e031a1",
+    "licenseFile": "licenses/mysterium.txt",
+    "keys": [
+      {
+        "reference": "SW0",
+        "x": 49.2125,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW1",
+        "x": 87.3125,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 106.3625,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW3",
+        "x": 125.4125,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW4",
+        "x": 144.4625,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 173.0375,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 192.0875,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW7",
+        "x": 211.1375,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 230.1875,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 258.7625,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 277.8125,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 296.8625,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 315.9125,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW13",
+        "x": 339.725,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 358.775,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 377.825,
+        "y": 87.3125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 49.2125,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 68.2625,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 87.3125,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 106.3625,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 125.4125,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 144.4625,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW22",
+        "x": 163.5125,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW23",
+        "x": 182.5625,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW24",
+        "x": 201.6125,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW25",
+        "x": 220.6625,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW26",
+        "x": 239.7125,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW27",
+        "x": 258.7625,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW28",
+        "x": 277.8125,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW29",
+        "x": 306.3875,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 2
+      },
+      {
+        "reference": "SW30",
+        "x": 339.725,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW31",
+        "x": 358.775,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW32",
+        "x": 377.825,
+        "y": 111.125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW33",
+        "x": 53.975,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "SW34",
+        "x": 77.7875,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW35",
+        "x": 96.8375,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW36",
+        "x": 115.8875,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW37",
+        "x": 134.9375,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW38",
+        "x": 153.9875,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW39",
+        "x": 173.0375,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW40",
+        "x": 192.0875,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW41",
+        "x": 211.1375,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW42",
+        "x": 230.1875,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW43",
+        "x": 249.2375,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW44",
+        "x": 268.2875,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW45",
+        "x": 287.3375,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW46",
+        "x": 311.15,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "SW47",
+        "x": 339.725,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW48",
+        "x": 358.775,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW49",
+        "x": 377.825,
+        "y": 130.175,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW50",
+        "x": 56.35625,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1.75
+      },
+      {
+        "reference": "SW52",
+        "x": 82.55,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW53",
+        "x": 101.6,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW54",
+        "x": 120.65,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW55",
+        "x": 139.7,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW56",
+        "x": 158.75,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW57",
+        "x": 177.8,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW58",
+        "x": 196.85,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW59",
+        "x": 215.9,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW60",
+        "x": 234.95,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW61",
+        "x": 254,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW62",
+        "x": 273.05,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW63",
+        "x": 304.00625,
+        "y": 149.225,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "SW64",
+        "x": 61.11875,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "SW65",
+        "x": 92.075,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW66",
+        "x": 111.125,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW67",
+        "x": 130.175,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW68",
+        "x": 149.225,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW69",
+        "x": 168.275,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW70",
+        "x": 187.325,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW71",
+        "x": 206.375,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW72",
+        "x": 225.425,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW73",
+        "x": 244.475,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW74",
+        "x": 263.525,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW76",
+        "x": 358.775,
+        "y": 168.275,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW75",
+        "x": 299.24375,
+        "y": 168.28135,
+        "rotation": 0,
+        "width": 2.75
+      },
+      {
+        "reference": "SW78",
+        "x": 51.59375,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW79",
+        "x": 75.40625,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW82",
+        "x": 99.21875,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW83",
+        "x": 170.65625,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 6.25
+      },
+      {
+        "reference": "SW85",
+        "x": 242.09375,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW87",
+        "x": 265.90625,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW88",
+        "x": 289.71875,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW91",
+        "x": 313.53125,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SW92",
+        "x": 339.725,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW93",
+        "x": 358.775,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW94",
+        "x": 377.825,
+        "y": 187.325,
+        "rotation": 0,
+        "width": 1
+      }
+    ]
+  },
+  "voyager97": {
+    "name": "Voyager97 · 103-key layout",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/ai03-2725/Voyager97",
+    "revision": "aeac27a54ba86cc2a9e4d39020b22787abfee641",
+    "path": "Voyager97.kicad_pcb",
+    "sha256": "f251f9108bf8ddfec790c8cea96a7e35d3fd2599873968f8dbd5b7c9ef0d323a",
+    "licenseFile": "licenses/voyager97.txt",
+    "keys": [
+      {
+        "reference": "MX_ESC1",
+        "x": 41.275,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN1",
+        "x": 69.85,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN2",
+        "x": 88.9,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN3",
+        "x": 107.95,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN4",
+        "x": 127,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN5",
+        "x": 155.575,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN6",
+        "x": 174.625,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN7",
+        "x": 193.675,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN8",
+        "x": 212.725,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN9",
+        "x": 241.3,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN10",
+        "x": 260.35,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN11",
+        "x": 279.4,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN12",
+        "x": 298.45,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_RESET1",
+        "x": 327.025,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM1",
+        "x": 355.6,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM2",
+        "x": 374.65,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM3",
+        "x": 393.7,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM24",
+        "x": 412.75,
+        "y": 33.3375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_`1",
+        "x": 41.275,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#1",
+        "x": 60.325,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#2",
+        "x": 79.375,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#3",
+        "x": 98.425,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#4",
+        "x": 117.475,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#5",
+        "x": 136.525,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#6",
+        "x": 155.575,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#7",
+        "x": 174.625,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#8",
+        "x": 193.675,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#9",
+        "x": 212.725,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#0_1",
+        "x": 231.775,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_-1",
+        "x": 250.825,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_=1",
+        "x": 269.875,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "BS1-1",
+        "x": 298.45,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 2
+      },
+      {
+        "reference": "MX_EX1",
+        "x": 327.025,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM4",
+        "x": 355.6,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM5",
+        "x": 374.65,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM6",
+        "x": 393.7,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM7",
+        "x": 412.75,
+        "y": 61.9125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_TAB1",
+        "x": 46.0375,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "MX_Q1",
+        "x": 69.85,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_W1",
+        "x": 88.9,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_E1",
+        "x": 107.95,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_R1",
+        "x": 127,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_T1",
+        "x": 146.05,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_Y1",
+        "x": 165.1,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_U1",
+        "x": 184.15,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_I1",
+        "x": 203.2,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_O1",
+        "x": 222.25,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_P1",
+        "x": 241.3,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_[1",
+        "x": 260.35,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_]1",
+        "x": 279.4,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_\\1",
+        "x": 303.2125,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "MX_EX2",
+        "x": 327.025,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM8",
+        "x": 355.6,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM9",
+        "x": 374.65,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM10",
+        "x": 393.7,
+        "y": 80.9625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUMEXT2",
+        "x": 412.75,
+        "y": 90.4875,
+        "rotation": -90,
+        "width": 2
+      },
+      {
+        "reference": "CL1-1",
+        "x": 48.41875,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1.75
+      },
+      {
+        "reference": "MX_A1",
+        "x": 74.6125,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_S1",
+        "x": 93.6625,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_D1",
+        "x": 112.7125,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_F1",
+        "x": 131.7625,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_G1",
+        "x": 150.8125,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_H1",
+        "x": 169.8625,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_J1",
+        "x": 188.9125,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_K1",
+        "x": 207.9625,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_L1",
+        "x": 227.0125,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_;1",
+        "x": 246.0625,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_'1",
+        "x": 265.1125,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_RETURN1",
+        "x": 296.06875,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "MX_EX3",
+        "x": 327.025,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM12",
+        "x": 355.6,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM13",
+        "x": 374.65,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM14",
+        "x": 393.7,
+        "y": 100.0125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "LS1-1",
+        "x": 53.18125,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "MX_Z1",
+        "x": 84.1375,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_X1",
+        "x": 103.1875,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_C1",
+        "x": 122.2375,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_V1",
+        "x": 141.2875,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_B1",
+        "x": 160.3375,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_N1",
+        "x": 179.3875,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_M1",
+        "x": 198.4375,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_,1",
+        "x": 217.4875,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_.1",
+        "x": 236.5375,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_/1",
+        "x": 255.5875,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_RSHIFT1",
+        "x": 281.78125,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1.75
+      },
+      {
+        "reference": "MX_UP1",
+        "x": 307.975,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_EX4",
+        "x": 327.025,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM16",
+        "x": 355.6,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM17",
+        "x": 374.65,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM18",
+        "x": 393.7,
+        "y": 119.0625,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUMEXT4",
+        "x": 412.75,
+        "y": 128.5875,
+        "rotation": -90,
+        "width": 2
+      },
+      {
+        "reference": "LM1-1",
+        "x": 43.65625,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "LM2-1",
+        "x": 67.46875,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "LM3-1",
+        "x": 91.28125,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "SP1",
+        "x": 162.71875,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 6.25
+      },
+      {
+        "reference": "RM1-1",
+        "x": 231.775,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "RM2-1",
+        "x": 250.825,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "RM3-1",
+        "x": 269.875,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_LEFT1",
+        "x": 288.925,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_DOWN1",
+        "x": 307.975,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_RIGHT1",
+        "x": 327.025,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUMEXT5",
+        "x": 365.125,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 2
+      },
+      {
+        "reference": "MX_NUM22",
+        "x": 393.7,
+        "y": 138.1125,
+        "rotation": 0,
+        "width": 1
+      }
+    ]
+  },
+  "voyager104": {
+    "name": "Voyager104 · ANSI",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/ai03-2725/Voyager104",
+    "revision": "0d2180bbcf49532f56c3e6bc3b5fcd9d44128fb1",
+    "path": "Voyager104.kicad_pcb",
+    "sha256": "2e3560c90f4df074ffef28bce7bc6b34946cfbdd1985dd2d611d4070e4e18a06",
+    "licenseFile": "licenses/voyager104.txt",
+    "keys": [
+      {
+        "reference": "MX_ESC1",
+        "x": 47.625,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN1",
+        "x": 85.725,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN2",
+        "x": 104.775,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN3",
+        "x": 123.825,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN4",
+        "x": 142.875,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN5",
+        "x": 171.45,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN6",
+        "x": 190.5,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN7",
+        "x": 209.55,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN8",
+        "x": 228.6,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN9",
+        "x": 257.175,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN10",
+        "x": 276.225,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN11",
+        "x": 295.275,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_FN12",
+        "x": 314.325,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_PRINT1",
+        "x": 338.1375,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_SLOCK1",
+        "x": 357.1875,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_PAUSE1",
+        "x": 376.2375,
+        "y": 39.6875,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_`1",
+        "x": 47.625,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#1",
+        "x": 66.675,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#2",
+        "x": 85.725,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#3",
+        "x": 104.775,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#4",
+        "x": 123.825,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#5",
+        "x": 142.875,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#6",
+        "x": 161.925,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#7",
+        "x": 180.975,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#8",
+        "x": 200.025,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#9",
+        "x": 219.075,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_#0_1",
+        "x": 238.125,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_-1",
+        "x": 257.175,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_=1",
+        "x": 276.225,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_BACK1",
+        "x": 304.8,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 2
+      },
+      {
+        "reference": "MX_INS1",
+        "x": 338.1375,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_HOME1",
+        "x": 357.1875,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_PGUP1",
+        "x": 376.2375,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM5",
+        "x": 400.05,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM6",
+        "x": 419.1,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM7",
+        "x": 438.15,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM8",
+        "x": 457.2,
+        "y": 63.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_TAB1",
+        "x": 52.3875,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "MX_Q1",
+        "x": 76.2,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_W1",
+        "x": 95.25,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_E1",
+        "x": 114.3,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_R1",
+        "x": 133.35,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_T1",
+        "x": 152.4,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_Y1",
+        "x": 171.45,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_U1",
+        "x": 190.5,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_I1",
+        "x": 209.55,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_O1",
+        "x": 228.6,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_P1",
+        "x": 247.65,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_[1",
+        "x": 266.7,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_]1",
+        "x": 285.75,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_\\1",
+        "x": 309.5625,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1.5
+      },
+      {
+        "reference": "MX_DEL1",
+        "x": 338.1375,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_END1",
+        "x": 357.1875,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_PGDN1",
+        "x": 376.2375,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM9",
+        "x": 400.05,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM10",
+        "x": 419.1,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM11",
+        "x": 438.15,
+        "y": 82.55,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM_EX1",
+        "x": 457.2,
+        "y": 92.075,
+        "rotation": -90,
+        "width": 2
+      },
+      {
+        "reference": "MX_CLOCK1",
+        "x": 54.76875,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1.75
+      },
+      {
+        "reference": "MX_A1",
+        "x": 80.9625,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_S1",
+        "x": 100.0125,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_D1",
+        "x": 119.0625,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_F1",
+        "x": 138.1125,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_G1",
+        "x": 157.1625,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_H1",
+        "x": 176.2125,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_J1",
+        "x": 195.2625,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_K1",
+        "x": 214.3125,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_L1",
+        "x": 233.3625,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_;1",
+        "x": 252.4125,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_'1",
+        "x": 271.4625,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_RETURN1",
+        "x": 302.41875,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "MX_NUM13",
+        "x": 400.05,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM14",
+        "x": 419.1,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM15",
+        "x": 438.15,
+        "y": 101.6,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_LSHIFT1",
+        "x": 59.53125,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 2.25
+      },
+      {
+        "reference": "MX_Z1",
+        "x": 90.4875,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_X1",
+        "x": 109.5375,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_C1",
+        "x": 128.5875,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_V1",
+        "x": 147.6375,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_B1",
+        "x": 166.6875,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_N1",
+        "x": 185.7375,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_M1",
+        "x": 204.7875,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_,1",
+        "x": 223.8375,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_.1",
+        "x": 242.8875,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_/1",
+        "x": 261.9375,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_RSHIFT1",
+        "x": 297.65625,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 2.75
+      },
+      {
+        "reference": "MX_UP1",
+        "x": 357.1875,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM17",
+        "x": 400.05,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM18",
+        "x": 419.1,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM19",
+        "x": 438.15,
+        "y": 120.65,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM_EX2",
+        "x": 457.2,
+        "y": 130.175,
+        "rotation": -90,
+        "width": 2
+      },
+      {
+        "reference": "MX_LCTRL1",
+        "x": 50.00625,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "MX_LGUI1",
+        "x": 73.81875,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "MX_LALT1",
+        "x": 97.63125,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "MX_SP1",
+        "x": 169.06875,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 6.25
+      },
+      {
+        "reference": "MX_RALT1",
+        "x": 240.50625,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "MX_RGUI1",
+        "x": 264.31875,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "MX_RMENU1",
+        "x": 288.13125,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "MX_RCTRL1",
+        "x": 311.94375,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1.25
+      },
+      {
+        "reference": "MX_LFT1",
+        "x": 338.1375,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_DN1",
+        "x": 357.1875,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_RT1",
+        "x": 376.2375,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX_NUM_EX3",
+        "x": 409.575,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 2
+      },
+      {
+        "reference": "MX_NUM23",
+        "x": 438.15,
+        "y": 139.7,
+        "rotation": 0,
+        "width": 1
+      }
+    ]
+  },
+  "plaid": {
+    "name": "Plaid",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/hsgw/plaid",
+    "revision": "758419c3b764cdfe03876532f1e13fd3e8c5c03c",
+    "path": "pcb/plaid.kicad_pcb",
+    "sha256": "c415ebbfe72e11cf2b98006f8911b2fa911be5d48474437bc653fa98c636695b",
+    "licenseFile": "licenses/plaid.txt",
+    "keys": [
+      {
+        "reference": "SW1",
+        "x": 59.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW2",
+        "x": 78.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW3",
+        "x": 97.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW4",
+        "x": 116.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW5",
+        "x": 135.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW6",
+        "x": 154.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW7",
+        "x": 173.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW8",
+        "x": 192.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW9",
+        "x": 211.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW10",
+        "x": 230.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW11",
+        "x": 249.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW12",
+        "x": 268.5,
+        "y": 81.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW13",
+        "x": 59.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW14",
+        "x": 78.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW15",
+        "x": 97.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW16",
+        "x": 116.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW17",
+        "x": 135.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW18",
+        "x": 154.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW19",
+        "x": 173.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW20",
+        "x": 192.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW21",
+        "x": 211.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW22",
+        "x": 230.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW23",
+        "x": 249.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW24",
+        "x": 268.5,
+        "y": 100.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW25",
+        "x": 59.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW26",
+        "x": 78.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW27",
+        "x": 97.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW28",
+        "x": 116.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW29",
+        "x": 135.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW30",
+        "x": 154.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW31",
+        "x": 173.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW32",
+        "x": 192.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW33",
+        "x": 211.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW34",
+        "x": 230.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW35",
+        "x": 249.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW36",
+        "x": 268.5,
+        "y": 119.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW37",
+        "x": 59.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW38",
+        "x": 78.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW39",
+        "x": 97.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW40",
+        "x": 116.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW41",
+        "x": 135.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW42",
+        "x": 154.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW43",
+        "x": 173.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW44",
+        "x": 192.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW45",
+        "x": 211.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW46",
+        "x": 230.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW47",
+        "x": 249.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "SW48",
+        "x": 268.5,
+        "y": 138.5,
+        "rotation": 0,
+        "width": 1
+      }
+    ]
+  },
+  "lumberjack": {
+    "name": "Lumberjack",
+    "split": false,
+    "choc": false,
+    "repository": "https://github.com/peej/lumberjack-keyboard",
+    "revision": "53bfb50b64dd8c938bdb6a964360709c7e6573e0",
+    "path": "lumberjack.kicad_pcb",
+    "sha256": "1c5899fe299206a07949b6c90efc1d50bc7ae0c732b8508a8dad931f5bdaff8c",
+    "licenseFile": "licenses/lumberjack.txt",
+    "keys": [
+      {
+        "reference": "MX1",
+        "x": 19.049968,
+        "y": 64.29375,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX7",
+        "x": 38.100032,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX13",
+        "x": 57.150048,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX19",
+        "x": 76.200064,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX25",
+        "x": 95.25008,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX26",
+        "x": 114.300096,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX56",
+        "x": 190.50016,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX55",
+        "x": 209.550176,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX49",
+        "x": 228.600192,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX43",
+        "x": 247.650208,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX37",
+        "x": 266.700224,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX31",
+        "x": 285.75024,
+        "y": 64.293804,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX2",
+        "x": 19.050016,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX8",
+        "x": 38.100032,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX14",
+        "x": 57.150048,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX20",
+        "x": 76.200064,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX21",
+        "x": 95.25008,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX27",
+        "x": 114.300096,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX57",
+        "x": 190.50016,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX51",
+        "x": 209.550176,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX50",
+        "x": 228.600192,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX44",
+        "x": 247.650208,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX38",
+        "x": 266.700224,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX32",
+        "x": 285.75024,
+        "y": 83.34382,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX3",
+        "x": 19.050016,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX9",
+        "x": 38.100032,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX15",
+        "x": 57.150048,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX16",
+        "x": 76.200064,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX22",
+        "x": 95.25008,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX28",
+        "x": 114.300096,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX58",
+        "x": 190.50016,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX52",
+        "x": 209.550176,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX46",
+        "x": 228.600192,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX45",
+        "x": 247.650208,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX39",
+        "x": 266.700224,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX33",
+        "x": 285.75024,
+        "y": 102.393836,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX4",
+        "x": 19.050016,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX10",
+        "x": 38.100032,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX11",
+        "x": 57.150048,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX17",
+        "x": 76.200064,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX23",
+        "x": 95.25008,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX29",
+        "x": 114.300096,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX59",
+        "x": 190.50016,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX53",
+        "x": 209.550176,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX47",
+        "x": 228.600192,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX41",
+        "x": 247.650208,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX40",
+        "x": 266.700224,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX34",
+        "x": 285.75024,
+        "y": 121.443852,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX5",
+        "x": 19.050016,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX6",
+        "x": 38.100032,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX12",
+        "x": 57.150048,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX18",
+        "x": 76.200064,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX24",
+        "x": 95.25008,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX30",
+        "x": 114.300096,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX60",
+        "x": 190.50016,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX54",
+        "x": 209.550176,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX48",
+        "x": 228.600192,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX42",
+        "x": 247.650208,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX36",
+        "x": 266.700224,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      },
+      {
+        "reference": "MX35",
+        "x": 285.75024,
+        "y": 140.493868,
+        "rotation": 0,
+        "width": 1
+      }
+    ]
+  }
+}

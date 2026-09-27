@@ -1,3 +1,4 @@
+import { demos, type DemoId } from '../demos/keyboards';
 import { SetupGuide } from './SetupGuide';
 import { deriveSetupGuide, type SetupGuideStage } from './setupGuide';
 import { useSetupGuide } from './useSetupGuide';
@@ -6,6 +7,7 @@ import { PartsInspectorPanel } from './PartsInspectorPanel';
 import { createCanvasCamera } from './createCanvasCamera';
 import { createLibraryActions } from './createLibraryActions';
 import { catalogue as ergogenCatalogue, parameters as ergogenParameterSchema, isErgogen, normalizeDefinition } from '@boardstudio/v2-ergogen';
+import { importedPartDefinitions } from '../parts/catalogue';
 import React, { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CaseBody,
@@ -45,6 +47,10 @@ import { MechanicalAssemblyPanel } from './MechanicalAssemblyPanel';
 import { MatrixInspectorPanel } from './MatrixInspectorPanel';
 import { MirrorPairIcon, MirroredPairSetup, pairAt } from './MirroredPairSetup';
 import { OutlineInspector, PartOutlineControls } from './OutlineInspector';
+import { OutlineControlOverlay } from './OutlineControlOverlay';
+import { OutlineDrawingBar, OutlineToolIcon } from './OutlineTools';
+import { OutlineDraftPreview } from './OutlineDraftPreview';
+import { connectionEndpoint, snapOutline, type OutlineDrawMode, type OutlineSelection } from './outlineEditing';
 import { partCatalogLabel, partCatalogSearchText, partChoices } from './partsCatalog';
 import { movePlacement, type PlacementState } from './placementState';
 import { createWorkbenchPlacementActions, documentWithPlacedPart } from './createWorkbenchPlacementActions';
@@ -70,6 +76,7 @@ import './inspector.css';
 import './unified-workbench.css';
 import './workspace-panels.css';
 import './setup-guide.css';
+import './outline-editor.css';
 
 const AssemblyEditor = lazy(() => import('./AssemblyEditor').then(m => ({ default: m.AssemblyEditor })));
 const AssemblyViewer = lazy(() => import('./AssemblyViewer').then(m => ({ default: m.AssemblyViewer })));
@@ -96,7 +103,7 @@ const systemColorScheme = (): 'light' | 'dark' => {
   }
 };
 
-const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, instanceControls, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
+const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onOpenDemo, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, instanceControls, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
   const caseDocument = physicalCaseDocument ?? document;
   const caseScene = physicalCaseScene ?? scene;
   const [caseActionsTarget, setCaseActionsTarget] = useState<HTMLDivElement | null>(null);
@@ -192,8 +199,15 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [outlineDraft, setOutlineDraft] = useState<Vec2[]>([]);
   const [outlineActive, setOutlineActive] = useState(false);
   const [outlineSettingsOpen, setOutlineSettingsOpen] = useState(false);
-  const [outlineOperation, setOutlineOperation] = useState<'add' | 'subtract'>('add');
-  useEffect(() => { setOutlineDraft([]); setOutlineActive(false); }, [mode, selectedBoardIdProp]);
+  const [outlineOperation, setOutlineOperation] = useState<OutlineDrawMode>('add');
+  const [outlineSelection,setOutlineSelection] = useState<OutlineSelection|null>(null);
+  const [outlineGrid,setOutlineGrid] = useState(1);
+  const [outlinePoint,setOutlinePoint] = useState(0);
+  const [outlineDragBounds,setOutlineDragBounds] = useState<ReturnType<typeof getBounds>|null>(null);
+  const outlineContext = useRef({documentId:document.id,projectSession});
+  outlineContext.current = {documentId:document.id,projectSession};
+
+  useEffect(() => { setOutlineDraft([]); setOutlineActive(false); setOutlineSelection(null); }, [mode, selectedBoardIdProp, document.id, projectSession]);
   const [newNetName, setNewNetName] = useState('');
   const [scriptsOpen, setScriptsOpen] = useState(false);
   const [activeScriptId, setActiveScriptId] = useState('');
@@ -279,7 +293,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
   const definitions = useMemo(() => new Map(document.definitions.map((item) => [item.id, item])), [document.definitions]);
   const libraryDefinitions = useMemo(() => {
-    const entries = new Map(ergogenCatalogue().map((definition) => [definition.id, definition]));
+    const entries = new Map([...ergogenCatalogue(), ...importedPartDefinitions()].map((definition) => [definition.id, definition]));
     for (const definition of document.definitions) entries.set(definition.id, definition);
     return [...entries.values()];
   }, [document.definitions]);
@@ -317,6 +331,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   };
   const activeScript = document.scripts.find((script) => script.id === activeScriptId);
   const selectedBoard = document.boards.find((board) => board.id === (selectedBoardIdProp ?? localBoardId)) ?? document.boards[0];
+  const outlineFeature = outlineSettingsOpen && mode==='Design' && !assembly3d ? document.outline.find(feature=>feature.id===outlineSelection?.featureId && selectedBoard?.outlineIds.includes(feature.id) && (feature.kind!=='part-envelope' || feature.connections?.some(connection=>connection.id===outlineSelection.connectionId))) : undefined;
   const activeCaseBody = document.caseBodies.find((body) => body.id === caseBodyId && (!selectedBoard || body.boardId === selectedBoard.id))
     ?? document.caseBodies.find((body) => !selectedBoard || body.boardId === selectedBoard.id);
   const activeModelDefinition = selectedLibraryDefinition;
@@ -454,7 +469,9 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     return () => observer.disconnect();
   }, []);
   const bounds = useMemo(() => aspectBounds(getBounds(poses, visibleParts, visibleContours, visibleMatrices, matrixScenes, definitions, keyEnvelopes), canvasSize.width, canvasSize.height), [poses, visibleParts, visibleContours, visibleMatrices, matrixScenes, definitions, keyEnvelopes, canvasSize]);
-  const viewBounds = useMemo(() => cameraBounds(dragRef.current?.bounds ?? splayDrag.current?.bounds ?? bounds, zoom, pan), [bounds, zoom, pan]);
+  const viewBounds = useMemo(() => cameraBounds(dragRef.current?.bounds ?? splayDrag.current?.bounds ?? outlineDragBounds ?? bounds, zoom, pan), [bounds, outlineDragBounds, zoom, pan]);
+  // Keep fine snapping available without drawing subpixel grid dots.
+  const outlineGridSpacing = outlineGrid * Math.max(1, Math.ceil(8 * viewBounds.width / Math.max(canvasSize.width, 1) / outlineGrid));
   const { fitParts, startCanvasPan, zoomAt } = createCanvasCamera({ dragRef, splayDrag, staggerDragRef, poses, matrixScenes, definitions, keyEnvelopes, svgRef, bounds, canvasSize, setZoom, setPan, spaceDown, panDrag, pan, viewBounds });
 
   const readiness = scene.readiness;
@@ -527,6 +544,12 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         spaceDown.current = true;
         event.preventDefault();
       }
+      if (outlineActive && !isTyping(event.target)) {
+        if (event.key === 'Escape') { event.preventDefault(); cancelOutlineDrawing(); return; }
+        if (event.key === 'Backspace' || event.key === 'Delete' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z')) {
+          event.preventDefault(); setOutlineDraft(points => points.slice(0, -1)); return;
+        }
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (cancelInteractions()) return;
@@ -545,6 +568,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         if (originPicking) { setOriginPicking(false); return; }
         setOutlineDraft([]);
         setOutlineActive(false);
+        setOutlineSelection(null);
         setSelected([]);
         setScope(null);
         setSelectionMode('key');
@@ -553,12 +577,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         setAddPartOpen(false);
         if (addPartOpen) addPartRef.current?.focus();
       }
-      if (event.key === 'Enter' && !isTyping(event.target) && outlineActive && outlineDraft.length >= 3) {
-        const feature: OutlineFeature = { id: makeId(), kind: 'polygon', points: outlineDraft, operation: outlineOperation };
-        saveOutline(feature);
-        setOutlineDraft([]);
-        setOutlineActive(false);
-      }
+      if (event.key === 'Enter' && !isTyping(event.target) && outlineActive) finishOutline();
       if (event.key === 'Delete' && !isTyping(event.target) && (selected.length > 0 || scope?.kind === 'matrix')) {
         if (scope?.kind === 'matrix' && scope.matrixId) {
           emit({ kind: 'remove-matrix', id: scope.matrixId }, [scope.matrixId, ...selected]);
@@ -576,7 +595,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       window.removeEventListener('keydown', handleKey);
       window.removeEventListener('keyup', releaseSpace);
     };
-  }, [onRedo, onUndo, selected, document.revision, outlineActive, outlineDraft, outlineOperation, addPartOpen, scope, originPicking, existingHalfOpen, transformTool]);
+  }, [onRedo, onUndo, selected, document.revision, outlineActive, outlineDraft, outlineOperation, outlineGrid, addPartOpen, scope, originPicking, existingHalfOpen, transformTool]);
 
   const emit = (operation: EditCommand['operation'], targetIds: string[], phase: EditCommand['phase'] = 'commit', transactionId?: string) => {
     const currentTransaction = transactionId ?? (phase === 'preview' ? transaction.current : makeId());
@@ -949,21 +968,37 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     const point = pointFromEvent(event, svgRef.current);
     if (!point) return;
     if (event.detail > 1) return;
-    const snapped = event.altKey ? point : snapDelta(point, { x: PITCH_MM, y: PITCH_MM }, snapFraction);
+    if (outlineOperation !== 'connect' && outlineDraft.length >= 3 && Math.hypot(point.x - outlineDraft[0].x, point.y - outlineDraft[0].y) < viewBounds.width / (svgRef.current?.getBoundingClientRect().width || 800) * 8) {
+      finishOutline(); return;
+    }
+    const snapped = event.altKey ? point : snapOutline(point, outlineGrid);
     setOutlineDraft((current) => current.some((p) => p.x === snapped.x && p.y === snapped.y) ? current : [...current, snapped]);
   };
 
+  const cancelOutlineDrawing = () => {
+    setOutlineDraft([]); setOutlineActive(false); setRightOpen(true);
+  };
+
   const finishOutline = () => {
-    if (outlineDraft.length < 3) return;
-    const feature: OutlineFeature = {
-      id: makeId(),
-      kind: 'polygon',
-      points: outlineDraft,
-      operation: outlineOperation,
-    };
-    saveOutline(feature);
+    if (!outlineActive || outlineDraft.length < (outlineOperation==='connect'?2:3) || !selectedBoard) return;
+    let selection: OutlineSelection;
+    if (outlineOperation==='connect') {
+      const envelope=document.outline.find(feature=>selectedBoard.outlineIds.includes(feature.id)&&feature.kind==='part-envelope');
+      if (!envelope || envelope.kind!=='part-envelope') return;
+      const eligible=document.parts.filter(part=>envelope.partIds.includes(part.id)&&!part.outline?.excluded);
+      const connection={id:makeId(),width:(envelope.settings??defaultOutlineSettings).bridgeWidth,points:outlineDraft.map((at,index)=>index===0||index===outlineDraft.length-1?connectionEndpoint(at,eligible):{at})};
+      emit({kind:'set-outline',feature:{...envelope,connections:[...envelope.connections??[],connection]}},[envelope.id]);
+      selection={featureId:envelope.id,connectionId:connection.id};
+    } else {
+      const feature: OutlineFeature = {id:makeId(),kind:'polygon',points:outlineDraft,operation:outlineOperation};
+      saveOutline(feature);
+      selection={featureId:feature.id};
+    }
     setOutlineDraft([]);
     setOutlineActive(false);
+    setOutlineSelection(selection);
+    setOutlinePoint(0);
+    setRightOpen(true);
   };
 
   wheelZoom.current = (event: WheelEvent) => {
@@ -1102,7 +1137,9 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
     if (mode === 'Design' && outlineSettingsOpen) return <><OutlineInspector document={document} board={selectedBoard}
       onChange={(next, ids) => emit({ kind: 'replace-document', document: next }, ids)}
-      onDraw={(operation) => { setOutlineOperation(operation); setOutlineDraft([]); setOutlineActive(true); setRightOpen(false); }} /><div className="wb-findings-head"><h3 className="wb-subtitle">Findings</h3></div><FindingList document={document} onShow={showFinding} findings={scene.findings} /></>;
+      selection={outlineSelection} selectedPoint={outlinePoint} onSelectPoint={setOutlinePoint} grid={outlineGrid} onGrid={setOutlineGrid}
+      onSelect={selection=>{setOutlineSelection(selection);setOutlinePoint(0);setSelected([]);setScope(null);setOutlineActive(false);setOutlineDraft([]);}}
+      onDraw={(operation) => { cancelInteractions(); cancelPlacement(); setTransformTool(null); setOriginPicking(false); setCommandMenu(null); setAssembly3d(false); setOutlineOperation(operation); setOutlineSelection(null); setSelected([]); setScope(null); setOutlineDraft([]); setOutlineActive(true); setRightOpen(false); setLeftOpen(false); }} /><div className="wb-findings-head"><h3 className="wb-subtitle">Findings</h3></div><FindingList document={document} onShow={showFinding} findings={scene.findings} /></>;
 
     if (mode === 'PCB') {
       const builtinSwitch = activePart && activeDefinition?.kind === 'switch';
@@ -1391,7 +1428,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       ].map((group) => <details className="wb-add-category" key={group.name} open={group.name === 'Components'}><summary>{group.name}</summary><div className="wb-add-part-results">{availableLibrary.filter(group.match).map((definition) => <button key={definition.id} onClick={() => beginPartPlacement(definition)}><PartGlyph kind={definition.kind} /><span>{partCatalogLabel(definition)}</span></button>)}</div></details>)}
       <button className="wb-add-browse" data-close-menu onClick={() => { changeMode('Library'); setLeftOpen(true); if (!compactObjects) objectsPanel.setMode('pinned'); }}>Browse all parts<ArrowIcon /></button>
     </section>
-    <section className="wb-add-section" aria-label="Board geometry"><h3>Board geometry</h3><button data-close-menu onClick={() => { setOutlineSettingsOpen(true); setRightOpen(true); if (!compactInspector) inspectorPanel.setMode('pinned'); }}>Board outline…</button><button data-close-menu onClick={() => { setScriptsOpen(true); setRightOpen(true); if (!compactInspector) inspectorPanel.setMode('pinned'); }}>Geometry scripts…</button></section>
+    <section className="wb-add-section" aria-label="Board geometry"><h3>Board geometry</h3><button data-close-menu onClick={() => { setOutlineSettingsOpen(true); setRightOpen(true); setLeftOpen(false); if (!compactInspector) inspectorPanel.setMode('pinned'); }}>Board outline…</button><button data-close-menu onClick={() => { setScriptsOpen(true); setRightOpen(true); if (!compactInspector) inspectorPanel.setMode('pinned'); }}>Geometry scripts…</button></section>
   </>;
 
   sceneHandlers.current = { startDrag, moveDrag, endDrag, choosePart, nudgePart, hoverPart: setHoveredPart };
@@ -1434,6 +1471,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             event.currentTarget.value = '';
             setProjectMenuOpen(false);
           }} />}
+          {onOpenDemo && <label className="wb-theme-setting">Demo keyboard<select aria-label="Open demo keyboard" value="" onChange={(event) => {
+            if (!event.target.value) return;
+            setProjectMenuOpen(false);
+            onOpenDemo(event.target.value as DemoId);
+          }}><option value="" disabled>Choose a demo…</option>{demos.map(demo => <option key={demo.id} value={demo.id}>{demo.name}</option>)}</select></label>}
           <label className="wb-theme-setting">Appearance<select aria-label="Color theme" value={themePreference} onChange={(event) => chooseTheme(event.target.value as ThemePreference)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         </div>}
       </div>
@@ -1461,8 +1503,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       </WorkspacePanel>
 
       <section className={`wb-canvas-column${mode === 'Case' ? ' is-case-workbench' : ''}`} aria-label={`${mode === 'Library' ? 'Parts' : mode} canvas`}>
-        <div className={`wb-canvas-toolbar ${mode === 'Design' || mode === 'PCB' ? `is-floating ${commandMenu ? 'is-expanded' : ''}` : ''}`} role="toolbar" aria-label={`${viewLabel} commands`}>
-          {mode === 'Design' || mode === 'PCB' ? <>
+        <div hidden={outlineActive} className={`wb-canvas-toolbar ${mode === 'Design' || mode === 'PCB' ? `is-floating ${commandMenu ? 'is-expanded' : ''}` : ''}`} role="toolbar" aria-label={`${viewLabel} commands`}>
+          {outlineFeature ? <div className="wb-outline-canvas-context"><OutlineToolIcon kind={outlineFeature.kind === 'part-envelope' ? 'connect' : outlineFeature.operation} /><strong>Outline points</strong><span>{outlineGrid} mm snap</span><button aria-label="Finish editing outline points" onClick={() => setOutlineSelection(null)}>Done</button></div> : mode === 'Design' || mode === 'PCB' ? <>
             <div className="wb-scope-shortcuts" role="group" aria-label="Selection types">{(['key', 'row', 'column', 'matrix', 'component'] as const).map((kind) => <button key={kind} title={`Choose ${kind === 'component' ? 'part' : kind} selection`} aria-label={`Select ${kind}`} aria-pressed={selectionMode === kind} aria-description={!scope ? 'Choose a selection type, then click a key.' : undefined} onClick={() => changeScope(kind)}><ScopeIcon kind={kind} /></button>)}</div>
             <CommandMenu triggerClassName="wb-compact-select" panelClassName="wb-compact-select-panel" attached id="wb-select-menu" label={`Select: ${selectionMode === 'component' ? 'Part' : selectionMode[0].toUpperCase() + selectionMode.slice(1)}`} icon={<ScopeIcon kind={selectionMode} />} open={commandMenu === 'select'} onOpenChange={(open) => { setCommandMenu(open ? 'select' : null); setAddPartOpen(false); }}>
               <p>{!scope ? 'Choose a selection type, then click a key.' : 'Choose the extent of your selection. The change applies now.'}</p>
@@ -1494,9 +1536,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             </CommandMenu>
           </> : <div className="wb-canvas-context"><ModeIcon mode={mode} /><strong>{viewLabel}</strong><span>{mode === 'Case' ? 'Assembly & components' : mode === 'Library' ? 'Footprint & model preview' : assembly3d ? 'PCB assembly' : 'Artifacts & readiness'}</span></div>}
           {transformTool && <button className="wb-command-trigger wb-transform-active" aria-label="Finish transform" title="Finish transform (Esc)" onClick={() => { setTransformTool(null); setOriginPicking(false); }}><ToolIcon name={transformTool} />{transformTool[0].toUpperCase() + transformTool.slice(1)} · Done</button>}
-          {outlineActive && <button className="wb-tool-commit" onClick={finishOutline} disabled={outlineDraft.length < 3}>Close outline</button>}
         </div>
-          {mode === 'Design' && <div className="wb-design-view-toggle" role="group" aria-label="Design view"><button aria-pressed={!assembly3d} onClick={() => setAssembly3d(false)}>2D</button><button aria-pressed={assembly3d} onClick={() => setAssembly3d(true)}>3D assembly</button></div>}
+          {mode === 'Design' && !outlineActive && <div className="wb-design-view-toggle" role="group" aria-label="Design view"><button aria-pressed={!assembly3d} onClick={() => setAssembly3d(false)}>2D</button><button aria-pressed={assembly3d} onClick={() => setAssembly3d(true)}>3D assembly</button></div>}
         {mode === 'Case' && <div className="wb-case-action-bar" ref={setCaseActionsTarget} />}
         <div className={`wb-canvas-stage wb-layer-surface ${leftOpen || rightOpen ? 'has-drawer' : ''} ${mode === 'Design' && !showFootprints ? 'is-layout-simplified' : ''}`}>
           <svg tabIndex={0} onKeyDown={(event) => { if (matrixGhost) {
@@ -1504,9 +1545,9 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = PITCH_MM * (snapFraction || 0.25); setPlacement((current) => current.kind === 'matrix' || current.kind === 'mirrored-pair' ? movePlacement(current, { x: current.matrix.origin.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.matrix.origin.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); }
             return;
           } if (!pendingPart) return; if (event.key === 'Enter') { event.preventDefault(); placePendingPart(placementPoint); } if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction ? PITCH_MM * snapFraction : nudgeStep; setPlacement((current) => current.kind === 'part' ? movePlacement(current, { x: current.point.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.point.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); } }} ref={svgRef} className={`wb-canvas ${matrixGhost ? 'is-placing-matrix' : ''}`} style={{ display: mode === 'Case' || mode === 'Library' || (mode === 'Design' && assembly3d) ? 'none' : undefined }} viewBox={`${viewBounds.minX} ${-viewBounds.maxY} ${viewBounds.width} ${viewBounds.height}`} role="application" aria-label="Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." onPointerDown={startCanvasPan} onPointerMove={moveCanvasPointer} onPointerUp={endCanvasPointer} onPointerCancel={endCanvasPointer} onLostPointerCapture={endCanvasPointer} onClickCapture={(event) => { if (matrixGhost) { event.stopPropagation(); drawOutline(event); } }} onClick={drawOutline} onDoubleClick={finishOutline}>
-            <defs><pattern id="wb-grid-small" width={unit / 2} height={unit / 2} patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="0.12" fill="var(--wb-grid-large)" stroke="none" /></pattern></defs>
+            <defs><pattern id="wb-grid-small" width={outlineActive || outlineFeature ? outlineGridSpacing : unit / 2} height={outlineActive || outlineFeature ? outlineGridSpacing : unit / 2} patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r={outlineActive || outlineFeature ? viewBounds.width / Math.max(canvasSize.width, 1) * 0.7 : 0.12} fill="var(--wb-grid-large)" stroke="none" /></pattern></defs>
             <rect x={viewBounds.minX} y={-viewBounds.maxY} width={viewBounds.width} height={viewBounds.height} fill="url(#wb-grid-small)" />
-            <g transform="scale(1,-1)" style={outlineActive || pendingPart || originPicking ? { pointerEvents: 'none' } : undefined}>
+            <g transform="scale(1,-1)" style={outlineActive || outlineFeature || pendingPart || originPicking ? { pointerEvents: 'none' } : undefined}>
               {!hiddenLayers.has(mode === 'PCB' ? 'Edge.Cuts' : 'Board') && visibleContours.map((contour, index) => <polygon key={`contour-${index}`} points={contour.points.map((point) => `${point.x},${point.y}`).join(' ')} className={`wb-outline-shape ${contour.hole ? 'is-hole' : ''}`} />)}
               {mode === 'Design' && matrixGhost && <g transform={`translate(${matrixGhost.origin.x} ${matrixGhost.origin.y})`}>
                 {pairPreview && <><line className="wb-mirror-axis" x1="0" x2="0" y1="-16" y2={(matrixGhost.rows - 1) * matrixGhost.pitch.y + 16} /><MatrixGhost matrix={pairPreview.preview} projection={matrixGhostProjections.get(pairPreview.preview.id)} scope={null} ghost onSelect={() => undefined} onStagger={() => undefined} /></>}
@@ -1535,11 +1576,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
               }} onPointerDown={(event) => startStagger(event, selectedMatrix, scope.kind === 'row' ? 'row' : 'column', scope.kind === 'row' ? scope.row ?? 0 : scope.column ?? 0)}><circle r="4" /><path d="M0-3v6M-1.5-1.5 0-3l1.5 1.5M-1.5 1.5 0 3l1.5-1.5" /></g>}
               {snapGuide && <g className="wb-snap-guide"><circle cx={snapGuide.to.x} cy={snapGuide.to.y} r="1.3" /><path d={`M${snapGuide.from.x} ${snapGuide.from.y}L${snapGuide.to.x} ${snapGuide.to.y}`} /></g>}
               {pendingPart && <g className="wb-placement-preview" transform={`translate(${placementPoint.x} ${placementPoint.y})`}><polygon points={pendingPart.courtyard.map((point) => `${point.x},${point.y}`).join(' ')} /><path d="M-2 0h4M0-2v4" /></g>}
-              {outlineDraft.length > 0 && <g className="wb-outline-draft">
-                <polyline points={outlineDraft.map((point) => `${point.x},${point.y}`).join(' ')} />
-                {outlineDraft.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="0.8" />)}
-              </g>}
+              {outlineActive && <OutlineDraftPreview points={outlineDraft} mode={outlineOperation} grid={outlineGrid} scale={viewBounds.width/(svgRef.current?.getBoundingClientRect().width||800)} />}
             </g>
+            {outlineFeature && <OutlineControlOverlay key={`${document.id}/${projectSession}/${selectedBoardId}/${outlineSelection?.featureId}/${outlineSelection?.connectionId??''}`} feature={outlineFeature} connectionId={outlineSelection?.connectionId} selectedPoint={outlinePoint} onSelectPoint={setOutlinePoint} parts={document.parts} grid={outlineGrid} onDragChange={active=>setOutlineDragBounds(active?bounds:null)} scale={viewBounds.width/(svgRef.current?.getBoundingClientRect().width||800)} onChange={(feature,phase,transactionId)=>{
+              if(outlineContext.current.documentId===document.id && outlineContext.current.projectSession===projectSession) emit({kind:'set-outline',feature},[feature.id],phase,transactionId);
+            }} />}
           </svg>
           {(mode === 'Design' || mode === 'PCB') && !assembly3d && <WorkbenchLayers layers={mode === 'PCB' ? [...pcbLayers, 'Edge.Cuts', 'Courtyards', 'Pads', 'Holes', 'References'] : ['Keys', 'Components', 'Keycaps', 'Footprints', 'Board']} hidden={mode === 'Design' ? new Set([...hiddenLayers, ...(!showFootprints ? ['Footprints'] : [])]) : hiddenLayers} onToggle={(layer) => layer === 'Footprints' ? setShowFootprints(!showFootprints) : toggleLayer(layer)} />}
           {existingHalfOpen && <ExistingHalfSetup matrices={unpairedMatrices} axis={Math.max(0, ...selectionOutline(visibleParts, definitions).map((point) => point.x)) + 12} onCancel={() => setExistingHalfOpen(false)} onCreate={(matrices, axis) => { try { const next = mirrorExistingHalf(document, matrices, axis, makeId); emit({ kind: 'replace-document', document: next }, matrices.map((matrix) => matrix.id)); setExistingHalfOpen(false); setZoom(1); setPan({ x: 0, y: 0 }); return undefined; } catch (error) { return String(error instanceof Error ? error.message : error); } }} />}
@@ -1552,7 +1593,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
           {originPicking && <div className="wb-canvas-hint" role="status">Pick splay origin · Click the canvas · Esc cancels</div>}
           {matrixGhost && pairPlacement && <div className="wb-canvas-hint" role="status">Place linked halves · Click to place · Esc cancels</div>}
           {pendingPart && <div className="wb-canvas-hint" role="status">Place {pendingPart.name}{pendingLayoutId ? ` in ${boardLayouts.find((layout) => layout.id === pendingLayoutId)?.name}` : ''} · Click or Enter to place · Esc cancels</div>}
-          {outlineActive && <div className="wb-canvas-hint"><span className="wb-hint-dot" /> Click to add points <kbd>Esc</kbd> cancel <kbd>Enter</kbd> close</div>}
+          {outlineActive && <OutlineDrawingBar mode={outlineOperation} count={outlineDraft.length} grid={outlineGrid} onGrid={setOutlineGrid} onUndo={() => setOutlineDraft(points => points.slice(0, -1))} onCancel={cancelOutlineDrawing} onFinish={finishOutline} />}
         </div>
 
       </section>
@@ -1573,7 +1614,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
         <div className="wb-footer-center"><span>Drag to orbit · Scroll to zoom</span></div>
       </> : <>
       <div className="wb-footer-coords"><span>mm</span><span>X <b>{activePart?.pose.at.x.toFixed(2) ?? '0.00'}</b></span><span>Y <b>{activePart?.pose.at.y.toFixed(2) ?? '0.00'}</b></span></div>
-      <div className="wb-footer-center"><button onClick={() => setCommandMenu('snap')} disabled={mode !== 'Design' && mode !== 'PCB'}>Grid {snapFraction === 0 ? 'off' : snapFraction === 1 ? '1u' : snapFraction === .5 ? '½u' : snapFraction === .125 ? '⅛u' : '¼u'}</button><span>{geometrySnap ? 'Geometry snap on' : 'Geometry snap off'}</span></div>
+      <div className="wb-footer-center">{outlineActive || outlineFeature ? <span>Outline snap {outlineGrid} mm</span> : <><button onClick={() => setCommandMenu('snap')} disabled={mode !== 'Design' && mode !== 'PCB'}>Grid {snapFraction === 0 ? 'off' : snapFraction === 1 ? '1u' : snapFraction === .5 ? '½u' : snapFraction === .125 ? '⅛u' : '¼u'}</button><span>{geometrySnap ? 'Geometry snap on' : 'Geometry snap off'}</span></>}</div>
       <div className="wb-footer-zoom"><button className="wb-view-button" aria-label="Fit board" title="Fit entire board" onClick={() => fitParts(visibleParts, visibleContours, visibleMatrices)}><FitIcon />Fit board</button><button className="wb-view-button" disabled={!activeParts.length} onClick={() => fitParts(activeParts)}>Fit selection</button><button aria-label="Zoom out" onClick={() => zoomAt(window.innerWidth / 2, window.innerHeight / 2, Math.max(.25, zoom / 1.2))}>−</button><span>{Math.round(zoom * 100)}%</span><button aria-label="Zoom in" onClick={() => zoomAt(window.innerWidth / 2, window.innerHeight / 2, Math.min(4, zoom * 1.2))}>+</button></div>
       </>}
       <div className="wb-findings-scopes">

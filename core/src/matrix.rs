@@ -912,7 +912,16 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                 }
                 if let Some(&index) = part_index.get(&id) {
                     changed.extend(remap_member_pins(doc, index, &definition_id)?);
+                    let previous = doc.definitions.iter()
+                        .find(|definition| definition.id == doc.parts[index].definition_id);
+                    let authored_keycap = previous
+                        .filter(|definition| definition.envelope_source.as_ref()
+                            .is_some_and(|source| source.keycap == Some(crate::model::EnvelopeOrigin::Authored)))
+                        .and_then(|definition| definition.keycap);
                     let part = &mut doc.parts[index];
+                    if part.definition_id != definition_id && part.keycap.is_none() {
+                        part.keycap = authored_keycap;
+                    }
                     let overridden = part
                         .properties
                         .as_ref()

@@ -13,7 +13,7 @@ export function resizeMatrix(matrix: Matrix, rows: number, columns: number): Mat
         row, column, enabled: true, definitionId: template.definitionId,
         variant: template.variant, rotation: template.variant?.endsWith('/north') ? 180 : 0,
         assembliesLocal: template.assembliesLocal,
-        assemblies: structuredClone(template.assemblies),
+        assemblies: structuredClone(template.assemblies?.filter(member => ['diode', 'led'].includes(member.id))),
       });
     }
   }

@@ -113,6 +113,8 @@ export type * from './Mount';
 export type * from './MountKind';
 export type * from './Net';
 export type * from './Operation';
+export type * from './OutlineConnection';
+export type * from './OutlineControlPoint';
 export type * from './OutlineExportFormat';
 export type * from './OutlineExportRequest';
 export type * from './OutlineFeature';

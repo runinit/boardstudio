@@ -48,6 +48,7 @@ export type Props = {
   onApplyWiring?: () => void;
   onReviewWiring?: (assignment: WiringAssignment) => void;
   onNewProject?: () => void;
+  onOpenDemo?: (variant: import('../demos/keyboards').DemoId) => void;
   onImport?: (file: File) => void;
   onImportFootprint?: (file: File) => void;
   onImportModel?: (file: File, definitionId: string, parameter?: string) => void;

@@ -91,6 +91,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         CornerStyle,
         OutlineSettings,
         OutlineFeature,
+        OutlineControlPoint,
+        OutlineConnection,
         Operation,
         Board,
         CopperTrace,

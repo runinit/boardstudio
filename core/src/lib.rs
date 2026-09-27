@@ -8,6 +8,7 @@ pub mod electrical_peripherals;
 pub mod electrical_profiles;
 pub mod firmware;
 mod geometry;
+mod outline_controls;
 mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
@@ -402,6 +403,7 @@ impl CoreEngine {
             Ok(ids) => changed.extend(ids),
             Err(message) => return self.error(id, &message),
         }
+        outline_controls::detach_removed(&self.document.parts, &mut next);
         changed.sort();
         changed.dedup();
         let (cache, contours, findings) = if affects_outline(&command.operation) {
@@ -451,12 +453,14 @@ impl CoreEngine {
 
     fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
         let backup = PreviewBackup::capture(&self.document, &command.operation);
+        let attachments = outline_controls::attached_parts(&self.document);
         let result = apply(&mut self.document, &command.operation).and_then(|mut changed| {
             layout::validate(&self.document)?;
             changed.extend(constraints::resolve(&mut self.document)?);
             changed.extend(layout::sync_components(&mut self.document)?);
             changed.extend(constraints::resolve(&mut self.document)?);
             changed.extend(layout::sync_components(&mut self.document)?);
+            outline_controls::detach_removed(&attachments, &mut self.document);
             changed.sort();
             changed.dedup();
             Ok(changed)

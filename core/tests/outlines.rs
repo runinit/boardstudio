@@ -23,7 +23,7 @@ fn matrix_document() -> ProjectDoc {
 
 fn scene(reply: CoreReply) -> SceneDelta {
     match reply {
-        CoreReply::Scene { scene, .. } => scene,
+        CoreReply::Scene { scene, .. } | CoreReply::Preview { scene, .. } => scene,
         other => panic!("{other:?}"),
     }
 }
@@ -151,6 +151,7 @@ fn automatic_envelope_reflects_asymmetric_back_side_footprints() {
     doc.boards[0].part_ids = vec!["back-part".into()];
     doc.boards[0].outline_ids = vec!["edge".into()];
     doc.outline[0] = OutlineFeature::PartEnvelope {
+        connections: vec![],
         settings: OutlineSettings::default(),
         id: "edge".into(),
         part_ids: vec!["back-part".into()],
@@ -650,4 +651,337 @@ fn editing_current_matrix_preserves_member_ids_coordinates_and_nets() {
             .part_id,
         "matrix/main/r0c0"
     );
+}
+
+#[test]
+fn manual_connection_precedes_automatic_bridging() {
+    let mut doc = document();
+    doc.parts.truncate(2);
+    doc.parts[1].pose.at.x = 80.0;
+    doc.boards[0].part_ids = vec!["k0".into(), "k1".into()];
+    doc.outline[0] = serde_json::from_value(json!({
+        "kind":"part-envelope", "id":"edge", "partIds":["k0","k1"], "margin":4, "operation":"add",
+        "connections":[{"id":"route","width":4,"points":[
+            {"at":{"x":0,"y":0},"partId":"k0"}, {"at":{"x":0,"y":40}},
+            {"at":{"x":80,"y":40}}, {"at":{"x":0,"y":0},"partId":"k1"}
+        ]}]
+    }))
+    .unwrap();
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    assert!(result.readiness.outline, "{:?}", result.findings);
+    assert!(contains(&result.contours, 40.0, 40.0));
+    assert!(!contains(&result.contours, 40.0, 0.0));
+}
+
+#[test]
+fn attached_addition_moves_and_detaches_on_anchor_deletion() {
+    let mut core = CoreEngine::new();
+    let mut doc = document();
+    doc.parts[0].pose.at = Vec2 { x: 100.0, y: 0.0 };
+    doc.outline.push(
+        serde_json::from_value(
+            json!({"kind":"polygon","id":"tab","operation":"add","anchorPartId":"k0",
+        "points":[{"x":8,"y":-4},{"x":30,"y":-4},{"x":30,"y":4},{"x":8,"y":4}]}),
+        )
+        .unwrap(),
+    );
+    doc.boards[0].outline_ids.push("tab".into());
+    let opened = scene(core.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    assert!(contains(&opened.contours, 125.0, 0.0));
+    let moved = scene(core.handle(CoreRequest::Edit {
+        id: "move".into(),
+        command: EditCommand {
+            base_revision: 0,
+            transaction_id: "move".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec!["k0".into()],
+            operation: EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: "k0".into(),
+                    at: Vec2 { x: 120.0, y: 0.0 },
+                }],
+            },
+        },
+    }));
+    assert!(contains(&moved.contours, 145.0, 0.0));
+    let removed = core.handle(CoreRequest::Edit {
+        id: "remove".into(),
+        command: EditCommand {
+            base_revision: 1,
+            transaction_id: "remove".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec!["k0".into()],
+            operation: EditOperation::RemoveParts {
+                ids: vec!["k0".into()],
+            },
+        },
+    });
+    let CoreReply::Scene {
+        document, scene, ..
+    } = removed
+    else {
+        panic!("Expected scene")
+    };
+    assert!(contains(&scene.contours, 145.0, 0.0));
+    let tab =
+        serde_json::to_value(document.outline.iter().find(|f| f.id() == "tab").unwrap()).unwrap();
+    assert!(tab.get("anchorPartId").is_none());
+}
+
+#[test]
+fn invalid_connections_and_dangling_attachments_block_outline_readiness() {
+    for control in [
+        json!({"id":"c","width":0,"points":[{"at":{"x":0,"y":0}},{"at":{"x":30,"y":0}}]}),
+        json!({"id":"c","width":2,"points":[{"at":{"x":0,"y":0}},{"at":{"x":0,"y":0}}]}),
+        json!({"id":"c","width":2,"points":[{"at":{"x":0,"y":0},"partId":"missing"},{"at":{"x":30,"y":0}}]}),
+        json!({"id":"c","width":0.0001,"points":[{"at":{"x":0,"y":0}},{"at":{"x":100,"y":0}}]}),
+    ] {
+        let mut doc = document();
+        if let OutlineFeature::PartEnvelope { connections, .. } = &mut doc.outline[0] {
+            *connections = vec![serde_json::from_value(control).unwrap()];
+        }
+        let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+            id: "open".into(),
+            document: doc,
+        }));
+        assert!(!result.readiness.outline, "{:?}", result.findings);
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|finding| finding.severity == Severity::Error)
+        );
+    }
+}
+
+#[test]
+fn outline_attachments_cannot_cross_boards() {
+    let mut doc = document();
+    let mut other = doc.boards[0].clone();
+    other.id = "other".into();
+    other.part_ids = vec!["k8".into()];
+    other.outline_ids.clear();
+    doc.boards[0].part_ids.retain(|id| id != "k8");
+    doc.boards.push(other);
+    doc.outline.push(serde_json::from_value(json!({"kind":"polygon","id":"tab","operation":"add","anchorPartId":"k8","points":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":10}]})).unwrap());
+    doc.boards[0].outline_ids.push("tab".into());
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|finding| finding.message.contains("cannot cross separate PCBs"))
+    );
+}
+
+#[test]
+fn rotated_back_side_rectangle_detaches_with_radius_and_roundtrips_history() {
+    let mut doc = document();
+    doc.parts[0].pose.at = Vec2 { x: 100.0, y: 100.0 };
+    doc.parts[0].pose.rotation = 30.0;
+    doc.parts[0].side = Side::Back;
+    doc.outline=vec![serde_json::from_value(json!({"kind":"rect","id":"edge","operation":"add","anchorPartId":"k0","center":{"x":15,"y":0},"size":{"x":25,"y":8},"radius":2,"rotation":12})).unwrap()];
+    let mut core = CoreEngine::new();
+    let before = scene(core.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    let removed = core.handle(CoreRequest::Edit {
+        id: "remove".into(),
+        command: EditCommand {
+            base_revision: 0,
+            transaction_id: "delete".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::RemoveParts {
+                ids: vec!["k0".into()],
+            },
+        },
+    });
+    let CoreReply::Scene {
+        document,
+        scene: after,
+        ..
+    } = removed
+    else {
+        panic!("Expected scene")
+    };
+    let OutlineFeature::Rect {
+        anchor_part_id,
+        rotation,
+        radius,
+        ..
+    } = &document.outline[0]
+    else {
+        panic!("Rectangle should remain editable")
+    };
+    assert!(anchor_part_id.is_none());
+    assert_eq!(*rotation, Some(18.0));
+    assert_eq!(*radius, 2.0);
+    // Quantization can reorder vertices, so compare containment on a dense grid.
+    for x in 70..110 {
+        for y in 80..110 {
+            assert_eq!(
+                contains(&before.contours, x as f64 + 0.123, y as f64 + 0.123),
+                contains(&after.contours, x as f64 + 0.123, y as f64 + 0.123)
+            );
+        }
+    }
+    let undone = scene(core.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(undone.contours, before.contours);
+    let redone = scene(core.handle(CoreRequest::Redo { id: "redo".into() }));
+    assert_eq!(redone.contours, after.contours);
+    let serialized = serde_json::to_string(&document).unwrap();
+    let reopened = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "reload".into(),
+        document: serde_json::from_str(&serialized).unwrap(),
+    }));
+    assert_eq!(reopened.contours, after.contours);
+}
+
+#[test]
+fn shrinking_matrix_preview_and_commit_detach_outline_at_the_same_position() {
+    let mut doc = matrix_document();
+    doc.matrices.push(serde_json::from_value(json!({"id":"main","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":doc.parts.iter().map(|part|part.id.clone()).collect::<Vec<_>>()})).unwrap());
+    doc.outline.push(serde_json::from_value(json!({"kind":"polygon","id":"tab","operation":"add","anchorPartId":"matrix/main/r2c2","points":[{"x":8,"y":-4},{"x":30,"y":-4},{"x":30,"y":4},{"x":8,"y":4}]})).unwrap());
+    doc.boards[0].outline_ids.push("tab".into());
+    let mut matrix = doc.matrices[0].clone();
+    matrix.rows = 2;
+    let mut core = CoreEngine::new();
+    core.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    });
+    let command = EditCommand {
+        base_revision: 0,
+        transaction_id: "shrink".into(),
+        phase: EditPhase::Preview,
+        target_ids: vec![],
+        operation: EditOperation::SetMatrix {
+            matrix,
+            definitions: None,
+        },
+    };
+    let preview = scene(core.handle(CoreRequest::Edit {
+        id: "preview".into(),
+        command: command.clone(),
+    }));
+    assert!(contains(&preview.contours, 63.0, 38.1));
+    let committed = scene(core.handle(CoreRequest::Edit {
+        id: "commit".into(),
+        command: EditCommand {
+            phase: EditPhase::Commit,
+            ..command
+        },
+    }));
+    assert_eq!(preview.contours, committed.contours);
+}
+
+#[test]
+fn connection_endpoints_follow_moves_and_detach_atomically() {
+    let mut doc = document();
+    doc.parts.truncate(2);
+    doc.parts[1].pose.at.x = 80.0;
+    doc.parts[0].pose.rotation = 90.0;
+    doc.parts[0].side = Side::Back;
+    doc.boards[0].part_ids = vec!["k0".into(), "k1".into()];
+    if let OutlineFeature::PartEnvelope {
+        connections,
+        part_ids,
+        ..
+    } = &mut doc.outline[0]
+    {
+        *part_ids = doc.boards[0].part_ids.clone();
+        *connections=vec![serde_json::from_value(json!({"id":"route","width":4,"points":[{"at":{"x":-5,"y":0},"partId":"k0"},{"at":{"x":0,"y":40}},{"at":{"x":80,"y":40}},{"at":{"x":0,"y":0},"partId":"k1"}]})).unwrap()];
+    }
+    let mut core = CoreEngine::new();
+    core.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    });
+    let moved = commit(
+        &mut core,
+        0,
+        json!({"kind":"move-parts","positions":[{"id":"k0","at":{"x":-20,"y":0}}]}),
+    );
+    assert!(contains(&moved.contours, -10.0, 22.5));
+    let removed = core.handle(CoreRequest::Edit {
+        id: "delete".into(),
+        command: EditCommand {
+            base_revision: 1,
+            transaction_id: "delete".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::RemoveParts {
+                ids: vec!["k0".into()],
+            },
+        },
+    });
+    let CoreReply::Scene {
+        document,
+        scene: after,
+        ..
+    } = removed
+    else {
+        panic!("Expected scene")
+    };
+    let OutlineFeature::PartEnvelope { connections, .. } = &document.outline[0] else {
+        panic!("Expected envelope")
+    };
+    let point = &connections[0].points[0];
+    assert!(point.part_id.is_none());
+    assert!((point.at.x + 20.0).abs() < 1e-8);
+    assert!((point.at.y - 5.0).abs() < 1e-8);
+    assert!(contains(&after.contours, -10.0, 22.5));
+    let undone = scene(core.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(undone.contours, moved.contours);
+}
+
+#[test]
+fn manual_connections_respect_linked_split_boundaries() {
+    for points in [
+        json!([]),
+        json!([{"at":{"x":0,"y":0}},{"at":{"x":60,"y":0}}]),
+        json!([{"at":{"x":0,"y":0}},{"at":{"x":29,"y":0}}]),
+    ] {
+        let mut doc = document();
+        doc.parts.truncate(2);
+        doc.parts[1].pose.at.x = 60.0;
+        doc.boards[0].part_ids = vec!["k0".into(), "k1".into()];
+        doc.matrices=serde_json::from_value(json!([
+            {"id":"left","boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":["k0"]},
+            {"id":"right","boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":60,"y":0},"definitionId":"switch","partIds":["k1"]}
+        ])).unwrap();
+        doc.layouts=serde_json::from_value(json!([
+            {"id":"left-layout","name":"Left","boardId":"board","matrixId":"left","partIds":[]},
+            {"id":"right-layout","name":"Right","boardId":"board","matrixId":"right","partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30}}
+        ])).unwrap();
+        if let OutlineFeature::PartEnvelope { connections, .. } = &mut doc.outline[0] {
+            *connections =
+                vec![serde_json::from_value(json!({"id":"c","width":4,"points":points})).unwrap()];
+        }
+        let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+            id: "open".into(),
+            document: doc,
+        }));
+        assert!(!result.readiness.outline, "{:?}", result.findings);
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|finding| finding.message.contains("bridge")
+                    || finding.message.contains("Bridge")),
+            "{:?}",
+            result.findings
+        );
+    }
 }

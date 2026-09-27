@@ -116,6 +116,7 @@ pub(super) fn envelope(
     ids: &[String],
     margin: f64,
     settings: &OutlineSettings,
+    connections: &[crate::model::OutlineConnection],
 ) -> Result<(Shapes, Vec<String>), String> {
     if !margin.is_finite()
         || margin < 0.0
@@ -207,6 +208,30 @@ pub(super) fn envelope(
     }
     if shapes.is_empty() {
         return Err("Outline has no included physical envelopes".into());
+    }
+    // Authored paths join islands before the nearest automatic bridges are chosen.
+    for connection in connections {
+        let points = connection.points.iter()
+            .map(|point| crate::outline_controls::point(doc, point))
+            .collect::<Result<Vec<_>, _>>()?;
+        for pair in points.windows(2) {
+            let a = pair[0];
+            let b = pair[1];
+            let distance = (b.x - a.x).hypot(b.y - a.y);
+            if distance < 0.001 {
+                return Err("Bridge points must be distinct at board precision".into());
+            }
+            let ux = (b.x - a.x) / distance;
+            let uy = (b.y - a.y) / distance;
+            let h = connection.width / 2.0;
+            let path = vec![
+                [a.x - ux*h - uy*h, a.y - uy*h + ux*h],
+                [b.x + ux*h - uy*h, b.y + uy*h + ux*h],
+                [b.x + ux*h + uy*h, b.y + uy*h - ux*h],
+                [a.x - ux*h + uy*h, a.y - uy*h - ux*h],
+            ];
+            shapes = shapes.overlay(&vec![vec![path]], OverlayRule::Union, FillRule::NonZero);
+        }
     }
     while shapes.len() > 1 {
         let web = bridge(&shapes, settings.bridge_width);

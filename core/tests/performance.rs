@@ -50,6 +50,7 @@ fn fixture(keys: usize) -> ProjectDoc {
         });
     }
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "boundary".into(),
         part_ids: doc.parts.iter().map(|part| part.id.clone()).collect(),
         settings: Default::default(),

@@ -67,7 +67,8 @@ fn rect(center: Vec2, size: Vec2, radius: f64) -> Path {
 
 type FeatureGeometry = Result<(Shapes, Vec<String>), String>;
 fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeometry {
-    let path = match feature {
+    crate::outline_controls::validate(doc, feature)?;
+    let mut path = match feature {
         OutlineFeature::Polygon { points, .. } => points.iter().copied().map(point).collect(),
         OutlineFeature::Rect {
             center,
@@ -88,6 +89,7 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
         }
         OutlineFeature::PartEnvelope {
             part_ids,
+            connections,
             margin,
             settings,
             ..
@@ -109,7 +111,7 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
             axes.sort_by(f64::total_cmp);
             axes.dedup();
             if axes.is_empty() {
-                return automatic::envelope(doc, part_ids, *margin, settings);
+                return automatic::envelope(doc, part_ids, *margin, settings, connections);
             }
             // Build each physical half independently so automatic bridges never cross a split.
             let mut groups: BTreeMap<Vec<bool>, Vec<String>> = BTreeMap::new();
@@ -137,14 +139,56 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
             }
             let mut shapes = vec![];
             let mut warnings = vec![];
-            for ids in groups.values() {
-                let (half, notices) = automatic::envelope(doc, ids, *margin, settings)?;
+            let mut grouped_connections: BTreeMap<Vec<bool>, Vec<crate::model::OutlineConnection>> = BTreeMap::new();
+            for connection in connections {
+                let mut group = None;
+                for control in &connection.points {
+                    let point = crate::outline_controls::point(doc, control)?;
+                    let key: Vec<_> = axes.iter().map(|axis| point.x < *axis).collect();
+                    if axes.iter().any(|axis| (point.x - axis).abs() <= connection.width / 2.0)
+                        || group.as_ref().is_some_and(|previous| previous != &key)
+                    {
+                        return Err("Manual bridges cannot cross split boundaries".into());
+                    }
+                    group = Some(key);
+                }
+                if let Some(key) = group {
+                    grouped_connections.entry(key).or_default().push(connection.clone());
+                }
+            }
+            if grouped_connections.keys().any(|key| !groups.contains_key(key)) {
+                return Err("Manual bridge has no included parts on this side of the split".into());
+            }
+            for (group, ids) in &groups {
+                let connections = grouped_connections.get(group).map(Vec::as_slice).unwrap_or_default();
+                let (half, notices) = automatic::envelope(doc, ids, *margin, settings, connections)?;
                 shapes.extend(half);
                 warnings.extend(notices);
             }
             return Ok((shapes, warnings));
         }
     };
+    if let OutlineFeature::Rect { center, rotation: Some(rotation), .. } = feature {
+        if !rotation.is_finite() {
+            return Err("Rectangle rotation must be finite".into());
+        }
+        let (sin, cos) = rotation.to_radians().sin_cos();
+        path = path.into_iter().map(|p| {
+            let x = p[0] - center.x;
+            let y = p[1] - center.y;
+            point(Vec2 { x: center.x + x * cos - y * sin, y: center.y + x * sin + y * cos })
+        }).collect();
+    }
+    let anchor = match feature {
+        OutlineFeature::Polygon { anchor_part_id, .. } | OutlineFeature::Rect { anchor_part_id, .. } => anchor_part_id.as_ref(),
+        _ => None,
+    };
+    if let Some(id) = anchor {
+        let part = doc.parts.iter().find(|part| &part.id == id).ok_or("Outline attachment is missing")?;
+        path = path.into_iter()
+            .map(|p| point(crate::outline_controls::world(Vec2 { x: p[0], y: p[1] }, part)))
+            .collect();
+    }
     if !automatic::simple(&path) {
         return Err(
             "Outline requires a non-self-intersecting polygon with three distinct finite points"
@@ -183,12 +227,7 @@ pub fn outlines(
 }
 
 fn depends_on(feature: &OutlineFeature, moved: &[String]) -> bool {
-    match feature {
-        OutlineFeature::PartEnvelope { part_ids, .. } => {
-            part_ids.iter().any(|id| moved.contains(id))
-        }
-        _ => false,
-    }
+    crate::outline_controls::dependencies(feature).iter().any(|id|moved.iter().any(|moved|moved==id))
 }
 
 fn compose<'a>(
@@ -417,6 +456,7 @@ mod tests {
                 generator_parameters: None,
             });
             doc.outline.push(OutlineFeature::PartEnvelope {
+                connections: vec![],
                 id: format!("edge-{index}"),
                 part_ids: vec![id],
                 settings: Default::default(),

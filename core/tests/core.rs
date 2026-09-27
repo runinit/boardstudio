@@ -3,6 +3,8 @@ use boardstudio_core::model::*;
 
 fn rect(id: &str, x: f64, y: f64, width: f64, height: f64, operation: Operation) -> OutlineFeature {
     OutlineFeature::Rect {
+        rotation: None,
+        anchor_part_id: None,
         id: id.into(),
         center: Vec2 { x, y },
         size: Vec2 {
@@ -313,6 +315,7 @@ fn part_envelope_tracks_committed_move() {
         generator_parameters: None,
     });
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "boundary".into(),
         part_ids: vec!["k1".into()],
         settings: Default::default(),
@@ -434,6 +437,7 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
         generator: None,
     });
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "env".into(),
         part_ids: vec![],
         settings: Default::default(),
@@ -502,6 +506,7 @@ fn add_part_targets_board_and_removal_cleans_both_boards() {
     let mut engine = CoreEngine::new();
     let mut doc = matrix_doc();
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "right-edge".into(),
         part_ids: vec![],
         settings: Default::default(),
@@ -1201,6 +1206,7 @@ fn matrix_doc() -> ProjectDoc {
         generator: None,
     });
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "edge".into(),
         part_ids: vec![],
         settings: Default::default(),
@@ -1902,6 +1908,7 @@ fn matrix_targets_board_and_preview_is_scoped() {
     let mut engine = CoreEngine::new();
     let mut doc = matrix_doc();
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "right-edge".into(),
         part_ids: vec![],
         settings: Default::default(),

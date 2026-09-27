@@ -3,6 +3,8 @@ use boardstudio_core::model::*;
 
 fn outline(id: &str) -> OutlineFeature {
     OutlineFeature::Rect {
+        rotation: None,
+        anchor_part_id: None,
         id: id.into(),
         center: Vec2 { x: 0.0, y: 0.0 },
         size: Vec2 { x: 20.0, y: 10.0 },
