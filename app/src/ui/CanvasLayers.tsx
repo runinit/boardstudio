@@ -11,7 +11,7 @@ export function CanvasLayers({ groups, hidden, onToggle }: {
   const listId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const previousCompact = useRef<boolean>();
+  const previousCompact = useRef<boolean | undefined>(undefined);
   const [compact, setCompact] = useState(false);
   const [open, setOpen] = useState(false);
   useEffect(() => {

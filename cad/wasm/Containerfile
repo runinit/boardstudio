@@ -25,7 +25,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
 ENV PATH=/opt/wasi-sdk/bin:/root/.cargo/bin:$PATH
 RUN rustup target add wasm32-unknown-unknown \
     && cargo install wasm-pack --locked --version 0.15.0 \
-    && cargo install wasm-bindgen-cli --locked --version 0.2.128
+    && cargo install wasm-bindgen-cli --locked --version 0.2.129
 
 ENV SYSROOT=/opt/wasi-sdk/share/wasi-sysroot \
     CC_wasm32_unknown_unknown=clang \

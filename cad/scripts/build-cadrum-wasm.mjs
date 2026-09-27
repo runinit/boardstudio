@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 
 const cadRoot = fileURLToPath(new URL('..', import.meta.url));
-const image = 'boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33';
+const image = 'boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33-bindgen-0.2.129';
 const prepare = spawnSync(process.execPath, [fileURLToPath(new URL('./prepare-cadrum-occt.mjs', import.meta.url)), 'wasm'], {
   cwd: cadRoot,
   encoding: 'utf8',

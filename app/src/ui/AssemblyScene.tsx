@@ -28,7 +28,7 @@ export function AssemblyScene({ board, models, bodies = [], mechanical, generati
   persistenceKey?: string;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const renderer = useRef<RendererCanvas>();
+  const renderer = useRef<RendererCanvas | undefined>(undefined);
   const sceneRevision = useRef(0);
   const interacted = useRef(false);
   const fitted = useRef(false);

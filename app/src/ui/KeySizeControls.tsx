@@ -9,8 +9,8 @@ export function KeySizeControls({ items, onCommit }: { items: KeySizeItem[]; onC
   const mixed = items.some((item) => { const itemUnits = units(item); return itemUnits.x !== value.x || itemUnits.y !== value.y; });
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value.x, value.y, mixed]);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
-  const sent = useRef<string>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const sent = useRef<string | undefined>(undefined);
   useEffect(() => { sent.current = undefined; }, [value.x, value.y, mixed]);
   useEffect(() => () => clearTimeout(timer.current), []);
   const commit = (next = draft, axis?: 'x' | 'y') => {

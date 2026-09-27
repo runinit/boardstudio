@@ -9,6 +9,8 @@ import { saveAsset, unpackProject } from './storage';
 import { matrixWithPreset } from './ui/matrixPresets';
 
 const ERGOGEN_DEFINITIONS = ergogenCatalogue();
+const MAX_PROJECT_BYTES = 128 * 1024 * 1024;
+const MAX_MODEL_BYTES = 32 * 1024 * 1024;
 
 type Inputs = {
   projectRef: MutableRefObject<ProjectDoc>;
@@ -62,6 +64,11 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     schedule(async () => {
       if (!client.current) {
         return;
+      }
+
+      // Check metadata before allocating; Rust independently validates the archive.
+      if (!file.size || file.size > MAX_PROJECT_BYTES) {
+        throw new Error('Choose a nonempty project file no larger than 128 MiB');
       }
 
       const document = await unpackProject(new Uint8Array(await file.arrayBuffer()), ensureExportClient());
@@ -181,6 +188,10 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
 
       if (!extension) {
         throw new Error('Select a STEP, STL, or WRL model');
+      }
+
+      if (!file.size || file.size > MAX_MODEL_BYTES) {
+        throw new Error('Choose a nonempty model file no larger than 32 MiB');
       }
 
       const current = projectRef.current;

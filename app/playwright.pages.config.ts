@@ -8,7 +8,7 @@ export default defineConfig({
   testDir: './e2e-pages',
   use: { ...base.use, baseURL },
   webServer: {
-    command: 'pnpm exec vite preview --host 127.0.0.1 --port 4328 --strictPort --base /boardstudio/',
+    command: 'node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4328 --strictPort --base /boardstudio/',
     url: baseURL,
     reuseExistingServer: false,
   },

@@ -53,7 +53,7 @@ export function WorkspacePanel({ side, label, settings, compact, open, onClose, 
   const id = side === 'left' ? 'wb-inventory' : 'wb-inspector';
   const panel = useRef<HTMLElement>(null);
   const rail = useRef<HTMLButtonElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hovered = useRef(false);
   const resizing = useRef(false);
   const [revealed, setRevealed] = useState(false);

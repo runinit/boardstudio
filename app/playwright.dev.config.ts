@@ -7,7 +7,7 @@ export default defineConfig({
   testMatch: ['cad-loading.spec.ts', 'ergogen-library.spec.ts'],
   use: { ...base.use, baseURL: 'http://127.0.0.1:4329/' },
   webServer: {
-    command: 'pnpm exec vite --host 127.0.0.1 --port 4329 --strictPort',
+    command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4329 --strictPort',
     url: 'http://127.0.0.1:4329/',
     reuseExistingServer: false,
   },

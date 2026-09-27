@@ -825,7 +825,10 @@ fn collect_part_geometry(
         let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
         if let Some(source) = &profile.source_geometry {
             use sha2::{Digest, Sha256};
-            let hash = format!("{:x}", Sha256::digest(source.text.as_bytes()));
+            let hash: String = Sha256::digest(source.text.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
             if hash != source.sha256 {
                 issue(
                     &format!("source-hash:{}", part.id),

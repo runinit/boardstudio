@@ -19,7 +19,8 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `pnpm exec vite preview --host 127.0.0.1 --port ${PORT} --strictPort`,
+    // pnpm 12 detaches the child process group, preventing Playwright teardown.
+    command: `node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: false,
     timeout: 30_000,

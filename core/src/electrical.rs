@@ -184,10 +184,10 @@ fn add_net(nets: &mut BTreeMap<String, Net>, prefix: &str, suffix: &str, pins: V
         .extend(pins);
 }
 fn signature<T: Serialize>(value: &T) -> String {
-    format!(
-        "{:x}",
-        Sha256::digest(serde_json::to_vec(value).expect("electrical input serializes"))
-    )
+    Sha256::digest(serde_json::to_vec(value).expect("electrical input serializes"))
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 struct MatrixKey<'a> {

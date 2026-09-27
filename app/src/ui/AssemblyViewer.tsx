@@ -52,8 +52,8 @@ export function AssemblyViewer({
   colorScheme: 'light' | 'dark';
   sample?: boolean;
 }) {
-  const client = useRef<ExportClient>(),
-    cad = useRef<CaseClient>();
+  const client = useRef<ExportClient | undefined>(undefined),
+    cad = useRef<CaseClient | undefined>(undefined);
   const cache = useRef(new Map<string, Promise<ModelMesh>>());
   const [board, setBoard] = useState<PcbPreview>(),
     [models, setModels] = useState<LoadedModel[]>([]),

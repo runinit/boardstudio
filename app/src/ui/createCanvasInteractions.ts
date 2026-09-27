@@ -16,7 +16,7 @@ type Inputs = {
     staggerDragRef: MutableRefObject<StaggerDrag | null>;
     splayDrag: MutableRefObject<SplayDrag | null>;
     panDrag: MutableRefObject<PanDrag | null>;
-    svgRef: RefObject<SVGSVGElement>;
+    svgRef: RefObject<SVGSVGElement | null>;
     suppressClick: MutableRefObject<boolean>;
     spaceDown: MutableRefObject<boolean>;
     transaction: MutableRefObject<string>;

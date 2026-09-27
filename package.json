@@ -2,7 +2,7 @@
   "name": "boardstudio",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.26.0",
+  "packageManager": "pnpm@12.6.0",
   "engines": {
     "node": ">=24"
   },
@@ -26,6 +26,7 @@
     "check:boundaries": "node app/scripts/check-rust-boundaries.mjs",
     "check:repo": "node --test scripts/repo-check.test.mjs && node scripts/repo-check.mjs",
     "check": "pnpm run check:repo && pnpm run check:contracts && pnpm run test:contracts && pnpm run test && pnpm run build && pnpm --dir cad check && pnpm run check:boundaries && pnpm run test:e2e && pnpm run test:e2e:pages",
-    "test:e2e:pages": "pnpm --dir app test:e2e:pages"
+    "test:e2e:pages": "pnpm --dir app test:e2e:pages",
+    "check:security": "python3 -B scripts/security-audit.test.py && python3 scripts/security-audit.py"
   }
 }

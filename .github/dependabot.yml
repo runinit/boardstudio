@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      react:
+        patterns: [react, react-dom, '@types/react', '@types/react-dom']
+      build-and-test:
+        patterns: [vite, '@vitejs/*', vitest, '@vitest/*']
+  - package-ecosystem: cargo
+    directories: [/core, /renderer, /cad/wasm]
+    schedule:
+      interval: weekly
+    groups:
+      wasm-bindings:
+        patterns: [wasm-bindgen, wasm-bindgen-*, js-sys, web-sys]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

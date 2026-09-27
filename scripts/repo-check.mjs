@@ -5,7 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ts = createRequire(path.join(rootDirectory, 'app/package.json'))('typescript');
+const require = createRequire(path.join(rootDirectory, 'app/package.json'));
+const ts = require('typescript/unstable/ast');
+const { API } = require('typescript/unstable/sync');
+const { createVirtualFileSystem } = require('typescript/unstable/fs');
 const packages = ['app', 'cad', 'contracts', 'ergogen', 'kicad'];
 const extensions = ['.ts', '.tsx', '.mts', '.mjs', '.js'];
 const excludedDirectories = new Set(['node_modules', 'dist', 'pkg', 'target', '.git', '.impeccable', '.generated', 'library']);
@@ -39,8 +42,7 @@ async function walk(directory, accept, prefix = '') {
   return files;
 }
 
-function analyze(file, source) {
-  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+function analyze(ast) {
   const edges = [];
   const exported = new Set();
   function visit(node) {
@@ -65,7 +67,7 @@ function analyze(file, source) {
       }
     }
     if (ts.isExportAssignment(node)) exported.add('default');
-    const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) ?? [] : [];
+    const modifiers = node.modifiers ?? [];
     if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
       if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword)) exported.add('default');
       else if (node.name && ts.isIdentifier(node.name)) exported.add(node.name.text);
@@ -85,7 +87,7 @@ function analyze(file, source) {
       && node.arguments[1].getText(ast) === 'import.meta.url') {
       edges.push({ specifier: node.arguments[0].text, names: [] });
     }
-    ts.forEachChild(node, visit);
+    node.forEachChild(visit);
   }
   visit(ast);
   return { edges, exported };
@@ -116,7 +118,28 @@ async function check(root = rootDirectory) {
     if (!packageExports.has(`@boardstudio/v2-${directory}`)) packageExports.set(`@boardstudio/v2-${directory}`, `${directory}/src/index.ts`);
   }
   const infos = new Map();
-  for (const file of files) infos.set(file, analyze(file, await readFile(path.join(root, file), 'utf8')));
+  // TypeScript 7 parses through its native API; one virtual project keeps this
+  // syntax-only check independent of application typechecking and module resolution.
+  const configFile = path.join(root, '__repo_check__.json');
+  const sources = Object.fromEntries(await Promise.all([...files].map(async file =>
+    [path.join(root, file), await readFile(path.join(root, file), 'utf8')])));
+  sources[configFile] = JSON.stringify({
+    compilerOptions: { allowJs: true, noLib: true, noResolve: true, noCheck: true, types: [] },
+    files: [...files],
+  });
+  const api = new API({ cwd: root, fs: createVirtualFileSystem(sources) });
+  try {
+    const snapshot = api.updateSnapshot({ openProject: configFile });
+    const project = snapshot.getProject(configFile);
+    if (!project) throw new Error('Could not initialize repository syntax check');
+    for (const file of files) {
+      const ast = project.program.getSourceFile(path.join(root, file));
+      if (!ast) throw new Error(`Could not parse ${file}`);
+      infos.set(file, analyze(ast));
+    }
+  } finally {
+    api.close();
+  }
   function resolve(from, specifier) {
     const clean = specifier.split(/[?#]/)[0];
     const base = clean.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(from), clean)) : packageExports.get(clean);

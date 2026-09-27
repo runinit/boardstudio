@@ -3,6 +3,8 @@ import { emptyProject, type CoreReply, type CoreRequest } from '@boardstudio/v2-
 import type { CoreClient } from './CoreClient';
 import type { ExportClient } from './ExportClient';
 import { createProjectActions } from './createProjectActions';
+import { saveAsset, unpackProject } from './storage';
+import { catalogue } from '@boardstudio/v2-ergogen';
 
 vi.mock('./storage', () => ({ saveAsset: vi.fn(), unpackProject: vi.fn() }));
 
@@ -22,8 +24,71 @@ function harness() {
     ensureExportClient: () => null as unknown as ExportClient,
     onProjectCreated,
   });
-  return { actions, client, request, accept, onProjectCreated, run: () => work!() };
+  return { actions, client, request, accept, projectRef, onProjectCreated, run: () => work!() };
 }
+
+describe('file import limits', () => {
+  const mib = 1024 * 1024;
+
+  function file(name: string, size: number) {
+    // Model the metadata independently so boundary tests do not allocate 128 MiB.
+    const arrayBuffer = vi.fn(async () => new Uint8Array([1, 2, 3]).buffer);
+    return { name, size, arrayBuffer } as unknown as File & { arrayBuffer: typeof arrayBuffer };
+  }
+
+  it.each([0, 128 * mib + 1])('rejects a %i-byte project before reading it', async size => {
+    vi.mocked(unpackProject).mockClear();
+    const test = harness();
+    const original = test.projectRef.current;
+    const input = file('project.boardstudio', size);
+    test.actions.importProject(input);
+    await expect(test.run()).rejects.toThrow(/128 MiB/);
+    expect(input.arrayBuffer).not.toHaveBeenCalled();
+    expect(unpackProject).not.toHaveBeenCalled();
+    expect(test.request).not.toHaveBeenCalled();
+    expect(test.accept).not.toHaveBeenCalled();
+    expect(test.projectRef.current).toBe(original);
+  });
+
+  it.each([1, 128 * mib])('allows a %i-byte project through archive validation', async size => {
+    const test = harness();
+    const document = emptyProject('imported', 'Imported');
+    vi.mocked(unpackProject).mockResolvedValueOnce(document);
+    const input = file('project.boardstudio', size);
+    test.actions.importProject(input);
+    await test.run();
+    expect(input.arrayBuffer).toHaveBeenCalledOnce();
+    expect(test.request).toHaveBeenCalledWith(expect.objectContaining({ kind: 'open', document }));
+  });
+
+  it.each(['step', 'stp', 'stl', 'wrl'])('checks %s model size before reading or saving', async extension => {
+    for (const size of [0, 32 * mib + 1]) {
+      vi.mocked(saveAsset).mockClear();
+      const test = harness();
+      const original = test.projectRef.current;
+      const input = file(`part.${extension}`, size);
+      test.actions.importModel(input, catalogue()[0].id);
+      await expect(test.run()).rejects.toThrow(/32 MiB/);
+      expect(input.arrayBuffer).not.toHaveBeenCalled();
+      expect(saveAsset).not.toHaveBeenCalled();
+      expect(test.request).not.toHaveBeenCalled();
+      expect(test.accept).not.toHaveBeenCalled();
+      expect(test.projectRef.current).toBe(original);
+    }
+  });
+
+  it.each([1, 32 * mib])('allows a %i-byte model through the existing import flow', async size => {
+    vi.mocked(saveAsset).mockClear();
+    const test = harness();
+    test.request.mockResolvedValueOnce({ kind: 'scene', document: test.projectRef.current } as CoreReply);
+    const input = file('part.step', size);
+    test.actions.importModel(input, catalogue()[0].id);
+    await test.run();
+    expect(input.arrayBuffer).toHaveBeenCalledOnce();
+    expect(saveAsset).toHaveBeenCalledOnce();
+    expect(test.request).toHaveBeenCalledWith(expect.objectContaining({ kind: 'edit' }));
+  });
+});
 
 describe('new-project setup entry', () => {
   it('opens the guide only after the new project has been accepted and saved', async () => {

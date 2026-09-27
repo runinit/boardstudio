@@ -20,7 +20,7 @@ type Inputs = {
   matrixScenes: Map<string, MatrixProjection>;
   definitions: Map<string, PartDefinition>;
   keyEnvelopes: Map<string, Vec2>;
-  svgRef: RefObject<SVGSVGElement>;
+  svgRef: RefObject<SVGSVGElement | null>;
   bounds: ReturnType<typeof getBounds>;
   canvasSize: { width: number; height: number; };
   setZoom: Dispatch<SetStateAction<number>>;

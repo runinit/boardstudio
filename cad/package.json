@@ -9,7 +9,7 @@
   "devDependencies": {
     "libcascade": "3.0.2",
     "@boardstudio/v2-contracts": "workspace:*",
-    "typescript": "^5.9.3"
+    "typescript": "7.0.2"
   },
   "scripts": {
     "build:wasm": "node scripts/build-cadrum-wasm.mjs",
