@@ -569,3 +569,20 @@ fn oversized_saved_gasket_remains_editable_and_resizing_repairs_it() {
     assert!(saved["fitError"].is_null());
     assert!(repaired["generatedMaterials"].as_array().unwrap().iter().any(|m|m["featureId"]==support["id"] && m["size"]["x"]==10.));
 }
+
+#[test]
+fn dense_automatic_gaskets_balance_all_sides_without_exhausting_short_edges() {
+    let mut doc = internal_document();
+    doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
+    doc["mechanical"]["internalGasket"]["supportCount"] = json!(12);
+    let result = resolve_internal(doc);
+    assert_eq!(result["generationBlocked"], false, "{}", result["diagnostics"]);
+    let mut sides = [0;4];
+    for support in result["gasketSupports"].as_array().unwrap() {
+        let x = support["normal"]["x"].as_f64().unwrap();
+        let y = support["normal"]["y"].as_f64().unwrap();
+        let side = if x.abs()>y.abs() {if x>0. {0} else {1}} else if y>0. {2} else {3};
+        sides[side] += 1;
+    }
+    assert_eq!(sides,[3,3,3,3]);
+}

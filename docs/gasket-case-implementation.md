@@ -51,6 +51,46 @@ cut lengths, passed connected-solid and STEP reimport checks. Live Sofle testing
 confirmed mixed 10/30/50 mm cuts on four sides and direct cross-board placement
 with retained red handles and blocked export. This does not establish physical fit.
 
+## Split assemblies and display controls
+
+Case Objects lists both physical assemblies. Selecting an assembly switches the
+canvas and generation context to that half, including reversible designs that
+share a PCB. PCB reference components appear last and collapsed; gaskets are a
+collapsed group with individual controls. Visibility and colour are local view
+preferences per project/physical instance and do not invalidate CAD.
+
+Mechanical construction and closure hardware are shared across both assemblies.
+Gasket positions, openings, battery placement and adopted closures remain local.
+Top and bottom inspectors link to the shared closure editor. New custom hardware
+starts with a 3 mm M2 insert; nominal M2/M2.5/M3 size choices match the supplied
+examples. Seat and screw dimensions remain editable starting dimensions, not
+supplier-qualified installation specifications.
+
+Automatic placement reserves space for later supports and balances the support
+count across four sides before selecting descending cut lengths. A dense
+12-support rectangle regression reproduces the previous overlapping layout and
+now passes with three supports on every side. Existing manually positioned pads
+are retained; Reset gasket placement explicitly releases them.
+
+The renderer supports adjustable exploded separation, XY/XZ/YZ section planes,
+a position slider and a translucent plane indicator. Hidden-line mode draws
+occluded edges without revealing objects that were hidden. Picking uses the same
+section equation and exploded displacement as rendering.
+
+A split-assembly browser regression exposed a queued-edit revision bug: the
+internal document replacement for mechanical edits used an outdated revision.
+Such replacements now use the current revision at execution time; explicit full
+document replacements retain their original revision guard.
+
+Validation for this refinement: 406 app tests passed with two workers, 274 core
+Rust tests passed (including the dense-layout regression), and 26 renderer tests
+passed. Six focused browser tests cover saved edits, visibility/colour and view
+controls, and generation on both Sofle halves while sharing insert changes.
+The colour test also verifies a rendered-pixel change without a CAD revision
+change. Six internal-gasket CAD export/STEP-reimport fixtures and native/WASM
+boundary parity passed. Desktop and narrow live previews were inspected.
+The existing unrelated repository-wide browser failures below were not rerun.
+
 ## Implemented contract
 
 Rust owns the independent PCB-based exterior, nominal plate and local tabs,

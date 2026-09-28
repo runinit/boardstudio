@@ -1,9 +1,10 @@
+import type { CaseDisplay } from './caseDisplay';
 import { CanvasLayers } from './CanvasLayers';
 import { defaultGasketLayout, moveGasket, gasketAnchors } from '../gasketEditing';
 import { caseMountConstraints, moveCaseMount } from '../caseEditing';
 import type { MechanicalGasketSupport } from '@boardstudio/v2-contracts';
 import type { GenerationState } from '../generationState';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardReference, CaseBody, MechanicalAssembly, MechanicalConfiguration, Mount, PcbPreview, PreparedCaseAssemblyIR } from '@boardstudio/v2-contracts';
 import type { ModelMesh } from '../modelMesh';
 import { createRendererCanvas, type RendererCanvas } from '../renderClient';
@@ -13,7 +14,7 @@ export type LoadedModel = { id: string; mesh: ModelMesh };
 export type AssemblyBody = { id: string; name: string; mesh: ModelMesh };
 type AssemblyView = 'assembled' | 'exploded' | 'section';
 
-export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies = [], mechanical, generation, preparedCase, onGasketChange, onGasketDraft, onCaseMountChange, onCaseMountDraft, mechanicalConfiguration, selectedLayer = '', reference, onSelect, onSelectLayer, colorScheme, persistenceKey }: {
+export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies = [], mechanical, generation, preparedCase, onGasketChange, onGasketDraft, onCaseMountChange, onCaseMountDraft, mechanicalConfiguration, selectedLayer = '', reference, onSelect, onSelectLayer, colorScheme, persistenceKey, display, onDisplayChange }: {
   board: PcbPreview;
   models: LoadedModel[];
   bodies?: AssemblyBody[];
@@ -32,6 +33,8 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   onSelectLayer?: (id: string) => void;
   colorScheme: 'light' | 'dark';
   persistenceKey?: string;
+  display?: CaseDisplay;
+  onDisplayChange?: (next: CaseDisplay) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<RendererCanvas | undefined>(undefined);
@@ -70,7 +73,17 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const hiddenKey = `boardstudio:v2:layers:assembly:${persistenceKey ?? 'default'}`;
-  const [hidden, setHidden] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(hiddenKey) ?? '[]') as string[]); } catch { return new Set(); } });
+  const [localHidden, setLocalHidden] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(hiddenKey) ?? '[]') as string[]); } catch { return new Set(); } });
+  const hidden = useMemo(() => display ? new Set(display.hidden) : localHidden, [display?.hidden, localHidden]);
+  const setHidden = (change: (current: Set<string>) => Set<string>) => {
+    if (display && onDisplayChange) onDisplayChange({ ...display, hidden: [...change(hidden)] });
+    else setLocalHidden(change);
+  };
+  const [explodeAmount, setExplodeAmount] = useState(1);
+  const [sectionPlane, setSectionPlane] = useState('YZ');
+  const [sectionPosition, setSectionPosition] = useState(0);
+  const [showSectionPlane, setShowSectionPlane] = useState(true);
+  const [showHidden, setShowHidden] = useState(false);
   const [selected, setSelected] = useState('');
   const [view, setView] = useState<AssemblyView>('assembled');
   const [displayMode, setDisplayMode] = useState<'shaded' | 'wireframe' | 'hybrid'>('hybrid');
@@ -161,8 +174,8 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   }, [ready, board, models, geometryBodies, reference, stackKey, batteryKey, exactRevision.current]);
 
   useEffect(() => {
-    renderer.current?.setState({ hidden: [...hidden, ...(!editingGaskets && !editingMounts ? ['GasketHandles'] : [])], selectedLayer, view, mode: displayMode, theme: colorScheme });
-  }, [ready, hidden, selectedLayer, view, displayMode, colorScheme, editingGaskets, editingMounts]);
+    renderer.current?.setState({ hidden: [...hidden, ...(!editingGaskets && !editingMounts ? ['GasketHandles'] : [])], selectedLayer, view, mode: displayMode, theme: colorScheme, explodeAmount, sectionPlane, sectionPosition, showSectionPlane, showHidden, colors: display?.colors ?? {} });
+  }, [ready, hidden, selectedLayer, view, displayMode, colorScheme, editingGaskets, editingMounts, explodeAmount, sectionPlane, sectionPosition, showSectionPlane, showHidden, display?.colors]);
 
   useEffect(() => {
     const current = renderer.current;
@@ -339,6 +352,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
     <div className="wb-scene-view-bar">
     <div className="wb-render-modes" role="group" aria-label="Display mode">
       {(['shaded', 'wireframe', 'hybrid'] as const).map(mode => <button key={mode} aria-pressed={displayMode === mode} onClick={() => setDisplayMode(mode)}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
+      <button aria-label="Show hidden lines" title="Show hidden lines" aria-pressed={showHidden} onClick={() => setShowHidden(value => !value)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7ZM3 7l9 5 9-5M12 12v10"/><path strokeDasharray="2 2" d="M12 2v10M3 17l9-5 9 5"/></svg></button>
     </div>
     {(mechanical || authoredCaseBodies.length > 0) && <div className="wb-mechanical-view-controls" role="group" aria-label="Mechanical assembly view">
       <button aria-pressed={view === 'assembled'} onClick={() => setView('assembled')}>Assembled</button>
@@ -349,6 +363,8 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
       {editingGaskets && activeGasket && <button onClick={unlinkGasket}>Unlink selected support</button>}
     </div>}
     </div>
+    {view === 'exploded' && <div className="wb-scene-adjustments"><label>Separation <input aria-label="Exploded separation" type="range" min="0" max="10" step="0.1" value={explodeAmount} onChange={event => setExplodeAmount(Number(event.target.value))} /><output>{explodeAmount.toFixed(1)}×</output></label></div>}
+    {view === 'section' && <div className="wb-scene-adjustments"><label>Plane <select aria-label="Section plane" value={sectionPlane} onChange={event => setSectionPlane(event.target.value)}>{['XY','XZ','YZ'].map(plane => <option key={plane}>{plane}</option>)}</select></label><label>Position <input aria-label="Section position" type="range" min="-100" max="100" value={sectionPosition} onChange={event => setSectionPosition(Number(event.target.value))} /><output>{sectionPosition}%</output></label><label><input type="checkbox" checked={showSectionPlane} onChange={event => setShowSectionPlane(event.target.checked)} />Show plane</label></div>}
     <div className="wb-layer-surface wb-assembly-drawing">
       <div className="wb-assembly-viewport">
     <canvas ref={canvas} aria-label="3D PCB assembly. Drag to orbit, scroll to zoom." />
@@ -361,7 +377,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
     </div>
     {mechanical && <output role="status" className="wb-mechanical-preview-status">{solidsBlocked ? 'Case solids blocked' : generatedBodyCount > 0 && generatedBodyCount === mechanical.case.bodies.length && (!generation || generation.status === 'ready' && generation.revision === mechanical.revision) ? `Generated CAD solids · ${mechanical.case.bodies.length} parts at revision ${mechanical.revision}` : bodies.length ? 'Showing previous geometry' : 'No generated solids'}</output>}
     {gasketMessage && <output className="wb-gasket-message" role="status">{gasketMessage}</output>}
-    {view === 'section' && <output className="wb-mechanical-section-label">Section at board centre · half removed</output>}
+    {view === 'section' && <output className="wb-mechanical-section-label">{sectionPlane} section · {sectionPosition}% from centre</output>}
     <output className="wb-assembly-caption">{selected || `${models.length} / ${board.models.length} models · ${board.thickness} mm PCB`}</output>
     {error && <p className="wb-assembly-error" role="alert">{error}</p>}
       </div>

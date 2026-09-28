@@ -1,3 +1,4 @@
+import type { CaseDisplay } from './caseDisplay';
 import type { GenerationState } from '../generationState';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
@@ -45,6 +46,7 @@ export function AssemblyViewer({
   onSelect,
   colorScheme,
   sample = false,
+  display, onDisplayChange, displayKey,
 }: {
   document: ProjectDoc;
   boardId: string;
@@ -63,6 +65,9 @@ export function AssemblyViewer({
   onSelect?: (reference: string) => void;
   colorScheme: 'light' | 'dark';
   sample?: boolean;
+  display?: CaseDisplay;
+  onDisplayChange?: (next: CaseDisplay) => void;
+  displayKey?: string;
 }) {
   const client = useRef<ExportClient | undefined>(undefined),
     cad = useRef<CaseClient | undefined>(undefined);
@@ -223,12 +228,13 @@ export function AssemblyViewer({
           onCaseMountDraft={(bodyId, mounts, disposition) => { onCaseMountDraft?.(bodyId, mounts, disposition); const body = document.caseBodies.find((entry) => entry.id === bodyId); onCasePreviewDraft?.(body && mounts ? { ...document, caseBodies: document.caseBodies.map((entry) => entry.id === bodyId ? { ...body, mounts } : entry) } : null, disposition); }}
           authoredCaseBodies={authoredBodies}
           mechanicalConfiguration={document.mechanical}
+          display={display} onDisplayChange={onDisplayChange}
           selectedLayer={selectedLayer}
           onSelectLayer={onSelectLayer}
           reference={shownReference}
         colorScheme={colorScheme}
-        key={`${document.id}:${boardId}`}
-        persistenceKey={`${document.id}:${boardId}`}
+        key={`${document.id}:${displayKey ?? boardId}`}
+        persistenceKey={`${document.id}:${displayKey ?? boardId}`}
           onSelect={onSelect}
         />
       )}

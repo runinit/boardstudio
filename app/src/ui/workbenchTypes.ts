@@ -42,6 +42,8 @@ export type Props = {
   physicalCaseDocument?: ProjectDoc;
   physicalCaseScene?: SceneDelta;
   instanceControls?: ReactNode;
+  selectedCaseInstanceId?: string;
+  onSelectCaseInstance?: (id: string, boardId: string) => void;
   wiringStatus?: { current: boolean; ready: boolean; applied: boolean };
   wiring?: { existingConnections?: { names: string[]; pinCount: number; onReplace: () => void }; ready?: boolean; firmwareControls?: ReactNode; controller?: { name: string; detail?: string }; controllerOptions?: { id: string; name: string; detail?: string }[]; selectedControllerId?: string; onControllerChange?: (id: string) => void; topology?: string; onTopologyChange?: (topology: 'matrix' | 'direct') => void; assignments?: WiringAssignment[]; usedPins?: string[]; freePins?: string[]; findings?: string[]; onToggleLock?: (assignment: WiringAssignment) => void; onAssignPin?: (assignmentId: string, pin: string) => void; protectedSummary?: string; onReviewRemap?: () => void };
   onResolveWiring?: () => void;

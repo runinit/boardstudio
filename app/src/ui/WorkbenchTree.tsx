@@ -4,6 +4,8 @@ export type TreeEntry = {
   id: string;
   label: string;
   detail?: string;
+  hidden?: boolean;
+  onVisibility?: () => void;
   level: number;
   expandable?: boolean;
   expanded?: boolean;
@@ -53,6 +55,7 @@ export const WorkbenchTree = ({ entries }: { entries: TreeEntry[] }) => {
             <span className="wb-tree-label" title={entry.label}>{entry.label}</span>
             {entry.detail && <small title={entry.detail}>{entry.detail}</small>}
           </button>
+          {entry.onVisibility && <button className="wb-tree-visibility" aria-label={`${entry.hidden ? 'Show' : 'Hide'} ${entry.label}`} aria-pressed={!entry.hidden} onClick={entry.onVisibility}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{entry.hidden && <path d="m3 3 18 18"/>}</svg></button>}
         </div>;
       })}
     </div>

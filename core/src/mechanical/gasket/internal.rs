@@ -656,15 +656,32 @@ pub(super) fn generate(
             } else {
                 let lengths: Vec<f64> = if automatic { (1..=8).rev().map(|n|n as f64*10.).chain(std::iter::once(5.)).collect() } else { vec![foam.length] };
                 let occupied: Vec<_> = chosen.iter().filter(|(name,_,_,_)| name.starts_with(&format!("{id}:"))).map(|(_,c,_,_)|side(c)).collect();
-                let missing = (0..4).find(|s| !occupied.contains(s));
+                let target_side = (0..4).min_by_key(|s| occupied.iter().filter(|other| *other == s).count()).unwrap();
+                let quota = (count / 4 + usize::from(target_side < count % 4)) as f64;
+                let side_span: f64 = region.tracks.iter().filter(|track| {
+                    on_track(&region, (track.start_anchor + track.end_anchor) / 2.).is_some_and(|c| side(&c) == target_side)
+                }).map(|track| distance(track.start, track.end)).sum();
+                // Reserve an equal share for later supports before choosing a cut.
+                let budget = side_span / quota - 2. * (TAB_MARGIN + clearance + 1.);
+                let missing = Some(target_side);
                 let mut selected = None;
                 for length in lengths {
+                    if automatic && length > budget.max(5.) { continue; }
                     let available: Vec<_> = candidates(ring,length/2.+TAB_MARGIN+clearance+1.).into_iter().filter(|c| {
                         missing.is_none_or(|s| side(c)==s) && clear(c,length) && valid_support(c,length,width)
                         && document.layouts.iter().filter_map(|l|l.mirror_link.as_ref().map(|link|(l,link)))
                             .filter(|(l,link)| l.id==id || link.source_id==id).all(|(_,link)| valid_support(&reflect(c,link.axis_x),length,width))
                     }).collect();
-                    if let Some(c) = nearest(&available,(slot as f64+0.5)/count as f64) { selected = Some((c,length,None)); break; }
+                    let ordinal = occupied.iter().filter(|s| **s == target_side).count() as f64;
+                    let side_tracks: Vec<_> = region.tracks.iter().filter(|track| on_track(&region, (track.start_anchor + track.end_anchor) / 2.).is_some_and(|c| side(&c) == target_side)).collect();
+                    let mut remaining = side_span * (ordinal + 0.5) / quota;
+                    let mut ideal = 0.5;
+                    for track in side_tracks {
+                        let span = distance(track.start, track.end);
+                        if remaining <= span { ideal = track.start_anchor + (track.end_anchor - track.start_anchor) * remaining / span; break; }
+                        remaining -= span;
+                    }
+                    if let Some(c) = nearest(&available,ideal) { selected = Some((c,length,None)); break; }
                 }
                 selected.unwrap_or_else(|| {
                     let candidate = region.tracks.iter().filter_map(|track| on_track(&region,(track.start_anchor+track.end_anchor)/2.))

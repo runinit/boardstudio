@@ -55,10 +55,10 @@ export function defaultInternalGasket(): InternalGasketConfiguration {
       id: 'custom-m2', thread: 'M2 × 0.4', threadDiameter: 2, pitch: 0.4,
       drive: 'hex', installation: 'heat-set', lengthDatum: 'under-head', headProfile: 'flat',
       screwLengths: [8, 10, 12, 14, 15, 16], headDiameter: 4, headHeight: 1,
-      holeDiameter: 2.2, insertDiameter: 3.6, insertLength: 4, seatDiameter: 3.2,
-      seatDepth: 4.5, engagement: 3, threadStart: 0.2, tipAllowance: 0.1,
+      holeDiameter: 2.2, insertDiameter: 3.2, insertLength: 3, seatDiameter: 2.8,
+      seatDepth: 3.5, engagement: 2.5, threadStart: 0.2, tipAllowance: 0.1,
       bottomingClearance: 0.5, roof: 1.5, surround: 1.5, seatLeadDepth: 0.25,
-      seatLeadDiameter: 3.4, bearingThickness: 1.5,
+      seatLeadDiameter: 3.0, bearingThickness: 1.5,
     },
   };
 }
@@ -78,3 +78,22 @@ export const gasketFoamPresets: { id: GasketFoamPreset; length: number; width: n
   { id: 'F4', length: 80, width: 4, thickness: 4 },
   { id: 'F5', length: 80, width: 4, thickness: 5 },
 ];
+
+export const insertSizes = [
+  { id:'m2-3', threadDiameter:2, pitch:0.4, insertLength:3, insertDiameter:3.2 },
+  { id:'m2-4', threadDiameter:2, pitch:0.4, insertLength:4, insertDiameter:3.2 },
+  { id:'m2.5-3', threadDiameter:2.5, pitch:0.45, insertLength:3, insertDiameter:3.5 },
+  { id:'m2.5-4', threadDiameter:2.5, pitch:0.45, insertLength:4, insertDiameter:3.5 },
+  { id:'m2.5-5', threadDiameter:2.5, pitch:0.45, insertLength:5, insertDiameter:3.5 },
+  { id:'m3-3', threadDiameter:3, pitch:0.5, insertLength:3, insertDiameter:4.2 },
+] as const;
+
+export function resizeInsert(hardware: InternalGasketConfiguration['hardware'], id: string): InternalGasketConfiguration['hardware'] {
+  const size = insertSizes.find(size => size.id === id);
+  if (!size) return hardware;
+  const { threadDiameter, pitch, insertLength, insertDiameter } = size;
+  return { ...hardware, id:`custom-${id}`, thread:`M${threadDiameter} × ${pitch}`, threadDiameter, pitch,
+    insertLength, insertDiameter, seatDiameter:insertDiameter-0.4, seatLeadDiameter:insertDiameter-0.2,
+    seatDepth:insertLength+hardware.bottomingClearance, engagement:Math.min(insertLength-0.5, insertLength-hardware.threadStart),
+    holeDiameter:threadDiameter+0.2, headDiameter:threadDiameter*2, headHeight:threadDiameter/2 };
+}

@@ -177,3 +177,17 @@ it('restores the working project when a demo cannot be wired', async () => {
   expect(test.accept).not.toHaveBeenCalled();
   expect(test.projectRef.current).toBe(previous);
 });
+
+it('rebases queued instance mechanical edits onto the latest committed revision', async () => {
+  const projectRef = { current: emptyProject('mechanical', 'Mechanical') };
+  const instance = { id:'left',name:'Left',boardId:'board',half:'left',role:'central',flipped:false,constructionLinked:true,controllerPartId:null,mechanical:null };
+  projectRef.current.hardware = { topology:'split',transport:'wired',boards:[],instances:[instance],sharedConstruction:null };
+  let work: (() => Promise<void>) | undefined;
+  const request = vi.fn(async () => ({kind:'ack'} as unknown as CoreReply));
+  const actions = createProjectActions({projectRef,client:{current:{request} as unknown as CoreClient},exportClient:{current:null},selectedInstance:instance,
+    schedule:next => { work = next; },accept:async () => {},ensureExportClient:() => null as unknown as ExportClient});
+  actions.edit({transactionId:'edit',targetIds:[],baseRevision:0,phase:'commit',operation:{kind:'set-mechanical',configuration:null}});
+  projectRef.current = {...projectRef.current,revision:1};
+  await work!();
+  expect(request).toHaveBeenCalledWith(expect.objectContaining({command:expect.objectContaining({baseRevision:1})}));
+});

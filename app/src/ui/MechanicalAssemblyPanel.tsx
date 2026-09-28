@@ -1,3 +1,4 @@
+import { insertSizes, resizeInsert } from '../gasketEditing';
 import { defaultGasketLayout, defaultInternalGasket, gasketFoamPresets } from '../gasketEditing';
 import type { GenerationState } from '../generationState';
 import React from 'react';
@@ -302,6 +303,9 @@ function GasketControls({ configuration, assembly, onChange, section = 'all' }: 
     </>}
     {section !== 'gaskets' && <><InspectorSection title="Closure hardware" detail={hardware.thread} defaultOpen>
       <p className="wb-mech-hint">Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset.</p>
+      <label className="wb-mech-field"><span>Insert size</span><select aria-label="Insert size" value={insertSizes.find(size => size.threadDiameter === hardware.threadDiameter && size.insertLength === hardware.insertLength && size.insertDiameter === hardware.insertDiameter)?.id ?? 'custom'} onChange={event => updateHardware(resizeInsert(hardware, event.target.value))}>
+        <option value="custom">Custom dimensions</option>{insertSizes.map(size => <option key={size.id} value={size.id}>M{size.threadDiameter} × L{size.insertLength} × OD{size.insertDiameter}</option>)}
+      </select></label>
       <label className="wb-mech-field"><span>Screw drive</span><select value={hardware.drive} onChange={event => updateHardware({ drive: event.target.value as InternalClosureHardware['drive'] })}><option value="hex">Hex socket</option><option value="torx">Torx</option></select></label>
       <label className="wb-mech-field"><span>Insert installation</span><select value={hardware.installation} onChange={event => updateHardware({ installation: event.target.value as InternalClosureHardware['installation'] })}><option value="heat-set">Heat-set · printed top</option><option value="tapped">Tapped · machined top</option></select></label>
       <ScrewLengths value={hardware.screwLengths} onChange={screwLengths => updateHardware({ screwLengths, fixedLength: undefined })} />
@@ -536,7 +540,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
       </> : selectedLayer === 'gaskets' ? <GasketControls configuration={config} assembly={assembly} onChange={update} section="gaskets" /> : <>
         <div className="wb-mech-numbers">{fields.map(([key,label]) => <NumberField key={key} label={label} value={config[key]} onCommit={value => update({[key]:value})} />)}</div>
         {body && <p className="wb-mech-hint">Resolved thickness {body.thickness.toFixed(2)} mm.</p>}
-        {(selectedLayer === 'retainer' || selectedLayer === 'bottom') && config.internalGasket && <GasketControls configuration={config} assembly={assembly} onChange={update} section="hardware" />}
+        {(selectedLayer === 'retainer' || selectedLayer === 'bottom') && config.internalGasket && <button type="button" className="wb-mech-quiet" onClick={() => onSelectLayer?.('')}>Edit shared closure hardware</button>}
       </>}
       {findings.some(finding => finding.severity === 'error') && <InspectorSection title="Fit issues" defaultOpen><FindingList document={document} assembly={assembly} findings={findings.filter(f => f.severity === 'error')} onShow={onShowFinding ?? (() => {})} /></InspectorSection>}
     </div>;
@@ -556,7 +560,6 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
         <label className="wb-mech-field"><span>Mount style</span><select value={config.mount} onChange={(event) => update({ mount: event.target.value as MechanicalConfiguration['mount'], ...(event.target.value === 'gasket' ? { gasketLayout: config.gasketLayout ?? defaultGasketLayout(), gasketTravel: config.internalGasket ? config.gasketTravel : 0.1, internalGasket: config.internalGasket ?? defaultInternalGasket(), integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false } : {}) })}><option value="tray">Tray</option><option value="rigid">Rigid mount</option><option value="gasket">Gasket mount</option></select></label>
         <label className="wb-mech-field"><span>Bottom construction</span><select disabled={config.mount === 'gasket'} value={config.bottomStyle ?? 'shell'} onChange={(event) => update({ bottomStyle: event.target.value as MechanicalConfiguration['bottomStyle'] })}><option value="shell">Tray shell</option><option value="sheet">Flat sheet</option></select></label>
         {config.bottomStyle === 'sheet' && <label className="wb-mech-check"><input type="checkbox" checked={config.middleFrame ?? false} onChange={(event) => update({ middleFrame: event.target.checked })} /><span>Add middle frame</span></label>}
-        <label className="wb-mech-field"><span>Board</span><select aria-label="Board for mechanical stack" value={config.boardId} onChange={(event) => update({ boardId: event.target.value })}>{document.boards.map((board) => <option key={board.id} value={board.id}>{board.name}</option>)}</select></label>
         <label className="wb-mech-check"><input type="checkbox" disabled={config.mount === 'gasket'} checked={config.integratedPlateFrame} onChange={(event) => update({ integratedPlateFrame: event.target.checked })} /><span>Integrate plate frame into case</span></label>
       </InspectorSection>
       <InspectorSection title="Inherited part profiles" detail={`${usedDefinitions.length} part types`} defaultOpen={false}>

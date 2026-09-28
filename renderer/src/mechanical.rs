@@ -89,3 +89,29 @@ mod tests {
         assert_eq!(stack_index(&stack, "missing"), -1);
     }
 }
+
+/// Section slider positions use assembled geometry bounds, independent of camera fit.
+fn section_location(low: [f32; 3], high: [f32; 3], plane: &str, position: f32) -> ([f32; 4], [f32; 3]) {
+    let axis = match plane { "XY" => 2, "XZ" => 1, _ => 0 };
+    let mut center = std::array::from_fn(|index| (low[index] + high[index]) / 2.);
+    center[axis] += (high[axis] - low[axis]) * position.clamp(-100., 100.) / 200.;
+    let mut equation = [0.; 4];
+    equation[axis] = 1.;
+    equation[3] = center[axis];
+    (equation, center)
+}
+
+#[cfg(test)]
+mod section_tests {
+    use super::*;
+
+    #[test]
+    fn section_planes_move_across_their_own_axis_and_clamp_to_bounds() {
+        let low = [-10., -20., -3.];
+        let high = [30., 40., 7.];
+        assert_eq!(section_location(low, high, "YZ", 0.), ([1.,0.,0.,10.], [10.,10.,2.]));
+        assert_eq!(section_location(low, high, "XZ", -100.), ([0.,1.,0.,-20.], [10.,-20.,2.]));
+        assert_eq!(section_location(low, high, "XY", 200.), ([0.,0.,1.,7.], [10.,10.,7.]));
+        assert_eq!(section_location(low, high, "XY", 50.).0[3], 4.5);
+    }
+}

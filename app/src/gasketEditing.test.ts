@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { MechanicalGasketSupport, MechanicalGasketTrack } from '@boardstudio/v2-contracts';
-import { defaultGasketLayout, gasketAnchors, moveGasket } from './gasketEditing';
+import { defaultGasketLayout, defaultInternalGasket, insertSizes, resizeInsert, gasketAnchors, moveGasket } from './gasketEditing';
 
 const left: MechanicalGasketSupport = { id: 'left:0', regionId: 'left', outlineKey: 'square', anchor: 0.1, at: { x: 20, y: 0 }, tangent: { x: 1, y: 0 }, normal: { x: 0, y: -1 }, length: 12, width: 3, z: 1.8, thickness: 1.7, pairId: 'right:0', mirrorAxis: 100, unlinked: false };
 const right: MechanicalGasketSupport = { ...left, id: 'right:0', regionId: 'right', at: { x: 180, y: 0 }, pairId: 'left:0' };
@@ -47,4 +47,21 @@ test('a gasket can cross the board and retain an overlapping placement for later
   expect(after?.[0].at).toEqual({ x: 40, y: 60 });
   expect(after?.[0].anchor).toBeCloseTo(0.65);
   expect(gasketAnchors(defaultGasketLayout(), before, after!).map(anchor => anchor.id)).toEqual(['left:0']);
+});
+
+test('insert size choices keep thread and seat dimensions coherent with a 3 mm default', () => {
+  const hardware = defaultInternalGasket().hardware;
+  expect(hardware.insertLength).toBe(3);
+  for (const size of insertSizes) {
+    const next = resizeInsert(hardware, size.id);
+    expect(next.insertLength).toBe(size.insertLength);
+    expect(next.threadDiameter).toBe(size.threadDiameter);
+    expect(next.pitch).toBe(size.pitch);
+    expect(next.seatDiameter).toBeLessThan(next.seatLeadDiameter);
+    expect(next.seatLeadDiameter).toBeLessThan(next.insertDiameter);
+    expect(next.seatDepth).toBeGreaterThanOrEqual(next.insertLength + next.bottomingClearance);
+    expect(next.threadStart + next.engagement).toBeLessThanOrEqual(next.insertLength);
+    expect(next.holeDiameter).toBeGreaterThan(next.threadDiameter);
+  }
+  expect(hardware.insertLength).toBe(3);
 });

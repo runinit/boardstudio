@@ -35,7 +35,7 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
       const operation = command.operation.kind === 'set-mechanical' && selectedInstance
         ? { kind: 'replace-document' as const, document: updateInstanceMechanical(current, selectedInstance.id, command.operation.configuration) }
         : command.operation;
-      const baseRevision = operation.kind === 'replace-document'
+      const baseRevision = command.operation.kind === 'replace-document'
         ? command.baseRevision
         : current.revision;
       const request: CoreRequest = {

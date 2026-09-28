@@ -1,3 +1,4 @@
+import { defaultGasketLayout, defaultInternalGasket } from './gasketEditing';
 import { expect, test } from 'vitest';
 import type { PhysicalBoardInstance, SceneDelta } from '@boardstudio/v2-contracts';
 import { demoProject } from './demo';
@@ -64,4 +65,20 @@ test('disabling an instance does not fall back to the shared or board-level case
   doc.hardware = { topology:'split', transport:'wireless', boards:[], instances:[{...instance('left'), mechanical:doc.mechanical}], sharedConstruction:doc.mechanical };
   const next = updateInstanceMechanical(doc, 'left', null);
   expect(effectiveCaseDocument(next, next.hardware!.instances[0]).mechanical).toBeUndefined();
+});
+
+test('case setup and closure hardware are shared across both halves while gasket positions remain local', () => {
+  const doc = demoProject();
+  const config = createMechanicalConfiguration(doc);
+  doc.hardware = { topology:'split', transport:'wired', boards:[], instances:[{...instance('left'),constructionLinked:false}, {...instance('right',true),constructionLinked:false}], sharedConstruction:null };
+  const gasket = { ...config, mount:'gasket' as const, internalGasket:defaultInternalGasket(), gasketLayout:{...defaultGasketLayout(),supports:[{id:'left:0',regionId:'left',outlineKey:'test',anchor:0.2,unlinked:false,length:30}]} };
+  const next = updateInstanceMechanical(doc,'left',gasket);
+  const left = effectiveCaseDocument(next,next.hardware!.instances[0]).mechanical!;
+  const right = effectiveCaseDocument(next,next.hardware!.instances[1]).mechanical!;
+  expect(right.internalGasket).toEqual(left.internalGasket);
+  expect(right.mount).toBe('gasket');
+  expect(right.gasketLayout?.supports).toEqual([]);
+  expect(left.gasketLayout?.supports[0].length).toBe(30);
+  const updated = updateInstanceMechanical(next,'right',{...right,internalGasket:{...right.internalGasket!,hardware:{...right.internalGasket!.hardware,insertLength:4}}});
+  expect(effectiveCaseDocument(updated,updated.hardware!.instances[0]).mechanical!.internalGasket!.hardware.insertLength).toBe(4);
 });

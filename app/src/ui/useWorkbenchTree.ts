@@ -1,3 +1,4 @@
+import { displayIds, type useCaseDisplay } from './caseDisplay';
 import type { Board, MechanicalAssembly, ProjectDoc } from '@boardstudio/v2-contracts';
 import type { Dispatch, KeyboardEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
@@ -15,6 +16,9 @@ import type { TreeEntry } from './WorkbenchTree';
 import { Mode, SelectionScope } from './workbenchTypes';
 
 type Inputs = {
+  caseDisplay: ReturnType<typeof useCaseDisplay>;
+  selectedCaseInstanceId?: string;
+  onSelectCaseInstance: (id: string, boardId: string) => void;
   document: ProjectDoc;
   mechanicalAssembly?: MechanicalAssembly;
   selectedBoardId: string;
@@ -49,22 +53,26 @@ type Inputs = {
   setSelectedMechanicalLayer: Dispatch<SetStateAction<string>>
 };
 
-export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId, expandedTree, selectedBoard, visibleParts, toggleTree, setScope, setSelected, setOutlineSettingsOpen, visibleMatrices, boardLayouts, memberMaps, treeParts, scope, selectScope, matrixScenes, treeGrouping, matrixCellOverrides, definitions, nudgePart, treeVisibleParts, mode, changeMode, setExpandedTree, matrixMap, selected, activeCaseBody, setCaseBodyId, setRightOpen, selectedMechanicalLayer, setSelectedMechanicalLayer }: Inputs) {
+export function useWorkbenchTree({ caseDisplay, selectedCaseInstanceId, onSelectCaseInstance, document, mechanicalAssembly, selectedBoardId, expandedTree, selectedBoard, visibleParts, toggleTree, setScope, setSelected, setOutlineSettingsOpen, visibleMatrices, boardLayouts, memberMaps, treeParts, scope, selectScope, matrixScenes, treeGrouping, matrixCellOverrides, definitions, nudgePart, treeVisibleParts, mode, changeMode, setExpandedTree, matrixMap, selected, activeCaseBody, setCaseBodyId, setRightOpen, selectedMechanicalLayer, setSelectedMechanicalLayer }: Inputs) {
   const treeEntries = useMemo<TreeEntry[]>(() => {
     const rows: TreeEntry[] = [];
     if (mode === 'Case') {
       const choose = (id: string) => { setSelectedMechanicalLayer(id); setScope(null); setSelected([]); setRightOpen(true); };
-      const entries: TreeEntry[] = [{ id:'case-assembly', label:'Case assembly', detail:selectedBoard?.name,
-        level:0, kind:'case', selected:!selectedMechanicalLayer, onSelect:() => choose('') }];
-      const pcbKey = `case-pcb:${selectedBoardId}`;
+      const entries: TreeEntry[] = [];
+      const instances = document.hardware?.instances.length ? document.hardware.instances : document.boards.map(board => ({id:board.id, boardId:board.id, name:board.name}));
+      for (const instance of instances) {
+        const active = instance.id === (selectedCaseInstanceId ?? selectedBoardId);
+        const hidden = caseDisplay.read(instance.id).hidden.includes('Assembly');
+        const rootKey = `case-assembly:${instance.id}`;
+        const collapsed = expandedTree.has(rootKey);
+        entries.push({id:`case-assembly:${instance.id}`,label:`${instance.name.replace(/ half$| PCB$/i, '').replace(/^./, letter => letter.toUpperCase())} case assembly`,kind:'case',level:0,
+          selected:active && !selectedMechanicalLayer, expandable:true,expanded:active && !collapsed,
+          onToggle:() => { if (!active) onSelectCaseInstance(instance.id, instance.boardId); else toggleTree(rootKey); },
+          onSelect:() => { onSelectCaseInstance(instance.id, instance.boardId); if (collapsed) toggleTree(rootKey); choose(''); },
+          hidden, onVisibility:() => caseDisplay.toggle('Assembly', instance.id)});
+        if (!active || collapsed) continue;
+      const pcbKey = `case-pcb:${instance.id}`;
       const pcbOpen = expandedTree.has(pcbKey);
-      entries.push({ id:pcbKey, label:'PCB', detail:`${visibleParts.length} components`, kind:'pcb', level:1,
-        expandable:true, expanded:pcbOpen, selected:selectedMechanicalLayer === 'pcb',
-        onToggle:() => toggleTree(pcbKey), onSelect:() => choose('pcb') });
-      if (pcbOpen) for (const part of treeVisibleParts) entries.push({ id:`Case:${part.id}`,label:part.reference,
-        detail:definitions.get(part.definitionId)?.name ?? 'Component', kind:'component',level:2,
-        selected:scope?.kind === 'component' && scope.partId === part.id,
-        onSelect:() => { choose('pcb'); selectScope({kind:'component',partId:part.id}); } });
       const bodies = document.caseBodies.filter(body => body.boardId === selectedBoardId);
       const layers = new Set((mechanicalAssembly?.stack ?? []).map(layer => layer.id));
       if (mechanicalAssembly?.gasketSupports.length) layers.add('retainer');
@@ -76,7 +84,7 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
       const supports = mechanicalAssembly?.gasketSupports ?? [];
       if (supports.length) {
         const groupKey = `case-gaskets:${selectedBoardId}`;
-        const open = !expandedTree.has(groupKey);
+        const open = expandedTree.has(groupKey);
         entries.push({ id:groupKey,label:'Gaskets',detail:`${supports.length} pairs`,kind:'components',level:1,
           expandable:true,expanded:open,selected:selectedMechanicalLayer === 'gaskets',
           onToggle:() => toggleTree(groupKey),onSelect:() => choose('gaskets') });
@@ -89,6 +97,20 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
       }
       if (!mechanicalAssembly) for (const body of bodies) entries.push({id:`case:${body.id}`,label:body.name,kind:'case',level:1,
         selected:activeCaseBody?.id === body.id,onSelect:() => {setCaseBodyId(body.id);setRightOpen(true);} });
+      entries.push({ id:pcbKey, label:'PCB', detail:`${visibleParts.length} components`, kind:'pcb', level:1,
+        expandable:true, expanded:pcbOpen, selected:selectedMechanicalLayer === 'pcb',
+        onToggle:() => toggleTree(pcbKey), onSelect:() => choose('pcb') });
+      if (pcbOpen) for (const part of treeVisibleParts) entries.push({ id:`Case:${part.id}`,label:part.reference,
+        detail:definitions.get(part.definitionId)?.name ?? 'Component', kind:'component',level:2,
+        selected:scope?.kind === 'component' && scope.partId === part.id,
+        hidden:caseDisplay.current.hidden.includes(part.reference), onVisibility:() => caseDisplay.toggle(part.reference),
+        onSelect:() => { choose('pcb'); selectScope({kind:'component',partId:part.id}); } });
+      for (const entry of entries.filter(entry => entry.level > 0 && !entry.onVisibility)) {
+        const id = entry.id === pcbKey ? 'pcb' : entry.id.startsWith('case-gaskets:') ? 'Gaskets' : entry.id.replace(/^case-generated:|^case:|^Case:/, '');
+        entry.hidden = displayIds(id).every(part => caseDisplay.current.hidden.includes(part));
+        entry.onVisibility = () => caseDisplay.toggle(id);
+      }
+      }
       return entries;
     }
     const boardKey = `board:${selectedBoardId}`;
@@ -273,6 +295,6 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
       }
     }
     return result;
-  }, [mode, selected, document.caseBodies, activeCaseBody?.id, selectedBoardId, selectedBoard?.name, visibleMatrices, treeVisibleParts, expandedTree, scope, treeParts, definitions, matrixCellOverrides, selectScope, toggleTree, treeGrouping, memberMaps, matrixScenes, document.matrices, boardLayouts, mechanicalAssembly, selectedMechanicalLayer]);
+  }, [caseDisplay.current, caseDisplay.read, selectedCaseInstanceId, document.hardware, mode, selected, document.caseBodies, activeCaseBody?.id, selectedBoardId, selectedBoard?.name, visibleMatrices, treeVisibleParts, expandedTree, scope, treeParts, definitions, matrixCellOverrides, selectScope, toggleTree, treeGrouping, memberMaps, matrixScenes, document.matrices, boardLayouts, mechanicalAssembly, selectedMechanicalLayer]);
   return { treeEntries };
 }

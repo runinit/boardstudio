@@ -7,6 +7,7 @@ async function configureGaskets(page: Page) {
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   await page.getByRole('combobox', { name: 'Mount style', exact: true }).selectOption('gasket');
   await expect(page.getByRole('button', { name: 'Export geometry', exact: true })).toBeEnabled({ timeout: 45_000 });
+  await page.getByRole('button', { name:'Expand Gaskets',exact:true }).click();
 }
 
 test('case assembly tree groups gaskets and selects focused part inspectors', async ({ page }) => {
@@ -45,6 +46,7 @@ test('an invalid individual gasket stays saved and resizing repairs it with undo
   await expect(page.locator('.wb-save-state')).toHaveClass(/is-saved/);
   await page.reload();
   await navigateWorkspace(page, 'Case');
+  await page.getByRole('button', { name:'Expand Gaskets',exact:true }).click();
   await tree.getByRole('treeitem', { name: /^Gasket 1 / }).click();
   await expect(length).toHaveValue('80');
   await length.fill(original);
@@ -113,4 +115,68 @@ test('changing support count preserves adopted closures and invalid walls block 
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(wall).toHaveValue('2');
   await expect(page.getByRole('button', { name: 'Export geometry', exact: true })).toBeEnabled({ timeout: 45_000 });
+});
+
+test('part display controls and adjustable assembly views do not regenerate geometry', async ({ page }) => {
+  test.setTimeout(90_000);
+  await configureGaskets(page);
+  const status = page.locator('.wb-mechanical-preview-status');
+  await expect(status).toContainText('Generated CAD solids');
+  const revision = await status.textContent();
+  const tree = page.getByRole('tree', { name:'CAD structure' });
+  await expect(page.getByRole('combobox', { name:'Selected board', exact:true })).toHaveCount(0);
+  await tree.getByRole('treeitem', { name:'Plate', exact:true }).click();
+  await tree.getByRole('button', { name:'Hide Plate', exact:true }).click();
+  await expect(page.getByRole('checkbox', { name:'Visible', exact:true })).not.toBeChecked();
+  await tree.getByRole('button', { name:'Show Plate', exact:true }).click();
+  await expect(page.getByRole('checkbox', { name:'Visible', exact:true })).toBeChecked();
+  const canvas = page.locator('.wb-assembly-viewport canvas');
+  const originalPixels = await canvas.screenshot();
+  await page.getByLabel('Part colour', { exact:true }).fill('#ff7744');
+  await expect.poll(async () => Buffer.compare(await canvas.screenshot(), originalPixels)).not.toBe(0);
+  await page.screenshot({path:'test-results/case-colour.png'});
+  await page.getByRole('button', { name:'Exploded', exact:true }).click();
+  await page.getByRole('slider', { name:'Exploded separation', exact:true }).fill('4');
+  await page.getByRole('button', { name:'Section', exact:true }).click();
+  await page.getByRole('combobox', { name:'Section plane', exact:true }).selectOption('XY');
+  await page.getByRole('slider', { name:'Section position', exact:true }).fill('30');
+  await expect(page.getByRole('checkbox', { name:'Show plane', exact:true })).toBeChecked();
+  await page.getByRole('button', { name:'Show hidden lines', exact:true }).click();
+  await expect(page.getByRole('button', { name:'Show hidden lines', exact:true })).toHaveAttribute('aria-pressed','true');
+  await expect(status).toHaveText(revision!);
+  await page.reload();
+  await navigateWorkspace(page, 'Case');
+  await tree.getByRole('treeitem', { name:'Plate', exact:true }).click();
+  await expect(page.getByLabel('Part colour', { exact:true })).toHaveValue('#ff7744');
+});
+
+test('split case selection generates each half with shared insert hardware', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await page.getByRole('button', {name:'Project',exact:true}).click();
+  await page.getByRole('button', {name:'Start Sofle v2',exact:true}).click();
+  await expect(page.locator('.wb-project-name')).toHaveText('Sofle v2');
+  await navigateWorkspace(page,'Case');
+  await page.getByRole('button', {name:'Configure mechanical stack',exact:true}).click();
+  await page.getByRole('combobox', {name:'Mount style',exact:true}).selectOption('gasket');
+  const tree = page.getByRole('tree', {name:'CAD structure'});
+  const left = tree.getByRole('treeitem', {name:'Left case assembly',exact:true});
+  const right = tree.getByRole('treeitem', {name:'Right case assembly',exact:true});
+  await expect(left).toHaveAttribute('aria-selected','true');
+  await expect(right).toBeVisible();
+  const inserts = page.getByRole('combobox', {name:'Insert size',exact:true});
+  await expect(inserts).toHaveValue('m2-3');
+  await expect(page.getByRole('button', {name:'Export geometry',exact:true})).toBeEnabled({timeout:45_000});
+  await inserts.selectOption('m2-4');
+  await right.click();
+  await expect(right).toHaveAttribute('aria-selected','true');
+  await expect(inserts).toHaveValue('m2-4');
+  await expect(page.getByRole('button', {name:'Export geometry',exact:true})).toBeEnabled({timeout:45_000});
+  await inserts.selectOption('m2-3');
+  await left.click();
+  await expect(inserts).toHaveValue('m2-3');
+  await expect(page.getByRole('button', {name:'Export geometry',exact:true})).toBeEnabled({timeout:45_000});
+  await tree.getByRole('treeitem', {name:'Top case',exact:true}).click();
+  await expect(inserts).toHaveCount(0);
+  await expect(page.getByRole('button', {name:'Edit shared closure hardware',exact:true})).toBeVisible();
 });

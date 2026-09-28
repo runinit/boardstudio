@@ -216,11 +216,12 @@ struct RenderObject {
     /// interactive objects can move without rebuilding their mesh.
     pose: Mat4,
     handle_length: Option<f32>,
+    base_color: Srgba,
 }
 
 struct SectionMaterial {
     physical: PhysicalMaterial,
-    section_x: Option<f32>,
+    section: Option<Vec4>,
     depth_only: bool,
 }
 
@@ -230,11 +231,11 @@ impl Material for SectionMaterial {
             .fragment_shader_source(lights)
             .replace(
                 "in vec3 pos;",
-                "in vec3 pos;\nuniform float sectionX;\nuniform int sectionEnabled;",
+                "in vec3 pos;\nuniform vec4 sectionPlane;\nuniform int sectionEnabled;",
             )
             .replace(
                 "void main()\n{",
-                "void main()\n{\n    if (sectionEnabled == 1 && pos.x > sectionX) discard;",
+                "void main()\n{\n    if (sectionEnabled == 1 && dot(pos, sectionPlane.xyz) > sectionPlane.w) discard;",
             )
     }
 
@@ -244,8 +245,8 @@ impl Material for SectionMaterial {
 
     fn use_uniforms(&self, program: &Program, viewer: &dyn Viewer, lights: &[&dyn three_d::Light]) {
         self.physical.use_uniforms(program, viewer, lights);
-        program.use_uniform("sectionX", self.section_x.unwrap_or(0.0));
-        program.use_uniform("sectionEnabled", i32::from(self.section_x.is_some()));
+        program.use_uniform("sectionPlane", self.section.unwrap_or(Vec4::new(0., 0., 0., 0.)));
+        program.use_uniform("sectionEnabled", i32::from(self.section.is_some()));
     }
 
     fn render_states(&self) -> RenderStates {
@@ -271,6 +272,7 @@ pub struct Renderer {
     ambient: AmbientLight,
     objects: Vec<RenderObject>,
     handles: Vec<RenderObject>,
+    section_plane: Gm<Mesh, SectionMaterial>,
     width: u32,
     height: u32,
     target: Vec3,
@@ -325,6 +327,12 @@ impl Renderer {
                 0.01,
                 100_000.0,
             ),
+            section_plane: {
+                let mut material = PhysicalMaterial::new_transparent(&context, &CpuMaterial { albedo:Srgba::new(92,165,235,55), roughness:1., ..CpuMaterial::default() });
+                material.render_states.cull = Cull::None;
+                material.render_states.write_mask = three_d::WriteMask::COLOR;
+                Gm::new(Mesh::new(&context, &CpuMesh::square()), SectionMaterial { physical: material, section: None, depth_only: false })
+            },
             context,
             objects: Vec::new(),
             handles: Vec::new(),
@@ -461,7 +469,7 @@ impl Renderer {
                 .map(|o| &o.object),
             &lights,
         );
-        if self.state.mode != "shaded" {
+        if self.state.mode != "shaded" || self.state.show_hidden {
             target.render(
                 &self.camera,
                 self.objects
@@ -486,11 +494,14 @@ impl Renderer {
                 &lights,
             );
         }
+        if self.state.view == "section" && self.state.show_section_plane {
+            target.render(&self.camera, [&self.section_plane], &lights);
+        }
         // Editing handles are an overlay: bottom-case mounts must remain
         // visible and reachable through the PCB and retained solids.
         target.clear(ClearState::depth(1.));
         target.render(&self.camera, self.handles.iter().filter(|o| o.visible).map(|o| &o.object), &lights);
-        if self.state.mode != "shaded" {
+        if self.state.mode != "shaded" || self.state.show_hidden {
             target.render(&self.camera, self.handles.iter().filter(|o| o.visible).map(|o| &o.edges), &lights);
         }
         Ok(())
@@ -503,7 +514,7 @@ impl Renderer {
         let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
         let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
         for object in self.objects.iter().filter(|item| item.visible && item.id != "pcb-selection") {
-            let offset = if self.state.view == "exploded" { object.explode } else { 0. };
+            let offset = if self.state.view == "exploded" { object.explode * self.state.explode_amount.unwrap_or(1.) } else { 0. };
             for point in object.triangles.iter().flatten() {
                 let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
                 low.x = low.x.min(point.x); low.y = low.y.min(point.y); low.z = low.z.min(point.z);
@@ -616,6 +627,7 @@ impl Renderer {
 
     #[wasm_bindgen(js_name = pick)]
     pub fn pick(&self, x: f32, y: f32) -> Option<String> {
+        let section = (self.state.view == "section").then(|| self.section_equation().0);
         let (origin, direction) = self.ray(x, y);
         let mut nearest = f32::INFINITY;
         let mut picked = None;
@@ -630,7 +642,7 @@ impl Renderer {
                 break;
             }
             let offset = if self.state.view == "exploded" {
-                object.explode
+                object.explode * self.state.explode_amount.unwrap_or(1.)
             } else {
                 0.
             };
@@ -660,7 +672,7 @@ impl Renderer {
                     continue;
                 }
                 let p = origin + direction * distance;
-                if self.state.view == "section" && self.section_x.is_some_and(|x| p.x > x) {
+                if section.is_some_and(|plane| { let world = (object.pose * p.extend(1.)).truncate(); world.dot(plane.truncate()) > plane.w }) {
                     continue;
                 }
                 nearest = distance;
@@ -739,9 +751,36 @@ impl Renderer {
         }
         Ok(true)
     }
+    fn section_equation(&self) -> (Vec4, Vec3, f32) {
+        let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+        let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for object in &self.objects {
+            for point in object.triangles.iter().flatten() {
+                let p = (object.pose * point.extend(1.)).truncate();
+                low.x = low.x.min(p.x); low.y = low.y.min(p.y); low.z = low.z.min(p.z);
+                high.x = high.x.max(p.x); high.y = high.y.max(p.y); high.z = high.z.max(p.z);
+            }
+        }
+        if !low.x.is_finite() { low = Vec3::new(-1.,-1.,-1.); high = -low; }
+        let (equation, center) = section_location([low.x, low.y, low.z], [high.x, high.y, high.z], &self.state.section_plane, self.state.section_position);
+        (Vec4::new(equation[0], equation[1], equation[2], equation[3]), Vec3::new(center[0],center[1],center[2]), (high - low).magnitude() * 0.6)
+    }
     fn apply_state(&mut self) {
+        let (equation, center, radius) = self.section_equation();
+        let rotation = match self.state.section_plane.as_str() {
+            "XY" => Mat4::identity(), "XZ" => Mat4::from_angle_x(three_d::degrees(90.)), _ => Mat4::from_angle_y(three_d::degrees(90.))
+        };
+        self.section_plane.geometry.set_transformation(Mat4::from_translation(center) * rotation * Mat4::from_scale(radius));
         for item in self.objects.iter_mut().chain(&mut self.handles) {
-            item.visible = !item.groups.iter().any(|g| self.state.hidden.contains(g));
+            item.visible = !self.state.hidden.iter().any(|g| g == "Assembly" || g == &item.id || item.groups.contains(g)
+                || (g == "Gaskets" && (item.id.starts_with("gasket:") || item.id.starts_with("gasket-handle:")))
+                || (item.id.starts_with("gasket-handle:") && g == &format!("{}:lower", item.id.replacen("gasket-handle:", "gasket:", 1))));
+            let color = self.state.colors.get(&item.id).or_else(|| item.groups.iter().find_map(|group| self.state.colors.get(group)))
+                .or_else(|| item.id.starts_with("gasket:").then(|| self.state.colors.get("Gaskets")).flatten());
+            item.object.material.physical.albedo = color.and_then(|value| u32::from_str_radix(value.trim_start_matches('#'),16).ok())
+                .map(|rgb| Srgba::new((rgb>>16) as u8,(rgb>>8) as u8,rgb as u8,item.base_color.a)).unwrap_or(item.base_color);
+            item.edges.material.physical.render_states.depth_test = if self.state.show_hidden { three_d::DepthTest::Always } else { three_d::DepthTest::LessOrEqual };
+            item.edges.material.physical.render_states.write_mask = three_d::WriteMask::COLOR;
             if item.id == "pcb-selection" {
                 item.visible &= self.state.selected_layer == "pcb";
             }
@@ -749,7 +788,7 @@ impl Renderer {
                 0.,
                 0.,
                 if self.state.view == "exploded" {
-                    item.explode
+                    item.explode * self.state.explode_amount.unwrap_or(1.)
                 } else {
                     0.
                 },
@@ -757,12 +796,12 @@ impl Renderer {
             item.object.geometry.set_transformation(transform);
             item.edges.geometry.set_transformation(transform);
             let clip = if self.state.view == "section" {
-                self.section_x
+                Some(equation)
             } else {
                 None
             };
-            item.object.material.section_x = clip;
-            item.edges.material.section_x = clip;
+            item.object.material.section = clip;
+            item.edges.material.section = clip;
             item.object.material.depth_only = self.state.mode == "wireframe";
             let selected = item.id == self.state.selected_layer;
             item.edges.material.physical.albedo = Srgba::BLACK;
@@ -871,7 +910,7 @@ impl Renderer {
             Mesh::new(&self.context, &edge_cpu),
             SectionMaterial {
                 physical: edge_material,
-                section_x: None,
+                section: None,
                 depth_only: false,
             },
         );
@@ -899,7 +938,7 @@ impl Renderer {
         };
         let mut material = SectionMaterial {
             physical,
-            section_x: self.section_x,
+            section: None,
             depth_only: false,
         };
         material.physical.render_states.cull = Cull::Back;
@@ -914,6 +953,7 @@ impl Renderer {
             object: Gm::new(Mesh::new(&self.context, &cpu_mesh), material),
             pose: Mat4::identity(),
             handle_length: None,
+            base_color: cpu_material.albedo,
         }
     }
 }
@@ -1766,6 +1806,12 @@ struct PreparedScenePatch {
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct DisplayState {
+    explode_amount: Option<f32>,
+    section_plane: String,
+    section_position: f32,
+    show_section_plane: bool,
+    show_hidden: bool,
+    colors: std::collections::HashMap<String, String>,
     hidden: Vec<String>,
     selected_layer: String,
     view: String,

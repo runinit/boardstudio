@@ -31,10 +31,7 @@ export function HardwareInstancesPanel({ document, boardId, selectedId, onSelect
     <div className="wb-row"><button className="wb-secondary" onClick={() => configure(false)}>One keyboard</button><button className="wb-secondary" onClick={() => configure(true)}>Split keyboard</button></div>
   </section>;
   return <section className="wb-hardware-instances" aria-label="Physical assembly">
-    <label>Assembly<select aria-label="Physical assembly" value={selectedId ?? ''} onChange={event => {
-      const instance = instances.find(entry => entry.id === event.target.value);
-      if (instance) onSelect(instance.id, instance.boardId);
-    }}>{instances.map(instance => <option key={instance.id} value={instance.id}>{instance.name} · {instance.role}</option>)}</select></label>
+    <p>Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects.</p>
     {selected && <>
       <p>{selected.name} · {instances.some(instance => instance.id !== selected.id && instance.boardId === selected.boardId) ? 'Shared PCB' : document.boards.find(board => board.id === selected.boardId)?.name} · {selected.role}</p>
       <details><summary>Assembly setup</summary>
@@ -42,7 +39,6 @@ export function HardwareInstancesPanel({ document, boardId, selectedId, onSelect
         {hardware?.transport === 'wired' && <p>Use a straight TRRS cable: tip and ring 2 carry crossed TX/RX, sleeve is ground, ring 1 is unused. Power both halves locally and unplug power before connecting.</p>}
         <label>PCB design<select value={selected.boardId} onChange={event => { patch({ boardId: event.target.value, mechanical: selected.mechanical && { ...selected.mechanical, boardId: event.target.value } }); onSelect(selected.id, event.target.value); }}>{document.boards.map(board => <option key={board.id} value={board.id}>{board.name}</option>)}</select></label>
         <label><input type="checkbox" checked={selected.flipped} onChange={event => patch({ flipped: event.target.checked })} />Turn PCB over for this half</label>
-        <label><input type="checkbox" checked={selected.constructionLinked} onChange={event => patch({ constructionLinked: event.target.checked })} />Share construction dimensions</label>
         {document.boardReferences?.some(reference => reference.boardId === selected.boardId) && <p>Imported routing is a reference. Review it after changing the assembly.</p>}
       </details>
     </>}

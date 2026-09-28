@@ -4,6 +4,7 @@ const constructionKeys = [
   'method', 'mount', 'integratedPlateFrame', 'bottomStyle', 'middleFrame', 'plateThickness',
   'plateFoamThickness', 'bottomFoamThickness', 'bottomThickness', 'plateToPcb', 'wallThickness',
   'clearance', 'gasket', 'gasketTravel', 'openingAllowance', 'partProcesses',
+  'internalGasket', 'hardware', 'criticalFits', 'profiles',
 ] as const satisfies readonly (keyof MechanicalConfiguration)[];
 
 const reflect = (point: Vec2): Vec2 => ({ x: -point.x, y: point.y });
@@ -11,11 +12,12 @@ const reflect = (point: Vec2): Vec2 => ({ x: -point.x, y: point.y });
 export function effectiveCaseDocument(document: ProjectDoc, instance?: PhysicalBoardInstance): ProjectDoc {
   if (!instance) return document;
   const board = document.boards.find(entry => entry.id === instance.boardId);
-  const common = instance.constructionLinked ? document.hardware?.sharedConstruction : undefined;
-  const base = instance.mechanical ?? (instance.constructionLinked && common ? { ...common, openings: [], mounts: [], closureMounts: [], battery: undefined, batteryHeight: 0 } : undefined);
+  const common = document.hardware?.sharedConstruction ?? document.hardware?.instances.find(entry => entry.mechanical)?.mechanical;
+  const base = instance.mechanical ?? (common ? { ...common, openings: [], mounts: [], closureMounts: [], battery: undefined, batteryHeight: 0 } : undefined);
   let mechanical: MechanicalConfiguration | undefined = base ? { ...base, boardId: instance.boardId, pcbThickness: board?.thickness ?? base.pcbThickness } : undefined;
   if (mechanical && common) {
-    mechanical = { ...mechanical, ...Object.fromEntries(constructionKeys.map(key => [key, common[key]])) };
+    mechanical = { ...mechanical, ...Object.fromEntries(constructionKeys.map(key => [key, common[key]])),
+      gasketLayout: common.gasketLayout ? { ...common.gasketLayout, supports: instance.mechanical?.gasketLayout?.supports ?? [] } : mechanical.gasketLayout };
   }
   if (mechanical?.battery) mechanical = { ...mechanical, batteryHeight: mechanical.battery.size.z };
   if (!instance.flipped) return { ...document, mechanical };
@@ -51,13 +53,12 @@ export function effectiveCaseScene(document: ProjectDoc, scene: SceneDelta, inst
 export function updateInstanceMechanical(document: ProjectDoc, instanceId: string, configuration: MechanicalConfiguration | null): ProjectDoc {
   const hardware = document.hardware;
   if (!hardware) return document;
-  const instance = hardware.instances.find(entry => entry.id === instanceId);
-  const common = configuration && instance?.constructionLinked
-    ? { ...(hardware.sharedConstruction ?? configuration), ...Object.fromEntries(constructionKeys.map(key => [key, configuration[key]])) }
-    : hardware.sharedConstruction;
+  const common = configuration ? { ...configuration, gasketLayout: configuration.gasketLayout ? { ...configuration.gasketLayout, supports: [] } : undefined } : null;
   return { ...document, hardware: {
     ...hardware, sharedConstruction: common,
-    instances: hardware.instances.map(entry => entry.id === instanceId ? { ...entry, mechanical: configuration, constructionLinked: configuration ? entry.constructionLinked : false } : entry),
+    instances: hardware.instances.map(entry => ({ ...entry, constructionLinked: Boolean(configuration),
+      mechanical: !configuration ? null : entry.id === instanceId ? configuration : entry.mechanical,
+    })),
   } };
 }
 

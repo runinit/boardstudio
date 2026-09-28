@@ -32,7 +32,7 @@ type ModelMesh = {
   colors?: Float32Array;
 };
 
-type RendererState = { hidden: string[]; selectedLayer: string; view: string; mode: 'shaded' | 'wireframe' | 'hybrid'; theme: string };
+type RendererState = { hidden: string[]; selectedLayer: string; view: string; mode: 'shaded' | 'wireframe' | 'hybrid'; theme: string; explodeAmount?: number; sectionPlane?: string; sectionPosition?: number; showSectionPlane?: boolean; showHidden?: boolean; colors?: Record<string, string> };
 type ObjectDrag = { start(id: string): number | undefined; move(point: { x: number; y: number }): void; end(cancelled: boolean): void };
 export type RendererCanvas = {
   setScene(scene: unknown): Promise<boolean>;

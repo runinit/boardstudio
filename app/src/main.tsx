@@ -120,6 +120,8 @@ function App() {
         if (locks[assignment.id]) delete locks[assignment.id]; else if (assignment.value) locks[assignment.id] = assignment.value;
         changeWiring({ locks });
       }}
+      selectedCaseInstanceId={selectedInstance?.id}
+      onSelectCaseInstance={(id, boardId) => { setSelectedInstanceId(id); setSelectedBoardId(boardId); }}
       instanceControls={<HardwareInstancesPanel document={project} boardId={selectedBoardId} selectedId={selectedInstance?.id}
         onSelect={(id, boardId) => { setSelectedInstanceId(id); setSelectedBoardId(boardId); }}
         onChange={hardware => edit({ baseRevision: project.revision, phase: 'commit', transactionId: crypto.randomUUID(), targetIds: [], operation: { kind: 'replace-document', document: { ...project, hardware } } })} />}
