@@ -234,3 +234,13 @@ tests, and eight native CAD export cases passed. App/CAD typechecking, contract
 checks, native/WASM boundary parity, and the production preview build passed.
 Both independent review axes reported no confirmed issues. The full-repository
 acceptance limitations recorded earlier remain outside this follow-up.
+
+Automatic closure screws scale independently from gasket count. Each case region
+uses its perimeter to target one screw per 120 mm, rounded up to an even count
+with a minimum of four. This gives six for a Sofle-sized half and about ten to
+twelve for larger cases. Nearby straight-run ends are preferred; larger cases
+also use positions along long edges to distribute screws. Placement retains
+hardware clearance checks and a minimum separation between perimeter anchors.
+Explicitly adopted or moved closures keep their saved positions and count.
+Regions requiring more than 64 automatic screws are rejected with a diagnostic
+rather than silently receiving insufficient hardware.

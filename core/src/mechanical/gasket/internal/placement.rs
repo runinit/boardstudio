@@ -110,6 +110,7 @@ pub(super) fn closure(
     available: &[Candidate],
     margin: f64,
     target: f64,
+    end_search_radius: f64,
 ) -> Option<Candidate> {
     let region = Region {
         id: String::new(),
@@ -129,13 +130,16 @@ pub(super) fn closure(
                     c.anchor
                 };
                 let along = (anchor - run.start) / (run.end - run.start) * run.span;
-                // Leave short ledges for pads and avoid consuming the longest continuous run.
+                // Prefer nearby run ends, but never pull a target across a long
+                // side merely to keep that run free for pads.
                 let delta = (c.anchor - target).abs();
+                let target_distance = delta.min(1. - delta) * perimeter;
                 (run.span >= 30.
+                    && target_distance <= end_search_radius
                     && along >= 0.
                     && along <= run.span
                     && along.min(run.span - along) <= margin + 1.)
-                    .then_some((c, delta.min(1. - delta) * perimeter + run.span / 2.))
+                    .then_some((c, target_distance + run.span / 2.))
             })
         })
         .min_by(|a, b| a.1.total_cmp(&b.1))

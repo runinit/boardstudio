@@ -4,6 +4,9 @@ mod motion;
 mod placement;
 
 const MAX_SUPPORTS: usize = 64;
+const CLOSURE_SPACING_MM: f64 = 120.;
+const MAX_AUTOMATIC_CLOSURES: usize = 64;
+const CLOSURE_END_PREFERENCE_MM: f64 = 20.;
 const TAB_MARGIN: f64 = 0.5;
 const ROOT_OVERLAP: f64 = 0.6;
 // The preparer quantizes both boundaries to 0.001 mm; reserve both roundings.
@@ -522,12 +525,26 @@ pub(super) fn generate(
             }
             continue;
         }
-        for slot in 0..4 {
+        let perimeter: f64 = ring.points.iter().enumerate()
+            .map(|(i, p)| distance(*p, ring.points[(i + 1) % ring.points.len()])).sum();
+        // Add screws in pairs to keep opposite perimeter targets balanced.
+        let closure_count = ((perimeter / (2. * CLOSURE_SPACING_MM)).ceil() * 2.).max(4.) as usize;
+        if closure_count > MAX_AUTOMATIC_CLOSURES {
+            return Err(format!("Case region {id} needs more than {MAX_AUTOMATIC_CLOSURES} automatic closure screws; split the case into smaller regions."));
+        }
+        // Compact four-screw cases reserve long straight runs for pads.
+        // Larger layouts also need screws along those runs to limit gaps.
+        let end_search_radius = if closure_count == 4 { f64::INFINITY } else { CLOSURE_END_PREFERENCE_MM };
+        let minimum_anchor_gap = 0.5 / closure_count as f64;
+        for slot in 0..closure_count {
             let clear: Vec<_> = available
                 .iter()
                 .filter(|c| {
-                    !closures.iter().any(|(_, other)| {
-                        overlaps(
+                    !closures.iter().any(|(other_id, other)| {
+                        let delta = (c.anchor - other.anchor).abs();
+                        (other_id.starts_with(&format!("closure:{id}:"))
+                            && delta.min(1. - delta) < minimum_anchor_gap)
+                            || overlaps(
                             &rectangle(c, 2. * closure_radius + 1., -front, outer_offset),
                             &rectangle(other, 2. * closure_radius + 1., -front, outer_offset),
                         )
@@ -535,7 +552,7 @@ pub(super) fn generate(
                 })
                 .cloned()
                 .collect();
-            let candidate = placement::closure(ring,&clear,closure_radius+1.,slot as f64/4.).ok_or_else(||format!("No independent closure layout fits {id}; increase perimeter clearance or move openings."))?;
+            let candidate = placement::closure(ring,&clear,closure_radius+1.,slot as f64/closure_count as f64,end_search_radius).ok_or_else(||format!("No independent closure layout fits {id}; increase perimeter clearance or move openings."))?;
             closures.push((format!("closure:{id}:{slot}"), candidate));
         }
     }

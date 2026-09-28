@@ -697,3 +697,33 @@ fn run_placement_handles_rotated_reversed_and_split_outlines() {
         }
     }
 }
+
+#[test]
+fn automatic_closures_scale_with_case_perimeter() {
+    for (width, height, expected) in [(100.,70.,4), (150.,110.,6), (380.,170.,10), (500.,180.,12)] {
+        let resolved = resolve_internal_sized(internal_document(), width, height);
+        assert_eq!(resolved["generationBlocked"],false,"{resolved}");
+        assert_eq!(resolved["suggestedMounts"].as_array().unwrap().len(),expected,
+            "{width} by {height} case");
+        let mounts=resolved["suggestedMounts"].as_array().unwrap();
+        for (i,a) in mounts.iter().enumerate() {
+            for b in &mounts[..i] {
+                let dx=a["at"]["x"].as_f64().unwrap()-b["at"]["x"].as_f64().unwrap();
+                let dy=a["at"]["y"].as_f64().unwrap()-b["at"]["y"].as_f64().unwrap();
+                assert!(dx.hypot(dy)>25.,"Closures cluster on {width} by {height}");
+            }
+        }
+    }
+    let input: Value=serde_json::from_str(include_str!("../../cad/bench/fixtures/internal-gasket-v1/sofle-outline.json")).unwrap();
+    let reply: Value=serde_json::from_str(&CoreEngine::new().request(&input.to_string())).unwrap();
+    assert_eq!(reply["assembly"]["generationBlocked"],false,"{reply}");
+    assert_eq!(reply["assembly"]["suggestedMounts"].as_array().unwrap().len(),6);
+}
+
+#[test]
+fn oversized_automatic_closure_layout_is_rejected() {
+    let resolved = resolve_internal_sized(internal_document(), 3900., 100.);
+    assert_eq!(resolved["generationBlocked"], true);
+    assert!(resolved["diagnostics"].as_array().unwrap().iter().any(|finding|
+        finding["message"].as_str().unwrap().contains("more than 64 automatic closure screws")));
+}
