@@ -82,6 +82,7 @@
         }
       },
       "gasketLayout": {
+        "autoSize": false,
         "length": 12,
         "width": 4,
         "thickness": 2,

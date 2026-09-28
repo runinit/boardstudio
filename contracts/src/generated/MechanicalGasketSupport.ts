@@ -2,4 +2,4 @@
 import type { GasketPlacement } from "./GasketPlacement";
 import type { Vec2 } from "./Vec2";
 
-export type MechanicalGasketSupport = { placement?: GasketPlacement, id: string, regionId: string, outlineKey: string, anchor: number, at: Vec2, tangent: Vec2, normal: Vec2, length: number, width: number, z: number, thickness: number, pairId: string | null, mirrorAxis: number | null, unlinked: boolean, };
+export type MechanicalGasketSupport = { fitError?: string, placement?: GasketPlacement, id: string, regionId: string, outlineKey: string, anchor: number, at: Vec2, tangent: Vec2, normal: Vec2, length: number, width: number, z: number, thickness: number, pairId: string | null, mirrorAxis: number | null, unlinked: boolean, };

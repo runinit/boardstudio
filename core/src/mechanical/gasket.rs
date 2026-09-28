@@ -227,6 +227,7 @@ pub(super) fn generate(
         return internal::generate(document, config, settings, result, component_volumes);
     }
     let defaults = MechanicalGasketLayout {
+        auto_size: None,
         adhesive_thickness: None,
         minimum_foam_thickness: None,
         preset_id: None,
@@ -448,6 +449,7 @@ pub(super) fn generate(
             }
             chosen.push((id.clone(), candidate.clone()));
             supports.push(MechanicalGasketSupport {
+                fit_error: None,
                 placement: None,
                 id,
                 region_id: region.id.clone(),

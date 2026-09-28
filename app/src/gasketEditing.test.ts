@@ -19,11 +19,11 @@ test('projects a move onto the perimeter and mirrors its linked partner', () => 
   expect(before[0].at.x).toBe(20);
 });
 
-test('an unlinked support moves independently and blocked moves are rejected', () => {
+test('an unlinked support moves independently and snaps directly from anywhere', () => {
   const before = [{ ...left, unlinked: true }, right];
   expect(moveGasket({ x: 35, y: 0 }, left.id, before, tracks)![1]).toBe(right);
-  expect(moveGasket({ x: 35, y: 20 }, left.id, before, tracks)).toBeUndefined();
-  expect(moveGasket({ x: 180, y: 0 }, left.id, before, tracks)).toBeUndefined();
+  expect(moveGasket({ x: 35, y: 20 }, left.id, before, tracks)![0].at).toEqual({ x: 35, y: 0 });
+  expect(moveGasket({ x: 180, y: 0 }, left.id, before, tracks)![0].at).toEqual({ x: 80, y: 0 });
 });
 
 test('a linked move requires an exact reflected position on the other track', () => {
@@ -37,4 +37,14 @@ test('a committed linked move pins both supports without pinning untouched suppo
   const anchors = gasketAnchors(defaultGasketLayout(), before, after);
   expect(anchors.map(anchor => anchor.placement)).toEqual(['user', 'user']);
   expect(gasketAnchors(defaultGasketLayout(), before, before)).toEqual([]);
+});
+
+test('a gasket can cross the board and retain an overlapping placement for later resizing', () => {
+  const opposite = { regionId: 'left', start: { x: 10, y: 60 }, end: { x: 80, y: 60 }, startAnchor: 0.5, endAnchor: 0.85 };
+  const other = { ...left, id: 'left:1', pairId: null, at: { x: 40, y: 60 } };
+  const before = [{ ...left, unlinked: true }, other];
+  const after = moveGasket({ x: 40, y: 55 }, left.id, before, [...tracks, opposite]);
+  expect(after?.[0].at).toEqual({ x: 40, y: 60 });
+  expect(after?.[0].anchor).toBeCloseTo(0.65);
+  expect(gasketAnchors(defaultGasketLayout(), before, after!).map(anchor => anchor.id)).toEqual(['left:0']);
 });

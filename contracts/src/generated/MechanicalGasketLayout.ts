@@ -2,4 +2,4 @@
 import type { GasketFoamPreset } from "./GasketFoamPreset";
 import type { MechanicalGasketAnchor } from "./MechanicalGasketAnchor";
 
-export type MechanicalGasketLayout = { adhesiveThickness?: number, minimumFoamThickness?: number, presetId?: GasketFoamPreset, material?: string, length: number, width: number, thickness: number, compression: number, supports: Array<MechanicalGasketAnchor>, };
+export type MechanicalGasketLayout = { autoSize?: boolean, adhesiveThickness?: number, minimumFoamThickness?: number, presetId?: GasketFoamPreset, material?: string, length: number, width: number, thickness: number, compression: number, supports: Array<MechanicalGasketAnchor>, };

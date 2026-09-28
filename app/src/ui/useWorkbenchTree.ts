@@ -52,6 +52,45 @@ type Inputs = {
 export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId, expandedTree, selectedBoard, visibleParts, toggleTree, setScope, setSelected, setOutlineSettingsOpen, visibleMatrices, boardLayouts, memberMaps, treeParts, scope, selectScope, matrixScenes, treeGrouping, matrixCellOverrides, definitions, nudgePart, treeVisibleParts, mode, changeMode, setExpandedTree, matrixMap, selected, activeCaseBody, setCaseBodyId, setRightOpen, selectedMechanicalLayer, setSelectedMechanicalLayer }: Inputs) {
   const treeEntries = useMemo<TreeEntry[]>(() => {
     const rows: TreeEntry[] = [];
+    if (mode === 'Case') {
+      const choose = (id: string) => { setSelectedMechanicalLayer(id); setScope(null); setSelected([]); setRightOpen(true); };
+      const entries: TreeEntry[] = [{ id:'case-assembly', label:'Case assembly', detail:selectedBoard?.name,
+        level:0, kind:'case', selected:!selectedMechanicalLayer, onSelect:() => choose('') }];
+      const pcbKey = `case-pcb:${selectedBoardId}`;
+      const pcbOpen = expandedTree.has(pcbKey);
+      entries.push({ id:pcbKey, label:'PCB', detail:`${visibleParts.length} components`, kind:'pcb', level:1,
+        expandable:true, expanded:pcbOpen, selected:selectedMechanicalLayer === 'pcb',
+        onToggle:() => toggleTree(pcbKey), onSelect:() => choose('pcb') });
+      if (pcbOpen) for (const part of treeVisibleParts) entries.push({ id:`Case:${part.id}`,label:part.reference,
+        detail:definitions.get(part.definitionId)?.name ?? 'Component', kind:'component',level:2,
+        selected:scope?.kind === 'component' && scope.partId === part.id,
+        onSelect:() => { choose('pcb'); selectScope({kind:'component',partId:part.id}); } });
+      const bodies = document.caseBodies.filter(body => body.boardId === selectedBoardId);
+      const layers = new Set((mechanicalAssembly?.stack ?? []).map(layer => layer.id));
+      if (mechanicalAssembly?.gasketSupports.length) layers.add('retainer');
+      const labels: Record<string,string> = {plate:'Plate',bottom:'Bottom case',retainer:'Top case','plate-foam':'Plate foam','bottom-foam':'Bottom foam','middle-frame':'Middle frame',battery:'Battery'};
+      for (const id of layers) if (id !== 'pcb' && !id.startsWith('gasket:')) entries.push({
+        id:`case-generated:${id}`,label:labels[id] ?? id,kind:'case',level:1,
+        selected:selectedMechanicalLayer === id,onSelect:() => choose(id),
+      });
+      const supports = mechanicalAssembly?.gasketSupports ?? [];
+      if (supports.length) {
+        const groupKey = `case-gaskets:${selectedBoardId}`;
+        const open = !expandedTree.has(groupKey);
+        entries.push({ id:groupKey,label:'Gaskets',detail:`${supports.length} pairs`,kind:'components',level:1,
+          expandable:true,expanded:open,selected:selectedMechanicalLayer === 'gaskets',
+          onToggle:() => toggleTree(groupKey),onSelect:() => choose('gaskets') });
+        if (open) supports.forEach((support,index) => {
+          const id = `gasket:${support.id}:lower`;
+          const side = Math.abs(support.normal.x) > Math.abs(support.normal.y) ? support.normal.x > 0 ? 'Right' : 'Left' : support.normal.y > 0 ? 'Top' : 'Bottom';
+          entries.push({id:`case-generated:${id}`,label:`Gasket ${index+1} · ${side}`, detail:`${support.length} × ${support.width} mm${support.fitError ? ' · Does not fit' : ''}`,
+            kind:'case',level:2,selected:selectedMechanicalLayer === id || selectedMechanicalLayer === `gasket:${support.id}:upper`,onSelect:() => choose(id)});
+        });
+      }
+      if (!mechanicalAssembly) for (const body of bodies) entries.push({id:`case:${body.id}`,label:body.name,kind:'case',level:1,
+        selected:activeCaseBody?.id === body.id,onSelect:() => {setCaseBodyId(body.id);setRightOpen(true);} });
+      return entries;
+    }
     const boardKey = `board:${selectedBoardId}`;
     const boardExpanded = expandedTree.has(boardKey);
     rows.push({
@@ -66,7 +105,7 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
       onSelect: () => { setScope(null); setSelected([]); setOutlineSettingsOpen(false); if (!boardExpanded) toggleTree(boardKey); },
     });
     if (!boardExpanded) return rows;
-    if (mode === 'PCB' || mode === 'Case') {
+    if (mode === 'PCB') {
       const entries: TreeEntry[] = [rows[0]];
       for (const part of treeVisibleParts) entries.push({
         id: `${mode}:${part.id}`, label: part.reference,
@@ -74,19 +113,6 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
         kind: 'component', level: 1, selected: scope?.kind === 'component' && scope.partId === part.id,
         onSelect: () => selectScope({ kind: 'component', partId: part.id }),
       });
-      if (mode === 'Case') {
-        const bodies = document.caseBodies.filter(body => body.boardId === selectedBoardId);
-        for (const body of bodies) entries.push({
-          id: `case:${body.id}`, label: body.name, kind: 'case', level: 1,
-          selected: activeCaseBody?.id === body.id,
-          onSelect: () => { setCaseBodyId(body.id); setRightOpen(true); },
-        });
-        for (const layer of mechanicalAssembly?.stack ?? []) if (!bodies.some(body => body.id === layer.id)) entries.push({
-          id: `case-generated:${layer.id}`, label: mechanicalAssembly?.case.bodies.find(entry => entry.body.id === layer.id)?.body.name ?? layer.id, detail: 'Generated assembly', kind: 'case', level: 1,
-          selected: selectedMechanicalLayer === layer.id,
-          onSelect: () => { setSelectedMechanicalLayer(layer.id); setRightOpen(true); },
-        });
-      }
       return entries;
     }
     const memberIds = new Set<string>();
@@ -247,6 +273,6 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
       }
     }
     return result;
-  }, [mode, selected, document.caseBodies, activeCaseBody?.id, selectedBoardId, selectedBoard?.name, visibleMatrices, treeVisibleParts, expandedTree, scope, treeParts, definitions, matrixCellOverrides, selectScope, toggleTree, treeGrouping, memberMaps, matrixScenes, document.matrices, boardLayouts, mechanicalAssembly?.stack, selectedMechanicalLayer]);
+  }, [mode, selected, document.caseBodies, activeCaseBody?.id, selectedBoardId, selectedBoard?.name, visibleMatrices, treeVisibleParts, expandedTree, scope, treeParts, definitions, matrixCellOverrides, selectScope, toggleTree, treeGrouping, memberMaps, matrixScenes, document.matrices, boardLayouts, mechanicalAssembly, selectedMechanicalLayer]);
   return { treeEntries };
 }

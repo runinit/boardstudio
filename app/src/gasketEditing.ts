@@ -1,7 +1,7 @@
 import type { InternalGasketConfiguration, GasketFoamPreset, MechanicalGasketAnchor, MechanicalGasketLayout, MechanicalGasketSupport, MechanicalGasketTrack, Vec2 } from '@boardstudio/v2-contracts';
 
 export function defaultGasketLayout(): MechanicalGasketLayout {
-  return { length: 12, width: 3, thickness: 2, compression: 0.15, supports: [] };
+  return { autoSize: true, length: 80, width: 3, thickness: 2, compression: 0.15, supports: [] };
 }
 
 function projectGasket(point: Vec2, support: MechanicalGasketSupport, tracks: MechanicalGasketTrack[]): MechanicalGasketSupport | undefined {
@@ -18,7 +18,7 @@ function projectGasket(point: Vec2, support: MechanicalGasketSupport, tracks: Me
     distance = separation;
     best = { ...support, at, anchor: track.startAnchor + t * (track.endAnchor - track.startAnchor), tangent: { x: dx / length, y: dy / length }, normal: { x: dy / length, y: -dx / length } };
   }
-  return distance <= 8 ? best : undefined;
+  return best;
 }
 
 export function moveGasket(point: Vec2, id: string, supports: MechanicalGasketSupport[], tracks: MechanicalGasketTrack[]): MechanicalGasketSupport[] | undefined {
@@ -36,9 +36,6 @@ export function moveGasket(point: Vec2, id: string, supports: MechanicalGasketSu
     }
   }
   const next = supports.map(support => replacements.get(support.id) ?? support);
-  // Closure lobes need more room than the foam strip itself.
-  if (next.some((support, index) => next.slice(0, index).some(other =>
-    Math.hypot(support.at.x - other.at.x, support.at.y - other.at.y) < (support.length + other.length) / 2 + 3))) return undefined;
   return next;
 }
 
@@ -46,7 +43,7 @@ export function gasketAnchors(layout: MechanicalGasketLayout, before: Mechanical
   const updates = after.filter(support => {
     const previous = before.find(item => item.id === support.id);
     return !previous || Math.abs(previous.anchor - support.anchor) > 1e-7 || previous.unlinked !== support.unlinked;
-  }).map(({ id, regionId, outlineKey, anchor, unlinked }) => ({ id, regionId, outlineKey, anchor, unlinked, placement: 'user' as const }));
+  }).map(({ id, regionId, outlineKey, anchor, unlinked, length, width }) => ({ ...layout.supports.find(saved => saved.id === id), id, regionId, outlineKey, anchor, unlinked, length, width, placement: 'user' as const }));
   return [...layout.supports.filter(old => !updates.some(update => update.id === old.id)), ...updates];
 }
 

@@ -24,6 +24,33 @@ that incorrectly tested internal case screws against the floating plate.
 The default hardware is explicitly Custom M2 geometry, not a supplier-qualified
 preset. The earlier repository-wide browser failures below remain outstanding.
 
+## Mixed placement and assembly editing
+
+Automatic placement now tries 80, 70, 60, 50, 40, 30, 20, 10 and finally 5 mm
+cuts independently for each support, with at least one support facing each of
+four sides per region. Saved supports carry independent length and width and
+remain pinned. Support labels retain stable slot order after a manual edit.
+The original CAD fixtures explicitly select fixed sizing for regression coverage.
+
+Editing tracks cover the complete perimeter. A drag can cross the board directly;
+fit is checked on release. Invalid supports retain their position and dimensions,
+show a red handle and a fit message, and block generation/export. The previous
+solid remains visibly stale until the configuration becomes valid.
+
+The Case tree now shows the assembly, a collapsed PCB component branch, solid
+parts and a gasket group. Selecting a solid or gasket focuses its inspector.
+Individual pads expose cut length and width; common foam thickness, compression
+and clearances live in the gasket group. Physical assembly setup stays in the
+assembly inspector. Upper/lower pads remain a matched support pair.
+
+Validation: 403 app tests and 273 core Rust tests passed. Four browser regressions
+cover focused inspectors, individual invalid-size persistence and repair,
+undo/redo, shared material edits, adopted closure preservation and wall checks.
+Six CAD export fixtures, including mixed
+cut lengths, passed connected-solid and STEP reimport checks. Live Sofle testing
+confirmed mixed 10/30/50 mm cuts on four sides and direct cross-board placement
+with retained red handles and blocked export. This does not establish physical fit.
+
 ## Implemented contract
 
 Rust owns the independent PCB-based exterior, nominal plate and local tabs,

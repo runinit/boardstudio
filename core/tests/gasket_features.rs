@@ -343,6 +343,8 @@ fn linked_split_supports_use_mirrored_tracks() {
     input["document"]["layouts"] = json!([
         {"id":"left","name":"Left","boardId":"board","matrixId":"left","partIds":["left-marker"]},
         {"id":"right","name":"Right","boardId":"board","matrixId":"right","partIds":["right-marker"],"mirrorLink":{"sourceId":"left","axisX":150}}]);
+    for automatic in [false, true] {
+    input["document"]["mechanical"]["gasketLayout"]["autoSize"] = json!(automatic);
     let result = serde_json::from_str::<Value>(&CoreEngine::new().request(&input.to_string()))
         .unwrap()["assembly"]
         .clone();
@@ -365,6 +367,7 @@ fn linked_split_supports_use_mirrored_tracks() {
         assert!(
             (left["at"]["y"].as_f64().unwrap() - right["at"]["y"].as_f64().unwrap()).abs() < 1e-6
         );
+    }
     }
 }
 
@@ -502,15 +505,67 @@ fn omitted_advanced_clearances_use_the_spec_defaults() {
 
 #[test]
 fn reducing_count_discards_generated_supports_but_preserves_user_supports() {
-    let original = resolve_internal(internal_document());
     let mut doc = internal_document();
+    doc["mechanical"]["internalGasket"]["supportCount"] = json!(6);
+    let original = resolve_internal(doc.clone());
     let support = original["gasketSupports"].as_array().unwrap().last().unwrap();
     doc["mechanical"]["gasketLayout"]["supports"] = json!([{
         "id":support["id"],"regionId":support["regionId"],"outlineKey":support["outlineKey"],
         "anchor":support["anchor"],"unlinked":false,"placement":"generated"}]);
-    doc["mechanical"]["internalGasket"]["supportCount"] = json!(3);
+    doc["mechanical"]["internalGasket"]["supportCount"] = json!(4);
     let changed = resolve_internal(doc.clone());
     assert_eq!(changed["generationBlocked"], false, "{changed}");
     doc["mechanical"]["gasketLayout"]["supports"][0]["placement"] = json!("user");
     assert_eq!(resolve_internal(doc)["generationBlocked"], true);
+}
+
+#[test]
+fn automatic_gaskets_use_mixed_cut_lengths_and_support_four_sides() {
+    let mut doc = internal_document();
+    doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
+    doc["mechanical"]["gasketLayout"]["length"] = json!(80);
+    let result = resolve_internal(doc);
+    assert_eq!(result["generationBlocked"], false, "{}", result["diagnostics"]);
+    let supports = result["gasketSupports"].as_array().unwrap();
+    let mut lengths = vec![];
+    let mut sides = std::collections::HashSet::new();
+    for support in supports {
+        let x = support["normal"]["x"].as_f64().unwrap();
+        let y = support["normal"]["y"].as_f64().unwrap();
+        sides.insert(if x.abs() > y.abs() { if x > 0. { 0 } else { 1 } } else if y > 0. { 2 } else { 3 });
+        let length = support["length"].as_f64().unwrap();
+        assert!(length >= 5. && length <= 80. && (length % 10. == 0. || length == 5.));
+        lengths.push(length as u32);
+    }
+    lengths.sort(); lengths.dedup();
+    assert!(lengths.len() > 1, "{supports:?}");
+    assert_eq!(sides.len(), 4, "{supports:?}");
+}
+
+#[test]
+fn oversized_saved_gasket_remains_editable_and_resizing_repairs_it() {
+    let mut doc = internal_document();
+    let initial = resolve_internal(doc.clone());
+    let support = &initial["gasketSupports"][3];
+    doc["mechanical"]["gasketLayout"]["supports"] = json!([{
+        "id":support["id"],"regionId":support["regionId"],"outlineKey":support["outlineKey"],
+        "anchor":support["anchor"],"placement":"user","length":200,"width":3
+    }]);
+    let invalid = resolve_internal(doc.clone());
+    assert_eq!(invalid["generationBlocked"], true);
+    let retained = invalid["gasketSupports"].as_array().unwrap().iter().find(|s|s["id"]==support["id"]).unwrap();
+    assert_eq!(retained["length"], 200.);
+    assert!(retained["fitError"].is_string());
+    assert_eq!(retained["anchor"], support["anchor"]);
+    assert!(!invalid["gasketTracks"].as_array().unwrap().is_empty());
+    doc["mechanical"]["gasketLayout"]["supports"][0]["length"] = json!(10);
+    let repaired = resolve_internal(doc.clone());
+    assert_eq!(repaired["generationBlocked"], false, "{}", repaired["diagnostics"]);
+    let saved = repaired["gasketSupports"].as_array().unwrap().iter().find(|s|s["id"]==support["id"]).unwrap();
+    assert_eq!(saved["length"], 10.);
+    assert_eq!(initial["gasketSupports"].as_array().unwrap().iter().map(|s|s["id"].clone()).collect::<Vec<_>>(),
+        repaired["gasketSupports"].as_array().unwrap().iter().map(|s|s["id"].clone()).collect::<Vec<_>>());
+    assert_eq!(saved["anchor"], support["anchor"]);
+    assert!(saved["fitError"].is_null());
+    assert!(repaired["generatedMaterials"].as_array().unwrap().iter().any(|m|m["featureId"]==support["id"] && m["size"]["x"]==10.));
 }

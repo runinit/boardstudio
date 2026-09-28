@@ -1089,6 +1089,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     const previous = interactionContext.current;
     const sameProject = previous.documentId === document.id && previous.projectSession === projectSession;
     cancelInteractions(sameProject ? 'restore' : 'discard');
+    setSelectedMechanicalLayer('');
     interactionContext.current = { documentId: document.id, projectSession };
   }, [document.id, projectSession, selectedBoardId]);
   useEffect(() => () => { cancelInteractions('discard'); }, []);
@@ -1252,11 +1253,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     }
     if (mode === 'Case') {
       const configuredBoard = document.boards.find((board) => board.id === caseDocument.mechanical?.boardId);
-      const instanceSetup = !(guideVisible && guide.currentStep === 'project') && instanceControls && <div className="wb-case-instance-controls">{instanceControls}</div>;
+      const instanceSetup = !selectedMechanicalLayer && !(guideVisible && guide.currentStep === 'project') && instanceControls && <div className="wb-case-instance-controls">{instanceControls}</div>;
       const mechanicalPanel = caseDocument.mechanical && !generatedCase
         ? <section className="wb-mechanical-panel"><h3>Mechanical stack belongs to {configuredBoard?.name ?? caseDocument.mechanical.boardId}</h3><p>This board shows its authored case bodies. Select a physical assembly to configure a separate case.</p><button className="wb-secondary" disabled={!configuredBoard} onClick={() => configuredBoard && selectBoard(configuredBoard.id)}>Show configured board</button></section>
         : <MechanicalAssemblyPanel livePreview={livePreview} onLivePreviewChange={onLivePreviewChange} readiness={mechanicalReadiness} diagnosticsRequest={diagnosticsRequest} onDiagnosticsShown={() => setDiagnosticsRequest(0)} generationTarget={caseActionsTarget} onRevealDiagnostics={revealMechanicalInspector} document={caseDocument} boardId={selectedBoardId} projectSession={projectSession} definitions={libraryDefinitions} configuration={caseDocument.mechanical} assembly={mechanicalAssembly} onChange={(configuration) => emit({ kind: 'set-mechanical', configuration }, [document.id])} onResolve={onResolveMechanical} onCancel={onCancelGeneration} generation={generation} onExport={onExportMechanical} onMechanicalProfile={onMechanicalProfile} onExtractMechanicalProfile={onExtractMechanicalProfile} onEditParts={(definitionId) => { changeMode('Library'); setLibraryChoice(definitionId); setLibraryAssembly(null); setLibrary3dOpen(false); setRightOpen(true); setLeftOpen(false); }} onShowFinding={showFinding} selectedLayer={selectedMechanicalLayer} onSelectLayer={setSelectedMechanicalLayer} />;
-      if (generatedCase) return <>{instanceSetup}{mechanicalPanel}<p className="wb-empty-note">Generated assembly preview · {document.caseBodies.filter((body) => body.boardId === selectedBoardId).length} authored case bodies remain saved. Disable the mechanical stack to preview and edit them.</p></>;
+      if (generatedCase) return <>{instanceSetup}{mechanicalPanel}{!selectedMechanicalLayer && <p className="wb-empty-note">Generated assembly preview · {document.caseBodies.filter((body) => body.boardId === selectedBoardId).length} authored case bodies remain saved. Disable the mechanical stack to preview and edit them.</p>}</>;
       return <CaseInspectorPanel bodies={document.caseBodies} activeCaseBody={activeCaseBody} selectedBoard={selectedBoard}
         findings={scene.findings} findingDocument={document} onShowFinding={showFinding}
         mechanicalPanel={mechanicalPanel} instanceSetup={instanceSetup} caseActionsTarget={caseActionsTarget}

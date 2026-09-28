@@ -88,6 +88,12 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   const [gasketMessage, setGasketMessage] = useState('');
   const [activeGasket, setActiveGasket] = useState('');
   const [editingMounts, setEditingMounts] = useState(false);
+  useEffect(() => {
+    const gasketSelected = selectedLayer.startsWith('gasket:');
+    setEditingGaskets(gasketSelected || selectedLayer === 'gaskets');
+    setActiveGasket(gasketSelected ? selectedLayer.slice(7, -6) : '');
+    if (gasketSelected || selectedLayer === 'gaskets') setEditingMounts(false);
+  }, [selectedLayer]);
   useEffect(() => { try { localStorage.setItem(hiddenKey, JSON.stringify([...hidden])); } catch { /* view preference only */ } }, [hiddenKey, hidden]);
 
   useEffect(() => {
@@ -97,7 +103,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
     setError('');
     createRendererCanvas(element, (id) => {
       setSelected(id);
-      if (mechanicalRef.current?.stack.some((layer) => layer.id === id) || id === 'pcb' || id === 'battery') selectLayerRef.current?.(id);
+      if (id.startsWith('gasket:') || mechanicalRef.current?.stack.some((layer) => layer.id === id) || id === 'pcb' || id === 'battery') selectLayerRef.current?.(id);
       selectRef.current?.(id === 'pcb' ? 'PCB' : id);
     }, () => { interacted.current = true; }).then((instance) => {
       if (disposed) { instance.dispose(); return; }
@@ -180,7 +186,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
         z: target.z + 0.8, invalid: invalid && movingMount?.id === mount.id && movingMount.target === target,
       })));
     const handles = (supports: MechanicalGasketSupport[], invalid = false) => supports.map(support => ({
-      ...support, id: `gasket-handle:${support.id}`, z: handleZ, invalid,
+      ...support, id: `gasket-handle:${support.id}`, z: handleZ, invalid: Boolean(support.fitError) || invalid,
     }));
     const mountDraft = (target: MountTarget, mounts: Mount[] | null, disposition?: 'commit') => {
       if (target.field && mechanicalConfiguration) gasketDraftRef.current?.(mounts ? { ...mechanicalConfiguration, [target.field]: mounts } : null, disposition);
@@ -230,7 +236,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
         }
         if (!id.startsWith('gasket-handle:') || !mechanicalConfiguration) return undefined;
         moving = id.slice('gasket-handle:'.length);
-        setActiveGasket(moving); pending = original; valid = true;
+        setActiveGasket(moving); selectLayerRef.current?.(`gasket:${moving}:lower`); pending = original; valid = true;
         return handleZ;
       },
       move(point) {
@@ -251,12 +257,9 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
         valid = Boolean(next);
         if (next) {
           pending = next;
-          const layout = mechanicalConfiguration.gasketLayout ?? defaultGasketLayout();
-          const configuration = { ...mechanicalConfiguration, gasketLayout: { ...layout, supports: gasketAnchors(layout, original, next) } };
-          queueDraft(() => gasketDraftRef.current?.(configuration));
         }
         current.setHandles(handles(pending, !valid));
-        setGasketMessage(valid ? 'Release to save positions · Escape to cancel' : 'That position is blocked · move along the perimeter');
+        setGasketMessage(valid ? 'Release to place · fit is checked after placement · Escape cancels' : 'No perimeter found for this gasket');
       },
       end(cancelled) {
         clearQueuedDraft();
@@ -278,7 +281,6 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
           if (!cancelled && valid && pending !== original && mechanicalConfiguration) {
             const layout = mechanicalConfiguration.gasketLayout ?? defaultGasketLayout();
             const configuration = { ...mechanicalConfiguration, gasketLayout: { ...layout, supports: gasketAnchors(layout, original, pending) } };
-            gasketDraftRef.current?.(configuration, 'commit');
             current.setHandles(handles(pending));
             commit(() => gasketChangeRef.current?.(configuration),
               () => { gasketDraftRef.current?.(null); current.setHandles(handles(original)); });
@@ -342,7 +344,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
       <button aria-pressed={view === 'assembled'} onClick={() => setView('assembled')}>Assembled</button>
       <button aria-pressed={view === 'exploded'} onClick={() => setView('exploded')}>Exploded</button>
       <button aria-pressed={view === 'section'} onClick={() => setView('section')}>Section</button>
-      {Boolean(mechanical?.gasketSupports?.length) && mechanicalConfiguration && <button disabled={!ready || preparing} aria-pressed={editingGaskets} onClick={() => { setEditingGaskets(value => !value); setEditingMounts(false); setGasketMessage(editingGaskets ? '' : 'Drag a gasket handle along the perimeter · linked supports move together'); setView('assembled'); renderer.current?.view('top'); }}>Edit gaskets</button>}
+      {Boolean(mechanical?.gasketSupports?.length) && mechanicalConfiguration && <button disabled={!ready || preparing} aria-pressed={editingGaskets} onClick={() => { setEditingGaskets(value => !value); setEditingMounts(false); setGasketMessage(editingGaskets ? '' : 'Drag directly to any side · resize a red gasket to make it fit'); setView('assembled'); renderer.current?.view('top'); }}>Edit gaskets</button>}
       {Boolean(mechanicalConfiguration ? (mechanicalConfiguration.mount !== 'gasket' && mechanicalConfiguration.mounts.length) || mechanicalConfiguration.closureMounts?.length : authoredCaseBodies.some(body => body.mounts?.length)) && (onCaseMountChange || onGasketChange) && <button disabled={!ready || preparing || (!editingMounts && !preparedCase)} title={!preparedCase ? 'Update the case preview to edit mounts' : undefined} aria-pressed={editingMounts} onClick={() => { setEditingMounts(value => !value); setEditingGaskets(false); setGasketMessage(editingMounts ? '' : 'Drag a case mount to preview its new position'); setView('assembled'); renderer.current?.view('top'); }}>Edit mounts</button>}
       {editingGaskets && activeGasket && <button onClick={unlinkGasket}>Unlink selected support</button>}
     </div>}

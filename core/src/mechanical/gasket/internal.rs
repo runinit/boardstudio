@@ -331,6 +331,7 @@ pub(super) fn generate(
     component_volumes: &[(String, CaseOpening)],
 ) -> Result<(), String> {
     let defaults = MechanicalGasketLayout {
+        auto_size: None,
         adhesive_thickness: None,
         minimum_foam_thickness: None,
         preset_id: None,
@@ -375,7 +376,8 @@ pub(super) fn generate(
     let component_offset = required_offset(&rings, &component_envelopes, document.revision)?;
     let cap_offset = required_offset(&rings, &caps, document.revision)?;
     let pad_inner = front.max(cap_offset) + TAB_MARGIN;
-    let tab_outer = pad_inner + foam.width + TAB_MARGIN;
+    let maximum_width = foam.supports.iter().filter_map(|s| s.width).fold(foam.width, f64::max);
+    let tab_outer = pad_inner + maximum_width + TAB_MARGIN;
     let pocket_outer = tab_outer + clearance;
     let contact = config.plate_to_pcb - compressed;
     let old_bottom = result
@@ -565,22 +567,24 @@ pub(super) fn generate(
             height: None,
         })
         .collect();
-    let valid_support = |candidate: &Candidate| {
+    let valid_support = |candidate: &Candidate, length: f64, width: f64| {
+        let tab_outer = pad_inner + width + TAB_MARGIN;
+        let pocket_outer = tab_outer + clearance;
         let pocket = rectangle(
             candidate,
-            foam.length + 2. * TAB_MARGIN + 2. * clearance + 1.,
+            length + 2. * TAB_MARGIN + 2. * clearance + 1.,
             ROOT_OVERLAP,
             pocket_outer,
         );
         let outward = rectangle(
             candidate,
-            foam.length + 2. * TAB_MARGIN + 2. * clearance + 1.,
+            length + 2. * TAB_MARGIN + 2. * clearance + 1.,
             -front,
             pocket_outer,
         );
         let root = rectangle(
             candidate,
-            foam.length + 2. * TAB_MARGIN,
+            length + 2. * TAB_MARGIN,
             ROOT_OVERLAP,
             tab_outer,
         );
@@ -592,7 +596,7 @@ pub(super) fn generate(
             settings.minimum_wall + settings.tolerance,
             document.revision,
         );
-        let pad = rectangle(candidate, foam.length, -pad_inner, pad_inner + foam.width);
+        let pad = rectangle(candidate, length, -pad_inner, pad_inner + width);
         contained(&root, &outer)
             && remaining_wall(&pocket, &outer) + 1e-9 >= settings.minimum_wall + settings.tolerance
             && !top_opening
@@ -612,119 +616,91 @@ pub(super) fn generate(
                 )
             })
     };
-    let mut chosen: Vec<(String, Candidate)> = vec![];
+    let automatic = foam.auto_size.unwrap_or(true);
+    let count = settings.support_count.max(4);
+    let mut chosen: Vec<(String, Candidate, f64, f64)> = vec![];
+    let side = |c: &Candidate| if c.normal.x.abs() > c.normal.y.abs() {
+        if c.normal.x > 0. { 0 } else { 1 }
+    } else if c.normal.y > 0. { 2 } else { 3 };
     for (index, ring) in rings.iter().enumerate() {
         let id = region_id(document, &config.board_id, ring, index);
         let key = outline_key(ring);
-        let available: Vec<_> = candidates(ring, foam.length / 2. + TAB_MARGIN + clearance + 1.)
-            .into_iter()
-            .filter(|c| {
-                valid_support(c)
-                    && document
-                        .layouts
-                        .iter()
-                        .filter_map(|l| l.mirror_link.as_ref().map(|link| (l, link)))
-                        .filter(|(l, link)| l.id == id || link.source_id == id)
-                        .all(|(_, link)| valid_support(&reflect(c, link.axis_x)))
-            })
-            .collect();
-        let mut tracks: Vec<MechanicalGasketTrack> = vec![];
-        for pair in available.windows(2) {
-            if distance(pair[0].at, pair[1].at) <= 1.001 && pair[0].normal == pair[1].normal {
-                if let Some(last) = tracks.last_mut().filter(|t| t.end == pair[0].at) {
-                    last.end = pair[1].at;
-                    last.end_anchor = pair[1].anchor;
-                } else {
-                    tracks.push(MechanicalGasketTrack {
-                        region_id: id.clone(),
-                        start: pair[0].at,
-                        end: pair[1].at,
-                        start_anchor: pair[0].anchor,
-                        end_anchor: pair[1].anchor,
-                    });
-                }
-            }
-        }
-        let region = Region {
-            id: id.clone(),
-            key: key.clone(),
-            candidates: available,
-            tracks,
-        };
-        // Place committed anchors first so automatic placements cannot displace them.
-        let mut slots: Vec<_> = (0..settings.support_count).collect();
-        slots.sort_by_key(|slot| {
-            !foam.supports.iter().any(|s| {
-                s.id == format!("{id}:{slot}") && s.placement != Some(GasketPlacement::Generated)
-            })
-        });
+        // Editing tracks cover the entire perimeter. Fit is a separate result.
+        let perimeter: f64 = ring.points.iter().enumerate().map(|(i,a)| distance(*a, ring.points[(i+1)%ring.points.len()])).sum();
+        let mut travelled = 0.;
+        let tracks = ring.points.iter().enumerate().map(|(i,a)| {
+            let b = ring.points[(i+1)%ring.points.len()];
+            let start_anchor = travelled / perimeter;
+            travelled += distance(*a,b);
+            MechanicalGasketTrack { region_id:id.clone(), start:*a, end:b, start_anchor, end_anchor:travelled/perimeter }
+        }).collect();
+        let region = Region { id:id.clone(), key:key.clone(), candidates:vec![], tracks };
+        let mut slots: Vec<_> = (0..count).collect();
+        slots.sort_by_key(|slot| !foam.supports.iter().any(|s| s.id == format!("{id}:{slot}") && s.placement != Some(GasketPlacement::Generated)));
         for slot in slots {
             let support_id = format!("{id}:{slot}");
-            let saved = foam
-                .supports
-                .iter()
-                .find(|s| s.id == support_id && s.placement != Some(GasketPlacement::Generated));
-            let clear = |c: &Candidate| {
-                !chosen.iter().any(|(_, other)| {
-                    overlaps(
-                        &rectangle(
-                            c,
-                            foam.length + 2. * TAB_MARGIN + 2. * clearance,
-                            ROOT_OVERLAP,
-                            pocket_outer,
-                        ),
-                        &rectangle(
-                            other,
-                            foam.length + 2. * TAB_MARGIN + 2. * clearance,
-                            ROOT_OVERLAP,
-                            pocket_outer,
-                        ),
-                    )
+            let saved = foam.supports.iter().find(|s| s.id == support_id && s.placement != Some(GasketPlacement::Generated));
+            let width = saved.and_then(|s|s.width).unwrap_or(foam.width);
+            let clear = |c: &Candidate, length: f64| !chosen.iter().any(|(_, other, other_length, other_width)| overlaps(
+                &rectangle(c, length+2.*TAB_MARGIN+2.*clearance, ROOT_OVERLAP, pad_inner+width+TAB_MARGIN+clearance),
+                &rectangle(other, other_length+2.*TAB_MARGIN+2.*clearance, ROOT_OVERLAP, pad_inner+other_width+TAB_MARGIN+clearance)));
+            let (candidate, length, mut fit_error) = if let Some(saved) = saved {
+                let length = saved.length.unwrap_or(foam.length);
+                let c = on_track(&region, saved.anchor).ok_or_else(||format!("Support {support_id} has an invalid perimeter anchor."))?;
+                let error = if saved.region_id != id || saved.outline_key != key {
+                    Some("Outline changed; move this gasket to confirm its position.".to_string())
+                } else if !length.is_finite() || length <= 0. || !width.is_finite() || width <= 0. || !valid_support(&c,length,width) || !clear(&c,length) {
+                    Some("Gasket does not fit here; shorten it or move it clear of corners, closures and other supports.".to_string())
+                } else { None };
+                (c,length,error)
+            } else {
+                let lengths: Vec<f64> = if automatic { (1..=8).rev().map(|n|n as f64*10.).chain(std::iter::once(5.)).collect() } else { vec![foam.length] };
+                let occupied: Vec<_> = chosen.iter().filter(|(name,_,_,_)| name.starts_with(&format!("{id}:"))).map(|(_,c,_,_)|side(c)).collect();
+                let missing = (0..4).find(|s| !occupied.contains(s));
+                let mut selected = None;
+                for length in lengths {
+                    let available: Vec<_> = candidates(ring,length/2.+TAB_MARGIN+clearance+1.).into_iter().filter(|c| {
+                        missing.is_none_or(|s| side(c)==s) && clear(c,length) && valid_support(c,length,width)
+                        && document.layouts.iter().filter_map(|l|l.mirror_link.as_ref().map(|link|(l,link)))
+                            .filter(|(l,link)| l.id==id || link.source_id==id).all(|(_,link)| valid_support(&reflect(c,link.axis_x),length,width))
+                    }).collect();
+                    if let Some(c) = nearest(&available,(slot as f64+0.5)/count as f64) { selected = Some((c,length,None)); break; }
+                }
+                selected.unwrap_or_else(|| {
+                    let candidate = region.tracks.iter().filter_map(|track| on_track(&region,(track.start_anchor+track.end_anchor)/2.))
+                        .find(|c|missing.is_none_or(|s|side(c)==s)).unwrap_or_else(|| on_track(&region,0.5).unwrap());
+                    (candidate, if automatic {5.} else {foam.length}, Some("No clear support fits this side; adjust the gasket, openings or closures.".into()))
                 })
             };
-            let candidate=if let Some(saved)=saved {
-                if saved.region_id!=id || saved.outline_key!=key { return Err(format!("Pinned support {support_id} needs explicit projection after its outline changed.")); }
-                on_track(&region,saved.anchor).filter(|c|valid_support(c)&&clear(c))
-            } else {
-                nearest(&region.candidates.iter().filter(|c|clear(c)).cloned().collect::<Vec<_>>(),(slot as f64+0.5)/settings.support_count as f64)
-            }.ok_or_else(||format!("Support {support_id} does not fit a clear track for the full {} mm pad; move the support or choose another size/count.",foam.length))?;
+            if !length.is_finite() || !width.is_finite() { fit_error = Some("Gasket dimensions must be finite.".into()); }
             result.gasket_supports.push(MechanicalGasketSupport {
-                placement: Some(if saved.is_some() {
-                    GasketPlacement::User
-                } else {
-                    GasketPlacement::Generated
-                }),
-                id: support_id.clone(),
-                region_id: id.clone(),
-                outline_key: key.clone(),
-                anchor: candidate.anchor,
-                at: candidate.at,
-                tangent: candidate.tangent,
-                normal: candidate.normal,
-                length: foam.length,
-                width: foam.width,
-                z: contact,
-                thickness: compressed,
-                pair_id: None,
-                mirror_axis: None,
-                unlinked: saved.is_some_and(|s| s.unlinked),
+                fit_error,
+                placement:Some(if saved.is_some() {GasketPlacement::User} else {GasketPlacement::Generated}),
+                id:support_id.clone(), region_id:id.clone(), outline_key:key.clone(), anchor:candidate.anchor,
+                at:candidate.at, tangent:candidate.tangent, normal:candidate.normal, length, width, z:contact, thickness:compressed,
+                pair_id:None, mirror_axis:None, unlinked:saved.is_some_and(|s|s.unlinked),
             });
-            chosen.push((support_id, candidate));
+            chosen.push((support_id,candidate,length,width));
         }
         result.gasket_tracks.extend(region.tracks);
     }
     if let Some(saved) = foam
         .supports
         .iter()
-        .find(|s| s.placement != Some(GasketPlacement::Generated) && !chosen.iter().any(|(id, _)| *id == s.id))
+        .find(|s| s.placement != Some(GasketPlacement::Generated) && !chosen.iter().any(|(id, _, _, _)| *id == s.id))
     {
         return Err(format!("Saved support {} cannot be discarded by a count or region change; remove it explicitly.",saved.id));
     }
+    // Placement prioritizes pinned supports; presentation keeps stable slot order.
+    result.gasket_supports.sort_by(|a,b| {
+        let slot = |id: &str| id.rsplit(':').next().and_then(|value|value.parse::<usize>().ok()).unwrap_or(0);
+        a.region_id.cmp(&b.region_id).then_with(||slot(&a.id).cmp(&slot(&b.id)))
+    });
     for layout in &document.layouts {
         let Some(link) = &layout.mirror_link else {
             continue;
         };
-        for slot in 0..settings.support_count {
+        for slot in 0..count {
             let source_id = format!("{}:{slot}", link.source_id);
             let target_id = format!("{}:{slot}", layout.id);
             let Some(source) = result
@@ -778,34 +754,13 @@ pub(super) fn generate(
                 let fraction=((reflected.x-track.start.x)*dx+(reflected.y-track.start.y)*dy)/(dx*dx+dy*dy);
                 if !(0. ..=1.).contains(&fraction) {return None;}
                 on_track(&region,track.start_anchor+fraction*(track.end_anchor-track.start_anchor))
-                    .filter(|c|distance(c.at,reflected)<0.001 && valid_support(c))
+                    .filter(|c|distance(c.at,reflected)<0.001)
             }).next().ok_or_else(||format!("Linked support {} does not fit its reflected capture track; move or unlink it.",follower_support.id))?;
-            if chosen
-                .iter()
-                .filter(|(id, _)| *id != follower_support.id && *id != master_support.id)
-                .any(|(_, other)| {
-                    overlaps(
-                        &rectangle(
-                            &candidate,
-                            foam.length + 2. * TAB_MARGIN + 2. * clearance,
-                            ROOT_OVERLAP,
-                            pocket_outer,
-                        ),
-                        &rectangle(
-                            other,
-                            foam.length + 2. * TAB_MARGIN + 2. * clearance,
-                            ROOT_OVERLAP,
-                            pocket_outer,
-                        ),
-                    )
-                })
-            {
-                return Err(format!(
-                    "Reflected support {} overlaps another support.",
-                    follower_support.id
-                ));
-            }
+            let conflict = !valid_support(&candidate, master_support.length, master_support.width);
             let support = &mut result.gasket_supports[follower];
+            support.length = master_support.length;
+            support.width = master_support.width;
+            support.fit_error = if conflict { Some("Linked gasket does not fit; resize, move or unlink it.".into()) } else { master_support.fit_error.clone() };
             support.at = candidate.at;
             support.anchor = candidate.anchor;
             support.tangent = candidate.tangent;
@@ -817,13 +772,40 @@ pub(super) fn generate(
             result.gasket_supports[master].mirror_axis = Some(link.axis_x);
             *chosen
                 .iter_mut()
-                .find(|(id, _)| *id == follower_support.id)
-                .unwrap() = (follower_support.id.clone(), candidate);
+                .find(|(id, _, _, _)| *id == follower_support.id)
+                .unwrap() = (follower_support.id.clone(), candidate, master_support.length, master_support.width);
         }
     }
+    // Validate final reflected positions together, not against a follower's temporary placement.
+    for (index, (id, candidate, length, width)) in chosen.iter().enumerate() {
+        if chosen[..index].iter().any(|(_,other,other_length,other_width)| overlaps(
+            &rectangle(candidate,length+2.*TAB_MARGIN+2.*clearance,ROOT_OVERLAP,pad_inner+width+TAB_MARGIN+clearance),
+            &rectangle(other,other_length+2.*TAB_MARGIN+2.*clearance,ROOT_OVERLAP,pad_inner+other_width+TAB_MARGIN+clearance))) {
+            if let Some(support) = result.gasket_supports.iter_mut().find(|s|s.id==*id) {
+                support.fit_error = Some("Gasket overlaps another support; shorten or move it.".into());
+            }
+        }
+    }
+    for (index, ring) in rings.iter().enumerate() {
+        let id = region_id(document,&config.board_id,ring,index);
+        let sides: std::collections::HashSet<_> = chosen.iter().filter(|(name,_,_,_)|name.starts_with(&format!("{id}:"))).map(|(_,c,_,_)|side(c)).collect();
+        if sides.len() < 4 {
+            result.diagnostics.push(Finding { id:format!("gasket-coverage:{id}"), severity:Severity::Error, scope:Scope::Case,
+                message:"Gaskets must support all four sides; move or reset the supports to restore coverage.".into(), target_ids:vec![] });
+            result.generation_blocked = true;
+        }
+    }
+    for support in &result.gasket_supports {
+        if let Some(message) = &support.fit_error {
+            result.diagnostics.push(Finding { id:format!("gasket-fit:{}",support.id),severity:Severity::Error,scope:Scope::Case,
+                message:message.clone(),target_ids:vec![format!("gasket:{}:lower",support.id)] });
+            result.generation_blocked = true;
+        }
+    }
+    if result.generation_blocked { return Ok(()); }
     let tabs: Vec<_> = chosen
         .iter()
-        .map(|(_, c)| rectangle(c, foam.length + 2. * TAB_MARGIN, ROOT_OVERLAP, tab_outer))
+        .map(|(_, c, length, width)| rectangle(c, length + 2. * TAB_MARGIN, ROOT_OVERLAP, pad_inner+width+TAB_MARGIN))
         .collect();
     result.plate_contours = union(&nominal, &tabs);
     result
@@ -835,12 +817,12 @@ pub(super) fn generate(
         .contours = result.plate_contours.clone();
     let mut bottom_features = vec![];
     let mut top_features = vec![];
-    for (id, c) in &chosen {
+    for (id, c, length, width) in &chosen {
         bottom_features.push(CaseFeature::SupportPrism {
             id: format!("tower:{id}"),
             points: rectangle(
                 c,
-                foam.length + 2. * TAB_MARGIN,
+                *length + 2. * TAB_MARGIN,
                 -front,
                 outer_offset - settings.tolerance,
             ),
@@ -850,9 +832,9 @@ pub(super) fn generate(
         openings.push(CaseOpening {
             points: rectangle(
                 c,
-                foam.length + 2. * TAB_MARGIN + 2. * clearance,
+                *length + 2. * TAB_MARGIN + 2. * clearance,
                 ROOT_OVERLAP,
-                pocket_outer,
+                pad_inner + width + TAB_MARGIN + clearance,
             ),
             z: contact,
             height: seam - contact,
@@ -995,12 +977,12 @@ pub(super) fn generate(
         z: seam,
         thickness: top_height,
     });
-    for (id, c) in &chosen {
+    for (id, c, length, width) in &chosen {
         result.generated_materials.push(MechanicalMaterialSpecification {
             adhesive_thickness:foam.adhesive_thickness.unwrap_or(0.),
             id:format!("foam:{id}"),feature_id:id.clone(),quantity:2,
-            size:Vec3{x:foam.length,y:foam.width,z:foam.thickness},
-            preset_id:foam.preset_id.clone(),material:foam.material.clone(),
+            size:Vec3{x:*length,y:*width,z:foam.thickness},
+            preset_id:if *length == foam.length && *width == foam.width { foam.preset_id.clone() } else { None },material:foam.material.clone(),
             notes:"Free cutting dimensions; preview pads use assembled thickness. Material limits and adhesive inclusion need review.".into(),
         });
         for (side, z) in [
@@ -1016,7 +998,7 @@ pub(super) fn generate(
                 compressed,
                 vec![Contour {
                     hole: false,
-                    points: rectangle(c, foam.length, -pad_inner, pad_inner + foam.width),
+                    points: rectangle(c, *length, -pad_inner, pad_inner + width),
                 }],
             ));
             result.stack.push(MechanicalStackLayer {

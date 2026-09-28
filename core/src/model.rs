@@ -1929,6 +1929,10 @@ pub struct MechanicalPartProfile {
 pub struct MechanicalGasketLayout {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "export-types", ts(optional))]
+    pub auto_size: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
     pub adhesive_thickness: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "export-types", ts(optional))]
@@ -1953,6 +1957,13 @@ pub struct MechanicalGasketLayout {
 pub struct MechanicalGasketAnchor {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "export-types", ts(optional))]
+    pub length: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub width: Option<f64>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
     pub placement: Option<GasketPlacement>,
     pub id: String,
     pub region_id: String,
@@ -1966,6 +1977,10 @@ pub struct MechanicalGasketAnchor {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalGasketSupport {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub fit_error: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "export-types", ts(optional))]
     pub placement: Option<GasketPlacement>,

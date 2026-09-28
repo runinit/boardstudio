@@ -2325,6 +2325,7 @@ mod tests {
         let support = &first.gasket_supports[0];
         let anchor = support.anchor + 0.0007;
         doc.mechanical.as_mut().unwrap().gasket_layout = Some(MechanicalGasketLayout {
+            auto_size: None,
             adhesive_thickness: None,
             minimum_foam_thickness: None,
             preset_id: None,
@@ -2334,6 +2335,8 @@ mod tests {
             thickness: 2.,
             compression: 0.15,
             supports: vec![MechanicalGasketAnchor {
+                length: None,
+                width: None,
                 placement: None,
                 id: support.id.clone(),
                 region_id: support.region_id.clone(),

@@ -68,12 +68,23 @@ it('exposes internal gasket sizes, clearance, closure hardware and top-case laye
   const gasket = { ...configuration, mount: 'gasket' as const, internalGasket: defaultInternalGasket() };
   const resolved = { ...assembly, stack: [{ id: 'retainer', z: 8, thickness: 6 }] };
   const markup = renderToStaticMarkup(<MechanicalAssemblyPanel document={document} definitions={[]} configuration={gasket}
-    assembly={resolved} onChange={() => {}} />);
-  expect(markup).toContain('Gasket size');
+    assembly={resolved} selectedLayer="gaskets" onChange={() => {}} />);
+  expect(markup).toContain('Foam stock');
   expect(markup).toContain('80 × 4 × 5 mm');
   expect(markup).toContain('PCB-to-support clearance');
   expect(markup).toContain('Minimum wall behind gasket pockets');
-  expect(markup).toContain('Top case');
-  expect(markup).toContain('Screw drive');
+  expect(markup).not.toContain('Screw drive');
   expect(markup).not.toContain('captive nuts');
+});
+
+it('selecting a gasket shows its own dimensions and fit error without unrelated assembly controls', () => {
+  const gasket = { ...configuration, mount: 'gasket' as const, internalGasket: defaultInternalGasket() };
+  const resolved = { ...assembly, gasketSupports: [{ id:'outline-0:0',regionId:'outline-0',outlineKey:'outline',anchor:0.2,at:{x:20,y:0},tangent:{x:1,y:0},normal:{x:0,y:-1},length:30,width:3,z:2,thickness:1.7,pairId:null,mirrorAxis:null,unlinked:false,fitError:'Shorten this gasket to fit.' }] };
+  const markup = renderToStaticMarkup(<MechanicalAssemblyPanel document={document} definitions={[]} configuration={gasket}
+    assembly={resolved} selectedLayer="gasket:outline-0:0:lower" onChange={() => {}} />);
+  expect(markup).toContain('Cut length');
+  expect(markup).toContain('Shorten this gasket to fit.');
+  expect(markup).toContain('value="30"');
+  expect(markup).not.toContain('Inherited part profiles');
+  expect(markup).not.toContain('Closure hardware');
 });
