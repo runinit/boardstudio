@@ -6,6 +6,13 @@ These parts have four non-plated PCB holes and two plate openings each. Drawing
 layers remain guides; they are not plate cuts. The importer reports a conservative
 preview envelope because these sources have no closed courtyard.
 
+The stabilizer profiles explicitly use the MX switch family. The resolver derives
+the underside gap from the 5 mm mounting datum minus the configured plate
+thickness (3.5 mm for a 1.5 mm plate). Existing saved catalogue profiles with the
+original 5 mm value and exact reviewed source receive the same interpretation
+without changing the saved document; unrelated custom engagement values remain
+authoritative.
+
 ## Importing another part
 
 Confirm any new component with the user before adding it to this library.

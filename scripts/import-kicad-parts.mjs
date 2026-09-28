@@ -54,7 +54,7 @@ const parts = manifest.entries.map(entry => {
   }
   if (entry.mechanical) {
     const extracted = artifact({ kind: 'extract-mechanical', source, mappings: entry.mechanical.mappings, maxDeviationMm: 0.02 });
-    definition.mechanicalProfile = { definitionId: entry.id, source: `${entry.repository}/blob/${entry.revision}/${entry.sourcePath}`, cutouts: extracted.plateCutouts, pcbHoles: extracted.pcbHoles, clearances: extracted.clearanceEnvelopes, sourceGeometry: extracted.sourceGeometry, plateToPcb: entry.mechanical.plateToPcb };
+    definition.mechanicalProfile = { definitionId: entry.id, source: `${entry.repository}/blob/${entry.revision}/${entry.sourcePath}`, cutouts: extracted.plateCutouts, pcbHoles: extracted.pcbHoles, clearances: extracted.clearanceEnvelopes, sourceGeometry: extracted.sourceGeometry, plateToPcb: entry.mechanical.plateToPcb, ...(entry.mechanical.switchFamily ? { switchFamily: entry.mechanical.switchFamily } : {}) };
   }
   return { definition, diagnostics: imported.diagnostics, provenance: { repository: entry.repository, revision: entry.revision, sourcePath: entry.sourcePath, sha256: entry.sha256, license: entry.license, licenseFile: entry.licenseFile } };
 });

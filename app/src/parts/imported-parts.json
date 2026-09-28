@@ -351,7 +351,8 @@
               "pad-3-drill"
             ]
           },
-          "plateToPcb": 5
+          "plateToPcb": 3.5,
+          "switchFamily": "mx"
         }
       },
       "diagnostics": [
@@ -719,7 +720,8 @@
               "pad-3-drill"
             ]
           },
-          "plateToPcb": 5
+          "plateToPcb": 3.5,
+          "switchFamily": "mx"
         }
       },
       "diagnostics": [

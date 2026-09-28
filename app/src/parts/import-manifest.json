@@ -13,7 +13,8 @@
       "license": "CERN-OHL-P-2.0",
       "licenseFile": "sources/LICENSE",
       "mechanical": {
-        "plateToPcb": 5,
+        "plateToPcb": 3.5,
+        "switchFamily": "mx",
         "mappings": [
           {
             "kind": "line",
@@ -66,7 +67,8 @@
       "license": "CERN-OHL-P-2.0",
       "licenseFile": "sources/LICENSE",
       "mechanical": {
-        "plateToPcb": 5,
+        "plateToPcb": 3.5,
+        "switchFamily": "mx",
         "mappings": [
           {
             "kind": "line",

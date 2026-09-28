@@ -422,6 +422,23 @@ fn resolve_profiles(
             .find(|profile| profile.definition_id == part.definition_id)
         {
             profile.switch_family.get_or_insert(family);
+        }
+    }
+    for profile in &mut effective_config.profiles {
+        // Earlier saved catalogue profiles stored the MX mounting datum as a gap.
+        // Recognize only the exact reviewed sources and original value; custom
+        // profiles and user-specified engagement distances retain their meaning.
+        if profile.switch_family.is_none()
+            && profile.plate_to_pcb == 5.0
+            && profile.source_geometry.as_ref().is_some_and(|source| {
+                source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
+                    || source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
+            })
+        {
+            profile.switch_family = Some(MechanicalSwitchFamily::Mx);
+        }
+        // Family compatibility also applies to separate stabilizer definitions.
+        if let Some(family) = profile.switch_family {
             profile.plate_to_pcb = switch_mounting_datum(family) - effective_config.plate_thickness;
         }
     }
@@ -2622,6 +2639,73 @@ mod tests {
         );
         assert!(second.generation_blocked);
     }
+    #[test]
+    fn imported_stabilizers_use_the_mx_mounting_datum() {
+        let catalogue: serde_json::Value = serde_json::from_str(include_str!(
+            "../../app/src/parts/imported-parts.json"
+        )).unwrap();
+        for imported in catalogue["parts"].as_array().unwrap() {
+            let definition: PartDefinition = serde_json::from_value(imported["definition"].clone()).unwrap();
+            for (thickness, legacy) in [(1.4, false), (1.5, false), (1.6, false), (1.5, true)] {
+                let mut doc = ProjectDoc::empty("test", "test");
+                doc.boards.push(serde_json::from_value(serde_json::json!({
+                    "id":"board", "name":"Board", "outlineIds":[],
+                    "partIds":["key", "stab"], "netIds":[], "thickness":1.6
+                })).unwrap());
+                doc.definitions.push(serde_json::from_value(serde_json::json!({
+                    "id":"switch", "name":"Switch", "kind":"switch", "courtyard":[], "pads":[],
+                    "generator":{"source":"ceoloide/switch_mx","version":"bundled-1","parameters":{}}
+                })).unwrap());
+                doc.definitions.push(definition.clone());
+                if legacy {
+                    let profile = doc.definitions[1].mechanical_profile.as_mut().unwrap();
+                    profile.switch_family = None;
+                    profile.plate_to_pcb = 5.0;
+                }
+                for (id, definition_id) in [("key", "switch"), ("stab", definition.id.as_str())] {
+                    doc.parts.push(serde_json::from_value(serde_json::json!({
+                        "id":id,"definitionId":definition_id,"reference":id,
+                        "pose":{"at":{"x":70,"y":30},"rotation":0},"side":"front"
+                    })).unwrap());
+                }
+                let mut settings = config();
+                settings.plate_thickness = thickness;
+                doc.mechanical = Some(settings);
+                let outline = Contour { hole: false, points: vec![
+                    Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 140.0, y: 0.0 },
+                    Vec2 { x: 140.0, y: 60.0 }, Vec2 { x: 0.0, y: 60.0 },
+                ] };
+                let saved = doc.clone();
+                let result = resolve(&doc, std::slice::from_ref(&outline));
+                assert_eq!(doc, saved);
+                assert!(!result.generation_blocked, "{:?}", result.diagnostics);
+                assert!(!result.diagnostics.iter().any(|d| d.id.contains("engagement:")),
+                    "{} at {thickness}: {:?}", definition.id, result.diagnostics);
+                assert_eq!(result.plate_contours.iter().filter(|c| c.hole).count(), 3);
+                let plate = result.stack.iter().find(|layer| layer.id == "plate").unwrap();
+                assert!((plate.z + plate.thickness - 5.0).abs() < 1e-9);
+
+                // Unknown/custom engagement remains authoritative, even for a
+                // profile that uses the same stabilizer cutout geometry.
+                let profile = doc.definitions[1].mechanical_profile.as_mut().unwrap();
+                profile.switch_family = None;
+                profile.plate_to_pcb = 4.0;
+                let invalid = resolve(&doc, std::slice::from_ref(&outline));
+                assert!(invalid.generation_blocked);
+                assert!(invalid.diagnostics.iter().any(|d| d.id == "mechanical:engagement:stab"));
+
+                // A low-profile switch cannot share the MX stabilizer stack.
+                doc.definitions[1] = definition.clone();
+                doc.mechanical.as_mut().unwrap().profiles.push(
+                    builtin_profile("switch".into(), MechanicalBuiltinProfile::ChocV1Switch, 2.0).unwrap()
+                );
+                let incompatible = resolve(&doc, &[outline]);
+                assert!(incompatible.generation_blocked);
+                assert!(incompatible.diagnostics.iter().any(|d| d.id == "mechanical:engagement:stab"));
+            }
+        }
+    }
+
     #[test]
     fn canonical_switch_profiles_produce_seventy_square_openings() {
         for source in ["ceoloide/switch_mx", "ceoloide/switch_choc_v1_v2"] {
