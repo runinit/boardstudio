@@ -89,3 +89,17 @@
   .wb-project-dropdown .wb-project-workspace-actions { padding: 4px 8px; }
   .wb-project-workspace-actions button { padding-inline: 6px; font-size: 12px; }
 }
+
+.wb-keyboard-card { position: relative; min-width: 0; }
+.wb-keyboard-card .wb-keyboard-tile { width: 100%; height: 100%; }
+.wb-keyboard-delete { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 32px; height: 32px; padding: 6px; border: 1px solid var(--wb-line); border-radius: 4px; color: var(--wb-muted); background: var(--wb-panel); cursor: pointer; }
+.wb-keyboard-delete:hover, .wb-keyboard-delete:focus-visible { color: var(--wb-danger, #d45454); }
+.wb-keyboard-delete-dialog { width: min(420px, calc(100vw - 40px)); box-sizing: border-box; max-height: calc(100dvh - 40px); padding: 24px; border: 1px solid var(--wb-line); border-radius: 8px; background: var(--wb-panel); color: var(--wb-ink); box-shadow: 0 12px 40px rgb(0 0 0 / 30%); }
+.wb-keyboard-delete-dialog::backdrop { background: rgb(0 0 0 / 50%); }
+.wb-keyboard-delete-dialog h2 { margin: 0 0 12px; font-size: 18px; overflow-wrap: anywhere; }
+.wb-keyboard-delete-dialog p { color: var(--wb-muted); font-size: 13px; line-height: 1.5; white-space: normal; }
+.wb-keyboard-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.wb-keyboard-delete-actions button { min-height: 36px; padding: 8px 12px; border: 1px solid var(--wb-line); border-radius: 4px; background: var(--wb-raised); color: var(--wb-ink); cursor: pointer; }
+.wb-keyboard-delete-actions .wb-keyboard-delete-confirm { background: #b3261e; color: #fff; border-color: #b3261e; }
+.wb-keyboard-delete-actions button:disabled { opacity: .6; cursor: wait; }
+.wb-keyboard-delete-actions .wb-keyboard-delete-confirm:hover { background: #941e18; color: #fff; }

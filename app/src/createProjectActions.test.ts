@@ -3,10 +3,10 @@ import { emptyProject, type CoreReply, type CoreRequest } from '@boardstudio/v2-
 import type { CoreClient } from './CoreClient';
 import type { ExportClient } from './ExportClient';
 import { createProjectActions } from './createProjectActions';
-import { loadProject, saveAsset, unpackProject } from './storage';
+import { deleteProject, listProjects, loadProject, saveAsset, unpackProject } from './storage';
 import { catalogue } from '@boardstudio/v2-ergogen';
 
-vi.mock('./storage', () => ({ loadProject: vi.fn(), saveAsset: vi.fn(), unpackProject: vi.fn() }));
+vi.mock('./storage', () => ({ deleteProject: vi.fn(), listProjects: vi.fn(), loadProject: vi.fn(), saveAsset: vi.fn(), unpackProject: vi.fn() }));
 
 function harness() {
   const projectRef = { current: emptyProject('existing', 'Existing project') };
@@ -190,4 +190,51 @@ it('rebases queued instance mechanical edits onto the latest committed revision'
   projectRef.current = {...projectRef.current,revision:1};
   await work!();
   expect(request).toHaveBeenCalledWith(expect.objectContaining({command:expect.objectContaining({baseRevision:1})}));
+});
+
+
+describe('deleting saved keyboards', () => {
+  it('deletes another keyboard without changing the active document', async () => {
+    const t = harness();
+    t.actions.deleteSavedProject('other');
+    await t.run();
+    expect(deleteProject).toHaveBeenCalledWith('other');
+    expect(t.request).not.toHaveBeenCalled();
+  });
+
+  it('opens a remaining keyboard before removing the current one', async () => {
+    const t = harness();
+    const remaining = emptyProject('remaining', 'Remaining keyboard');
+    vi.mocked(listProjects).mockResolvedValueOnce([t.projectRef.current, remaining]);
+    vi.mocked(deleteProject).mockImplementationOnce(async id => {
+      expect(id).toBe('existing');
+      expect(t.accept).toHaveBeenCalledWith(expect.objectContaining({document:remaining}), 'open');
+    });
+    t.actions.deleteSavedProject('existing');
+    await t.run();
+  });
+
+  it('opens a new empty project before removing the last keyboard', async () => {
+    const t = harness();
+    vi.mocked(listProjects).mockResolvedValueOnce([t.projectRef.current]);
+    t.actions.deleteSavedProject('existing');
+    await t.run();
+    const opened = t.request.mock.calls[0][0];
+    expect(opened.kind).toBe('open');
+    if (opened.kind === 'open') {
+      expect(opened.document.id).not.toBe('existing');
+      expect(opened.document.parts).toEqual([]);
+      expect(opened.document.boards).toHaveLength(1);
+    }
+  });
+
+  it('does not delete the current keyboard if its replacement cannot be saved', async () => {
+    const t = harness();
+    vi.mocked(listProjects).mockResolvedValueOnce([]);
+    t.accept.mockRejectedValueOnce(new Error('Storage unavailable'));
+    const before = vi.mocked(deleteProject).mock.calls.length;
+    t.actions.deleteSavedProject('existing');
+    await expect(t.run()).rejects.toThrow('Storage unavailable');
+    expect(vi.mocked(deleteProject).mock.calls).toHaveLength(before);
+  });
 });

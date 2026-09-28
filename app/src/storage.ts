@@ -77,6 +77,23 @@ export async function saveProject(doc: ProjectDoc): Promise<void> {
   });
 }
 
+export async function deleteProject(id: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PROJECT_STORE, 'readwrite');
+    transaction.objectStore(PROJECT_STORE).delete(id);
+    transaction.oncomplete = () => {
+      if (localStorage.getItem(ACTIVE_PROJECT_KEY) === id) localStorage.removeItem(ACTIVE_PROJECT_KEY);
+      db.close();
+      resolve();
+    };
+    transaction.onabort = transaction.onerror = () => {
+      db.close();
+      reject(transaction.error ?? new Error('The keyboard could not be deleted.'));
+    };
+  });
+}
+
 export async function saveAsset(sha256: string, bytes: Uint8Array): Promise<void> {
   const db = await openDb();
 

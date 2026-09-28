@@ -5,13 +5,24 @@ import { catalogue as ergogenCatalogue } from '@boardstudio/v2-ergogen';
 import type { MutableRefObject } from 'react';
 import { ExportClient } from './ExportClient';
 import { updateInstanceMechanical } from './hardwareInstances';
-import { loadProject, saveAsset, unpackProject } from './storage';
+import { deleteProject, listProjects, loadProject, saveAsset, unpackProject } from './storage';
 import { matrixWithPreset } from './ui/matrixPresets';
 import { openKeyboardDemo, type DemoId } from './demos/keyboards';
 
 const ERGOGEN_DEFINITIONS = ergogenCatalogue();
 const MAX_PROJECT_BYTES = 128 * 1024 * 1024;
 const MAX_MODEL_BYTES = 32 * 1024 * 1024;
+
+function blankProject(): ProjectDoc {
+  const document = emptyProject(crypto.randomUUID(), 'Untitled keyboard');
+  const boardId = crypto.randomUUID();
+  const outlineId = crypto.randomUUID();
+
+  document.outline = [{ id: outlineId, kind: 'part-envelope', settings: defaultOutlineSettings, partIds: [], margin: 4, operation: 'add' }];
+  document.boards = [{ id: boardId, name: 'Main board', outlineIds: [outlineId], partIds: [], netIds: [], thickness: 1.6 }];
+  document.materials = [{ id: 'pla', name: 'PLA', thickness: 3 }];
+  return document;
+}
 
 type Inputs = {
   projectRef: MutableRefObject<ProjectDoc>;
@@ -88,19 +99,34 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     });
   }
 
+  async function deleteSavedProject(projectId: string): Promise<boolean> {
+    const result = await schedule(async () => {
+      const core = client.current;
+      if (!core) throw new Error('Project is not ready for deleting');
+      if (projectId === projectRef.current.id) {
+        const remaining = (await listProjects()).filter(project => project.id !== projectId)
+          .sort((a,b) => a.name.localeCompare(b.name));
+        // Switch and persist first so pending edits cannot recreate the deleted document.
+        const previous = projectRef.current;
+        try {
+          await accept(await core.request({id:crypto.randomUUID(),kind:'open',document:remaining[0] ?? blankProject()}), 'open');
+        } catch (error) {
+          await core.request({id:crypto.randomUUID(),kind:'open',document:previous});
+          throw error;
+        }
+      }
+      await deleteProject(projectId);
+    });
+    return result !== false;
+  }
+
   function newProject(): void {
     schedule(async () => {
       if (!client.current) {
         return;
       }
 
-      const document = emptyProject(crypto.randomUUID(), 'Untitled keyboard');
-      const boardId = crypto.randomUUID();
-      const outlineId = crypto.randomUUID();
-
-      document.outline = [{ id: outlineId, kind: 'part-envelope', settings: defaultOutlineSettings, partIds: [], margin: 4, operation: 'add' }];
-      document.boards = [{ id: boardId, name: 'Main board', outlineIds: [outlineId], partIds: [], netIds: [], thickness: 1.6 }];
-      document.materials = [{ id: 'pla', name: 'PLA', thickness: 3 }];
+      const document = blankProject();
 
       const reply = await client.current.request({ id: crypto.randomUUID(), kind: 'open', document });
 
@@ -277,5 +303,5 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     });
   }
 
-  return { edit, history, importProject, newProject, openSavedProject, openDemo, duplicateDesign, importPart, importModel };
+  return { edit, history, importProject, newProject, openSavedProject, deleteSavedProject, openDemo, duplicateDesign, importPart, importModel };
 }

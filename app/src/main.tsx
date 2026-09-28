@@ -35,7 +35,7 @@ function App() {
 
   const { physicalDocument, physicalScene, preparedCase, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly, cancelGeneration, generateCase, livePreview, setLivePreview, setPreviewDraft } = useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, projectRef, committedScene, client, caseClient, previewCache, activeMode, ready, setError });
 
-  const { edit, history, importProject, newProject, openSavedProject, openDemo, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated: projectId => setSetupRequest({ projectId, requestId: crypto.randomUUID() }) });
+  const { edit, history, importProject, newProject, openSavedProject, deleteSavedProject, openDemo, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated: projectId => setSetupRequest({ projectId, requestId: crypto.randomUUID() }) });
 
   const { refreshWiring, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit });
 
@@ -151,6 +151,7 @@ function App() {
       onImport={importProject}
       onNewProject={newProject}
       onOpenSavedProject={openSavedProject}
+      onDeleteSavedProject={deleteSavedProject}
       onOpenDemo={openDemo}
       onDuplicateDesign={duplicateDesign}
       onProjectMatrices={projectMatrices}

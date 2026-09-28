@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import 'fake-indexeddb/auto';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { catalogue, modelAssetIds } from '@boardstudio/v2-ergogen';
 import { demoProject } from './demo';
-import { loadAsset, saveAsset, packProject, unpackProject, type ArchiveTransport } from './storage';
+import { deleteProject, loadProject, saveProject, activeProjectId, loadAsset, saveAsset, packProject, unpackProject, type ArchiveTransport } from './storage';
 import { nativeArchiveTransport } from './test/nativeArchive';
 
 const archiveTransport: ArchiveTransport = nativeArchiveTransport();
@@ -151,4 +151,56 @@ it('round trips routed sources, mapped meshes, and saved assembly members', asyn
   expect(restored).toEqual(JSON.parse(JSON.stringify(project)));
   expect(await loadAsset(mesh.asset.sha256)).toEqual(mesh.bytes);
   expect(await loadAsset(source.asset.sha256)).toEqual(source.bytes);
+});
+
+
+describe('saved keyboard deletion', () => {
+  beforeEach(() => {
+    const values = new Map<string,string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key:string) => values.get(key) ?? null,
+      setItem: (key:string,value:string) => values.set(key,value),
+      removeItem: (key:string) => values.delete(key),
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+it('deletes only the selected keyboard and keeps shared assets and active selection', async () => {
+  const project = demoProject();
+  project.id = 'delete-target';
+  await saveProject(project);
+  const other = {...project,id:'keep-target'};
+  await saveProject(other);
+  const bytes = new Uint8Array([1,2,3]);
+  await saveAsset('shared-delete-test', bytes);
+  await deleteProject(project.id);
+  expect(await loadProject(project.id)).toBeUndefined();
+  expect(await loadProject(other.id)).toEqual(other);
+  expect(activeProjectId('fallback')).toBe(other.id);
+  expect(await loadAsset('shared-delete-test')).toEqual(bytes);
+});
+
+it('clears a deleted active keyboard reference', async () => {
+  const project = {...demoProject(),id:'delete-active'};
+  await saveProject(project);
+  await deleteProject(project.id);
+  expect(activeProjectId('fallback')).toBe('fallback');
+});
+
+  it('keeps the saved keyboard when the deletion transaction aborts', async () => {
+    const project = {...demoProject(),id:'delete-aborted'};
+    await saveProject(project);
+    const remove = IDBObjectStore.prototype.delete;
+    const spy = vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementationOnce(function (this: IDBObjectStore, key) {
+      const request = remove.call(this, key);
+      this.transaction.abort();
+      return request;
+    });
+    try {
+      await expect(deleteProject(project.id)).rejects.toBeDefined();
+      expect(await loadProject(project.id)).toEqual(project);
+      expect(activeProjectId('fallback')).toBe(project.id);
+    } finally { spy.mockRestore(); }
+  });
+
 });

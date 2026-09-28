@@ -106,7 +106,7 @@ const systemColorScheme = (): 'light' | 'dark' => {
   }
 };
 
-const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onOpenSavedProject, onOpenDemo, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, livePreview, onLivePreviewChange, onCasePreviewDraft, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, preparedCase, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, instanceControls, selectedCaseInstanceId, onSelectCaseInstance, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
+const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo, onRedo, onExport, compileFootprints, onNewProject, onOpenSavedProject, onDeleteSavedProject, onOpenDemo, onImport, onImportFootprint, onImportModel, mechanicalAssembly, onResolveMechanical, onCancelGeneration, generation, livePreview, onLivePreviewChange, onCasePreviewDraft, onExportMechanical, onMechanicalProfile, onExtractMechanicalProfile, onDuplicateDesign, onProjectMatrices, onModeChange, caseBodies, casePreview, preparedCase, embedUsedModels = true, onEmbedUsedModelsChange, selectedBoardId: selectedBoardIdProp, onSelectBoard, physicalCaseDocument, physicalCaseScene, instanceControls, selectedCaseInstanceId, onSelectCaseInstance, setupRequest, wiringStatus, wiring, onResolveWiring, onApplyWiring, onReviewWiring }: Props) => {
   const caseDocument = physicalCaseDocument ?? document;
   const caseScene = physicalCaseScene ?? scene;
   const [caseActionsTarget, setCaseActionsTarget] = useState<HTMLDivElement | null>(null);
@@ -253,6 +253,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     if (!compactInspector) inspectorPanel.setMode('pinned');
   };
 
+  const projectDeletionPending = useRef(false);
+
   useEffect(() => {
     if (navigationProject.current === document.id) return;
     navigationProject.current = document.id;
@@ -262,7 +264,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     setScriptsOpen(false);
     setOutlineSettingsOpen(false);
     setCommandMenu(null);
-    setProjectMenuOpen(false);
+    // Keep the confirmation mounted while deletion switches to a replacement project.
+    if (!projectDeletionPending.current) setProjectMenuOpen(false);
     setEditingAssembly(null);
     setAssembly3d(false);
     setGuidedPlacement(false);
@@ -1519,7 +1522,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             event.currentTarget.value = '';
             setProjectMenuOpen(false);
           }} />}
-          <ProjectLibrary document={document} onOpen={onOpenSavedProject && (id => { setProjectMenuOpen(false); onOpenSavedProject(id); })} onOpenDemo={onOpenDemo && (id => { setProjectMenuOpen(false); onOpenDemo(id); })} />
+          <ProjectLibrary document={document} onDelete={onDeleteSavedProject && (async id => {
+            projectDeletionPending.current = true;
+            try { return await onDeleteSavedProject(id); }
+            finally { projectDeletionPending.current = false; }
+          })} onOpen={onOpenSavedProject && (id => { setProjectMenuOpen(false); onOpenSavedProject(id); })} onOpenDemo={onOpenDemo && (id => { setProjectMenuOpen(false); onOpenDemo(id); })} />
           <div className="wb-project-workspace-actions">
             <div className="wb-project-history"><button className="wb-compact-action" onClick={() => { setProjectMenuOpen(false); onUndo(); }}><UndoIcon />Undo</button><button className="wb-compact-action" onClick={() => { setProjectMenuOpen(false); onRedo(); }}><RedoIcon />Redo</button></div>
             <button onClick={() => { setProjectMenuOpen(false); reopenGuide(); }}><ProjectLibraryIcon name="guide" />Setup guide</button>
