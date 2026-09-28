@@ -181,3 +181,25 @@ was added.
 
 The branch is an implementation checkpoint, not a claim that the full redesign
 or the full repository acceptance gate is complete.
+
+## Automatic support count follow-up
+
+Gasket count now follows outline perimeter, targeting one support pair per
+50 mm and rounding up to balanced groups of four (4–64 pairs per region).
+The longest region determines the shared slot count, keeping linked regions
+compatible. Sofle resolves to 12 pairs instead of the previous four.
+This is a placement heuristic; it does not establish physical load capacity.
+
+The Gaskets inspector exposes automatic count and a manual Supports per region
+field. Changing the count selects manual mode; disabling automatic count keeps
+the currently resolved count. Previously saved default counts of four use the
+new automatic behavior, while older non-default counts remain manual. Saved
+user-positioned support slots are retained when automatic count is enabled.
+
+Validation: 277 core tests and 406 app tests passed, along with generated
+contract checks, app/CAD typechecking, and native/WASM boundary parity.
+All seven gasket browser tests passed, including Sofle automatic count, manual
+count persistence, and switching back to automatic mode. Seven native CAD export
+fixtures passed, including connected tray/top solids with automatic count.
+Independent standards and specification reviews found no confirmed issues.
+The broader repository acceptance limitations recorded above still apply.

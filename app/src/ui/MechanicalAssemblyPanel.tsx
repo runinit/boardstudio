@@ -262,6 +262,8 @@ function GasketControls({ configuration, assembly, onChange, section = 'all' }: 
   const layout = configuration.gasketLayout ?? defaultGasketLayout();
   const settings = configuration.internalGasket ?? defaultInternalGasket();
   const hardware = settings.hardware;
+  const automaticCount = settings.autoCount ?? settings.supportCount === 4;
+  const resolvedCount = assembly?.gasketSupports.filter(support => support.regionId === assembly.gasketSupports[0]?.regionId).length || settings.supportCount;
   const update = (patch: Partial<MechanicalConfiguration>) => onChange({
     internalGasket: settings, integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false, ...patch,
   });
@@ -274,6 +276,8 @@ function GasketControls({ configuration, assembly, onChange, section = 'all' }: 
   return <>
     {section !== 'hardware' && <><InspectorSection title="Gasket supports" detail={`${assembly?.gasketSupports?.length ?? 0} supports`} defaultOpen>
       <p className="wb-mech-hint">Select a gasket in the assembly tree to edit its cut length and width. Upper and lower pads form one support pair.</p>
+      <label className="wb-mech-check"><input type="checkbox" checked={automaticCount} onChange={event => updateSettings({ autoCount:event.target.checked, supportCount:resolvedCount })} /><span>Choose support count automatically</span></label>
+      <p className="wb-mech-hint">Automatic count follows the outline size and distributes supports on four sides. Edit the count below to choose your own number of pairs.</p>
       <label className="wb-mech-field"><span>Foam stock</span><select value={layout.presetId ?? 'custom'} onChange={event => chooseSize(event.target.value)}>
         <option value="custom">Custom</option>
         {gasketFoamPresets.map(preset => <option key={preset.id} value={preset.id}>{preset.id} · {preset.length} × {preset.width} × {preset.thickness} mm</option>)}
@@ -285,7 +289,7 @@ function GasketControls({ configuration, assembly, onChange, section = 'all' }: 
         {(['width', 'thickness'] as const).map(key => <NumberField key={key} label={`Gasket ${key}`} value={layout[key]} min={0.1} onCommit={value => update({ gasketLayout: { ...layout, [key]: value, presetId: undefined } })} />)}
         <NumberField label="Compression" unit="%" value={layout.compression * 100} min={0} max={49.9} onCommit={value => update({ gasketLayout: { ...layout, compression: value / 100 } })} />
         <NumberField label="Gasket travel" value={configuration.gasketTravel ?? 0.1} min={0} onCommit={gasketTravel => update({ gasketTravel })} />
-        <NumberField label="Supports per region" unit="" value={settings.supportCount} min={4} max={64} step={1} onCommit={value => { if (Number.isInteger(value)) updateSettings({ supportCount: value }); }} />
+        <NumberField label="Supports per region" unit="" value={automaticCount ? resolvedCount : settings.supportCount} min={4} max={64} step={1} onCommit={value => { if (Number.isInteger(value)) updateSettings({ supportCount: value, autoCount: false }); }} />
       </div>
       <button type="button" className="wb-mech-quiet" onClick={() => update({ gasketLayout: { ...layout, supports: [] } })}>Reset gasket placement</button>
       <p className="wb-mech-hint">Reset releases manually positioned supports. Closure positions stay fixed.</p>

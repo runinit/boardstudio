@@ -55,10 +55,14 @@ fn internal_document() -> Value {
 }
 
 fn resolve_internal(doc: Value) -> Value {
+    resolve_internal_sized(doc, 100., 70.)
+}
+
+fn resolve_internal_sized(doc: Value, width: f64, height: f64) -> Value {
     let reply = CoreEngine::new().request(
         &json!({"kind":"resolve-mechanical","id":"resolve",
         "document":doc,"contours":[{"hole":false,"points":[
-            {"x":0,"y":0},{"x":100,"y":0},{"x":100,"y":70},{"x":0,"y":70}
+            {"x":0,"y":0},{"x":width,"y":0},{"x":width,"y":height},{"x":0,"y":height}
         ]}]})
         .to_string(),
     );
@@ -585,4 +589,46 @@ fn dense_automatic_gaskets_balance_all_sides_without_exhausting_short_edges() {
         sides[side] += 1;
     }
     assert_eq!(sides,[3,3,3,3]);
+}
+
+#[test]
+fn automatic_support_count_adds_coverage_and_manual_count_remains_available() {
+    let mut doc = internal_document();
+    doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
+    doc["mechanical"]["internalGasket"]["autoCount"] = json!(true);
+    let automatic = resolve_internal(doc.clone());
+    assert_eq!(automatic["generationBlocked"], false, "{automatic}");
+    assert_eq!(automatic["gasketSupports"].as_array().unwrap().len(), 8);
+    doc["mechanical"]["internalGasket"]["autoCount"] = json!(false);
+    let manual = resolve_internal(doc);
+    assert_eq!(manual["gasketSupports"].as_array().unwrap().len(), 4);
+}
+
+#[test]
+fn automatic_count_scales_with_outline_and_respects_older_manual_counts() {
+    let mut doc = internal_document();
+    doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
+    doc["mechanical"]["internalGasket"].as_object_mut().unwrap().remove("autoCount");
+    let larger = resolve_internal_sized(doc.clone(), 150., 100.);
+    assert_eq!(larger["generationBlocked"], false, "{larger}");
+    assert_eq!(larger["gasketSupports"].as_array().unwrap().len(), 12);
+    doc["mechanical"]["internalGasket"]["supportCount"] = json!(6);
+    assert_eq!(resolve_internal(doc)["gasketSupports"].as_array().unwrap().len(), 6);
+}
+
+#[test]
+fn automatic_count_keeps_saved_support_slots_when_outline_target_is_smaller() {
+    let mut doc = internal_document();
+    doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
+    doc["mechanical"]["internalGasket"]["supportCount"] = json!(12);
+    let initial = resolve_internal(doc.clone());
+    let support = initial["gasketSupports"][11].clone();
+    doc["mechanical"]["gasketLayout"]["supports"] = json!([{
+        "id":support["id"],"regionId":support["regionId"],"outlineKey":support["outlineKey"],
+        "anchor":support["anchor"],"length":support["length"],"width":support["width"],"placement":"user","unlinked":false
+    }]);
+    doc["mechanical"]["internalGasket"]["autoCount"] = json!(true);
+    let result = resolve_internal(doc);
+    assert_eq!(result["gasketSupports"].as_array().unwrap().len(), 12);
+    assert_eq!(result["gasketSupports"][11]["anchor"], support["anchor"]);
 }

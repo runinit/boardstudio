@@ -50,7 +50,7 @@ export function gasketAnchors(layout: MechanicalGasketLayout, before: Mechanical
 /** Starting Custom dimensions, not a supplier-qualified hardware preset. */
 export function defaultInternalGasket(): InternalGasketConfiguration {
   return {
-    version: 'internal-v1', minimumWall: 2, tolerance: 0.05, supportCount: 4,
+    version: 'internal-v1', minimumWall: 2, tolerance: 0.05, supportCount: 4, autoCount: true,
     hardware: {
       id: 'custom-m2', thread: 'M2 × 0.4', threadDiameter: 2, pitch: 0.4,
       drive: 'hex', installation: 'heat-set', lengthDatum: 'under-head', headProfile: 'flat',

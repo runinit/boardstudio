@@ -2261,6 +2261,9 @@ pub struct InternalGasketConfiguration {
     pub support_clearance: Option<f64>,
     pub tolerance: f64,
     pub support_count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub auto_count: Option<bool>,
     pub hardware: InternalClosureHardware,
 }
 

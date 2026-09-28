@@ -385,12 +385,14 @@ test('mesh-only preview preserves revision and reuses geometry for export', asyn
   assert.ok(exported.step.length > 0);
 });
 
-for (const fixture of ['rectangle', 'countersunk', 'downward-boss', 'rotated-concave', 'split', 'mixed-cuts']) {
+for (const fixture of ['rectangle', 'countersunk', 'downward-boss', 'rotated-concave', 'split', 'mixed-cuts', 'automatic-count']) {
   test(`internal gasket ${fixture} exports connected tray and top regions`, async () => {
-    const input = JSON.parse(await readFile(new URL(`../bench/fixtures/internal-gasket-v1/${fixture === 'mixed-cuts' ? 'rectangle' : fixture}.json`, import.meta.url)));
-    if (fixture === 'mixed-cuts') input.document.mechanical.gasketLayout.autoSize = true;
+    const input = JSON.parse(await readFile(new URL(`../bench/fixtures/internal-gasket-v1/${['mixed-cuts', 'automatic-count'].includes(fixture) ? 'rectangle' : fixture}.json`, import.meta.url)));
+    if (['mixed-cuts', 'automatic-count'].includes(fixture)) input.document.mechanical.gasketLayout.autoSize = true;
+    if (fixture === 'automatic-count') input.document.mechanical.internalGasket.autoCount = true;
     const assembly = resolveMechanical(input.document, input.contours);
     assert.equal(assembly.generationBlocked, false, JSON.stringify(assembly.diagnostics));
+    if (fixture === 'automatic-count') assert.ok(assembly.gasketSupports.length > 4);
     if (fixture === 'mixed-cuts') assert.ok(new Set(assembly.gasketSupports.map(support => support.length)).size > 1);
     for (const id of ['bottom', 'retainer']) {
       const body = assembly.case.bodies.find(body => body.body.id === id);

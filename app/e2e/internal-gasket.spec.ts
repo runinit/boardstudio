@@ -15,7 +15,7 @@ test('case assembly tree groups gaskets and selects focused part inspectors', as
   await configureGaskets(page);
   const tree = page.getByRole('tree', { name: 'CAD structure' });
   await expect(tree.getByRole('button', { name: 'Expand PCB', exact: true })).toBeVisible();
-  await expect(tree.getByRole('treeitem', { name: /^Gasket \d/ })).toHaveCount(4);
+  await expect(tree.getByRole('treeitem', { name: /^Gasket \d/ })).toHaveCount(8);
   await tree.getByRole('treeitem', { name: 'Plate', exact: true }).click();
   const panel = page.locator('.wb-mechanical-panel');
   await expect(panel.getByRole('heading', { name: 'Plate', exact: true })).toBeVisible();
@@ -179,4 +179,36 @@ test('split case selection generates each half with shared insert hardware', asy
   await tree.getByRole('treeitem', {name:'Top case',exact:true}).click();
   await expect(inserts).toHaveCount(0);
   await expect(page.getByRole('button', {name:'Edit shared closure hardware',exact:true})).toBeVisible();
+});
+
+test('Sofle chooses more than four supports and manual count survives reopening', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await page.getByRole('button', {name:'Project',exact:true}).click();
+  await page.getByRole('button', {name:'Start Sofle v2',exact:true}).click();
+  await expect(page.locator('.wb-project-name')).toHaveText('Sofle v2');
+  await navigateWorkspace(page,'Case');
+  await page.getByRole('button', {name:'Configure mechanical stack',exact:true}).click();
+  await page.getByRole('combobox', {name:'Mount style',exact:true}).selectOption('gasket');
+  await expect(page.getByRole('button', {name:'Export geometry',exact:true})).toBeEnabled({timeout:45_000});
+  await page.getByRole('treeitem', {name:/^Gaskets /}).click();
+  const automatic = page.getByRole('checkbox', {name:'Choose support count automatically',exact:true});
+  const count = page.getByRole('spinbutton', {name:'Supports per region',exact:true});
+  await expect(automatic).toBeChecked();
+  const chosen = Number(await count.inputValue());
+  expect(chosen).toBeGreaterThan(4);
+  const manual = String(chosen - 4);
+  await count.fill(manual); await count.press('Enter');
+  await expect(automatic).not.toBeChecked();
+  await expect(page.getByRole('treeitem', {name:/^Gaskets /})).toContainText(`${manual} pairs`);
+  await expect(page.getByRole('button', {name:'Export geometry',exact:true})).toBeEnabled({timeout:45_000});
+  await expect(page.locator('.wb-save-state')).toHaveClass(/is-saved/);
+  await page.reload();
+  await expect(page.locator('.wb-project-name')).toHaveText('Sofle v2');
+  await navigateWorkspace(page,'Case');
+  await page.getByRole('treeitem', {name:/^Gaskets /}).click();
+  await expect(count).toHaveValue(manual);
+  await expect(automatic).not.toBeChecked();
+  await automatic.check();
+  await expect(count).toHaveValue(String(chosen));
 });

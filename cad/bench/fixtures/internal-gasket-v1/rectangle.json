@@ -51,6 +51,7 @@
         "supportClearance": 0.2,
         "tolerance": 0.05,
         "supportCount": 4,
+        "autoCount": false,
         "hardware": {
           "id": "custom-test",
           "thread": "M2 \u00d7 0.4",

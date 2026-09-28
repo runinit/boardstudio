@@ -2,6 +2,7 @@
 use super::*;
 mod motion;
 
+const AUTOMATIC_SUPPORT_SPACING: f64 = 50.;
 const TAB_MARGIN: f64 = 0.5;
 const ROOT_OVERLAP: f64 = 0.6;
 // The preparer quantizes both boundaries to 0.001 mm; reserve both roundings.
@@ -617,7 +618,17 @@ pub(super) fn generate(
             })
     };
     let automatic = foam.auto_size.unwrap_or(true);
-    let count = settings.support_count.max(4);
+    let count = if settings.auto_count.unwrap_or(settings.support_count == 4) {
+        let perimeter = rings.iter().map(|ring| ring.points.iter().enumerate()
+            .map(|(index, point)| distance(*point, ring.points[(index + 1) % ring.points.len()])).sum::<f64>())
+            .fold(0., f64::max);
+        // Keep linked regions on matching slots and reserve equal coverage on four sides.
+        let suggested = ((perimeter / AUTOMATIC_SUPPORT_SPACING).ceil().clamp(4., 64.) as usize).div_ceil(4) * 4;
+        let pinned = foam.supports.iter().filter(|support| support.placement != Some(GasketPlacement::Generated))
+            .filter_map(|support| support.id.rsplit(':').next()?.parse::<usize>().ok()?.checked_add(1))
+            .max().unwrap_or(0);
+        suggested.max(pinned).clamp(4, 64)
+    } else { settings.support_count.max(4) };
     let mut chosen: Vec<(String, Candidate, f64, f64)> = vec![];
     let side = |c: &Candidate| if c.normal.x.abs() > c.normal.y.abs() {
         if c.normal.x > 0. { 0 } else { 1 }

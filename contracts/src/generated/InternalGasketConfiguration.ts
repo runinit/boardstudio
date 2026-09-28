@@ -2,4 +2,4 @@
 import type { GasketConstructionVersion } from "./GasketConstructionVersion";
 import type { InternalClosureHardware } from "./InternalClosureHardware";
 
-export type InternalGasketConfiguration = { version: GasketConstructionVersion, minimumWall: number, supportClearance?: number, tolerance: number, supportCount: number, hardware: InternalClosureHardware, };
+export type InternalGasketConfiguration = { version: GasketConstructionVersion, minimumWall: number, supportClearance?: number, tolerance: number, supportCount: number, autoCount?: boolean, hardware: InternalClosureHardware, };
