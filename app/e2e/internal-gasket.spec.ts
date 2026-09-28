@@ -15,7 +15,7 @@ test('case assembly tree groups gaskets and selects focused part inspectors', as
   await configureGaskets(page);
   const tree = page.getByRole('tree', { name: 'CAD structure' });
   await expect(tree.getByRole('button', { name: 'Expand PCB', exact: true })).toBeVisible();
-  await expect(tree.getByRole('treeitem', { name: /^Gasket \d/ })).toHaveCount(8);
+  await expect(tree.getByRole('treeitem', { name: /^Gasket \d/ })).toHaveCount(6);
   await tree.getByRole('treeitem', { name: 'Plate', exact: true }).click();
   const panel = page.locator('.wb-mechanical-panel');
   await expect(panel.getByRole('heading', { name: 'Plate', exact: true })).toBeVisible();
@@ -197,6 +197,12 @@ test('Sofle chooses more than four supports and manual count survives reopening'
   await expect(automatic).toBeChecked();
   const chosen = Number(await count.inputValue());
   expect(chosen).toBeGreaterThan(4);
+  await page.setViewportSize({width:1600,height:1100});
+  const editGaskets = page.getByRole('button', {name:'Edit gaskets',exact:true});
+  if (await editGaskets.getAttribute('aria-pressed') !== 'true') await editGaskets.click();
+  await expect(editGaskets).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button', {name:'Top',exact:true}).click();
+  await page.locator('.wb-assembly-viewport').screenshot({path:'test-results/sofle-run-placement.png'});
   const manual = String(chosen - 4);
   await count.fill(manual); await count.press('Enter');
   await expect(automatic).not.toBeChecked();

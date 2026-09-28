@@ -385,7 +385,7 @@ test('mesh-only preview preserves revision and reuses geometry for export', asyn
   assert.ok(exported.step.length > 0);
 });
 
-for (const fixture of ['rectangle', 'countersunk', 'downward-boss', 'rotated-concave', 'split', 'mixed-cuts', 'automatic-count']) {
+for (const fixture of ['rectangle', 'countersunk', 'downward-boss', 'rotated-concave', 'split', 'mixed-cuts', 'automatic-count', 'sofle-outline']) {
   test(`internal gasket ${fixture} exports connected tray and top regions`, async () => {
     const input = JSON.parse(await readFile(new URL(`../bench/fixtures/internal-gasket-v1/${['mixed-cuts', 'automatic-count'].includes(fixture) ? 'rectangle' : fixture}.json`, import.meta.url)));
     if (['mixed-cuts', 'automatic-count'].includes(fixture)) input.document.mechanical.gasketLayout.autoSize = true;

@@ -277,7 +277,7 @@ function GasketControls({ configuration, assembly, onChange, section = 'all' }: 
     {section !== 'hardware' && <><InspectorSection title="Gasket supports" detail={`${assembly?.gasketSupports?.length ?? 0} supports`} defaultOpen>
       <p className="wb-mech-hint">Select a gasket in the assembly tree to edit its cut length and width. Upper and lower pads form one support pair.</p>
       <label className="wb-mech-check"><input type="checkbox" checked={automaticCount} onChange={event => updateSettings({ autoCount:event.target.checked, supportCount:resolvedCount })} /><span>Choose support count automatically</span></label>
-      <p className="wb-mech-hint">Automatic count follows the outline size and distributes supports on four sides. Edit the count below to choose your own number of pairs.</p>
+      <p className="wb-mech-hint">Automatic placement centers pads on long sections and fills usable shorter sections. Edit the count below to choose your own number of pairs.</p>
       <label className="wb-mech-field"><span>Foam stock</span><select value={layout.presetId ?? 'custom'} onChange={event => chooseSize(event.target.value)}>
         <option value="custom">Custom</option>
         {gasketFoamPresets.map(preset => <option key={preset.id} value={preset.id}>{preset.id} · {preset.length} × {preset.width} × {preset.thickness} mm</option>)}

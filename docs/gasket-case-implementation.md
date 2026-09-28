@@ -203,3 +203,34 @@ count persistence, and switching back to automatic mode. Seven native CAD export
 fixtures passed, including connected tray/top solids with automatic count.
 Independent standards and specification reviews found no confirmed issues.
 The broader repository acceptance limitations recorded above still apply.
+
+## General straight-run placement follow-up
+
+The perimeter-count heuristic above is superseded by a geometry-driven planner.
+Automatic count is now the result of fitting supports to usable straight runs,
+not a perimeter-derived quota shared equally among four compass sides. Tiny
+jogs within 0.1 mm can belong to one run; every resulting pad still passes the
+existing full geometry and collision checks against the actual outline.
+
+The planner centers long cuts, subdivides longer runs into equal-length groups,
+and visits separate ledges and angled runs. Exact centering is preferred for
+pairs; single-pad placement balances cut length against distance from the run
+center. Cut sizes remain 10 mm increments up to 80 mm, with 5 mm as a fallback.
+Explicit counts prioritize four-side coverage, then subdivide the least-supported
+runs. Pinned supports own their runs and retain their saved IDs and anchors.
+
+Suggested closures prefer ends of longer runs, with a cost for occupying the
+longest uninterrupted span. This leaves short ledges available for supports.
+Adopted closure positions remain fixed. The planner has no board names or
+board-specific coordinates; Sofle coordinates appear only in regression tests.
+
+New regression coverage includes a long centered run across a tiny outline jog,
+symmetric separated pairs, the missing Sofle ledges, and rectangle/concave/split
+outlines after rotation, translation, and winding reversal. This remains a
+placement heuristic, not a claim of verified physical load capacity.
+
+Validation for this follow-up: 280 core tests, 406 app tests, seven gasket browser
+tests, and eight native CAD export cases passed. App/CAD typechecking, contract
+checks, native/WASM boundary parity, and the production preview build passed.
+Both independent review axes reported no confirmed issues. The full-repository
+acceptance limitations recorded earlier remain outside this follow-up.

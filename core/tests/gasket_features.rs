@@ -349,12 +349,13 @@ fn linked_split_supports_use_mirrored_tracks() {
         {"id":"right","name":"Right","boardId":"board","matrixId":"right","partIds":["right-marker"],"mirrorLink":{"sourceId":"left","axisX":150}}]);
     for automatic in [false, true] {
     input["document"]["mechanical"]["gasketLayout"]["autoSize"] = json!(automatic);
+    input["document"]["mechanical"]["internalGasket"]["autoCount"] = json!(automatic);
     let result = serde_json::from_str::<Value>(&CoreEngine::new().request(&input.to_string()))
         .unwrap()["assembly"]
         .clone();
     assert_eq!(result["generationBlocked"], false, "{result}");
     let supports = result["gasketSupports"].as_array().unwrap();
-    for slot in 0..4 {
+    for slot in 0..supports.len()/2 {
         let left = supports
             .iter()
             .find(|s| s["id"] == format!("left:{slot}"))
@@ -588,7 +589,8 @@ fn dense_automatic_gaskets_balance_all_sides_without_exhausting_short_edges() {
         let side = if x.abs()>y.abs() {if x>0. {0} else {1}} else if y>0. {2} else {3};
         sides[side] += 1;
     }
-    assert_eq!(sides,[3,3,3,3]);
+    assert_eq!(sides.iter().sum::<usize>(),12);
+    assert!(sides.iter().all(|count|*count>0));
 }
 
 #[test]
@@ -598,7 +600,7 @@ fn automatic_support_count_adds_coverage_and_manual_count_remains_available() {
     doc["mechanical"]["internalGasket"]["autoCount"] = json!(true);
     let automatic = resolve_internal(doc.clone());
     assert_eq!(automatic["generationBlocked"], false, "{automatic}");
-    assert_eq!(automatic["gasketSupports"].as_array().unwrap().len(), 8);
+    assert_eq!(automatic["gasketSupports"].as_array().unwrap().len(), 6);
     doc["mechanical"]["internalGasket"]["autoCount"] = json!(false);
     let manual = resolve_internal(doc);
     assert_eq!(manual["gasketSupports"].as_array().unwrap().len(), 4);
@@ -611,7 +613,7 @@ fn automatic_count_scales_with_outline_and_respects_older_manual_counts() {
     doc["mechanical"]["internalGasket"].as_object_mut().unwrap().remove("autoCount");
     let larger = resolve_internal_sized(doc.clone(), 150., 100.);
     assert_eq!(larger["generationBlocked"], false, "{larger}");
-    assert_eq!(larger["gasketSupports"].as_array().unwrap().len(), 12);
+    assert_eq!(larger["gasketSupports"].as_array().unwrap().len(), 8);
     doc["mechanical"]["internalGasket"]["supportCount"] = json!(6);
     assert_eq!(resolve_internal(doc)["gasketSupports"].as_array().unwrap().len(), 6);
 }
@@ -629,6 +631,69 @@ fn automatic_count_keeps_saved_support_slots_when_outline_target_is_smaller() {
     }]);
     doc["mechanical"]["internalGasket"]["autoCount"] = json!(true);
     let result = resolve_internal(doc);
-    assert_eq!(result["gasketSupports"].as_array().unwrap().len(), 12);
-    assert_eq!(result["gasketSupports"][11]["anchor"], support["anchor"]);
+    let retained=result["gasketSupports"].as_array().unwrap().iter().find(|s|s["id"]==support["id"]).expect("pinned slot retained");
+    assert_eq!(retained["anchor"], support["anchor"]);
+}
+
+#[test]
+fn automatic_layout_centers_long_runs_and_covers_sofle_ledges() {
+    let fixture = include_str!("../../cad/bench/fixtures/internal-gasket-v1/sofle-outline.json");
+    let reply: Value = serde_json::from_str(&CoreEngine::new().request(fixture)).unwrap();
+    let result = &reply["assembly"];
+    assert_eq!(result["generationBlocked"], false, "{}", result["diagnostics"]);
+    let supports = result["gasketSupports"].as_array().unwrap();
+    let left: Vec<_> = supports.iter().filter(|s| s["at"]["x"].as_f64().unwrap() < -3.).collect();
+    assert_eq!(left.len(), 1, "one long pad should replace fragmented left-edge pads: {left:?}");
+    assert!(left[0]["length"].as_f64().unwrap() >= 60., "{left:?}");
+    assert!((left[0]["at"]["y"].as_f64().unwrap() + 49.5).abs() < 2., "left pad must be centered: {left:?}");
+    for (min_x, max_x, min_y, max_y) in [(36.,52.,0.,2.), (99.,117.,-2.,0.), (36.,59.,-102.,-100.), (94.,110.,-109.,-101.)] {
+        assert!(supports.iter().any(|s| {
+            let x=s["at"]["x"].as_f64().unwrap(); let y=s["at"]["y"].as_f64().unwrap();
+            x>min_x && x<max_x && y>min_y && y<max_y
+        }), "missing support on ledge {min_x}..{max_x}, {min_y}..{max_y}: {supports:?}");
+    }
+}
+
+#[test]
+fn automatic_long_edge_pairs_are_centered_and_symmetric() {
+    let mut doc = internal_document();
+    doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
+    doc["mechanical"]["internalGasket"]["autoCount"] = json!(true);
+    let result = resolve_internal_sized(doc, 150., 70.);
+    assert_eq!(result["generationBlocked"], false, "{}", result["diagnostics"]);
+    let supports = result["gasketSupports"].as_array().unwrap();
+    let bottom: Vec<_> = supports.iter().filter(|s| s["normal"]["y"].as_f64().unwrap() < -0.9).collect();
+    assert_eq!(bottom.len(), 2, "{bottom:?}");
+    assert_eq!(bottom[0]["length"], bottom[1]["length"]);
+    let centers: Vec<_> = bottom.iter().map(|s| s["at"]["x"].as_f64().unwrap()).collect();
+    assert!((centers[0]+centers[1]-150.).abs()<0.001, "{centers:?}");
+    assert!((centers[0]-centers[1]).abs() > bottom[0]["length"].as_f64().unwrap()+1.);
+}
+
+#[test]
+fn run_placement_handles_rotated_reversed_and_split_outlines() {
+    for fixture in [
+        include_str!("../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"),
+        include_str!("../../cad/bench/fixtures/internal-gasket-v1/rotated-concave.json"),
+        include_str!("../../cad/bench/fixtures/internal-gasket-v1/split.json"),
+    ] {
+        for angle in [0_f64, 0.37, 1.57] {
+            let mut request:Value=serde_json::from_str(fixture).unwrap();
+            request["document"]["mechanical"]["gasketLayout"]["autoSize"]=json!(true);
+            request["document"]["mechanical"]["internalGasket"]["autoCount"]=json!(true);
+            for contour in request["contours"].as_array_mut().unwrap() {
+                let points=contour["points"].as_array_mut().unwrap();
+                for p in points.iter_mut() {
+                    let x=p["x"].as_f64().unwrap(); let y=p["y"].as_f64().unwrap();
+                    p["x"]=json!(x*angle.cos()-y*angle.sin()+240.);
+                    p["y"]=json!(x*angle.sin()+y*angle.cos()-170.);
+                }
+                points.reverse();
+            }
+            let reply:Value=serde_json::from_str(&CoreEngine::new().request(&request.to_string())).unwrap();
+            let result=&reply["assembly"];
+            assert_eq!(result["generationBlocked"],false,"angle {angle}: {}",result["diagnostics"]);
+            assert!(result["gasketSupports"].as_array().unwrap().iter().all(|s|s["fitError"].is_null()));
+        }
+    }
 }
