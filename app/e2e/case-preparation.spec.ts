@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('lazily loads CAD and prepares a current case preview and STEP export offline', async ({ page, context }) => {
@@ -24,8 +25,10 @@ test('lazily loads CAD and prepares a current case preview and STEP export offli
   await expect.poll(() => wasmRequests.size).toBeGreaterThan(0);
   expect([...wasmRequests].some((url) => /boardstudio_renderer_wasm_bg/i.test(url))).toBe(false);
   const wasmBeforeCase = wasmRequests.size;
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
+  const live = page.getByRole('switch', { name: /Live preview/i });
+  if (await live.isChecked()) await live.uncheck();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
   await expect.poll(() => wasmRequests.size).toBeGreaterThan(wasmBeforeCase);
   await expect(page.locator('.wb-assembly-scene canvas')).toBeVisible();
@@ -40,7 +43,7 @@ test('lazily loads CAD and prepares a current case preview and STEP export offli
   console.info(`Renderer WASM cold start: ${JSON.stringify(rendererTiming)}`);
   await page.getByRole('combobox', { name: 'Body type' }).selectOption('tray');
   await expect(page.locator('.wb-root')).toHaveAttribute('data-revision', '1');
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
 
   const requests = await page.evaluate(() => (window as typeof window & { __casePreparationRequests: unknown[] }).__casePreparationRequests);
@@ -97,8 +100,10 @@ test('lazily loads CAD and prepares a current case preview and STEP export offli
   await context.setOffline(true);
   await page.reload();
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
+  const offlineLive = page.getByRole('switch', { name: /Live preview/i });
+  if (await offlineLive.isChecked()) await offlineLive.uncheck();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
 
   await page.locator('.wb-topbar').getByRole('button', { name: 'Export', exact: true }).click();

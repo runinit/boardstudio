@@ -1,5 +1,6 @@
-import type { CasePreviewResult, CadProgress } from '@boardstudio/v2-cad';
-import type { CaseAssemblyIR, MechanicalAssembly, ProjectDoc, SceneDelta } from '@boardstudio/v2-contracts';
+import type { CadProgress } from '@boardstudio/v2-cad';
+import { bodyKey, type BodyPreview } from '../../cad/src/preview';
+import type { CaseAssemblyIR, MechanicalAssembly, PreparedCaseAssemblyIR, ProjectDoc, SceneDelta } from '@boardstudio/v2-contracts';
 import type { MutableRefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CaseClient } from './CaseClient';
@@ -11,6 +12,10 @@ import type { GenerationState } from './generationState';
 import { effectiveCaseDocument, effectiveCaseScene, mechanicalFingerprint } from './hardwareInstances';
 import { prepareCase } from './prepareCase';
 import { resolveMechanical } from './resolveMechanical';
+import { LatestPreviewScheduler } from './livePreviewScheduler';
+import { recordCadMeasure, trackCadPreview } from './cadPerformance';
+
+export type PreparedCasePreview = BodyPreview & { prepared: PreparedCaseAssemblyIR };
 
 export async function generateCasePreview(
   core: CoreClient,
@@ -18,13 +23,24 @@ export async function generateCasePreview(
   ir: CaseAssemblyIR,
   isCurrent: () => boolean,
   onProgress: (progress: CadProgress) => void,
-): Promise<CasePreviewResult | undefined> {
+  signal?: AbortSignal,
+  candidate?: PreparedCasePreview,
+): Promise<PreparedCasePreview | undefined> {
   const prepared = await prepareCase(core, ir);
   if (!isCurrent()) return undefined;
-  const result = await getCad().preview(prepared, onProgress);
+  if (candidate && candidate.bodies.length === prepared.bodies.length
+    && candidate.prepared.bodies.length === prepared.bodies.length
+    && prepared.bodies.every((body, index) => {
+      const previous = candidate.prepared.bodies[index];
+      return body.body.id === previous.body.id && body.body.name === previous.body.name && bodyKey(body) === bodyKey(previous);
+    })) {
+    recordCadMeasure('boardstudio.cad.draft-reuse', { start: performance.now(), duration: 0, detail: { revision: ir.revision } });
+    return { revision: ir.revision, bodies: candidate.bodies, prepared };
+  }
+  const result = await getCad().preview(prepared, onProgress, ...(signal ? [signal] : []));
   if (!isCurrent()) return undefined;
   if (result.revision !== ir.revision) throw new Error('CAD returned a different case revision');
-  return result;
+  return { revision: result.revision, bodies: result.bodies, prepared };
 }
 
 type Inputs = {
@@ -37,153 +53,227 @@ type Inputs = {
   committedScene: MutableRefObject<SceneDelta>;
   client: MutableRefObject<CoreClient | null>;
   caseClient: MutableRefObject<CaseClient | null>;
-  previewCache: MutableRefObject<Map<string, ContextualCaseResult<CasePreviewResult>>>;
+  previewCache: MutableRefObject<Map<string, ContextualCaseResult<PreparedCasePreview>>>;
   activeMode: string;
   ready: boolean;
   setError: (message: string) => void;
 };
+type Draft = { context: CasePreviewContext; document: ProjectDoc; sequence: number; committing?: boolean };
+type PreviewJob = {
+  context: CasePreviewContext; document: ProjectDoc; scene: SceneDelta;
+  cacheKey: string; sequence: number; draftSequence?: number; started: number;
+};
+const sameIdentity = (a: CasePreviewContext, b: CasePreviewContext) => a.documentId === b.documentId
+  && a.boardId === b.boardId && a.instanceId === b.instanceId && a.session === b.session;
 
-export function useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, projectRef, committedScene, client, caseClient, previewCache, activeMode, ready, setError }: Inputs) {
-  const [casePreview, setCasePreview] = useState<ContextualCaseResult<CasePreviewResult> | undefined>();
-
-  const [mechanicalAssembly, setMechanicalAssembly] = useState<ContextualCaseResult<MechanicalAssembly> | undefined>();
-
-  const [generation, setGeneration] = useState<GenerationState>({ status: 'required' });
-
-  const generationSeq = useRef(0);
-
-  const generationRunning = useRef(false);
-
-  const caseSeq = useRef(0);
+export function useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, committedScene, client, caseClient, previewCache, activeMode, ready, setError }: Inputs) {
+  const [casePreview, setCasePreview] = useState<ContextualCaseResult<PreparedCasePreview>>();
+  const [draftPreview, setDraftPreview] = useState<ContextualCaseResult<PreparedCasePreview>>();
+  const [mechanicalAssembly, setMechanicalAssembly] = useState<ContextualCaseResult<MechanicalAssembly>>();
+  const [state, setGeneration] = useState<GenerationState>({ status: 'required' });
+  const [livePreview, setLiveEnabled] = useState(true);
+  const [draftActive, setDraftActive] = useState(false);
+  const liveRef = useRef(true);
+  const draft = useRef<Draft | null>(null);
+  const completedDraft = useRef<ContextualCaseResult<PreparedCasePreview> | undefined>(undefined);
+  const draftSequence = useRef(0);
+  const requestSequence = useRef(0);
+  const activePreview = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  const runRef = useRef<(job: PreviewJob) => Promise<void>>(async () => {});
+  const scheduler = useRef<LatestPreviewScheduler<PreviewJob> | null>(null);
+  scheduler.current ??= new LatestPreviewScheduler(job => runRef.current(job));
 
   const physicalDocument = useMemo(() => effectiveCaseDocument(project, selectedInstance), [project, selectedInstance]);
-
   const physicalScene = useMemo(() => effectiveCaseScene(project, scene, selectedInstance), [project, scene, selectedInstance]);
-
   const previewCacheKey = `${projectSession}/${project.id}/${selectedInstance?.id ?? selectedBoardId}`;
-
+  const fingerprint = useMemo(() => mechanicalFingerprint(project, scene, selectedBoardId, selectedInstance), [project, scene, selectedBoardId, selectedInstance]);
   const previewContext: CasePreviewContext = {
     documentId: project.id, boardId: selectedBoardId, revision: project.revision,
-    scene, committedScene: committedScene.current,
-    instanceId: selectedInstance?.id, session: projectSession,
-    mechanicalFingerprint: mechanicalFingerprint(project, scene, selectedBoardId, selectedInstance),
+    scene, committedScene: committedScene.current, instanceId: selectedInstance?.id,
+    session: projectSession, mechanicalFingerprint: fingerprint,
   };
-
   const currentPreviewContext = useRef(previewContext);
   currentPreviewContext.current = previewContext;
+  const current = useRef({ activeMode, ready, physicalDocument, physicalScene, previewCacheKey });
+  current.current = { activeMode, ready, physicalDocument, physicalScene, previewCacheKey };
 
-  const visibleCasePreview = casePreview?.context.documentId === project.id && casePreview.context.boardId === selectedBoardId && casePreview.context.instanceId === selectedInstance?.id ? casePreview.result : undefined;
-
-  const visibleMechanicalAssembly = mechanicalAssembly?.context.documentId === project.id && mechanicalAssembly.context.boardId === selectedBoardId && mechanicalAssembly.context.instanceId === selectedInstance?.id ? mechanicalAssembly.result : undefined;
-
-  useEffect(() => {
-    generationSeq.current += 1;
-    if (generationRunning.current) { caseClient.current?.cancel(); generationRunning.current = false; }
-    const cached = previewCache.current.get(previewCacheKey);
-    const reusable = reusableCaseResult(cached, currentPreviewContext.current);
-    if (reusable) setCasePreview({ context: currentPreviewContext.current, result: reusable });
-    else if (cached) setCasePreview(cached);
-    setGeneration(reusable ? { status: 'ready', revision: project.revision } : { status: 'required' });
-  }, [project, scene, selectedBoardId, selectedInstance?.id, previewCacheKey]);
-
-  useEffect(() => {
-    const sequence = ++caseSeq.current;
+  function eligible(): boolean {
     const context = currentPreviewContext.current;
-    const isCurrent = () => sequence === caseSeq.current && casePreviewContextMatches(context, {
-      ...currentPreviewContext.current, committedScene: committedScene.current,
-    });
-    if (activeMode !== 'Case') {
-      return;
-    }
+    const input = current.current;
+    const board = context.scene.boardReadiness.find(entry => entry.boardId === context.boardId);
+    const generated = input.physicalDocument.mechanical?.boardId === context.boardId;
+    return mounted.current && input.ready && input.activeMode === 'Case' && Boolean(client.current)
+      && context.scene === committedScene.current && context.scene.revision === context.revision
+      && Boolean(generated ? board : board?.case);
+  }
 
-    const boardReady = scene.boardReadiness.find((entry) => entry.boardId === selectedBoardId);
+  function isCurrent(job: PreviewJob): boolean {
+    return eligible() && job.sequence === requestSequence.current
+      && casePreviewContextMatches(job.context, currentPreviewContext.current)
+      && (job.draftSequence === undefined ? !draft.current : draft.current?.sequence === job.draftSequence);
+  }
 
-    if (scene !== committedScene.current) {
-      return;
-    }
-
-    const generated = physicalDocument.mechanical?.boardId === selectedBoardId;
-    if (!ready || !(generated ? boardReady?.outline : boardReady?.case)) {
-      setMechanicalAssembly(undefined);
-      setCasePreview(undefined);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        if (generated) {
-          const contours = physicalScene.boardContours.find((entry) => entry.boardId === selectedBoardId)?.contours ?? [];
-          const assembly = await resolveMechanical(client.current!, physicalDocument, contours, isCurrent);
-          if (!assembly) return;
-          setMechanicalAssembly({ context, result: assembly });
-          if (assembly.generationBlocked) {
-            setGeneration({ status: 'blocked' });
-            return;
-          }
-        } else {
-          setMechanicalAssembly(undefined);
-        }
-      } catch (cause) {
-        if (isCurrent()) {
-          setError(String(cause));
-        }
+  runRef.current = async job => {
+    if (!isCurrent(job)) return;
+    const controller = new AbortController();
+    activePreview.current = controller;
+    const started = performance.now();
+    setGeneration({ status: 'preparing', revision: job.context.revision });
+    try {
+      let ir = caseAssembly(job.document, job.scene, job.context.boardId);
+      if (job.document.mechanical?.boardId === job.context.boardId) {
+        const contours = job.scene.boardContours.find(entry => entry.boardId === job.context.boardId)?.contours ?? [];
+        const assembly = await resolveMechanical(client.current!, job.document, contours, () => isCurrent(job));
+        if (!assembly || !isCurrent(job)) return;
+        // Gesture geometry is presentation-only; inspector diagnostics remain committed.
+        if (job.draftSequence === undefined) setMechanicalAssembly({ context: job.context, result: assembly });
+        if (assembly.generationBlocked) { setGeneration({ status: 'blocked' }); return; }
+        ir = assembly.case;
       }
-    }, 100);
+      const result = await generateCasePreview(client.current!, () => {
+        caseClient.current ??= new CaseClient();
+        return caseClient.current;
+      }, ir, () => isCurrent(job), progress => {
+        if (isCurrent(job)) setGeneration({ status: 'running', revision: job.context.revision, progress });
+      }, controller.signal, job.draftSequence === undefined && completedDraft.current
+        && sameIdentity(completedDraft.current.context, job.context) ? completedDraft.current.result : undefined);
+      if (!result || !isCurrent(job)) return;
+      recordCadMeasure('boardstudio.cad.preview', { start: job.started, end: performance.now(), detail: { revision: result.revision, draft: job.draftSequence !== undefined } });
+      trackCadPreview(result, job.started, () => isCurrent(job));
+      if (job.draftSequence !== undefined) {
+        completedDraft.current = { context: job.context, result };
+        setDraftPreview({ context: job.context, result });
+        setGeneration({ status: 'required', message: 'Placement preview · release to apply' });
+      } else {
+        const completed = { context: job.context, result };
+        previewCache.current.set(job.cacheKey, completed);
+        setCasePreview(completed);
+        setDraftPreview(undefined);
+        completedDraft.current = undefined;
+        setGeneration({ status: 'ready', revision: result.revision });
+      }
+    } catch (cause) {
+      if (isCurrent(job)) setGeneration({ status: 'failed', message: String(cause) });
+    } finally {
+      if (activePreview.current === controller) activePreview.current = null;
+      recordCadMeasure('boardstudio.cad.job', { start: job.started, end: performance.now(), detail: {
+        revision: job.context.revision, draft: job.draftSequence !== undefined,
+        queueMs: started - job.started, obsolete: !isCurrent(job),
+      } });
+    }
+  };
 
-    return () => {
-      clearTimeout(timer);
-      if (sequence === caseSeq.current) caseSeq.current += 1;
+  function enqueue(): Promise<void> {
+    if (!eligible()) return Promise.resolve();
+    activePreview.current?.abort();
+    const context = currentPreviewContext.current;
+    const input = current.current;
+    const candidate = draft.current;
+    const job: PreviewJob = {
+      context, document: candidate?.document ?? input.physicalDocument, scene: input.physicalScene,
+      cacheKey: input.previewCacheKey, sequence: ++requestSequence.current,
+      draftSequence: candidate?.sequence, started: performance.now(),
     };
-  }, [activeMode, ready, physicalDocument, physicalScene, selectedBoardId]);
+    setGeneration({ status: 'preparing', revision: context.revision });
+    return scheduler.current!.enqueue(job).then(() => {});
+  }
+
+  // Changes supersede work without terminating the warm kernel. The scheduler
+  // drains its current call before starting the newest captured request.
+  useEffect(() => {
+    requestSequence.current += 1;
+    activePreview.current?.abort();
+    scheduler.current!.cancel();
+    if (draft.current && !casePreviewContextMatches(draft.current.context, currentPreviewContext.current)) {
+      if (draft.current.committing && draftPreview && sameIdentity(draft.current.context, currentPreviewContext.current)) {
+        setCasePreview(draftPreview);
+      }
+      draft.current = null; setDraftActive(false); setDraftPreview(undefined);
+    }
+    const context = currentPreviewContext.current;
+    const cached = previewCache.current.get(previewCacheKey);
+    const reusable = reusableCaseResult(cached, context);
+    if (reusable) setCasePreview({ context, result: reusable });
+    else if (cached && !completedDraft.current) setCasePreview(cached);
+    setGeneration(reusable ? { status: 'ready', revision: context.revision } : { status: 'required' });
+    if (!eligible()) { draft.current = null; setDraftActive(false); setDraftPreview(undefined); return; }
+    if (liveRef.current && !reusable) {
+      const timer = setTimeout(() => { void enqueue(); }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [project, scene, selectedBoardId, selectedInstance?.id, projectSession, activeMode, ready, livePreview]);
+
+  // Resolving the inspector must also work when automatic solids are paused or
+  // the exact mesh was reused across a nonmechanical edit.
+  useEffect(() => {
+    if (!eligible() || physicalDocument.mechanical?.boardId !== selectedBoardId) return;
+    const context = currentPreviewContext.current;
+    let stopped = false;
+    const valid = () => !stopped && mounted.current && current.current.activeMode === 'Case'
+      && casePreviewContextMatches(context, currentPreviewContext.current);
+    const timer = setTimeout(async () => {
+      if (liveRef.current && !reusableCaseResult(previewCache.current.get(previewCacheKey), context)) return;
+      try {
+        const contours = physicalScene.boardContours.find(entry => entry.boardId === selectedBoardId)?.contours ?? [];
+        const result = await resolveMechanical(client.current!, physicalDocument, contours, valid);
+        if (result && valid()) {
+          setMechanicalAssembly({ context, result });
+          if (result.generationBlocked) setGeneration({ status: 'blocked' });
+        }
+      } catch (cause) { if (valid()) setError(String(cause)); }
+    }, 80);
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [physicalDocument, physicalScene, selectedBoardId, activeMode, ready, livePreview]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; requestSequence.current += 1; activePreview.current?.abort(); scheduler.current!.cancel(); };
+  }, []);
+
+  function setLivePreview(enabled: boolean): void {
+    liveRef.current = enabled;
+    setLiveEnabled(enabled);
+    if (!enabled) {
+      requestSequence.current += 1;
+      activePreview.current?.abort();
+      scheduler.current!.cancel();
+      setGeneration(previous => previous.status === 'ready' ? previous : { status: 'required' });
+    }
+  }
 
   function cancelGeneration(): void {
-    generationSeq.current += 1;
-    generationRunning.current = false;
+    setLivePreview(false);
+    draft.current = null; setDraftActive(false); setDraftPreview(undefined);
     caseClient.current?.cancel();
     setGeneration({ status: 'cancelled' });
   }
 
-  async function generateCase(): Promise<void> {
-    if (generationRunning.current) return;
+  function setPreviewDraft(document: ProjectDoc | null, disposition?: 'commit'): void {
     const context = currentPreviewContext.current;
-    const document = effectiveCaseDocument(projectRef.current, selectedInstance);
-    const sequence = ++generationSeq.current;
-    const isCurrent = () => sequence === generationSeq.current && casePreviewContextMatches(context, currentPreviewContext.current);
-    generationRunning.current = true;
-    setGeneration({ status: 'preparing', revision: document.revision });
-    try {
-      // Allow the progress state to paint before scheduling preparation.
-      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-      const generatedScene = effectiveCaseScene(projectRef.current, context.scene, selectedInstance);
-      let ir = caseAssembly(document, generatedScene, context.boardId);
-      if (document.mechanical?.boardId === context.boardId) {
-        const contours = generatedScene.boardContours.find(entry => entry.boardId === context.boardId)?.contours ?? [];
-        const assembly = await resolveMechanical(client.current!, document, contours, isCurrent);
-        if (!assembly || !isCurrent()) return;
-        setMechanicalAssembly({ context, result: assembly });
-        if (assembly.generationBlocked) { setGeneration({ status: 'blocked' }); return; }
-        ir = assembly.case;
-      }
-      let started = 0;
-      const result = await generateCasePreview(client.current!, () => {
-        caseClient.current ??= new CaseClient();
-        started = performance.now();
-        return caseClient.current;
-      }, ir, isCurrent, progress => {
-        if (isCurrent()) setGeneration({ status: 'running', revision: document.revision, progress });
-      });
-      if (!result) return;
-      if (!isCurrent()) return;
-      performance.measure('boardstudio.cad.preview', { start: started, end: performance.now() });
-      setCasePreview({ context, result });
-      previewCache.current.set(previewCacheKey, { context, result });
-      setGeneration({ status: 'ready', revision: result.revision });
-    } catch (cause) {
-      if (isCurrent()) setGeneration({ status: 'failed', message: String(cause) });
-    } finally {
-      if (sequence === generationSeq.current) generationRunning.current = false;
+    if (document && (document.id !== context.documentId || document.revision !== context.revision || !eligible())) return;
+    requestSequence.current += 1;
+    activePreview.current?.abort();
+    scheduler.current!.cancel();
+    draft.current = document ? { context, document, sequence: ++draftSequence.current, committing: disposition === 'commit' } : null;
+    setDraftActive(Boolean(document));
+    if (document) {
+      if (disposition === 'commit') setGeneration({ status: 'required', message: 'Saving placement…' });
+      else if (liveRef.current) void enqueue();
+    } else {
+      completedDraft.current = undefined;
+      setDraftPreview(undefined);
+      const reusable = reusableCaseResult(previewCache.current.get(current.current.previewCacheKey), context);
+      setGeneration(reusable ? { status: 'ready', revision: context.revision } : { status: 'required' });
+      if (liveRef.current && !reusable) void enqueue();
     }
   }
 
-  return { physicalDocument, physicalScene, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly, cancelGeneration, generateCase };
+  const committedVisible = casePreview && sameIdentity(casePreview.context, previewContext) ? casePreview.result : undefined;
+  const visibleCasePreview = draftActive && draftPreview && sameIdentity(draftPreview.context, previewContext) ? draftPreview.result : committedVisible;
+  const visibleMechanicalAssembly = mechanicalAssembly && sameIdentity(mechanicalAssembly.context, previewContext) ? mechanicalAssembly.result : undefined;
+  const preparedCase = reusableCaseResult(casePreview, previewContext)?.prepared;
+  const generation: GenerationState = { ...state, live: livePreview, draft: draftActive };
+  return { physicalDocument, physicalScene, preparedCase, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly,
+    cancelGeneration, generateCase: enqueue, livePreview, setLivePreview, setPreviewDraft };
 }

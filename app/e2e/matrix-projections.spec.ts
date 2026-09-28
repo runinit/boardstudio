@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project' }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
 });
 
 test('pointer motion translates cached origin projection without another core request', async ({ page }) => {

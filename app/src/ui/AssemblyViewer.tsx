@@ -6,7 +6,9 @@ import type {
   MechanicalAssembly,
   MechanicalConfiguration,
   PcbPreview,
+  PreparedCaseAssemblyIR,
   ProjectDoc,
+  Mount,
 } from '@boardstudio/v2-contracts';
 import { modelAssetId } from '@boardstudio/v2-ergogen';
 import { ExportClient } from '../ExportClient';
@@ -32,7 +34,12 @@ export function AssemblyViewer({
   bodies = noBodies,
   mechanical,
   generation,
+  preparedCase,
   onGasketChange,
+  onGasketDraft,
+  onCaseMountChange,
+  onCaseMountDraft,
+  onCasePreviewDraft,
   selectedLayer,
   onSelectLayer,
   onSelect,
@@ -45,7 +52,12 @@ export function AssemblyViewer({
   bodies?: AssemblyBody[];
   mechanical?: MechanicalAssembly;
   generation?: GenerationState;
-  onGasketChange?: (config: MechanicalConfiguration) => void;
+  preparedCase?: PreparedCaseAssemblyIR;
+  onGasketChange?: (config: MechanicalConfiguration) => void | Promise<boolean>;
+  onGasketDraft?: (config: MechanicalConfiguration | null, disposition?: 'commit') => void;
+  onCaseMountChange?: (bodyId: string, mounts: Mount[]) => void | Promise<boolean>;
+  onCaseMountDraft?: (bodyId: string, mounts: Mount[] | null, disposition?: 'commit') => void;
+  onCasePreviewDraft?: (document: ProjectDoc | null, disposition?: 'commit') => void;
   selectedLayer?: string;
   onSelectLayer?: (id: string) => void;
   onSelect?: (reference: string) => void;
@@ -62,6 +74,7 @@ export function AssemblyViewer({
     [pending, setPending] = useState(true),
     [attempt, setAttempt] = useState(0);
   const [shownReference, setShownReference] = useState<BoardReference>();
+  const authoredBodies = useMemo(() => document.caseBodies.filter(body => body.boardId === boardId), [document.caseBodies, boardId]);
   const reference = document.boardReferences?.find(
     (r) => r.boardId === boardId && r.enabled,
   );
@@ -203,7 +216,12 @@ export function AssemblyViewer({
           bodies={bodies}
           mechanical={mechanical}
           generation={generation}
+          preparedCase={preparedCase}
           onGasketChange={onGasketChange}
+          onGasketDraft={(configuration, disposition) => { onGasketDraft?.(configuration, disposition); onCasePreviewDraft?.(configuration ? { ...document, mechanical: configuration } : null, disposition); }}
+          onCaseMountChange={onCaseMountChange}
+          onCaseMountDraft={(bodyId, mounts, disposition) => { onCaseMountDraft?.(bodyId, mounts, disposition); const body = document.caseBodies.find((entry) => entry.id === bodyId); onCasePreviewDraft?.(body && mounts ? { ...document, caseBodies: document.caseBodies.map((entry) => entry.id === bodyId ? { ...body, mounts } : entry) } : null, disposition); }}
+          authoredCaseBodies={authoredBodies}
           mechanicalConfiguration={document.mechanical}
           selectedLayer={selectedLayer}
           onSelectLayer={onSelectLayer}

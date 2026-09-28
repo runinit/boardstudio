@@ -227,7 +227,7 @@ export function createProjectExporter({ projectRef, committedScene, client, case
       const document = effectiveCaseDocument(projectRef.current, selectedInstance);
       const resolved = effectiveCaseScene(projectRef.current, committedScene.current, selectedInstance);
       const configuration = document.mechanical;
-      if (generation.status !== 'ready' || generation.revision !== document.revision) throw new Error('Generate the current geometry before export');
+      if (generation.draft || generation.status !== 'ready' || generation.revision !== document.revision) throw new Error('Update the current preview before export');
       if (!configuration || configuration.boardId !== selectedBoardId) {
         throw new Error('Enable a mechanical assembly for the selected board before export');
       }

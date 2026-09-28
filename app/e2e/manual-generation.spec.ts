@@ -1,3 +1,5 @@
+import { auditSceneBounds } from './scene-bounds';
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { splitFixture } from './splitMechanicalFixture';
 import type { MechanicalAssembly } from '@boardstudio/v2-contracts';
@@ -5,6 +7,7 @@ import type { MechanicalAssembly } from '@boardstudio/v2-contracts';
 
 async function setup(page: Page) {
   page.setDefaultTimeout(15_000);
+  await auditSceneBounds(page);
   await page.addInitScript(() => {
     const audit = (window as any).__generationAudit = { requests: [], progress: [], assemblies: [], prepared: [], jobs: [], bounds: [], cadDelay: 0 };
     const original = Worker.prototype.postMessage;
@@ -13,7 +16,7 @@ async function setup(page: Page) {
       if (!observed.has(this)) {
         observed.add(this);
         this.addEventListener('message', event => {
-          if (event.data.prepared?.bounds) audit.bounds.push(event.data.prepared.bounds);
+          if (!event.data.patch && event.data.prepared?.bounds) audit.bounds.push(event.data.prepared.bounds);
           if (event.data.kind === 'progress') audit.progress.push(event.data.progress);
           if (event.data.kind === 'mechanical-resolved') audit.assemblies.push(event.data.assembly);
           if (event.data.kind === 'case-prepared') audit.prepared.push(event.data.ir);
@@ -45,8 +48,16 @@ async function setup(page: Page) {
   await page.reload();
   await page.getByRole('button', { name: /^Collapse left half$/i }).click({ timeout: 10000 });
   await page.getByRole('button', { name: /^Collapse right half$/i }).click({ timeout: 10000 });
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click({ timeout: 15000 });
+  await page.getByRole('tab', { name: 'Case', exact: true }).click({ timeout: 15000 });
   await expect.poll(() => page.evaluate(() => (window as any).__generationAudit.assemblies.length)).toBeGreaterThan(0);
+  // These tests exercise the explicit CAD action and cancellation path.  Live
+  // preview is the product default, so pause it before asserting no request or
+  // invoking Update preview directly.
+  const live = page.getByRole('switch', { name: /Live preview/i });
+  await expect(live).toBeChecked();
+  await live.uncheck();
+  await expect(live).not.toBeChecked();
+  await page.evaluate(() => { const audit = (window as any).__generationAudit; audit.requests = []; audit.jobs = []; });
   return page.locator('.wb-mechanical-panel');
 }
 
@@ -55,11 +66,11 @@ test('split CAD is manual, cancellable, cached and independent of display change
   const panel = await setup(page);
   expect(await page.evaluate(() => (window as any).__generationAudit.requests.filter((request: any) => request.kind === 'preview').length)).toBe(0);
   await page.evaluate(() => { (window as any).__generationAudit.cadDelay = 1500; });
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Generation cancelled/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Preview paused/i)).toBeVisible();
   await page.evaluate(() => { (window as any).__generationAudit.cadDelay = 0; });
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText(/Generated CAD solids · 4 parts/)).toBeVisible({ timeout: 90_000 });
   await expect(page.getByText('Preparing 3D geometry…', { exact: true })).toHaveCount(0);
   const audit = await page.evaluate(() => (window as any).__generationAudit);
@@ -85,14 +96,14 @@ test('split CAD is manual, cancellable, cached and independent of display change
   await page.getByRole('button', { name: /^(Hide|Show) Copper$/, exact: true }).click();
   await page.getByRole('button', { name: /^(Hide|Show) Copper$/, exact: true }).click();
   expect(await measures()).toEqual(before);
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Geometry current/)).toBeVisible();
   const timings = await page.evaluate(() => performance.getEntriesByType('measure').filter(entry => /boardstudio\.(cad|renderer)/.test(entry.name)).map(entry => ({ name: entry.name, ms: Math.round(entry.duration * 100) / 100 })));
   console.info('Split generation timings', JSON.stringify(timings));
   await info.attach('split-timings', { body: JSON.stringify(timings, null, 2), contentType: 'application/json' });
   await panel.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true }).fill('2.5');
   await panel.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true }).press('Tab');
-  await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Generate required/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Preview out of date|Preview paused/i)).toBeVisible();
   await expect(page.getByText(/previous geometry/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export geometry', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
@@ -115,7 +126,7 @@ test('gaskets create six linked support pairs, a retainer and editable preview h
     expect(pair.at.x).toBeCloseTo(305 - support.at.x, 4);
     expect(pair.at.y).toBeCloseTo(support.at.y, 4);
   }
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText(/Generated CAD solids · 29 parts/)).toBeVisible({ timeout: 120_000 });
   await page.getByRole('button', { name: 'Edit gaskets', exact: true }).click();
   await page.locator('.wb-assembly-scene canvas').screenshot({ path: info.outputPath('gasket-handles.png') });
@@ -124,7 +135,7 @@ test('gaskets create six linked support pairs, a retainer and editable preview h
   await page.getByRole('button', { name: 'Top', exact: true }).click();
   const canvas = page.locator('.wb-assembly-scene canvas');
   const box = (await canvas.boundingBox())!;
-  const bounds: number[] = await page.evaluate(() => (window as any).__generationAudit.bounds.at(-1));
+  const bounds: number[] = await page.evaluate(() => (window as any).__fitBounds);
   const retainer = assembly.stack.find(layer => layer.id === 'retainer')!;
   const support = assembly.gasketSupports.find(item => item.regionId === 'left')!;
   const vertical = 17 * Math.PI / 180;
@@ -142,7 +153,7 @@ test('gaskets create six linked support pairs, a retainer and editable preview h
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 6 });
   await page.mouse.up();
-  await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Generate required/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Preview out of date|Preview paused/i)).toBeVisible();
   await expect.poll(async () => page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1).gasketSupports[0].anchor)).not.toBe(support.anchor);
   const moved: MechanicalAssembly = await page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1));
   expect(moved.generationBlocked).toBe(false);
@@ -157,8 +168,9 @@ test('gaskets create six linked support pairs, a retainer and editable preview h
   await page.reload();
   await page.getByRole('button', { name: /^Collapse left half$/i }).click();
   await page.getByRole('button', { name: /^Collapse right half$/i }).click();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect.poll(() => page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1)?.gasketSupports[0].anchor)).toBe(movedSource.anchor);
-  expect(await page.evaluate(() => (window as any).__generationAudit.requests.filter((request: any) => request.kind === 'preview').length)).toBe(0);
+  await expect(page.getByRole('switch', { name: 'Live preview', exact: true })).toBeChecked();
+  await expect(page.locator('.wb-case-generation')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
 
 });

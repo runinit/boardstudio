@@ -1,0 +1,34 @@
+{
+  "source": "app/performance-results/phase2-planar-full-gates.json",
+  "method": "Re-evaluate retained five-session samples with nanosecond normalization; not a new timing run",
+  "rows": {
+    "100-single": {
+      "worker": 4.5,
+      "painted": 34.10000002384186,
+      "workerLimit": 5.170000000000001,
+      "paintedLimit": 36.96000000000001,
+      "passed": true
+    },
+    "100-row": {
+      "worker": 4.400000035762787,
+      "painted": 34.10000002384186,
+      "workerLimit": 4.4,
+      "paintedLimit": 37.84,
+      "passed": true
+    },
+    "200-single": {
+      "worker": 7.399999976158142,
+      "painted": 34.10000002384186,
+      "workerLimit": 7.590000000000001,
+      "paintedLimit": 46.970000000000006,
+      "passed": true
+    },
+    "200-row": {
+      "worker": 5.099999964237213,
+      "painted": 35.30000001192093,
+      "workerLimit": 7.700000000000001,
+      "paintedLimit": 53.57000000000001,
+      "passed": true
+    }
+  }
+}

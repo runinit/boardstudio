@@ -17,6 +17,8 @@ type Props = {
   instanceSetup: ReactNode;
   caseActionsTarget: HTMLElement | null;
   generation?: GenerationState;
+  livePreview?: boolean;
+  onLivePreviewChange?: (enabled: boolean) => void;
   canConfigure: boolean;
   previewCurrent: boolean;
   onConfigure: () => void;
@@ -30,15 +32,15 @@ type Props = {
   removeMount: (id: string) => void;
 };
 
-export function CaseInspectorPanel({ bodies, activeCaseBody, selectedBoard, findings, findingDocument, onShowFinding, mechanicalPanel, instanceSetup, caseActionsTarget, generation, canConfigure, previewCurrent, onConfigure, onResolveMechanical, onCancelGeneration, setCaseBodyId, addCaseBody, updateCaseBody, addMount, updateMount, removeMount }: Props) {
+export function CaseInspectorPanel({ bodies, activeCaseBody, selectedBoard, findings, findingDocument, onShowFinding, mechanicalPanel, instanceSetup, caseActionsTarget, generation, livePreview, onLivePreviewChange, canConfigure, previewCurrent, onConfigure, onResolveMechanical, onCancelGeneration, setCaseBodyId, addCaseBody, updateCaseBody, addMount, updateMount, removeMount }: Props) {
   const caseFindings = activeCaseBody ? findings.filter((finding) => finding.scope === 'case' && (finding.targetIds.length === 0 || finding.targetIds.includes(activeCaseBody.id))) : [];
   return <>
     {instanceSetup}
     {mechanicalPanel}
     <div className="wb-panel-rule" />
     <div className="wb-inspect-head"><h2>Case stack</h2><button className="wb-case-new-body" onClick={addCaseBody} disabled={!selectedBoard}>+ New case body</button></div>
-    <CaseGenerationControls target={caseActionsTarget} onConfigure={canConfigure ? onConfigure : undefined} generation={generation} onGenerate={activeCaseBody ? onResolveMechanical : undefined} onCancel={onCancelGeneration}>
-      <span className="wb-mech-revision">{!activeCaseBody ? 'Add a case body to generate geometry.' : previewCurrent ? 'Preview current' : 'Generate builds the current case solids'}</span>
+    <CaseGenerationControls livePreview={livePreview} onLivePreviewChange={onLivePreviewChange} target={caseActionsTarget} onConfigure={canConfigure ? onConfigure : undefined} generation={generation} onGenerate={activeCaseBody ? onResolveMechanical : undefined} onCancel={onCancelGeneration}>
+      <span className="wb-mech-revision">{!activeCaseBody ? 'Add a case body to generate geometry.' : previewCurrent ? 'Preview current' : 'Preview updates build the current case solids'}</span>
     </CaseGenerationControls>
     {bodies.some((body) => !selectedBoard || body.boardId === selectedBoard.id) && <div className="wb-case-body-list">{bodies.filter((body) => !selectedBoard || body.boardId === selectedBoard.id).map((body, index) => <button className={`wb-case-body-tab ${body.id === activeCaseBody?.id ? 'is-active' : ''}`} key={body.id} onClick={() => setCaseBodyId(body.id)}>
       <span>{String(index + 1).padStart(2, '0')}</span><strong>{body.name}</strong><small>{body.kind}</small>

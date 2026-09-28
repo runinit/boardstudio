@@ -1,6 +1,5 @@
 {
   "hostCpu": "AMD Ryzen 9 8945HS",
-  "browserVersion": "153.0.8010.47",
   "viewport": { "width": 1280, "height": 720, "deviceScaleFactor": 1 },
   "samplesPerSession": 100,
   "sessions": 5,

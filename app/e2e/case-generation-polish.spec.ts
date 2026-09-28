@@ -1,19 +1,20 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('case generation actions remain readable at desktop, intermediate and narrow widths', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   const controls = page.getByRole('region', { name: 'Case generation' });
   await expect(controls).toHaveCount(1);
-  await expect(controls.getByRole('button', { name: 'Generate', exact: true })).toHaveClass(/wb-primary/);
+  await expect(controls.getByRole('button', { name: 'Update preview', exact: true })).toHaveClass(/wb-primary/);
   await expect(controls.getByRole('button', { name: 'Export geometry' })).toBeDisabled();
 
   for (const width of [1280, 900, 390]) {
     await page.setViewportSize({ width, height: 844 });
     if (width <= 820 && await page.locator('.wb-mechanical-panel').isVisible()) await page.getByRole('button', { name: 'Case settings', exact: true }).click();
     await expect(controls).toBeVisible();
-    for (const name of ['Generate', 'Export geometry']) {
+    for (const name of ['Update preview', 'Export geometry']) {
       const button = controls.getByRole('button', { name, exact: true });
       await expect.poll(async () => {
         const bounds = await button.boundingBox();
@@ -33,12 +34,12 @@ test('blocked generation opens and focuses mechanical diagnostics', async ({ pag
   await page.goto('/');
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.getByRole('button', { name: 'New project', exact: true }).click();
-  await page.getByRole('button', { name: 'Skip guide', exact: true }).click();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   const controls = page.getByRole('region', { name: 'Case generation' });
   await expect(controls).toHaveCount(1);
-  await controls.getByRole('button', { name: 'Generate', exact: true }).click();
+  await controls.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(controls.getByRole('status')).toContainText('Generation blocked');
   await expect(controls.getByRole('button', { name: 'Export geometry' })).toBeDisabled();
   const summary = page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Mechanical diagnostics' });
@@ -52,7 +53,7 @@ test('workbenches share layer disclosure and view-only visibility behavior', asy
   await page.goto('/');
   const layers = page.getByRole('region', { name: 'Canvas layers' });
   for (const mode of ['Layout', 'PCB', 'Case']) {
-    await page.getByRole('treeitem', { name: mode, exact: true }).click();
+    await page.getByRole('tab', { name: mode, exact: true }).click();
     await expect(layers).toHaveCount(1);
     if (await layers.getByRole('button', { name: 'Layers', exact: true }).getAttribute('aria-expanded') === 'false') await layers.getByRole('button', { name: 'Layers', exact: true }).click();
     await expect(layers.getByRole('button', { name: 'Layers', exact: true })).toHaveAttribute('aria-expanded', 'true');
@@ -71,10 +72,10 @@ test('workbenches share layer disclosure and view-only visibility behavior', asy
 });
 
 
-test('case generation stays available while inspecting relationships', async ({ page }) => {
+test('case settings keep generation available without layout relationship tabs', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
-  await page.getByRole('tab', { name: 'Relations', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Case generation' }).getByRole('button', { name: 'Generate', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Relations', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Case generation' }).getByRole('button', { name: 'Update preview', exact: true })).toBeVisible();
 });

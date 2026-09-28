@@ -1,0 +1,35 @@
+{
+  "numeric": {
+    "bodyMedianMs": {
+      "plate": 50.90000003576279,
+      "bottom": 9.699999988079071,
+      "plate-foam": 96.89999997615814,
+      "bottom-foam": 0.3999999761581421
+    },
+    "paintP95Ms": 286.30000001192093
+  },
+  "gaskets": {
+    "bodyMedianMs": {
+      "plate": 83.40000003576279,
+      "bottom": 156.79999995231628,
+      "retainer": 38.90000003576279,
+      "gasket:left:0:lower": 1,
+      "gasket:left:0:upper": 0.800000011920929,
+      "gasket:right:0:lower": 0.800000011920929,
+      "gasket:right:0:upper": 0.6000000238418579
+    },
+    "paintP95Ms": 401.80000001192093
+  },
+  "coldWorkerMs": {
+    "numeric": [
+      466.89990234375
+    ],
+    "gasket": [
+      605.60009765625
+    ],
+    "mount": [
+      62.5
+    ]
+  },
+  "burstPaintMs": 258.30000001192093
+}

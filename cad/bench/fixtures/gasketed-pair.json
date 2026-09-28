@@ -1,0 +1,89 @@
+{
+  "revision": 1,
+  "bodies": [
+    {
+      "revision": 1,
+      "body": {
+        "id": "gasket-tray",
+        "name": "gasket-tray",
+        "boardId": "bench",
+        "kind": "tray",
+        "thickness": 2,
+        "clearance": 0,
+        "wallHeight": 6,
+        "wallThickness": 4,
+        "z": 0,
+        "gasket": {
+          "inset": 1,
+          "width": 1,
+          "depth": 0.5
+        }
+      },
+      "contours": [
+        {
+          "hole": false,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 60,
+              "y": 0
+            },
+            {
+              "x": 60,
+              "y": 40
+            },
+            {
+              "x": 0,
+              "y": 40
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "revision": 1,
+      "body": {
+        "id": "gasket-lid",
+        "name": "gasket-lid",
+        "boardId": "bench",
+        "kind": "lid",
+        "thickness": 2,
+        "clearance": 0,
+        "wallHeight": 6,
+        "wallThickness": 4,
+        "z": 12,
+        "gasket": {
+          "inset": 1,
+          "width": 1,
+          "depth": 0.5
+        }
+      },
+      "contours": [
+        {
+          "hole": false,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 60,
+              "y": 0
+            },
+            {
+              "x": 60,
+              "y": 40
+            },
+            {
+              "x": 0,
+              "y": 40
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

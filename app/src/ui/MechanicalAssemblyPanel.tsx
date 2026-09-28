@@ -85,6 +85,8 @@ type Props = {
   onResolve?: () => void;
   onCancel?: () => void;
   generation?: GenerationState;
+  livePreview?: boolean;
+  onLivePreviewChange?: (enabled: boolean) => void;
   onExport?: () => void;
   onShowFinding?: (finding: Finding) => void;
   selectedLayer?: string;
@@ -278,7 +280,7 @@ function HardwareAndFits({ configuration, assembly, onChange }: {
   </InspectorSection>;
 }
 
-export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnosticsRequest = 0, onDiagnosticsShown, generationTarget, onRevealDiagnostics, document, boardId, projectSession, definitions, configuration, assembly, onChange: commitConfiguration, onResolve, onCancel, generation, onExport, onShowFinding, selectedLayer, onSelectLayer, onMechanicalProfile, onExtractMechanicalProfile, onEditParts }: Props) {
+export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnosticsRequest = 0, onDiagnosticsShown, generationTarget, onRevealDiagnostics, document, boardId, projectSession, definitions, configuration, assembly, onChange: commitConfiguration, onResolve, onCancel, generation, livePreview, onLivePreviewChange, onExport, onShowFinding, selectedLayer, onSelectLayer, onMechanicalProfile, onExtractMechanicalProfile, onEditParts }: Props) {
   const draftScope = `${document.id}:${boardId ?? configuration?.boardId ?? ''}:${projectSession ?? 0}`;
   const currentDraftScope = React.useRef(draftScope);
   currentDraftScope.current = draftScope;
@@ -395,7 +397,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
   return <div className="wb-mechanical-panel">
     <div className="wb-inspect-head"><h2>Mechanical assembly</h2><span className="wb-mini-tag">{config ? 'Configured' : 'Optional'}</span></div>
     {!config ? <div className="wb-mech-start"><p>Resolve the keyboard stack from assigned part profiles, plate settings, and the case outline.</p><button className="wb-primary" disabled={!document.boards.length} onClick={() => onChange(createMechanicalConfiguration(document, boardId))}>Configure mechanical stack</button></div> : <>
-      <CaseGenerationControls target={generationTarget} generation={generation} readiness={readiness} onGenerate={onResolve} onCancel={onCancel} onExport={onExport}>
+      <CaseGenerationControls livePreview={livePreview} onLivePreviewChange={onLivePreviewChange} target={generationTarget} generation={generation} readiness={readiness} onGenerate={onResolve} onCancel={onCancel} onExport={onExport}>
         <span className="wb-mech-revision">{assembly ? `Configuration resolved · r${assembly.revision}` : 'Configuration resolving'}</span>
       </CaseGenerationControls>
       <div ref={diagnosticsRef}><InspectorSection title="Mechanical diagnostics" detail={`${findings.length}`} defaultOpen={findings.length > 0}>

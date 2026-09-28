@@ -1,6 +1,6 @@
-import type { CasePreviewResult } from '@boardstudio/v2-cad';
+import type { PreparedCasePreview } from './useCaseGeneration';
 import type { FootprintCompileJob, Matrix, MechanicalBuiltinProfile, MechanicalExtraction, MechanicalPartProfile, MechanicalPurposeMapping } from '@boardstudio/v2-contracts';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CaseClient } from './CaseClient';
 import { ExportClient } from './ExportClient';
@@ -25,19 +25,21 @@ function App() {
   const [activeMode, setActiveMode] = useState<'Design' | 'PCB' | 'Case' | 'Library' | 'Export'>('Design');
   const caseClient = useRef<CaseClient | null>(null);
   const exportClient = useRef<ExportClient | null>(null);
-  const previewCache = useRef(new Map<string, ContextualCaseResult<CasePreviewResult>>());
+  const exportCaseClient = useRef<CaseClient | null>(null);
+  useEffect(() => () => exportCaseClient.current?.close(), []);
+  const previewCache = useRef(new Map<string, ContextualCaseResult<PreparedCasePreview>>());
   const { project, scene, selectedBoardId, setSelectedBoardId, ready, client, projectSession, saveStatus, projectRef, committedScene, accept, schedule } = useProjectSession({ caseClient, exportClient, previewCache, setSelectedInstanceId, setError });
 
   const selectedInstance = project.hardware?.instances.find(instance => instance.id === selectedInstanceId && instance.boardId === selectedBoardId)
     ?? project.hardware?.instances.find(instance => instance.boardId === selectedBoardId);
 
-  const { physicalDocument, physicalScene, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly, cancelGeneration, generateCase } = useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, projectRef, committedScene, client, caseClient, previewCache, activeMode, ready, setError });
+  const { physicalDocument, physicalScene, preparedCase, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly, cancelGeneration, generateCase, livePreview, setLivePreview, setPreviewDraft } = useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, projectRef, committedScene, client, caseClient, previewCache, activeMode, ready, setError });
 
-  const { edit, history, importProject, newProject, openDemo, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated: projectId => setSetupRequest({ projectId, requestId: crypto.randomUUID() }) });
+  const { edit, history, importProject, newProject, openSavedProject, openDemo, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated: projectId => setSetupRequest({ projectId, requestId: crypto.randomUUID() }) });
 
   const { refreshWiring, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit });
 
-  const { exportFile, exportMechanical } = createProjectExporter({ projectRef, committedScene, client, caseClient, exportClient, selectedBoardId, selectedInstance, embedUsedModels, generation, currentPreviewContext, schedule, accept, ensureExportClient, resolveWiring, applyExportWiring });
+  const { exportFile, exportMechanical } = createProjectExporter({ projectRef, committedScene, client, caseClient: exportCaseClient, exportClient, selectedBoardId, selectedInstance, embedUsedModels, generation, currentPreviewContext, schedule, accept, ensureExportClient, resolveWiring, applyExportWiring });
 
   function ensureExportClient(): ExportClient {
     exportClient.current ??= new ExportClient();
@@ -121,12 +123,16 @@ function App() {
       instanceControls={<HardwareInstancesPanel document={project} boardId={selectedBoardId} selectedId={selectedInstance?.id}
         onSelect={(id, boardId) => { setSelectedInstanceId(id); setSelectedBoardId(boardId); }}
         onChange={hardware => edit({ baseRevision: project.revision, phase: 'commit', transactionId: crypto.randomUUID(), targetIds: [], operation: { kind: 'replace-document', document: { ...project, hardware } } })} />}
-      casePreview={visibleCasePreview && { revision: visibleCasePreview.revision, ...visibleCasePreview.mesh }}
+      casePreview={visibleCasePreview && { revision: visibleCasePreview.revision }}
       caseBodies={visibleCasePreview?.bodies}
+      preparedCase={preparedCase}
       mechanicalAssembly={physicalDocument.mechanical?.boardId === selectedBoardId ? visibleMechanicalAssembly : undefined}
       onResolveMechanical={() => { void generateCase(); }}
       onCancelGeneration={cancelGeneration}
       generation={generation}
+      livePreview={livePreview}
+      onLivePreviewChange={setLivePreview}
+      onCasePreviewDraft={setPreviewDraft}
       onExportMechanical={exportMechanical}
       onMechanicalProfile={requestMechanicalProfile}
       onExtractMechanicalProfile={extractMechanicalProfile}
@@ -142,6 +148,7 @@ function App() {
       onSelectBoard={setSelectedBoardId}
       onImport={importProject}
       onNewProject={newProject}
+      onOpenSavedProject={openSavedProject}
       onOpenDemo={openDemo}
       onDuplicateDesign={duplicateDesign}
       onProjectMatrices={projectMatrices}

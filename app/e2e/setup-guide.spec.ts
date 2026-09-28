@@ -1,3 +1,4 @@
+import { openSetupGuide } from './workspace-navigation';
 import { expect, test, type Page } from '@playwright/test';
 
 async function projectAction(page: Page, name: string) {
@@ -30,7 +31,7 @@ test('setup starts after a new project and stays skipped across project switches
   await expect(guide.getByRole('heading', { name: 'Setup guide' })).toBeFocused();
   await expect(guide.getByRole('button', { name: /Project & hardware/ })).toHaveAttribute('aria-current', 'step');
   const created = await saveCopy(page);
-  await guide.getByRole('button', { name: 'Skip guide' }).click();
+  await guide.getByRole('button', { name: 'Back to objects' }).click();
   await expect(guide).toHaveCount(0);
   await openCopy(page, original);
   await expect(page.getByRole('treeitem', { name: 'Matrix 1 15 keys', exact: true })).toBeVisible();
@@ -39,9 +40,9 @@ test('setup starts after a new project and stays skipped across project switches
   await expect(page.getByRole('treeitem', { name: /Matrix 1/ })).toHaveCount(0);
   await expect(guide).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Guide', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Project', exact: true })).toBeVisible();
   await expect(guide).toHaveCount(0);
-  await projectAction(page, 'Setup guide…');
+  await openSetupGuide(page);
   await expect(guide).toBeVisible();
   await guide.getByRole('button', { name: /Review & export/ }).click();
   await expect(guide.getByRole('button', { name: /Review & export/ })).toHaveAttribute('aria-current', 'step');
@@ -66,7 +67,7 @@ test('compact guide uses the existing drawer and opens real layout and wiring co
   await guide.getByRole('button', { name: 'Add key matrix' }).click();
   await expect(page.getByRole('form', { name: 'New matrix' })).toBeVisible();
   await page.getByRole('form', { name: 'New matrix' }).getByRole('button', { name: 'Cancel', exact: true }).click();
-  await page.getByRole('button', { name: 'Guide', exact: true }).click();
+  await openSetupGuide(page);
   await guide.getByRole('button', { name: /Controller & wiring/ }).click();
   await guide.getByRole('button', { name: 'Review controller & wiring' }).click();
   await expect(page.locator('#wb-inspector')).toHaveAttribute('aria-hidden', 'false');

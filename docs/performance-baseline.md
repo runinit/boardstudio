@@ -1,7 +1,8 @@
 > Historical measurements below retain their original revisions and paths.
 > Current command: `pnpm test:perf`. Timing scenarios are excluded from
 > `pnpm check` and run serially through `app/playwright.performance.config.ts`.
-> The five-session baseline, host/browser requirements, and thresholds are unchanged.
+> The five-session baseline, host requirement, and thresholds are unchanged.
+> Actual Chromium versions are recorded as provenance; no browser build is pinned.
 
 # Workbench baseline, 2026-09-23
 

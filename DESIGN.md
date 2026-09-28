@@ -361,10 +361,10 @@ and keep precise values available alongside direct manipulation.
 
 ## Layout
 
-The application owns the viewport height (100dvh). The 48px header, 44px
-command toolbar, and 34px footer frame independently scrolling navigator,
-canvas, and right inspector panels. At 1440px and above these become 60px,
-64px, and 60px. The center expands to absorb available width.
+The application owns the viewport height (100dvh). The 44px single-row header
+and 34px footer frame independently scrolling navigator,
+canvas, and right inspector panels. These shell heights remain fixed across
+desktop widths; the center expands to absorb available width.
 
 | Width | Implemented arrangement |
 | --- | --- |
@@ -373,13 +373,16 @@ canvas, and right inspector panels. At 1440px and above these become 60px,
 | 821–980px | Full-width center with navigator drawer and 300px inspector |
 | 820px and below | Full-width workspace with navigator and inspector drawers |
 
-The desktop project header is 48px and the command toolbar is 44px. At 1440px
-they become 60px and 64px; the footer becomes 60px. At 560px and below the
-compact navigation remains label-led. The navigator drawer is capped at 290px
+The project header is 44px at all widths. At 820px and below, direct view tabs
+become a native Workspace selector; the footer has a 44px minimum height and
+grows when it wraps.
+The navigator drawer is capped at 290px
 and the inspector at 370px, each bounded by 92vw, with a scrim.
 
 Both desktop panels support pinned, collapsed, and opt-in auto-hide modes.
-Widths (navigator 200–420px, inspector 280–480px) and modes persist locally.
+Widths (navigator 200–420px, inspector 280–480px) and modes persist locally;
+Workspace settings owns appearance and restoring this panel layout. The Project
+menu owns naming, opening, new projects, and saving portable copies.
 Collapsed panels release their full column and reopen from narrow edge controls.
 Auto-hide leaves the same reveal control and opens the panel over the canvas;
 pointer presence, keyboard focus, and resizing prevent dismissal. Reveals use
@@ -387,21 +390,29 @@ a short slide, removed under reduced motion. Narrow screens use explicit drawers
 opened from the header instead of hover behavior. Resizing supports pointer
 dragging and arrow keys. Add opens a create view within the Objects panel.
 
-The optional setup guide occupies the left panel alongside Objects navigation.
-Its Guide and Objects controls are native buttons with a 44px compact target;
-the current-step list is one bounded scrolling region and uses the same panel
-surface, rules, typography, and selection tokens as Objects. SetupGuide uses
+The single header keeps direct Layout, PCB, Case, and Parts tabs visible outside
+the dock columns, so navigation survives collapsed or temporary panel states.
+The object tree is contextual to the active view and shows the relevant
+selectable objects. Export remains a dedicated header action and page.
+When open, the setup guide occupies the left workspace in place of the object
+tree. Project → Setup guide is its entry point, and the guide header's
+Back to objects control returns to the contextual tree. The current-step list is
+one bounded scrolling region and uses the same panel surface, rules, typography,
+and selection tokens as Objects. SetupGuide uses
 `is-current` and `is-ready` step states, with marker and accent treatment rather
 than nested cards. On narrow widths it follows the same left drawer and scrim
 behavior as Objects.
 
 The guide opens automatically after a new project is saved successfully. Its
 steps are Project & hardware, Layout & assemblies, Controller & wiring, optional
-Case, and Review & export. Skip guide, Objects, and the Project menu provide
-explicit exit/reentry paths. The open state and selected step are browser
+Case, and Review & export. Project → Setup guide and Back to objects
+provide explicit entry and exit paths. The open state and selected step are browser
 preferences scoped to the project; completion comes from the current document,
 selected board, wiring, and geometry. Steps remain freely navigable. Existing
 projects retain the ordinary workbench and each exporter remains authoritative.
+Returning from a temporary Parts or Export task returns to the prior design view;
+the guide can be resumed from its current step, and Back to objects returns to
+the contextual object tree.
 
 Recurring spacing uses compact 4px gaps, 8px inline separation, 12px field gaps,
 16px inspector insets, and 20px section endings. These are extracted repeated
@@ -497,11 +508,14 @@ adds a visible ring. Error text remains beside the operation that produced it.
 
 ### Stage navigation and preview switching
 
-Design and Parts tabs use text labels. Export is a labeled, icon-only action at
-the upper right beside Undo/Redo; Project, history, and Export use quiet buttons
-with hover and keyboard-focus feedback rather than permanent outlined boxes.
-Layout, PCB, and Case are linked object-tree branches. Active tabs use a 2px action-colored
-bottom rule, stronger text, and weight 700. The Parts preview uses two small
+Layout, PCB, Case, and Parts are permanent text-labeled view tabs in the 44px
+header, outside the navigator and inspector docks. At 820px and below they use
+the native Workspace selector. Their contextual object tree changes with the
+selected view. Export is a dedicated labeled page with its own artifact,
+readiness, and review context. Save status sits beside the project identity;
+desktop Undo/Redo live in the canvas footer, while compact actions remain in
+the project menu. Active tabs use a 2px action-colored
+bottom rule, stronger text, and weight 600. The Parts preview uses two small
 outlined buttons with pressed state, switching between 2D footprint and 3D model.
 
 Add groups Layouts, contextual matrix actions, Parts, and Board geometry into

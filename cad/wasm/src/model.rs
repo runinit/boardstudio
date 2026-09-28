@@ -1,5 +1,7 @@
 mod construction;
+mod metrics;
 pub use construction::{build_assembly, build_case, export_cached_assembly, preview_body};
+use metrics::Stage;
 
 use cadrum::{Boolean, DVec3, Edge, Mesh, Solid, Tessellation};
 use js_sys::{Float32Array, Object, Reflect, Uint8Array};
@@ -109,10 +111,23 @@ struct Gasket {
     depth: f64,
 }
 
-#[derive(Clone)]
 struct MeshData {
     positions: Vec<f32>,
     normals: Vec<f32>,
+}
+
+impl Clone for MeshData {
+    fn clone(&self) -> Self {
+        let _stage = Stage::new("cacheMeshCopy");
+        metrics::count(
+            "copiedMeshBytes",
+            (self.positions.len() + self.normals.len()) * 4,
+        );
+        Self {
+            positions: self.positions.clone(),
+            normals: self.normals.clone(),
+        }
+    }
 }
 
 struct BodyMeshData {
@@ -138,7 +153,11 @@ struct StepModelData {
 
 #[wasm_bindgen]
 pub fn read_step_model(bytes: Uint8Array) -> Result<JsValue, JsValue> {
-    let result = read_step_model_data(bytes.to_vec()).map_err(js_error)?;
+    let bytes = {
+        let _stage = Stage::new("wasmStepImportCopy");
+        bytes.to_vec()
+    };
+    let result = read_step_model_data(bytes).map_err(js_error)?;
     step_model_to_js(result)
 }
 
@@ -156,7 +175,12 @@ fn set(target: &Object, key: &str, value: &JsValue) -> Result<(), JsValue> {
     Ok(())
 }
 
-fn mesh_to_js(mesh: MeshData) -> Result<JsValue, JsValue> {
+fn mesh_to_js(mesh: &MeshData) -> Result<JsValue, JsValue> {
+    let _stage = Stage::new("wasmMeshCopy");
+    metrics::count(
+        "copiedMeshBytes",
+        (mesh.positions.len() + mesh.normals.len()) * 4,
+    );
     let value = Object::new();
     set(
         &value,
@@ -178,12 +202,20 @@ fn case_result_to_js(result: CaseResultData) -> Result<JsValue, JsValue> {
         "revision",
         &JsValue::from_f64(result.revision as f64),
     )?;
-    set(&value, "step", &Uint8Array::from(result.step.as_slice()))?;
-    set(&value, "mesh", &mesh_to_js(result.mesh)?)?;
+    {
+        let _stage = Stage::new("wasmStepCopy");
+        set(&value, "step", &Uint8Array::from(result.step.as_slice()))?;
+    }
+    set(&value, "mesh", &mesh_to_js(&result.mesh)?)?;
 
     if let Some(body_data) = result.bodies {
         let bodies = js_sys::Array::new();
         for body in body_data {
+            let _stage = Stage::new("wasmMeshCopy");
+            metrics::count(
+                "copiedMeshBytes",
+                (body.mesh.positions.len() + body.mesh.normals.len()) * 4,
+            );
             let value = Object::new();
             set(&value, "id", &JsValue::from_str(&body.id))?;
             set(&value, "name", &JsValue::from_str(&body.name))?;
@@ -207,7 +239,7 @@ fn case_result_to_js(result: CaseResultData) -> Result<JsValue, JsValue> {
 
 fn step_model_to_js(model: StepModelData) -> Result<JsValue, JsValue> {
     let value = Object::new();
-    set(&value, "mesh", &mesh_to_js(model.mesh)?)?;
+    set(&value, "mesh", &mesh_to_js(&model.mesh)?)?;
     let bounds = Object::new();
     set(
         &bounds,
@@ -232,9 +264,20 @@ fn export_case(
         return Err("OpenCascade returned an empty case solid".into());
     }
     let mut step = Vec::new();
-    Solid::write_step(&solids, &mut step)
-        .map_err(|error| format!("OpenCascade STEP export failed: {error}"))?;
+    {
+        let _stage = Stage::new("stepSerialization");
+        Solid::write_step(&solids, &mut step)
+            .map_err(|error| format!("OpenCascade STEP export failed: {error}"))?;
+    }
     let mesh = if let Some(bodies) = &bodies {
+        let _stage = Stage::new("combinedMeshCopy");
+        metrics::count(
+            "copiedMeshBytes",
+            bodies
+                .iter()
+                .map(|body| (body.mesh.positions.len() + body.mesh.normals.len()) * 4)
+                .sum(),
+        );
         MeshData {
             positions: bodies
                 .iter()
@@ -261,8 +304,10 @@ fn read_step_model_data(bytes: Vec<u8>) -> Result<StepModelData, String> {
         return Err("STEP import failed: invalid file size".into());
     }
     let mut reader = std::io::Cursor::new(bytes);
-    let solids =
-        Solid::read_step(&mut reader).map_err(|error| format!("STEP import failed: {error}"))?;
+    let solids = {
+        let _stage = Stage::new("stepImport");
+        Solid::read_step(&mut reader).map_err(|error| format!("STEP import failed: {error}"))?
+    };
     if solids.is_empty() {
         return Err("STEP import failed: empty shape".into());
     }
@@ -288,11 +333,17 @@ fn read_step_model_data(bytes: Vec<u8>) -> Result<StepModelData, String> {
 }
 
 fn mesh_data(solids: &[Solid]) -> Result<MeshData, String> {
-    let mesh = Solid::mesh(solids, MESH_OPTIONS).map_err(cadrum_error)?;
+    let mesh = {
+        let _stage = Stage::new("tessellation");
+        metrics::count("tessellations", 1);
+        Solid::mesh(solids, MESH_OPTIONS).map_err(cadrum_error)?
+    };
     mesh_to_data(&mesh)
 }
 
 fn mesh_to_data(mesh: &Mesh) -> Result<MeshData, String> {
+    let _stage = Stage::new("meshExpansion");
+    metrics::count("tessellatedTriangles", mesh.indices.len() / 3);
     if mesh.indices.is_empty()
         || mesh.indices.len() % 3 != 0
         || mesh.normals.len() != mesh.vertices.len()

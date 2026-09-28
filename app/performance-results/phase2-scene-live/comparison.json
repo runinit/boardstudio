@@ -1,0 +1,40 @@
+{
+  "comparable": true,
+  "regressionsPassed": true,
+  "improvementPassed": true,
+  "exactTargetPassed": false,
+  "scenarios": {
+    "numeric": {
+      "beforeP95Ms": 279,
+      "currentP95Ms": 171,
+      "regressionLimitMs": 306.9,
+      "regressionPassed": true,
+      "exactPassed": true,
+      "improvementFraction": 0.3870967741935484
+    },
+    "undo": {
+      "beforeP95Ms": 93.80000001192093,
+      "currentP95Ms": 91.30000001192093,
+      "regressionLimitMs": 103.18000001311302,
+      "regressionPassed": true,
+      "exactPassed": true,
+      "improvementFraction": 0.026652452022199125
+    },
+    "gaskets": {
+      "beforeP95Ms": 417.5999999642372,
+      "currentP95Ms": 370,
+      "regressionLimitMs": 459.35999996066096,
+      "regressionPassed": true,
+      "exactPassed": false,
+      "improvementFraction": 0.11398467425362457
+    },
+    "mounts": {
+      "beforeP95Ms": 71.80000001192093,
+      "currentP95Ms": 59.299999952316284,
+      "regressionLimitMs": 78.98000001311303,
+      "regressionPassed": true,
+      "exactPassed": true,
+      "improvementFraction": 0.17409470832213475
+    }
+  }
+}

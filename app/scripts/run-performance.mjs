@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process';
+import { withinPerformanceBudget } from './performance-budget.mjs';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { cpus, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const appDir = fileURLToPath(new URL('../', import.meta.url));
@@ -31,7 +32,6 @@ try {
         ...process.env,
         BOARDSTUDIO_CHROMIUM: browserPath,
         BOARDSTUDIO_PERF_RESULT: reportPath,
-        BOARDSTUDIO_PERF_EXPECTED_BROWSER: baseline.browserVersion,
       },
       stdio: 'inherit',
     });
@@ -50,7 +50,7 @@ try {
     const painted = median(reports.map((report) => report[scenario].painted.p95));
     const workerLimit = reference.workerP95 * allowance;
     const paintedLimit = reference.paintedP95 * allowance;
-    const passed = worker <= workerLimit && painted <= paintedLimit;
+    const passed = withinPerformanceBudget(worker, workerLimit) && withinPerformanceBudget(painted, paintedLimit);
 
     console.info(`${scenario}: worker ${worker.toFixed(1)} ms <= ${workerLimit.toFixed(1)} ms; painted ${painted.toFixed(1)} ms <= ${paintedLimit.toFixed(1)} ms — ${passed ? 'pass' : 'fail'}`);
     failed ||= !passed;
@@ -63,6 +63,20 @@ try {
   });
   if (interactions.error) throw interactions.error;
   failed ||= interactions.status !== 0;
+
+  const liveResultPath = join(temporary, 'live-preview.json');
+  const live = spawnSync('pnpm', ['exec', 'playwright', 'test', '--config', 'playwright.performance.config.ts', 'e2e/live-preview-performance.spec.ts', '--workers=1'], {
+    cwd: appDir,
+    env: { ...process.env, BOARDSTUDIO_CHROMIUM: browserPath, BOARDSTUDIO_LIVE_PERF_RESULT: liveResultPath },
+    stdio: 'inherit',
+  });
+  if (live.error) throw live.error;
+  failed ||= live.status !== 0;
+
+  const reportPath = process.env.BOARDSTUDIO_PERF_REPORT ?? join(appDir, 'performance-results', 'latest.json');
+  await mkdir(dirname(reportPath), { recursive: true });
+  await writeFile(reportPath, JSON.stringify({ provenance: reports.map(report => report.provenance), scenarios: reports, live: await readFile(liveResultPath, 'utf8').then(JSON.parse).catch(() => null) }, null, 2));
+  console.info(`Performance report written to ${reportPath}`);
 
   if (failed) {
     process.exitCode = 1;

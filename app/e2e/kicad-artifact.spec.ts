@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync } from 'fflate';
@@ -16,7 +17,7 @@ const importedSource = `(footprint "Rich Imported Ω" (version 20240108) (genera
 
 test('imports, keeps source pads read-only, and exports the original KiCad source after reload', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.locator('.wb-footprint-import input[type=file][accept=".kicad_mod"]').setInputFiles({
     name: 'rich.kicad_mod',
     mimeType: 'text/plain',
@@ -39,7 +40,7 @@ test('imports, keeps source pads read-only, and exports the original KiCad sourc
   await expect(page.locator('.wb-root')).not.toHaveAttribute('data-revision', revision!);
   await expect(page.locator('.wb-save-state summary')).toHaveAccessibleName('Saved locally');
   await page.reload();
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await search.fill('Rich Imported');
   await page.getByRole('option', { name: 'Rich Imported Ω', exact: true }).click();
   await page.getByText('Edit footprint', { exact: true }).click();

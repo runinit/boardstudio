@@ -1,9 +1,10 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { chooseScope } from './selection';
 import { expect, test } from '@playwright/test';
 
 test('assembly selection has one placement action and no unrelated footprint settings', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('option', { name: 'MX Hotswap RGB', exact: true }).click();
   const inspector = page.getByRole('complementary', { name: 'Parts inspector' });
   await expect(inspector.getByRole('button', { name: 'Place key assembly' })).toBeVisible();
@@ -42,7 +43,7 @@ test('optional component sections remain accessible by keyboard and preserve com
 
 test('advanced generator options keep saved values while the normal inspector stays focused', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('searchbox', { name: 'Search footprints' }).fill('ceoloide/switch_mx');
   await page.getByRole('option', { name: 'MX switch', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'reversible', exact: true })).toBeVisible();
@@ -55,7 +56,7 @@ test('advanced generator options keep saved values while the normal inspector st
   await page.getByRole('button', { name: 'Apply generator settings' }).click();
   await expect(revision).not.toHaveAttribute('data-revision', before!);
   await page.reload();
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('searchbox', { name: 'Search footprints' }).fill('ceoloide/switch_mx');
   await page.getByRole('option', { name: 'MX switch', exact: true }).click();
   await expect(trace).toBeHidden();

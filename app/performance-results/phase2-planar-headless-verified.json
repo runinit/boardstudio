@@ -1,0 +1,5353 @@
+{
+  "provenance": {
+    "chromium": "153.0.8010.52",
+    "node": "v26.10.0",
+    "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "cadWasmSha256": "132b685ad301de925203ec41ed018b7f3103cb7e6fde876640c50e8a54621b62",
+    "sourceHashes": {
+      "splitMechanicalFixture.ts": "04d475c5f006bab8e1fd22362d14521ee9451abb63a50413c4b4dea093480936",
+      "../src/useCaseGeneration.ts": "4ae5c361e119e8c20bf5834a0fc7ed16a6e2580f9d79b544e90c34705067ae5d",
+      "../src/CaseClient.ts": "dd4f2932966a0dedf6c3fcc9ba3b111970a2d9348cff5afc78450ed0541e43dc",
+      "../../cad/wasm/src/model/construction.rs": "baa45a745b788b9d9d0d16ac6cfaad0da4793d583d72a955d35ab162d84ef873",
+      "../../cad/wasm/src/model/construction/cache.rs": "fcafe7f08f8a2a06adb5a6aaa65caf5e311479408dfe3f34eb0e15f89c57dcd8"
+    },
+    "gpu": {
+      "devices": [
+        {
+          "vendorId": 65535,
+          "deviceId": 65535,
+          "vendorString": "Google Inc. (Google)",
+          "deviceString": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+          "driverVendor": "SwANGLE",
+          "driverVersion": "5.0.0"
+        }
+      ],
+      "auxAttributes": {
+        "amdSwitchable": false,
+        "canSupportThreadedTextureMailbox": false,
+        "directRenderingVersion": "",
+        "displayType": "ANGLE_SWIFTSHADER",
+        "glExtensions": "GL_AMD_performance_monitor GL_ANGLE_base_vertex_base_instance_shader_builtin GL_ANGLE_blob_cache GL_ANGLE_client_arrays GL_ANGLE_clip_cull_distance GL_ANGLE_compressed_texture_etc GL_ANGLE_copy_texture_3d GL_ANGLE_depth_texture GL_ANGLE_framebuffer_blit GL_ANGLE_framebuffer_multisample GL_ANGLE_get_image GL_ANGLE_get_serialized_context_string GL_ANGLE_get_tex_level_parameter GL_ANGLE_instanced_arrays GL_ANGLE_memory_object_flags GL_ANGLE_memory_size GL_ANGLE_multi_draw GL_ANGLE_pack_reverse_row_order GL_ANGLE_polygon_mode GL_ANGLE_program_binary_readiness_query GL_ANGLE_program_cache_control GL_ANGLE_read_only_depth_stencil_feedback_loops GL_ANGLE_relaxed_vertex_attribute_type GL_ANGLE_renderability_validation GL_ANGLE_request_extension GL_ANGLE_rgbx_internal_format GL_ANGLE_robust_client_memory GL_ANGLE_robust_fragment_shader_output GL_ANGLE_robust_resource_initialization GL_ANGLE_shader_pixel_local_storage GL_ANGLE_shader_pixel_local_storage_coherent GL_ANGLE_stencil_texturing GL_ANGLE_texture_compression_dxt3 GL_ANGLE_texture_compression_dxt5 GL_ANGLE_texture_multisample GL_ANGLE_texture_usage GL_ANGLE_translated_shader_source GL_ANGLE_vulkan_image GL_ANGLE_yuv_internal_format GL_APPLE_clip_distance GL_ARM_rgba8 GL_ARM_shader_framebuffer_fetch GL_CHROMIUM_bind_generates_resource GL_CHROMIUM_bind_uniform_location GL_CHROMIUM_copy_compressed_texture GL_CHROMIUM_copy_texture GL_CHROMIUM_lose_context GL_EXT_EGL_image_array GL_EXT_EGL_image_external_wrap_modes GL_EXT_EGL_image_storage GL_EXT_base_instance GL_EXT_blend_minmax GL_EXT_buffer_storage GL_EXT_clear_texture GL_EXT_clip_control GL_EXT_clip_cull_distance GL_EXT_color_buffer_float GL_EXT_color_buffer_half_float GL_EXT_compressed_ETC1_RGB8_sub_texture GL_EXT_conservative_depth GL_EXT_copy_image GL_EXT_debug_label GL_EXT_debug_marker GL_EXT_depth_clamp GL_EXT_discard_framebuffer GL_EXT_disjoint_timer_query GL_EXT_draw_buffers GL_EXT_draw_buffers_indexed GL_EXT_draw_elements_base_vertex GL_EXT_float_blend GL_EXT_frag_depth GL_EXT_instanced_arrays GL_EXT_map_buffer_range GL_EXT_memory_object GL_EXT_memory_object_fd GL_EXT_occlusion_query_boolean GL_EXT_polygon_offset_clamp GL_EXT_read_format_bgra GL_EXT_robustness GL_EXT_sRGB GL_EXT_sRGB_write_control GL_EXT_semaphore GL_EXT_semaphore_fd GL_EXT_separate_shader_objects GL_EXT_shader_framebuffer_fetch GL_EXT_shader_framebuffer_fetch_non_coherent GL_EXT_shader_non_constant_global_initializers GL_EXT_shader_texture_lod GL_EXT_shadow_samplers GL_EXT_texture_border_clamp GL_EXT_texture_compression_bptc GL_EXT_texture_compression_dxt1 GL_EXT_texture_compression_rgtc GL_EXT_texture_compression_s3tc_srgb GL_EXT_texture_filter_anisotropic GL_EXT_texture_format_BGRA8888 GL_EXT_texture_lod_bias GL_EXT_texture_mirror_clamp_to_edge GL_EXT_texture_rg GL_EXT_texture_sRGB_R8 GL_EXT_texture_sRGB_RG8 GL_EXT_texture_sRGB_decode GL_EXT_texture_shadow_lod GL_EXT_texture_storage GL_EXT_texture_type_2_10_10_10_REV GL_EXT_unpack_subimage GL_KHR_blend_equation_advanced GL_KHR_debug GL_KHR_robust_buffer_access_behavior GL_KHR_robustness GL_KHR_texture_compression_astc_ldr GL_NV_fence GL_NV_framebuffer_blit GL_NV_pack_subimage GL_NV_pixel_buffer_object GL_NV_polygon_mode GL_NV_read_depth GL_NV_read_depth_stencil GL_NV_read_stencil GL_NV_shader_noperspective_interpolation GL_OES_EGL_image GL_OES_EGL_image_external GL_OES_EGL_image_external_essl3 GL_OES_EGL_sync GL_OES_compressed_ETC1_RGB8_texture GL_OES_compressed_paletted_texture GL_OES_copy_image GL_OES_depth24 GL_OES_depth32 GL_OES_depth_texture GL_OES_depth_texture_cube_map GL_OES_draw_buffers_indexed GL_OES_draw_elements_base_vertex GL_OES_element_index_uint GL_OES_fbo_render_mipmap GL_OES_get_program_binary GL_OES_mapbuffer GL_OES_packed_depth_stencil GL_OES_required_internalformat GL_OES_rgb8_rgba8 GL_OES_sample_shading GL_OES_sample_variables GL_OES_shader_multisample_interpolation GL_OES_standard_derivatives GL_OES_surfaceless_context GL_OES_texture_3D GL_OES_texture_border_clamp GL_OES_texture_float GL_OES_texture_float_linear GL_OES_texture_half_float GL_OES_texture_half_float_linear GL_OES_texture_npot GL_OES_texture_stencil8 GL_OES_texture_storage_multisample_2d_array GL_OES_vertex_array_object GL_OES_vertex_half_float GL_OES_vertex_type_10_10_10_2 GL_OVR_multiview GL_OVR_multiview2 GL_QCOM_texture_lod_bias ",
+        "glImplementationParts": "(gl=egl-angle,angle=swiftshader)",
+        "glRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+        "glResetNotificationStrategy": 33362,
+        "glVendor": "Google Inc. (Google)",
+        "glVersion": "OpenGL ES 3.0 (ANGLE 2.1.1 git hash: ed04c8113c65)",
+        "glWsExtensions": "EGL_EXT_create_context_robustness EGL_ANGLE_surface_orientation EGL_KHR_create_context EGL_KHR_image EGL_KHR_image_base EGL_EXT_image_gl_colorspace EGL_KHR_gl_colorspace EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_gl_renderbuffer_image EGL_KHR_get_all_proc_addresses EGL_KHR_fence_sync EGL_KHR_wait_sync EGL_ANGLE_create_context_webgl_compatibility EGL_CHROMIUM_create_context_bind_generates_resource EGL_KHR_swap_buffers_with_damage EGL_EXT_pixel_format_float EGL_KHR_surfaceless_context EGL_ANGLE_display_texture_share_group EGL_ANGLE_display_semaphore_share_group EGL_ANGLE_create_context_client_arrays EGL_ANGLE_program_cache_control EGL_ANGLE_robust_resource_initialization EGL_ANGLE_create_context_extensions_enabled EGL_ANDROID_blob_cache EGL_ANDROID_recordable EGL_ANGLE_create_context_backwards_compatible EGL_KHR_no_config_context EGL_IMG_context_priority EGL_KHR_create_context_no_error EGL_KHR_reusable_sync EGL_EXT_buffer_age EGL_ANGLE_create_surface_swap_interval EGL_ANGLE_vulkan_image EGL_KHR_partial_update EGL_ANGLE_global_fence_sync EGL_ANGLE_memory_usage_report ",
+        "glWsVendor": "Google Inc. (Google)",
+        "glWsVersion": "1.5 (ANGLE 2.1.1 git hash: ed04c8113c65)",
+        "hardwareSupportsVulkan": false,
+        "inProcessGpu": false,
+        "initializationTime": 0.046716,
+        "isAsan": false,
+        "isClangCoverage": false,
+        "jpegDecodeAcceleratorSupported": false,
+        "maxMsaaSamples": "4",
+        "optimus": false,
+        "passthroughCmdDecoder": true,
+        "pixelShaderVersion": "3.00",
+        "processCrashCount": 0,
+        "sandboxed": false,
+        "skiaBackendType": "None",
+        "subpixelFontRendering": true,
+        "targetCpuBits": 64,
+        "vertexShaderVersion": "3.00",
+        "visibilityCallbackCallCount": 0
+      },
+      "featureStatus": {
+        "2d_canvas": "unavailable_software",
+        "direct_rendering_display_compositor": "disabled_off_ok",
+        "gpu_compositing": "disabled_software",
+        "multiple_raster_threads": "enabled_on",
+        "opengl": "disabled_off",
+        "rasterization": "disabled_software",
+        "raw_draw": "disabled_off_ok",
+        "skia_graphite": "disabled_off",
+        "trees_in_viz": "disabled_off",
+        "video_decode": "disabled_software",
+        "video_encode": "disabled_software",
+        "vulkan": "disabled_off",
+        "webgl": "unavailable_software",
+        "webgpu": "unavailable_software",
+        "webgpu_on_vk_via_gl_interop": "disabled_off",
+        "webnn": "unavailable_software"
+      },
+      "driverBugWorkarounds": [],
+      "videoDecoding": [],
+      "videoEncoding": []
+    },
+    "cpuRate": 1
+  },
+  "initial": {
+    "numeric": {
+      "request": [
+        {
+          "startAt": 618.5,
+          "durationMs": 299.80000001192093,
+          "detail": {
+            "id": "a3029d3d-c42e-4d7d-aea7-9fd0c23b7df2",
+            "kind": "preview",
+            "stages": {
+              "kernelInitialization": {
+                "durationMs": 38.700000047683716,
+                "calls": 1
+              },
+              "baseExtrusion": {
+                "durationMs": 125.60000002384186,
+                "calls": 8
+              },
+              "planarPlateMesh": {
+                "durationMs": 2.200000047683716,
+                "calls": 6
+              },
+              "regionMeshCopy": {
+                "durationMs": 0.19999992847442627,
+                "calls": 8
+              },
+              "wasmMeshCopy": {
+                "durationMs": 0.8999999761581421,
+                "calls": 4
+              },
+              "bodyYield": {
+                "durationMs": 2.199999988079071,
+                "calls": 4
+              },
+              "cavityCuts": {
+                "durationMs": 62.10000002384186,
+                "calls": 2
+              },
+              "openingPrisms": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingBoolean": {
+                "durationMs": 0.09999996423721313,
+                "calls": 2
+              },
+              "openingCuts": {
+                "durationMs": 0.09999996423721313,
+                "calls": 2
+              },
+              "tessellation": {
+                "durationMs": 30.500000059604645,
+                "calls": 3
+              },
+              "meshExpansion": {
+                "durationMs": 0,
+                "calls": 3
+              }
+            },
+            "counters": {
+              "progressEvents": 25,
+              "progressMessages": 7,
+              "bodyCacheMisses": 4,
+              "regionCacheMisses": 8,
+              "extrusions": 10,
+              "exactPlanarMeshes": 5,
+              "tessellatedTriangles": 6268,
+              "copiedMeshBytes": 902592,
+              "booleanEvaluations": 2,
+              "tessellations": 3
+            },
+            "wasmAllocatedBytes": {
+              "start": 3670016,
+              "end": 23461888,
+              "peak": 23461888
+            },
+            "bodies": [
+              {
+                "id": "plate",
+                "name": "plate",
+                "durationMs": 96.19999998807907,
+                "stages": {
+                  "baseExtrusion": 82.29999995231628,
+                  "planarPlateMesh": 1.100000023841858,
+                  "regionMeshCopy": 0.09999996423721313,
+                  "wasmMeshCopy": 0.699999988079071
+                }
+              },
+              {
+                "id": "bottom",
+                "name": "bottom",
+                "durationMs": 74,
+                "stages": {
+                  "baseExtrusion": 0.8999999761581421,
+                  "cavityCuts": 62.10000002384186,
+                  "openingBoolean": 0.09999996423721313,
+                  "openingCuts": 0.09999996423721313,
+                  "tessellation": 10.100000023841858
+                }
+              },
+              {
+                "id": "plate-foam",
+                "name": "plate-foam",
+                "durationMs": 39.700000047683716,
+                "stages": {
+                  "baseExtrusion": 32.800000071525574,
+                  "planarPlateMesh": 1.100000023841858,
+                  "regionMeshCopy": 0.09999996423721313,
+                  "wasmMeshCopy": 0.10000002384185791
+                }
+              },
+              {
+                "id": "bottom-foam",
+                "name": "bottom-foam",
+                "durationMs": 31.5,
+                "stages": {
+                  "baseExtrusion": 9.600000023841858,
+                  "wasmMeshCopy": 0.09999996423721313,
+                  "tessellation": 20.400000035762787
+                }
+              }
+            ],
+            "requestSentAt": 1790569105282.3,
+            "receivedAt": 1790569105295.0999,
+            "startedAt": 1790569105295.2998,
+            "requestTransferredBytes": 0,
+            "revision": 0,
+            "transferredBytes": 451296,
+            "triangles": 6268,
+            "replySentAt": 1790569105578.4,
+            "requestDeliveryMs": 12.7998046875,
+            "workerQueueMs": 0.199951171875,
+            "workerExecutionMs": 283.10009765625,
+            "responseDeliveryMs": 3.7001953125
+          }
+        }
+      ],
+      "job": [
+        {
+          "startAt": 583.8000000119209,
+          "durationMs": 334.69999998807907,
+          "detail": {
+            "revision": 0,
+            "draft": false,
+            "queueMs": 0.19999998807907104,
+            "obsolete": false
+          }
+        }
+      ],
+      "persistence": [
+        {
+          "startAt": 201.60000002384186,
+          "durationMs": 1.399999976158142,
+          "detail": {
+            "revision": 0,
+            "mode": "open",
+            "saved": true
+          }
+        }
+      ],
+      "preview.paint-opportunity": [
+        {
+          "startAt": 583.8000000119209,
+          "durationMs": 1026.3999999761581,
+          "detail": {
+            "revision": 0,
+            "drawnMs": 819.0999999642372,
+            "method": "frame-after-draw"
+          }
+        }
+      ]
+    },
+    "gasket": {
+      "request": [
+        {
+          "startAt": 563.800048828125,
+          "durationMs": 658.2999511361122,
+          "detail": {
+            "id": "8e433b0e-aa00-4c6d-940c-275301ed79e4",
+            "kind": "preview",
+            "stages": {
+              "kernelInitialization": {
+                "durationMs": 44.60000002384186,
+                "calls": 1
+              },
+              "baseExtrusion": {
+                "durationMs": 95.7000002861023,
+                "calls": 34
+              },
+              "tessellation": {
+                "durationMs": 83.50000005960464,
+                "calls": 7
+              },
+              "meshExpansion": {
+                "durationMs": 0.09999996423721313,
+                "calls": 7
+              },
+              "regionMeshCopy": {
+                "durationMs": 0.30000001192092896,
+                "calls": 34
+              },
+              "wasmMeshCopy": {
+                "durationMs": 0.6000000238418579,
+                "calls": 29
+              },
+              "bodyYield": {
+                "durationMs": 3.3000000715255737,
+                "calls": 5
+              },
+              "mountHoleCuts": {
+                "durationMs": 57.89999997615814,
+                "calls": 4
+              },
+              "stageSolidCopy": {
+                "durationMs": 0.8999999761581421,
+                "calls": 2
+              },
+              "openingPrisms": {
+                "durationMs": 6.199999988079071,
+                "calls": 2
+              },
+              "openingBoolean": {
+                "durationMs": 109.30000001192093,
+                "calls": 2
+              },
+              "openingCuts": {
+                "durationMs": 115.69999998807907,
+                "calls": 2
+              },
+              "planarPlateMesh": {
+                "durationMs": 1.399999976158142,
+                "calls": 28
+              }
+            },
+            "counters": {
+              "progressEvents": 127,
+              "progressMessages": 9,
+              "bodyCacheMisses": 29,
+              "regionCacheMisses": 34,
+              "extrusions": 60,
+              "tessellations": 7,
+              "tessellatedTriangles": 9884,
+              "copiedMeshBytes": 1423296,
+              "upstreamStageMisses": 2,
+              "cylinders": 24,
+              "booleanEvaluations": 6,
+              "reducedOpeningProfiles": 2,
+              "exactPlanarMeshes": 27
+            },
+            "wasmAllocatedBytes": {
+              "start": 3670016,
+              "end": 27983872,
+              "peak": 27983872
+            },
+            "bodies": [
+              {
+                "id": "plate",
+                "name": "plate",
+                "durationMs": 85.10000002384186,
+                "stages": {
+                  "baseExtrusion": 46.60000002384186,
+                  "tessellation": 34.700000047683716,
+                  "meshExpansion": 0.09999996423721313,
+                  "wasmMeshCopy": 0.30000001192092896
+                }
+              },
+              {
+                "id": "bottom",
+                "name": "bottom",
+                "durationMs": 183.89999997615814,
+                "stages": {
+                  "baseExtrusion": 2.100000023841858,
+                  "tessellation": 23.5,
+                  "regionMeshCopy": 0.09999996423721313,
+                  "mountHoleCuts": 39.39999997615814,
+                  "stageSolidCopy": 0.8999999761581421,
+                  "openingPrisms": 6.199999988079071,
+                  "openingBoolean": 109.30000001192093,
+                  "openingCuts": 115.69999998807907
+                }
+              },
+              {
+                "id": "plate-foam",
+                "name": "plate-foam",
+                "durationMs": 33.30000001192093,
+                "stages": {
+                  "baseExtrusion": 27.90000009536743,
+                  "regionMeshCopy": 0.20000004768371582,
+                  "wasmMeshCopy": 0.09999996423721313,
+                  "planarPlateMesh": 1.300000011920929
+                }
+              },
+              {
+                "id": "bottom-foam",
+                "name": "bottom-foam",
+                "durationMs": 24.5,
+                "stages": {
+                  "baseExtrusion": 9.800000011920929,
+                  "tessellation": 13.399999976158142,
+                  "planarPlateMesh": 0.09999996423721313
+                }
+              },
+              {
+                "id": "retainer",
+                "name": "retainer",
+                "durationMs": 36,
+                "stages": {
+                  "baseExtrusion": 4.800000011920929,
+                  "tessellation": 11.900000035762787,
+                  "wasmMeshCopy": 0.10000002384185791,
+                  "mountHoleCuts": 18.5
+                }
+              },
+              {
+                "id": "gasket:left:0:lower",
+                "name": "gasket left 0 lower",
+                "durationMs": 0.3999999761581421,
+                "stages": {
+                  "baseExtrusion": 0.30000001192092896
+                }
+              },
+              {
+                "id": "gasket:left:0:upper",
+                "name": "gasket left 0 upper",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              },
+              {
+                "id": "gasket:left:1:lower",
+                "name": "gasket left 1 lower",
+                "durationMs": 0.40000003576278687,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              },
+              {
+                "id": "gasket:left:1:upper",
+                "name": "gasket left 1 upper",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              },
+              {
+                "id": "gasket:left:2:lower",
+                "name": "gasket left 2 lower",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.20000004768371582
+                }
+              },
+              {
+                "id": "gasket:left:2:upper",
+                "name": "gasket left 2 upper",
+                "durationMs": 0.2999999523162842,
+                "stages": {
+                  "baseExtrusion": 0.10000002384185791
+                }
+              },
+              {
+                "id": "gasket:left:3:lower",
+                "name": "gasket left 3 lower",
+                "durationMs": 0.20000004768371582,
+                "stages": {
+                  "baseExtrusion": 0.20000004768371582
+                }
+              },
+              {
+                "id": "gasket:left:3:upper",
+                "name": "gasket left 3 upper",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.10000002384185791
+                }
+              },
+              {
+                "id": "gasket:left:4:lower",
+                "name": "gasket left 4 lower",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.20000004768371582
+                }
+              },
+              {
+                "id": "gasket:left:4:upper",
+                "name": "gasket left 4 upper",
+                "durationMs": 0.2999999523162842,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              },
+              {
+                "id": "gasket:left:5:lower",
+                "name": "gasket left 5 lower",
+                "durationMs": 0.20000004768371582,
+                "stages": {
+                  "baseExtrusion": 0.20000004768371582
+                }
+              },
+              {
+                "id": "gasket:left:5:upper",
+                "name": "gasket left 5 upper",
+                "durationMs": 0.2999999523162842,
+                "stages": {
+                  "baseExtrusion": 0.10000002384185791
+                }
+              },
+              {
+                "id": "gasket:right:0:lower",
+                "name": "gasket right 0 lower",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.30000001192092896
+                }
+              },
+              {
+                "id": "gasket:right:0:upper",
+                "name": "gasket right 0 upper",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.09999996423721313
+                }
+              },
+              {
+                "id": "gasket:right:1:lower",
+                "name": "gasket right 1 lower",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              },
+              {
+                "id": "gasket:right:1:upper",
+                "name": "gasket right 1 upper",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.30000001192092896
+                }
+              },
+              {
+                "id": "gasket:right:2:lower",
+                "name": "gasket right 2 lower",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.10000002384185791
+                }
+              },
+              {
+                "id": "gasket:right:2:upper",
+                "name": "gasket right 2 upper",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.09999996423721313
+                }
+              },
+              {
+                "id": "gasket:right:3:lower",
+                "name": "gasket right 3 lower",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              },
+              {
+                "id": "gasket:right:3:upper",
+                "name": "gasket right 3 upper",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104,
+                  "wasmMeshCopy": 0.10000002384185791
+                }
+              },
+              {
+                "id": "gasket:right:4:lower",
+                "name": "gasket right 4 lower",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              },
+              {
+                "id": "gasket:right:4:upper",
+                "name": "gasket right 4 upper",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.30000001192092896
+                }
+              },
+              {
+                "id": "gasket:right:5:lower",
+                "name": "gasket right 5 lower",
+                "durationMs": 0.30000001192092896,
+                "stages": {
+                  "baseExtrusion": 0.09999996423721313
+                }
+              },
+              {
+                "id": "gasket:right:5:upper",
+                "name": "gasket right 5 upper",
+                "durationMs": 0.19999998807907104,
+                "stages": {
+                  "baseExtrusion": 0.19999998807907104
+                }
+              }
+            ],
+            "requestSentAt": 1790569113147.4001,
+            "receivedAt": 1790569113153.2,
+            "startedAt": 1790569113153.4,
+            "requestTransferredBytes": 0,
+            "revision": 0,
+            "transferredBytes": 711648,
+            "triangles": 9884,
+            "replySentAt": 1790569113571,
+            "requestDeliveryMs": 5.7998046875,
+            "workerQueueMs": 0.199951171875,
+            "workerExecutionMs": 417.60009765625,
+            "responseDeliveryMs": 234.7001953125
+          }
+        }
+      ],
+      "job": [
+        {
+          "startAt": 535.8999999761581,
+          "durationMs": 686.3000000119209,
+          "detail": {
+            "revision": 0,
+            "draft": false,
+            "queueMs": 0.10000002384185791,
+            "obsolete": false
+          }
+        }
+      ],
+      "persistence": [
+        {
+          "startAt": 180.39999997615814,
+          "durationMs": 1.699999988079071,
+          "detail": {
+            "revision": 0,
+            "mode": "open",
+            "saved": true
+          }
+        }
+      ],
+      "preview.paint-opportunity": [
+        {
+          "startAt": 535.8999999761581,
+          "durationMs": 856.9000000357628,
+          "detail": {
+            "revision": 0,
+            "drawnMs": 721.1999999880791,
+            "method": "frame-after-draw"
+          }
+        }
+      ]
+    },
+    "mount": {
+      "request": [
+        {
+          "startAt": 520,
+          "durationMs": 70.80000001192093,
+          "detail": {
+            "id": "a60567b6-44d3-4937-a834-3d9650de9031",
+            "kind": "preview",
+            "stages": {
+              "kernelInitialization": {
+                "durationMs": 47.19999998807907,
+                "calls": 1
+              },
+              "baseExtrusion": {
+                "durationMs": 0.6000000238418579,
+                "calls": 2
+              },
+              "cavityCuts": {
+                "durationMs": 6.199999988079071,
+                "calls": 2
+              },
+              "tessellation": {
+                "durationMs": 2.4999999403953552,
+                "calls": 2
+              },
+              "meshExpansion": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "regionMeshCopy": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "mountHoleCuts": {
+                "durationMs": 3.100000023841858,
+                "calls": 1
+              },
+              "wasmMeshCopy": {
+                "durationMs": 0.10000002384185791,
+                "calls": 1
+              },
+              "bodyYield": {
+                "durationMs": 0.09999996423721313,
+                "calls": 1
+              }
+            },
+            "counters": {
+              "progressEvents": 7,
+              "progressMessages": 3,
+              "bodyCacheMisses": 1,
+              "regionCacheMisses": 2,
+              "extrusions": 4,
+              "booleanEvaluations": 3,
+              "tessellations": 2,
+              "tessellatedTriangles": 164,
+              "copiedMeshBytes": 23616,
+              "cylinders": 1
+            },
+            "wasmAllocatedBytes": {
+              "start": 3670016,
+              "end": 8323072,
+              "peak": 8323072
+            },
+            "bodies": [
+              {
+                "id": "authored-tray",
+                "name": "Authored tray",
+                "durationMs": 13.699999988079071,
+                "stages": {
+                  "baseExtrusion": 0.6000000238418579,
+                  "cavityCuts": 6.199999988079071,
+                  "tessellation": 2.4999999403953552,
+                  "mountHoleCuts": 3.100000023841858,
+                  "wasmMeshCopy": 0.10000002384185791
+                }
+              }
+            ],
+            "requestSentAt": 1790569127393.1,
+            "receivedAt": 1790569127399.9,
+            "startedAt": 1790569127400.2,
+            "requestTransferredBytes": 0,
+            "revision": 0,
+            "transferredBytes": 11808,
+            "triangles": 164,
+            "replySentAt": 1790569127461.7,
+            "requestDeliveryMs": 6.7998046875,
+            "workerQueueMs": 0.300048828125,
+            "workerExecutionMs": 61.5,
+            "responseDeliveryMs": 2.2001953125
+          }
+        }
+      ],
+      "job": [
+        {
+          "startAt": 517.8000000119209,
+          "durationMs": 73.09999996423721,
+          "detail": {
+            "revision": 0,
+            "draft": false,
+            "queueMs": 0,
+            "obsolete": false
+          }
+        }
+      ],
+      "persistence": [
+        {
+          "startAt": 176.80000001192093,
+          "durationMs": 1.300000011920929,
+          "detail": {
+            "revision": 0,
+            "mode": "open",
+            "saved": true
+          }
+        }
+      ],
+      "preview.paint-opportunity": [
+        {
+          "startAt": 517.8000000119209,
+          "durationMs": 721.6999999880791,
+          "detail": {
+            "revision": 0,
+            "drawnMs": 537.8999999761581,
+            "method": "frame-after-draw"
+          }
+        }
+      ]
+    }
+  },
+  "rapid": {
+    "finalEdit": {
+      "actionToWorkerReplyMs": 234.89999997615814,
+      "releaseToPaintMs": 365.2999999523163,
+      "previewStartToPaintMs": 341.89999997615814,
+      "attribution": {
+        "actionStartAt": 7008.100000023842,
+        "actionEndAt": 7373.399999976158,
+        "paintMs": 341.89999997615814,
+        "cadRequests": [
+          {
+            "startAt": 7081.89990234375,
+            "durationMs": 161.00009763240814,
+            "detail": {
+              "id": "8128d052-3cdb-4680-9c4c-74fee7c08a6e",
+              "kind": "preview",
+              "stages": {
+                "baseExtrusion": {
+                  "durationMs": 59.89999997615814,
+                  "calls": 8
+                },
+                "planarPlateMesh": {
+                  "durationMs": 1.800000011920929,
+                  "calls": 6
+                },
+                "regionMeshCopy": {
+                  "durationMs": 0,
+                  "calls": 8
+                },
+                "wasmMeshCopy": {
+                  "durationMs": 0.19999992847442627,
+                  "calls": 4
+                },
+                "bodyYield": {
+                  "durationMs": 3.5,
+                  "calls": 3
+                },
+                "cavityCuts": {
+                  "durationMs": 4.100000023841858,
+                  "calls": 2
+                },
+                "openingPrisms": {
+                  "durationMs": 0,
+                  "calls": 2
+                },
+                "openingBoolean": {
+                  "durationMs": 0,
+                  "calls": 2
+                },
+                "openingCuts": {
+                  "durationMs": 0,
+                  "calls": 2
+                },
+                "tessellation": {
+                  "durationMs": 22.500000059604645,
+                  "calls": 3
+                },
+                "meshExpansion": {
+                  "durationMs": 0.10000002384185791,
+                  "calls": 3
+                }
+              },
+              "counters": {
+                "progressEvents": 25,
+                "progressMessages": 5,
+                "bodyCacheMisses": 4,
+                "regionCacheMisses": 8,
+                "extrusions": 10,
+                "exactPlanarMeshes": 5,
+                "tessellatedTriangles": 6268,
+                "copiedMeshBytes": 902592,
+                "booleanEvaluations": 2,
+                "tessellations": 3,
+                "regionCacheEvictions": 6,
+                "bodyCacheEvictions": 3
+              },
+              "wasmAllocatedBytes": {
+                "start": 25296896,
+                "end": 28508160,
+                "peak": 28508160
+              },
+              "bodies": [
+                {
+                  "id": "plate",
+                  "name": "plate",
+                  "durationMs": 18.80000001192093,
+                  "stages": {
+                    "baseExtrusion": 16.30000001192093,
+                    "planarPlateMesh": 0.30000001192092896
+                  }
+                },
+                {
+                  "id": "bottom",
+                  "name": "bottom",
+                  "durationMs": 6.599999964237213,
+                  "stages": {
+                    "baseExtrusion": 0.5999999642372131,
+                    "cavityCuts": 4.100000023841858,
+                    "tessellation": 1.4000000953674316
+                  }
+                },
+                {
+                  "id": "plate-foam",
+                  "name": "plate-foam",
+                  "durationMs": 34.40000003576279,
+                  "stages": {
+                    "baseExtrusion": 28.19999998807907,
+                    "planarPlateMesh": 1.399999976158142,
+                    "wasmMeshCopy": 0.09999996423721313
+                  }
+                },
+                {
+                  "id": "bottom-foam",
+                  "name": "bottom-foam",
+                  "durationMs": 37.80000001192093,
+                  "stages": {
+                    "baseExtrusion": 14.800000011920929,
+                    "planarPlateMesh": 0.10000002384185791,
+                    "wasmMeshCopy": 0.09999996423721313,
+                    "tessellation": 21.099999964237213,
+                    "meshExpansion": 0.10000002384185791
+                  }
+                }
+              ],
+              "requestSentAt": 1790569111745.7,
+              "receivedAt": 1790569111746.4,
+              "startedAt": 1790569111746.4,
+              "requestTransferredBytes": 0,
+              "revision": 16,
+              "transferredBytes": 451296,
+              "triangles": 6268,
+              "replySentAt": 1790569111847.7998,
+              "requestDeliveryMs": 0.699951171875,
+              "workerQueueMs": 0,
+              "workerExecutionMs": 101.39990234375,
+              "responseDeliveryMs": 58.900146484375
+            }
+          }
+        ],
+        "corePreparationMs": 3.599999964237213,
+        "persistenceMs": 4.199999988079071,
+        "exactDraftReused": false,
+        "coreRequests": [
+          {
+            "kind": "edit",
+            "sentAt": 7010.300000011921,
+            "id": "cf4cbb69-decc-451e-b9ee-e24c0912a6fe",
+            "repliedAt": 7013.399999976158,
+            "timing": {
+              "wasmMs": 1.5,
+              "parseMs": 0.19999998807907104
+            }
+          },
+          {
+            "kind": "resolve-mechanical",
+            "sentAt": 7067.800000011921,
+            "id": "bd714e04-def6-4c50-897b-7138bbb493be",
+            "repliedAt": 7078.699999988079,
+            "timing": {
+              "wasmMs": 8.399999976158142,
+              "parseMs": 0.19999998807907104
+            }
+          },
+          {
+            "kind": "prepare-case",
+            "sentAt": 7078.300000011921,
+            "id": "821742e9-6d7c-4ac9-9e15-7e106aa25244",
+            "repliedAt": 7082.100000023842,
+            "timing": {
+              "wasmMs": 0.8999999761581421,
+              "parseMs": 0.30000001192092896
+            }
+          }
+        ],
+        "longTasks": [
+          {
+            "startAt": 7130.600000023842,
+            "durationMs": 112
+          },
+          {
+            "startAt": 7257.5,
+            "durationMs": 113
+          },
+          {
+            "startAt": 7373,
+            "durationMs": 114
+          }
+        ],
+        "renderer": {
+          "prepareMs": 3.300000011920929,
+          "uploadMs": 2.100000023841858,
+          "bodyPatchMs": 6.200000047683716
+        }
+      }
+    },
+    "diagnostics": {
+      "request": [
+        {
+          "startAt": 6758.199951171875,
+          "durationMs": 68.50004881620407,
+          "detail": {
+            "id": "6e28487f-9f51-451a-86b8-f47020da212d",
+            "kind": "error",
+            "stages": {
+              "baseExtrusion": {
+                "durationMs": 42.80000001192093,
+                "calls": 6
+              },
+              "planarPlateMesh": {
+                "durationMs": 1.100000023841858,
+                "calls": 4
+              },
+              "regionMeshCopy": {
+                "durationMs": 0.10000002384185791,
+                "calls": 6
+              },
+              "wasmMeshCopy": {
+                "durationMs": 0.09999996423721313,
+                "calls": 3
+              },
+              "bodyYield": {
+                "durationMs": 0.6000000238418579,
+                "calls": 2
+              },
+              "cavityCuts": {
+                "durationMs": 4.800000011920929,
+                "calls": 2
+              },
+              "openingPrisms": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingBoolean": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingCuts": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "tessellation": {
+                "durationMs": 1.6999999284744263,
+                "calls": 2
+              },
+              "meshExpansion": {
+                "durationMs": 0,
+                "calls": 2
+              }
+            },
+            "counters": {
+              "progressEvents": 19,
+              "progressMessages": 3,
+              "bodyCacheMisses": 3,
+              "regionCacheMisses": 6,
+              "extrusions": 8,
+              "exactPlanarMeshes": 4,
+              "tessellatedTriangles": 5544,
+              "copiedMeshBytes": 798336,
+              "regionCacheEvictions": 6,
+              "bodyCacheEvictions": 3,
+              "booleanEvaluations": 2,
+              "tessellations": 2
+            },
+            "wasmAllocatedBytes": {
+              "start": 25100288,
+              "end": 25100288,
+              "peak": 25100288
+            },
+            "bodies": [
+              {
+                "id": "plate",
+                "name": "plate",
+                "durationMs": 19.399999976158142,
+                "stages": {
+                  "baseExtrusion": 16.80000001192093,
+                  "planarPlateMesh": 0.19999998807907104
+                }
+              },
+              {
+                "id": "bottom",
+                "name": "bottom",
+                "durationMs": 7.5,
+                "stages": {
+                  "baseExtrusion": 0.5,
+                  "regionMeshCopy": 0.10000002384185791,
+                  "cavityCuts": 4.800000011920929,
+                  "tessellation": 1.6999999284744263
+                }
+              },
+              {
+                "id": "plate-foam",
+                "name": "plate-foam",
+                "durationMs": 30.399999976158142,
+                "stages": {
+                  "baseExtrusion": 25.5,
+                  "planarPlateMesh": 0.9000000357627869,
+                  "wasmMeshCopy": 0.09999996423721313
+                }
+              }
+            ],
+            "requestSentAt": 1790569111422,
+            "receivedAt": 1790569111422.5999,
+            "startedAt": 1790569111422.5999,
+            "requestTransferredBytes": 0,
+            "revision": 11,
+            "transferredBytes": 0,
+            "triangles": 0,
+            "replySentAt": 1790569111480.7998,
+            "requestDeliveryMs": 0.599853515625,
+            "workerQueueMs": 0,
+            "workerExecutionMs": 58.199951171875,
+            "responseDeliveryMs": 9.7001953125
+          }
+        },
+        {
+          "startAt": 6931.5,
+          "durationMs": 58.5,
+          "detail": {
+            "id": "c4a11c33-2551-4527-a0e6-169d554ee9e7",
+            "kind": "error",
+            "stages": {
+              "baseExtrusion": {
+                "durationMs": 43.10000014305115,
+                "calls": 6
+              },
+              "planarPlateMesh": {
+                "durationMs": 1.1999999284744263,
+                "calls": 4
+              },
+              "regionMeshCopy": {
+                "durationMs": 0.19999998807907104,
+                "calls": 6
+              },
+              "wasmMeshCopy": {
+                "durationMs": 0.20000004768371582,
+                "calls": 3
+              },
+              "bodyYield": {
+                "durationMs": 0.10000002384185791,
+                "calls": 2
+              },
+              "cavityCuts": {
+                "durationMs": 4.399999976158142,
+                "calls": 2
+              },
+              "openingPrisms": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingBoolean": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingCuts": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "tessellation": {
+                "durationMs": 1.600000023841858,
+                "calls": 2
+              },
+              "meshExpansion": {
+                "durationMs": 0,
+                "calls": 2
+              }
+            },
+            "counters": {
+              "progressEvents": 19,
+              "progressMessages": 3,
+              "bodyCacheMisses": 3,
+              "regionCacheMisses": 6,
+              "extrusions": 8,
+              "exactPlanarMeshes": 4,
+              "tessellatedTriangles": 5544,
+              "copiedMeshBytes": 798336,
+              "regionCacheEvictions": 6,
+              "bodyCacheEvictions": 3,
+              "booleanEvaluations": 2,
+              "tessellations": 2
+            },
+            "wasmAllocatedBytes": {
+              "start": 25100288,
+              "end": 25296896,
+              "peak": 25296896
+            },
+            "bodies": [
+              {
+                "id": "plate",
+                "name": "plate",
+                "durationMs": 19.19999998807907,
+                "stages": {
+                  "baseExtrusion": 16.900000035762787,
+                  "planarPlateMesh": 0.3999999761581421
+                }
+              },
+              {
+                "id": "bottom",
+                "name": "bottom",
+                "durationMs": 6.800000011920929,
+                "stages": {
+                  "baseExtrusion": 0.30000007152557373,
+                  "wasmMeshCopy": 0.10000002384185791,
+                  "cavityCuts": 4.399999976158142,
+                  "tessellation": 1.600000023841858
+                }
+              },
+              {
+                "id": "plate-foam",
+                "name": "plate-foam",
+                "durationMs": 30.799999952316284,
+                "stages": {
+                  "baseExtrusion": 25.900000035762787,
+                  "planarPlateMesh": 0.7999999523162842,
+                  "regionMeshCopy": 0.19999998807907104,
+                  "wasmMeshCopy": 0.10000002384185791
+                }
+              }
+            ],
+            "requestSentAt": 1790569111595.3,
+            "receivedAt": 1790569111596,
+            "startedAt": 1790569111596,
+            "requestTransferredBytes": 0,
+            "revision": 14,
+            "transferredBytes": 0,
+            "triangles": 0,
+            "replySentAt": 1790569111653.2,
+            "requestDeliveryMs": 0.699951171875,
+            "workerQueueMs": 0,
+            "workerExecutionMs": 57.199951171875,
+            "responseDeliveryMs": 0.60009765625
+          }
+        },
+        {
+          "startAt": 7003.5,
+          "durationMs": 64,
+          "detail": {
+            "id": "b85d7636-6dfb-4a6a-bfe7-d252bbf6e0a8",
+            "kind": "error",
+            "stages": {
+              "baseExtrusion": {
+                "durationMs": 48.09999996423721,
+                "calls": 6
+              },
+              "planarPlateMesh": {
+                "durationMs": 1.0000000596046448,
+                "calls": 4
+              },
+              "regionMeshCopy": {
+                "durationMs": 0.09999996423721313,
+                "calls": 6
+              },
+              "wasmMeshCopy": {
+                "durationMs": 0.10000002384185791,
+                "calls": 3
+              },
+              "bodyYield": {
+                "durationMs": 0.5000000596046448,
+                "calls": 2
+              },
+              "cavityCuts": {
+                "durationMs": 4.400000035762787,
+                "calls": 2
+              },
+              "openingPrisms": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingBoolean": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingCuts": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "tessellation": {
+                "durationMs": 1.5,
+                "calls": 2
+              },
+              "meshExpansion": {
+                "durationMs": 0,
+                "calls": 2
+              }
+            },
+            "counters": {
+              "progressEvents": 19,
+              "progressMessages": 3,
+              "bodyCacheMisses": 3,
+              "regionCacheMisses": 6,
+              "extrusions": 8,
+              "exactPlanarMeshes": 4,
+              "tessellatedTriangles": 5544,
+              "copiedMeshBytes": 798336,
+              "regionCacheEvictions": 8,
+              "bodyCacheEvictions": 4,
+              "booleanEvaluations": 2,
+              "tessellations": 2
+            },
+            "wasmAllocatedBytes": {
+              "start": 25296896,
+              "end": 25296896,
+              "peak": 25296896
+            },
+            "bodies": [
+              {
+                "id": "plate",
+                "name": "plate",
+                "durationMs": 18.5,
+                "stages": {
+                  "baseExtrusion": 16.100000023841858,
+                  "planarPlateMesh": 0.20000004768371582
+                }
+              },
+              {
+                "id": "bottom",
+                "name": "bottom",
+                "durationMs": 7.099999964237213,
+                "stages": {
+                  "baseExtrusion": 0.4999999403953552,
+                  "cavityCuts": 4.400000035762787,
+                  "tessellation": 1.5
+                }
+              },
+              {
+                "id": "plate-foam",
+                "name": "plate-foam",
+                "durationMs": 37.19999998807907,
+                "stages": {
+                  "baseExtrusion": 31.5,
+                  "planarPlateMesh": 0.800000011920929,
+                  "regionMeshCopy": 0.09999996423721313,
+                  "wasmMeshCopy": 0.10000002384185791
+                }
+              }
+            ],
+            "requestSentAt": 1790569111667.3,
+            "receivedAt": 1790569111667.5999,
+            "startedAt": 1790569111667.5999,
+            "requestTransferredBytes": 0,
+            "revision": 15,
+            "transferredBytes": 0,
+            "triangles": 0,
+            "replySentAt": 1790569111731.0999,
+            "requestDeliveryMs": 0.2998046875,
+            "workerQueueMs": 0,
+            "workerExecutionMs": 63.5,
+            "responseDeliveryMs": 0.2001953125
+          }
+        },
+        {
+          "startAt": 7081.89990234375,
+          "durationMs": 161.00009763240814,
+          "detail": {
+            "id": "8128d052-3cdb-4680-9c4c-74fee7c08a6e",
+            "kind": "preview",
+            "stages": {
+              "baseExtrusion": {
+                "durationMs": 59.89999997615814,
+                "calls": 8
+              },
+              "planarPlateMesh": {
+                "durationMs": 1.800000011920929,
+                "calls": 6
+              },
+              "regionMeshCopy": {
+                "durationMs": 0,
+                "calls": 8
+              },
+              "wasmMeshCopy": {
+                "durationMs": 0.19999992847442627,
+                "calls": 4
+              },
+              "bodyYield": {
+                "durationMs": 3.5,
+                "calls": 3
+              },
+              "cavityCuts": {
+                "durationMs": 4.100000023841858,
+                "calls": 2
+              },
+              "openingPrisms": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingBoolean": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "openingCuts": {
+                "durationMs": 0,
+                "calls": 2
+              },
+              "tessellation": {
+                "durationMs": 22.500000059604645,
+                "calls": 3
+              },
+              "meshExpansion": {
+                "durationMs": 0.10000002384185791,
+                "calls": 3
+              }
+            },
+            "counters": {
+              "progressEvents": 25,
+              "progressMessages": 5,
+              "bodyCacheMisses": 4,
+              "regionCacheMisses": 8,
+              "extrusions": 10,
+              "exactPlanarMeshes": 5,
+              "tessellatedTriangles": 6268,
+              "copiedMeshBytes": 902592,
+              "booleanEvaluations": 2,
+              "tessellations": 3,
+              "regionCacheEvictions": 6,
+              "bodyCacheEvictions": 3
+            },
+            "wasmAllocatedBytes": {
+              "start": 25296896,
+              "end": 28508160,
+              "peak": 28508160
+            },
+            "bodies": [
+              {
+                "id": "plate",
+                "name": "plate",
+                "durationMs": 18.80000001192093,
+                "stages": {
+                  "baseExtrusion": 16.30000001192093,
+                  "planarPlateMesh": 0.30000001192092896
+                }
+              },
+              {
+                "id": "bottom",
+                "name": "bottom",
+                "durationMs": 6.599999964237213,
+                "stages": {
+                  "baseExtrusion": 0.5999999642372131,
+                  "cavityCuts": 4.100000023841858,
+                  "tessellation": 1.4000000953674316
+                }
+              },
+              {
+                "id": "plate-foam",
+                "name": "plate-foam",
+                "durationMs": 34.40000003576279,
+                "stages": {
+                  "baseExtrusion": 28.19999998807907,
+                  "planarPlateMesh": 1.399999976158142,
+                  "wasmMeshCopy": 0.09999996423721313
+                }
+              },
+              {
+                "id": "bottom-foam",
+                "name": "bottom-foam",
+                "durationMs": 37.80000001192093,
+                "stages": {
+                  "baseExtrusion": 14.800000011920929,
+                  "planarPlateMesh": 0.10000002384185791,
+                  "wasmMeshCopy": 0.09999996423721313,
+                  "tessellation": 21.099999964237213,
+                  "meshExpansion": 0.10000002384185791
+                }
+              }
+            ],
+            "requestSentAt": 1790569111745.7,
+            "receivedAt": 1790569111746.4,
+            "startedAt": 1790569111746.4,
+            "requestTransferredBytes": 0,
+            "revision": 16,
+            "transferredBytes": 451296,
+            "triangles": 6268,
+            "replySentAt": 1790569111847.7998,
+            "requestDeliveryMs": 0.699951171875,
+            "workerQueueMs": 0,
+            "workerExecutionMs": 101.39990234375,
+            "responseDeliveryMs": 58.900146484375
+          }
+        }
+      ],
+      "job": [
+        {
+          "startAt": 6711.300000011921,
+          "durationMs": 115.69999998807907,
+          "detail": {
+            "revision": 11,
+            "draft": false,
+            "queueMs": 0,
+            "obsolete": true
+          }
+        },
+        {
+          "startAt": 6785,
+          "durationMs": 91.5,
+          "detail": {
+            "revision": 12,
+            "draft": false,
+            "queueMs": 42,
+            "obsolete": true
+          }
+        },
+        {
+          "startAt": 6876.600000023842,
+          "durationMs": 35.39999997615814,
+          "detail": {
+            "revision": 13,
+            "draft": false,
+            "queueMs": 0.09999996423721313,
+            "obsolete": true
+          }
+        },
+        {
+          "startAt": 6913.399999976158,
+          "durationMs": 76.70000004768372,
+          "detail": {
+            "revision": 14,
+            "draft": false,
+            "queueMs": 0,
+            "obsolete": true
+          }
+        },
+        {
+          "startAt": 6980.100000023842,
+          "durationMs": 87.5,
+          "detail": {
+            "revision": 15,
+            "draft": false,
+            "queueMs": 10.099999964237213,
+            "obsolete": true
+          }
+        },
+        {
+          "startAt": 7031.5,
+          "durationMs": 211.5,
+          "detail": {
+            "revision": 16,
+            "draft": false,
+            "queueMs": 36.30000001192093,
+            "obsolete": false
+          }
+        }
+      ],
+      "persistence": [
+        {
+          "startAt": 6678.399999976158,
+          "durationMs": 17.30000001192093,
+          "detail": {
+            "revision": 11,
+            "mode": "commit",
+            "saved": true
+          }
+        },
+        {
+          "startAt": 6751.5,
+          "durationMs": 15.100000023841858,
+          "detail": {
+            "revision": 12,
+            "mode": "commit",
+            "saved": true
+          }
+        },
+        {
+          "startAt": 6826.300000011921,
+          "durationMs": 8.199999988079071,
+          "detail": {
+            "revision": 13,
+            "mode": "commit",
+            "saved": true
+          }
+        },
+        {
+          "startAt": 6877.800000011921,
+          "durationMs": 20.5,
+          "detail": {
+            "revision": 14,
+            "mode": "commit",
+            "saved": true
+          }
+        },
+        {
+          "startAt": 6959.100000023842,
+          "durationMs": 7.699999988079071,
+          "detail": {
+            "revision": 15,
+            "mode": "commit",
+            "saved": true
+          }
+        },
+        {
+          "startAt": 7013.300000011921,
+          "durationMs": 4.199999988079071,
+          "detail": {
+            "revision": 16,
+            "mode": "commit",
+            "saved": true
+          }
+        }
+      ],
+      "preview.paint-opportunity": [
+        {
+          "startAt": 7031.5,
+          "durationMs": 341.89999997615814,
+          "detail": {
+            "revision": 16,
+            "drawnMs": 228.39999997615814,
+            "method": "frame-after-draw"
+          }
+        }
+      ]
+    }
+  },
+  "fixture": "split: 70 switches; 29 gasket bodies and an authored tray mount",
+  "scenarios": {
+    "numeric": {
+      "actionToWorkerReply": {
+        "samples": [
+          125,
+          220.30000001192093,
+          140,
+          128.69999998807907,
+          109.89999997615814
+        ],
+        "p50": 128.69999998807907,
+        "p95": 220.30000001192093
+      },
+      "releaseToPaint": {
+        "samples": [
+          380.5,
+          376.39999997615814,
+          394.80000001192093,
+          483.80000001192093,
+          478.2999999523163
+        ],
+        "p50": 394.80000001192093,
+        "p95": 483.80000001192093
+      },
+      "previewStartToPaint": {
+        "samples": [
+          340.4000000357628,
+          344.69999998807907,
+          335,
+          433.5,
+          445.2999999523163
+        ],
+        "p50": 344.69999998807907,
+        "p95": 445.2999999523163
+      },
+      "attribution": [
+        {
+          "actionStartAt": 1695.6000000238419,
+          "actionEndAt": 2076.100000023842,
+          "paintMs": 340.4000000357628,
+          "cadRequests": [
+            {
+              "startAt": 1752.699951171875,
+              "durationMs": 67.800048828125,
+              "detail": {
+                "id": "c2a67b6e-a752-4ca1-9e09-3d4754211caf",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 46.19999998807907,
+                    "calls": 6
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 1.300000011920929,
+                    "calls": 4
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.30000007152557373,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 4
+                  },
+                  "bodyYield": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "cavityCuts": {
+                    "durationMs": 6.699999988079071,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "tessellation": {
+                    "durationMs": 2.400000035762787,
+                    "calls": 2
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0,
+                    "calls": 2
+                  }
+                },
+                "counters": {
+                  "progressEvents": 23,
+                  "progressMessages": 4,
+                  "bodyCacheMisses": 4,
+                  "regionCacheMisses": 6,
+                  "extrusions": 8,
+                  "exactPlanarMeshes": 4,
+                  "tessellatedTriangles": 5544,
+                  "copiedMeshBytes": 902592,
+                  "booleanEvaluations": 2,
+                  "tessellations": 2,
+                  "regionCacheHits": 2,
+                  "bodyCacheEvictions": 1
+                },
+                "wasmAllocatedBytes": {
+                  "start": 23461888,
+                  "end": 24576000,
+                  "peak": 24576000
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 19.80000001192093,
+                    "stages": {
+                      "baseExtrusion": 16.69999998807907,
+                      "planarPlateMesh": 0.19999998807907104,
+                      "regionMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 9.899999976158142,
+                    "stages": {
+                      "baseExtrusion": 0.5,
+                      "cavityCuts": 6.699999988079071,
+                      "tessellation": 2.400000035762787
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 35.39999997615814,
+                    "stages": {
+                      "baseExtrusion": 29,
+                      "planarPlateMesh": 1.100000023841858,
+                      "regionMeshCopy": 0.10000002384185791,
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.40000003576278687,
+                    "stages": {
+                      "regionMeshCopy": 0.10000002384185791
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569106416.5,
+                "receivedAt": 1790569106417.2,
+                "startedAt": 1790569106417.2,
+                "requestTransferredBytes": 0,
+                "revision": 1,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569106483.4,
+                "requestDeliveryMs": 0.699951171875,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 66.199951171875,
+                "responseDeliveryMs": 0.900146484375
+              }
+            }
+          ],
+          "corePreparationMs": 4.400000035762787,
+          "persistenceMs": 5.199999988079071,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 1699.1000000238419,
+              "id": "ed9ac5e5-96df-43ff-a862-018e5a67bab2",
+              "repliedAt": 1710.1000000238419,
+              "timing": {
+                "wasmMs": 5.599999964237213,
+                "parseMs": 0.20000004768371582
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 1735.699999988079,
+              "id": "613a7172-1b94-44ee-baa8-824eba3183b8",
+              "repliedAt": 1748.699999988079,
+              "timing": {
+                "wasmMs": 8.600000023841858,
+                "parseMs": 0.7999999523162842
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 1748.300000011921,
+              "id": "ca96efab-f9a8-4bfd-ab7c-af093fb3c2cc",
+              "repliedAt": 1752.8999999761581,
+              "timing": {
+                "wasmMs": 0.6000000238418579,
+                "parseMs": 0.10000002384185791
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 1826.1000000238419,
+              "durationMs": 113
+            },
+            {
+              "startAt": 1947.300000011921,
+              "durationMs": 116
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.299999952316284,
+            "uploadMs": 2,
+            "bodyPatchMs": 116.40000003576279
+          }
+        },
+        {
+          "actionStartAt": 2615.300000011921,
+          "actionEndAt": 2991.699999988079,
+          "paintMs": 344.69999998807907,
+          "cadRequests": [
+            {
+              "startAt": 2664.10009765625,
+              "durationMs": 171.39990234375,
+              "detail": {
+                "id": "52b294b8-3e73-4f49-9086-80ad93e85b88",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 47.90000003576279,
+                    "calls": 6
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 1.699999988079071,
+                    "calls": 4
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.3999999761581421,
+                    "calls": 4
+                  },
+                  "bodyYield": {
+                    "durationMs": 2.699999988079071,
+                    "calls": 2
+                  },
+                  "cavityCuts": {
+                    "durationMs": 7,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "tessellation": {
+                    "durationMs": 1.899999976158142,
+                    "calls": 2
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0,
+                    "calls": 2
+                  }
+                },
+                "counters": {
+                  "progressEvents": 23,
+                  "progressMessages": 4,
+                  "bodyCacheMisses": 4,
+                  "regionCacheMisses": 6,
+                  "extrusions": 8,
+                  "exactPlanarMeshes": 4,
+                  "tessellatedTriangles": 5544,
+                  "copiedMeshBytes": 902592,
+                  "regionCacheEvictions": 6,
+                  "bodyCacheEvictions": 4,
+                  "booleanEvaluations": 2,
+                  "tessellations": 2,
+                  "regionCacheHits": 2
+                },
+                "wasmAllocatedBytes": {
+                  "start": 24576000,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 19.19999998807907,
+                    "stages": {
+                      "baseExtrusion": 16.399999976158142,
+                      "planarPlateMesh": 0.30000001192092896,
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 9.700000047683716,
+                    "stages": {
+                      "baseExtrusion": 0.5,
+                      "cavityCuts": 7,
+                      "tessellation": 1.899999976158142
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 38.09999996423721,
+                    "stages": {
+                      "baseExtrusion": 31.000000059604645,
+                      "planarPlateMesh": 1.399999976158142,
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.5,
+                    "stages": {
+                      "regionMeshCopy": 0.10000002384185791
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569107327.9001,
+                "receivedAt": 1790569107328.2,
+                "startedAt": 1790569107328.2,
+                "requestTransferredBytes": 0,
+                "revision": 3,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569107398.5,
+                "requestDeliveryMs": 0.2998046875,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 70.300048828125,
+                "responseDeliveryMs": 100.800048828125
+              }
+            }
+          ],
+          "corePreparationMs": 3.600000023841858,
+          "persistenceMs": 3.800000011920929,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 2617.800000011921,
+              "id": "bb00f9b6-8fce-48fa-8829-16e7d87f4871",
+              "repliedAt": 2627.699999988079,
+              "timing": {
+                "wasmMs": 1.7000000476837158,
+                "parseMs": 0.09999996423721313
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 2647,
+              "id": "9b0b47b2-a913-4baf-a200-2311ba9a2a5f",
+              "repliedAt": 2660.600000023842,
+              "timing": {
+                "wasmMs": 8.5,
+                "parseMs": 0.30000001192092896
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 2660.399999976158,
+              "id": "f297ab25-cbb8-4776-85a2-00a4e10badc0",
+              "repliedAt": 2664.199999988079,
+              "timing": {
+                "wasmMs": 0.800000011920929,
+                "parseMs": 0.10000002384185791
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 2835.699999988079,
+              "id": "0ee989f5-02e6-4a68-9ebe-945bd558ca96",
+              "repliedAt": 2856.800000011921,
+              "timing": {
+                "wasmMs": 8.699999988079071,
+                "parseMs": 0.40000003576278687
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 2724.300000011921,
+              "durationMs": 109
+            },
+            {
+              "startAt": 2860.699999988079,
+              "durationMs": 114
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.199999988079071,
+            "uploadMs": 1.5,
+            "bodyPatchMs": 12.600000023841858
+          }
+        },
+        {
+          "actionStartAt": 3496.300000011921,
+          "actionEndAt": 3891.100000023842,
+          "paintMs": 335,
+          "cadRequests": [
+            {
+              "startAt": 3576.39990234375,
+              "durationMs": 59.80009764432907,
+              "detail": {
+                "id": "b0bc3c7b-abda-4b53-a7f0-cac9c6cc898e",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 43.499999940395355,
+                    "calls": 6
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 1.1000000834465027,
+                    "calls": 4
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.2999999523162842,
+                    "calls": 4
+                  },
+                  "bodyYield": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 2
+                  },
+                  "cavityCuts": {
+                    "durationMs": 5.399999976158142,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "tessellation": {
+                    "durationMs": 1.399999976158142,
+                    "calls": 2
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0,
+                    "calls": 2
+                  }
+                },
+                "counters": {
+                  "progressEvents": 23,
+                  "progressMessages": 4,
+                  "bodyCacheMisses": 4,
+                  "regionCacheMisses": 6,
+                  "extrusions": 8,
+                  "exactPlanarMeshes": 4,
+                  "tessellatedTriangles": 5544,
+                  "copiedMeshBytes": 902592,
+                  "regionCacheEvictions": 6,
+                  "bodyCacheEvictions": 4,
+                  "booleanEvaluations": 2,
+                  "tessellations": 2,
+                  "regionCacheHits": 2
+                },
+                "wasmAllocatedBytes": {
+                  "start": 25100288,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 17.899999976158142,
+                    "stages": {
+                      "baseExtrusion": 15.699999928474426,
+                      "planarPlateMesh": 0.20000004768371582,
+                      "wasmMeshCopy": 0.09999996423721313
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 7.800000011920929,
+                    "stages": {
+                      "baseExtrusion": 0.5,
+                      "regionMeshCopy": 0.10000002384185791,
+                      "cavityCuts": 5.399999976158142,
+                      "tessellation": 1.399999976158142
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 32.69999998807907,
+                    "stages": {
+                      "baseExtrusion": 27.30000001192093,
+                      "planarPlateMesh": 0.9000000357627869,
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.19999998807907104,
+                    "stages": {}
+                  }
+                ],
+                "requestSentAt": 1790569108240.2,
+                "receivedAt": 1790569108240.5,
+                "startedAt": 1790569108240.5,
+                "requestTransferredBytes": 0,
+                "revision": 5,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569108299.5999,
+                "requestDeliveryMs": 0.300048828125,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 59.099853515625,
+                "responseDeliveryMs": 0.400146484375
+              }
+            }
+          ],
+          "corePreparationMs": 5.600000023841858,
+          "persistenceMs": 7.100000023841858,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 3512.899999976158,
+              "id": "4cd5cd5e-cd5c-4fd1-87c1-3d6c1326a3f2",
+              "repliedAt": 3527.399999976158,
+              "timing": {
+                "wasmMs": 2.199999988079071,
+                "parseMs": 0.5
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 3556.100000023842,
+              "id": "dfa900d2-30ec-447a-ae21-8960175cb69c",
+              "repliedAt": 3570.899999976158,
+              "timing": {
+                "wasmMs": 8.300000011920929,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 3570.699999988079,
+              "id": "77553bbe-7bb6-489d-a72e-4eed413c469d",
+              "repliedAt": 3576.5,
+              "timing": {
+                "wasmMs": 0.5999999642372131,
+                "parseMs": 0.10000002384185791
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 3640.899999976158,
+              "durationMs": 124
+            },
+            {
+              "startAt": 3774.199999988079,
+              "durationMs": 112
+            }
+          ],
+          "renderer": {
+            "prepareMs": 2.699999988079071,
+            "uploadMs": 1.5,
+            "bodyPatchMs": 127.30000001192093
+          }
+        },
+        {
+          "actionStartAt": 4411.5,
+          "actionEndAt": 4895.300000011921,
+          "paintMs": 433.5,
+          "cadRequests": [
+            {
+              "startAt": 4480.39990234375,
+              "durationMs": 59.70009768009186,
+              "detail": {
+                "id": "d1b00155-50b8-4481-bd00-8f4c62081d2e",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 43.799999952316284,
+                    "calls": 6
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 1.2999999523162842,
+                    "calls": 4
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.20000004768371582,
+                    "calls": 4
+                  },
+                  "bodyYield": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 2
+                  },
+                  "cavityCuts": {
+                    "durationMs": 4.800000011920929,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "tessellation": {
+                    "durationMs": 1.300000011920929,
+                    "calls": 2
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0,
+                    "calls": 2
+                  }
+                },
+                "counters": {
+                  "progressEvents": 23,
+                  "progressMessages": 4,
+                  "bodyCacheMisses": 4,
+                  "regionCacheMisses": 6,
+                  "extrusions": 8,
+                  "exactPlanarMeshes": 4,
+                  "tessellatedTriangles": 5544,
+                  "copiedMeshBytes": 902592,
+                  "regionCacheEvictions": 6,
+                  "bodyCacheEvictions": 4,
+                  "booleanEvaluations": 2,
+                  "tessellations": 2,
+                  "regionCacheHits": 2
+                },
+                "wasmAllocatedBytes": {
+                  "start": 25100288,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 19.399999976158142,
+                    "stages": {
+                      "baseExtrusion": 16.69999998807907,
+                      "planarPlateMesh": 0.3999999761581421,
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 6.899999976158142,
+                    "stages": {
+                      "baseExtrusion": 0.3999999761581421,
+                      "cavityCuts": 4.800000011920929,
+                      "tessellation": 1.300000011920929
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 32.10000002384186,
+                    "stages": {
+                      "baseExtrusion": 26.69999998807907,
+                      "planarPlateMesh": 0.8999999761581421,
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.2999999523162842,
+                    "stages": {}
+                  }
+                ],
+                "requestSentAt": 1790569109144.2,
+                "receivedAt": 1790569109144.5,
+                "startedAt": 1790569109144.5,
+                "requestTransferredBytes": 0,
+                "revision": 7,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569109203.7,
+                "requestDeliveryMs": 0.300048828125,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 59.199951171875,
+                "responseDeliveryMs": 0.2001953125
+              }
+            }
+          ],
+          "corePreparationMs": 5.900000035762787,
+          "persistenceMs": 5.399999976158142,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 4414.100000023842,
+              "id": "244fef31-0883-4b8e-97ee-4a74cee33354",
+              "repliedAt": 4441.899999976158,
+              "timing": {
+                "wasmMs": 1.199999988079071,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 4461.800000011921,
+              "id": "b7202659-67a8-4d01-8ccb-2252bba25f0a",
+              "repliedAt": 4474.800000011921,
+              "timing": {
+                "wasmMs": 9,
+                "parseMs": 0.30000001192092896
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 4474.5,
+              "id": "ebb055b5-b535-4e56-b9bf-07c5aa7d512d",
+              "repliedAt": 4480.600000023842,
+              "timing": {
+                "wasmMs": 0.6000000238418579,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 4656.399999976158,
+              "id": "41e3b145-35b2-4b69-a332-dddb1538a447",
+              "repliedAt": 4777.899999976158,
+              "timing": {
+                "wasmMs": 11.100000023841858,
+                "parseMs": 0.3999999761581421
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 4543.300000011921,
+              "durationMs": 112
+            },
+            {
+              "startAt": 4658.399999976158,
+              "durationMs": 114
+            },
+            {
+              "startAt": 4777.899999976158,
+              "durationMs": 112
+            }
+          ],
+          "renderer": {
+            "prepareMs": 2.900000035762787,
+            "uploadMs": 1.5999999642372131,
+            "bodyPatchMs": 118.39999997615814
+          }
+        },
+        {
+          "actionStartAt": 5546.100000023842,
+          "actionEndAt": 6024.399999976158,
+          "paintMs": 445.2999999523163,
+          "cadRequests": [
+            {
+              "startAt": 5596.89990234375,
+              "durationMs": 58.90009766817093,
+              "detail": {
+                "id": "459c0de0-417e-4f16-84f0-c6e803d32b41",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 43.30000001192093,
+                    "calls": 6
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 0.9999999403953552,
+                    "calls": 4
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.3999999761581421,
+                    "calls": 4
+                  },
+                  "bodyYield": {
+                    "durationMs": 0.6000000238418579,
+                    "calls": 2
+                  },
+                  "cavityCuts": {
+                    "durationMs": 4.199999988079071,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 0,
+                    "calls": 2
+                  },
+                  "tessellation": {
+                    "durationMs": 1.600000023841858,
+                    "calls": 2
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0,
+                    "calls": 2
+                  }
+                },
+                "counters": {
+                  "progressEvents": 23,
+                  "progressMessages": 4,
+                  "bodyCacheMisses": 4,
+                  "regionCacheMisses": 6,
+                  "extrusions": 8,
+                  "exactPlanarMeshes": 4,
+                  "tessellatedTriangles": 5544,
+                  "copiedMeshBytes": 902592,
+                  "regionCacheEvictions": 6,
+                  "bodyCacheEvictions": 4,
+                  "booleanEvaluations": 2,
+                  "tessellations": 2,
+                  "regionCacheHits": 2
+                },
+                "wasmAllocatedBytes": {
+                  "start": 25100288,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 18.099999964237213,
+                    "stages": {
+                      "baseExtrusion": 16,
+                      "planarPlateMesh": 0.2999999523162842,
+                      "wasmMeshCopy": 0.09999996423721313
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 6.399999976158142,
+                    "stages": {
+                      "baseExtrusion": 0.30000001192092896,
+                      "cavityCuts": 4.199999988079071,
+                      "tessellation": 1.600000023841858
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 31.899999976158142,
+                    "stages": {
+                      "baseExtrusion": 27,
+                      "planarPlateMesh": 0.699999988079071,
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569110260.7,
+                "receivedAt": 1790569110261.5,
+                "startedAt": 1790569110261.5,
+                "requestTransferredBytes": 0,
+                "revision": 9,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569110319.2,
+                "requestDeliveryMs": 0.800048828125,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 57.699951171875,
+                "responseDeliveryMs": 0.400146484375
+              }
+            }
+          ],
+          "corePreparationMs": 5.5,
+          "persistenceMs": 4.5,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 5548.699999988079,
+              "id": "aba72528-263d-4ed4-bb36-f92b1a7bd78a",
+              "repliedAt": 5559.800000011921,
+              "timing": {
+                "wasmMs": 1.699999988079071,
+                "parseMs": 0.20000004768371582
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 5579.199999988079,
+              "id": "a0aa7f4a-02f9-4fbb-8249-3fe97c9aa800",
+              "repliedAt": 5591.600000023842,
+              "timing": {
+                "wasmMs": 8.400000035762787,
+                "parseMs": 0.30000001192092896
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 5591.300000011921,
+              "id": "e0f3704c-c0c6-42f7-9ed9-14f3d82c281a",
+              "repliedAt": 5597.100000023842,
+              "timing": {
+                "wasmMs": 0.8999999761581421,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 5773.399999976158,
+              "id": "53e36e94-c24f-44fc-a821-0cbe4df957fe",
+              "repliedAt": 5903.199999988079,
+              "timing": {
+                "wasmMs": 11,
+                "parseMs": 0.5999999642372131
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 5660.800000011921,
+              "durationMs": 111
+            },
+            {
+              "startAt": 5775.399999976158,
+              "durationMs": 121
+            },
+            {
+              "startAt": 5907.399999976158,
+              "durationMs": 113
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3,
+            "uploadMs": 1.5999999642372131,
+            "bodyPatchMs": 126.89999997615814
+          }
+        }
+      ]
+    },
+    "undo": {
+      "actionToWorkerReply": {
+        "samples": [
+          55.10000002384186,
+          55.5,
+          63,
+          54.30000001192093,
+          55.10000002384186
+        ],
+        "p50": 55.10000002384186,
+        "p95": 63
+      },
+      "releaseToPaint": {
+        "samples": [
+          193.4000000357628,
+          195.4000000357628,
+          194.20000004768372,
+          208.5,
+          198.70000004768372
+        ],
+        "p50": 195.4000000357628,
+        "p95": 208.5
+      },
+      "previewStartToPaint": {
+        "samples": [
+          159.10000002384186,
+          159.10000002384186,
+          155.80000001192093,
+          173.80000001192093,
+          166.4000000357628
+        ],
+        "p50": 159.10000002384186,
+        "p95": 173.80000001192093
+      },
+      "attribution": [
+        {
+          "actionStartAt": 2382.699999988079,
+          "actionEndAt": 2576.100000023842,
+          "paintMs": 159.10000002384186,
+          "cadRequests": [
+            {
+              "startAt": 2434.39990234375,
+              "durationMs": 3.300097644329071,
+              "detail": {
+                "id": "8bb9ffca-3ba3-4d71-9bd0-28461088e7d8",
+                "kind": "preview",
+                "stages": {
+                  "regionMeshCopy": {
+                    "durationMs": 0.19999998807907104,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 17,
+                  "progressMessages": 3,
+                  "bodyCacheMisses": 4,
+                  "regionCacheHits": 8,
+                  "copiedMeshBytes": 902592,
+                  "bodyCacheEvictions": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 24576000,
+                  "end": 24576000,
+                  "peak": 24576000
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 0.9000000357627869,
+                    "stages": {
+                      "regionMeshCopy": 0.09999996423721313
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 0.09999996423721313,
+                    "stages": {}
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 0.6000000238418579,
+                    "stages": {
+                      "regionMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569107098.2,
+                "receivedAt": 1790569107098.7,
+                "startedAt": 1790569107098.7,
+                "requestTransferredBytes": 0,
+                "revision": 2,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569107100.7998,
+                "requestDeliveryMs": 0.5,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 2.099853515625,
+                "responseDeliveryMs": 0.7001953125
+              }
+            }
+          ],
+          "corePreparationMs": 4.199999988079071,
+          "persistenceMs": 7.199999988079071,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "undo",
+              "sentAt": 2382.899999976158,
+              "id": "64455801-2bb7-4813-8651-01182573fc07",
+              "repliedAt": 2393.699999988079,
+              "timing": {
+                "wasmMs": 1.199999988079071,
+                "parseMs": 0.40000003576278687
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 2417.100000023842,
+              "id": "7a49f650-2c03-4483-aa92-d3abd62549f8",
+              "repliedAt": 2430.899999976158,
+              "timing": {
+                "wasmMs": 9.5,
+                "parseMs": 0.5
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 2430.100000023842,
+              "id": "fcecf283-3317-4122-9af4-0e40a61709b7",
+              "repliedAt": 2434.600000023842,
+              "timing": {
+                "wasmMs": 1.2999999523162842,
+                "parseMs": 0.10000002384185791
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 2458.199999988079,
+              "durationMs": 115
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.199999988079071,
+            "uploadMs": 1.5,
+            "bodyPatchMs": 5.599999964237213
+          }
+        },
+        {
+          "actionStartAt": 3263.899999976158,
+          "actionEndAt": 3459.300000011921,
+          "paintMs": 159.10000002384186,
+          "cadRequests": [
+            {
+              "startAt": 3315.699951171875,
+              "durationMs": 3.600048840045929,
+              "detail": {
+                "id": "44721cb5-6b39-4791-9ffb-51fedddd8fc4",
+                "kind": "preview",
+                "stages": {
+                  "regionMeshCopy": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.5,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 17,
+                  "progressMessages": 3,
+                  "bodyCacheMisses": 4,
+                  "regionCacheHits": 8,
+                  "copiedMeshBytes": 902592,
+                  "bodyCacheEvictions": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 25100288,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 0.5,
+                    "stages": {
+                      "regionMeshCopy": 0.10000002384185791,
+                      "wasmMeshCopy": 0.09999996423721313
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 0.10000002384185791,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 0.5999999642372131,
+                    "stages": {
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.20000004768371582,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569107979.5,
+                "receivedAt": 1790569107980.2,
+                "startedAt": 1790569107980.2,
+                "requestTransferredBytes": 0,
+                "revision": 4,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569107981.7998,
+                "requestDeliveryMs": 0.699951171875,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 1.599853515625,
+                "responseDeliveryMs": 1.30029296875
+              }
+            }
+          ],
+          "corePreparationMs": 3.600000023841858,
+          "persistenceMs": 6.5,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "undo",
+              "sentAt": 3263.899999976158,
+              "id": "f9310df4-2df2-4552-905b-393d7d5c8b1b",
+              "repliedAt": 3277.199999988079,
+              "timing": {
+                "wasmMs": 1.2999999523162842,
+                "parseMs": 0.40000003576278687
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 3300.300000011921,
+              "id": "6ab0f5e9-4d2e-4fb3-a1fa-c3d7dfa85bd9",
+              "repliedAt": 3312.199999988079,
+              "timing": {
+                "wasmMs": 8.199999988079071,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 3312,
+              "id": "fb3dae36-7814-43bf-b047-635a2c7da52a",
+              "repliedAt": 3315.800000011921,
+              "timing": {
+                "wasmMs": 0.5,
+                "parseMs": 0.19999998807907104
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 3341.699999988079,
+              "durationMs": 115
+            }
+          ],
+          "renderer": {
+            "prepareMs": 2.900000035762787,
+            "uploadMs": 1.399999976158142,
+            "bodyPatchMs": 7.099999964237213
+          }
+        },
+        {
+          "actionStartAt": 4180.399999976158,
+          "actionEndAt": 4374.600000023842,
+          "paintMs": 155.80000001192093,
+          "cadRequests": [
+            {
+              "startAt": 4236.800048828125,
+              "durationMs": 6.499951183795929,
+              "detail": {
+                "id": "14943607-348c-4831-bdc7-fda058e9b94b",
+                "kind": "preview",
+                "stages": {
+                  "regionMeshCopy": {
+                    "durationMs": 0,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.40000003576278687,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 17,
+                  "progressMessages": 3,
+                  "bodyCacheMisses": 4,
+                  "regionCacheHits": 8,
+                  "copiedMeshBytes": 902592,
+                  "bodyCacheEvictions": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 25100288,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 0.7000000476837158,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 0.19999998807907104,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 0.699999988079071,
+                    "stages": {
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.8999999761581421,
+                    "stages": {}
+                  }
+                ],
+                "requestSentAt": 1790569108900.6,
+                "receivedAt": 1790569108901.2998,
+                "startedAt": 1790569108901.2998,
+                "requestTransferredBytes": 0,
+                "revision": 6,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569108904.2,
+                "requestDeliveryMs": 0.69970703125,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 2.900146484375,
+                "responseDeliveryMs": 2.900146484375
+              }
+            }
+          ],
+          "corePreparationMs": 4.5,
+          "persistenceMs": 6.199999988079071,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "undo",
+              "sentAt": 4180.399999976158,
+              "id": "f6f6cf86-ec36-4265-8086-20759b2e4f2a",
+              "repliedAt": 4193.399999976158,
+              "timing": {
+                "wasmMs": 1.399999976158142,
+                "parseMs": 0.3999999761581421
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 4218.899999976158,
+              "id": "fbf256fe-9548-451c-a46c-ef5512675d27",
+              "repliedAt": 4232.600000023842,
+              "timing": {
+                "wasmMs": 8.199999988079071,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 4232.399999976158,
+              "id": "7c91e48d-abf6-4d31-a116-3254806580ab",
+              "repliedAt": 4237,
+              "timing": {
+                "wasmMs": 0.5999999642372131,
+                "parseMs": 0.10000002384185791
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 4257.600000023842,
+              "durationMs": 114
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.100000023841858,
+            "uploadMs": 2.400000035762787,
+            "bodyPatchMs": 6.5
+          }
+        },
+        {
+          "actionStartAt": 5199.199999988079,
+          "actionEndAt": 5407.699999988079,
+          "paintMs": 173.80000001192093,
+          "cadRequests": [
+            {
+              "startAt": 5249.60009765625,
+              "durationMs": 3.699902355670929,
+              "detail": {
+                "id": "d9eefcb3-47a0-4964-8bbc-a135760723f2",
+                "kind": "preview",
+                "stages": {
+                  "regionMeshCopy": {
+                    "durationMs": 0,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.30000007152557373,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 17,
+                  "progressMessages": 3,
+                  "bodyCacheMisses": 4,
+                  "regionCacheHits": 8,
+                  "copiedMeshBytes": 902592,
+                  "bodyCacheEvictions": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 25100288,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 0.699999988079071,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 0.19999998807907104,
+                    "stages": {}
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 0.6000000238418579,
+                    "stages": {
+                      "wasmMeshCopy": 0.20000004768371582
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.09999996423721313,
+                    "stages": {}
+                  }
+                ],
+                "requestSentAt": 1790569109913.4001,
+                "receivedAt": 1790569109914,
+                "startedAt": 1790569109914,
+                "requestTransferredBytes": 0,
+                "revision": 8,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569109916,
+                "requestDeliveryMs": 0.599853515625,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 2,
+                "responseDeliveryMs": 1.10009765625
+              }
+            }
+          ],
+          "corePreparationMs": 3.399999976158142,
+          "persistenceMs": 6.099999964237213,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "undo",
+              "sentAt": 5199.300000011921,
+              "id": "49a03809-f63b-4793-827b-8d6bc74c7e2c",
+              "repliedAt": 5209.899999976158,
+              "timing": {
+                "wasmMs": 1.5,
+                "parseMs": 0.40000003576278687
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 5233.899999976158,
+              "id": "cd72d16f-5f9e-4976-84cc-4c0ad05c3f1b",
+              "repliedAt": 5246.399999976158,
+              "timing": {
+                "wasmMs": 8.699999988079071,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 5246.199999988079,
+              "id": "e6d49522-f4f9-457e-acb9-e3031f25a372",
+              "repliedAt": 5249.699999988079,
+              "timing": {
+                "wasmMs": 0.6000000238418579,
+                "parseMs": 0.09999996423721313
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 5393.600000023842,
+              "id": "0897303c-5c24-4d7f-9ff6-ceedc66ed8cd",
+              "repliedAt": 5404.100000023842,
+              "timing": {
+                "wasmMs": 9,
+                "parseMs": 0.30000001192092896
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 5275.100000023842,
+              "durationMs": 117
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.099999964237213,
+            "uploadMs": 1.2999999523162842,
+            "bodyPatchMs": 6.300000011920929
+          }
+        },
+        {
+          "actionStartAt": 6312.899999976158,
+          "actionEndAt": 6511.600000023842,
+          "paintMs": 166.4000000357628,
+          "cadRequests": [
+            {
+              "startAt": 6364.699951171875,
+              "durationMs": 3.200048804283142,
+              "detail": {
+                "id": "ec4afc3b-f49b-428f-9403-d840ee15f2c0",
+                "kind": "preview",
+                "stages": {
+                  "regionMeshCopy": {
+                    "durationMs": 0,
+                    "calls": 8
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.3999999761581421,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 17,
+                  "progressMessages": 3,
+                  "bodyCacheMisses": 4,
+                  "regionCacheHits": 8,
+                  "copiedMeshBytes": 902592,
+                  "bodyCacheEvictions": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 25100288,
+                  "end": 25100288,
+                  "peak": 25100288
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 0.6000000238418579,
+                    "stages": {}
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 0.19999998807907104,
+                    "stages": {
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "plate-foam",
+                    "name": "plate-foam",
+                    "durationMs": 0.5,
+                    "stages": {
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom-foam",
+                    "name": "bottom-foam",
+                    "durationMs": 0.09999996423721313,
+                    "stages": {
+                      "wasmMeshCopy": 0.09999996423721313
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569111028.5,
+                "receivedAt": 1790569111028.9,
+                "startedAt": 1790569111028.9,
+                "requestTransferredBytes": 0,
+                "revision": 10,
+                "transferredBytes": 451296,
+                "triangles": 6268,
+                "replySentAt": 1790569111030.5999,
+                "requestDeliveryMs": 0.39990234375,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 1.699951171875,
+                "responseDeliveryMs": 1.10009765625
+              }
+            }
+          ],
+          "corePreparationMs": 3.5,
+          "persistenceMs": 4.600000023841858,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "undo",
+              "sentAt": 6312.899999976158,
+              "id": "90b8dcbe-9ac1-4959-998c-70d31bc24821",
+              "repliedAt": 6326.800000011921,
+              "timing": {
+                "wasmMs": 1,
+                "parseMs": 0.5
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 6345.199999988079,
+              "id": "ef196c72-6906-41de-a626-64a78d4c13db",
+              "repliedAt": 6361.300000011921,
+              "timing": {
+                "wasmMs": 10.5,
+                "parseMs": 0.30000001192092896
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 6361.100000023842,
+              "id": "c08aa105-6adf-4018-9776-9c97f85f0557",
+              "repliedAt": 6364.800000011921,
+              "timing": {
+                "wasmMs": 1,
+                "parseMs": 0.30000001192092896
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 6495.800000011921,
+              "id": "dc5c4bc1-c219-4fc8-95bf-d6af89d67fe8",
+              "repliedAt": 6506.600000023842,
+              "timing": {
+                "wasmMs": 8.600000023841858,
+                "parseMs": 0.19999998807907104
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 6379.100000023842,
+              "durationMs": 114
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.300000011920929,
+            "uploadMs": 2.199999988079071,
+            "bodyPatchMs": 6.099999964237213
+          }
+        }
+      ]
+    },
+    "gaskets": {
+      "actionToWorkerReply": {
+        "samples": [
+          525.3000000119209,
+          506.5999999642372,
+          498.80000001192093,
+          510.69999998807907,
+          508
+        ],
+        "p50": 508,
+        "p95": 525.3000000119209
+      },
+      "releaseToPaint": {
+        "samples": [
+          666.8999999761581,
+          634.8000000119209,
+          625.6999999880791,
+          640.5,
+          640.5
+        ],
+        "p50": 640.5,
+        "p95": 666.8999999761581
+      },
+      "previewStartToPaint": {
+        "samples": [
+          628.5999999642372,
+          605,
+          594.8000000119209,
+          610.3000000119209,
+          607.5999999642372
+        ],
+        "p50": 607.5999999642372,
+        "p95": 628.5999999642372
+      },
+      "attribution": [
+        {
+          "actionStartAt": 3539,
+          "actionEndAt": 4205.899999976158,
+          "paintMs": 628.5999999642372,
+          "cadRequests": [
+            {
+              "startAt": 3710.5,
+              "durationMs": 353.5999999642372,
+              "detail": {
+                "id": "5ff2f587-cc41-40d0-bfaf-da637255a56d",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 83.90000003576279,
+                    "calls": 10
+                  },
+                  "tessellation": {
+                    "durationMs": 82.5,
+                    "calls": 6
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0.30000001192092896,
+                    "calls": 6
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 10
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.30000001192092896,
+                    "calls": 7
+                  },
+                  "bodyYield": {
+                    "durationMs": 0.3999999761581421,
+                    "calls": 3
+                  },
+                  "mountHoleCuts": {
+                    "durationMs": 45.3999999165535,
+                    "calls": 4
+                  },
+                  "stageSolidCopy": {
+                    "durationMs": 1.0999999642372131,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 8.300000071525574,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 123.89999997615814,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 132.20000004768372,
+                    "calls": 2
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 0,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 35,
+                  "progressMessages": 8,
+                  "bodyCacheMisses": 7,
+                  "regionCacheMisses": 10,
+                  "extrusions": 36,
+                  "tessellations": 6,
+                  "tessellatedTriangles": 5240,
+                  "copiedMeshBytes": 754560,
+                  "upstreamStageMisses": 2,
+                  "cylinders": 24,
+                  "booleanEvaluations": 6,
+                  "reducedOpeningProfiles": 2,
+                  "regionCacheEvictions": 1,
+                  "bodyCacheEvictions": 1,
+                  "exactPlanarMeshes": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 27983872,
+                  "end": 32899072,
+                  "peak": 32899072
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 121.40000003576279,
+                    "stages": {
+                      "baseExtrusion": 74.70000004768372,
+                      "tessellation": 43.89999997615814,
+                      "meshExpansion": 0.10000002384185791,
+                      "regionMeshCopy": 0.10000002384185791,
+                      "wasmMeshCopy": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 193.4000000357628,
+                    "stages": {
+                      "baseExtrusion": 3.399999976158142,
+                      "tessellation": 27.100000023841858,
+                      "meshExpansion": 0.19999998807907104,
+                      "mountHoleCuts": 27.899999976158142,
+                      "stageSolidCopy": 1.0999999642372131,
+                      "openingPrisms": 8.300000071525574,
+                      "openingBoolean": 123.89999997615814,
+                      "openingCuts": 132.20000004768372
+                    }
+                  },
+                  {
+                    "id": "retainer",
+                    "name": "retainer",
+                    "durationMs": 35,
+                    "stages": {
+                      "baseExtrusion": 4.900000035762787,
+                      "tessellation": 11.5,
+                      "wasmMeshCopy": 0.10000002384185791,
+                      "mountHoleCuts": 17.499999940395355
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:lower",
+                    "name": "gasket left 0 lower",
+                    "durationMs": 0.40000003576278687,
+                    "stages": {
+                      "baseExtrusion": 0.30000001192092896
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:upper",
+                    "name": "gasket left 0 upper",
+                    "durationMs": 0.3999999761581421,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:lower",
+                    "name": "gasket right 0 lower",
+                    "durationMs": 0.19999998807907104,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:upper",
+                    "name": "gasket right 0 upper",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569116294.1,
+                "receivedAt": 1790569116295.2,
+                "startedAt": 1790569116295.2,
+                "requestTransferredBytes": 0,
+                "revision": 1,
+                "transferredBytes": 377280,
+                "triangles": 5240,
+                "replySentAt": 1790569116647.4,
+                "requestDeliveryMs": 1.099853515625,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 352.199951171875,
+                "responseDeliveryMs": 0.30029296875
+              }
+            }
+          ],
+          "corePreparationMs": 6.300000011920929,
+          "persistenceMs": 4.399999976158142,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 3542.5,
+              "id": "b763f61d-3212-4df8-b0d1-d7944dbfe53a",
+              "repliedAt": 3556.300000011921,
+              "timing": {
+                "wasmMs": 4.899999976158142,
+                "parseMs": 0.10000002384185791
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 3577.300000011921,
+              "id": "a6eace43-7692-463b-a8f2-2854b628a92c",
+              "repliedAt": 3704.5,
+              "timing": {
+                "wasmMs": 12.900000035762787,
+                "parseMs": 0.699999988079071
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 3704.300000011921,
+              "id": "84b623c9-9734-4e93-8820-c50ca590411c",
+              "repliedAt": 3710.699999988079,
+              "timing": {
+                "wasmMs": 1.5,
+                "parseMs": 0.19999998807907104
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 3587.5,
+              "durationMs": 116
+            },
+            {
+              "startAt": 3721.699999988079,
+              "durationMs": 126
+            },
+            {
+              "startAt": 3870.699999988079,
+              "durationMs": 125
+            },
+            {
+              "startAt": 4088,
+              "durationMs": 116
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.300000011920929,
+            "uploadMs": 1.399999976158142,
+            "bodyPatchMs": 14.600000023841858
+          }
+        },
+        {
+          "actionStartAt": 5866,
+          "actionEndAt": 6500.800000011921,
+          "paintMs": 605,
+          "cadRequests": [
+            {
+              "startAt": 6024.800048828125,
+              "durationMs": 347.49995118379593,
+              "detail": {
+                "id": "bc160c94-007f-4de0-9a9b-cfff570f822f",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 80.80000007152557,
+                    "calls": 10
+                  },
+                  "tessellation": {
+                    "durationMs": 79,
+                    "calls": 6
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0.10000002384185791,
+                    "calls": 6
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.19999998807907104,
+                    "calls": 10
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.30000001192092896,
+                    "calls": 7
+                  },
+                  "bodyYield": {
+                    "durationMs": 3.600000023841858,
+                    "calls": 3
+                  },
+                  "mountHoleCuts": {
+                    "durationMs": 43.19999986886978,
+                    "calls": 4
+                  },
+                  "stageSolidCopy": {
+                    "durationMs": 1.1000000834465027,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 7.799999952316284,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 123.50000005960464,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 131.49999994039536,
+                    "calls": 2
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 0,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 35,
+                  "progressMessages": 8,
+                  "bodyCacheMisses": 7,
+                  "regionCacheMisses": 10,
+                  "extrusions": 36,
+                  "tessellations": 6,
+                  "tessellatedTriangles": 5240,
+                  "regionCacheEvictions": 3,
+                  "copiedMeshBytes": 754560,
+                  "bodyCacheEvictions": 1,
+                  "upstreamStageMisses": 2,
+                  "cylinders": 24,
+                  "booleanEvaluations": 6,
+                  "reducedOpeningProfiles": 2,
+                  "exactPlanarMeshes": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 38010880,
+                  "end": 38010880,
+                  "peak": 38010880
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 119.30000001192093,
+                    "stages": {
+                      "baseExtrusion": 71.40000003576279,
+                      "tessellation": 43.80000001192093,
+                      "regionMeshCopy": 0.19999998807907104,
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 188,
+                    "stages": {
+                      "baseExtrusion": 3.5000000596046448,
+                      "tessellation": 24.600000023841858,
+                      "wasmMeshCopy": 0.09999996423721313,
+                      "mountHoleCuts": 26.09999990463257,
+                      "stageSolidCopy": 1.1000000834465027,
+                      "openingPrisms": 7.799999952316284,
+                      "openingBoolean": 123.50000005960464,
+                      "openingCuts": 131.49999994039536
+                    }
+                  },
+                  {
+                    "id": "retainer",
+                    "name": "retainer",
+                    "durationMs": 33.80000001192093,
+                    "stages": {
+                      "baseExtrusion": 5.200000047683716,
+                      "tessellation": 10.599999964237213,
+                      "meshExpansion": 0.10000002384185791,
+                      "mountHoleCuts": 17.099999964237213
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:lower",
+                    "name": "gasket left 0 lower",
+                    "durationMs": 0.2999999523162842,
+                    "stages": {
+                      "baseExtrusion": 0.2999999523162842
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:upper",
+                    "name": "gasket left 0 upper",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "baseExtrusion": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:lower",
+                    "name": "gasket right 0 lower",
+                    "durationMs": 0.40000003576278687,
+                    "stages": {
+                      "baseExtrusion": 0.09999996423721313,
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:upper",
+                    "name": "gasket right 0 upper",
+                    "durationMs": 0.2999999523162842,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569118608.4001,
+                "receivedAt": 1790569118609.5,
+                "startedAt": 1790569118609.5,
+                "requestTransferredBytes": 0,
+                "revision": 2,
+                "transferredBytes": 377280,
+                "triangles": 5240,
+                "replySentAt": 1790569118955.7,
+                "requestDeliveryMs": 1.099853515625,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 346.199951171875,
+                "responseDeliveryMs": 0.2001953125
+              }
+            }
+          ],
+          "corePreparationMs": 6.199999988079071,
+          "persistenceMs": 5.699999988079071,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 5870.199999988079,
+              "id": "ac1cdfc7-b1ef-46dc-bb7f-75d937005693",
+              "repliedAt": 5874.199999988079,
+              "timing": {
+                "wasmMs": 1.199999988079071,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 5895.899999976158,
+              "id": "1c1484c7-76a7-4643-9132-2c5f1fd283e1",
+              "repliedAt": 6018.899999976158,
+              "timing": {
+                "wasmMs": 14.5,
+                "parseMs": 0.5
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 6018.5,
+              "id": "70c360e1-acaf-429e-8726-9c67cc5eb419",
+              "repliedAt": 6025.099999964237,
+              "timing": {
+                "wasmMs": 0.800000011920929,
+                "parseMs": 0.19999998807907104
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 5904.199999988079,
+              "durationMs": 113
+            },
+            {
+              "startAt": 6037.300000011921,
+              "durationMs": 123
+            },
+            {
+              "startAt": 6187.300000011921,
+              "durationMs": 119
+            },
+            {
+              "startAt": 6387.300000011921,
+              "durationMs": 111
+            },
+            {
+              "startAt": 6500.599999964237,
+              "durationMs": 113
+            }
+          ],
+          "renderer": {
+            "prepareMs": 2.800000011920929,
+            "uploadMs": 1.9000000357627869,
+            "bodyPatchMs": 5.600000023841858
+          }
+        },
+        {
+          "actionStartAt": 8281,
+          "actionEndAt": 8906.699999988079,
+          "paintMs": 594.8000000119209,
+          "cadRequests": [
+            {
+              "startAt": 8441.89990234375,
+              "durationMs": 337.7000976204872,
+              "detail": {
+                "id": "17078c7e-172c-4459-95b1-2b353f173974",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 81.70000004768372,
+                    "calls": 10
+                  },
+                  "tessellation": {
+                    "durationMs": 76.39999997615814,
+                    "calls": 6
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0.19999992847442627,
+                    "calls": 6
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.30000001192092896,
+                    "calls": 10
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.19999998807907104,
+                    "calls": 7
+                  },
+                  "bodyYield": {
+                    "durationMs": 0.7000000476837158,
+                    "calls": 3
+                  },
+                  "mountHoleCuts": {
+                    "durationMs": 43.5,
+                    "calls": 4
+                  },
+                  "stageSolidCopy": {
+                    "durationMs": 1,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 8,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 116.80000001192093,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 125,
+                    "calls": 2
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 0,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 35,
+                  "progressMessages": 8,
+                  "bodyCacheMisses": 7,
+                  "regionCacheMisses": 10,
+                  "extrusions": 36,
+                  "tessellations": 6,
+                  "tessellatedTriangles": 5240,
+                  "regionCacheEvictions": 30,
+                  "copiedMeshBytes": 754560,
+                  "bodyCacheEvictions": 27,
+                  "upstreamStageMisses": 2,
+                  "cylinders": 24,
+                  "booleanEvaluations": 6,
+                  "reducedOpeningProfiles": 2,
+                  "exactPlanarMeshes": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 38010880,
+                  "end": 38273024,
+                  "peak": 38273024
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 118.5,
+                    "stages": {
+                      "baseExtrusion": 73.20000004768372,
+                      "tessellation": 41.69999998807907,
+                      "regionMeshCopy": 0.19999998807907104,
+                      "wasmMeshCopy": 0.09999996423721313
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 182.0999999642372,
+                    "stages": {
+                      "baseExtrusion": 3.299999952316284,
+                      "tessellation": 24.30000001192093,
+                      "meshExpansion": 0.09999996423721313,
+                      "regionMeshCopy": 0.10000002384185791,
+                      "mountHoleCuts": 26.5,
+                      "stageSolidCopy": 1,
+                      "openingPrisms": 8,
+                      "openingBoolean": 116.80000001192093,
+                      "openingCuts": 125
+                    }
+                  },
+                  {
+                    "id": "retainer",
+                    "name": "retainer",
+                    "durationMs": 32.69999998807907,
+                    "stages": {
+                      "baseExtrusion": 4.599999964237213,
+                      "tessellation": 10.399999976158142,
+                      "meshExpansion": 0.09999996423721313,
+                      "wasmMeshCopy": 0.10000002384185791,
+                      "mountHoleCuts": 17
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:lower",
+                    "name": "gasket left 0 lower",
+                    "durationMs": 0.8999999761581421,
+                    "stages": {
+                      "baseExtrusion": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:upper",
+                    "name": "gasket left 0 upper",
+                    "durationMs": 0.20000004768371582,
+                    "stages": {
+                      "baseExtrusion": 0.20000004768371582
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:lower",
+                    "name": "gasket right 0 lower",
+                    "durationMs": 0.2999999523162842,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:upper",
+                    "name": "gasket right 0 upper",
+                    "durationMs": 0.20000004768371582,
+                    "stages": {
+                      "baseExtrusion": 0.10000002384185791
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569121025.5,
+                "receivedAt": 1790569121026.7,
+                "startedAt": 1790569121026.7,
+                "requestTransferredBytes": 0,
+                "revision": 3,
+                "transferredBytes": 377280,
+                "triangles": 5240,
+                "replySentAt": 1790569121363,
+                "requestDeliveryMs": 1.199951171875,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 336.300048828125,
+                "responseDeliveryMs": 0.2001953125
+              }
+            }
+          ],
+          "corePreparationMs": 6.100000023841858,
+          "persistenceMs": 4.599999964237213,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 8284.300000011921,
+              "id": "8d665526-466e-4979-a2e7-82e4ca5b4e4b",
+              "repliedAt": 8291.800000011921,
+              "timing": {
+                "wasmMs": 0.8999999761581421,
+                "parseMs": 0.20000004768371582
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 8312,
+              "id": "1cabb657-ecb2-4e61-81d7-a138dc8d0387",
+              "repliedAt": 8436,
+              "timing": {
+                "wasmMs": 13.900000035762787,
+                "parseMs": 0.5
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 8435.699999988079,
+              "id": "ff08cd3c-0a04-4e7e-9c65-8b9f91609ca8",
+              "repliedAt": 8442.099999964237,
+              "timing": {
+                "wasmMs": 0.800000011920929,
+                "parseMs": 0.19999998807907104
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 8320.599999964237,
+              "durationMs": 114
+            },
+            {
+              "startAt": 8453.800000011921,
+              "durationMs": 124
+            },
+            {
+              "startAt": 8603.800000011921,
+              "durationMs": 119
+            },
+            {
+              "startAt": 8791.800000011921,
+              "durationMs": 111
+            },
+            {
+              "startAt": 8905.800000011921,
+              "durationMs": 117
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3,
+            "uploadMs": 1.899999976158142,
+            "bodyPatchMs": 5.799999952316284
+          }
+        },
+        {
+          "actionStartAt": 10679.199999988079,
+          "actionEndAt": 11319.699999988079,
+          "paintMs": 610.3000000119209,
+          "cadRequests": [
+            {
+              "startAt": 10846.699951171875,
+              "durationMs": 343.10004884004593,
+              "detail": {
+                "id": "787bb0c1-d802-4351-ad51-3bf8d8521249",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 84.30000013113022,
+                    "calls": 10
+                  },
+                  "tessellation": {
+                    "durationMs": 77.59999996423721,
+                    "calls": 6
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0,
+                    "calls": 6
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.19999992847442627,
+                    "calls": 10
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.09999996423721313,
+                    "calls": 7
+                  },
+                  "bodyYield": {
+                    "durationMs": 0.30000001192092896,
+                    "calls": 3
+                  },
+                  "mountHoleCuts": {
+                    "durationMs": 41.89999997615814,
+                    "calls": 4
+                  },
+                  "stageSolidCopy": {
+                    "durationMs": 0.9999999403953552,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 8.300000011920929,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 118.89999997615814,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 127.40000003576279,
+                    "calls": 2
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 0,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 35,
+                  "progressMessages": 8,
+                  "bodyCacheMisses": 7,
+                  "regionCacheMisses": 10,
+                  "extrusions": 36,
+                  "tessellations": 6,
+                  "tessellatedTriangles": 5240,
+                  "regionCacheEvictions": 10,
+                  "copiedMeshBytes": 754560,
+                  "bodyCacheEvictions": 7,
+                  "upstreamStageMisses": 2,
+                  "cylinders": 24,
+                  "booleanEvaluations": 6,
+                  "reducedOpeningProfiles": 2,
+                  "exactPlanarMeshes": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 40960000,
+                  "end": 40960000,
+                  "peak": 40960000
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 121.40000003576279,
+                    "stages": {
+                      "baseExtrusion": 75.1000000834465,
+                      "tessellation": 41.69999998807907,
+                      "wasmMeshCopy": 0.09999996423721313
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 182.39999997615814,
+                    "stages": {
+                      "baseExtrusion": 3.400000035762787,
+                      "tessellation": 24.30000001192093,
+                      "regionMeshCopy": 0.09999996423721313,
+                      "mountHoleCuts": 24.19999998807907,
+                      "stageSolidCopy": 0.9999999403953552,
+                      "openingPrisms": 8.300000011920929,
+                      "openingBoolean": 118.89999997615814,
+                      "openingCuts": 127.40000003576279
+                    }
+                  },
+                  {
+                    "id": "retainer",
+                    "name": "retainer",
+                    "durationMs": 35,
+                    "stages": {
+                      "baseExtrusion": 4.899999976158142,
+                      "tessellation": 11.599999964237213,
+                      "regionMeshCopy": 0.09999996423721313,
+                      "mountHoleCuts": 17.69999998807907
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:lower",
+                    "name": "gasket left 0 lower",
+                    "durationMs": 0.800000011920929,
+                    "stages": {
+                      "baseExtrusion": 0.30000001192092896
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:upper",
+                    "name": "gasket left 0 upper",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "baseExtrusion": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:lower",
+                    "name": "gasket right 0 lower",
+                    "durationMs": 0.3999999761581421,
+                    "stages": {
+                      "baseExtrusion": 0.30000001192092896
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:upper",
+                    "name": "gasket right 0 upper",
+                    "durationMs": 0.19999998807907104,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569123430.3,
+                "receivedAt": 1790569123431.6,
+                "startedAt": 1790569123431.6,
+                "requestTransferredBytes": 0,
+                "revision": 4,
+                "transferredBytes": 377280,
+                "triangles": 5240,
+                "replySentAt": 1790569123773.1,
+                "requestDeliveryMs": 1.300048828125,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 341.5,
+                "responseDeliveryMs": 0.300048828125
+              }
+            }
+          ],
+          "corePreparationMs": 6.199999988079071,
+          "persistenceMs": 6.199999988079071,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 10683.699999988079,
+              "id": "0461fdae-f6e7-4542-a94f-9c9904e04fe6",
+              "repliedAt": 10689.599999964237,
+              "timing": {
+                "wasmMs": 1,
+                "parseMs": 0.10000002384185791
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 10709.399999976158,
+              "id": "7764b503-bd02-4ad1-90bc-1077100c51cb",
+              "repliedAt": 10840.699999988079,
+              "timing": {
+                "wasmMs": 13.399999976158142,
+                "parseMs": 0.5
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 10840.399999976158,
+              "id": "4d8b8480-3f12-4c05-a8e6-26842f5557b6",
+              "repliedAt": 10846.899999976158,
+              "timing": {
+                "wasmMs": 0.9000000357627869,
+                "parseMs": 0.19999998807907104
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 10720.5,
+              "durationMs": 119
+            },
+            {
+              "startAt": 10855.399999976158,
+              "durationMs": 123
+            },
+            {
+              "startAt": 11003.899999976158,
+              "durationMs": 117
+            },
+            {
+              "startAt": 11203.899999976158,
+              "durationMs": 113
+            },
+            {
+              "startAt": 11319.399999976158,
+              "durationMs": 115
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3,
+            "uploadMs": 1.699999988079071,
+            "bodyPatchMs": 5.799999952316284
+          }
+        },
+        {
+          "actionStartAt": 13115.099999964237,
+          "actionEndAt": 13755.599999964237,
+          "paintMs": 607.5999999642372,
+          "cadRequests": [
+            {
+              "startAt": 13279.89990234375,
+              "durationMs": 343.10009765625,
+              "detail": {
+                "id": "d02b51e8-2345-4315-b923-8a64f0f1a235",
+                "kind": "preview",
+                "stages": {
+                  "baseExtrusion": {
+                    "durationMs": 85.80000001192093,
+                    "calls": 10
+                  },
+                  "tessellation": {
+                    "durationMs": 76.30000007152557,
+                    "calls": 6
+                  },
+                  "meshExpansion": {
+                    "durationMs": 0.19999998807907104,
+                    "calls": 6
+                  },
+                  "regionMeshCopy": {
+                    "durationMs": 0.19999998807907104,
+                    "calls": 10
+                  },
+                  "wasmMeshCopy": {
+                    "durationMs": 0.30000001192092896,
+                    "calls": 7
+                  },
+                  "bodyYield": {
+                    "durationMs": 0.09999996423721313,
+                    "calls": 3
+                  },
+                  "mountHoleCuts": {
+                    "durationMs": 41.09999996423721,
+                    "calls": 4
+                  },
+                  "stageSolidCopy": {
+                    "durationMs": 1.2000000476837158,
+                    "calls": 2
+                  },
+                  "openingPrisms": {
+                    "durationMs": 7.899999976158142,
+                    "calls": 2
+                  },
+                  "openingBoolean": {
+                    "durationMs": 120.40000003576279,
+                    "calls": 2
+                  },
+                  "openingCuts": {
+                    "durationMs": 128.49999994039536,
+                    "calls": 2
+                  },
+                  "planarPlateMesh": {
+                    "durationMs": 0,
+                    "calls": 4
+                  }
+                },
+                "counters": {
+                  "progressEvents": 35,
+                  "progressMessages": 8,
+                  "bodyCacheMisses": 7,
+                  "regionCacheMisses": 10,
+                  "extrusions": 36,
+                  "tessellations": 6,
+                  "tessellatedTriangles": 5240,
+                  "regionCacheEvictions": 10,
+                  "copiedMeshBytes": 754560,
+                  "bodyCacheEvictions": 7,
+                  "upstreamStageMisses": 2,
+                  "cylinders": 24,
+                  "booleanEvaluations": 6,
+                  "reducedOpeningProfiles": 2,
+                  "exactPlanarMeshes": 4
+                },
+                "wasmAllocatedBytes": {
+                  "start": 40960000,
+                  "end": 41222144,
+                  "peak": 41222144
+                },
+                "bodies": [
+                  {
+                    "id": "plate",
+                    "name": "plate",
+                    "durationMs": 121.60000002384186,
+                    "stages": {
+                      "baseExtrusion": 76.49999994039536,
+                      "tessellation": 41.09999996423721,
+                      "regionMeshCopy": 0.09999996423721313,
+                      "wasmMeshCopy": 0.10000002384185791
+                    }
+                  },
+                  {
+                    "id": "bottom",
+                    "name": "bottom",
+                    "durationMs": 184.60000002384186,
+                    "stages": {
+                      "baseExtrusion": 3.600000023841858,
+                      "tessellation": 24.600000023841858,
+                      "meshExpansion": 0.19999998807907104,
+                      "regionMeshCopy": 0.10000002384185791,
+                      "wasmMeshCopy": 0.10000002384185791,
+                      "mountHoleCuts": 24.100000023841858,
+                      "stageSolidCopy": 1.2000000476837158,
+                      "openingPrisms": 7.899999976158142,
+                      "openingBoolean": 120.40000003576279,
+                      "openingCuts": 128.49999994039536
+                    }
+                  },
+                  {
+                    "id": "retainer",
+                    "name": "retainer",
+                    "durationMs": 33,
+                    "stages": {
+                      "baseExtrusion": 4.800000011920929,
+                      "tessellation": 10.600000083446503,
+                      "wasmMeshCopy": 0.09999996423721313,
+                      "mountHoleCuts": 16.999999940395355
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:lower",
+                    "name": "gasket left 0 lower",
+                    "durationMs": 1,
+                    "stages": {
+                      "baseExtrusion": 0.30000001192092896
+                    }
+                  },
+                  {
+                    "id": "gasket:left:0:upper",
+                    "name": "gasket left 0 upper",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:lower",
+                    "name": "gasket right 0 lower",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "baseExtrusion": 0.19999998807907104
+                    }
+                  },
+                  {
+                    "id": "gasket:right:0:upper",
+                    "name": "gasket right 0 upper",
+                    "durationMs": 0.30000001192092896,
+                    "stages": {
+                      "baseExtrusion": 0.20000004768371582
+                    }
+                  }
+                ],
+                "requestSentAt": 1790569125863.5,
+                "receivedAt": 1790569125864.8,
+                "startedAt": 1790569125864.8,
+                "requestTransferredBytes": 0,
+                "revision": 5,
+                "transferredBytes": 377280,
+                "triangles": 5240,
+                "replySentAt": 1790569126206.4,
+                "requestDeliveryMs": 1.300048828125,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 341.599853515625,
+                "responseDeliveryMs": 0.2001953125
+              }
+            }
+          ],
+          "corePreparationMs": 8.199999988079071,
+          "persistenceMs": 5,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 13118.300000011921,
+              "id": "e205b084-5f50-48f5-a2a1-b2c6db29c8c2",
+              "repliedAt": 13128.300000011921,
+              "timing": {
+                "wasmMs": 0.9000000357627869,
+                "parseMs": 0.09999996423721313
+              }
+            },
+            {
+              "kind": "resolve-mechanical",
+              "sentAt": 13148,
+              "id": "bee48269-619c-4a35-821c-3c16a8fe58b9",
+              "repliedAt": 13272.099999964237,
+              "timing": {
+                "wasmMs": 16.69999998807907,
+                "parseMs": 0.5
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 13271.699999988079,
+              "id": "d13589ca-8c73-49f0-9928-1b3aff775e6f",
+              "repliedAt": 13280.199999988079,
+              "timing": {
+                "wasmMs": 0.9000000357627869,
+                "parseMs": 0.19999998807907104
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 13154.699999988079,
+              "durationMs": 116
+            },
+            {
+              "startAt": 13287.5,
+              "durationMs": 124
+            },
+            {
+              "startAt": 13438.5,
+              "durationMs": 120
+            },
+            {
+              "startAt": 13637.800000011921,
+              "durationMs": 115
+            },
+            {
+              "startAt": 13755.300000011921,
+              "durationMs": 117
+            }
+          ],
+          "renderer": {
+            "prepareMs": 3.100000023841858,
+            "uploadMs": 2,
+            "bodyPatchMs": 6
+          }
+        }
+      ]
+    },
+    "mounts": {
+      "actionToWorkerReply": {
+        "samples": [
+          27.400000035762787,
+          24.600000023841858
+        ],
+        "p50": 27.400000035762787,
+        "p95": 27.400000035762787
+      },
+      "releaseToPaint": {
+        "samples": [
+          142.80000001192093,
+          148.5,
+          154.5,
+          156.69999998807907,
+          156.69999998807907
+        ],
+        "p50": 154.5,
+        "p95": 156.69999998807907
+      },
+      "previewStartToPaint": {
+        "samples": [
+          121.30000001192093,
+          128.39999997615814,
+          34.60000002384186,
+          34.10000002384186,
+          36
+        ],
+        "p50": 36,
+        "p95": 128.39999997615814
+      },
+      "attribution": [
+        {
+          "actionStartAt": 3725.699999988079,
+          "actionEndAt": 3868.5,
+          "paintMs": 121.30000001192093,
+          "cadRequests": [
+            {
+              "startAt": 3751.699951171875,
+              "durationMs": 1.400048851966858,
+              "detail": {
+                "id": "c2376a73-d2ee-4f36-8cea-029804408b84",
+                "kind": "preview",
+                "stages": {},
+                "counters": {},
+                "wasmAllocatedBytes": {
+                  "start": null,
+                  "end": null,
+                  "peak": null
+                },
+                "requestSentAt": 1790569130624.8,
+                "receivedAt": 1790569130625.2,
+                "startedAt": 1790569130625.2,
+                "requestTransferredBytes": 0,
+                "revision": 1,
+                "transferredBytes": 0,
+                "triangles": 0,
+                "replySentAt": 1790569130625.2,
+                "requestDeliveryMs": 0.39990234375,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 0,
+                "responseDeliveryMs": 1.000244140625
+              }
+            }
+          ],
+          "corePreparationMs": 4.300000011920929,
+          "persistenceMs": 2.300000011920929,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 3727.899999976158,
+              "id": "7ff2c6e4-f1bc-4203-9340-51d9b5047def",
+              "repliedAt": 3734.399999976158,
+              "timing": {
+                "wasmMs": 5.600000023841858,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 3747.199999988079,
+              "id": "62d793aa-94a7-48cf-8e6b-e3bd6d39a632",
+              "repliedAt": 3751.800000011921,
+              "timing": {
+                "wasmMs": 0,
+                "parseMs": 0
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 3763.800000011921,
+              "durationMs": 103
+            }
+          ],
+          "renderer": {
+            "prepareMs": 0.5,
+            "uploadMs": 0.19999998807907104,
+            "bodyPatchMs": 4.300000011920929
+          }
+        },
+        {
+          "actionStartAt": 5289.699999988079,
+          "actionEndAt": 5438.199999988079,
+          "paintMs": 128.39999997615814,
+          "cadRequests": [
+            {
+              "startAt": 5313.300048828125,
+              "durationMs": 0.899951159954071,
+              "detail": {
+                "id": "ed657ba0-12b3-4335-ac99-f9334ba3afff",
+                "kind": "preview",
+                "stages": {},
+                "counters": {},
+                "wasmAllocatedBytes": {
+                  "start": null,
+                  "end": null,
+                  "peak": null
+                },
+                "requestSentAt": 1790569132186.4001,
+                "receivedAt": 1790569132186.7,
+                "startedAt": 1790569132186.7,
+                "requestTransferredBytes": 0,
+                "revision": 2,
+                "transferredBytes": 0,
+                "triangles": 0,
+                "replySentAt": 1790569132186.7,
+                "requestDeliveryMs": 0.2998046875,
+                "workerQueueMs": 0,
+                "workerExecutionMs": 0,
+                "responseDeliveryMs": 0.60009765625
+              }
+            }
+          ],
+          "corePreparationMs": 3.300000011920929,
+          "persistenceMs": 1.899999976158142,
+          "exactDraftReused": false,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 5291.199999988079,
+              "id": "0abbcc30-b8f6-486d-8450-9478ef8e8fd6",
+              "repliedAt": 5298.399999976158,
+              "timing": {
+                "wasmMs": 1.0999999642372131,
+                "parseMs": 0.40000003576278687
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 5309.899999976158,
+              "id": "30b08c0b-91d4-4250-8a2b-ecf215498681",
+              "repliedAt": 5313.300000011921,
+              "timing": {
+                "wasmMs": 0.10000002384185791,
+                "parseMs": 0.09999996423721313
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 5330.399999976158,
+              "durationMs": 106
+            }
+          ],
+          "renderer": {
+            "prepareMs": 0.40000003576278687,
+            "uploadMs": 0.10000002384185791,
+            "bodyPatchMs": 0.9000000357627869
+          }
+        },
+        {
+          "actionStartAt": 6859.5,
+          "actionEndAt": 7014,
+          "paintMs": 34.60000002384186,
+          "cadRequests": [],
+          "corePreparationMs": 4.200000047683716,
+          "persistenceMs": 3.199999988079071,
+          "exactDraftReused": true,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 6860.699999988079,
+              "id": "f0b12018-3524-4eda-bcea-3bfa20501083",
+              "repliedAt": 6966.300000011921,
+              "timing": {
+                "wasmMs": 1.399999976158142,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 6979.399999976158,
+              "id": "6f3ad858-b981-444a-92a6-88adde1ff9eb",
+              "repliedAt": 6983.699999988079,
+              "timing": {
+                "wasmMs": 0,
+                "parseMs": 0
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 6863.600000023842,
+              "durationMs": 102
+            }
+          ],
+          "renderer": {
+            "prepareMs": 0,
+            "uploadMs": 0,
+            "bodyPatchMs": 0
+          }
+        },
+        {
+          "actionStartAt": 8507.300000011921,
+          "actionEndAt": 8664,
+          "paintMs": 34.10000002384186,
+          "cadRequests": [],
+          "corePreparationMs": 4.300000011920929,
+          "persistenceMs": 3.300000011920929,
+          "exactDraftReused": true,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 8508.5,
+              "id": "dacf88f5-4c0b-4444-9827-33ae4cd3ed9d",
+              "repliedAt": 8616.600000023842,
+              "timing": {
+                "wasmMs": 1.300000011920929,
+                "parseMs": 0.09999996423721313
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 8629.899999976158,
+              "id": "ce9b190a-8b18-49b4-9898-b7ac262d642f",
+              "repliedAt": 8634.300000011921,
+              "timing": {
+                "wasmMs": 0.19999998807907104,
+                "parseMs": 0.09999996423721313
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 8513.600000023842,
+              "durationMs": 102
+            }
+          ],
+          "renderer": {
+            "prepareMs": 0,
+            "uploadMs": 0,
+            "bodyPatchMs": 0
+          }
+        },
+        {
+          "actionStartAt": 10274,
+          "actionEndAt": 10430.699999988079,
+          "paintMs": 36,
+          "cadRequests": [],
+          "corePreparationMs": 3.300000011920929,
+          "persistenceMs": 2.800000011920929,
+          "exactDraftReused": true,
+          "coreRequests": [
+            {
+              "kind": "edit",
+              "sentAt": 10275,
+              "id": "2bf481b4-88e7-420b-8640-2bcd92f75a73",
+              "repliedAt": 10382.300000011921,
+              "timing": {
+                "wasmMs": 1.199999988079071,
+                "parseMs": 0.19999998807907104
+              }
+            },
+            {
+              "kind": "prepare-case",
+              "sentAt": 10394.800000011921,
+              "id": "b00fd8cf-b2b9-4bbb-b4cc-cbc23e00b163",
+              "repliedAt": 10398.100000023842,
+              "timing": {
+                "wasmMs": 0.09999996423721313,
+                "parseMs": 0
+              }
+            }
+          ],
+          "longTasks": [
+            {
+              "startAt": 10280.199999988079,
+              "durationMs": 101
+            }
+          ],
+          "renderer": {
+            "prepareMs": 0,
+            "uploadMs": 0,
+            "bodyPatchMs": 0
+          }
+        }
+      ]
+    }
+  },
+  "pointerWork": {
+    "samples": [
+      0.699999988079071,
+      0.40000003576278687,
+      0.40000003576278687,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.20000004768371582,
+      0.20000004768371582,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.10000002384185791,
+      0.5999999642372131,
+      0.2999999523162842,
+      0.19999998807907104,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.09999996423721313,
+      0.19999998807907104,
+      0.09999996423721313,
+      0.19999998807907104,
+      0.09999996423721313,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.10000002384185791,
+      0,
+      0.3999999761581421,
+      0.30000001192092896,
+      0.09999996423721313,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.6000000238418579,
+      0.09999996423721313,
+      0.19999998807907104,
+      0.3999999761581421,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.09999996423721313,
+      0.10000002384185791,
+      0.19999998807907104,
+      0.20000004768371582,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.5999999642372131,
+      0.2999999523162842,
+      0.30000001192092896,
+      0.30000001192092896,
+      0.30000001192092896,
+      0.19999998807907104
+    ],
+    "p50": 0.19999998807907104,
+    "p95": 0.5999999642372131
+  },
+  "pointerDraw": {
+    "samples": [
+      4.100000023841858,
+      2.400000035762787,
+      1.899999976158142,
+      1.5,
+      1.2999999523162842,
+      1.100000023841858,
+      1.399999976158142,
+      1.199999988079071,
+      1,
+      1.600000023841858,
+      1.0999999642372131,
+      1.0999999642372131,
+      2.5,
+      1.199999988079071,
+      1.300000011920929,
+      2.300000011920929,
+      1.300000011920929,
+      1.199999988079071,
+      1.5999999642372131,
+      1,
+      1.199999988079071,
+      1.199999988079071,
+      1.399999976158142,
+      1.100000023841858,
+      2.300000011920929,
+      1.5999999642372131,
+      1.199999988079071,
+      1.399999976158142,
+      2.099999964237213,
+      1.899999976158142,
+      1.199999988079071,
+      1.699999988079071,
+      1,
+      1.300000011920929,
+      1.199999988079071,
+      2,
+      3,
+      1.300000011920929,
+      1.600000023841858,
+      1.7000000476837158,
+      1.5,
+      1.100000023841858,
+      1.199999988079071,
+      1.800000011920929,
+      1.699999988079071,
+      1.0999999642372131,
+      1.5999999642372131,
+      1.100000023841858,
+      1.699999988079071,
+      1.899999976158142,
+      1.699999988079071,
+      1.300000011920929,
+      1.5,
+      1.5,
+      1.600000023841858,
+      2.099999964237213,
+      2,
+      1.9000000357627869,
+      1.899999976158142,
+      1.7999999523162842
+    ],
+    "p50": 1.5,
+    "p95": 2.400000035762787
+  },
+  "renderer": {
+    "pointerWork": [
+      0.699999988079071,
+      0.40000003576278687,
+      0.40000003576278687,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.20000004768371582,
+      0.20000004768371582,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.10000002384185791,
+      0.5999999642372131,
+      0.2999999523162842,
+      0.19999998807907104,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.09999996423721313,
+      0.19999998807907104,
+      0.09999996423721313,
+      0.19999998807907104,
+      0.09999996423721313,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.10000002384185791,
+      0,
+      0.3999999761581421,
+      0.30000001192092896,
+      0.09999996423721313,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.6000000238418579,
+      0.09999996423721313,
+      0.19999998807907104,
+      0.3999999761581421,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.19999998807907104,
+      0.09999996423721313,
+      0.10000002384185791,
+      0.19999998807907104,
+      0.20000004768371582,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.30000001192092896,
+      0.10000002384185791,
+      0.30000001192092896,
+      0.19999998807907104,
+      0.5999999642372131,
+      0.2999999523162842,
+      0.30000001192092896,
+      0.30000001192092896,
+      0.30000001192092896,
+      0.19999998807907104
+    ],
+    "pointerDraw": [
+      4.100000023841858,
+      2.400000035762787,
+      1.899999976158142,
+      1.5,
+      1.2999999523162842,
+      1.100000023841858,
+      1.399999976158142,
+      1.199999988079071,
+      1,
+      1.600000023841858,
+      1.0999999642372131,
+      1.0999999642372131,
+      2.5,
+      1.199999988079071,
+      1.300000011920929,
+      2.300000011920929,
+      1.300000011920929,
+      1.199999988079071,
+      1.5999999642372131,
+      1,
+      1.199999988079071,
+      1.199999988079071,
+      1.399999976158142,
+      1.100000023841858,
+      2.300000011920929,
+      1.5999999642372131,
+      1.199999988079071,
+      1.399999976158142,
+      2.099999964237213,
+      1.899999976158142,
+      1.199999988079071,
+      1.699999988079071,
+      1,
+      1.300000011920929,
+      1.199999988079071,
+      2,
+      3,
+      1.300000011920929,
+      1.600000023841858,
+      1.7000000476837158,
+      1.5,
+      1.100000023841858,
+      1.199999988079071,
+      1.800000011920929,
+      1.699999988079071,
+      1.0999999642372131,
+      1.5999999642372131,
+      1.100000023841858,
+      1.699999988079071,
+      1.899999976158142,
+      1.699999988079071,
+      1.300000011920929,
+      1.5,
+      1.5,
+      1.600000023841858,
+      2.099999964237213,
+      2,
+      1.9000000357627869,
+      1.899999976158142,
+      1.7999999523162842
+    ],
+    "handles": [
+      {
+        "ms": 0.19999998807907104,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.19999998807907104,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.19999998807907104,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.19999998807907104,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.10000002384185791,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.40000003576278687,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0,
+        "uploadedHandles": 0
+      },
+      {
+        "ms": 0.09999996423721313,
+        "uploadedHandles": 0
+      }
+    ],
+    "patches": [
+      {
+        "preparedObjects": 7,
+        "transferredBytes": 377280,
+        "unchangedBoardModels": true
+      },
+      {
+        "preparedObjects": 7,
+        "transferredBytes": 377280,
+        "unchangedBoardModels": true
+      },
+      {
+        "preparedObjects": 7,
+        "transferredBytes": 377280,
+        "unchangedBoardModels": true
+      },
+      {
+        "preparedObjects": 7,
+        "transferredBytes": 377280,
+        "unchangedBoardModels": true
+      },
+      {
+        "preparedObjects": 7,
+        "transferredBytes": 377280,
+        "unchangedBoardModels": true
+      }
+    ]
+  },
+  "proposedTargets": {
+    "mainWorkP95": {
+      "limit": 4,
+      "passed": true
+    },
+    "pointerSubmissionP95": {
+      "limit": 33,
+      "passed": true
+    },
+    "exactReleaseP95": {
+      "limit": 200,
+      "passed": false,
+      "scenarios": {
+        "numeric": false,
+        "undo": false,
+        "gaskets": false,
+        "mounts": true
+      }
+    }
+  },
+  "measurement": "Frame-after-draw is a paint opportunity; pointerDraw ends at render submission. Action timings start at in-page blur, Undo click, or pointerup, excluding automation dispatch. Five samples per action are diagnostic distributions, not a frozen baseline."
+}

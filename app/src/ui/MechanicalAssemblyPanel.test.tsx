@@ -28,13 +28,13 @@ describe('mechanical generation controls', () => {
   it('exposes determinate progress at zero completed bodies', () => {
     const markup = render({ status: 'running', revision: 3, progress: { revision: 3, stage: 'building', completed: 0, total: 4, body: 'plate' } });
     expect(markup.match(/<progress[^>]*>/)?.[0]).toContain('value="0"');
-    expect(button(markup, 'Generate')).toContain('disabled');
+    expect(button(markup, 'Update preview')).toContain('disabled');
     expect(button(markup, 'Cancel')).not.toContain('disabled');
   });
 
-  it('emphasizes Generate until current geometry can be exported', () => {
+  it('emphasizes Update preview until current geometry can be exported', () => {
     const markup = render({ status: 'required' }, assembly);
-    expect(button(markup, 'Generate')).toContain('wb-primary');
+    expect(button(markup, 'Update preview')).toContain('wb-primary');
     expect(button(markup, 'Export geometry')).toContain('disabled');
     expect(button(markup, 'Export geometry')).not.toContain('wb-primary');
   });

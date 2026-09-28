@@ -40,7 +40,11 @@ export function reusableCaseResult<T extends { revision: number }>(
     || value.result.revision !== previous.revision
     || previous.scene !== previous.committedScene || context.scene !== context.committedScene
     || previous.scene.revision !== previous.revision || context.scene.revision !== context.revision) return undefined;
-  return value.result.revision === context.revision ? value.result : { ...value.result, revision: context.revision };
+  // Preserve lazy mesh accessors when only the revision changes.
+  return value.result.revision === context.revision ? value.result : Object.defineProperties({}, {
+    ...Object.getOwnPropertyDescriptors(value.result),
+    revision: { value: context.revision, enumerable: true, configurable: true, writable: true },
+  }) as T;
 }
 
 export function currentCaseResult<T extends { revision: number }>(

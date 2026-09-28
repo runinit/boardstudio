@@ -14,6 +14,7 @@ export default defineConfig({
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         bench: fileURLToPath(new URL('./bench.html', import.meta.url)),
         workbenchBench: fileURLToPath(new URL('./bench-workbench.html', import.meta.url)),
+        cadBench: fileURLToPath(new URL('./bench-cad.html', import.meta.url)),
       },
     },
   },

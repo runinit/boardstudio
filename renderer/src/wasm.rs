@@ -212,6 +212,10 @@ struct RenderObject {
     triangles: Vec<[Vec3; 3]>,
     edges: Gm<Mesh, SectionMaterial>,
     object: Gm<Mesh, SectionMaterial>,
+    /// Local pose, kept separate from exploded/state transforms so retained
+    /// interactive objects can move without rebuilding their mesh.
+    pose: Mat4,
+    handle_length: Option<f32>,
 }
 
 struct SectionMaterial {
@@ -404,6 +408,38 @@ impl Renderer {
         self.accept_scene(built)
     }
 
+    /// Applies only the changed scene objects.  The client uses stable object
+    /// ids, so unchanged PCB and model meshes remain resident in the GPU.
+    #[wasm_bindgen(js_name = setPreparedScenePatch)]
+    pub fn set_prepared_scene_patch(&mut self, value: JsValue) -> Result<bool, JsValue> {
+        let input: PreparedScenePatch = serde_wasm_bindgen::from_value(value)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        if is_stale_scene_revision(self.revision, input.revision) {
+            return Ok(false);
+        }
+        let mut changed = BuiltScene {
+            objects: vec![],
+            bounds: input.bounds.map(|b| (Vec3::new(b[0], b[1], b[2]), b[3])),
+            section_x: input.section_x,
+            revision: input.revision,
+            keep_camera: true,
+        };
+        for object in input.objects {
+            push_mesh(&mut changed, &object.id, object.mesh, Mat4::identity(), object.color,
+                object.roughness, object.metallic)?;
+            let item = changed.objects.last_mut().unwrap();
+            item.groups = object.groups;
+            item.explode = object.explode;
+            item.edges = Some(MeshData {
+                positions: object.edges.positions.chunks_exact(3).map(|p| [p[0], p[1], p[2]]).collect(),
+                normals: object.edges.normals.chunks_exact(3).map(|p| [p[0], p[1], p[2]]).collect(),
+                indices: (0..object.edges.positions.len() as u32 / 3).collect(),
+                colors: None,
+            });
+        }
+        self.accept_scene_patch(changed, input.removed)
+    }
+
     #[wasm_bindgen(js_name = setState)]
     pub fn set_state(&mut self, value: JsValue) -> Result<(), JsValue> {
         self.state =
@@ -421,7 +457,6 @@ impl Renderer {
             &self.camera,
             self.objects
                 .iter()
-                .chain(&self.handles)
                 .filter(|o| o.visible)
                 .map(|o| &o.object),
             &lights,
@@ -431,8 +466,7 @@ impl Renderer {
                 &self.camera,
                 self.objects
                     .iter()
-                    .chain(&self.handles)
-                    .filter(|o| {
+                        .filter(|o| {
                         o.visible
                             && !o
                                 .groups
@@ -447,17 +481,39 @@ impl Renderer {
                 &self.camera,
                 self.objects
                     .iter()
-                    .chain(&self.handles)
-                    .filter(|o| o.visible && o.id == self.state.selected_layer)
+                        .filter(|o| o.visible && o.id == self.state.selected_layer)
                     .map(|o| &o.edges),
                 &lights,
             );
+        }
+        // Editing handles are an overlay: bottom-case mounts must remain
+        // visible and reachable through the PCB and retained solids.
+        target.clear(ClearState::depth(1.));
+        target.render(&self.camera, self.handles.iter().filter(|o| o.visible).map(|o| &o.object), &lights);
+        if self.state.mode != "shaded" {
+            target.render(&self.camera, self.handles.iter().filter(|o| o.visible).map(|o| &o.edges), &lights);
         }
         Ok(())
     }
 
     #[wasm_bindgen(js_name = fit)]
     pub fn fit(&mut self) {
+        // Hidden case bodies must not keep a small imported PCB off-centre.
+        // Derive fit bounds on demand without rebuilding any geometry.
+        let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+        let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for object in self.objects.iter().filter(|item| item.visible && item.id != "pcb-selection") {
+            let offset = if self.state.view == "exploded" { object.explode } else { 0. };
+            for point in object.triangles.iter().flatten() {
+                let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
+                low.x = low.x.min(point.x); low.y = low.y.min(point.y); low.z = low.z.min(point.z);
+                high.x = high.x.max(point.x); high.y = high.y.max(point.y); high.z = high.z.max(point.z);
+            }
+        }
+        if low.x.is_finite() {
+            self.bounds_center = (low + high) / 2.;
+            self.bounds_radius = ((high - low).magnitude() / 2.).max(0.1);
+        }
         self.target = self.bounds_center;
         let vertical = 17.0_f32.to_radians();
         let horizontal = (vertical.tan() * self.width as f32 / self.height.max(1) as f32).atan();
@@ -507,61 +563,45 @@ impl Renderer {
     }
 
     #[wasm_bindgen(js_name = setHandles)]
-    pub fn set_handles(&mut self, value: JsValue) -> Result<(), JsValue> {
+    pub fn set_handles(&mut self, value: JsValue) -> Result<u32, JsValue> {
         let handles: Vec<HandleInput> =
             serde_wasm_bindgen::from_value(value).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        self.handles = handles
-            .into_iter()
-            .map(|handle| {
-                let points = [
-                    (-handle.length / 2., -0.7),
-                    (handle.length / 2., -0.7),
-                    (handle.length / 2., 0.7),
-                    (-handle.length / 2., 0.7),
-                ]
-                .map(|(t, n)| {
-                    [
-                        handle.at.x + handle.tangent.x * t + handle.normal.x * n,
-                        handle.at.y + handle.tangent.y * t + handle.normal.y * n,
-                    ]
-                });
-                let mut data = board_mesh(
-                    &[BoardContour {
-                        points: &points,
-                        hole: false,
-                    }],
-                    0.6,
-                )
-                .unwrap();
-                for p in &mut data.positions {
-                    p[2] += handle.z;
-                }
-                let mut built = BuiltScene {
-                    objects: vec![],
-                    bounds: None,
-                    section_x: None,
-                    revision: 0,
-                    keep_camera: true,
-                };
-                push_data(
-                    &mut built,
-                    &format!("gasket-handle:{}", handle.id),
-                    data,
-                    if handle.invalid {
-                        [0.9, 0.12, 0.1, 1.]
-                    } else {
-                        [1., 0.65, 0.15, 1.]
-                    },
-                    0.6,
-                    0.0,
-                );
+        let mut uploaded_count = 0;
+        let mut previous = std::mem::take(&mut self.handles);
+        let mut next = Vec::with_capacity(handles.len());
+        for handle in handles {
+            if !handle.length.is_finite() || handle.length <= 0.0 {
+                continue;
+            }
+            let existing = previous.iter().position(|item| item.id == handle.id)
+                .map(|index| previous.swap_remove(index));
+            let mut item = if let Some(item) = existing.filter(|item| item.handle_length == Some(handle.length)) {
+                item
+            } else {
+                let points = [[-handle.length / 2., -0.7], [handle.length / 2., -0.7],
+                    [handle.length / 2., 0.7], [-handle.length / 2., 0.7]];
+                let data = board_mesh(&[BoardContour { points: &points, hole: false }], 0.6)
+                    .map_err(|error| JsValue::from_str(&error))?;
+                let mut built = BuiltScene { objects: vec![], bounds: None, section_x: None,
+                    revision: 0, keep_camera: true };
+                push_data(&mut built, &handle.id, data, [1., 0.65, 0.15, 1.], 0.6, 0.0);
                 let mut object = built.objects.remove(0);
                 object.groups = vec!["GasketHandles".into()];
-                self.upload(object)
-            })
-            .collect();
+                let mut uploaded = self.upload(object);
+                uploaded_count += 1;
+                uploaded.handle_length = Some(handle.length);
+                uploaded
+            };
+            item.pose = crate::math::handle_pose([handle.at.x, handle.at.y, handle.z],
+                [handle.tangent.x, handle.tangent.y], [handle.normal.x, handle.normal.y]);
+            item.object.material.physical.albedo = if handle.invalid {
+                Srgba::new(230, 31, 26, 255)
+            } else { Srgba::new(255, 166, 38, 255) };
+            next.push(item);
+        }
+        self.handles = next;
         self.apply_state();
-        Ok(())
+        Ok(uploaded_count)
     }
 
     #[wasm_bindgen(js_name = pointOnPlane)]
@@ -579,18 +619,24 @@ impl Renderer {
         let (origin, direction) = self.ray(x, y);
         let mut nearest = f32::INFINITY;
         let mut picked = None;
+        let mut picked_handle = false;
         for object in self
-            .objects
+            .handles
             .iter()
-            .chain(&self.handles)
+            .chain(&self.objects)
             .filter(|o| o.visible && o.id != "pcb-selection")
         {
+            if picked_handle && object.handle_length.is_none() {
+                break;
+            }
             let offset = if self.state.view == "exploded" {
                 object.explode
             } else {
                 0.
             };
-            let origin = origin - Vec3::new(0., 0., offset);
+            let Some(inverse) = object.pose.invert() else { continue; };
+            let origin = (inverse * (origin - Vec3::new(0., 0., offset)).extend(1.)).truncate();
+            let direction = (inverse * direction.extend(0.)).truncate();
             for triangle in &object.triangles {
                 let a = triangle[1] - triangle[0];
                 let b = triangle[2] - triangle[0];
@@ -619,6 +665,7 @@ impl Renderer {
                 }
                 nearest = distance;
                 picked = Some(object.id.clone());
+                picked_handle = object.handle_length.is_some();
             }
         }
         picked
@@ -632,6 +679,34 @@ impl Renderer {
 }
 
 impl Renderer {
+    fn accept_scene_patch(&mut self, items: BuiltScene, removed: Vec<String>) -> Result<bool, JsValue> {
+        let removed: std::collections::HashSet<_> = removed.into_iter().collect();
+        let mut previous = std::mem::take(&mut self.objects);
+        previous.retain(|item| !removed.contains(&item.id));
+        let mut next = Vec::with_capacity(previous.len() + items.objects.len());
+        for item in items.objects {
+            let fingerprint = mesh_fingerprint(&item);
+            if let Some(index) = previous.iter().position(|old| old.id == item.id) {
+                let mut old = previous.swap_remove(index);
+                if old.groups == item.groups && old.fingerprint == fingerprint {
+                    old.explode = item.explode;
+                    next.push(old);
+                } else {
+                    next.push(self.upload(item));
+                }
+            } else {
+                next.push(self.upload(item));
+            }
+        }
+        next.extend(previous);
+        self.objects = next;
+        self.revision = items.revision;
+        // A body patch does not describe complete scene bounds.
+        self.apply_state();
+        self.update_camera();
+        Ok(true)
+    }
+
     fn accept_scene(&mut self, items: BuiltScene) -> Result<bool, JsValue> {
         self.section_x = items.section_x;
         let mut previous = std::mem::take(&mut self.objects);
@@ -678,7 +753,7 @@ impl Renderer {
                 } else {
                     0.
                 },
-            ));
+            )) * item.pose;
             item.object.geometry.set_transformation(transform);
             item.edges.geometry.set_transformation(transform);
             let clip = if self.state.view == "section" {
@@ -837,6 +912,8 @@ impl Renderer {
             triangles,
             edges,
             object: Gm::new(Mesh::new(&self.context, &cpu_mesh), material),
+            pose: Mat4::identity(),
+            handle_length: None,
         }
     }
 }
@@ -911,6 +988,17 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 0.62,
                 0.08,
             )?;
+        }
+    } else if input.kind == "bodyPatch" {
+        for body in input.bodies {
+            let color = if body.id.to_ascii_lowercase().contains("foam") || body.id.to_ascii_lowercase().contains("gasket") {
+                [0.20, 0.18, 0.24, 1.0]
+            } else if body.id.to_ascii_lowercase().contains("plate") {
+                [0.34, 0.57, 0.44, 1.0]
+            } else if input.theme == "dark" {
+                [0.62, 0.66, 0.72, 1.0]
+            } else { [0.68, 0.71, 0.75, 1.0] };
+            push_mesh(&mut output, &body.id, body.mesh, Mat4::identity(), color, 0.68, 0.03)?;
         }
     } else if let Some(board) = input.board {
         let hidden = |id: &str| input.hidden.iter().any(|entry| entry == id);
@@ -1661,6 +1749,19 @@ struct PreparedScene {
     section_x: Option<f32>,
     bounds: Option<[f32; 4]>,
     objects: Vec<PreparedObject>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreparedScenePatch {
+    revision: u64,
+    #[serde(default)]
+    section_x: Option<f32>,
+    #[serde(default)]
+    bounds: Option<[f32; 4]>,
+    #[serde(default)]
+    objects: Vec<PreparedObject>,
+    #[serde(default)]
+    removed: Vec<String>,
 }
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]

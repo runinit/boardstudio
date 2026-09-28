@@ -71,6 +71,10 @@ Chromium binary.
 Chromium sessions, then runs pointer, matrix, and outline latency scenarios.
 It compares the median session p95 against the captured mounted-workbench baseline. The fixture, limits, and results are in
 [`docs/performance-baseline.md`](docs/performance-baseline.md).
+It also records live case numeric edits, Undo, and mount/gasket releases as
+diagnostics. Chrome versions are recorded without pinning a particular version.
+See the [live-preview review and remaining performance work](docs/live-preview-ui-review.md)
+for measurements and the exact-refinement target that remains unmet.
 
 The browser benchmark lives at `/bench.html`. It measures a worker preview
 request through a painted 2D outline frame for 100 and 200 key fixtures. It
@@ -126,11 +130,22 @@ Bundled model previews report missing files or download failures with a retry
 action. Imported generator settings are grouped into dimensions, footprint
 options, identification, connections, model placement, and advanced parameters.
 
-Project → Appearance selects System, Light, or Dark and persists locally.
+The single-row header provides direct Layout, PCB, Case, and Parts navigation;
+at 820px and below these use the native Workspace selector. Project menu →
+Setup guide opens the guide, and Project menu → Workspace settings owns
+appearance and restoring the navigator and inspector panel layout. Both pages
+provide an explicit Back/Close path. Export remains a dedicated header action;
+Parts and Export provide explicit returns to the prior design view.
 Keycap overlays follow the current saved member poses while disabled slots
 retain their parametric frame. Starter metadata uses the same negative-Y row
 direction as its existing switches. Editing a matrix retains its switch
 identities and net references.
+
+Case starts with **Live preview** enabled. Valid edits refine automatically while
+the last usable geometry stays visible. Pause uses **Update preview** for manual
+updates; **Cancel** pauses an active generation. Gasket and case mount drags show
+a draft, save once on release, and cancel with Escape. Drafts cannot be exported;
+manufacturing export still requires current committed geometry and validation.
 
 ## Current handoff
 

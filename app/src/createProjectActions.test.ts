@@ -3,10 +3,10 @@ import { emptyProject, type CoreReply, type CoreRequest } from '@boardstudio/v2-
 import type { CoreClient } from './CoreClient';
 import type { ExportClient } from './ExportClient';
 import { createProjectActions } from './createProjectActions';
-import { saveAsset, unpackProject } from './storage';
+import { loadProject, saveAsset, unpackProject } from './storage';
 import { catalogue } from '@boardstudio/v2-ergogen';
 
-vi.mock('./storage', () => ({ saveAsset: vi.fn(), unpackProject: vi.fn() }));
+vi.mock('./storage', () => ({ loadProject: vi.fn(), saveAsset: vi.fn(), unpackProject: vi.fn() }));
 
 function harness() {
   const projectRef = { current: emptyProject('existing', 'Existing project') };
@@ -26,6 +26,40 @@ function harness() {
   });
   return { actions, client, request, accept, projectRef, onProjectCreated, run: () => work!() };
 }
+
+describe('saved keyboards', () => {
+  it('loads the saved document when its queued open runs', async () => {
+    const test = harness();
+    const saved = emptyProject('saved', 'My keyboard');
+    vi.mocked(loadProject).mockResolvedValueOnce(saved);
+    test.actions.openSavedProject(saved.id);
+    expect(test.request).not.toHaveBeenCalled();
+    await test.run();
+    expect(test.request).toHaveBeenCalledWith(expect.objectContaining({ kind: 'open', document: saved }));
+    expect(test.accept).toHaveBeenCalledWith(expect.objectContaining({ document: saved }), 'open');
+    expect(test.onProjectCreated).not.toHaveBeenCalled();
+  });
+
+  it('leaves the working document alone when storage is unavailable or a keyboard is missing', async () => {
+    const test = harness();
+    test.actions.openSavedProject('missing');
+    vi.mocked(loadProject).mockResolvedValueOnce(undefined);
+    await expect(test.run()).rejects.toThrow('no longer saved');
+    vi.mocked(loadProject).mockRejectedValueOnce(new Error('Storage unavailable'));
+    test.actions.openSavedProject('saved');
+    await expect(test.run()).rejects.toThrow('Storage unavailable');
+    expect(test.request).not.toHaveBeenCalled();
+    expect(test.accept).not.toHaveBeenCalled();
+  });
+
+  it('does not reopen the active keyboard and reset its history', async () => {
+    const test = harness();
+    test.actions.openSavedProject(test.projectRef.current.id);
+    await test.run();
+    expect(test.request).not.toHaveBeenCalled();
+    expect(test.accept).not.toHaveBeenCalled();
+  });
+});
 
 describe('file import limits', () => {
   const mib = 1024 * 1024;

@@ -20,6 +20,7 @@ export function usePanelSettings(side: PanelSide) {
   return { ...settings,
     setMode: (mode: PanelMode) => setSettings((current) => ({ ...current, mode })),
     setWidth: (width: number) => setSettings((current) => ({ ...current, width: Math.max(limits[side].min, Math.min(limits[side].max, width)) })),
+    reset: () => setSettings({ mode: 'pinned', width: null }),
   };
 }
 
@@ -111,6 +112,7 @@ export function WorkspacePanel({ side, label, settings, compact, open, onClose, 
       onKeyDown={(event) => { if (event.key === 'Escape' && (compact || settings.mode !== 'pinned')) { event.stopPropagation(); if (compact) onClose(); setRevealed(false); (compact ? document.getElementById(`wb-${name}-toggle`) : rail.current)?.focus(); } }}>
       <div className="wb-panel-actions">
         <div className="wb-panel-toolbar">{toolbar ?? <span className="wb-panel-title">Inspect</span>}</div>
+        {compact && <button className="wb-panel-close" aria-label={`Close ${name}`} title={`Close ${name}`} onClick={collapse}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button>}
         <div className="wb-panel-menu" ref={menu} onKeyDown={(event) => {
           if (menuOpen && event.key === 'Escape') { event.stopPropagation(); setMenuOpen(false); menu.current?.querySelector('button')?.focus(); }
         }}>
@@ -118,7 +120,7 @@ export function WorkspacePanel({ side, label, settings, compact, open, onClose, 
           {menuOpen && <div id={`wb-${name}-options`} className="wb-panel-menu-content" role="group" aria-label={`${side === 'left' ? 'Objects' : 'Inspector'} panel options`} onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); setMenuOpen(false); menu.current?.querySelector('button')?.focus(); } }}>
             {options}
             {!compact && <button onClick={() => { setMenuOpen(false); setRevealed(true); settings.setMode(settings.mode === 'autohide' ? 'pinned' : 'autohide'); }}>{settings.mode === 'autohide' ? `Pin ${name}` : `Auto-hide ${name}`}</button>}
-            <button onClick={collapse}>{compact ? `Close ${name}` : `Collapse ${name}`}</button>
+            {!compact && <button onClick={collapse}>{`Collapse ${name}`}</button>}
           </div>}
         </div>
       </div>

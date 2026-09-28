@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('Design keeps its 2D canvas usable when WebGL2 is unavailable', async ({ page }) => {
@@ -24,8 +25,10 @@ for (const theme of ['dark', 'light'] as const) {
     await page.addInitScript((value) => localStorage.setItem('boardstudio:v2:theme', value), theme);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
-    await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
-    await page.getByRole('button', { name: 'Generate', exact: true }).click();
+    await navigateWorkspace(page, 'Case');
+    const live = page.getByRole('switch', { name: /Live preview/i });
+    if (await live.isChecked()) await live.uncheck();
+    await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
     await expect(page.locator('.wb-assembly-scene canvas')).toBeVisible();
 

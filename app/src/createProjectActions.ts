@@ -5,7 +5,7 @@ import { catalogue as ergogenCatalogue } from '@boardstudio/v2-ergogen';
 import type { MutableRefObject } from 'react';
 import { ExportClient } from './ExportClient';
 import { updateInstanceMechanical } from './hardwareInstances';
-import { saveAsset, unpackProject } from './storage';
+import { loadProject, saveAsset, unpackProject } from './storage';
 import { matrixWithPreset } from './ui/matrixPresets';
 import { openKeyboardDemo, type DemoId } from './demos/keyboards';
 
@@ -18,17 +18,17 @@ type Inputs = {
   client: MutableRefObject<CoreClient | null>;
   exportClient: MutableRefObject<ExportClient | null>;
   selectedInstance: NonNullable<ProjectDoc['hardware']>['instances'][number] | undefined;
-  schedule: (work: () => Promise<void>) => void;
+  schedule: (work: () => Promise<void>) => void | Promise<boolean>;
   accept: (reply: CoreReply, mode: 'open' | 'commit' | 'preview') => Promise<void>;
   ensureExportClient: () => ExportClient;
   onProjectCreated?: (projectId: string) => void;
 };
 
 export function createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated }: Inputs) {
-  function edit(command: EditCommand): void {
-    schedule(async () => {
+  function edit(command: EditCommand): void | Promise<boolean> {
+    return schedule(async () => {
       if (!client.current) {
-        return;
+        throw new Error('Project is not ready for editing');
       }
 
       const current = projectRef.current;
@@ -76,6 +76,15 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
       const reply = await client.current.request({ id: crypto.randomUUID(), kind: 'open', document });
 
       await accept(reply, 'open');
+    });
+  }
+
+  function openSavedProject(projectId: string): void {
+    schedule(async () => {
+      if (!client.current || projectId === projectRef.current.id) return;
+      const document = await loadProject(projectId);
+      if (!document) throw new Error('This keyboard is no longer saved in this browser. Open a project file to restore it.');
+      await accept(await client.current.request({ id: crypto.randomUUID(), kind: 'open', document }), 'open');
     });
   }
 
@@ -268,5 +277,5 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     });
   }
 
-  return { edit, history, importProject, newProject, openDemo, duplicateDesign, importPart, importModel };
+  return { edit, history, importProject, newProject, openSavedProject, openDemo, duplicateDesign, importPart, importModel };
 }

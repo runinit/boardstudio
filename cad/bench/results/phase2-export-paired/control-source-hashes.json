@@ -1,0 +1,10 @@
+{
+  "src/model/construction.rs": {
+    "current": "78a20c5c5f50625cdbbf49034763c980599272763633537b099e3c8f27ac9312",
+    "control": "c68bc273342d906fd35e4aff8d04ed044755d8dcb33e10d70978365231b1938b"
+  },
+  "src/model/construction/cache.rs": {
+    "current": "05e17acca88fb6ea44e3e6eb436ace830394cbd5737c94884788a43ee1565518",
+    "control": "ff2cbe735110bec7d0f8b0a2b0ce222c4f775a3db64976af48a0bc3e1eff765e"
+  }
+}

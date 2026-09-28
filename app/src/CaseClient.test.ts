@@ -130,3 +130,54 @@ test('disposal rejects pending work and cannot restart the worker', async () => 
   expect(workers).toHaveLength(1);
   await expect(client.preview({ revision: 7, bodies: [] }, () => {})).rejects.toThrow('closed');
 });
+
+test('cooperative supersession waits for acknowledgement and keeps the warm worker', async () => {
+  vi.stubGlobal('Worker', FakeWorker);
+  const client = new CaseClient();
+  const controller = new AbortController();
+  const pending = client.preview({ revision: 6, bodies: [] }, () => {}, controller.signal);
+  const request = workers[0].sent[0].message as { id: string };
+  let settled = false;
+  void pending.then(() => { settled = true; }, () => { settled = true; });
+  controller.abort();
+  expect(workers[0].sent[1].message).toEqual({ id: request.id, kind: 'cancel-preview' });
+  await Promise.resolve();
+  expect(settled).toBe(false);
+  workers[0].reply({ id: request.id, kind: 'error', message: 'Preview superseded', revision: 6 });
+  await expect(pending).rejects.toThrow('superseded');
+  expect(workers).toHaveLength(1);
+  client.close();
+});
+
+test('consumes a completed delta racing cancellation so the next delta can reuse it', async () => {
+  vi.stubGlobal('Worker', FakeWorker);
+  const client = new CaseClient();
+  const controller = new AbortController();
+  const pending = client.preview({ revision: 6, bodies: [] }, () => {}, controller.signal);
+  const request = workers[0].sent[0].message as { id: string };
+  const body = { id: 'body', name: 'Body', positions: new Float32Array([1]), normals: new Float32Array([1]) };
+  controller.abort();
+  workers[0].reply({ id: request.id, kind: 'preview', result: { revision: 6, bodyIds: ['body'], bodies: [body] } });
+  await expect(pending).resolves.toMatchObject({ bodies: [body] });
+  const later = client.preview({ revision: 7, bodies: [] }, () => {});
+  const next = workers[0].sent.at(-1)!.message as { id: string };
+  workers[0].reply({ id: next.id, kind: 'preview', result: { revision: 7, bodyIds: ['body'], bodies: [] } });
+  await expect(later).resolves.toMatchObject({ bodies: [body] });
+  client.close();
+});
+
+test('does not post already aborted previews or retain abort listeners after completion', async () => {
+  vi.stubGlobal('Worker', FakeWorker);
+  const client = new CaseClient();
+  const aborted = new AbortController(); aborted.abort();
+  await expect(client.preview({ revision: 1, bodies: [] }, () => {}, aborted.signal)).rejects.toThrow('superseded');
+  expect(workers[0].sent).toHaveLength(0);
+  const controller = new AbortController();
+  const pending = client.preview({ revision: 1, bodies: [] }, () => {}, controller.signal);
+  const request = workers[0].sent[0].message as { id: string };
+  workers[0].reply({ id: request.id, kind: 'preview', result: { revision: 1, bodyIds: [], bodies: [] } });
+  await pending;
+  controller.abort();
+  expect(workers[0].sent).toHaveLength(1);
+  client.close();
+});

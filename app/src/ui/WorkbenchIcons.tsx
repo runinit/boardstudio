@@ -29,7 +29,6 @@ export const ModeIcon = ({ mode }: { mode: Mode }) => <svg viewBox="0 0 20 20" a
 
 export const BrandMark = () => <svg viewBox="0 0 30 30" aria-hidden="true"><path d="M4 4h22v22H4z" /><path d="m8 20 5-10 4 8 3-5 3 7" /><circle cx="13" cy="10" r="1.3" /></svg>;
 
-export const ProjectIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" /><path d="M3 9h18" /></svg>;
 
 export const ArrowIcon = () => <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8 4l4 4-4 4" /></svg>;
 

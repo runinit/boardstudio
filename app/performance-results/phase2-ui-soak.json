@@ -1,0 +1,281 @@
+{
+  "cycles": 256,
+  "elapsedMs": 186294,
+  "exports": 8,
+  "cancellations": 8,
+  "boardSwitches": 8,
+  "projectSwitches": 8,
+  "rows": [
+    {
+      "cycle": 8,
+      "project": "numeric",
+      "jsHeapBytes": 15263584,
+      "wasmBytes": 62717952,
+      "ms": 3166
+    },
+    {
+      "cycle": 16,
+      "project": "numeric",
+      "jsHeapBytes": 15598040,
+      "wasmBytes": 62717952,
+      "ms": 6301
+    },
+    {
+      "cycle": 24,
+      "project": "numeric",
+      "jsHeapBytes": 15906232,
+      "wasmBytes": 62717952,
+      "ms": 9424
+    },
+    {
+      "cycle": 32,
+      "project": "gasket",
+      "jsHeapBytes": 16209580,
+      "wasmBytes": 62717952,
+      "ms": 15359
+    },
+    {
+      "cycle": 40,
+      "project": "gasket",
+      "jsHeapBytes": 17733956,
+      "wasmBytes": 63832064,
+      "ms": 22112
+    },
+    {
+      "cycle": 48,
+      "project": "gasket",
+      "jsHeapBytes": 17851896,
+      "wasmBytes": 63963136,
+      "ms": 29077
+    },
+    {
+      "cycle": 56,
+      "project": "gasket",
+      "jsHeapBytes": 17870660,
+      "wasmBytes": 64094208,
+      "ms": 35598
+    },
+    {
+      "cycle": 64,
+      "project": "numeric",
+      "jsHeapBytes": 13389136,
+      "wasmBytes": 64094208,
+      "ms": 45078
+    },
+    {
+      "cycle": 72,
+      "project": "numeric",
+      "jsHeapBytes": 17982296,
+      "wasmBytes": 68747264,
+      "ms": 48739
+    },
+    {
+      "cycle": 80,
+      "project": "numeric",
+      "jsHeapBytes": 17976324,
+      "wasmBytes": 68747264,
+      "ms": 51917
+    },
+    {
+      "cycle": 88,
+      "project": "numeric",
+      "jsHeapBytes": 18112216,
+      "wasmBytes": 68747264,
+      "ms": 55027
+    },
+    {
+      "cycle": 96,
+      "project": "gasket",
+      "jsHeapBytes": 17704756,
+      "wasmBytes": 68747264,
+      "ms": 60981
+    },
+    {
+      "cycle": 104,
+      "project": "gasket",
+      "jsHeapBytes": 18275400,
+      "wasmBytes": 68747264,
+      "ms": 67892
+    },
+    {
+      "cycle": 112,
+      "project": "gasket",
+      "jsHeapBytes": 18326860,
+      "wasmBytes": 68747264,
+      "ms": 75149
+    },
+    {
+      "cycle": 120,
+      "project": "gasket",
+      "jsHeapBytes": 18375696,
+      "wasmBytes": 68747264,
+      "ms": 81905
+    },
+    {
+      "cycle": 128,
+      "project": "numeric",
+      "jsHeapBytes": 18334036,
+      "wasmBytes": 68747264,
+      "ms": 91565
+    },
+    {
+      "cycle": 136,
+      "project": "numeric",
+      "jsHeapBytes": 18326284,
+      "wasmBytes": 68747264,
+      "ms": 95330
+    },
+    {
+      "cycle": 144,
+      "project": "numeric",
+      "jsHeapBytes": 18450528,
+      "wasmBytes": 68747264,
+      "ms": 98755
+    },
+    {
+      "cycle": 152,
+      "project": "numeric",
+      "jsHeapBytes": 18441596,
+      "wasmBytes": 68747264,
+      "ms": 102026
+    },
+    {
+      "cycle": 160,
+      "project": "gasket",
+      "jsHeapBytes": 18022052,
+      "wasmBytes": 68747264,
+      "ms": 107972
+    },
+    {
+      "cycle": 168,
+      "project": "gasket",
+      "jsHeapBytes": 19527580,
+      "wasmBytes": 68747264,
+      "ms": 114912
+    },
+    {
+      "cycle": 176,
+      "project": "gasket",
+      "jsHeapBytes": 18533980,
+      "wasmBytes": 68747264,
+      "ms": 122078
+    },
+    {
+      "cycle": 184,
+      "project": "gasket",
+      "jsHeapBytes": 18512356,
+      "wasmBytes": 68747264,
+      "ms": 128856
+    },
+    {
+      "cycle": 192,
+      "project": "numeric",
+      "jsHeapBytes": 18460724,
+      "wasmBytes": 68747264,
+      "ms": 138495
+    },
+    {
+      "cycle": 200,
+      "project": "numeric",
+      "jsHeapBytes": 18428504,
+      "wasmBytes": 68747264,
+      "ms": 142566
+    },
+    {
+      "cycle": 208,
+      "project": "numeric",
+      "jsHeapBytes": 18569844,
+      "wasmBytes": 68747264,
+      "ms": 146025
+    },
+    {
+      "cycle": 216,
+      "project": "numeric",
+      "jsHeapBytes": 18575176,
+      "wasmBytes": 68747264,
+      "ms": 149557
+    },
+    {
+      "cycle": 224,
+      "project": "gasket",
+      "jsHeapBytes": 18115736,
+      "wasmBytes": 68747264,
+      "ms": 155242
+    },
+    {
+      "cycle": 232,
+      "project": "gasket",
+      "jsHeapBytes": 20909336,
+      "wasmBytes": 68747264,
+      "ms": 162165
+    },
+    {
+      "cycle": 240,
+      "project": "gasket",
+      "jsHeapBytes": 18726588,
+      "wasmBytes": 68747264,
+      "ms": 169491
+    },
+    {
+      "cycle": 248,
+      "project": "gasket",
+      "jsHeapBytes": 19725036,
+      "wasmBytes": 68878336,
+      "ms": 176338
+    },
+    {
+      "cycle": 256,
+      "project": "numeric",
+      "jsHeapBytes": 18565508,
+      "wasmBytes": 68878336,
+      "ms": 186294
+    }
+  ],
+  "trends": {
+    "numeric": {
+      "jsHeapBytes": {
+        "before": 18450528,
+        "after": 18569844,
+        "allowance": 2097152,
+        "passed": true
+      },
+      "wasmBytes": {
+        "before": 68747264,
+        "after": 68747264,
+        "allowance": 3437363.2,
+        "passed": true
+      }
+    },
+    "gasket": {
+      "jsHeapBytes": {
+        "before": 18533980,
+        "after": 19725036,
+        "allowance": 2097152,
+        "passed": true
+      },
+      "wasmBytes": {
+        "before": 68747264,
+        "after": 68747264,
+        "allowance": 3437363.2,
+        "passed": true
+      }
+    }
+  },
+  "processMemory": {
+    "file": "phase2-ui-soak-rss.json",
+    "quarters": {
+      "129-192": {
+        "samples": 45,
+        "medianRssBytes": 1047175168,
+        "peakRssBytes": 1161117696
+      },
+      "193-256": {
+        "samples": 47,
+        "medianRssBytes": 1087049728,
+        "peakRssBytes": 1237901312
+      }
+    },
+    "alignment": "Approximate checkpoint alignment from raw report mtime minus elapsed duration; RSS may double-count shared pages"
+  },
+  "constrainedPhysicalDeviceTested": false
+}

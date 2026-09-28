@@ -22,6 +22,10 @@ describe('case readiness', () => {
     expect(caseReadiness({ ...current, [key]: 2 }).canExport).toBe(false);
   });
 
+  it('never exports draft geometry even when its revision matches', () => {
+    expect(caseReadiness({ ...current, generation: { ...current.generation, draft: true } }).canExport).toBe(false);
+  });
+
   it('rejects stale generations, assemblies, and another board', () => {
     expect(caseReadiness({ ...current, generation: { status: 'ready', revision: 2 } }).canExport).toBe(false);
     expect(caseReadiness({ ...current, assembly: { ...assembly, revision: 2 } }).canExport).toBe(false);

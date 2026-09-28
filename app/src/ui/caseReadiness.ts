@@ -30,19 +30,20 @@ export function caseReadiness({ revision, sceneRevision, previewRevision, boardI
   const errors = resolved ? assembly!.diagnostics.filter(finding => finding.severity === 'error').length : 0;
   const warnings = resolved ? assembly!.diagnostics.filter(finding => finding.severity === 'warning').length : 0;
   const busy = state.status === 'preparing' || state.status === 'running';
-  const current = resolved && state.status === 'ready' && state.revision === revision && previewRevision === revision;
+  const current = !state.draft && resolved && state.status === 'ready' && state.revision === revision && previewRevision === revision;
   const canExport = Boolean(current && !errors && !assembly?.generationBlocked);
   const retained = hasGeometry && !current ? ' Previous geometry is shown.' : '';
   let message: string;
   if (!active) message = 'Configure a mechanical stack for this board to generate its case.';
+  else if (state.draft && !busy) message = generationMessage(state) + retained;
   else if (busy) message = generationMessage(state) + retained;
-  else if (state.status === 'failed') message = `${state.message ?? 'Generation failed'}. Generate again to retry.${retained}`;
-  else if (state.status === 'cancelled') message = `Generation cancelled. Generate when ready.${retained}`;
+  else if (state.status === 'failed') message = `${state.message ?? 'Generation failed'}. Update preview to retry.${retained}`;
+  else if (state.status === 'cancelled') message = `Preview paused. Update preview when ready.${retained}`;
   else if (state.status === 'blocked' || (resolved && assembly?.generationBlocked)) message = `Generation blocked · review mechanical findings.${retained}`;
   else if (current && errors) message = 'Geometry current · mechanical errors must be resolved before export.';
   else if (canExport) message = warnings ? 'Geometry current · export available with warnings to review.' : 'Geometry current · ready to export.';
   else if (!resolved) message = `Resolving configuration · export is unavailable.${retained}`;
-  else message = `Generate required · build current solids before export.${retained}`;
+  else message = `Preview out of date · update the solids before export.${retained}`;
   return { canExport, message, reviewRequired: errors > 0 || state.status === 'blocked', warnings, busy };
 }
 

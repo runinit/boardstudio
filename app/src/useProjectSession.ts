@@ -1,4 +1,4 @@
-import type { CasePreviewResult } from '@boardstudio/v2-cad';
+import type { PreparedCasePreview } from './useCaseGeneration';
 import type { CoreReply, ProjectDoc, SceneDelta } from '@boardstudio/v2-contracts';
 import type { MutableRefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -8,6 +8,7 @@ import { ExportClient } from './ExportClient';
 import type { ContextualCaseResult } from './casePreviewContext';
 import { demoProject } from './demo';
 import { activeProjectId, loadProject, saveProject } from './storage';
+import { recordCadMeasure } from './cadPerformance';
 
 const STARTER_ID = 'starter';
 const EMPTY_SCENE: SceneDelta = {
@@ -26,7 +27,7 @@ const EMPTY_SCENE: SceneDelta = {
 type Inputs = {
   caseClient: MutableRefObject<CaseClient | null>;
   exportClient: MutableRefObject<ExportClient | null>;
-  previewCache: MutableRefObject<Map<string, ContextualCaseResult<CasePreviewResult>>>;
+  previewCache: MutableRefObject<Map<string, ContextualCaseResult<PreparedCasePreview>>>;
   setSelectedInstanceId: (id: string) => void;
   setError: (message: string) => void;
 };
@@ -73,12 +74,18 @@ export function useProjectSession({ caseClient, exportClient, previewCache, setS
     }
 
     setSaveStatus('saving');
+    const saveStarted = performance.now();
+    let saved = false;
     try {
       await saveProject(reply.document);
+      saved = true;
       setSaveStatus('saved');
     } catch (cause) {
       setSaveStatus('failed');
       throw cause;
+    } finally {
+      recordCadMeasure('boardstudio.cad.persistence', { start: saveStarted, end: performance.now(),
+        detail: { revision: reply.document.revision, mode, saved } });
     }
     if (mode === 'open') setProjectSession((value) => value + 1);
     projectRef.current = reply.document;
@@ -91,8 +98,10 @@ export function useProjectSession({ caseClient, exportClient, previewCache, setS
     committedScene.current = reply.scene;
   }
 
-  function schedule(work: () => Promise<void>): void {
-    queue.current = queue.current.then(work).catch((cause) => setError(String(cause)));
+  function schedule(work: () => Promise<void>): Promise<boolean> {
+    const pending = queue.current.then(work);
+    queue.current = pending.catch((cause) => setError(String(cause)));
+    return pending.then(() => true, () => false);
   }
 
   useEffect(() => {

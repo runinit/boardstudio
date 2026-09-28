@@ -1,9 +1,10 @@
 import { CanvasLayers } from './CanvasLayers';
 import { defaultGasketLayout, moveGasket, gasketAnchors } from '../gasketEditing';
+import { caseMountConstraints, moveCaseMount } from '../caseEditing';
 import type { MechanicalGasketSupport } from '@boardstudio/v2-contracts';
 import type { GenerationState } from '../generationState';
 import { useEffect, useRef, useState } from 'react';
-import type { BoardReference, MechanicalAssembly, MechanicalConfiguration, PcbPreview } from '@boardstudio/v2-contracts';
+import type { BoardReference, CaseBody, MechanicalAssembly, MechanicalConfiguration, Mount, PcbPreview, PreparedCaseAssemblyIR } from '@boardstudio/v2-contracts';
 import type { ModelMesh } from '../modelMesh';
 import { createRendererCanvas, type RendererCanvas } from '../renderClient';
 import './assembly-preview.css';
@@ -12,13 +13,18 @@ export type LoadedModel = { id: string; mesh: ModelMesh };
 export type AssemblyBody = { id: string; name: string; mesh: ModelMesh };
 type AssemblyView = 'assembled' | 'exploded' | 'section';
 
-export function AssemblyScene({ board, models, bodies = [], mechanical, generation, onGasketChange, mechanicalConfiguration, selectedLayer = '', reference, onSelect, onSelectLayer, colorScheme, persistenceKey }: {
+export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies = [], mechanical, generation, preparedCase, onGasketChange, onGasketDraft, onCaseMountChange, onCaseMountDraft, mechanicalConfiguration, selectedLayer = '', reference, onSelect, onSelectLayer, colorScheme, persistenceKey }: {
   board: PcbPreview;
   models: LoadedModel[];
   bodies?: AssemblyBody[];
+  authoredCaseBodies?: CaseBody[];
   mechanical?: MechanicalAssembly;
   generation?: GenerationState;
-  onGasketChange?: (config: MechanicalConfiguration) => void;
+  preparedCase?: PreparedCaseAssemblyIR;
+  onGasketChange?: (config: MechanicalConfiguration) => void | Promise<boolean>;
+  onGasketDraft?: (config: MechanicalConfiguration | null, disposition?: 'commit') => void;
+  onCaseMountChange?: (bodyId: string, mounts: Mount[]) => void | Promise<boolean>;
+  onCaseMountDraft?: (bodyId: string, mounts: Mount[] | null, disposition?: 'commit') => void;
   mechanicalConfiguration?: MechanicalConfiguration;
   selectedLayer?: string;
   reference?: BoardReference;
@@ -30,6 +36,7 @@ export function AssemblyScene({ board, models, bodies = [], mechanical, generati
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<RendererCanvas | undefined>(undefined);
   const sceneRevision = useRef(0);
+  const appliedBase = useRef<{ board: PcbPreview; models: LoadedModel[]; reference?: BoardReference; stackKey: string; batteryKey: string } | undefined>(undefined);
   const interacted = useRef(false);
   const fitted = useRef(false);
   const fittedModels = useRef(false);
@@ -37,6 +44,27 @@ export function AssemblyScene({ board, models, bodies = [], mechanical, generati
   selectRef.current = onSelect;
   const selectLayerRef = useRef(onSelectLayer);
   selectLayerRef.current = onSelectLayer;
+  const gasketChangeRef = useRef(onGasketChange);
+  const gasketDraftRef = useRef(onGasketDraft);
+  const mountChangeRef = useRef(onCaseMountChange);
+  const mountDraftRef = useRef(onCaseMountDraft);
+  gasketChangeRef.current = onGasketChange;
+  gasketDraftRef.current = onGasketDraft;
+  mountChangeRef.current = onCaseMountChange;
+  mountDraftRef.current = onCaseMountDraft;
+  const draftFrame = useRef<number | undefined>(undefined);
+  const pendingDraft = useRef<(() => void) | undefined>(undefined);
+  const queueDraft = (callback: () => void) => {
+    pendingDraft.current = callback;
+    if (draftFrame.current !== undefined) return;
+    draftFrame.current = requestAnimationFrame(() => {
+      draftFrame.current = undefined;
+      pendingDraft.current?.();
+      pendingDraft.current = undefined;
+    });
+  };
+  const preparedCaseRef = useRef(preparedCase);
+  preparedCaseRef.current = preparedCase;
   const mechanicalRef = useRef(mechanical);
   mechanicalRef.current = mechanical;
   const [ready, setReady] = useState(false);
@@ -49,12 +77,17 @@ export function AssemblyScene({ board, models, bodies = [], mechanical, generati
   const stableBodies = useRef(bodies);
   if (bodies.length !== stableBodies.current.length || bodies.some((b,i) => b.id !== stableBodies.current[i]?.id || b.mesh.positions !== stableBodies.current[i]?.mesh.positions)) stableBodies.current = bodies;
   const geometryBodies = stableBodies.current;
+  // A commit may reuse the displayed draft buffers. Acknowledge its new exact
+  // revision through the renderer's zero-delta path without forcing a redraw.
+  const exactRevision = useRef<number | undefined>(undefined);
+  if (generation?.status === 'ready') exactRevision.current = generation.revision;
   const stackKey = JSON.stringify(mechanical?.stack ?? []);
   const batteryKey = JSON.stringify(mechanicalConfiguration?.battery);
   const [preparing, setPreparing] = useState(false);
   const [editingGaskets, setEditingGaskets] = useState(false);
   const [gasketMessage, setGasketMessage] = useState('');
   const [activeGasket, setActiveGasket] = useState('');
+  const [editingMounts, setEditingMounts] = useState(false);
   useEffect(() => { try { localStorage.setItem(hiddenKey, JSON.stringify([...hidden])); } catch { /* view preference only */ } }, [hiddenKey, hidden]);
 
   useEffect(() => {
@@ -103,8 +136,13 @@ export function AssemblyScene({ board, models, bodies = [], mechanical, generati
         battery: mechanicalConfiguration?.battery,
         reference,
       };
-      void current.setScene(packet).then(accepted => {
+      const previous = appliedBase.current;
+      const bodyOnly = previous?.board === board && previous.models === models && previous.reference === reference
+        && previous.stackKey === stackKey && previous.batteryKey === batteryKey;
+      const update = bodyOnly ? current.setSceneBodies({ revision, bodies: geometryBodies }) : current.setScene(packet);
+      void update.then(accepted => {
       if (accepted) {
+        appliedBase.current = { board, models, reference, stackKey, batteryKey };
         if (!keepCamera) fitted.current = true;
         if (models.length > 0) fittedModels.current = true;
         setError('');
@@ -114,49 +152,152 @@ export function AssemblyScene({ board, models, bodies = [], mechanical, generati
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The assembly preview could not be updated.');
     }
-  }, [ready, board, models, geometryBodies, reference, stackKey, batteryKey]);
+  }, [ready, board, models, geometryBodies, reference, stackKey, batteryKey, exactRevision.current]);
 
   useEffect(() => {
-    renderer.current?.setState({ hidden: [...hidden, ...(!editingGaskets ? ['GasketHandles'] : [])], selectedLayer, view, mode: displayMode, theme: colorScheme });
-  }, [ready, hidden, selectedLayer, view, displayMode, colorScheme, editingGaskets]);
+    renderer.current?.setState({ hidden: [...hidden, ...(!editingGaskets && !editingMounts ? ['GasketHandles'] : [])], selectedLayer, view, mode: displayMode, theme: colorScheme });
+  }, [ready, hidden, selectedLayer, view, displayMode, colorScheme, editingGaskets, editingMounts]);
 
   useEffect(() => {
     const current = renderer.current;
-    if (!current || !ready || !mechanical || !mechanicalConfiguration) return;
-    const original = mechanical.gasketSupports ?? [];
-    const z = mechanical.stack.find(layer => layer.id === 'retainer');
+    if (!current || !ready || (!mechanical && !authoredCaseBodies.length)) return;
+    const original = mechanical?.gasketSupports ?? [];
+    const z = mechanical?.stack.find(layer => layer.id === 'retainer');
     const handleZ = z ? z.z + z.thickness + 0.7 : 9;
-    const handles = (supports: MechanicalGasketSupport[], invalid = false) => supports.map(support => ({ ...support, z: handleZ, invalid }));
-    current.setHandles(editingGaskets ? handles(original) : []);
+    type MountTarget = { key: string; mounts: Mount[]; z: number; body?: CaseBody; field?: 'mounts' | 'closureMounts' };
+    const targets: MountTarget[] = mechanicalConfiguration ? [
+      ...(mechanicalConfiguration.mount !== 'gasket' ? [{ key: 'suspension', mounts: mechanicalConfiguration.mounts,
+        z: mechanical?.stack.find(layer => layer.id === (mechanicalConfiguration.mount === 'rigid' ? 'plate' : 'bottom'))?.z ?? 0, field: 'mounts' as const }] : []),
+      { key: 'closure', mounts: mechanicalConfiguration.closureMounts ?? [],
+        z: mechanical?.stack.find(layer => layer.id === 'bottom')?.z ?? 0, field: 'closureMounts' },
+    ] : authoredCaseBodies.map(body => ({ key: body.id, body, mounts: body.mounts ?? [], z: body.z ?? 0 }));
+    const mountId = (target: MountTarget, mount: Mount) => `case-mount:${target.key}/${mount.id}`;
+    let movingMount: { target: MountTarget; id: string; pending: Mount[]; constraints: ReturnType<typeof caseMountConstraints> } | undefined;
+    const mountHandles = (invalid = false) => targets.flatMap(target =>
+      (movingMount?.target === target ? movingMount.pending : target.mounts).map(mount => ({
+        id: mountId(target, mount), at: mount.at, tangent: { x: 1, y: 0 }, normal: { x: 0, y: 1 },
+        length: (mount.kind === 'boss' ? mount.bossDiameter ?? mount.holeDiameter : mount.holeDiameter) + 3,
+        z: target.z + 0.8, invalid: invalid && movingMount?.id === mount.id && movingMount.target === target,
+      })));
+    const handles = (supports: MechanicalGasketSupport[], invalid = false) => supports.map(support => ({
+      ...support, id: `gasket-handle:${support.id}`, z: handleZ, invalid,
+    }));
+    const mountDraft = (target: MountTarget, mounts: Mount[] | null, disposition?: 'commit') => {
+      if (target.field && mechanicalConfiguration) gasketDraftRef.current?.(mounts ? { ...mechanicalConfiguration, [target.field]: mounts } : null, disposition);
+      else if (target.body) {
+        if (disposition) mountDraftRef.current?.(target.body.id, mounts, disposition);
+        else mountDraftRef.current?.(target.body.id, mounts);
+      }
+    };
+    let alive = true, committing = false;
+    const commit = (save: () => void | Promise<boolean>, restore: () => void) => {
+      committing = true;
+      void (async () => {
+        let saved = false;
+        try { saved = await save() !== false; } catch { /* The owner reports the edit failure. */ }
+        if (!alive) return;
+        committing = false;
+        if (!saved) { restore(); setGasketMessage('Move could not be saved'); }
+      })();
+    };
+    const clearQueuedDraft = () => {
+      if (draftFrame.current !== undefined) cancelAnimationFrame(draftFrame.current);
+      draftFrame.current = undefined; pendingDraft.current = undefined;
+    };
+    current.setHandles(editingGaskets && mechanicalConfiguration ? handles(original) : editingMounts ? mountHandles() : []);
     let moving = '';
     let pending = original;
     let valid = true;
-    current.setDrag(editingGaskets ? {
+    current.setDrag(editingGaskets || editingMounts ? {
       start(id) {
-        if (!id.startsWith('gasket-handle:')) return undefined;
+        if (committing) return undefined;
+        if (editingMounts) {
+          for (const target of targets) {
+            const mount = target.mounts.find(entry => mountId(target, entry) === id);
+            if (!mount) continue;
+            const sourceId = target.body?.id ?? (target.key === 'suspension' && mechanicalConfiguration?.mount === 'rigid' ? 'plate' : 'bottom');
+            const prepared = preparedCaseRef.current?.bodies.find(entry => entry.body.id === sourceId);
+            if (!prepared) {
+              setGasketMessage('Update the case preview before moving mounts');
+              return undefined;
+            }
+            // Capture committed boundaries once so draft replies cannot change an active gesture.
+            movingMount = { target, id: mount.id, pending: target.mounts, constraints: caseMountConstraints(prepared) }; valid = true;
+            setGasketMessage('Drag the mount · release to save its case position');
+            return target.z + 0.8;
+          }
+          return undefined;
+        }
+        if (!id.startsWith('gasket-handle:') || !mechanicalConfiguration) return undefined;
         moving = id.slice('gasket-handle:'.length);
-        setActiveGasket(moving);
-        pending = original;
+        setActiveGasket(moving); pending = original; valid = true;
         return handleZ;
       },
       move(point) {
-        const next = moveGasket(point, moving, original, mechanical.gasketTracks ?? []);
+        if (movingMount) {
+          const next = moveCaseMount(point, movingMount.id, movingMount.target.mounts, 0.5, movingMount.constraints);
+          valid = Boolean(next);
+          if (next) {
+            movingMount.pending = next;
+            const target = movingMount.target;
+            queueDraft(() => mountDraft(target, next));
+          }
+          current.setHandles(mountHandles(!valid));
+          setGasketMessage(valid ? 'Release to save mount position' : 'Placement blocked · keep clearance from edges, holes, and other mounts');
+          return;
+        }
+        if (!moving || !mechanicalConfiguration) return;
+        const next = moveGasket(point, moving, original, mechanical?.gasketTracks ?? []);
         valid = Boolean(next);
-        if (next) pending = next;
+        if (next) {
+          pending = next;
+          const layout = mechanicalConfiguration.gasketLayout ?? defaultGasketLayout();
+          const configuration = { ...mechanicalConfiguration, gasketLayout: { ...layout, supports: gasketAnchors(layout, original, next) } };
+          queueDraft(() => gasketDraftRef.current?.(configuration));
+        }
         current.setHandles(handles(pending, !valid));
-        setGasketMessage(valid ? 'Release to save positions · Generate updates the solids' : 'That position is blocked · move along the perimeter');
+        setGasketMessage(valid ? 'Release to save positions · Escape to cancel' : 'That position is blocked · move along the perimeter');
       },
       end(cancelled) {
-        if (!cancelled && valid && pending !== original && onGasketChange) {
-          const layout = mechanicalConfiguration.gasketLayout ?? defaultGasketLayout();
-          onGasketChange({ ...mechanicalConfiguration, gasketLayout: { ...layout, supports: gasketAnchors(layout, original, pending) } });
-        } else current.setHandles(handles(original));
+        clearQueuedDraft();
+        if (movingMount) {
+          const { target, pending: mounts } = movingMount;
+          if (!cancelled && valid && mounts !== target.mounts) {
+            mountDraft(target, mounts, 'commit');
+            current.setHandles(mountHandles());
+            movingMount = undefined;
+            commit(() => target.field && mechanicalConfiguration
+              ? gasketChangeRef.current?.({ ...mechanicalConfiguration, [target.field]: mounts })
+              : target.body ? mountChangeRef.current?.(target.body.id, mounts) : undefined,
+            () => { mountDraft(target, null); current.setHandles(mountHandles()); });
+          } else {
+            mountDraft(target, null); movingMount = undefined;
+            current.setHandles(mountHandles());
+          }
+        } else if (moving) {
+          if (!cancelled && valid && pending !== original && mechanicalConfiguration) {
+            const layout = mechanicalConfiguration.gasketLayout ?? defaultGasketLayout();
+            const configuration = { ...mechanicalConfiguration, gasketLayout: { ...layout, supports: gasketAnchors(layout, original, pending) } };
+            gasketDraftRef.current?.(configuration, 'commit');
+            current.setHandles(handles(pending));
+            commit(() => gasketChangeRef.current?.(configuration),
+              () => { gasketDraftRef.current?.(null); current.setHandles(handles(original)); });
+          } else {
+            gasketDraftRef.current?.(null); current.setHandles(handles(original));
+          }
+          moving = '';
+        }
         setGasketMessage(cancelled ? 'Move cancelled' : !valid ? 'Blocked move was not saved' : '');
-        moving = '';
       },
     } : undefined);
-    return () => current.setDrag(undefined);
-  }, [ready, editingGaskets, mechanical, mechanicalConfiguration, onGasketChange]);
+    return () => {
+      alive = false;
+      clearQueuedDraft();
+      if (movingMount) mountDraft(movingMount.target, null);
+      if (moving) gasketDraftRef.current?.(null);
+      current.setDrag(undefined);
+    };
+  }, [ready, editingGaskets, editingMounts, mechanical, authoredCaseBodies, mechanicalConfiguration, board]);
 
   const unlinkGasket = () => {
     if (!mechanical || !mechanicalConfiguration || !onGasketChange) return;
@@ -197,11 +338,12 @@ export function AssemblyScene({ board, models, bodies = [], mechanical, generati
     <div className="wb-render-modes" role="group" aria-label="Display mode">
       {(['shaded', 'wireframe', 'hybrid'] as const).map(mode => <button key={mode} aria-pressed={displayMode === mode} onClick={() => setDisplayMode(mode)}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
     </div>
-    {mechanical && <div className="wb-mechanical-view-controls" role="group" aria-label="Mechanical assembly view">
+    {(mechanical || authoredCaseBodies.length > 0) && <div className="wb-mechanical-view-controls" role="group" aria-label="Mechanical assembly view">
       <button aria-pressed={view === 'assembled'} onClick={() => setView('assembled')}>Assembled</button>
       <button aria-pressed={view === 'exploded'} onClick={() => setView('exploded')}>Exploded</button>
       <button aria-pressed={view === 'section'} onClick={() => setView('section')}>Section</button>
-      {Boolean(mechanical.gasketSupports?.length) && <button disabled={!ready || preparing} aria-pressed={editingGaskets} onClick={() => { setEditingGaskets(value => !value); setGasketMessage(editingGaskets ? '' : 'Drag a gasket handle along the perimeter · linked supports move together'); setView('assembled'); renderer.current?.view('top'); }}>Edit gaskets</button>}
+      {Boolean(mechanical?.gasketSupports?.length) && mechanicalConfiguration && <button disabled={!ready || preparing} aria-pressed={editingGaskets} onClick={() => { setEditingGaskets(value => !value); setEditingMounts(false); setGasketMessage(editingGaskets ? '' : 'Drag a gasket handle along the perimeter · linked supports move together'); setView('assembled'); renderer.current?.view('top'); }}>Edit gaskets</button>}
+      {Boolean(mechanicalConfiguration ? (mechanicalConfiguration.mount !== 'gasket' && mechanicalConfiguration.mounts.length) || mechanicalConfiguration.closureMounts?.length : authoredCaseBodies.some(body => body.mounts?.length)) && (onCaseMountChange || onGasketChange) && <button disabled={!ready || preparing || (!editingMounts && !preparedCase)} title={!preparedCase ? 'Update the case preview to edit mounts' : undefined} aria-pressed={editingMounts} onClick={() => { setEditingMounts(value => !value); setEditingGaskets(false); setGasketMessage(editingMounts ? '' : 'Drag a case mount to preview its new position'); setView('assembled'); renderer.current?.view('top'); }}>Edit mounts</button>}
       {editingGaskets && activeGasket && <button onClick={unlinkGasket}>Unlink selected support</button>}
     </div>}
     </div>

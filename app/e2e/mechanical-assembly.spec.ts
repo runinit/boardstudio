@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProjectDoc } from '@boardstudio/v2-contracts';
 
@@ -19,7 +20,7 @@ async function saved(page: Page): Promise<ProjectDoc> {
 
 async function configure(page: Page) {
   await page.goto('/');
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
   await expect(page.getByText('Configuration resolved', { exact: false })).toBeVisible();
   return page.locator('.wb-mechanical-panel');
@@ -28,7 +29,7 @@ async function configure(page: Page) {
 test('mechanical configuration is opt-in, undoable and persistent without replacing authored bodies', async ({ page }) => {
   const panel = await configure(page);
   await expect.poll(async () => (await saved(page)).mechanical?.method).toBe('printed');
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText(/Generated CAD solids · 4 parts at revision/)).toBeVisible({ timeout: 60_000 });
   const originalBodies = (await saved(page)).caseBodies;
   await panel.getByRole('combobox', { name: 'Bottom construction', exact: true }).selectOption('sheet');
@@ -38,7 +39,7 @@ test('mechanical configuration is opt-in, undoable and persistent without replac
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await expect(panel.getByRole('combobox', { name: 'Bottom construction', exact: true })).toHaveValue('sheet');
   await page.reload();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(panel.getByRole('combobox', { name: 'Bottom construction', exact: true })).toHaveValue('sheet');
   expect((await saved(page)).caseBodies).toEqual(originalBodies);
   await panel.locator('summary').filter({ hasText: 'Configuration management' }).click();
@@ -64,7 +65,7 @@ test('library profile resolves real cutouts and view controls leave the committe
   await materials.first().selectOption('PLA');
   await expect.poll(async () => (await saved(page)).mechanical?.partProcesses?.find((entry) => entry.partId === 'plate')?.material).toBe('PLA');
   await materials.last().selectOption('PLA');
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText(/Generated CAD solids · 4 parts at revision/)).toBeVisible({ timeout: 60000 });
 
   await expect(panel.getByLabel('Resolved mechanical stack')).toBeVisible();
@@ -89,7 +90,7 @@ test('clicking a generated solid selects its resolved stack layer', async ({ pag
   const materials = panel.getByRole('combobox', { name: 'Material', exact: true });
   await materials.first().selectOption('PLA');
   await materials.last().selectOption('PLA');
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText(/Generated CAD solids · 4 parts at revision/)).toBeVisible({ timeout: 60_000 });
   const plate = panel.getByLabel('Resolved mechanical stack').getByRole('button').filter({ hasText: 'Plate' }).first();
   await expect(plate).toHaveAttribute('aria-pressed', 'false');
@@ -128,7 +129,7 @@ test('hardware and critical-fit drawing specifications persist with undo', async
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await expect.poll(async () => (await saved(page)).mechanical?.criticalFits?.[0]?.label).toBe('Switch retention');
   await page.reload();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(panel.getByRole('textbox', { name: 'Thread for hardware 1', exact: true })).toHaveValue('M2 x 0.4 - 6g');
   await expect(panel.getByRole('textbox', { name: 'Label for critical fit 1', exact: true })).toHaveValue('Switch retention');
 });
@@ -138,7 +139,7 @@ test('generated preview separates saved authored bodies and scopes configuration
   await expect(page.getByRole('combobox', { name: 'Body type', exact: true })).toHaveCount(0);
   await expect(page.getByText(/Generated assembly preview.*authored case bodies remain saved/)).toBeVisible();
   await page.getByRole('button', { name: 'New board', exact: true }).click();
-  await page.getByRole('treeitem', { name: 'Case', exact: true }).click();
+  await navigateWorkspace(page, 'Case');
   await expect(page.getByText(/Mechanical stack belongs to/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Disable mechanical stack', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Show configured board', exact: true }).click();
@@ -169,7 +170,7 @@ test('generated-only boards keep their export ready when leaving the Case view',
   await panel.getByRole('combobox', { name: 'Library fit profile', exact: true }).selectOption('mx-switch');
   await panel.getByRole('combobox', { name: 'Assign library fit profile to', exact: true }).selectOption('ergogen:ceoloide/switch_mx');
   await panel.locator('summary').filter({ hasText: 'Per-part process overrides' }).click();
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Geometry current/)).toBeVisible({ timeout: 60000 });
   expect((await saved(page)).caseBodies).toHaveLength(0);
   await page.getByRole('button', { name: 'Export', exact: true }).first().click();

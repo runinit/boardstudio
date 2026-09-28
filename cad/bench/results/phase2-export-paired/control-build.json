@@ -1,0 +1,12 @@
+{
+  "kind": "reconstructed-release-control",
+  "containerImage": "boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33-bindgen-0.2.129",
+  "command": "wasm-pack build wasm --target web --out-dir pkg --out-name boardstudio_cadrum_wasm --release --locked",
+  "changes": "control.patch; disables only Phase 2 opening reduction and no-opening upstream-retention guard; instrumentation unchanged",
+  "productionAssetsModified": false,
+  "controlBuildSucceeded": true,
+  "sourceHashesFile": "control-source-hashes.json",
+  "cargoLockSha256": "e8622878854ceb55e97d8ef644d9bbf363ac50466211eb7e1bd9576ba432da10",
+  "cargoTomlSha256": "f3abf1fa147fbd9a8b9a7dd2a6eb632e571eca95c25b9727122be9b2dd3cca94",
+  "diagnosticRunnerSha256": "3353fad971182da34f95af9e9d22355a5d99209cb967b34df5b246c590de8bb4"
+}

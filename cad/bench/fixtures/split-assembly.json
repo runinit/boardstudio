@@ -1,0 +1,118 @@
+{
+  "revision": 1,
+  "bodies": [
+    {
+      "revision": 1,
+      "body": {
+        "id": "split-plate",
+        "name": "split-plate",
+        "boardId": "bench",
+        "kind": "plate",
+        "thickness": 2,
+        "clearance": 0
+      },
+      "contours": [
+        {
+          "hole": false,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 50,
+              "y": 0
+            },
+            {
+              "x": 50,
+              "y": 40
+            },
+            {
+              "x": 0,
+              "y": 40
+            }
+          ]
+        },
+        {
+          "hole": false,
+          "points": [
+            {
+              "x": 70,
+              "y": 0
+            },
+            {
+              "x": 120,
+              "y": 0
+            },
+            {
+              "x": 120,
+              "y": 40
+            },
+            {
+              "x": 70,
+              "y": 40
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "revision": 1,
+      "body": {
+        "id": "split-tray",
+        "name": "split-tray",
+        "boardId": "bench",
+        "kind": "tray",
+        "thickness": 2,
+        "clearance": 0,
+        "wallHeight": 5,
+        "wallThickness": 3,
+        "z": -10
+      },
+      "contours": [
+        {
+          "hole": false,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 50,
+              "y": 0
+            },
+            {
+              "x": 50,
+              "y": 40
+            },
+            {
+              "x": 0,
+              "y": 40
+            }
+          ]
+        },
+        {
+          "hole": false,
+          "points": [
+            {
+              "x": 70,
+              "y": 0
+            },
+            {
+              "x": 120,
+              "y": 0
+            },
+            {
+              "x": 120,
+              "y": 40
+            },
+            {
+              "x": 70,
+              "y": 40
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

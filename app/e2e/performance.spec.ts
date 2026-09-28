@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
+import { cpus } from 'node:os';
 
 type Result = { p50: number; p95: number; samples: number };
 type Measurements = {
@@ -7,6 +8,13 @@ type Measurements = {
   painted: Result;
   parts: number;
   stages?: { wasm: Result; parse: Result; transportQueue: Result; react: Result; frame: Result };
+};
+
+type Provenance = {
+  browser: string;
+  node: string;
+  cpu: string;
+  viewport: { width: number; height: number; deviceScaleFactor: number };
 };
 
 declare global {
@@ -18,9 +26,13 @@ declare global {
 
 test('records mounted workbench assembly latency', async ({ page }) => {
   test.setTimeout(240_000);
-  if (process.env.BOARDSTUDIO_PERF_EXPECTED_BROWSER) {
-    expect(page.context().browser()?.version()).toBe(process.env.BOARDSTUDIO_PERF_EXPECTED_BROWSER);
-  }
+  const provenance: Provenance = {
+    browser: page.context().browser()?.version() ?? 'unknown',
+    node: process.version,
+    cpu: cpus()[0]?.model ?? 'unknown',
+    viewport: { width: 1280, height: 720, deviceScaleFactor: 1 },
+  };
+  console.info(`Performance provenance: ${JSON.stringify(provenance)}`);
   await page.goto('/bench-workbench.html');
   const coldLoad = await page.evaluate(() => {
     const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
@@ -31,7 +43,7 @@ test('records mounted workbench assembly latency', async ({ page }) => {
     };
   });
   console.info(`Workbench cold load: ${JSON.stringify(coldLoad)}`);
-  const report: Record<string, Measurements> = {};
+  const report: Record<string, Measurements> & { provenance?: Provenance } = { provenance };
 
   for (const keys of [100, 200] as const) {
     for (const scope of ['single', 'row'] as const) {

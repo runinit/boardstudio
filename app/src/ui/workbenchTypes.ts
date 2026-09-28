@@ -32,7 +32,7 @@ export type Props = {
   document: ProjectDoc;
   saveStatus?: 'saving' | 'saved' | 'failed';
   scene: SceneDelta;
-  onEdit: (command: EditCommand) => void;
+  onEdit: (command: EditCommand) => void | Promise<boolean>;
   onUndo: () => void;
   onRedo: () => void;
   onExport: (kind: ExportKind, boardId?: string) => void;
@@ -48,6 +48,7 @@ export type Props = {
   onApplyWiring?: () => void;
   onReviewWiring?: (assignment: WiringAssignment) => void;
   onNewProject?: () => void;
+  onOpenSavedProject?: (projectId: string) => void;
   onOpenDemo?: (variant: import('../demos/keyboards').DemoId) => void;
   onImport?: (file: File) => void;
   onImportFootprint?: (file: File) => void;
@@ -55,6 +56,9 @@ export type Props = {
   mechanicalAssembly?: MechanicalAssembly;
   onResolveMechanical?: () => void;
   onCancelGeneration?: () => void;
+  livePreview?: boolean;
+  onLivePreviewChange?: (enabled: boolean) => void;
+  onCasePreviewDraft?: (document: ProjectDoc | null, disposition?: 'commit') => void;
   generation?: GenerationState;
   onExportMechanical?: () => void;
   onMechanicalProfile?: (definitionId: string, source: MechanicalBuiltinProfile, plateToPcb: number) => Promise<MechanicalPartProfile>;
@@ -63,7 +67,8 @@ export type Props = {
   onProjectMatrices?: (matrices: Matrix[]) => Promise<MatrixScene[] | undefined>;
   onModeChange?: (mode: Mode) => void;
   caseBodies?: import('@boardstudio/v2-contracts').CaseBodyMesh[];
-  casePreview?: { positions: Float32Array; normals: Float32Array; revision: number };
+  casePreview?: { revision: number };
+  preparedCase?: import('@boardstudio/v2-contracts').PreparedCaseAssemblyIR;
   embedUsedModels?: boolean;
   onEmbedUsedModelsChange?: (value: boolean) => void;
 };

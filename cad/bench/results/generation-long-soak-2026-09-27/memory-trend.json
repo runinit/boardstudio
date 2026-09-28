@@ -1,0 +1,39 @@
+{
+  "cycles": 1920,
+  "fixtures": {
+    "boss-tray": {
+      "samples": 960,
+      "rssQuarterMedians": [
+        1192386560,
+        1163644928,
+        938889216,
+        793862144
+      ],
+      "rssPeak": 1233801216,
+      "wasmQuarterPeaks": [
+        49610752,
+        49610752,
+        49610752,
+        49610752
+      ],
+      "supersededRequests": 120
+    },
+    "gasketed-pair": {
+      "samples": 960,
+      "rssQuarterMedians": [
+        570961920,
+        483409920,
+        488648704,
+        460419072
+      ],
+      "rssPeak": 689160192,
+      "wasmQuarterPeaks": [
+        18350080,
+        20774912,
+        20774912,
+        20774912
+      ],
+      "supersededRequests": 120
+    }
+  }
+}

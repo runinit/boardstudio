@@ -4,7 +4,7 @@ for (const [variant, name, parts] of [['v2', 'Sofle v2', 70], ['rgb', 'Sofle RGB
   test(`${name} opens from the project menu and survives reload`, async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Project', exact: true }).click();
-    await page.getByRole('combobox', { name: 'Open demo keyboard' }).selectOption(variant);
+    await page.getByRole('button', { name: `Start ${name}`, exact: true }).click();
     await expect(page.locator('.wb-scene-part')).toHaveCount(parts);
     await expect(page.getByRole('button', { name: 'Project', exact: true })).toHaveAttribute('title', `Project menu — ${name}`);
     await expect(page.getByRole('alert')).toHaveCount(0);
@@ -18,7 +18,7 @@ for (const [variant, name, parts] of [['v2', 'Sofle v2', 70], ['rgb', 'Sofle RGB
     await expect(page.getByRole('button', { name: 'Project', exact: true })).toHaveAttribute('title', `Project menu — ${name}`);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Project', exact: true }).click();
-    await expect(page.getByRole('combobox', { name: 'Open demo keyboard' })).toBeInViewport();
+    await expect(page.getByRole('region', { name: 'Demo keyboards', exact: true })).toBeVisible();
     await page.screenshot({ animations: 'disabled', path: `test-results/sofle-${variant}-mobile.png` });
   });
 }

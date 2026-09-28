@@ -1,0 +1,2607 @@
+{
+  "completeScenarioSet": true,
+  "sufficientSampling": false,
+  "matchingFixtures": true,
+  "browserVersionMatch": true,
+  "comparableEnvironment": false,
+  "rows": {
+    "holed-plate/cold": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 171.90000000596046,
+          "p95": 314.90000000596046
+        },
+        "paintedMs": {
+          "p50": 267.09999999403954,
+          "p95": 483
+        },
+        "sampledPeakRssBytes": 1146949632
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 156.80000001192093,
+          "p95": 156.80000001192093
+        },
+        "paintedMs": {
+          "p50": 242.40000000596046,
+          "p95": 242.40000000596046
+        },
+        "sampledPeakRssBytes": 1133543424
+      },
+      "budget": {
+        "completedP95Ms": 347,
+        "paintedP95Ms": 532,
+        "peakRssBytes": 1261644596
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 209.3600000023842,
+        "workerExecutionMeanMs": 174.5599609375,
+        "copiedMeshBytes": 177120,
+        "transferredBytes": 70848,
+        "wasmPeakBytes": 17891328,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 177120
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 60.71999999284744,
+          "baseExtrusion": 65.37999999523163,
+          "tessellation": 33.619999998807906,
+          "meshExpansion": 0.019999998807907104,
+          "cacheMeshCopy": 0.059999996423721315,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.27999999523162844,
+          "combinedMeshCopy": 0.040000003576278684
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 156.80000001192093,
+        "workerExecutionMeanMs": 130.5,
+        "copiedMeshBytes": 70848,
+        "transferredBytes": 35424,
+        "wasmPeakBytes": 18219008,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 70848
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 40.5,
+          "baseExtrusion": 48.89999997615814,
+          "stageSolidCopy": 5.699999988079071,
+          "tessellation": 25,
+          "meshExpansion": 0.09999999403953552,
+          "cacheSolidCopy": 2.5,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.30000001192092896
+        }
+      }
+    },
+    "holed-plate/warm-uncached": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 20.899999976158142,
+          "p95": 40.69999998807907
+        },
+        "paintedMs": {
+          "p50": 34.69999998807907,
+          "p95": 69.5
+        },
+        "sampledPeakRssBytes": 1197682688
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 36.89999997615814,
+          "p95": 36.89999997615814
+        },
+        "paintedMs": {
+          "p50": 59.29999998211861,
+          "p95": 59.29999998211861
+        },
+        "sampledPeakRssBytes": 1185652736
+      },
+      "budget": {
+        "completedP95Ms": 45,
+        "paintedP95Ms": 77,
+        "peakRssBytes": 1317450957
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 25.38399999856949,
+        "workerExecutionMeanMs": 24.40100830078125,
+        "copiedMeshBytes": 177120,
+        "transferredBytes": 70848,
+        "wasmPeakBytes": 31326208,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 177120
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 8.479000000059605,
+          "tessellation": 11.638000001609326,
+          "meshExpansion": 0.035999999046325684,
+          "cacheMeshCopy": 0.02700000077486038,
+          "regionMeshCopy": 0.008999999761581421,
+          "wasmMeshCopy": 0.06500000059604645,
+          "combinedMeshCopy": 0.040999999940395354
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 36.89999997615814,
+        "workerExecutionMeanMs": 35.800048828125,
+        "copiedMeshBytes": 70848,
+        "transferredBytes": 35424,
+        "wasmPeakBytes": 19922944,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 70848
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 11.699999988079071,
+          "stageSolidCopy": 3.5,
+          "tessellation": 15.5,
+          "meshExpansion": 0.09999999403953552,
+          "cacheSolidCopy": 2.699999988079071,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.10000002384185791
+        }
+      }
+    },
+    "holed-plate/cache-hit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 1.2999999821186066,
+          "p95": 2
+        },
+        "paintedMs": {
+          "p50": 30.900000005960464,
+          "p95": 32
+        },
+        "sampledPeakRssBytes": 1189646336
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 0.9000000059604645,
+          "p95": 0.9000000059604645
+        },
+        "paintedMs": {
+          "p50": 30.099999994039536,
+          "p95": 30.099999994039536
+        },
+        "sampledPeakRssBytes": 1174892544
+      },
+      "budget": {
+        "completedP95Ms": 4,
+        "paintedP95Ms": 36,
+        "peakRssBytes": 1308610970
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 1.3669999995827675,
+        "workerExecutionMeanMs": 0.50799072265625,
+        "copiedMeshBytes": 106272,
+        "transferredBytes": 70848,
+        "wasmPeakBytes": 17891328,
+        "countersMean": {
+          "copiedMeshBytes": 106272,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "cacheMeshCopy": 0.022999999821186067,
+          "wasmMeshCopy": 0.05900000035762787,
+          "combinedMeshCopy": 0.03799999982118606
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 0.9000000059604645,
+        "workerExecutionMeanMs": 0.10009765625,
+        "copiedMeshBytes": 0,
+        "transferredBytes": 0,
+        "wasmPeakBytes": null,
+        "countersMean": {},
+        "stagesMeanMs": {}
+      }
+    },
+    "holed-plate/region-edit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 37.099999994039536,
+          "p95": 113.69999998807907
+        },
+        "paintedMs": {
+          "p50": 64.2999999821186,
+          "p95": 131.80000001192093
+        },
+        "sampledPeakRssBytes": 1234550784
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 108.19999998807907,
+          "p95": 108.19999998807907
+        },
+        "paintedMs": {
+          "p50": 122.40000000596046,
+          "p95": 122.40000000596046
+        },
+        "sampledPeakRssBytes": 1211265024
+      },
+      "budget": {
+        "completedP95Ms": 126,
+        "paintedP95Ms": 145,
+        "peakRssBytes": 1358005863
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 51.55799999713898,
+        "workerExecutionMeanMs": 50.55499267578125,
+        "copiedMeshBytes": 182880,
+        "transferredBytes": 73152,
+        "wasmPeakBytes": 38862848,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 2,
+          "booleanEvaluations": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 508,
+          "copiedMeshBytes": 182880
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 8.272999999821186,
+          "openingCuts": 27.90100000143051,
+          "tessellation": 10.583999999165535,
+          "meshExpansion": 0.03999999970197678,
+          "cacheMeshCopy": 0.028000000417232513,
+          "regionMeshCopy": 0.020999999940395354,
+          "wasmMeshCopy": 0.05700000077486038,
+          "combinedMeshCopy": 0.042999998927116395
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 108.19999998807907,
+        "workerExecutionMeanMs": 106.699951171875,
+        "copiedMeshBytes": 73152,
+        "transferredBytes": 36576,
+        "wasmPeakBytes": 22020096,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageHits": 1,
+          "extrusions": 1,
+          "booleanEvaluations": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 508,
+          "copiedMeshBytes": 73152
+        },
+        "stagesMeanMs": {
+          "stageSolidCopy": 1.800000011920929,
+          "openingCuts": 84.2999999821186,
+          "tessellation": 15.400000005960464,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 2.300000011920929,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.09999999403953552
+        }
+      }
+    },
+    "holed-plate/preview-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 45.79999998211861,
+          "p95": 120.30000001192093
+        },
+        "paintedMs": {
+          "p50": 64,
+          "p95": 132.40000000596046
+        },
+        "sampledPeakRssBytes": 1300586496
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 119.7000000178814,
+          "p95": 119.7000000178814
+        },
+        "paintedMs": {
+          "p50": 131.80000001192093,
+          "p95": 131.80000001192093
+        },
+        "sampledPeakRssBytes": 1259950080
+      },
+      "budget": {
+        "completedP95Ms": 133,
+        "paintedP95Ms": 146,
+        "peakRssBytes": 1430645146
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 56.10399999797344,
+        "workerExecutionMeanMs": 54.7069775390625,
+        "copiedMeshBytes": 318816,
+        "transferredBytes": 497485.45,
+        "wasmPeakBytes": 33161216,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 318816,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 8.213000003099442,
+          "tessellation": 11.567999999523163,
+          "meshExpansion": 0.027000000178813936,
+          "cacheMeshCopy": 0.056999999880790714,
+          "regionMeshCopy": 0.005000000298023224,
+          "wasmMeshCopy": 0.13099999994039535,
+          "combinedMeshCopy": 0.12299999833106995,
+          "stepSerialization": 27.10600000053644,
+          "wasmStepCopy": 0.21500000059604646
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 119.7000000178814,
+        "workerExecutionMeanMs": 118,
+        "copiedMeshBytes": 212544,
+        "transferredBytes": 461900,
+        "wasmPeakBytes": 21102592,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 212544,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 8.900000005960464,
+          "stageSolidCopy": 2.800000011920929,
+          "tessellation": 16.5,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 4.0999999940395355,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.30000001192092896,
+          "cacheMeshCopy": 0,
+          "stepSerialization": 79.30000001192093,
+          "combinedMeshCopy": 0,
+          "wasmStepCopy": 0.19999998807907104
+        }
+      }
+    },
+    "holed-plate/direct-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 38.69999998807907,
+          "p95": 112.7999999821186
+        },
+        "paintedMs": {
+          "p50": 64.2999999821186,
+          "p95": 129.30000001192093
+        },
+        "sampledPeakRssBytes": 1321799680
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 145.69999998807907,
+          "p95": 145.69999998807907
+        },
+        "paintedMs": {
+          "p50": 160.90000000596046,
+          "p95": 160.90000000596046
+        },
+        "sampledPeakRssBytes": 1335136256
+      },
+      "budget": {
+        "completedP95Ms": 125,
+        "paintedP95Ms": 143,
+        "peakRssBytes": 1453979648
+      },
+      "completedP95Pass": false,
+      "paintedP95Pass": false,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 50.33200000047684,
+        "workerExecutionMeanMs": 49.32,
+        "copiedMeshBytes": 141696,
+        "transferredBytes": 426637.45,
+        "wasmPeakBytes": 28246016,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 141696
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 7.858999998867512,
+          "tessellation": 11.040000001788139,
+          "meshExpansion": 0.022999999523162843,
+          "cacheMeshCopy": 0.022000000774860383,
+          "stepSerialization": 26.1109999987483,
+          "combinedMeshCopy": 0.07599999994039536,
+          "wasmStepCopy": 0.20000000268220902,
+          "wasmMeshCopy": 0.08099999904632568
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 145.69999998807907,
+        "workerExecutionMeanMs": 144.599853515625,
+        "copiedMeshBytes": 141696,
+        "transferredBytes": 426476,
+        "wasmPeakBytes": 20971520,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 141696
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 14,
+          "stageSolidCopy": 4.4000000059604645,
+          "tessellation": 24,
+          "meshExpansion": 0,
+          "cacheMeshCopy": 0.09999999403953552,
+          "stepSerialization": 93.5,
+          "combinedMeshCopy": 0,
+          "wasmStepCopy": 0.29999998211860657,
+          "wasmMeshCopy": 0.10000002384185791
+        }
+      }
+    },
+    "holed-plate/cancel-retry": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 167.69999998807907,
+          "p95": 199.2000000178814
+        },
+        "paintedMs": {
+          "p50": 181.09999999403954,
+          "p95": 223.09999999403954
+        },
+        "sampledPeakRssBytes": 1268539392
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 186.80000001192093,
+          "p95": 186.80000001192093
+        },
+        "paintedMs": {
+          "p50": 199.30000001192093,
+          "p95": 199.30000001192093
+        },
+        "sampledPeakRssBytes": 1325064192
+      },
+      "budget": {
+        "completedP95Ms": 220,
+        "paintedP95Ms": 246,
+        "peakRssBytes": 1395393332
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 176.66000000238418,
+        "workerExecutionMeanMs": 120.03994140625,
+        "copiedMeshBytes": 177120,
+        "transferredBytes": 70848,
+        "wasmPeakBytes": 17891328,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 177120
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 47.28000000119209,
+          "baseExtrusion": 18.26000000834465,
+          "tessellation": 46.1,
+          "meshExpansion": 0.03999999761581421,
+          "cacheMeshCopy": 0.059999996423721315,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.3399999916553497,
+          "combinedMeshCopy": 0.040000003576278684
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 186.80000001192093,
+        "workerExecutionMeanMs": 120.900146484375,
+        "copiedMeshBytes": 70848,
+        "transferredBytes": 35424,
+        "wasmPeakBytes": 18219008,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 492,
+          "copiedMeshBytes": 70848
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 50.099999994039536,
+          "baseExtrusion": 20.599999994039536,
+          "stageSolidCopy": 7.699999988079071,
+          "tessellation": 36.19999998807907,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 2.9000000059604645,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.30000001192092896
+        }
+      }
+    },
+    "boss-tray/cold": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 411.40000000596046,
+          "p95": 662.0999999940395
+        },
+        "paintedMs": {
+          "p50": 432.2000000178814,
+          "p95": 703.2999999821186
+        },
+        "sampledPeakRssBytes": 1243062272
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 322.90000000596046,
+          "p95": 322.90000000596046
+        },
+        "paintedMs": {
+          "p50": 344.40000000596046,
+          "p95": 344.40000000596046
+        },
+        "sampledPeakRssBytes": 1270165504
+      },
+      "budget": {
+        "completedP95Ms": 729,
+        "paintedP95Ms": 774,
+        "peakRssBytes": 1367368500
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 452.82000000476836,
+        "workerExecutionMeanMs": 445.6599609375,
+        "copiedMeshBytes": 969120,
+        "transferredBytes": 387648,
+        "wasmPeakBytes": 15597568,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 26,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 969120
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 46.24000000953674,
+          "baseExtrusion": 12.919999998807906,
+          "cavityCuts": 55.80000001192093,
+          "bossUnions": 99.97999999523162,
+          "mountHoleCuts": 126.31999998688698,
+          "openingCuts": 42.97999999523163,
+          "tessellation": 48.5,
+          "meshExpansion": 0.2,
+          "cacheMeshCopy": 0.09999999403953552,
+          "regionMeshCopy": 0.1,
+          "wasmMeshCopy": 0.3800000011920929,
+          "combinedMeshCopy": 0.13999999165534974
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 322.90000000596046,
+        "workerExecutionMeanMs": 314,
+        "copiedMeshBytes": 387648,
+        "transferredBytes": 193824,
+        "wasmPeakBytes": 15728640,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 4,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 387648
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 41.79999998211861,
+          "baseExtrusion": 11.400000005960464,
+          "cavityCuts": 58.29999998211861,
+          "bossUnions": 42.80000001192093,
+          "mountHoleCuts": 57.400000005960464,
+          "stageSolidCopy": 1,
+          "openingCuts": 47.30000001192093,
+          "tessellation": 43.29999998211861,
+          "meshExpansion": 0.30000001192092896,
+          "cacheSolidCopy": 1.300000011920929,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.29999998211860657
+        }
+      }
+    },
+    "boss-tray/warm-uncached": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 137.40000000596046,
+          "p95": 264.09999999403954
+        },
+        "paintedMs": {
+          "p50": 159.89999997615814,
+          "p95": 302.69999998807907
+        },
+        "sampledPeakRssBytes": 1245593600
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 91.2000000178814,
+          "p95": 91.2000000178814
+        },
+        "paintedMs": {
+          "p50": 109.80000001192093,
+          "p95": 109.80000001192093
+        },
+        "sampledPeakRssBytes": 1224663040
+      },
+      "budget": {
+        "completedP95Ms": 291,
+        "paintedP95Ms": 333,
+        "peakRssBytes": 1370152960
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 156.69099999964237,
+        "workerExecutionMeanMs": 155.67300537109375,
+        "copiedMeshBytes": 969120,
+        "transferredBytes": 387648,
+        "wasmPeakBytes": 37289984,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 26,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 969120
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.3890000003576279,
+          "cavityCuts": 2.70299999833107,
+          "bossUnions": 41.38500000268221,
+          "mountHoleCuts": 60.06199999958277,
+          "openingCuts": 27.642000001966952,
+          "tessellation": 20.728999999463557,
+          "meshExpansion": 0.09400000244379043,
+          "cacheMeshCopy": 0.06600000083446503,
+          "regionMeshCopy": 0.03400000005960464,
+          "wasmMeshCopy": 0.11400000095367431,
+          "combinedMeshCopy": 0.10699999928474427
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 91.2000000178814,
+        "workerExecutionMeanMs": 90.300048828125,
+        "copiedMeshBytes": 387648,
+        "transferredBytes": 193824,
+        "wasmPeakBytes": 17235968,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 4,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 387648
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.5999999940395355,
+          "cavityCuts": 2.7999999821186066,
+          "bossUnions": 9.800000011920929,
+          "mountHoleCuts": 24.30000001192093,
+          "stageSolidCopy": 0.5999999940395355,
+          "openingCuts": 28.599999994039536,
+          "tessellation": 20.900000005960464,
+          "meshExpansion": 0.20000001788139343,
+          "cacheSolidCopy": 0.8999999761581421,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.20000001788139343
+        }
+      }
+    },
+    "boss-tray/cache-hit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 1.300000011920929,
+          "p95": 2.800000011920929
+        },
+        "paintedMs": {
+          "p50": 31.100000023841858,
+          "p95": 36.099999994039536
+        },
+        "sampledPeakRssBytes": 1229717504
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 1,
+          "p95": 1
+        },
+        "paintedMs": {
+          "p50": 24.099999994039536,
+          "p95": 24.099999994039536
+        },
+        "sampledPeakRssBytes": 1200340992
+      },
+      "budget": {
+        "completedP95Ms": 5,
+        "paintedP95Ms": 41,
+        "peakRssBytes": 1352689255
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 1.497000000178814,
+        "workerExecutionMeanMs": 0.61600830078125,
+        "copiedMeshBytes": 581472,
+        "transferredBytes": 387648,
+        "wasmPeakBytes": 15597568,
+        "countersMean": {
+          "copiedMeshBytes": 581472,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "cacheMeshCopy": 0.03800000011920929,
+          "wasmMeshCopy": 0.10799999982118606,
+          "combinedMeshCopy": 0.10399999976158142
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 1,
+        "workerExecutionMeanMs": 0,
+        "copiedMeshBytes": 0,
+        "transferredBytes": 0,
+        "wasmPeakBytes": null,
+        "countersMean": {},
+        "stagesMeanMs": {}
+      }
+    },
+    "boss-tray/region-edit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 142,
+          "p95": 274.7000000178814
+        },
+        "paintedMs": {
+          "p50": 165.19999998807907,
+          "p95": 318.2000000178814
+        },
+        "sampledPeakRssBytes": 1263529984
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 67.69999998807907,
+          "p95": 67.69999998807907
+        },
+        "paintedMs": {
+          "p50": 86.69999998807907,
+          "p95": 86.69999998807907
+        },
+        "sampledPeakRssBytes": 1210216448
+      },
+      "budget": {
+        "completedP95Ms": 303,
+        "paintedP95Ms": 351,
+        "peakRssBytes": 1389882983
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 158.94400000035762,
+        "workerExecutionMeanMs": 158.00199951171874,
+        "copiedMeshBytes": 977760,
+        "transferredBytes": 391104,
+        "wasmPeakBytes": 40566784,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 9,
+          "booleanEvaluations": 26,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2716,
+          "copiedMeshBytes": 977760
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.3879999989271164,
+          "cavityCuts": 2.6520000010728837,
+          "bossUnions": 40.03100000113249,
+          "mountHoleCuts": 58.14299999505281,
+          "openingCuts": 33.69800000011921,
+          "tessellation": 20.15900000035763,
+          "meshExpansion": 0.09399999976158142,
+          "cacheMeshCopy": 0.10799999713897705,
+          "regionMeshCopy": 0.04699999958276749,
+          "wasmMeshCopy": 0.09600000113248824,
+          "combinedMeshCopy": 0.085
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 67.69999998807907,
+        "workerExecutionMeanMs": 66.599853515625,
+        "copiedMeshBytes": 391104,
+        "transferredBytes": 195552,
+        "wasmPeakBytes": 18284544,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageHits": 1,
+          "extrusions": 7,
+          "booleanEvaluations": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 2716,
+          "copiedMeshBytes": 391104
+        },
+        "stagesMeanMs": {
+          "stageSolidCopy": 0.800000011920929,
+          "openingCuts": 40.30000001192093,
+          "tessellation": 22.899999976158142,
+          "meshExpansion": 0.10000002384185791,
+          "cacheSolidCopy": 1.2999999821186066,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.10000002384185791
+        }
+      }
+    },
+    "boss-tray/preview-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 153.80000001192093,
+          "p95": 234.89999997615814
+        },
+        "paintedMs": {
+          "p50": 175.90000000596046,
+          "p95": 257.59999999403954
+        },
+        "sampledPeakRssBytes": 1329840128
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 159.60000002384186,
+          "p95": 159.60000002384186
+        },
+        "paintedMs": {
+          "p50": 180.10000002384186,
+          "p95": 180.10000002384186
+        },
+        "sampledPeakRssBytes": 1268273152
+      },
+      "budget": {
+        "completedP95Ms": 259,
+        "paintedP95Ms": 284,
+        "peakRssBytes": 1462824141
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 164.32900000035764,
+        "workerExecutionMeanMs": 162.9190185546875,
+        "copiedMeshBytes": 1744416,
+        "transferredBytes": 990218.55,
+        "wasmPeakBytes": 38338560,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 26,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 1744416,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.3889999994635582,
+          "cavityCuts": 2.4690000000596046,
+          "bossUnions": 39.57099999934435,
+          "mountHoleCuts": 57.20700000137091,
+          "openingCuts": 24.994999999701978,
+          "tessellation": 18.665999999642374,
+          "meshExpansion": 0.056999999880790714,
+          "cacheMeshCopy": 0.056999999880790714,
+          "regionMeshCopy": 0.015999999344348908,
+          "wasmMeshCopy": 0.27499999940395353,
+          "combinedMeshCopy": 0.2750000014901161,
+          "stepSerialization": 14.946999998092652,
+          "wasmStepCopy": 0.119000001847744
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 159.60000002384186,
+        "workerExecutionMeanMs": 158.300048828125,
+        "copiedMeshBytes": 1162944,
+        "transferredBytes": 796454,
+        "wasmPeakBytes": 17760256,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 4,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 1162944,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.5,
+          "cavityCuts": 3,
+          "bossUnions": 9.799999982118607,
+          "mountHoleCuts": 23.900000005960464,
+          "stageSolidCopy": 0.7000000178813934,
+          "openingCuts": 28.900000005960464,
+          "tessellation": 21.69999998807907,
+          "meshExpansion": 0.09999999403953552,
+          "cacheSolidCopy": 1.2000000178813934,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.5,
+          "cacheMeshCopy": 0.09999999403953552,
+          "stepSerialization": 61.30000001192093,
+          "combinedMeshCopy": 1,
+          "wasmStepCopy": 0.19999998807907104
+        }
+      }
+    },
+    "boss-tray/direct-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 156.5,
+          "p95": 216.7999999821186
+        },
+        "paintedMs": {
+          "p50": 179.09999999403954,
+          "p95": 243.69999998807907
+        },
+        "sampledPeakRssBytes": 1337446400
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 170.19999998807907,
+          "p95": 170.19999998807907
+        },
+        "paintedMs": {
+          "p50": 189.19999998807907,
+          "p95": 189.19999998807907
+        },
+        "sampledPeakRssBytes": 1292414976
+      },
+      "budget": {
+        "completedP95Ms": 239,
+        "paintedP95Ms": 269,
+        "peakRssBytes": 1471191040
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 163.14899999916554,
+        "workerExecutionMeanMs": 162.04799560546874,
+        "copiedMeshBytes": 775296,
+        "transferredBytes": 602570.55,
+        "wasmPeakBytes": 31326208,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 26,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 775296
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.3979999992251396,
+          "cavityCuts": 2.4820000013709067,
+          "bossUnions": 39.83400000095367,
+          "mountHoleCuts": 57.53899999767542,
+          "openingCuts": 25.54700000077486,
+          "tessellation": 18.673999999463557,
+          "meshExpansion": 0.06500000029802322,
+          "cacheMeshCopy": 0.02199999988079071,
+          "stepSerialization": 15.18500000178814,
+          "combinedMeshCopy": 0.19199999868869783,
+          "wasmStepCopy": 0.104000001847744,
+          "wasmMeshCopy": 0.15699999898672104
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 170.19999998807907,
+        "workerExecutionMeanMs": 169.10009765625,
+        "copiedMeshBytes": 775296,
+        "transferredBytes": 602630,
+        "wasmPeakBytes": 17563648,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 4,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 775296
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.5,
+          "cavityCuts": 3.0999999940395355,
+          "bossUnions": 10.200000017881393,
+          "mountHoleCuts": 26.5,
+          "stageSolidCopy": 0.699999988079071,
+          "openingCuts": 34.30000001192093,
+          "tessellation": 22.19999998807907,
+          "meshExpansion": 0.10000002384185791,
+          "cacheMeshCopy": 0,
+          "stepSerialization": 66.5,
+          "combinedMeshCopy": 1.4000000059604645,
+          "wasmStepCopy": 0.19999998807907104,
+          "wasmMeshCopy": 0.20000001788139343
+        }
+      }
+    },
+    "boss-tray/cancel-retry": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 479.5,
+          "p95": 641.6000000238419
+        },
+        "paintedMs": {
+          "p50": 501.5,
+          "p95": 671.4000000059605
+        },
+        "sampledPeakRssBytes": 1354194944
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 411.5,
+          "p95": 411.5
+        },
+        "paintedMs": {
+          "p50": 432,
+          "p95": 432
+        },
+        "sampledPeakRssBytes": 1399705600
+      },
+      "budget": {
+        "completedP95Ms": 706,
+        "paintedP95Ms": 739,
+        "peakRssBytes": 1489614439
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 508.7,
+        "workerExecutionMeanMs": 442.07998046875,
+        "copiedMeshBytes": 969120,
+        "transferredBytes": 387648,
+        "wasmPeakBytes": 15597568,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 26,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 969120
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 49.939999997615814,
+          "baseExtrusion": 0.9400000035762787,
+          "cavityCuts": 24.85999999642372,
+          "bossUnions": 114.99999998807907,
+          "mountHoleCuts": 140.8199999988079,
+          "openingCuts": 45.3,
+          "tessellation": 55.179999995231626,
+          "meshExpansion": 0.2600000023841858,
+          "cacheMeshCopy": 0.06000000238418579,
+          "regionMeshCopy": 0.06000000238418579,
+          "wasmMeshCopy": 0.3,
+          "combinedMeshCopy": 0.14000000357627868
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 411.5,
+        "workerExecutionMeanMs": 353.400146484375,
+        "copiedMeshBytes": 387648,
+        "transferredBytes": 193824,
+        "wasmPeakBytes": 15728640,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "upstreamStageMisses": 1,
+          "extrusions": 8,
+          "booleanEvaluations": 4,
+          "cylinders": 24,
+          "tessellations": 1,
+          "tessellatedTriangles": 2692,
+          "copiedMeshBytes": 387648
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 46.5,
+          "baseExtrusion": 0.7999999821186066,
+          "cavityCuts": 34.70000001788139,
+          "bossUnions": 47.39999997615814,
+          "mountHoleCuts": 84.30000001192093,
+          "stageSolidCopy": 1.2000000178813934,
+          "openingCuts": 60.79999998211861,
+          "tessellation": 69.69999998807907,
+          "meshExpansion": 0.20000001788139343,
+          "cacheSolidCopy": 1.4000000059604645,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.4000000059604645
+        }
+      }
+    },
+    "gasketed-pair/cold": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 186.40000000596046,
+          "p95": 261.5
+        },
+        "paintedMs": {
+          "p50": 216.90000000596046,
+          "p95": 318
+        },
+        "sampledPeakRssBytes": 1284755456
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 166.90000000596046,
+          "p95": 166.90000000596046
+        },
+        "paintedMs": {
+          "p50": 187.30000001192093,
+          "p95": 187.30000001192093
+        },
+        "sampledPeakRssBytes": 1223512064
+      },
+      "budget": {
+        "completedP95Ms": 288,
+        "paintedP95Ms": 350,
+        "peakRssBytes": 1413231002
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 208.2199999988079,
+        "workerExecutionMeanMs": 199.42001953125,
+        "copiedMeshBytes": 43200,
+        "transferredBytes": 17280,
+        "wasmPeakBytes": 9502720,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 8,
+          "booleanEvaluations": 6,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 43200
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 51.3,
+          "baseExtrusion": 13.16000000834465,
+          "cavityCuts": 61.15999998450279,
+          "gasketCuts": 34.20000001192093,
+          "tessellation": 28.959999990463256,
+          "meshExpansion": 0.019999998807907104,
+          "cacheMeshCopy": 0.019999998807907104,
+          "regionMeshCopy": 0.019999998807907104,
+          "wasmMeshCopy": 0.4,
+          "combinedMeshCopy": 0.14000000953674316
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 166.90000000596046,
+        "workerExecutionMeanMs": 160,
+        "copiedMeshBytes": 17280,
+        "transferredBytes": 8640,
+        "wasmPeakBytes": 9502720,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 6,
+          "booleanEvaluations": 4,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 17280
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 38.79999998211861,
+          "baseExtrusion": 11.700000017881393,
+          "cavityCuts": 51.400000005960464,
+          "gasketCuts": 34.099999994039536,
+          "tessellation": 16.30000001192093,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 0.800000011920929,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.29999998211860657
+        }
+      }
+    },
+    "gasketed-pair/warm-uncached": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 23.80000001192093,
+          "p95": 37.69999998807907
+        },
+        "paintedMs": {
+          "p50": 57.70000001788139,
+          "p95": 69.5
+        },
+        "sampledPeakRssBytes": 1275191296
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 32.60000002384186,
+          "p95": 32.60000002384186
+        },
+        "paintedMs": {
+          "p50": 53.80000001192093,
+          "p95": 53.80000001192093
+        },
+        "sampledPeakRssBytes": 1218035712
+      },
+      "budget": {
+        "completedP95Ms": 42,
+        "paintedP95Ms": 77,
+        "peakRssBytes": 1402710426
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 25.840000000298023,
+        "workerExecutionMeanMs": 25.0519970703125,
+        "copiedMeshBytes": 43200,
+        "transferredBytes": 17280,
+        "wasmPeakBytes": 16121856,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 8,
+          "booleanEvaluations": 6,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 43200
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.7230000013113022,
+          "cavityCuts": 5.283000000417233,
+          "gasketCuts": 13.67800000101328,
+          "tessellation": 3.5799999979138373,
+          "meshExpansion": 0.025000000596046446,
+          "cacheMeshCopy": 0.015000000298023224,
+          "regionMeshCopy": 0.010999999642372131,
+          "wasmMeshCopy": 0.08300000220537186,
+          "combinedMeshCopy": 0.024000000953674317
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 32.60000002384186,
+        "workerExecutionMeanMs": 31.300048828125,
+        "copiedMeshBytes": 17280,
+        "transferredBytes": 8640,
+        "wasmPeakBytes": 9764864,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 6,
+          "booleanEvaluations": 4,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 17280
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.9999999701976776,
+          "cavityCuts": 7.200000017881393,
+          "gasketCuts": 14.900000005960464,
+          "tessellation": 5.299999982118607,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 0.7000000178813934,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.4000000059604645
+        }
+      }
+    },
+    "gasketed-pair/cache-hit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 1,
+          "p95": 1.600000023841858
+        },
+        "paintedMs": {
+          "p50": 31,
+          "p95": 33.900000005960464
+        },
+        "sampledPeakRssBytes": 1270321152
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 0.800000011920929,
+          "p95": 0.800000011920929
+        },
+        "paintedMs": {
+          "p50": 25.100000023841858,
+          "p95": 25.100000023841858
+        },
+        "sampledPeakRssBytes": 1189609472
+      },
+      "budget": {
+        "completedP95Ms": 4,
+        "paintedP95Ms": 38,
+        "peakRssBytes": 1397353268
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 1.1400000005960464,
+        "workerExecutionMeanMs": 0.43700439453125,
+        "copiedMeshBytes": 25920,
+        "transferredBytes": 17280,
+        "wasmPeakBytes": 9502720,
+        "countersMean": {
+          "copiedMeshBytes": 25920,
+          "bodyCacheHits": 2
+        },
+        "stagesMeanMs": {
+          "cacheMeshCopy": 0.023000000417232512,
+          "wasmMeshCopy": 0.03199999988079071,
+          "combinedMeshCopy": 0.014999999701976775
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 0.800000011920929,
+        "workerExecutionMeanMs": 0,
+        "copiedMeshBytes": 0,
+        "transferredBytes": 0,
+        "wasmPeakBytes": null,
+        "countersMean": {},
+        "stagesMeanMs": {}
+      }
+    },
+    "gasketed-pair/region-edit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 22.700000017881393,
+          "p95": 34.19999998807907
+        },
+        "paintedMs": {
+          "p50": 52.099999994039536,
+          "p95": 66.40000000596046
+        },
+        "sampledPeakRssBytes": 1279291392
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 47.89999997615814,
+          "p95": 47.89999997615814
+        },
+        "paintedMs": {
+          "p50": 70.09999999403954,
+          "p95": 70.09999999403954
+        },
+        "sampledPeakRssBytes": 1226063872
+      },
+      "budget": {
+        "completedP95Ms": 38,
+        "paintedP95Ms": 74,
+        "peakRssBytes": 1407220532
+      },
+      "completedP95Pass": false,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 25.036000000238417,
+        "workerExecutionMeanMs": 24.2460009765625,
+        "copiedMeshBytes": 48960,
+        "transferredBytes": 23040,
+        "wasmPeakBytes": 16187392,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 5,
+          "booleanEvaluations": 4,
+          "tessellations": 1,
+          "tessellatedTriangles": 100,
+          "copiedMeshBytes": 48960,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.37600000083446505,
+          "cavityCuts": 2.608999997675419,
+          "gasketCuts": 6.5970000013709065,
+          "openingCuts": 10.651000000536442,
+          "tessellation": 2.583000001013279,
+          "meshExpansion": 0.008999999463558197,
+          "cacheMeshCopy": 0.013999999463558198,
+          "regionMeshCopy": 0.005,
+          "wasmMeshCopy": 0.04100000083446503,
+          "combinedMeshCopy": 0.02500000149011612
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 47.89999997615814,
+        "workerExecutionMeanMs": 47.099853515625,
+        "copiedMeshBytes": 14400,
+        "transferredBytes": 7200,
+        "wasmPeakBytes": 11075584,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 4,
+          "booleanEvaluations": 3,
+          "tessellations": 1,
+          "tessellatedTriangles": 100,
+          "copiedMeshBytes": 14400
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.7000000178813934,
+          "cavityCuts": 3.2999999821186066,
+          "gasketCuts": 9.5,
+          "openingCuts": 28,
+          "tessellation": 4,
+          "meshExpansion": 0.10000002384185791,
+          "cacheSolidCopy": 0.3999999761581421,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.20000001788139343
+        }
+      }
+    },
+    "gasketed-pair/preview-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 30.399999976158142,
+          "p95": 52.80000001192093
+        },
+        "paintedMs": {
+          "p50": 63.79999998211861,
+          "p95": 79.89999997615814
+        },
+        "sampledPeakRssBytes": 1350598656
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 98.80000001192093,
+          "p95": 98.80000001192093
+        },
+        "paintedMs": {
+          "p50": 119,
+          "p95": 119
+        },
+        "sampledPeakRssBytes": 1263665152
+      },
+      "budget": {
+        "completedP95Ms": 59,
+        "paintedP95Ms": 88,
+        "peakRssBytes": 1485658522
+      },
+      "completedP95Pass": false,
+      "paintedP95Pass": false,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 35.74699999898672,
+        "workerExecutionMeanMs": 34.60698486328125,
+        "copiedMeshBytes": 77760,
+        "transferredBytes": 153442,
+        "wasmPeakBytes": 16973824,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 8,
+          "booleanEvaluations": 6,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 77760,
+          "bodyCacheHits": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.7319999960064888,
+          "cavityCuts": 4.965000002980232,
+          "gasketCuts": 12.865,
+          "tessellation": 3.3169999998807906,
+          "meshExpansion": 0.014999999701976775,
+          "cacheMeshCopy": 0.03299999892711639,
+          "regionMeshCopy": 0.007000000178813934,
+          "wasmMeshCopy": 0.10599999934434891,
+          "combinedMeshCopy": 0.10199999988079071,
+          "stepSerialization": 9.998999999761581,
+          "wasmStepCopy": 0.08399999916553497
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 98.80000001192093,
+        "workerExecutionMeanMs": 97.599853515625,
+        "copiedMeshBytes": 51840,
+        "transferredBytes": 144808,
+        "wasmPeakBytes": 9961472,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 6,
+          "booleanEvaluations": 4,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 51840,
+          "bodyCacheHits": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.9000000059604645,
+          "cavityCuts": 8.799999982118607,
+          "gasketCuts": 13.099999994039536,
+          "tessellation": 6.200000017881393,
+          "meshExpansion": 0.19999998807907104,
+          "cacheSolidCopy": 0.6000000238418579,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.19999998807907104,
+          "cacheMeshCopy": 0,
+          "stepSerialization": 63,
+          "combinedMeshCopy": 0,
+          "wasmStepCopy": 0.09999999403953552
+        }
+      }
+    },
+    "gasketed-pair/direct-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 30.19999998807907,
+          "p95": 57.599999994039536
+        },
+        "paintedMs": {
+          "p50": 64.10000002384186,
+          "p95": 82.59999999403954
+        },
+        "sampledPeakRssBytes": 1353043968
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 101,
+          "p95": 101
+        },
+        "paintedMs": {
+          "p50": 122.7000000178814,
+          "p95": 122.7000000178814
+        },
+        "sampledPeakRssBytes": 1339740160
+      },
+      "budget": {
+        "completedP95Ms": 64,
+        "paintedP95Ms": 91,
+        "peakRssBytes": 1488348365
+      },
+      "completedP95Pass": false,
+      "paintedP95Pass": false,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 35.47099999964237,
+        "workerExecutionMeanMs": 34.61600830078125,
+        "copiedMeshBytes": 34560,
+        "transferredBytes": 136162,
+        "wasmPeakBytes": 15138816,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "extrusions": 8,
+          "booleanEvaluations": 6,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 34560
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.7209999990463257,
+          "cavityCuts": 5.14,
+          "gasketCuts": 13.283000000119209,
+          "tessellation": 3.3720000001788137,
+          "meshExpansion": 0.025000000298023226,
+          "cacheMeshCopy": 0.01,
+          "stepSerialization": 10.433999999761582,
+          "combinedMeshCopy": 0.24999999940395357,
+          "wasmStepCopy": 0.0860000005364418,
+          "wasmMeshCopy": 0.0410000005364418
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 101,
+        "workerExecutionMeanMs": 100,
+        "copiedMeshBytes": 34560,
+        "transferredBytes": 136168,
+        "wasmPeakBytes": 9961472,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "extrusions": 6,
+          "booleanEvaluations": 4,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 34560
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 1,
+          "cavityCuts": 9,
+          "gasketCuts": 15.699999988079071,
+          "tessellation": 5.300000011920929,
+          "meshExpansion": 0,
+          "cacheMeshCopy": 0,
+          "stepSerialization": 64,
+          "combinedMeshCopy": 0,
+          "wasmStepCopy": 0.19999998807907104,
+          "wasmMeshCopy": 0
+        }
+      }
+    },
+    "gasketed-pair/cancel-retry": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 218.5,
+          "p95": 259.39999997615814
+        },
+        "paintedMs": {
+          "p50": 242.90000000596046,
+          "p95": 287.59999999403954
+        },
+        "sampledPeakRssBytes": 1338425344
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 223,
+          "p95": 223
+        },
+        "paintedMs": {
+          "p50": 246.69999998807907,
+          "p95": 246.69999998807907
+        },
+        "sampledPeakRssBytes": 1352060928
+      },
+      "budget": {
+        "completedP95Ms": 286,
+        "paintedP95Ms": 317,
+        "peakRssBytes": 1472267879
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 223.92000000476838,
+        "workerExecutionMeanMs": 164.22001953125,
+        "copiedMeshBytes": 43200,
+        "transferredBytes": 17280,
+        "wasmPeakBytes": 9502720,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 8,
+          "booleanEvaluations": 6,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 43200
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 48.33999999761581,
+          "baseExtrusion": 2.1799999952316282,
+          "cavityCuts": 28.440000009536742,
+          "gasketCuts": 34.419999992847444,
+          "tessellation": 45.060000002384186,
+          "meshExpansion": 0.06000000238418579,
+          "cacheMeshCopy": 0.1,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.3399999916553497,
+          "combinedMeshCopy": 0.1
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 223,
+        "workerExecutionMeanMs": 158.900146484375,
+        "copiedMeshBytes": 17280,
+        "transferredBytes": 8640,
+        "wasmPeakBytes": 9502720,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 2,
+          "extrusions": 6,
+          "booleanEvaluations": 4,
+          "tessellations": 2,
+          "tessellatedTriangles": 120,
+          "copiedMeshBytes": 17280
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 47.099999994039536,
+          "baseExtrusion": 1.9000000059604645,
+          "cavityCuts": 37.19999998807907,
+          "gasketCuts": 36.599999994039536,
+          "tessellation": 29.69999998807907,
+          "meshExpansion": 0.09999999403953552,
+          "cacheSolidCopy": 0.7999999821186066,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 1.100000023841858
+        }
+      }
+    },
+    "split-assembly/cold": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 141.40000000596046,
+          "p95": 171.89999997615814
+        },
+        "paintedMs": {
+          "p50": 153.40000000596046,
+          "p95": 187.09999999403954
+        },
+        "sampledPeakRssBytes": 1253605376
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 154.69999998807907,
+          "p95": 154.69999998807907
+        },
+        "paintedMs": {
+          "p50": 171.7999999821186,
+          "p95": 171.7999999821186
+        },
+        "sampledPeakRssBytes": 1282170880
+      },
+      "budget": {
+        "completedP95Ms": 190,
+        "paintedP95Ms": 206,
+        "peakRssBytes": 1378965914
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 147.55999999642373,
+        "workerExecutionMeanMs": 140.900048828125,
+        "copiedMeshBytes": 28800,
+        "transferredBytes": 11520,
+        "wasmPeakBytes": 8519680,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 28800,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 48.460000002384184,
+          "baseExtrusion": 14,
+          "tessellation": 14.380000007152557,
+          "meshExpansion": 0.06000000238418579,
+          "cacheMeshCopy": 0.12000000476837158,
+          "regionMeshCopy": 0.019999998807907104,
+          "wasmMeshCopy": 0.3200000047683716,
+          "cavityCuts": 54.78000000715256,
+          "combinedMeshCopy": 0.059999996423721315
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 154.69999998807907,
+        "workerExecutionMeanMs": 148.10009765625,
+        "copiedMeshBytes": 11520,
+        "transferredBytes": 5760,
+        "wasmPeakBytes": 8519680,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 11520,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 41.30000001192093,
+          "baseExtrusion": 16.200000017881393,
+          "tessellation": 13.600000023841858,
+          "meshExpansion": 0.19999998807907104,
+          "cacheSolidCopy": 1.300000011920929,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.19999998807907104,
+          "cavityCuts": 67.90000000596046
+        }
+      }
+    },
+    "split-assembly/warm-uncached": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 11.899999976158142,
+          "p95": 21.900000005960464
+        },
+        "paintedMs": {
+          "p50": 31.099999994039536,
+          "p95": 36.5
+        },
+        "sampledPeakRssBytes": 1276882944
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 17.899999976158142,
+          "p95": 17.899999976158142
+        },
+        "paintedMs": {
+          "p50": 32.19999998807907,
+          "p95": 32.19999998807907
+        },
+        "sampledPeakRssBytes": 1223933952
+      },
+      "budget": {
+        "completedP95Ms": 25,
+        "paintedP95Ms": 41,
+        "peakRssBytes": 1404571239
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 13.290000001490116,
+        "workerExecutionMeanMs": 12.58299560546875,
+        "copiedMeshBytes": 28800,
+        "transferredBytes": 11520,
+        "wasmPeakBytes": 12582912,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 28800,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 1.2889999988675118,
+          "tessellation": 3.2010000005364416,
+          "meshExpansion": 0.04200000077486038,
+          "cacheMeshCopy": 0.017999999523162842,
+          "regionMeshCopy": 0.019000000953674316,
+          "wasmMeshCopy": 0.062000000774860384,
+          "cavityCuts": 6.1999999988079075,
+          "combinedMeshCopy": 0.02299999922513962
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 17.899999976158142,
+        "workerExecutionMeanMs": 17.2001953125,
+        "copiedMeshBytes": 11520,
+        "transferredBytes": 5760,
+        "wasmPeakBytes": 8519680,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 11520,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 1.899999976158142,
+          "tessellation": 3.7000000178813934,
+          "meshExpansion": 0.09999999403953552,
+          "cacheSolidCopy": 0.5999999940395355,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0,
+          "cavityCuts": 8.900000005960464
+        }
+      }
+    },
+    "split-assembly/cache-hit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 1,
+          "p95": 1.5
+        },
+        "paintedMs": {
+          "p50": 31.299999982118607,
+          "p95": 32
+        },
+        "sampledPeakRssBytes": 1245716480
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 0.800000011920929,
+          "p95": 0.800000011920929
+        },
+        "paintedMs": {
+          "p50": 31.099999994039536,
+          "p95": 31.099999994039536
+        },
+        "sampledPeakRssBytes": 1193795584
+      },
+      "budget": {
+        "completedP95Ms": 4,
+        "paintedP95Ms": 36,
+        "peakRssBytes": 1370288128
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 1.055999998152256,
+        "workerExecutionMeanMs": 0.43599609375,
+        "copiedMeshBytes": 17280,
+        "transferredBytes": 11520,
+        "wasmPeakBytes": 8519680,
+        "countersMean": {
+          "copiedMeshBytes": 17280,
+          "bodyCacheHits": 2
+        },
+        "stagesMeanMs": {
+          "cacheMeshCopy": 0.02400000035762787,
+          "wasmMeshCopy": 0.040999999940395354,
+          "combinedMeshCopy": 0.019999999403953552
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 0.800000011920929,
+        "workerExecutionMeanMs": 0.10009765625,
+        "copiedMeshBytes": 0,
+        "transferredBytes": 0,
+        "wasmPeakBytes": null,
+        "countersMean": {},
+        "stagesMeanMs": {}
+      }
+    },
+    "split-assembly/region-edit": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 7.600000023841858,
+          "p95": 14.400000005960464
+        },
+        "paintedMs": {
+          "p50": 31.099999994039536,
+          "p95": 31.5
+        },
+        "sampledPeakRssBytes": 1228140544
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 15.5,
+          "p95": 15.5
+        },
+        "paintedMs": {
+          "p50": 30.30000001192093,
+          "p95": 30.30000001192093
+        },
+        "sampledPeakRssBytes": 1214746624
+      },
+      "budget": {
+        "completedP95Ms": 17,
+        "paintedP95Ms": 36,
+        "peakRssBytes": 1350954599
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 8.65799999922514,
+        "workerExecutionMeanMs": 7.96698974609375,
+        "copiedMeshBytes": 26496,
+        "transferredBytes": 13824,
+        "wasmPeakBytes": 10158080,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 2,
+          "booleanEvaluations": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 28,
+          "copiedMeshBytes": 26496,
+          "regionCacheHits": 1,
+          "bodyCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.4619999998807907,
+          "openingCuts": 5.164999999701977,
+          "tessellation": 1.197999999821186,
+          "meshExpansion": 0.009999999701976776,
+          "cacheMeshCopy": 0.022999999821186067,
+          "regionMeshCopy": 0.00699999988079071,
+          "wasmMeshCopy": 0.046000000238418576,
+          "combinedMeshCopy": 0.02400000035762787
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 15.5,
+        "workerExecutionMeanMs": 15,
+        "copiedMeshBytes": 5760,
+        "transferredBytes": 2880,
+        "wasmPeakBytes": 8519680,
+        "countersMean": {
+          "bodyCacheMisses": 1,
+          "regionCacheMisses": 1,
+          "extrusions": 2,
+          "booleanEvaluations": 1,
+          "tessellations": 1,
+          "tessellatedTriangles": 28,
+          "copiedMeshBytes": 5760,
+          "regionCacheHits": 1
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 0.4000000059604645,
+          "openingCuts": 11,
+          "tessellation": 1.4000000059604645,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 0.6000000238418579,
+          "regionMeshCopy": 0.09999999403953552,
+          "wasmMeshCopy": 0
+        }
+      }
+    },
+    "split-assembly/preview-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 19.599999994039536,
+          "p95": 38.5
+        },
+        "paintedMs": {
+          "p50": 33.69999998807907,
+          "p95": 65
+        },
+        "sampledPeakRssBytes": 1296830464
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 87.80000001192093,
+          "p95": 87.80000001192093
+        },
+        "paintedMs": {
+          "p50": 100.40000000596046,
+          "p95": 100.40000000596046
+        },
+        "sampledPeakRssBytes": 1156694016
+      },
+      "budget": {
+        "completedP95Ms": 43,
+        "paintedP95Ms": 72,
+        "peakRssBytes": 1426513511
+      },
+      "completedP95Pass": false,
+      "paintedP95Pass": false,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 25.775,
+        "workerExecutionMeanMs": 24.60597900390625,
+        "copiedMeshBytes": 51840,
+        "transferredBytes": 117093.35,
+        "wasmPeakBytes": 14090240,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 51840,
+          "booleanEvaluations": 2,
+          "bodyCacheHits": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 1.2870000049471855,
+          "tessellation": 3.3779999941587446,
+          "meshExpansion": 0.02300000101327896,
+          "cacheMeshCopy": 0.12800000131130218,
+          "regionMeshCopy": 0.012999999821186065,
+          "wasmMeshCopy": 0.12399999916553497,
+          "cavityCuts": 6.582999996542931,
+          "combinedMeshCopy": 0.1820000007748604,
+          "stepSerialization": 10.10800000190735,
+          "wasmStepCopy": 0.08299999952316284
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 87.80000001192093,
+        "workerExecutionMeanMs": 86.800048828125,
+        "copiedMeshBytes": 34560,
+        "transferredBytes": 111321,
+        "wasmPeakBytes": 8716288,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 34560,
+          "booleanEvaluations": 2,
+          "bodyCacheHits": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 1.9000000059604645,
+          "tessellation": 4.399999976158142,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 0.7000000178813934,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.19999998807907104,
+          "cavityCuts": 8.999999970197678,
+          "cacheMeshCopy": 0,
+          "stepSerialization": 66.10000002384186,
+          "combinedMeshCopy": 0.09999999403953552,
+          "wasmStepCopy": 0.20000001788139343
+        }
+      }
+    },
+    "split-assembly/direct-export": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 17.900000005960464,
+          "p95": 37.400000005960464
+        },
+        "paintedMs": {
+          "p50": 31.30000001192093,
+          "p95": 64.40000000596046
+        },
+        "sampledPeakRssBytes": 1289814016
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 81.90000000596046,
+          "p95": 81.90000000596046
+        },
+        "paintedMs": {
+          "p50": 96.69999998807907,
+          "p95": 96.69999998807907
+        },
+        "sampledPeakRssBytes": 1149104128
+      },
+      "budget": {
+        "completedP95Ms": 42,
+        "paintedP95Ms": 71,
+        "peakRssBytes": 1418795418
+      },
+      "completedP95Pass": false,
+      "paintedP95Pass": false,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 22.756000002622603,
+        "workerExecutionMeanMs": 21.87602294921875,
+        "copiedMeshBytes": 23040,
+        "transferredBytes": 105573.35,
+        "wasmPeakBytes": 13369344,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "extrusions": 6,
+          "tessellations": 2,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 23040,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 1.1999999979138374,
+          "tessellation": 3.0060000002384184,
+          "meshExpansion": 0.01600000023841858,
+          "cacheMeshCopy": 0.014000000059604644,
+          "cavityCuts": 6.28700000166893,
+          "stepSerialization": 9.925000001490115,
+          "combinedMeshCopy": 0.0689999994635582,
+          "wasmStepCopy": 0.07400000095367432,
+          "wasmMeshCopy": 0.09299999952316285
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 81.90000000596046,
+        "workerExecutionMeanMs": 81.199951171875,
+        "copiedMeshBytes": 23040,
+        "transferredBytes": 105561,
+        "wasmPeakBytes": 9764864,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "extrusions": 6,
+          "tessellations": 2,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 23040,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "baseExtrusion": 1.7000000178813934,
+          "tessellation": 4.799999982118607,
+          "meshExpansion": 0,
+          "cacheMeshCopy": 0,
+          "cavityCuts": 8.599999994039536,
+          "stepSerialization": 63.099999994039536,
+          "combinedMeshCopy": 0,
+          "wasmStepCopy": 0.20000001788139343,
+          "wasmMeshCopy": 0.09999999403953552
+        }
+      }
+    },
+    "split-assembly/cancel-retry": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 208.7000000178814,
+          "p95": 251
+        },
+        "paintedMs": {
+          "p50": 221.09999999403954,
+          "p95": 266.30000001192093
+        },
+        "sampledPeakRssBytes": 1206423552
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 183.80000001192093,
+          "p95": 183.80000001192093
+        },
+        "paintedMs": {
+          "p50": 194.5,
+          "p95": 194.5
+        },
+        "sampledPeakRssBytes": 1185587200
+      },
+      "budget": {
+        "completedP95Ms": 277,
+        "paintedP95Ms": 293,
+        "peakRssBytes": 1327065908
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 219.54000000953675,
+        "workerExecutionMeanMs": 156.4400390625,
+        "copiedMeshBytes": 28800,
+        "transferredBytes": 11520,
+        "wasmPeakBytes": 8519680,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 28800,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 56.96000000834465,
+          "baseExtrusion": 17.32000000476837,
+          "tessellation": 13.859999984502792,
+          "meshExpansion": 0.040000003576278684,
+          "cacheMeshCopy": 0,
+          "regionMeshCopy": 0.019999998807907104,
+          "wasmMeshCopy": 0.29999999403953553,
+          "cavityCuts": 57.19999998807907,
+          "combinedMeshCopy": 0.059999996423721315
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 183.80000001192093,
+        "workerExecutionMeanMs": 115,
+        "copiedMeshBytes": 11520,
+        "transferredBytes": 5760,
+        "wasmPeakBytes": 8519680,
+        "countersMean": {
+          "bodyCacheMisses": 2,
+          "regionCacheMisses": 4,
+          "extrusions": 6,
+          "tessellations": 4,
+          "tessellatedTriangles": 80,
+          "copiedMeshBytes": 11520,
+          "booleanEvaluations": 2
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 50.29999998211861,
+          "baseExtrusion": 2.5,
+          "tessellation": 5.199999988079071,
+          "meshExpansion": 0,
+          "cacheSolidCopy": 0.8999999761581421,
+          "regionMeshCopy": 0,
+          "wasmMeshCopy": 0.19999998807907104,
+          "cavityCuts": 54.10000002384186
+        }
+      }
+    },
+    "imported-multi-solid/cold": {
+      "before": {
+        "samples": 5,
+        "completedMs": {
+          "p50": 696,
+          "p95": 1343
+        },
+        "paintedMs": {
+          "p50": 724.4000000059605,
+          "p95": 1398.5999999940395
+        },
+        "sampledPeakRssBytes": 1444843520
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 679.2999999821186,
+          "p95": 679.2999999821186
+        },
+        "paintedMs": {
+          "p50": 702.5999999940395,
+          "p95": 702.5999999940395
+        },
+        "sampledPeakRssBytes": 1058910208
+      },
+      "budget": {
+        "completedP95Ms": 1478,
+        "paintedP95Ms": 1539,
+        "peakRssBytes": 1589327873
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 5,
+        "completedMeanMs": 843.2400000035763,
+        "workerExecutionMeanMs": 835.419970703125,
+        "copiedMeshBytes": 300816,
+        "transferredBytes": 300816,
+        "wasmPeakBytes": 54657024,
+        "countersMean": {
+          "tessellations": 1,
+          "tessellatedTriangles": 4178,
+          "copiedMeshBytes": 300816
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 54.179999995231626,
+          "wasmStepImportCopy": 0.9600000023841858,
+          "stepImport": 647.2399999976158,
+          "tessellation": 124.48000000715255,
+          "meshExpansion": 0.33999999761581423,
+          "wasmMeshCopy": 0.4800000011920929
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 679.2999999821186,
+        "workerExecutionMeanMs": 627.5,
+        "copiedMeshBytes": 300816,
+        "transferredBytes": 300816,
+        "wasmPeakBytes": 54657024,
+        "countersMean": {
+          "tessellations": 1,
+          "tessellatedTriangles": 4178,
+          "copiedMeshBytes": 300816
+        },
+        "stagesMeanMs": {
+          "kernelInitialization": 44.900000005960464,
+          "wasmStepImportCopy": 0.7999999821186066,
+          "stepImport": 477.5,
+          "tessellation": 99,
+          "meshExpansion": 0.29999998211860657,
+          "wasmMeshCopy": 0.19999998807907104
+        }
+      }
+    },
+    "imported-multi-solid/warm-uncached": {
+      "before": {
+        "samples": 100,
+        "completedMs": {
+          "p50": 265.40000000596046,
+          "p95": 473.59999999403954
+        },
+        "paintedMs": {
+          "p50": 288.2999999821186,
+          "p95": 518.4000000059605
+        },
+        "sampledPeakRssBytes": 1418506240
+      },
+      "after": {
+        "samples": 1,
+        "completedMs": {
+          "p50": 316,
+          "p95": 316
+        },
+        "paintedMs": {
+          "p50": 336.30000001192093,
+          "p95": 336.30000001192093
+        },
+        "sampledPeakRssBytes": 1048690688
+      },
+      "budget": {
+        "completedP95Ms": 521,
+        "paintedP95Ms": 571,
+        "peakRssBytes": 1560356865
+      },
+      "completedP95Pass": true,
+      "paintedP95Pass": true,
+      "rssPass": true,
+      "beforeDetails": {
+        "sampleCount": 100,
+        "completedMeanMs": 299.94500000149014,
+        "workerExecutionMeanMs": 298.58202880859375,
+        "copiedMeshBytes": 300816,
+        "transferredBytes": 300816,
+        "wasmPeakBytes": 58261504,
+        "countersMean": {
+          "tessellations": 1,
+          "tessellatedTriangles": 4178,
+          "copiedMeshBytes": 300816
+        },
+        "stagesMeanMs": {
+          "wasmStepImportCopy": 0.13900000005960464,
+          "stepImport": 230.92900000035763,
+          "tessellation": 64.87400000035763,
+          "meshExpansion": 0.10800000071525574,
+          "wasmMeshCopy": 0.16600000232458115
+        }
+      },
+      "afterDetails": {
+        "sampleCount": 1,
+        "completedMeanMs": 316,
+        "workerExecutionMeanMs": 274.900146484375,
+        "copiedMeshBytes": 300816,
+        "transferredBytes": 300816,
+        "wasmPeakBytes": 55246848,
+        "countersMean": {
+          "tessellations": 1,
+          "tessellatedTriangles": 4178,
+          "copiedMeshBytes": 300816
+        },
+        "stagesMeanMs": {
+          "wasmStepImportCopy": 0.09999999403953552,
+          "stepImport": 213.80000001192093,
+          "tessellation": 58.69999998807907,
+          "meshExpansion": 0.09999999403953552,
+          "wasmMeshCopy": 0.20000001788139343
+        }
+      }
+    }
+  }
+}

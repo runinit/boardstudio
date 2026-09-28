@@ -18,7 +18,7 @@ const entrypoints = [
   'app/src/main.tsx',
   'app/src/core.worker.ts', 'app/src/export.worker.ts', 'app/src/case.worker.ts', 'app/src/scene.worker.ts',
   // Separate HTML benchmark documents load these roots, not the app shell.
-  'app/src/bench.ts', 'app/src/bench-workbench.tsx',
+  'app/src/bench.ts', 'app/src/bench-workbench.tsx', 'app/src/bench-cad.ts',
   'cad/src/index.ts', 'contracts/src/index.ts', 'kicad/src/index.ts', 'ergogen/src/index.ts',
 ];
 // These package facades also describe runtime/worker contracts whose complete

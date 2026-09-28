@@ -1,0 +1,112 @@
+{
+  "acceptanceEligible": false,
+  "kind": "cached-scene-paired-diagnostic",
+  "pairs": 5,
+  "samplesPerSession": 20,
+  "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics",
+  "fixture": {
+    "id": "gasketed-pair",
+    "kind": "assembly",
+    "file": "gasketed-pair.json",
+    "sha256": "d63eccf442122c18235b63e8a0e3f80278539249bb679a1cba8319943b2ca324",
+    "expectedBounds": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        60,
+        40,
+        20
+      ]
+    ],
+    "expectedSolids": 2
+  },
+  "assets": {
+    "control": {
+      "AssemblyEditor-DQFwzHse.js": "4faa9d579d111473fa51972d4127e04df454cec26a2a65f4da33081a1e57aa97",
+      "AssemblyViewer-CazB9p0l.js": "ab0d4b800d2c09c15b989055491aab7d041f1e6279f31cfd86b5b43d9c1f9385",
+      "BoardReferencePanel-CzHpIVWt.js": "fafabfff50e7b723b7e362d44c1b45552d791cdb14de193ab29da9a7b41d871a",
+      "BoardReferencePanel-DE_jAc04.js": "451c8d2b77e757a844a4ef580180208bcc447c405e623659e9c3c44ace66cfb3",
+      "CaseClient-myM6vxcv.js": "59daa4701baa7703ceac7b2b0b4d5723666f2840899e0d2fc5241db1334b519b",
+      "CoreClient-BxpV3xS5.js": "11197a0b45aba0000ecc3840f2f691bcee2829283f1c1b5f6a5b34939010b206",
+      "ExportClient-DR-cutk4.js": "10ba8c5ce87e55c827cfa70caf7d407a3cb4ff582b0474355b1a726818480338",
+      "Workbench-CBzks7wr.js": "381db1dedeb5b6a37e19ec5ca4259d74504e0776a36efeaad85f75db6c5a8d4d",
+      "__vite-browser-external-XvrG_Qqw.js": "2417796dd69052fd3c586dc9050122960b00e5c9b0ea564eda88a4c99382ea19",
+      "bench-CwMErRWS.js": "eec1df7ad91b10428cb5e0bcf403ef3629cba6cc30b6c9bfae76c5e8e25b5eff",
+      "boardstudio_cadrum_wasm-CpsjxYb4.js": "5836012e20285d6f61c70e60bf4ab226b75247e4fd6a3cb1733aa808b46ba189",
+      "boardstudio_cadrum_wasm_bg-DqQ26BFC.wasm": "132b685ad301de925203ec41ed018b7f3103cb7e6fde876640c50e8a54621b62",
+      "boardstudio_core_bg-DVZL4ufw.wasm": "f6c504b89fb48d4c715de8b804f9b029389ddcc5e103d7b2e82b1b4fbfb32a18",
+      "boardstudio_renderer_wasm-B5l9UD4e.js": "43ceb15907dabb09aca24dc07b0e3b6529b21e22e156d3b4c01dbd842b36dd9d",
+      "boardstudio_renderer_wasm-D6gsSJ4b.js": "c0a0a81294e23467f577350d5cfeeb9fa79219e48290482f15b76b1fbad34338",
+      "boardstudio_renderer_wasm_bg-DAkW6cNl.wasm": "b63b13c60be8fddc4dd654378f427d569703dc566d19184b21d623a0e3a50ad9",
+      "cadBench-QucHGr2E.js": "d0f4deac9bdeb9f6b95a3da518f01d37dd2169f8fde63adbc5116aba671223e4",
+      "case.worker-BKkJ-xFe.js": "8ee2a14649fd17db7dde8ea0512842f611cecb143daa41697493fddfd6975065",
+      "core.worker-CrpsVZ4Y.js": "adeee60bb277bf61087166f383edd6ffa1fbb92ddfaf1f1428021d173d92c3a5",
+      "demo-Cfe2Mb4q.js": "359a10e4fb53612c9438db09b80b9913f1e39b63dba8c5ff497b91ca1dba2bc6",
+      "export.worker-ByTm56Hl.js": "08a8aa1205356b7f96907585913753dcb334627de2b9a0dc05182f7ed50d05ef",
+      "gasketEditing-Dtg4YyMb.js": "713c8e6e81f72b53629ccd0c4e4c0dd40212d55dec3ee3a7ff12d6284fe04709",
+      "jsx-runtime-BW3xOoWk.js": "ae5d05ebb9489f8c0059db6c2bc9e6844b57dad8cc57b3ad110de2b7fc9438d6",
+      "main-Dzv1fF67.js": "1b133f596eaffafa3d95dec5a6ad8c2815e04827ad191dd2056185d980cf3b9b",
+      "preload-helper-uBIymjUX.js": "e1a22f3f73566f21ff932e058d32243e4a118f3491b91e96893aa5ab7eb49a00",
+      "prepareCase-CD35u2p8.js": "a3ca79c2775bebb6e0ee69b575988ed2262e3fa8a2238af158aafffdc017d435",
+      "renderClient-CAshaAPq.js": "5234673fa72a4a502740bc7864455bb0b3bdee6555dbf65575e8d95667478d2a",
+      "sampleAssembly-DCk6hV0k.js": "f5180e746e0b13985f70f7c64b0e428dd0bdd00802327583436b16a75ef2b474",
+      "scene.worker-B9HsXa2a.js": "0cadd5c751dd7a6b1d964d580a5cb694e1196d66c07103cc4e0ffa92e1a6af7e",
+      "src-BhKT5oBX.js": "99aae3745abac817ed7ef7c864287d8bc5568fe9be8d8c2074b84ba7f5e8570c",
+      "src-C1Ecu6uT.js": "8fc591acd0233f70b524f8d4c64fc8d5ba290bb92ab1938fb26e3c34ea73eb86",
+      "workbenchBench-B3QcTwGj.js": "918df7500e96774319917360b5ee8635a7166e13757ce30e440cd15c8343e0ac"
+    },
+    "current": {
+      "AssemblyEditor-JvvQeaSp.js": "33fa06b3fd47a500dbe53a3dfb88aa1b4af7f82c1417fa3461c1becbc46be50a",
+      "AssemblyViewer-BJBlFHe2.js": "bd82cd7471f025e873e22ec42548e47b43f3c7a4163e91abd9480942b8ee5adb",
+      "BoardReferencePanel-CzHpIVWt.js": "fafabfff50e7b723b7e362d44c1b45552d791cdb14de193ab29da9a7b41d871a",
+      "BoardReferencePanel-DE_jAc04.js": "451c8d2b77e757a844a4ef580180208bcc447c405e623659e9c3c44ace66cfb3",
+      "CaseClient-myM6vxcv.js": "59daa4701baa7703ceac7b2b0b4d5723666f2840899e0d2fc5241db1334b519b",
+      "CoreClient-BxpV3xS5.js": "11197a0b45aba0000ecc3840f2f691bcee2829283f1c1b5f6a5b34939010b206",
+      "ExportClient-DR-cutk4.js": "10ba8c5ce87e55c827cfa70caf7d407a3cb4ff582b0474355b1a726818480338",
+      "Workbench-C7PevfIO.js": "76a825f8415c3dd8131f8acc7b4d80ea0c42a68af6d2f2a6e508ab59f1b706ab",
+      "__vite-browser-external-XvrG_Qqw.js": "2417796dd69052fd3c586dc9050122960b00e5c9b0ea564eda88a4c99382ea19",
+      "bench-CwMErRWS.js": "eec1df7ad91b10428cb5e0bcf403ef3629cba6cc30b6c9bfae76c5e8e25b5eff",
+      "boardstudio_cadrum_wasm-CpsjxYb4.js": "5836012e20285d6f61c70e60bf4ab226b75247e4fd6a3cb1733aa808b46ba189",
+      "boardstudio_cadrum_wasm_bg-DqQ26BFC.wasm": "132b685ad301de925203ec41ed018b7f3103cb7e6fde876640c50e8a54621b62",
+      "boardstudio_core_bg-DVZL4ufw.wasm": "f6c504b89fb48d4c715de8b804f9b029389ddcc5e103d7b2e82b1b4fbfb32a18",
+      "boardstudio_renderer_wasm-B5l9UD4e.js": "43ceb15907dabb09aca24dc07b0e3b6529b21e22e156d3b4c01dbd842b36dd9d",
+      "boardstudio_renderer_wasm-D6gsSJ4b.js": "c0a0a81294e23467f577350d5cfeeb9fa79219e48290482f15b76b1fbad34338",
+      "boardstudio_renderer_wasm_bg-DAkW6cNl.wasm": "b63b13c60be8fddc4dd654378f427d569703dc566d19184b21d623a0e3a50ad9",
+      "cadBench-DlWzqcLI.js": "bcd08a71c20a53b018f0a6fd04d7e0b70b62d83783bd9552d6f04c0e3b57ebc3",
+      "case.worker-BKkJ-xFe.js": "8ee2a14649fd17db7dde8ea0512842f611cecb143daa41697493fddfd6975065",
+      "core.worker-CrpsVZ4Y.js": "adeee60bb277bf61087166f383edd6ffa1fbb92ddfaf1f1428021d173d92c3a5",
+      "demo-Cfe2Mb4q.js": "359a10e4fb53612c9438db09b80b9913f1e39b63dba8c5ff497b91ca1dba2bc6",
+      "export.worker-ByTm56Hl.js": "08a8aa1205356b7f96907585913753dcb334627de2b9a0dc05182f7ed50d05ef",
+      "gasketEditing-Dtg4YyMb.js": "713c8e6e81f72b53629ccd0c4e4c0dd40212d55dec3ee3a7ff12d6284fe04709",
+      "jsx-runtime-BW3xOoWk.js": "ae5d05ebb9489f8c0059db6c2bc9e6844b57dad8cc57b3ad110de2b7fc9438d6",
+      "main-DFdMouvY.js": "9f32568fe91da6a425b69c7cfc5b5ddf02a32f58650fad5b12a590501044f444",
+      "preload-helper-uBIymjUX.js": "e1a22f3f73566f21ff932e058d32243e4a118f3491b91e96893aa5ab7eb49a00",
+      "prepareCase-CD35u2p8.js": "a3ca79c2775bebb6e0ee69b575988ed2262e3fa8a2238af158aafffdc017d435",
+      "renderClient-BRklJnmG.js": "16d80f4ae7f8d283b8016ea087596ec13391715e0c7e6f71540e12d47a491893",
+      "sampleAssembly-DCk6hV0k.js": "f5180e746e0b13985f70f7c64b0e428dd0bdd00802327583436b16a75ef2b474",
+      "scene.worker-B9HsXa2a.js": "0cadd5c751dd7a6b1d964d580a5cb694e1196d66c07103cc4e0ffa92e1a6af7e",
+      "src-BhKT5oBX.js": "99aae3745abac817ed7ef7c864287d8bc5568fe9be8d8c2074b84ba7f5e8570c",
+      "src-C1Ecu6uT.js": "8fc591acd0233f70b524f8d4c64fc8d5ba290bb92ab1938fb26e3c34ea73eb86",
+      "workbenchBench-DuLk4ha6.js": "5a2a8890781eb6d26c6eb075b56bccbb141cf1aeb155875332f365e7b4353a50"
+    }
+  },
+  "summary": {
+    "control": {
+      "samples": 100,
+      "paintedP95Ms": 43.5,
+      "completedP95Ms": 1.199999988079071,
+      "workerScenes": 100,
+      "drawCalls": 400
+    },
+    "current": {
+      "samples": 100,
+      "paintedP95Ms": 31.100000023841858,
+      "completedP95Ms": 1.9000000357627869,
+      "workerScenes": 0,
+      "drawCalls": 0
+    }
+  }
+}

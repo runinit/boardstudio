@@ -7,6 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "bench:cad": "node app/scripts/run-cad-benchmark.mjs",
     "dev": "pnpm --dir ergogen prepare:catalog && pnpm run build:core && pnpm run build:cad && pnpm run build:renderer:dev && pnpm --dir app dev",
     "start": "pnpm run dev",
     "build:core": "wasm-pack build core --target web --out-dir pkg",

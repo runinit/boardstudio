@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('Layers floats above the drawing and remembers visibility when collapsed', async ({ page }) => {
@@ -5,7 +6,7 @@ test('Layers floats above the drawing and remembers visibility when collapsed', 
   await page.goto('/');
   const layers = page.getByRole('region', { name: 'Canvas layers' });
   for (const mode of ['Layout', 'PCB', 'Case']) {
-    await page.getByRole('treeitem', { name: mode, exact: true }).click();
+    await page.getByRole('tab', { name: mode, exact: true }).click();
     await expect(layers).toHaveAttribute('data-compact', 'false');
     const drawing = mode === 'Case' ? page.locator('.wb-assembly-viewport canvas') : page.getByRole('application', { name: /Board layout canvas/ });
     if (await layers.getAttribute('data-open') === 'true') await layers.getByRole('button', { name: 'Layers', exact: true }).click();
@@ -20,7 +21,7 @@ test('Layers floats above the drawing and remembers visibility when collapsed', 
     await expect(row).toHaveAttribute('aria-pressed', 'false');
     await row.click();
   }
-  await page.getByRole('tab', { name: 'Parts', exact: true }).click();
+  await navigateWorkspace(page, 'Parts');
   const preview = page.getByRole('img', { name: 'Footprint preview' });
   if (await layers.getAttribute('data-open') === 'true') await layers.getByRole('button', { name: 'Layers', exact: true }).click();
   await expect(layers).toHaveAttribute('data-open', 'false');

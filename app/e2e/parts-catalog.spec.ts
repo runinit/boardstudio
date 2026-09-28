@@ -1,3 +1,4 @@
+import { navigateWorkspace } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 const retired = ['mx-switch', 'mx-hotswap', 'choc-switch', 'choc-hotswap', 'rgb-led', 'matrix-diode', 'ergogen:infused-kim/choc', 'ergogen:infused-kim/diode'];
@@ -5,7 +6,7 @@ const retired = ['mx-switch', 'mx-hotswap', 'choc-switch', 'choc-hotswap', 'rgb-
 test('the Parts catalog shows preferred key parts and uses the canonical starter board', async ({ page }) => {
   await page.goto('/');
   const revision = await page.locator('.wb-root').getAttribute('data-revision');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   const library = page.getByRole('listbox', { name: 'Footprint library' });
   for (const name of ['MX switch', 'Choc V1 / V2 switch', 'Gateron KS27 / KS33 switch', 'Matrix diode (SOD-123 / THT)', 'SK6812 MINI-E']) {
     await expect(library.getByRole('option', { name, exact: true })).toHaveCount(1);
@@ -15,7 +16,7 @@ test('the Parts catalog shows preferred key parts and uses the canonical starter
     await expect(library.locator(`[title="${source}"]`)).toHaveCount(0);
   }
   await expect(page.locator('.wb-root')).toHaveAttribute('data-revision', revision!);
-  await page.getByRole('tab', { name: 'Design' }).click();
+  await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(15);
   await page.getByRole('treeitem', { name: /^Matrix 1/ }).click();
   await page.locator('summary').filter({ hasText: /^Key assembly/ }).click();
@@ -31,7 +32,7 @@ test('the Parts catalog shows preferred key parts and uses the canonical starter
 
 test('assembly component selectors omit duplicates and label Choc V1 explicitly', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('tab', { name: 'Parts' }).click();
+  await navigateWorkspace(page, 'Parts');
   await page.getByRole('listbox', { name: 'Key assemblies' }).getByRole('option', { name: 'Choc V1 Hotswap RGB', exact: true }).click();
   await page.getByRole('button', { name: 'Customize 3D assembly' }).click();
   const components = page.getByRole('combobox', { name: 'Component', exact: true });
@@ -58,13 +59,13 @@ test('placing, undoing, and reloading an assembly never adds duplicate catalog p
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(library.getByRole('option')).toHaveCount(37);
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
-  await page.getByRole('tab', { name: 'Design', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
   await expect(page.getByText('Saved locally', { exact: true })).toBeVisible();
   await page.reload();
   await parts.click();
   await expect(library.getByRole('option')).toHaveCount(37);
-  await page.getByRole('tab', { name: 'Design', exact: true }).click();
+  await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
 });
 
