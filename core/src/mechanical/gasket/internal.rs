@@ -578,11 +578,14 @@ pub(super) fn generate(
             ROOT_OVERLAP,
             pocket_outer,
         );
+        // The tower extends beyond the pad pocket to meet the case wall.
+        // Check its full reach so concave outlines cannot put an opposite
+        // edge of the floating assembly inside the tower.
         let outward = rectangle(
             candidate,
             length + 2. * TAB_MARGIN + 2. * clearance + 1.,
             -front,
-            pocket_outer,
+            pocket_outer.max(outer_offset),
         );
         let root = rectangle(
             candidate,

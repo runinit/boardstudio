@@ -15,3 +15,17 @@ for (const name of ['GH60 · ANSI', 'Discipline · ANSI']) {
     await expect(page.getByText('Selected mechanical profiles have incompatible plate-to-PCB engagement distances.', { exact: false })).toHaveCount(0);
   });
 }
+
+test('REVIUNG41 generates a gasket case without support collisions', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await page.getByRole('button', { name: 'Start REVIUNG41', exact: true }).click();
+  await expect(page.locator('.wb-project-name')).toHaveText('REVIUNG41');
+  await navigateWorkspace(page, 'Case');
+  await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Mount style', exact: true }).selectOption('gasket');
+  await expect(page.getByRole('button', { name: 'Export geometry', exact: true })).toBeEnabled({ timeout: 90_000 });
+  await expect(page.getByText(/Generated CAD solids/)).toBeVisible();
+  await expect(page.getByText('Export worker failed and restarted', { exact: true })).toHaveCount(0);
+});
