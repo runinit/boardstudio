@@ -1,0 +1,62 @@
+{
+  "baseRevision": "49d33a91c582d014f169d9266804a3ec3798ae20",
+  "cadrum": "0.8.20",
+  "occt": "8_0_1_rev2",
+  "manifold": "3.5.4",
+  "monstertruck": "0.4.1",
+  "cadrumCrateSha256": "c666eb59f8fdf88e484dfa929e59d7d9f2ba4b7ff1dddd73a66d43c2720f6962",
+  "toolchain": {
+    "node": "v26.10.0",
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+  },
+  "containerImage": "boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33-bindgen-0.2.129",
+  "containerId": "52a57cdb59b8124ae65a080cb731410025116e832526a3bf7c5dc2312d99fd77",
+  "stagedSourceAndBinaryHashes": {
+    "cad/wasm/Cargo.lock": "b1b4471edece6812ad45d589144921525c19efa2e4a5007d92a81587926c5bc7",
+    "cad/wasm/Cargo.toml": "8b8638cda3d5f8bb7e3f830c420f8bab0b8e6207d1731559e198549232915da1",
+    "cad/wasm/pkg/gasket_experiment.js": "f1609217de4e0f9d46efcc2561f0ca3da2d961e66cf4a98866740ffbe4c0cc51",
+    "cad/wasm/pkg/gasket_experiment_bg.wasm": "ae37b75e269b95c41dfa680201e435f57e35906d2d3b88650b74039a14374ed5",
+    "cad/wasm/src/lib.rs": "a4782ddea3a847b4e29825eec417587777b69f8a57ce095498b9e668db34aa59",
+    "cad/wasm/src/model/construction/bounded_experiment.rs": "1fdc9dad05d7c1544ebec6acdf2ab6a78ae16c9359738d2c733ca00b63573fd8",
+    "cad/wasm/src/model/construction/cache.rs": "fcafe7f08f8a2a06adb5a6aaa65caf5e311479408dfe3f34eb0e15f89c57dcd8",
+    "cad/wasm/src/model/construction/equivalence.rs": "1aa56e90d1906abef810568f6d681f1f8cd8d0b148a997d4bb527d758f30f34b",
+    "cad/wasm/src/model/construction/planar_mesh.rs": "f0a4fe742079c7239b5e7533e73fc0692fd69db7592e9451d8a7558ea88f83e5",
+    "cad/wasm/src/model/construction.rs": "8aa40a58f13e6eff1e81ec2810a8b2dd741b466321e4af812639a43b3178d07b",
+    "cad/wasm/src/model/metrics.rs": "2beb27626c9e6032800a588394e0b83a9ed069e0c48c5a0b47eed820f14145d7",
+    "cad/wasm/src/model.rs": "916f3ffbb71086710a78be6c995c8dcb2f8e2ab5b99a4b47a94eec5e30e91bd1",
+    "cadrum-0.8.20/src/bounded_experiment.rs": "494778a2355675c747df15236b471d21a48660a9efe9c090e6b9bf9bd38146f2",
+    "cadrum-0.8.20/src/ffi.cpp": "d1dc1daff0538f775b7a97b1914bfa8a4f3bfa81cd935bab101e0b93cb450db2",
+    "cadrum-0.8.20/src/ffi.rs": "e8d5780fcf48e779e5b30afcac80c0a9dc79d1893d67380355afdfd78e7c30bb",
+    "cadrum-0.8.20/src/lib.rs": "6173adcb166f1fc5b280d523763905420ffaf62acc76533c17e5bc547d5ab94d",
+    "cadrum-0.8.20/src/occt/io.rs": "9df70fc6413e9357bf412293387fa3e358672f289ed6423882013f17534d84e6",
+    "monstertruck-target/release/gasket-monstertruck-comparison": "834a4158a8c0783b007700d090c426f62eb24e49f7e4a77b1c5a060c46e6a02f"
+  },
+  "experimentSourceHashes": {
+    "cad/experiments/gasket/README.md": "fa8a50f707f6b3d0bc3769313bbf55cfd2db39b22ef7f857a3245d4056910b6e",
+    "cad/experiments/gasket/benchmark.mjs": "e3a9a4186c90b3c5a54ca172037b67452439fc81cead69a8f4f389b5f8b6e07b",
+    "cad/experiments/gasket/build-wasm.mjs": "dd8d6c3f66aa114fb88ea2a6f22712cc56c30b7c657e15eb40af5751a7c296b4",
+    "cad/experiments/gasket/cadrum.Cargo.lock": "b1b4471edece6812ad45d589144921525c19efa2e4a5007d92a81587926c5bc7",
+    "cad/experiments/gasket/comparison.rs": "1fdc9dad05d7c1544ebec6acdf2ab6a78ae16c9359738d2c733ca00b63573fd8",
+    "cad/experiments/gasket/instrumentation.rs": "494778a2355675c747df15236b471d21a48660a9efe9c090e6b9bf9bd38146f2",
+    "cad/experiments/gasket/manifold.mjs": "e305c468aa96238195488a9c70b0eea279d27898d5cc8cce700b0c7a512cef6a",
+    "cad/experiments/gasket/monstertruck/Cargo.lock": "c13c3d26b1d55e50e8077e3d373fb6717541b53bdf5ac92eb9197c5fc6062049",
+    "cad/experiments/gasket/monstertruck/Cargo.toml": "05d6bb4f9794a4fbc1789aeacda0b38e8bee969d1e84c2617b448aca16e69316",
+    "cad/experiments/gasket/monstertruck/src/main.rs": "bb89abf0b82cf88ca023ba627c8fa61f367b18f3317efe6edfd26d282d618d6f",
+    "cad/experiments/gasket/package-lock.json": "73acc0bdc483f94f21c9cbc54673bc8796358cbd22e5cbe4bf1c0aa1342cff88",
+    "cad/experiments/gasket/package.json": "99a3bf32a94d39056f83f8325f7521ab8b619b0a2e80fe2d42671e7504df8c27",
+    "cad/experiments/gasket/prepare.py": "fc2563c0c0fd654a4e768b9eb1b50e673c3321ffade27f8d5f715cd7cfc81d27",
+    "cad/experiments/gasket/run-monstertruck.py": "f567fb7d25ca7c39bd2dc3ea3cfe1966d87aa7eff17d3452819de5a950ac4b2b",
+    "cad/experiments/gasket/summarize.mjs": "cfdcc00a90148a5fa659e900aad5ebf52e4ae786a999d3f2e692c333e7403e7d",
+    "cad/experiments/gasket/validate-monstertruck.mjs": "25a1b61cbae67d4822845457d1ba5c3d5181da0cc1aa00689efae72b9cb8f4a8",
+    "cad/experiments/gasket/validate-preview.mjs": "23c2756401950f0edefe664f5f61e9c44eefee744a1f0f66305f07d650d405f5",
+    "cad/experiments/gasket/validate-step.mjs": "439d89d155208dc43bf0ca0fbf596ab6768b578306bd696a45e3b060a1b124ba",
+    "cad/experiments/gasket/worker.mjs": "890d40a9df4358cfd85fab013596ffc8c6f04510ea6fe8cee94c0179606271c2"
+  },
+  "fixtureHashes": {
+    "edit-0.json": "1330ef0285ad4c4d11553cfea133e6059fe35f1baede57afb849c5c687874c12",
+    "edit-2.json": "5768952a016cb0375ba6fccd1dd106ad436c2c2db280fd4ae87bd4d47b3a5f17",
+    "edit-5.json": "40a847d711a6fac95637f87b691875b32d87325888129c88b45ba1b039a046a8",
+    "regression.json": "bf87bcd25e789c71b5457fb052d86b6e6dd20d6cfe647ecf74ce533c87c674f1"
+  },
+  "reproductionCheck": "Fresh prepare.py output matched measured staged Cadrum sources, application Rust sources, Cargo.lock and all input bytes; checked with diff/cmp. Added error reporting does not change the successful timing path."
+}

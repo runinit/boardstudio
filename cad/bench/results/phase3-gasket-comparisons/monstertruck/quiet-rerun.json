@@ -1,0 +1,77 @@
+[
+  {
+    "command": [
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-target/release/gasket-monstertruck-comparison",
+      "/tmp/boardstudio-gasket-comparison-20260928/inputs/regression.json",
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-final/overrun-0-tol-1e-07"
+    ],
+    "overrun": 0,
+    "tolerance": 1e-07,
+    "diagnosticStep": true,
+    "timeoutSeconds": 30,
+    "exitCode": 101,
+    "stdout": "",
+    "stderr": "region 0 base 132.729\u00b5s\n\nthread 'main' (1734535) panicked at /home/chris/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/monstertruck-meshing-0.4.1/src/tessellation/mod.rs:477:5:\ntolerance must be no less than 1e-6\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+    "wallMs": 2.394328999798745
+  },
+  {
+    "command": [
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-target/release/gasket-monstertruck-comparison",
+      "/tmp/boardstudio-gasket-comparison-20260928/inputs/regression.json",
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-final/overrun-0-tol-1e-06"
+    ],
+    "overrun": 0,
+    "tolerance": 1e-06,
+    "diagnosticStep": true,
+    "timeoutSeconds": 30,
+    "timedOut": true,
+    "stdout": "",
+    "stderr": "region 0 base 99.036\u00b5s\n",
+    "wallMs": 30059.082805004437
+  },
+  {
+    "command": [
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-target/release/gasket-monstertruck-comparison",
+      "/tmp/boardstudio-gasket-comparison-20260928/inputs/regression.json",
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-final/overrun-0.01-tol-1e-06"
+    ],
+    "overrun": 0.01,
+    "tolerance": 1e-06,
+    "diagnosticStep": true,
+    "timeoutSeconds": 30,
+    "timedOut": true,
+    "stdout": "",
+    "stderr": "region 0 base 95.509\u00b5s\n",
+    "wallMs": 30067.315066989977
+  },
+  {
+    "command": [
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-target/release/gasket-monstertruck-comparison",
+      "/tmp/boardstudio-gasket-comparison-20260928/inputs/regression.json",
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-final/overrun-0-tol-0.01"
+    ],
+    "overrun": 0,
+    "tolerance": 0.01,
+    "diagnosticStep": true,
+    "timeoutSeconds": 30,
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "region 0 base 78.227\u00b5s\nError: \"region 0 mount 0: EmptyOutputShell { operation: \\\"and\\\" }\"\n",
+    "wallMs": 11.258845974225551
+  },
+  {
+    "command": [
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-target/release/gasket-monstertruck-comparison",
+      "/tmp/boardstudio-gasket-comparison-20260928/inputs/regression.json",
+      "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-final/overrun-0.01-tol-0.01"
+    ],
+    "overrun": 0.01,
+    "tolerance": 0.01,
+    "diagnosticStep": true,
+    "timeoutSeconds": 30,
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "region 0 base 102.653\u00b5s\nError: \"region 0 mount 0: InvalidOutputShell { operation: \\\"and\\\", source: NotClosedShell }\"\n",
+    "wallMs": 175.303146999795
+  }
+]

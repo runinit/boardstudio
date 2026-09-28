@@ -1,0 +1,17 @@
+[
+  {
+    "name": "base",
+    "valid": true,
+    "volume": 246497.41131912998
+  },
+  {
+    "name": "cutter",
+    "valid": true,
+    "volume": 50.63363597999572
+  },
+  {
+    "name": "occtCutOfMonstertruckInputs",
+    "done": true,
+    "volume": 246446.85370661167
+  }
+]

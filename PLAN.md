@@ -7,25 +7,37 @@ editor remains responsive. Prioritize actual computation and obsolete work, then
 the handoff from edited geometry to the displayed result. Preserve exact geometry,
 manufacturing readiness, one-step Undo, and recoverable cancellation.
 
-This plan records the findings from the UI overhaul, live-preview review, and
-performance investigation through 2026-09-27. The current checkout is detached at
-`0ca5e3f1f71c376135286345f9974066ed8cac45` with substantial uncommitted work.
-Completed work below is present in this worktree, not a claim about the committed
-revision or another checkout. Preserve these changes when implementing this plan.
+Updated 2026-09-28 after reviewing the completed implementation and the gasket,
+parametric construction, Cadrum/OCCT, and alternative-kernel discussions. Phases 1
+and 2 are committed in `49d33a91` (`Improve workspace workflows and live CAD
+performance`). Preserve that implementation and its retained benchmark evidence.
 
-[TODO.md](TODO.md) is the ordered execution checklist for Phase 2: seven pending
-items, with implementation not yet started. Phase 1's eight execution items are
-complete and recorded in [CHANGELOG.md](CHANGELOG.md) and the
-[generation performance report](docs/generation-performance.md). Completing
-Phase 1 did not meet the proposed 200 ms p95 exact-generation target.
+[TODO.md](TODO.md) records Phase 2 as complete: seven main items and three
+follow-ups, with none pending, blocked, or skipped. Phase 3's selected bounded
+comparisons are now complete; the remaining optimization experiments and
+production integration are unexecuted. Its detailed protocol is in
+[Generation optimization experiments](docs/generation-optimization-experiments.md).
+Measured outcomes and revised priorities are in
+[Gasket comparison results](docs/gasket-comparison-results.md).
+The **full E0–E9 program remains open**. The first comparison was a bounded
+subset, not a replacement for the other experiments. Follow the
+[coverage table](docs/generation-optimization-status.md) for pending work and the
+[second OCCT screening](docs/occt-optimization-round2.md) for continued testing.
+The separate proposed 200 ms p95 exact-generation target remains unmet for gaskets.
+
+The current planning constraint is to preserve the case design. Optimize the
+generation algorithm and Cadrum/OCCT implementation without moving closure
+hardware, replacing tabs with ledges, changing gasket placement/linkage, or
+altering material boundaries and tolerances. Kernel migration is deferred.
 
 ## Evidence and current baseline
 
 Primary evidence:
 
-- [Phase 1 implementation, validation, and remaining limits](docs/generation-performance.md).
-- [Five-session hardware-accelerated live reference](app/performance-results/live-generation-five-sessions-2026-09-27.json).
-- [Current CAD comparison](cad/bench/results/generation-after-2026-09-27/comparison.json).
+- [Latest implementation, validation, and remaining limits](docs/generation-performance.md#latest-phase-2-status).
+- [Final Phase 2 hardware-accelerated live summary](app/performance-results/phase2-scene-live/summary.json).
+- [Final Phase 2 CAD comparison](cad/bench/results/phase2-scene-final/comparison.json).
+- [Phase 1 live reference, retained for history](app/performance-results/live-generation-five-sessions-2026-09-27.json).
 - [Extended CAD editing soak](cad/bench/results/generation-long-soak-2026-09-27/memory-trend.json).
 - [Live-preview architecture, review, and validation](docs/live-preview-ui-review.md).
 - [CAD benchmark protocol](cad/bench/README.md), [frozen budgets](cad/bench/budgets.json), and [workbench limits](app/performance-baseline.json).
@@ -37,12 +49,12 @@ The values below are pooled action percentiles. Inputs are timestamped at DOM
 blur, Undo click, or pointer release; completion is a frame-after-draw paint
 opportunity for the exact revision, not physical display time.
 
-| Scenario | Current p50 | Current p95 | Implication |
+| Scenario | Phase 1 p95 | Final Phase 2 p95 | Implication |
 | --- | ---: | ---: | --- |
-| Numeric case edit | 266 ms | 279 ms | Still above the proposed 200 ms target; attribute remaining construction costs |
-| Undo | 93 ms | 93.8 ms | Preserve the existing cached-generation and display path |
-| Gasket release | 386.4 ms | 417.6 ms | Prioritize exact bottom opening cuts and plate construction |
-| Authored mount release | 54.6 ms | 71.8 ms | Preserve exact reuse, warm caches, and commit acknowledgement |
+| Numeric case edit | 279 ms | 171 ms | Preserve the accepted construction/meshing gain |
+| Undo | 93.8 ms | 91.3 ms | Preserve the existing cached-generation and display path |
+| Gasket release | 417.6 ms | 370 ms | Still above 200 ms; prioritize exact construction and meshing |
+| Authored mount release | 71.8 ms | 59.3 ms | Preserve exact reuse, warm caches, and commit acknowledgement |
 
 The earlier live before reference contains only one headless session. It cannot
 establish a multi-session improvement against this hardware-accelerated reference.
@@ -51,7 +63,7 @@ and [instrumented before/after results](docs/generation-performance.md) remain
 available; they are not the current baseline. Keep software-rendered headless
 runs and synthetic CPU throttling separate from hardware and real-device results.
 
-The hardware-accelerated trace found no main-thread long tasks during normal
+The Phase 1 hardware-accelerated trace found no main-thread long tasks during normal
 warm actions; pointer work/submission p95 were 0.4/2.3 ms. It did not reproduce
 the large compositor waits seen in earlier automated headless diagnostics.
 Additional rendering-quality reductions are not supported by this evidence.
@@ -64,7 +76,9 @@ end-to-end percentile or assume changed geometry can be reused unchanged.
 
 Initial generation has only descriptive cold samples, so no startup improvement
 is established. The 1,920-cycle CAD soak supports bounded retained memory for
-its two fixtures; full-UI session memory is a separate Phase 2 validation task.
+its two fixtures. Phase 2 also passed the 256-cycle full-UI JS/WASM soak; process
+RSS was not sampled in that UI soak. Neither establishes arbitrary-project or
+full-day memory behavior.
 
 ## Completed foundation to preserve
 
@@ -90,6 +104,13 @@ its two fixtures; full-UI session memory is a separate Phase 2 validation task.
 - The extended CAD soak completed 1,920 cycles including 240 superseded requests;
   allocated WASM memory plateaued for both tested fixtures. This does not prove
   bounded memory for arbitrary projects or a full-day React session.
+- Phase 2 added exact opening-cutter reduction, removed unused upstream cache
+  copies, and added guarded planar meshes while retaining CAD solids. Identical
+  displayed scenes now skip preparation/drawing while advancing revision guards.
+- Final Phase 2 validation passes all 30 frozen CAD scenarios, the live regression
+  and incremental-improvement checks, 399 app tests, 20 focused browser tests,
+  full workbench/interaction gates, and the full-UI soak. Earlier failed reports
+  remain preserved; the final gasket p95 is 370 ms, not the earlier 337.6 ms run.
 
 ## Phase 1 — Faster exact generation and changes (complete)
 
@@ -116,13 +137,15 @@ Primary implementation areas:
 | Commit and display handoff | [gestures](app/src/ui/AssemblyScene.tsx), [project acceptance](app/src/useProjectSession.ts), [renderer client](app/src/renderClient.ts) |
 | Evidence | [live diagnostic](app/e2e/live-preview-performance.spec.ts), [CAD runner](app/scripts/run-cad-benchmark.mjs), [CAD fixtures and budgets](cad/bench/README.md) |
 
-## Phase 2 — Remaining exact-generation latency (pending)
+## Phase 2 — Remaining exact-generation latency (complete)
 
-The seven sections below correspond one-to-one with [TODO.md](TODO.md). Acceptance
-and attribution come first, then exact construction improvements in measured
-impact order, followed by combined validation and a conditional feedback decision.
-Expected speedups are hypotheses until measured. Recovery and gallery work remain
-separate follow-ups and do not block performance acceptance.
+Sections 2.1–2.7 retain the original execution requirements corresponding to the
+seven completed [TODO.md](TODO.md) items. They are historical specifications, not
+pending work. Final evidence is in the
+[performance report](docs/generation-performance.md#final-phase-2-follow-up-reuse-identical-displayed-scenes).
+Frozen regression and incremental-improvement acceptance passed; the separate
+200 ms gasket target did not. The provisional-feedback item produced a decision
+only, with no provisional rendering implementation.
 
 ### 2.1 Acceptance and comparable reference
 
@@ -210,6 +233,48 @@ fallback behavior, and strict exclusion from readiness/export. If unnecessary,
 record that decision. This item produces a decision, not automatic implementation;
 provisional timing cannot satisfy exact-generation acceptance.
 
+## Phase 3 — Test further optimizations without changing the case design
+
+The [experiment plan](docs/generation-optimization-experiments.md) defines the
+hypothesis, eligibility, risks, correctness checks, and decision rules for each
+experiment. Isolated E0/E1/E7 screening and the selected Manifold/Monstertruck
+comparisons are complete; production code is unchanged. Across five browser
+sessions, unused mesh output made no meaningful difference, Cadrum height-band
+profiles were about 40% slower, and Manifold preview was about 4.5× faster for
+the measured bottom. Monstertruck did not complete the first hole operation.
+See the [full results and limitations](docs/gasket-comparison-results.md).
+
+The second screening tests history suppression, OBB filtering, specialized cuts,
+combined cutters, analytic holes in extrusion profiles, non-destructive mode,
+and final cleanup. E4 tabbed meshing and E6 bounded reuse remain distinct,
+unexecuted experiments with confirmed eligible inputs. Retain Cadrum for exact
+validation/export and keep Manifold integration separate. The table below retains
+the broader inventory; the coverage table distinguishes partial tests from full
+acceptance and records the remaining build/ownership/whole-app work.
+
+| Order | Experiments | Deliverable |
+| --- | --- | --- |
+| 1 — P0 | E0: reproducible controls, geometry fixtures, detailed Cadrum/OCCT attribution | A verified patch/build path and ranked cost breakdown |
+| 2 — P1 | E1/E2: omit unused mesh edges/face IDs and unused Boolean provenance | Independently measured variants retaining ownership protections |
+| 3 — P1 | E3/E4: OCCT OBB/operation selection and exact meshing for eligible tabbed plates | Equivalent geometry and measured end-to-end effects |
+| 4 — P2 | E5/E6: better batching/cutter preparation and narrowly scoped parametric reuse | Less repeated work within existing cache budgets |
+| 5 — P2 | E7: construct the identical stepped bottom from profiles | A bounded alternative construction prototype with solid/STEP equivalence |
+| 6 — P3 | E8/E9: safe copy reduction, cleanup/build tuning, threading feasibility | Evidence-based adoption or deferral only where remaining cost justifies it |
+| 7 — Acceptance | Combine successful variants and run correctness, CAD/live, interaction, and memory gates | Accepted changes, retained raw evidence, and explicit unmet targets |
+
+Measure the final Phase 2 implementation as the incremental control. Do not
+repeat completed batching, caching, or renderer work, reuse changed geometry,
+skip ownership copies without proof, or treat native-threading results as browser
+performance. The published OCCT options need version/build verification and
+per-workload measurement; none is an assumed speedup.
+
+Parametric principles here mean stable feature dependencies and equivalent
+construction. Fixed closure hardware, continuous support ledges, and different
+mounting mechanics remain separate design decisions. The bounded Manifold preview
+and Monstertruck experiments do not count toward this phase's exact-generation
+claim. Production kernel replacement and deferring solid validation until export
+remain unselected.
+
 ## Separately tracked follow-ups
 
 | ID | Priority / status | Next action and acceptance |
@@ -219,7 +284,8 @@ provisional timing cannot satisfy exact-generation acceptance.
 
 Neither follow-up is evidence of a CAD bottleneck or part of the current TODO.
 Worker pools, kernel replacement, speculative warm-up, indexed transport, and
-STEP-only export remain unselected options.
+STEP-only export remain deferred. Phase 3 includes only a conditional OCCT
+threading feasibility investigation, not a selected worker-pool implementation.
 
 ## Success criteria and boundaries
 
@@ -246,10 +312,10 @@ STEP-only export remain unselected options.
 
 ## Tracking
 
-Use TODO.md as the durable Phase 2 checklist, with sections 2.1–2.7 mapping to
-items 1–7. Its current state is 0 done, 0 blocked, 0 skipped, and 7 pending.
-Record completed execution items in CHANGELOG.md when implemented and verified;
-do not mark Phase 2 items done from similar-looking Phase 1 changes. Phase 1
-history remains in this plan, the changelog, and the implementation report.
-Documentation alignment does not count as performance implementation or new
-benchmark evidence.
+TODO.md remains the completed Phase 2 checklist, with sections 2.1–2.7 mapping
+to its seven main items and three completed follow-ups. The selected Phase 3
+screening is recorded in the comparison report, CHANGELOG, and retained raw
+artifacts. The rest of the linked experiment plan remains unexecuted; no production
+integration or full-application acceptance is claimed. Generate a separate
+execution checklist when a follow-up implementation is selected. Preserve
+Phase 1/2 history and all failed benchmark artifacts.

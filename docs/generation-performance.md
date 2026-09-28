@@ -4,6 +4,25 @@ Execution of PLAN G1–G8 and V1, starting from detached revision
 `0ca5e3f1f71c376135286345f9974066ed8cac45` plus the existing uncommitted
 live-preview implementation. No geometry tolerances or benchmark budgets change.
 
+## Phase 3 bounded gasket comparisons
+
+The [continued OCCT screening](occt-optimization-round2.md) measures eight more
+variants across five browser sessions and five bottom fixtures. Dedicated cuts,
+combined cutters, and analytic profile holes give roughly 4–6% diagnostic gains;
+none independently meets the 10% promotion threshold. All 45 native, independent
+STEP, and browser mesh comparisons pass. The [E0–E9 coverage table](generation-optimization-status.md)
+explicitly retains tabbed meshing, bounded reuse, build tuning, wider correctness,
+and full-app acceptance as unfinished work. No production change is selected.
+
+The [2026-09-28 comparison report](gasket-comparison-results.md) adds isolated
+Cadrum output suppression and height-band construction tests, Manifold preview,
+and Monstertruck feasibility checks. Five fresh browser sessions measured the
+same bottom at 108.4 ms median for Cadrum control, 108.8 ms for lean output,
+151.6 ms for Cadrum profiles, and 24.1 ms for Manifold preview. Monstertruck did
+not complete its first circular-hole Boolean. Geometry checks and failed attempts
+are retained with the report. Production code is unchanged; these single-bottom
+diagnostics do not replace the full-application Phase 2 results below.
+
 ## Latest Phase 2 status
 
 **Phase 2 performance acceptance now passes.** The final unchanged frozen CAD

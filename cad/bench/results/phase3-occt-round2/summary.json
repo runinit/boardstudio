@@ -1,0 +1,812 @@
+[
+  {
+    "fixture": "regression",
+    "variant": "control",
+    "count": 50,
+    "medianMs": 109.69999998807907,
+    "p95Ms": 119.5,
+    "sessionMedians": [
+      108.5,
+      109.40000003576279,
+      109.19999998807907,
+      108.5,
+      115.29999995231628
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "no-relay",
+    "count": 50,
+    "medianMs": 109.29999995231628,
+    "p95Ms": 117.10000002384186,
+    "sessionMedians": [
+      108.30000001192093,
+      108.89999997615814,
+      109,
+      108.30000001192093,
+      115
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "no-history",
+    "count": 50,
+    "medianMs": 108.89999997615814,
+    "p95Ms": 116,
+    "sessionMedians": [
+      107.40000003576279,
+      108.69999998807907,
+      108.89999997615814,
+      108,
+      113
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "obb",
+    "count": 50,
+    "medianMs": 113.19999998807907,
+    "p95Ms": 120.89999997615814,
+    "sessionMedians": [
+      112.39999997615814,
+      112.5,
+      113.19999998807907,
+      112.80000001192093,
+      118.19999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "multi-cut",
+    "count": 50,
+    "medianMs": 105.39999997615814,
+    "p95Ms": 113.40000003576279,
+    "sessionMedians": [
+      103.80000001192093,
+      105.39999997615814,
+      105.30000001192093,
+      105.30000001192093,
+      111.60000002384186
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "non-destructive",
+    "count": 50,
+    "medianMs": 142.80000001192093,
+    "p95Ms": 150.80000001192093,
+    "sessionMedians": [
+      141.80000001192093,
+      141.19999998807907,
+      141.69999998807907,
+      142.5,
+      146.5999999642372
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "combined-cuts",
+    "count": 50,
+    "medianMs": 104.80000001192093,
+    "p95Ms": 110.5,
+    "sessionMedians": [
+      103.5,
+      104.39999997615814,
+      103.09999996423721,
+      103.80000001192093,
+      108.90000003576279
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "profile-holes",
+    "count": 50,
+    "medianMs": 104.5,
+    "p95Ms": 113.79999995231628,
+    "sessionMedians": [
+      103.10000002384186,
+      104.5,
+      104.10000002384186,
+      104.5,
+      111.39999997615814
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "regression",
+    "variant": "final-clean",
+    "count": 50,
+    "medianMs": 114.10000002384186,
+    "p95Ms": 120.40000003576279,
+    "sessionMedians": [
+      112.60000002384186,
+      113.60000002384186,
+      113.30000001192093,
+      113.09999996423721,
+      119.90000003576279
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "control",
+    "count": 50,
+    "medianMs": 111,
+    "p95Ms": 119.19999998807907,
+    "sessionMedians": [
+      110.39999997615814,
+      109.59999996423721,
+      110.30000001192093,
+      110.90000003576279,
+      116.69999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "no-relay",
+    "count": 50,
+    "medianMs": 110.29999995231628,
+    "p95Ms": 117.70000004768372,
+    "sessionMedians": [
+      108.89999997615814,
+      108.89999997615814,
+      110.40000003576279,
+      110.19999998807907,
+      115
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "no-history",
+    "count": 50,
+    "medianMs": 108.70000004768372,
+    "p95Ms": 116.80000001192093,
+    "sessionMedians": [
+      108.10000002384186,
+      108.80000001192093,
+      107.69999998807907,
+      107.89999997615814,
+      113.5
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "obb",
+    "count": 50,
+    "medianMs": 113.5,
+    "p95Ms": 120.19999998807907,
+    "sessionMedians": [
+      111.89999997615814,
+      113,
+      113.10000002384186,
+      113.30000001192093,
+      118.10000002384186
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "multi-cut",
+    "count": 50,
+    "medianMs": 106.10000002384186,
+    "p95Ms": 114.70000004768372,
+    "sessionMedians": [
+      105,
+      105.70000004768372,
+      105.80000001192093,
+      106.30000001192093,
+      111.60000002384186
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "non-destructive",
+    "count": 50,
+    "medianMs": 144.39999997615814,
+    "p95Ms": 152.5,
+    "sessionMedians": [
+      141.4000000357628,
+      144,
+      142.5,
+      144.60000002384186,
+      146.79999995231628
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "combined-cuts",
+    "count": 50,
+    "medianMs": 105.30000001192093,
+    "p95Ms": 110.09999996423721,
+    "sessionMedians": [
+      103.29999995231628,
+      105.5,
+      104.09999996423721,
+      104.5,
+      109.10000002384186
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "profile-holes",
+    "count": 50,
+    "medianMs": 104.5,
+    "p95Ms": 111.30000001192093,
+    "sessionMedians": [
+      103.30000001192093,
+      104.39999997615814,
+      104.5,
+      104.30000001192093,
+      110.19999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-0",
+    "variant": "final-clean",
+    "count": 50,
+    "medianMs": 115.10000002384186,
+    "p95Ms": 121,
+    "sessionMedians": [
+      114.30000001192093,
+      113.40000003576279,
+      113.70000004768372,
+      115.10000002384186,
+      120.30000001192093
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "control",
+    "count": 50,
+    "medianMs": 110.10000002384186,
+    "p95Ms": 116.30000001192093,
+    "sessionMedians": [
+      109.60000002384186,
+      109.39999997615814,
+      109.89999997615814,
+      110.19999998807907,
+      115.10000002384186
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "no-relay",
+    "count": 50,
+    "medianMs": 109.80000001192093,
+    "p95Ms": 115.09999996423721,
+    "sessionMedians": [
+      108.30000001192093,
+      109.80000001192093,
+      109.69999998807907,
+      109.30000001192093,
+      114.70000004768372
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "no-history",
+    "count": 50,
+    "medianMs": 109.29999995231628,
+    "p95Ms": 115.80000001192093,
+    "sessionMedians": [
+      108.30000001192093,
+      108.30000001192093,
+      109.30000001192093,
+      108.20000004768372,
+      113.5
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "obb",
+    "count": 50,
+    "medianMs": 114.30000001192093,
+    "p95Ms": 119.90000003576279,
+    "sessionMedians": [
+      112.5,
+      113.80000001192093,
+      113.69999998807907,
+      113.40000003576279,
+      118.69999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "multi-cut",
+    "count": 50,
+    "medianMs": 106.5,
+    "p95Ms": 114.30000001192093,
+    "sessionMedians": [
+      106.19999998807907,
+      105.89999997615814,
+      106.69999998807907,
+      106,
+      112.09999996423721
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "non-destructive",
+    "count": 50,
+    "medianMs": 145,
+    "p95Ms": 150.4000000357628,
+    "sessionMedians": [
+      143.39999997615814,
+      143.89999997615814,
+      143.9000000357628,
+      145.39999997615814,
+      149.39999997615814
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "combined-cuts",
+    "count": 50,
+    "medianMs": 104,
+    "p95Ms": 112.30000001192093,
+    "sessionMedians": [
+      102.79999995231628,
+      103.80000001192093,
+      103.89999997615814,
+      103.89999997615814,
+      109.80000001192093
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "profile-holes",
+    "count": 50,
+    "medianMs": 105.60000002384186,
+    "p95Ms": 111.40000003576279,
+    "sessionMedians": [
+      103.80000001192093,
+      105.60000002384186,
+      104.80000001192093,
+      105,
+      110.60000002384186
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-2",
+    "variant": "final-clean",
+    "count": 50,
+    "medianMs": 115,
+    "p95Ms": 120.69999998807907,
+    "sessionMedians": [
+      114.09999996423721,
+      114.10000002384186,
+      114.5,
+      114.30000001192093,
+      119.59999996423721
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "control",
+    "count": 50,
+    "medianMs": 110.19999998807907,
+    "p95Ms": 116.39999997615814,
+    "sessionMedians": [
+      108.80000001192093,
+      109.5,
+      110.29999995231628,
+      109.19999998807907,
+      114.19999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "no-relay",
+    "count": 50,
+    "medianMs": 109.69999998807907,
+    "p95Ms": 115.89999997615814,
+    "sessionMedians": [
+      109.10000002384186,
+      109.5,
+      110.30000001192093,
+      109.10000002384186,
+      114.60000002384186
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "no-history",
+    "count": 50,
+    "medianMs": 108.59999996423721,
+    "p95Ms": 116.19999998807907,
+    "sessionMedians": [
+      107.39999997615814,
+      108.09999996423721,
+      108.10000002384186,
+      108.39999997615814,
+      113.89999997615814
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "obb",
+    "count": 50,
+    "medianMs": 113.90000003576279,
+    "p95Ms": 122.20000004768372,
+    "sessionMedians": [
+      112.80000001192093,
+      113.89999997615814,
+      113.89999997615814,
+      112.89999997615814,
+      119.19999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "multi-cut",
+    "count": 50,
+    "medianMs": 106.5,
+    "p95Ms": 114.20000004768372,
+    "sessionMedians": [
+      104.80000001192093,
+      105.19999998807907,
+      105.30000001192093,
+      106.5,
+      112.5
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "non-destructive",
+    "count": 50,
+    "medianMs": 143.5,
+    "p95Ms": 151.30000001192093,
+    "sessionMedians": [
+      141.10000002384186,
+      143.0999999642372,
+      142.10000002384186,
+      142.39999997615814,
+      145.69999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "combined-cuts",
+    "count": 50,
+    "medianMs": 104.60000002384186,
+    "p95Ms": 110.39999997615814,
+    "sessionMedians": [
+      103.60000002384186,
+      104.10000002384186,
+      103.89999997615814,
+      104.19999998807907,
+      108.90000003576279
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "profile-holes",
+    "count": 50,
+    "medianMs": 104.80000001192093,
+    "p95Ms": 110.89999997615814,
+    "sessionMedians": [
+      103.69999998807907,
+      104.39999997615814,
+      104.69999998807907,
+      104.79999995231628,
+      109.79999995231628
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "edit-5",
+    "variant": "final-clean",
+    "count": 50,
+    "medianMs": 114.5,
+    "p95Ms": 119.59999996423721,
+    "sessionMedians": [
+      113.5,
+      113.89999997615814,
+      114,
+      114.09999996423721,
+      119.19999998807907
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "control",
+    "count": 50,
+    "medianMs": 143.9000000357628,
+    "p95Ms": 152,
+    "sessionMedians": [
+      143.69999998807907,
+      142.69999998807907,
+      143,
+      141.0999999642372,
+      148.19999998807907
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "no-relay",
+    "count": 50,
+    "medianMs": 144.30000001192093,
+    "p95Ms": 150.5999999642372,
+    "sessionMedians": [
+      141.60000002384186,
+      141.9000000357628,
+      144.60000002384186,
+      143.30000001192093,
+      146.9000000357628
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "no-history",
+    "count": 50,
+    "medianMs": 141.80000001192093,
+    "p95Ms": 149.89999997615814,
+    "sessionMedians": [
+      141,
+      142.30000001192093,
+      141.39999997615814,
+      140.9000000357628,
+      147.39999997615814
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "obb",
+    "count": 50,
+    "medianMs": 141.80000001192093,
+    "p95Ms": 149,
+    "sessionMedians": [
+      140.0999999642372,
+      140.0999999642372,
+      141,
+      142.39999997615814,
+      146.5
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "multi-cut",
+    "count": 50,
+    "medianMs": 137.19999998807907,
+    "p95Ms": 144.89999997615814,
+    "sessionMedians": [
+      136.30000001192093,
+      136.80000001192093,
+      136.39999997615814,
+      137.19999998807907,
+      143.9000000357628
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "non-destructive",
+    "count": 50,
+    "medianMs": 190.9000000357628,
+    "p95Ms": 197.5,
+    "sessionMedians": [
+      189.80000001192093,
+      189.89999997615814,
+      192.10000002384186,
+      190,
+      195.69999998807907
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "combined-cuts",
+    "count": 50,
+    "medianMs": 135.9000000357628,
+    "p95Ms": 145.19999998807907,
+    "sessionMedians": [
+      134.80000001192093,
+      136,
+      135.5,
+      135,
+      141.29999995231628
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "profile-holes",
+    "count": 50,
+    "medianMs": 136.80000001192093,
+    "p95Ms": 147.0999999642372,
+    "sessionMedians": [
+      134.80000001192093,
+      135.5999999642372,
+      134.9000000357628,
+      137.39999997615814,
+      141.60000002384186
+    ],
+    "triangles": 2040,
+    "meshBytes": 146880,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  },
+  {
+    "fixture": "rotated-stress",
+    "variant": "final-clean",
+    "count": 50,
+    "medianMs": 152.39999997615814,
+    "p95Ms": 162.89999997615814,
+    "sessionMedians": [
+      150.5999999642372,
+      151.10000002384186,
+      151.69999998807907,
+      151.30000001192093,
+      159
+    ],
+    "triangles": 2024,
+    "meshBytes": 145728,
+    "heapBytesMin": 45481984,
+    "heapBytesMax": 46006272
+  }
+]

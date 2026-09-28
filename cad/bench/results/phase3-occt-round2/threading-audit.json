@@ -1,0 +1,12 @@
+{
+  "file": "/tmp/boardstudio-gasket-comparison-20260928/cad/wasm/pkg/gasket_experiment_bg.wasm",
+  "memories": [
+    {
+      "flags": 0,
+      "shared": false,
+      "minimumPages": 57,
+      "maximumPages": null
+    }
+  ],
+  "scope": "Existing diagnostic artifact; no shared-memory browser runtime. Does not establish all native OCCT archive compile flags."
+}

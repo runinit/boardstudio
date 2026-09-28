@@ -1,0 +1,668 @@
+[
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 96.05872599999998,
+      "generationMs": 114.18107500000002,
+      "meshBytes": 146880,
+      "meshMs": 18.122349000000042,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 4,
+          "durationMs": 83.71787400000005
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 4,
+          "durationMs": 0.8453470000001175
+        },
+        "cleanup": {
+          "calls": 4,
+          "durationMs": 0.0022040000000629334
+        },
+        "copy": {
+          "calls": 4,
+          "durationMs": 2.365308000000141
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.21279899999996132
+        },
+        "history": {
+          "calls": 8,
+          "durationMs": 0.09652100000005248
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.23129399999999123
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 17.632359000000008
+        }
+      },
+      "triangles": 2040,
+      "variant": "control",
+      "volume": 147948.75520843046
+    },
+    "stepRoundtripVolume": 147948.7552084296,
+    "variant": "control"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 98.36370999999997,
+      "generationMs": 117.32564400000001,
+      "meshBytes": 146880,
+      "meshMs": 18.961934000000042,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 4,
+          "durationMs": 85.69481200000018
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 4,
+          "durationMs": 0.8570369999998775
+        },
+        "cleanup": {
+          "calls": 4,
+          "durationMs": 0.002856000000065251
+        },
+        "copy": {
+          "calls": 4,
+          "durationMs": 2.4458900000001904
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.2140309999999772
+        },
+        "history": {
+          "calls": 8,
+          "durationMs": 0.0006699999996726547
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.2220360000000028
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 18.480251000000067
+        }
+      },
+      "triangles": 2040,
+      "variant": "no-relay",
+      "volume": 147948.75520843046
+    },
+    "stepRoundtripVolume": 147948.7552084296,
+    "variant": "no-relay"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 96.49041600000032,
+      "generationMs": 115.02330500000016,
+      "meshBytes": 146880,
+      "meshMs": 18.53288899999984,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 4,
+          "durationMs": 84.7151060000001
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 4,
+          "durationMs": 0.016670999999860214
+        },
+        "cleanup": {
+          "calls": 4,
+          "durationMs": 0.0020850000000791624
+        },
+        "copy": {
+          "calls": 4,
+          "durationMs": 2.401764999999841
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.21856999999977234
+        },
+        "history": {
+          "calls": 8,
+          "durationMs": 0.0006510000002890592
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.22844800000029863
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 18.0418480000003
+        }
+      },
+      "triangles": 2040,
+      "variant": "no-history",
+      "volume": 147948.75520843046
+    },
+    "stepRoundtripVolume": 147948.7552084296,
+    "variant": "no-history"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 97.36862399999995,
+      "generationMs": 114.54270400000019,
+      "meshBytes": 146880,
+      "meshMs": 17.17408000000023,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 4,
+          "durationMs": 84.75930700000049
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 4,
+          "durationMs": 0.8470809999998892
+        },
+        "cleanup": {
+          "calls": 4,
+          "durationMs": 0.0023450000001048465
+        },
+        "copy": {
+          "calls": 4,
+          "durationMs": 2.378572999999733
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.2137110000003304
+        },
+        "history": {
+          "calls": 8,
+          "durationMs": 0.10048699999970268
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.22842899999977817
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 16.687818000000107
+        }
+      },
+      "triangles": 2040,
+      "variant": "obb",
+      "volume": 147948.75520843046
+    },
+    "stepRoundtripVolume": 147948.7552084296,
+    "variant": "obb"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 92.54812999999967,
+      "generationMs": 110.69914199999994,
+      "meshBytes": 146880,
+      "meshMs": 18.151012000000264,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 4,
+          "durationMs": 81.02410999999984
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cleanup": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "copy": {
+          "calls": 4,
+          "durationMs": 2.356841999999233
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.21928100000013728
+        },
+        "history": {
+          "calls": 8,
+          "durationMs": 0.09207299999934548
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.245010000000093
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 17.641367000000628
+        }
+      },
+      "triangles": 2040,
+      "variant": "multi-cut",
+      "volume": 147948.75520843046
+    },
+    "stepRoundtripVolume": 147948.7552084296,
+    "variant": "multi-cut"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 128.2519440000001,
+      "generationMs": 147.84222799999998,
+      "meshBytes": 146880,
+      "meshMs": 19.590283999999883,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 4,
+          "durationMs": 113.89641000000029
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 4,
+          "durationMs": 1.1986879999994926
+        },
+        "cleanup": {
+          "calls": 4,
+          "durationMs": 0.002685000001292792
+        },
+        "copy": {
+          "calls": 4,
+          "durationMs": 2.8246290000001864
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.22793700000011086
+        },
+        "history": {
+          "calls": 8,
+          "durationMs": 0.11186899999984234
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.23470999999972264
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 19.077862000000096
+        }
+      },
+      "triangles": 2040,
+      "variant": "non-destructive",
+      "volume": 147948.7552084304
+    },
+    "stepRoundtripVolume": 147948.7552084296,
+    "variant": "non-destructive"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 95.23790699999972,
+      "generationMs": 117.632161,
+      "meshBytes": 146880,
+      "meshMs": 22.394254000000274,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 2,
+          "durationMs": 82.5667940000003
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 2,
+          "durationMs": 0.9785460000002786
+        },
+        "cleanup": {
+          "calls": 2,
+          "durationMs": 0.0014429999996536935
+        },
+        "copy": {
+          "calls": 2,
+          "durationMs": 1.7278019999998833
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.2487770000002456
+        },
+        "history": {
+          "calls": 4,
+          "durationMs": 0.08694299999933719
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.24644199999966077
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 21.852197000000615
+        }
+      },
+      "triangles": 2040,
+      "variant": "combined-cuts",
+      "volume": 147948.75520843046
+    },
+    "stepRoundtripVolume": 147948.7552084296,
+    "variant": "combined-cuts"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 95.35909500000025,
+      "generationMs": 113.13864100000046,
+      "meshBytes": 146880,
+      "meshMs": 17.77954600000021,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 2,
+          "durationMs": 77.68223999999964
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 2,
+          "durationMs": 0.7986179999998058
+        },
+        "cleanup": {
+          "calls": 2,
+          "durationMs": 0.001222000000780099
+        },
+        "copy": {
+          "calls": 2,
+          "durationMs": 1.6779080000001159
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.22128500000053464
+        },
+        "history": {
+          "calls": 4,
+          "durationMs": 0.07508200000029319
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.2333880000001045
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 17.27839700000004
+        }
+      },
+      "triangles": 2040,
+      "variant": "profile-holes",
+      "volume": 147948.75520843046
+    },
+    "stepRoundtripVolume": 147948.75520842953,
+    "variant": "profile-holes"
+  },
+  {
+    "materialDifferences": [
+      -0.0,
+      -0.0,
+      -0.0,
+      -0.0
+    ],
+    "metrics": {
+      "bounds": [
+        [
+          -37.82318119501549,
+          -5.792024287158462,
+          -6.6080203384921825
+        ],
+        [
+          296.2537631820727,
+          204.54668797079353,
+          6.708020338492182
+        ]
+      ],
+      "constructionMs": 123.89476100000047,
+      "generationMs": 145.01561499999934,
+      "meshBytes": 145728,
+      "meshMs": 21.12085399999887,
+      "solids": 2,
+      "stages": {
+        "booleanPerform": {
+          "calls": 4,
+          "durationMs": 100.24979900000108
+        },
+        "buildWithFiller": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "cellSelection": {
+          "calls": 4,
+          "durationMs": 1.5936589999992066
+        },
+        "cleanup": {
+          "calls": 4,
+          "durationMs": 0.003585999998904299
+        },
+        "copy": {
+          "calls": 4,
+          "durationMs": 3.102400999998281
+        },
+        "edgeSampling": {
+          "calls": 1,
+          "durationMs": 0.2848739999999452
+        },
+        "history": {
+          "calls": 8,
+          "durationMs": 0.15435899999829417
+        },
+        "intersection": {
+          "calls": 0,
+          "durationMs": 0.0
+        },
+        "meshExtractionAndNormals": {
+          "calls": 1,
+          "durationMs": 0.28105800000048475
+        },
+        "surfaceMeshing": {
+          "calls": 1,
+          "durationMs": 20.505189999999857
+        }
+      },
+      "triangles": 2024,
+      "variant": "final-clean",
+      "volume": 147948.75520843064
+    },
+    "stepRoundtripVolume": 147948.75520842982,
+    "variant": "final-clean"
+  }
+]

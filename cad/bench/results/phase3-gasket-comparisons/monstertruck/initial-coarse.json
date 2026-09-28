@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-target/release/gasket-monstertruck-comparison",
+    "cad/bench/fixtures/live-gasket-bottom-regression.json",
+    "/tmp/boardstudio-gasket-comparison-20260928/monstertruck-direct"
+  ],
+  "exitCode": 1,
+  "wallMs": 15.199725981801748,
+  "stdout": "",
+  "stderr": "region 0 base 112.421\u00b5s\nError: \"region 0 mount 0: EmptyOutputShell { operation: \\\"and\\\" }\"\n"
+}
