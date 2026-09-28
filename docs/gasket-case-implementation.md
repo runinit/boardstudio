@@ -1,10 +1,28 @@
-# Internal gasket Rust and CAD implementation
+# Internal gasket implementation
 
-This checkout implements the Rust and CAD phase of
-[gasket-case-redesign.md](gasket-case-redesign.md). The editor conversion and
-hardware catalog selection remain separate work. Existing documents keep their
-legacy construction unless they explicitly select `internalGasket.version:
-internal-v1`.
+This checkout implements the Rust/CAD construction and direct editor wiring from
+[gasket-case-redesign.md](gasket-case-redesign.md). Selecting Gasket mount enables
+the internal construction. No conversion workflow is included, following the
+user's explicit scope correction. Verified hardware catalog selection remains
+separate work.
+
+## Editor controls and validation
+
+The Case editor exposes all 13 foam sizes and custom dimensions, compression,
+travel, support count, advanced clearances, custom closure hardware, and the
+resolved purchase/cut list. Edits use existing undo/redo and save behavior.
+Adopted closures remain independent of support-count changes. The generated top
+is labeled Top case. Invalid geometry blocks export with diagnostics.
+
+Validation of this editor phase: all 401 app unit tests, the full core Rust suite,
+application type checking, and the rebuilt production app passed. Three browser
+regressions passed against the rebuilt WASM: generation and save/reopen with
+undo/redo; Escape cancellation and custom edits; closure preservation and invalid
+wall export blocking. This last test exposed and fixed a generic mount check
+that incorrectly tested internal case screws against the floating plate.
+
+The default hardware is explicitly Custom M2 geometry, not a supplier-qualified
+preset. The earlier repository-wide browser failures below remain outstanding.
 
 ## Implemented contract
 
@@ -75,8 +93,6 @@ pointer-to-paint timing.
 ## Remaining work
 
 - Complete verified catalog families and automatic family ranking/defaults.
-- Integrate editor controls, new-project defaults, and explicit undoable legacy
-  conversion.
 - Run the specification's live interaction and performance acceptance sessions.
 - Validate actual selected hardware and foam against their product data before
   claiming those catalog entries complete.
@@ -91,7 +107,7 @@ Standards review found no remaining hard violations or concrete correctness
 issues after fixing support ownership and full CAD footprint validation.
 
 Spec review found no additional reproducible defect in this Rust/CAD slice.
-Catalog selection, editor conversion, and live acceptance remain incomplete as
+Catalog selection and full live acceptance remain incomplete as
 listed above. An initially suspected saved-closure cap collision could not be
 reproduced independently of existing rejection checks, so no speculative change
 was added.

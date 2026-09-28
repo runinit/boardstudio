@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { emptyProject, type MechanicalAssembly } from '@boardstudio/v2-contracts';
 import type { GenerationState } from '../generationState';
+import { defaultInternalGasket } from '../gasketEditing';
 import { createMechanicalConfiguration } from '../mechanicalPresets';
 import { MechanicalAssemblyPanel } from './MechanicalAssemblyPanel';
 
@@ -61,4 +62,18 @@ describe('export readiness regression', () => {
     expect(button(render({ status: 'ready', revision: 3 }, { ...assembly, diagnostics: [finding] }), 'Export geometry')).toContain('disabled');
     expect(button(render({ status: 'ready', revision: 3 }, { ...assembly, diagnostics: [{ ...finding, severity: 'warning' }] }), 'Export geometry')).not.toContain('disabled');
   });
+});
+
+it('exposes internal gasket sizes, clearance, closure hardware and top-case layers', () => {
+  const gasket = { ...configuration, mount: 'gasket' as const, internalGasket: defaultInternalGasket() };
+  const resolved = { ...assembly, stack: [{ id: 'retainer', z: 8, thickness: 6 }] };
+  const markup = renderToStaticMarkup(<MechanicalAssemblyPanel document={document} definitions={[]} configuration={gasket}
+    assembly={resolved} onChange={() => {}} />);
+  expect(markup).toContain('Gasket size');
+  expect(markup).toContain('80 × 4 × 5 mm');
+  expect(markup).toContain('PCB-to-support clearance');
+  expect(markup).toContain('Minimum wall behind gasket pockets');
+  expect(markup).toContain('Top case');
+  expect(markup).toContain('Screw drive');
+  expect(markup).not.toContain('captive nuts');
 });

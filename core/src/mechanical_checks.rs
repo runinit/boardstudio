@@ -309,10 +309,14 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
     {
         add("wall".into(), Severity::Warning, "Walls below 1.0 mm require material and supplier review; 1.0 mm is a screening recommendation, not a documented process limit.".into());
     }
+    // Internal closures are validated against their case lands by the generator;
+    // their independent positions intentionally lie outside the floating plate.
+    let internal_closures = config.internal_gasket.is_some()
+        && config.mount == crate::model::MechanicalMount::Gasket;
     let mounts: Vec<_> = config
         .mounts
         .iter()
-        .chain(config.closure_mounts.iter().flatten())
+        .chain(config.closure_mounts.iter().flatten().filter(|_| !internal_closures))
         .collect();
     for (index, mount) in mounts.iter().enumerate() {
         let radius = mount.boss_diameter.unwrap_or(mount.hole_diameter) / 2.0;

@@ -1,8 +1,10 @@
-import { defaultGasketLayout } from '../gasketEditing';
+import { defaultGasketLayout, defaultInternalGasket, gasketFoamPresets } from '../gasketEditing';
 import type { GenerationState } from '../generationState';
 import React from 'react';
 import type {
   Finding,
+  InternalClosureHardware,
+  InternalGasketConfiguration,
   CaseOpening,
   MechanicalAssembly,
   MechanicalCriticalFit,
@@ -96,7 +98,7 @@ type Props = {
   onEditParts?: (definitionId: string) => void;
 };
 
-function MountList({ title, value, onChange }: { title: string; value: Mount[]; onChange: (value: Mount[]) => void }) {
+function MountList({ title, value, onChange, allowAdd = true }: { title: string; value: Mount[]; onChange: (value: Mount[]) => void; allowAdd?: boolean }) {
   const update = (id: string, patch: Partial<Mount>) => onChange(value.map((mount) => mount.id === id ? { ...mount, ...patch } : mount));
   return <InspectorSection title={title} detail={`${value.length}`} defaultOpen={value.length > 0}>
     {value.map((mount, index) => <div className="wb-mech-mount" key={mount.id}>
@@ -104,7 +106,7 @@ function MountList({ title, value, onChange }: { title: string; value: Mount[]; 
       <label className="wb-mech-field"><span>Mount type</span><select value={mount.kind} onChange={(event) => update(mount.id, { kind: event.target.value as Mount['kind'] })}><option value="hole">Hole</option><option value="boss">Boss</option></select></label>
       <div className="wb-mech-numbers"><NumberField label="Position X" value={mount.at.x} min={-1000000} onCommit={(x) => update(mount.id, { at: { ...mount.at, x } })} /><NumberField label="Position Y" value={mount.at.y} min={-1000000} onCommit={(y) => update(mount.id, { at: { ...mount.at, y } })} /><NumberField label="Hole diameter" value={mount.holeDiameter} onCommit={(holeDiameter) => update(mount.id, { holeDiameter })} min={0.1} /><NumberField label="Boss diameter" value={mount.bossDiameter ?? 5} onCommit={(bossDiameter) => update(mount.id, { bossDiameter })} min={0.1} />{mount.kind === 'boss' && <NumberField label="Boss height" value={mount.height ?? 5} onCommit={(height) => update(mount.id, { height })} min={0.1} />}</div>
     </div>)}
-    <button type="button" className="wb-mech-quiet" onClick={() => onChange([...value, { id: crypto.randomUUID(), at: { x: 0, y: 0 }, kind: 'hole', holeDiameter: 2.5, bossDiameter: 5, height: 5 }])}>Add {title.toLowerCase().replace(/s$/, '')}</button>
+    {allowAdd && <button type="button" className="wb-mech-quiet" onClick={() => onChange([...value, { id: crypto.randomUUID(), at: { x: 0, y: 0 }, kind: 'hole', holeDiameter: 2.5, bossDiameter: 5, height: 5 }])}>Add {title.toLowerCase().replace(/s$/, '')}</button>}
   </InspectorSection>;
 }
 
@@ -127,7 +129,10 @@ function NumberField({ label, value, onCommit, min = 0, max, step = 0.1, unit = 
     }
     if (number !== value) onCommit(number);
   };
-  return <label className="wb-mech-number"><span>{label}</span><span className="wb-mech-number-input"><input type="number" min={min} max={max} step={step} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={commit} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /><small>{unit}</small></span></label>;
+  return <label className="wb-mech-number"><span>{label}</span><span className="wb-mech-number-input"><input type="number" min={min} max={max} step={step} value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={commit} onKeyDown={(event) => {
+    if (event.key === 'Enter') event.currentTarget.blur();
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDraft(String(value)); }
+  }} /><small>{unit}</small></span></label>;
 }
 
 function PolygonListEditor({ title, polygons, onChange }: { title: string; polygons: Vec2[][]; onChange: (polygons: Vec2[][]) => void }) {
@@ -213,6 +218,103 @@ function ProfileEditor({ profile, definitions, onChange, onRemove, onExtract, on
     {definition?.kind === 'switch' && <label className="wb-mech-field"><span>Switch fit family</span><select value={profile.switchFamily ?? ''} onChange={(event) => { if (event.target.value) onSelectSwitchFamily?.(event.target.value as MechanicalSwitchFamily); }}><option value="">Choose switch family…</option><option value="mx">MX</option><option value="choc-v1">Choc v1</option><option value="choc-v2">Choc v2</option></select></label>}
     <div className="wb-mech-profile-offset"><label className="wb-mech-field"><span>Plate underside to PCB top</span><output>{profile.plateToPcb.toFixed(2)} mm · derived from switch fit</output></label><label className="wb-mech-field"><span>Supported plate thickness</span><output>{profile.supportedThickness ? `${profile.supportedThickness.x.toFixed(2)}–${profile.supportedThickness.y.toFixed(2)} mm` : 'Supplier review needed'}</output></label></div>
   </section>;
+}
+
+const closureDimensions = [
+  ['threadDiameter', 'Thread diameter'], ['pitch', 'Thread pitch'],
+  ['headDiameter', 'Head diameter'], ['headHeight', 'Head height'],
+  ['holeDiameter', 'Screw clearance hole'], ['insertDiameter', 'Insert outside diameter'],
+  ['insertLength', 'Insert length'], ['seatDiameter', 'Insert seat diameter'],
+  ['seatDepth', 'Insert seat depth'], ['engagement', 'Thread engagement'],
+  ['threadStart', 'Thread start offset'], ['tipAllowance', 'Screw tip allowance'],
+  ['bottomingClearance', 'Bottoming clearance'], ['roof', 'Roof above insert'],
+  ['surround', 'Material around insert'], ['seatLeadDepth', 'Seat lead-in depth'],
+  ['seatLeadDiameter', 'Seat lead-in diameter'], ['bearingThickness', 'Material above screw head'],
+] as const;
+
+function ScrewLengths({ value, onChange }: { value: number[]; onChange: (value: number[]) => void }) {
+  const [draft, setDraft] = React.useState(value.join(', '));
+  const [error, setError] = React.useState('');
+  const saved = value.join(', ');
+  React.useEffect(() => { setDraft(saved); setError(''); }, [saved]);
+  const commit = () => {
+    const lengths = draft.split(',').map(item => Number(item.trim()));
+    if (!lengths.length || lengths.some(length => !Number.isFinite(length) || length <= 0)) {
+      setError('Enter positive lengths separated by commas.');
+      return;
+    }
+    setError('');
+    if (draft !== saved) onChange([...new Set(lengths)]);
+  };
+  return <><label className="wb-mech-field"><span>Available screw lengths (mm)</span><input type="text" className="wb-mech-text" value={draft} aria-invalid={Boolean(error)} onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => {
+    if (event.key === 'Enter') event.currentTarget.blur();
+    if (event.key === 'Escape') { setDraft(saved); setError(''); }
+  }} /></label>{error && <p className="wb-mech-error" role="alert">{error}</p>}</>;
+}
+
+function GasketControls({ configuration, assembly, onChange }: {
+  configuration: MechanicalConfiguration;
+  assembly?: MechanicalAssembly;
+  onChange: (patch: Partial<MechanicalConfiguration>) => void;
+}) {
+  const layout = configuration.gasketLayout ?? defaultGasketLayout();
+  const settings = configuration.internalGasket ?? defaultInternalGasket();
+  const hardware = settings.hardware;
+  const update = (patch: Partial<MechanicalConfiguration>) => onChange({
+    internalGasket: settings, integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false, ...patch,
+  });
+  const updateSettings = (patch: Partial<InternalGasketConfiguration>) => update({ internalGasket: { ...settings, ...patch } });
+  const updateHardware = (patch: Partial<InternalClosureHardware>) => updateSettings({ hardware: { ...hardware, ...patch } });
+  const chooseSize = (id: string) => {
+    const preset = gasketFoamPresets.find(item => item.id === id);
+    update({ gasketLayout: { ...layout, ...(preset ? { length: preset.length, width: preset.width, thickness: preset.thickness } : {}), presetId: preset?.id } });
+  };
+  return <>
+    <InspectorSection title="Gasket supports" detail={`${assembly?.gasketSupports?.length ?? 0} supports`} defaultOpen>
+      <p className="wb-mech-hint">Plate tabs float between matching upper and lower pads. Use Edit gaskets in the preview to position them.</p>
+      <label className="wb-mech-field"><span>Gasket size</span><select value={layout.presetId ?? 'custom'} onChange={event => chooseSize(event.target.value)}>
+        <option value="custom">Custom</option>
+        {gasketFoamPresets.map(preset => <option key={preset.id} value={preset.id}>{preset.id} · {preset.length} × {preset.width} × {preset.thickness} mm</option>)}
+      </select></label>
+      <div className="wb-mech-numbers">
+        {(['length', 'width', 'thickness'] as const).map(key => <NumberField key={key} label={`Gasket ${key}`} value={layout[key]} min={0.1} onCommit={value => update({ gasketLayout: { ...layout, [key]: value, presetId: undefined } })} />)}
+        <NumberField label="Compression" unit="%" value={layout.compression * 100} min={0} max={49.9} onCommit={value => update({ gasketLayout: { ...layout, compression: value / 100 } })} />
+        <NumberField label="Gasket travel" value={configuration.gasketTravel ?? 0.1} min={0} onCommit={gasketTravel => update({ gasketTravel })} />
+        <NumberField label="Supports per region" unit="" value={settings.supportCount} min={2} max={64} step={1} onCommit={value => { if (Number.isInteger(value)) updateSettings({ supportCount: value }); }} />
+      </div>
+      <button type="button" className="wb-mech-quiet" onClick={() => update({ gasketLayout: { ...layout, supports: [] } })}>Reset gasket positions</button>
+      <p className="wb-mech-hint">Reset releases manually positioned supports. Closure positions stay fixed.</p>
+    </InspectorSection>
+    <InspectorSection title="Advanced gasket clearances" detail="mm" defaultOpen={false}>
+      <div className="wb-mech-numbers">
+        <NumberField label="PCB-to-support clearance" value={settings.supportClearance ?? configuration.clearance} min={0} onCommit={supportClearance => updateSettings({ supportClearance })} />
+        <NumberField label="Minimum wall behind gasket pockets" value={settings.minimumWall ?? 2} min={0.1} onCommit={minimumWall => updateSettings({ minimumWall })} />
+        <NumberField label="Gasket fit tolerance" value={settings.tolerance} min={0} onCommit={tolerance => updateSettings({ tolerance })} />
+        <NumberField label="Adhesive thickness" value={layout.adhesiveThickness ?? 0} onCommit={adhesiveThickness => update({ gasketLayout: { ...layout, adhesiveThickness } })} />
+      </div>
+      <p className="wb-mech-hint">PCB-to-support clearance is the horizontal gap at the board edge. The minimum wall protects material behind each pocket; the case grows to fit.</p>
+      <label className="wb-mech-field"><span>Gasket material</span><input type="text" className="wb-mech-text" value={layout.material ?? ''} placeholder="Material or grade, if known" onChange={event => update({ gasketLayout: { ...layout, material: event.target.value || undefined } })} /></label>
+    </InspectorSection>
+    <InspectorSection title="Closure hardware" detail={hardware.thread} defaultOpen>
+      <p className="wb-mech-hint">Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset.</p>
+      <label className="wb-mech-field"><span>Screw drive</span><select value={hardware.drive} onChange={event => updateHardware({ drive: event.target.value as InternalClosureHardware['drive'] })}><option value="hex">Hex socket</option><option value="torx">Torx</option></select></label>
+      <label className="wb-mech-field"><span>Insert installation</span><select value={hardware.installation} onChange={event => updateHardware({ installation: event.target.value as InternalClosureHardware['installation'] })}><option value="heat-set">Heat-set · printed top</option><option value="tapped">Tapped · machined top</option></select></label>
+      <ScrewLengths value={hardware.screwLengths} onChange={screwLengths => updateHardware({ screwLengths, fixedLength: undefined })} />
+      <label className="wb-mech-field"><span>Screw length</span><select value={hardware.fixedLength ?? 'auto'} onChange={event => updateHardware({ fixedLength: event.target.value === 'auto' ? undefined : Number(event.target.value) })}><option value="auto">Automatic from available lengths</option>{hardware.screwLengths.map(length => <option value={length} key={length}>{length} mm · fixed</option>)}</select></label>
+    </InspectorSection>
+    <InspectorSection title="Advanced closure dimensions" detail="Custom · mm" defaultOpen={false}>
+      <label className="wb-mech-field"><span>Thread designation</span><input type="text" className="wb-mech-text" value={hardware.thread} onChange={event => updateHardware({ thread: event.target.value })} /></label>
+      <label className="wb-mech-field"><span>Screw head profile</span><select value={hardware.headProfile} onChange={event => updateHardware({ headProfile: event.target.value as InternalClosureHardware['headProfile'] })}><option value="flat">Flat bearing surface</option><option value="countersunk">Countersunk</option></select></label>
+      <label className="wb-mech-field"><span>Screw length measured from</span><select value={hardware.lengthDatum} onChange={event => updateHardware({ lengthDatum: event.target.value as InternalClosureHardware['lengthDatum'] })}><option value="under-head">Under the head</option><option value="overall">Top of head · overall</option><option value="unresolved">Unknown</option></select></label>
+      <div className="wb-mech-numbers">{closureDimensions.map(([key, label]) => <NumberField key={key} label={label} value={hardware[key]} min={0} onCommit={value => updateHardware({ [key]: value })} />)}</div>
+      <p className="wb-mech-hint">Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics.</p>
+    </InspectorSection>
+    {assembly?.generatedHardware?.length ? <InspectorSection title="Resolved hardware and pads" detail="Purchase / cut list">
+      <ul>{assembly.generatedHardware.map(item => <li key={item.id}>{item.quantity} × {item.designation} · {item.thread} · {item.length} mm</li>)}
+        {assembly.generatedMaterials?.map(item => <li key={item.id}>{item.quantity} × {item.presetId ?? 'Custom'} pad · {item.size.x} × {item.size.y} × {item.size.z} mm free thickness</li>)}
+      </ul>
+    </InspectorSection> : null}
+  </>;
 }
 
 function HardwareAndFits({ configuration, assembly, onChange }: {
@@ -405,11 +507,11 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
       </InspectorSection></div>
       <InspectorSection title="Construction" detail={manufacturingMethods[config.method]} defaultOpen>
         <label className="wb-mech-field"><span>Method</span><select value={config.method} onChange={(event) => update({ method: event.target.value as MechanicalConfiguration['method'] })}>{Object.entries(manufacturingMethods).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="wb-mech-field"><span>Mount style</span><select value={config.mount} onChange={(event) => update({ mount: event.target.value as MechanicalConfiguration['mount'], ...(event.target.value === 'gasket' ? { gasketLayout: config.gasketLayout ?? defaultGasketLayout(), gasketTravel: config.gasketTravel ?? 0.3, integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false } : {}) })}><option value="tray">Tray</option><option value="rigid">Rigid mount</option><option value="gasket">Gasket mount</option></select></label>
-        <label className="wb-mech-field"><span>Bottom construction</span><select value={config.bottomStyle ?? 'shell'} onChange={(event) => update({ bottomStyle: event.target.value as MechanicalConfiguration['bottomStyle'] })}><option value="shell">Tray shell</option><option value="sheet">Flat sheet</option></select></label>
+        <label className="wb-mech-field"><span>Mount style</span><select value={config.mount} onChange={(event) => update({ mount: event.target.value as MechanicalConfiguration['mount'], ...(event.target.value === 'gasket' ? { gasketLayout: config.gasketLayout ?? defaultGasketLayout(), gasketTravel: config.internalGasket ? config.gasketTravel : 0.1, internalGasket: config.internalGasket ?? defaultInternalGasket(), integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false } : {}) })}><option value="tray">Tray</option><option value="rigid">Rigid mount</option><option value="gasket">Gasket mount</option></select></label>
+        <label className="wb-mech-field"><span>Bottom construction</span><select disabled={config.mount === 'gasket'} value={config.bottomStyle ?? 'shell'} onChange={(event) => update({ bottomStyle: event.target.value as MechanicalConfiguration['bottomStyle'] })}><option value="shell">Tray shell</option><option value="sheet">Flat sheet</option></select></label>
         {config.bottomStyle === 'sheet' && <label className="wb-mech-check"><input type="checkbox" checked={config.middleFrame ?? false} onChange={(event) => update({ middleFrame: event.target.checked })} /><span>Add middle frame</span></label>}
         <label className="wb-mech-field"><span>Board</span><select aria-label="Board for mechanical stack" value={config.boardId} onChange={(event) => update({ boardId: event.target.value })}>{document.boards.map((board) => <option key={board.id} value={board.id}>{board.name}</option>)}</select></label>
-        <label className="wb-mech-check"><input type="checkbox" checked={config.integratedPlateFrame} onChange={(event) => update({ integratedPlateFrame: event.target.checked })} /><span>Integrate plate frame into case</span></label>
+        <label className="wb-mech-check"><input type="checkbox" disabled={config.mount === 'gasket'} checked={config.integratedPlateFrame} onChange={(event) => update({ integratedPlateFrame: event.target.checked })} /><span>Integrate plate frame into case</span></label>
       </InspectorSection>
       <InspectorSection title="Inherited part profiles" detail={`${usedDefinitions.length} part types`} defaultOpen={false}>
         <p className="wb-mech-hint">Fit profiles are defined with each part in Parts and inherited here by every layout and case.</p>
@@ -434,7 +536,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
         <NumberField label="Radial opening allowance" value={config.openingAllowance ?? 0} min={-1} max={1} onCommit={(openingAllowance) => update({ openingAllowance })} />
       </InspectorSection>
       <InspectorSection title="Resolved stack" detail={`${layers.length} layers`} defaultOpen>
-        {layers.length ? <div className="wb-mech-stack" aria-label="Resolved mechanical stack">{layers.map((layer) => <button type="button" className={`wb-mech-layer${selectedLayer === layer.id ? ' is-selected' : ''}`} aria-pressed={selectedLayer === layer.id} onClick={() => onSelectLayer?.(selectedLayer === layer.id ? '' : layer.id)} key={layer.id}><span className="wb-mech-layer-swatch" /><strong>{layer.id === 'pcb' ? 'PCB' : layer.id.replace(/-/g, ' ').replace(/^./, letter => letter.toUpperCase())}</strong><span>{layer.thickness.toFixed(2)} mm</span><small>Z {layer.z.toFixed(2)}</small></button>)}</div> : <p className="wb-mech-hint">The stack appears after the current revision resolves.</p>}
+        {layers.length ? <div className="wb-mech-stack" aria-label="Resolved mechanical stack">{layers.map((layer) => <button type="button" className={`wb-mech-layer${selectedLayer === layer.id ? ' is-selected' : ''}`} aria-pressed={selectedLayer === layer.id} onClick={() => onSelectLayer?.(selectedLayer === layer.id ? '' : layer.id)} key={layer.id}><span className="wb-mech-layer-swatch" /><strong>{layer.id === 'retainer' && config.internalGasket ? 'Top case' : layer.id === 'pcb' ? 'PCB' : layer.id.replace(/-/g, ' ').replace(/^./, letter => letter.toUpperCase())}</strong><span>{layer.thickness.toFixed(2)} mm</span><small>Z {layer.z.toFixed(2)}</small></button>)}</div> : <p className="wb-mech-hint">The stack appears after the current revision resolves.</p>}
       </InspectorSection>
       <section className="wb-mech-option-group" aria-label="Openings and battery"><h3>Openings & battery</h3>
       <InspectorSection title="Case openings" detail={`${config.openings?.length ?? 0}`}>
@@ -455,19 +557,12 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
       </InspectorSection>
       </section>
       <section className="wb-mech-option-group" aria-label="Mounting and hardware"><h3>Mounting & hardware</h3>
-      {config.mount === 'gasket' && <InspectorSection title="Gasket supports" detail={`${assembly?.gasketSupports?.length ?? 0} strips per side`} defaultOpen>
-        <p>Plate tabs are captured between upper and lower EVA strips. Drag supports using Edit gaskets in the preview. Linked halves move together.</p>
-        <div className="wb-mech-numbers">{(['length', 'width', 'thickness'] as const).map(key => <NumberField key={key} label={`Gasket ${key}`} value={(config.gasketLayout ?? defaultGasketLayout())[key]} min={0.1} onCommit={value => update({ gasketLayout: { ...(config.gasketLayout ?? defaultGasketLayout()), [key]: value } })} />)}
-        <NumberField label="Compression" unit="%" value={(config.gasketLayout ?? defaultGasketLayout()).compression * 100} min={0} onCommit={value => update({ gasketLayout: { ...(config.gasketLayout ?? defaultGasketLayout()), compression: value / 100 } })} />
-        <NumberField label="Gasket travel" value={config.gasketTravel ?? 0.3} min={0.1} onCommit={gasketTravel => update({ gasketTravel })} /></div>
-        <button type="button" onClick={() => update({ gasketLayout: { ...(config.gasketLayout ?? defaultGasketLayout()), supports: [] } })}>Reset gasket positions</button>
-        <p>{assembly?.generatedHardware?.length ? `${assembly.generatedHardware.filter(item => item.designation === 'Socket screw').length} M2 closure screws and captive nuts included in the fabrication notes.` : 'Closure locations are generated with the supports.'}</p>
-      </InspectorSection>}
-      <MountList title="Suspension mounts" value={config.mounts} onChange={(mounts) => update({ mounts })} />
-      <MountList title="Closure screws" value={config.closureMounts ?? []} onChange={(closureMounts) => update({ closureMounts })} />
+      {config.mount === 'gasket' && <GasketControls configuration={config} assembly={assembly} onChange={update} />}
+      {config.mount !== 'gasket' && <MountList title="Suspension mounts" value={config.mounts} onChange={(mounts) => update({ mounts })} />}
+      <MountList title="Closure screws" value={config.closureMounts ?? []} onChange={(closureMounts) => update({ closureMounts })} allowAdd={!config.internalGasket} />
       <HardwareAndFits configuration={config} assembly={assembly} onChange={update} />
       <InspectorSection title="Suggested mount locations" detail={`${assembly?.suggestedMounts?.length ?? 0} candidates`}>
-        {assembly?.suggestedMounts?.length ? <><p className="wb-mech-hint">Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed.</p><button type="button" className="wb-mech-quiet" onClick={() => update({ mounts: assembly.suggestedMounts })}>Adopt suggested mounts</button></> : <p className="wb-mech-hint">Resolve the current geometry to see clearance-tested mounting locations.</p>}
+        {assembly?.suggestedMounts?.length ? <><p className="wb-mech-hint">Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed.</p><button type="button" className="wb-mech-quiet" onClick={() => update(config.internalGasket ? { closureMounts: assembly.suggestedMounts } : { mounts: assembly.suggestedMounts })}>{config.internalGasket ? 'Adopt closure positions' : 'Adopt suggested mounts'}</button></> : <p className="wb-mech-hint">Resolve the current geometry to see clearance-tested mounting locations.</p>}
       </InspectorSection>
       </section>
       <section className="wb-mech-option-group" aria-label="Manufacturing overrides"><h3>Manufacturing overrides</h3>

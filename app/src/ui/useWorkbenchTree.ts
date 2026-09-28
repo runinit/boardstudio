@@ -82,7 +82,7 @@ export function useWorkbenchTree({ document, mechanicalAssembly, selectedBoardId
           onSelect: () => { setCaseBodyId(body.id); setRightOpen(true); },
         });
         for (const layer of mechanicalAssembly?.stack ?? []) if (!bodies.some(body => body.id === layer.id)) entries.push({
-          id: `case-generated:${layer.id}`, label: layer.id, detail: 'Generated assembly', kind: 'case', level: 1,
+          id: `case-generated:${layer.id}`, label: mechanicalAssembly?.case.bodies.find(entry => entry.body.id === layer.id)?.body.name ?? layer.id, detail: 'Generated assembly', kind: 'case', level: 1,
           selected: selectedMechanicalLayer === layer.id,
           onSelect: () => { setSelectedMechanicalLayer(layer.id); setRightOpen(true); },
         });

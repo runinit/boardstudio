@@ -30,3 +30,11 @@ test('a linked move requires an exact reflected position on the other track', ()
   const shifted = tracks.map(track => track.regionId === 'right' ? { ...track, start: { ...track.start, y: 4 }, end: { ...track.end, y: 4 } } : track);
   expect(moveGasket({ x: 35, y: 0 }, left.id, [left, right], shifted)).toBeUndefined();
 });
+
+test('a committed linked move pins both supports without pinning untouched supports', () => {
+  const before = [{ ...left, placement: 'generated' as const }, { ...right, placement: 'generated' as const }];
+  const after = moveGasket({ x: 35.25, y: 1 }, left.id, before, tracks)!;
+  const anchors = gasketAnchors(defaultGasketLayout(), before, after);
+  expect(anchors.map(anchor => anchor.placement)).toEqual(['user', 'user']);
+  expect(gasketAnchors(defaultGasketLayout(), before, before)).toEqual([]);
+});

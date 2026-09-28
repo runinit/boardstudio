@@ -167,6 +167,7 @@ fn adopted_closures_survive_support_count_changes() {
     doc["mechanical"]["internalGasket"]["supportCount"] = json!(6);
     let changed = resolve_internal(doc);
     assert_eq!(changed["generationBlocked"], false, "{changed}");
+    assert!(!changed["diagnostics"].as_array().unwrap().iter().any(|finding| finding["severity"] == "error"), "{changed}");
     assert_eq!(original["generatedHardware"], changed["generatedHardware"]);
     assert_eq!(original["suggestedMounts"], changed["suggestedMounts"]);
     assert_eq!(changed["gasketSupports"].as_array().unwrap().len(), 6);
