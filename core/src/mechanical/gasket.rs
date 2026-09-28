@@ -1,5 +1,6 @@
 //! Discrete plate supports and their matching case/retainer geometry.
 use super::*;
+mod internal;
 
 const SUPPORT_COUNT: usize = 6;
 const RETAINER_THICKNESS: f64 = 3.0;
@@ -151,6 +152,7 @@ fn make_body(
         revision,
         contours,
         body: CaseBody {
+            features: None,
             id: id.into(),
             name: id.replace(':', " "),
             board_id: config.board_id.clone(),
@@ -219,8 +221,16 @@ pub(super) fn generate(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,
     result: &mut MechanicalAssembly,
+    component_volumes: &[(String, CaseOpening)],
 ) -> Result<(), String> {
+    if let Some(settings) = &config.internal_gasket {
+        return internal::generate(document, config, settings, result, component_volumes);
+    }
     let defaults = MechanicalGasketLayout {
+        adhesive_thickness: None,
+        minimum_foam_thickness: None,
+        preset_id: None,
+        material: None,
         length: 12.,
         width: 3.,
         thickness: 2.,
@@ -438,6 +448,7 @@ pub(super) fn generate(
             }
             chosen.push((id.clone(), candidate.clone()));
             supports.push(MechanicalGasketSupport {
+                placement: None,
                 id,
                 region_id: region.id.clone(),
                 outline_key: region.key.clone(),

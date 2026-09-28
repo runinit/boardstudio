@@ -1,0 +1,121 @@
+{
+  "kind": "resolve-mechanical",
+  "id": "internal-gasket-v1-rectangle",
+  "document": {
+    "format": "boardstudio/v2",
+    "id": "untitled",
+    "name": "Untitled",
+    "revision": 0,
+    "parameters": {},
+    "definitions": [],
+    "parts": [],
+    "matrices": [],
+    "nets": [],
+    "outline": [],
+    "boards": [
+      {
+        "id": "board",
+        "name": "Board",
+        "outlineIds": [],
+        "partIds": [],
+        "netIds": [],
+        "thickness": 1.6,
+        "traces": [],
+        "vias": []
+      }
+    ],
+    "caseBodies": [],
+    "materials": [],
+    "assets": [],
+    "scripts": [],
+    "constraints": [],
+    "mechanical": {
+      "boardId": "board",
+      "method": "printed",
+      "mount": "gasket",
+      "plateThickness": 1.5,
+      "plateFoamThickness": 0,
+      "pcbThickness": 1.6,
+      "bottomFoamThickness": 0,
+      "batteryHeight": 0,
+      "bottomThickness": 2,
+      "plateToPcb": 5,
+      "wallThickness": 4,
+      "clearance": 0.2,
+      "profiles": [],
+      "mounts": [],
+      "gasketTravel": 0.1,
+      "internalGasket": {
+        "version": "internal-v1",
+        "minimumWall": 2,
+        "supportClearance": 0.2,
+        "tolerance": 0.05,
+        "supportCount": 4,
+        "hardware": {
+          "id": "custom-test",
+          "thread": "M2 \u00d7 0.4",
+          "screwLengths": [
+            8,
+            10,
+            12,
+            14,
+            15,
+            16
+          ],
+          "headDiameter": 4,
+          "headHeight": 1,
+          "holeDiameter": 2.2,
+          "insertDiameter": 3.6,
+          "seatDiameter": 3.2,
+          "seatDepth": 4.5,
+          "engagement": 3,
+          "bottomingClearance": 0.5,
+          "roof": 1.5,
+          "surround": 1.5,
+          "lengthDatum": "under-head",
+          "headProfile": "flat",
+          "drive": "hex",
+          "installation": "heat-set",
+          "threadDiameter": 2,
+          "pitch": 0.4,
+          "insertLength": 4,
+          "threadStart": 0.2,
+          "tipAllowance": 0.1,
+          "seatLeadDepth": 0.25,
+          "seatLeadDiameter": 3.4,
+          "bearingThickness": 1.5
+        }
+      },
+      "gasketLayout": {
+        "length": 12,
+        "width": 4,
+        "thickness": 2,
+        "compression": 0.15,
+        "supports": []
+      }
+    }
+  },
+  "contours": [
+    {
+      "hole": false,
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 100,
+          "y": 0
+        },
+        {
+          "x": 100,
+          "y": 70
+        },
+        {
+          "x": 0,
+          "y": 70
+        }
+      ]
+    }
+  ]
+}

@@ -1300,6 +1300,7 @@ fn construct_bodies(
             revision: revision,
             contours: body_contours,
             body: CaseBody {
+                features: None,
                 openings: if (id == "bottom" && !config.integrated_plate_frame)
                     || (id == "plate" && config.integrated_plate_frame)
                 {
@@ -1428,6 +1429,7 @@ fn construct_bodies(
                 revision: revision,
                 contours: vec![ring(diameter, false), ring(support.hole_diameter, true)],
                 body: CaseBody {
+                    features: None,
                     id: id.clone(),
                     name: id.clone(),
                     board_id: config.board_id.clone(),
@@ -1457,10 +1459,11 @@ fn finalize_assembly(
     document: &ProjectDoc,
     config: &MechanicalConfiguration,
     result: &mut MechanicalAssembly,
+    component_volumes: &[(String, CaseOpening)],
 ) {
     crate::mechanical_checks::apply_allowance(config, result);
     if config.mount == MechanicalMount::Gasket && !result.generation_blocked {
-        if let Err(message) = gasket::generate(document, config, result) {
+        if let Err(message) = gasket::generate(document, config, result, component_volumes) {
             result.generation_blocked = true;
             result.diagnostics.push(Finding {
                 id: "mechanical:gasket-layout".into(),
@@ -1481,8 +1484,9 @@ fn finalize_assembly(
             target_ids: vec![],
         });
     }
-    result.suggested_mounts =
-        crate::mechanical_checks::propose_mounts(config, &result.plate_contours);
+    if config.internal_gasket.is_none() || config.mount != MechanicalMount::Gasket {
+        result.suggested_mounts = crate::mechanical_checks::propose_mounts(config, &result.plate_contours);
+    }
     result.diagnostics.extend(crate::mechanical_checks::check(
         config,
         &result.plate_contours,
@@ -1497,6 +1501,7 @@ fn finalize_assembly(
 
 pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembly {
     let mut result = MechanicalAssembly {
+        generated_materials: vec![],
         gasket_supports: vec![],
         gasket_tracks: vec![],
         generated_hardware: vec![],
@@ -1534,7 +1539,9 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         ) {
             Ok(expanded) => {
                 frame_contours = expanded;
-                result.plate_contours = frame_contours.clone();
+                if config.internal_gasket.is_none() || config.mount != MechanicalMount::Gasket {
+                    result.plate_contours = frame_contours.clone();
+                }
             }
             Err(message) => {
                 result.generation_blocked = true;
@@ -1789,6 +1796,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         revision: document.revision,
         contours: pcb_reference_contours,
         body: CaseBody {
+            features: None,
             id: "pcb-reference".into(),
             name: "PCB reference".into(),
             board_id: config.board_id.clone(),
@@ -1880,7 +1888,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     );
     result.case.bodies = constructed.bodies;
     result.stack.extend(constructed.stack);
-    finalize_assembly(document, config, &mut result);
+    finalize_assembly(document, config, &mut result, &component_volumes);
     result
 }
 
@@ -1890,6 +1898,7 @@ fn expanded_outline(
     revision: u64,
 ) -> Result<Vec<Contour>, String> {
     let body = CaseBody {
+        features: None,
         id: "mechanical-frame-outline".into(),
         name: "Frame outline".into(),
         board_id: String::new(),
@@ -1997,6 +2006,7 @@ mod tests {
     use super::*;
     fn config() -> MechanicalConfiguration {
         MechanicalConfiguration {
+            internal_gasket: None,
             gasket_layout: None,
             hardware: None,
             critical_fits: None,
@@ -2315,11 +2325,16 @@ mod tests {
         let support = &first.gasket_supports[0];
         let anchor = support.anchor + 0.0007;
         doc.mechanical.as_mut().unwrap().gasket_layout = Some(MechanicalGasketLayout {
+            adhesive_thickness: None,
+            minimum_foam_thickness: None,
+            preset_id: None,
+            material: None,
             length: 12.,
             width: 3.,
             thickness: 2.,
             compression: 0.15,
             supports: vec![MechanicalGasketAnchor {
+                placement: None,
                 id: support.id.clone(),
                 region_id: support.region_id.clone(),
                 outline_key: support.outline_key.clone(),

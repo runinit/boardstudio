@@ -6,7 +6,8 @@ use super::*;
 pub(super) fn plate_mesh(body: &CaseBody, region: &PreparedRegion) -> Option<MeshData> {
     const MAX_EDGES: usize = 1024;
     const MAX_CELLS: usize = 4096;
-    if body.kind != CaseKind::Plate
+    if !body.features.is_empty()
+        || body.kind != CaseKind::Plate
         || body
             .openings
             .as_ref()

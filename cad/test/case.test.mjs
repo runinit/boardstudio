@@ -384,3 +384,18 @@ test('mesh-only preview preserves revision and reuses geometry for export', asyn
   assert.deepEqual(exported.mesh, cached.mesh);
   assert.ok(exported.step.length > 0);
 });
+
+for (const fixture of ['rectangle', 'countersunk', 'downward-boss', 'rotated-concave', 'split']) {
+  test(`internal gasket ${fixture} exports connected tray and top regions`, async () => {
+    const input = JSON.parse(await readFile(new URL(`../bench/fixtures/internal-gasket-v1/${fixture}.json`, import.meta.url)));
+    const assembly = resolveMechanical(input.document, input.contours);
+    for (const id of ['bottom', 'retainer']) {
+      const body = assembly.case.bodies.find(body => body.body.id === id);
+      const built = await rawCase(body);
+      const imported = await inspectStep(built.step);
+      assert.equal(imported.solidCount, input.contours.length, `${id} must be connected per region`);
+      assert.ok(imported.volume > 0);
+      assert.ok([...built.mesh.positions].every(Number.isFinite));
+    }
+  });
+}

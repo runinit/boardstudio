@@ -233,6 +233,7 @@ fn opening_remainders_preserve_partial_depth_and_winding() {
 }
 fn body(kind: CaseKind) -> CaseBody {
     CaseBody {
+        features: vec![],
         id: "test".into(),
         name: "Test".into(),
         kind,

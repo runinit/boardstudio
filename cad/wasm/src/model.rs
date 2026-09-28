@@ -31,6 +31,8 @@ struct PreparedAssembly {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct CaseBody {
+    #[serde(default)]
+    features: Vec<CaseFeature>,
     id: String,
     name: String,
     kind: CaseKind,
@@ -43,6 +45,33 @@ struct CaseBody {
     openings: Option<Vec<CaseOpening>>,
     #[serde(default)]
     gasket: Option<Gasket>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+enum CaseFeature {
+    SupportPrism {
+        id: String,
+        points: Vec<Vec2>,
+        z: f64,
+        height: f64,
+    },
+    RoundSeat {
+        id: String,
+        at: Vec2,
+        z: f64,
+        height: f64,
+        diameter: f64,
+    },
+    ConicalSeat {
+        id: String,
+        at: Vec2,
+        z: f64,
+        height: f64,
+        diameter: f64,
+        #[serde(rename = "endDiameter")]
+        end_diameter: f64,
+    },
 }
 
 #[derive(Deserialize, Debug, PartialEq)]

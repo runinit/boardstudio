@@ -34,6 +34,7 @@ fn case_ir(assembly_revision: u64, body_revision: u64) -> CaseAssemblyIR {
         bodies: vec![CaseIR {
             revision: body_revision,
             body: CaseBody {
+                features: None,
                 openings: None,
                 id: "case".into(),
                 name: "Case".into(),

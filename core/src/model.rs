@@ -559,6 +559,8 @@ pub struct CopperVia {
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct CaseBody {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub features: Option<Vec<CaseFeature>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub openings: Option<Vec<CaseOpening>>,
     pub id: String,
     pub name: String,
@@ -580,6 +582,35 @@ pub struct CaseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gasket: Option<Gasket>,
 }
+/// Exact additions and seats, evaluated after shell cavities and before access openings.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum CaseFeature {
+    SupportPrism {
+        id: String,
+        points: Vec<Vec2>,
+        z: f64,
+        height: f64,
+    },
+    RoundSeat {
+        id: String,
+        at: Vec2,
+        z: f64,
+        height: f64,
+        diameter: f64,
+    },
+    ConicalSeat {
+        id: String,
+        at: Vec2,
+        z: f64,
+        height: f64,
+        diameter: f64,
+        #[serde(rename = "endDiameter")]
+        end_diameter: f64,
+    },
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
@@ -1896,6 +1927,18 @@ pub struct MechanicalPartProfile {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalGasketLayout {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub adhesive_thickness: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub minimum_foam_thickness: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub preset_id: Option<GasketFoamPreset>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub material: Option<String>,
     pub length: f64,
     pub width: f64,
     pub thickness: f64,
@@ -1908,6 +1951,9 @@ pub struct MechanicalGasketLayout {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalGasketAnchor {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub placement: Option<GasketPlacement>,
     pub id: String,
     pub region_id: String,
     pub outline_key: String,
@@ -1920,6 +1966,9 @@ pub struct MechanicalGasketAnchor {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalGasketSupport {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub placement: Option<GasketPlacement>,
     pub id: String,
     pub region_id: String,
     pub outline_key: String,
@@ -1954,6 +2003,8 @@ pub struct MechanicalGasketTrack {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct MechanicalConfiguration {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub internal_gasket: Option<InternalGasketConfiguration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gasket_layout: Option<MechanicalGasketLayout>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2013,6 +2064,9 @@ pub struct MechanicalStackLayer {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalAssembly {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<MechanicalMaterialSpecification>>", optional))]
+    pub generated_materials: Vec<MechanicalMaterialSpecification>,
     #[serde(default)]
     pub gasket_supports: Vec<MechanicalGasketSupport>,
     #[serde(default)]
@@ -2170,4 +2224,142 @@ pub struct MechanicalCriticalFit {
     pub from: Vec2,
     pub to: Vec2,
     pub tolerance: String,
+}
+
+/// Opt-in construction; absence retains the legacy gasket generator.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub enum GasketConstructionVersion {
+    InternalV1,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct InternalGasketConfiguration {
+    pub version: GasketConstructionVersion,
+    #[serde(default = "default_internal_minimum_wall")]
+    pub minimum_wall: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub support_clearance: Option<f64>,
+    pub tolerance: f64,
+    pub support_count: usize,
+    pub hardware: InternalClosureHardware,
+}
+
+/// Complete custom geometry. Catalog provenance and process approval are separate from geometry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct InternalClosureHardware {
+    pub drive: ScrewDrive,
+    pub installation: InsertInstallation,
+    pub thread_diameter: f64,
+    pub pitch: f64,
+    pub insert_length: f64,
+    pub thread_start: f64,
+    pub tip_allowance: f64,
+    pub seat_lead_depth: f64,
+    pub seat_lead_diameter: f64,
+    pub bearing_thickness: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub fixed_length: Option<f64>,
+    pub length_datum: ScrewLengthDatum,
+    pub head_profile: ScrewHeadProfile,
+    pub id: String,
+    pub thread: String,
+    pub screw_lengths: Vec<f64>,
+    pub head_diameter: f64,
+    pub head_height: f64,
+    pub hole_diameter: f64,
+    pub insert_diameter: f64,
+    pub seat_diameter: f64,
+    pub seat_depth: f64,
+    pub engagement: f64,
+    pub bottoming_clearance: f64,
+    pub roof: f64,
+    pub surround: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub enum ScrewLengthDatum {
+    UnderHead,
+    Overall,
+    Unresolved,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub enum ScrewHeadProfile {
+    Flat,
+    Countersunk,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub enum GasketPlacement {
+    Generated,
+    User,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub enum ScrewDrive {
+    Hex,
+    Torx,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "kebab-case")]
+pub enum InsertInstallation {
+    HeatSet,
+    Tapped,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+pub enum GasketFoamPreset {
+    A2,
+    A3,
+    A4,
+    B2,
+    B3,
+    B4,
+    E2,
+    E3,
+    E4,
+    F2,
+    F3,
+    F4,
+    F5,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "export-types", ts(optional_fields))]
+pub struct MechanicalMaterialSpecification {
+    pub adhesive_thickness: f64,
+    pub id: String,
+    pub feature_id: String,
+    pub quantity: u32,
+    pub size: Vec3,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preset_id: Option<GasketFoamPreset>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub material: Option<String>,
+    pub notes: String,
+}
+
+fn default_internal_minimum_wall() -> f64 {
+    2.0
 }

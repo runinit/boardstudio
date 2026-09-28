@@ -85,6 +85,7 @@ pub(super) fn upstream_region(
             body.thickness,
             body.z,
             body.wall_height,
+            &body.features,
             &body.gasket,
             region
         )
@@ -139,6 +140,7 @@ pub fn preview_body(
     progress: js_sys::Function,
 ) -> Result<JsValue, JsValue> {
     let ir: PreparedCase = deserialize(input)?;
+    validate_feature_regions(&ir).map_err(js_error)?;
     if let Some(mesh) = cached_preview(&key) {
         metrics::count("bodyCacheHits", 1);
         return mesh_to_js(&mesh.mesh);
@@ -209,6 +211,7 @@ fn region_key(body: &CaseBody, region: &PreparedRegion) -> String {
                 .flatten()
                 .filter(|opening| opening_intersects_region(body, region, opening))
                 .collect::<Vec<_>>(),
+            &body.features,
             &body.gasket,
             region
         )
@@ -382,6 +385,7 @@ mod tests {
     fn preview_ownership_survives_region_eviction_and_releases_with_assembly() {
         REGION_CACHE.with(|cache| cache.borrow_mut().clear());
         let body = CaseBody {
+            features: vec![],
             id: "ownership".into(),
             name: "Ownership".into(),
             kind: CaseKind::Plate,
@@ -424,6 +428,7 @@ mod tests {
     fn changing_one_region_does_not_retessellate_the_unchanged_region() {
         REGION_CACHE.with(|cache| cache.borrow_mut().clear());
         let mut body = CaseBody {
+            features: vec![],
             id: "case".into(),
             name: "Case".into(),
             kind: CaseKind::Plate,
@@ -485,6 +490,7 @@ mod tests {
         let ir = PreparedCase {
             revision: 7,
             body: CaseBody {
+                features: vec![],
                 id: "case".into(),
                 name: "plate".into(),
                 kind: CaseKind::Plate,
@@ -540,6 +546,7 @@ mod tests {
     fn regions_without_applicable_openings_do_not_retain_upstream_copies() {
         STAGE_CACHE.with(|cache| cache.borrow_mut().clear());
         let mut body = CaseBody {
+            features: vec![],
             id: "no-openings".into(),
             name: "No openings".into(),
             kind: CaseKind::Plate,
@@ -597,6 +604,7 @@ mod tests {
     fn upstream_stage_reuses_exact_solids_without_opening_mutation_and_evicts() {
         STAGE_CACHE.with(|cache| cache.borrow_mut().clear());
         let mut body = CaseBody {
+            features: vec![],
             id: "stage".into(),
             name: "Stage".into(),
             kind: CaseKind::Plate,
@@ -709,6 +717,7 @@ mod tests {
     fn region_cache_limits_retained_topology_during_long_edits() {
         REGION_CACHE.with(|cache| cache.borrow_mut().clear());
         let mut body = CaseBody {
+            features: vec![],
             id: "budget".into(),
             name: "Budget".into(),
             kind: CaseKind::Plate,

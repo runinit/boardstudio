@@ -54,7 +54,41 @@ fn build_assembly_data(ir: PreparedAssembly) -> Result<CaseResultData, String> {
     export_case(solids, revision, Some(meshes))
 }
 
+fn validate_feature_regions(ir: &PreparedCase) -> Result<(), String> {
+    for feature in &ir.body.features {
+        if let CaseFeature::SupportPrism {
+            id,
+            points,
+            z,
+            height,
+        } = feature
+        {
+            if !z.is_finite() || !height.is_finite() || *height <= 0. {
+                return Err(format!("Support '{id}' has invalid elevation or height"));
+            }
+            let footprint = make_prism(points, 0., 1.)?;
+            let mut owners = 0;
+            for region in &ir.regions {
+                let exterior = make_prism(&region.outer, 0., 1.)?;
+                let outside = (Boolean::from(&footprint.clone()) - &exterior)
+                    .build_vec()
+                    .map_err(cadrum_error)?;
+                if outside.iter().map(Solid::volume).sum::<f64>() < 1e-8 {
+                    owners += 1;
+                }
+            }
+            if owners != 1 {
+                return Err(format!(
+                    "Support '{id}' must remain inside exactly one case exterior"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn build_body(ir: &PreparedCase) -> Result<Vec<Solid>, String> {
+    validate_feature_regions(ir)?;
     let mut solids = Vec::new();
     for region in &ir.regions {
         solids.extend(build_region(&ir.body, region)?);
@@ -82,7 +116,11 @@ fn build_region(body: &CaseBody, region: &PreparedRegion) -> Result<Vec<Solid>, 
     };
     let mut solids =
         cache::upstream_region(body, region, || build_region_upstream(body, region, mode))?;
+    apply_features(body, region, &mut solids)?;
     apply_openings(body, region, &mut solids)?;
+    if !body.features.is_empty() && solids.len() != 1 {
+        return Err("Case features leave disconnected material in a region".into());
+    }
     Ok(solids)
 }
 
@@ -93,7 +131,11 @@ fn build_region_mode(
     mode: BuildMode,
 ) -> Result<Vec<Solid>, String> {
     let mut solids = build_region_upstream(body, region, mode)?;
+    apply_features(body, region, &mut solids)?;
     apply_openings(body, region, &mut solids)?;
+    if !body.features.is_empty() && solids.len() != 1 {
+        return Err("Case features leave disconnected material in a region".into());
+    }
     Ok(solids)
 }
 
@@ -264,6 +306,98 @@ fn build_region_upstream(
     }
 
     Ok(solids)
+}
+
+fn point_in_polygon(point: &Vec2, polygon: &[Vec2]) -> bool {
+    let mut inside = false;
+    for (a, b) in polygon
+        .iter()
+        .zip(polygon.iter().cycle().skip(1))
+        .take(polygon.len())
+    {
+        let cross = (b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x);
+        if cross.abs() < 1e-9
+            && point.x >= a.x.min(b.x)
+            && point.x <= a.x.max(b.x)
+            && point.y >= a.y.min(b.y)
+            && point.y <= a.y.max(b.y)
+        {
+            return true;
+        }
+        if (a.y > point.y) != (b.y > point.y)
+            && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
+        {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+fn apply_features(
+    body: &CaseBody,
+    region: &PreparedRegion,
+    solids: &mut Vec<Solid>,
+) -> Result<(), String> {
+    // Additions join the cavity shell before any seats or access cuts remove material.
+    for feature in &body.features {
+        if let CaseFeature::SupportPrism {
+            id,
+            points,
+            z,
+            height,
+        } = feature
+        {
+            if points
+                .first()
+                .is_some_and(|point| point_in_polygon(point, &region.outer))
+            {
+                fuse(solids, make_prism(points, *z, *height)?)?;
+                if solids.len() != 1 {
+                    return Err(format!("Support '{id}' must join its case region"));
+                }
+            }
+        }
+    }
+    for feature in &body.features {
+        match feature {
+            CaseFeature::RoundSeat {
+                id,
+                at,
+                z,
+                height,
+                diameter,
+            } => {
+                subtract(
+                    solids,
+                    make_cylinder(at, *z, *diameter, *height)
+                        .map_err(|error| format!("Seat '{id}': {error}"))?,
+                )?;
+            }
+            CaseFeature::ConicalSeat {
+                id,
+                at,
+                z,
+                height,
+                diameter,
+                end_diameter,
+            } => {
+                if ![at.x, at.y, *z, *height, *diameter, *end_diameter]
+                    .iter()
+                    .all(|v| v.is_finite())
+                    || *height <= 0.
+                    || *end_diameter <= 0.
+                    || *diameter <= *end_diameter
+                {
+                    return Err(format!("Conical seat '{id}' has invalid dimensions"));
+                }
+                let tool = Solid::cone(*diameter / 2., *end_diameter / 2., DVec3::Z * *height)
+                    .translate(DVec3::new(at.x, at.y, *z));
+                subtract(solids, tool)?;
+            }
+            CaseFeature::SupportPrism { .. } => {}
+        }
+    }
+    Ok(())
 }
 
 fn apply_openings(
@@ -663,3 +797,6 @@ fn fuse(solids: &mut Vec<Solid>, tool: Solid) -> Result<(), String> {
 
 #[cfg(test)]
 mod equivalence;
+
+#[cfg(test)]
+mod gasket_features;
