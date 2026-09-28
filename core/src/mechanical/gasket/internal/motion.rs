@@ -144,10 +144,211 @@ pub(super) fn validate(
                     && *low < band[1] - 1e-8
                     && !combine(&material, footprint, OverlayRule::Intersect).is_empty()
                 {
-                    return Err(format!("Moving {id} contacts rigid {} within its vertical travel/tolerance envelope.",body.body.id));
+                    return Err(format!(
+                        "Moving {id} contacts rigid {} within its vertical travel/tolerance envelope.",
+                        body.body.id
+                    ));
                 }
             }
         }
     }
     Ok(())
+}
+
+pub(super) fn clear_foam(
+    config: &MechanicalConfiguration,
+    settings: &InternalGasketConfiguration,
+    result: &mut MechanicalAssembly,
+) -> Result<(), String> {
+    let travel = config.gasket_travel.unwrap_or(0.3) + settings.tolerance;
+    // Reserve fit clearance as well as the lateral tolerance used by validation.
+    let margin =
+        config.clearance.max(settings.tolerance) + settings.tolerance + OFFSET_GRID_ALLOWANCE;
+    let supports: Vec<_> = result
+        .case
+        .bodies
+        .iter()
+        .filter(|body| matches!(body.body.id.as_str(), "bottom" | "retainer"))
+        .flat_map(|body| body.body.features.iter().flatten())
+        .filter_map(|feature| match feature {
+            CaseFeature::SupportPrism {
+                points, z, height, ..
+            } => Some((points.clone(), *z, *z + *height)),
+            _ => None,
+        })
+        .collect();
+    for foam in result
+        .case
+        .bodies
+        .iter_mut()
+        .filter(|body| matches!(body.body.id.as_str(), "plate-foam" | "bottom-foam"))
+    {
+        let low = foam.body.z.unwrap_or(0.) - travel;
+        let high = foam.body.z.unwrap_or(0.) + foam.body.thickness + travel;
+        let mut exclusions = Vec::new();
+        for (points, bottom, top) in &supports {
+            if high > *bottom && low < *top {
+                exclusions.extend(expanded_outline(
+                    &[Contour {
+                        points: points.clone(),
+                        hole: false,
+                    }],
+                    margin,
+                    result.revision,
+                )?);
+            }
+        }
+        if !exclusions.is_empty() {
+            foam.contours = subtract_foam_exclusions(&foam.contours, &exclusions)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn foam_clears_supports_only_within_its_swept_height() {
+        let input: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
+        ))
+        .unwrap();
+        let mut document: ProjectDoc = serde_json::from_value(input["document"].clone()).unwrap();
+        let contours: Vec<Contour> = serde_json::from_value(input["contours"].clone()).unwrap();
+        document.mechanical.as_mut().unwrap().plate_foam_thickness = 3.0;
+        document.mechanical.as_mut().unwrap().bottom_foam_thickness = 1.0;
+        let config = document.mechanical.as_ref().unwrap();
+        let settings = config.internal_gasket.as_ref().unwrap();
+        let mut assembly = crate::mechanical::resolve(&document, &contours);
+        assert!(!assembly.generation_blocked, "{:?}", assembly.diagnostics);
+        let pcb = assembly.pcb_reference.clone();
+        let plate = assembly.plate_contours.clone();
+        let square = |x: f64| {
+            vec![
+                Vec2 { x, y: 20. },
+                Vec2 { x: x + 4., y: 20. },
+                Vec2 { x: x + 4., y: 24. },
+                Vec2 { x, y: 24. },
+            ]
+        };
+        assembly
+            .case
+            .bodies
+            .iter_mut()
+            .find(|b| b.body.id == "plate-foam")
+            .unwrap()
+            .contours
+            .push(Contour {
+                hole: true,
+                points: square(10.),
+            });
+        assembly
+            .case
+            .bodies
+            .iter_mut()
+            .find(|b| b.body.id == "bottom")
+            .unwrap()
+            .body
+            .features
+            .as_mut()
+            .unwrap()
+            .extend([
+                CaseFeature::SupportPrism {
+                    id: "foam-support".into(),
+                    points: square(30.),
+                    z: 0.5,
+                    height: 1.0,
+                },
+                CaseFeature::SupportPrism {
+                    id: "bottom-foam-support".into(),
+                    points: square(40.),
+                    z: -2.5,
+                    height: 0.5,
+                },
+                CaseFeature::SupportPrism {
+                    id: "travel-only".into(),
+                    points: square(60.),
+                    z: 3.1,
+                    height: 0.1,
+                },
+                CaseFeature::SupportPrism {
+                    id: "above-foam".into(),
+                    points: square(50.),
+                    z: 4.,
+                    height: 0.3,
+                },
+            ]);
+        assert!(
+            validate(config, settings, &assembly, &[])
+                .unwrap_err()
+                .contains("foam")
+        );
+        clear_foam(config, settings, &mut assembly).unwrap();
+        let foam = assembly
+            .case
+            .bodies
+            .iter()
+            .find(|b| b.body.id == "plate-foam")
+            .unwrap();
+        assert!(
+            foam.contours
+                .iter()
+                .any(|c| c.hole && c.points.iter().any(|p| p.x < 30. && p.x > 29.))
+        );
+        assert!(
+            !foam
+                .contours
+                .iter()
+                .any(|c| c.hole && c.points.iter().any(|p| p.x > 49. && p.x < 55.))
+        );
+        assert!(
+            foam.contours
+                .iter()
+                .any(|c| c.hole && c.points.iter().any(|p| (p.x - 10.).abs() < 1e-5))
+        );
+        assert!(
+            foam.contours
+                .iter()
+                .any(|c| c.hole && c.points.iter().any(|p| p.x < 60. && p.x > 59.))
+        );
+        let bottom_foam = assembly
+            .case
+            .bodies
+            .iter()
+            .find(|b| b.body.id == "bottom-foam")
+            .unwrap();
+        assert!(
+            bottom_foam
+                .contours
+                .iter()
+                .any(|c| c.hole && c.points.iter().any(|p| p.x < 40. && p.x > 39.))
+        );
+        assert_eq!(assembly.pcb_reference, pcb);
+        assert_eq!(assembly.plate_contours, plate);
+        validate(config, settings, &assembly, &[]).unwrap();
+        assembly
+            .case
+            .bodies
+            .iter_mut()
+            .find(|b| b.body.id == "bottom")
+            .unwrap()
+            .body
+            .features
+            .as_mut()
+            .unwrap()
+            .push(CaseFeature::SupportPrism {
+                id: "pcb-collision".into(),
+                points: square(70.),
+                z: -1.,
+                height: 2.,
+            });
+        clear_foam(config, settings, &mut assembly).unwrap();
+        assert!(
+            validate(config, settings, &assembly, &[])
+                .unwrap_err()
+                .contains("pcb-reference")
+        );
+    }
 }

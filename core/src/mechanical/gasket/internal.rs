@@ -1027,6 +1027,7 @@ pub(super) fn generate(
     }
     result.diagnostics.push(Finding { id:"mechanical:internal-foam-material".into(),severity:Severity::Warning,scope:Scope::Case,
         message:"Foam compression limits and material tolerances are unverified; vertical geometry uses the supplied preload and tolerance.".into(),target_ids:vec![] });
+    motion::clear_foam(config, settings, result)?;
     motion::validate(config, settings, result, component_volumes)?;
     Ok(())
 }
