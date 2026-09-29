@@ -24,24 +24,12 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
     let margin = radius + config.clearance.max(0.2);
     for contour in contours.iter().filter(|contour| !contour.hole) {
         let (min, max) = bounds(&contour.points);
-        for at in [
-            Vec2 {
-                x: min.x + margin,
-                y: min.y + margin,
-            },
-            Vec2 {
-                x: max.x - margin,
-                y: min.y + margin,
-            },
-            Vec2 {
-                x: max.x - margin,
-                y: max.y - margin,
-            },
-            Vec2 {
-                x: min.x + margin,
-                y: max.y - margin,
-            },
-        ] {
+        let columns = (((max.x - min.x) / 2.0).ceil() as usize).clamp(1, 80);
+        let rows = (((max.y - min.y) / 2.0).ceil() as usize).clamp(1, 80);
+        for at in (0..=rows).flat_map(|row| (0..=columns).map(move |column| Vec2 {
+            x: min.x + margin + (max.x - min.x - 2.0 * margin) * column as f64 / columns as f64,
+            y: min.y + margin + (max.y - min.y - 2.0 * margin) * row as f64 / rows as f64,
+        })) {
             let contained = contains(&contour.points, at)
                 && !contours
                     .iter()
@@ -50,7 +38,7 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
             let edge_clear = contours.iter().all(|c| {
                 (0..c.points.len()).all(|i| {
                     point_segment(at, c.points[i], c.points[(i + 1) % c.points.len()])
-                        >= radius + 0.1
+                        >= radius + config.clearance.max(0.2)
                 })
             });
             let occupied = config
@@ -86,7 +74,18 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
             }
         }
     }
-    proposals
+    // Pick well-separated supports rather than clustering at the first clear corner.
+    let mut selected: Vec<Mount> = vec![];
+    while !proposals.is_empty() && selected.len() < 4 {
+        let index = if selected.is_empty() { 0 } else {
+            proposals.iter().enumerate().max_by(|(_, a), (_, b)| {
+                let distance = |mount: &Mount| selected.iter().map(|other| (mount.at.x - other.at.x).hypot(mount.at.y - other.at.y)).fold(f64::INFINITY, f64::min);
+                distance(a).total_cmp(&distance(b))
+            }).unwrap().0
+        };
+        selected.push(proposals.remove(index));
+    }
+    selected
 }
 
 fn contains(points: &[Vec2], p: Vec2) -> bool {

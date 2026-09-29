@@ -13,6 +13,8 @@ async function handle(request: CoreRequest): Promise<CoreReply> {
   const json = engine.request(JSON.stringify(request));
   const parsed = request.diagnostics ? performance.now() : 0;
   const reply = JSON.parse(json) as CoreReply;
+  // Deserialization failures cannot recover the ID inside the core request.
+  reply.id = request.id;
 
   if (request.diagnostics) {
     reply.timing = { wasmMs: parsed - started, parseMs: performance.now() - parsed };

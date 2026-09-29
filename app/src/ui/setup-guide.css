@@ -31,3 +31,15 @@
 @media (max-width: 980px) {
   .wb-setup-navigation button, .wb-setup-guide :is(button, input:not([type='checkbox']), select) { min-height: 44px; }
 }
+
+.wb-setup-choice { display: grid; gap: 8px; }
+.wb-setup-choice > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wb-setup-choice button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-height: 70px; padding: 10px 6px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; background: var(--wb-panel); color: var(--wb-muted); font: inherit; cursor: pointer; }
+.wb-setup-choice button svg { width: 32px; height: 24px; }
+.wb-setup-choice button:hover { color: var(--wb-ink); background: var(--wb-surface-soft); }
+.wb-setup-choice button[aria-pressed='true'] { border-color: var(--wb-accent); color: var(--wb-selection-ink); background: var(--wb-selection-surface); }
+.wb-hardware-instances .wb-reversible-choice { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.wb-matrix-dimensions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wb-matrix-preview { margin: 8px 0; display: grid; gap: 6px; justify-items: center; }
+.wb-matrix-preview svg { width: 100%; height: 100px; fill: var(--wb-selection-surface); stroke: var(--wb-accent); stroke-width: .5; }
+.wb-matrix-preview figcaption { color: var(--wb-muted); font-size: var(--wb-type-label); }

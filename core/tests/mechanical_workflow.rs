@@ -261,6 +261,8 @@ fn battery_stack_and_body_preserve_declared_layer_order() {
     );
     let assembly = &result["assembly"];
     let stack = assembly["stack"].as_array().unwrap();
+    let battery = stack.iter().find(|layer| layer["id"] == "battery").unwrap();
+    assert!((battery["z"].as_f64().unwrap() + battery["thickness"].as_f64().unwrap() + 1.6).abs() < 1e-9);
     let ids: Vec<_> = stack
         .iter()
         .map(|layer| layer["id"].as_str().unwrap())
@@ -285,4 +287,42 @@ fn battery_stack_and_body_preserve_declared_layer_order() {
             .collect::<Vec<_>>(),
         ["plate", "bottom", "plate-foam", "bottom-foam"]
     );
+}
+
+#[test]
+fn mount_suggestions_search_beyond_obstructed_corners() {
+    let mut doc = document();
+    doc["mechanical"] = configuration();
+    let mut boundary = contours().as_array().unwrap()[..1].to_vec();
+    for (x,y) in [(0.0,0.0),(50.0,0.0),(50.0,30.0),(0.0,30.0)] {
+        boundary.push(json!({"hole":true,"points":[{"x":x,"y":y},{"x":x+10.0,"y":y},{"x":x+10.0,"y":y+10.0},{"x":x,"y":y+10.0}]}));
+    }
+    let result = request(&mut CoreEngine::new(), json!({"kind":"resolve-mechanical","id":"mounts","document":doc,"contours":boundary}));
+    assert_eq!(result["assembly"]["suggestedMounts"].as_array().unwrap().len(), 4);
+}
+
+#[test]
+fn closure_screws_have_matching_plate_holes_and_case_bosses() {
+    let mut doc = document();
+    let mut config = configuration();
+    config["closureMounts"] = json!([{"id":"closure-1","at":{"x":40,"y":25},"kind":"boss","holeDiameter":2.2,"bossDiameter":6,"height":8.1}]);
+    doc["mechanical"] = config;
+    let result = request(&mut CoreEngine::new(), json!({"kind":"resolve-mechanical","id":"closure","document":doc,"contours":contours()}));
+    let bodies = result["assembly"]["case"]["bodies"].as_array().unwrap();
+    let plate = bodies.iter().find(|body| body["body"]["id"] == "plate").unwrap();
+    let bottom = bodies.iter().find(|body| body["body"]["id"] == "bottom").unwrap();
+    assert_eq!(plate["body"]["mounts"][0]["kind"], "hole");
+    assert_eq!(bottom["body"]["mounts"][0]["kind"], "boss");
+    assert_eq!(plate["body"]["mounts"][0]["at"], bottom["body"]["mounts"][0]["at"]);
+}
+
+#[test]
+fn mount_suggestions_do_not_drill_through_copper_pads() {
+    let mut doc = document();
+    doc["mechanical"] = configuration();
+    doc["definitions"] = json!([{"id":"copper", "name":"Copper keepout", "kind":"custom", "courtyard":[], "pads":[{"id":"1","number":"1","at":{"x":30,"y":20},"size":{"x":60,"y":40},"shape":"rect"}]}]);
+    doc["parts"] = json!([{"id":"copper-part","definitionId":"copper","reference":"U1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}]);
+    doc["boards"][0]["partIds"] = json!(["copper-part"]);
+    let result = request(&mut CoreEngine::new(), json!({"kind":"resolve-mechanical","id":"mounts","document":doc,"contours":contours()}));
+    assert_eq!(result["assembly"]["suggestedMounts"].as_array().unwrap().len(), 0);
 }

@@ -10,12 +10,14 @@ import { createProjectExporter } from './createProjectExporter';
 import { releaseReviewedConnections } from './electricalHandoff';
 import { isWiringApplied } from './electricalPlanContext';
 import { FirmwareKeymapPanel } from './ui/FirmwareKeymapPanel';
+import { withReversibleLayout } from './projectConstruction';
 import { HardwareInstancesPanel } from './ui/HardwareInstancesPanel';
 import { Workbench } from './ui/Workbench';
 import type { MatrixScene } from './ui/matrixGeometry';
 import { useCaseGeneration } from './useCaseGeneration';
 import { useElectricalPlanning } from './useElectricalPlanning';
 import { useProjectSession } from './useProjectSession';
+import './startup.css';
 
 function App() {
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
@@ -75,8 +77,20 @@ function App() {
     return reply.matrixScenes;
   }, []);
 
+  const hardwareControls = (context: 'setup' | 'case') => <HardwareInstancesPanel context={context} onReversibleChange={reversible => edit({ baseRevision: project.revision, phase: 'commit', transactionId: crypto.randomUUID(), targetIds: [], operation: { kind: 'replace-document', document: withReversibleLayout(project, reversible) } })} document={project} boardId={selectedBoardId} selectedId={selectedInstance?.id}
+        onSelect={(id, boardId) => { setSelectedInstanceId(id); setSelectedBoardId(boardId); }}
+        onChange={hardware => edit({ baseRevision: project.revision, phase: 'commit', transactionId: crypto.randomUUID(), targetIds: [], operation: { kind: 'replace-document', document: { ...project, hardware } } })} />;
+
   if (!ready) {
-    return <div className="boot-status">Opening Board Studio…</div>;
+    return <main className="boot-status">{error ? <>
+      <h1>Could not open the saved project</h1>
+      <p>Your saved project is still stored in this browser. Open a demo or a new project to continue without replacing it.</p>
+      <details><summary>Error details</summary><p role="alert">{error}</p></details>
+      <div className="boot-actions">
+        <button className="wb-primary" onClick={() => { setError(''); openDemo('v2'); }}>Open Sofle v2 demo</button>
+        <button className="wb-secondary" onClick={() => { setError(''); newProject(); }}>New empty project</button>
+      </div>
+    </> : <p role="status">Opening Board Studio…</p>}</main>;
   }
 
   return <>
@@ -88,6 +102,7 @@ function App() {
       document={project}
       scene={scene}
       physicalCaseDocument={physicalDocument}
+      caseInstanceId={selectedInstance?.id}
       physicalCaseScene={physicalScene}
       wiringStatus={{ current: Boolean(activePlan), ready: Boolean(activePlan && !activePlan.diagnostics.some(finding => finding.severity === 'error')), applied: Boolean(activePlan && isWiringApplied(project, activePlan)) }}
       wiring={{
@@ -122,9 +137,8 @@ function App() {
       }}
       selectedCaseInstanceId={selectedInstance?.id}
       onSelectCaseInstance={(id, boardId) => { setSelectedInstanceId(id); setSelectedBoardId(boardId); }}
-      instanceControls={<HardwareInstancesPanel document={project} boardId={selectedBoardId} selectedId={selectedInstance?.id}
-        onSelect={(id, boardId) => { setSelectedInstanceId(id); setSelectedBoardId(boardId); }}
-        onChange={hardware => edit({ baseRevision: project.revision, phase: 'commit', transactionId: crypto.randomUUID(), targetIds: [], operation: { kind: 'replace-document', document: { ...project, hardware } } })} />}
+      instanceControls={hardwareControls('case')}
+      setupControls={hardwareControls('setup')}
       casePreview={visibleCasePreview && { revision: visibleCasePreview.revision }}
       caseBodies={visibleCasePreview?.bodies}
       preparedCase={preparedCase}
@@ -152,6 +166,7 @@ function App() {
       onNewProject={newProject}
       onOpenSavedProject={openSavedProject}
       onDeleteSavedProject={deleteSavedProject}
+      onResetLocalProjects={() => newProject('reset')}
       onOpenDemo={openDemo}
       onDuplicateDesign={duplicateDesign}
       onProjectMatrices={projectMatrices}

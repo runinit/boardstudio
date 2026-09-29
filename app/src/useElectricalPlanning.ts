@@ -89,8 +89,8 @@ export function useElectricalPlanning({ project, projectRef, selectedBoardId, cl
 
   const scanAssignments: WiringAssignment[] = activePlan?.mode === 'direct'
     ? activePlan.assignments.map(assignment => ({ id: assignment.keyId, label: project.parts.find(part => part.id === assignment.keyId)?.reference ?? assignment.keyId, value: assignment.columnPin, detail: assignment.directGpio ?? 'Unresolved', locked: Boolean(wiringConfiguration?.locks[assignment.keyId]) }))
-    : [...(activePlan?.rowPins ?? []).map((pin, row) => ({ id: `row/${row}`, label: `Scan row ${row + 1}`, value: pin, locked: Boolean(wiringConfiguration?.locks[`row/${row}`]) })),
-    ...(activePlan?.columnPins ?? []).map((pin, column) => ({ id: `column/${column}`, label: `Scan column ${column + 1}`, value: pin, locked: Boolean(wiringConfiguration?.locks[`column/${column}`]) }))];
+    : [...(activePlan?.rowPins ?? []).map((pin, row) => ({ id: `row/${row}`, label: `Row ${row + 1}`, value: pin, locked: Boolean(wiringConfiguration?.locks[`row/${row}`]) })),
+    ...(activePlan?.columnPins ?? []).map((pin, column) => ({ id: `column/${column}`, label: `Column ${column + 1}`, value: pin, locked: Boolean(wiringConfiguration?.locks[`column/${column}`]) }))];
 
   const assignments: WiringAssignment[] = [...scanAssignments, ...Object.entries(activePlan?.peripheralTerminals ?? {}).map(([id, pin]) => ({ id, label: id.startsWith('peripheral/') ? id.split('/').slice(-2).join(' · ') : id, value: pin, detail: activePlan?.peripheralPins[id], locked: Boolean(wiringConfiguration?.locks[id]) }))];
 

@@ -46,6 +46,7 @@ test('compact case settings stay labeled and disclosure choices survive edits', 
   const live = page.getByRole('switch', { name: /Live preview/i });
   if (await live.isChecked()) await live.uncheck();
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
+  await expect(page.locator('.wb-mech-revision').first()).toContainText('Configuration resolved');
   const construction = page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Construction' });
   await construction.click();
   const thickness = page.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true });
@@ -57,7 +58,8 @@ test('compact case settings stay labeled and disclosure choices survive edits', 
   await expect(settings).toHaveAccessibleName('Case settings');
   if (await settings.getAttribute('aria-expanded') === 'true') await settings.click();
   await settings.click();
-  await expect(page.getByRole('heading', { name: 'Mechanical assembly' })).toBeVisible();
+  await expect(construction).toBeVisible();
+  await expect(construction.locator('..')).not.toHaveAttribute('open');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

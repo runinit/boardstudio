@@ -1,10 +1,11 @@
+import { isErgogen, normalizeDefinition, parameters } from '@boardstudio/v2-ergogen';
 import type { Dispatch, SetStateAction } from 'react';
 import type { EditOperation, Matrix, MatrixCell, Part, PartDefinition, ProjectDoc, Vec2 } from '@boardstudio/v2-contracts';
 import type { MatrixPresetId } from './assemblyCatalog';
 import type { PairSetup } from './MirroredPairSetup';
 import { pairAt } from './MirroredPairSetup';
 import { matrixWithPreset } from './matrixPresets';
-import type { SwitchOrientation } from './assemblyPresets';
+import type { SwitchOrientation, AssemblyConstruction } from './assemblyPresets';
 import { createPart, makeId, PITCH_MM, snapDelta } from './workbenchGeometry';
 import type { PlacementState } from './placementState';
 import type { SelectionScope } from './workbenchTypes';
@@ -13,7 +14,7 @@ type WorkbenchPlacementControllerInputs = {
   document: ProjectDoc; selectedBoard?: { id: string; outlineIds: string[] }; selectedBoardId: string;
   definitions: Map<string, PartDefinition>; libraryDefinitions: PartDefinition[]; matrixMap: Map<string, Matrix>;
   matrixCellOverrides: Map<string, Map<string, MatrixCell>>; scope: SelectionScope | null; layoutTargetId: string; snapFraction: number;
-  viewBounds: { minX: number; maxX: number; minY: number; maxY: number }; orientation: SwitchOrientation;
+  viewBounds: { minX: number; maxX: number; minY: number; maxY: number }; orientation: SwitchOrientation; construction?: AssemblyConstruction;
   placement: PlacementState; setPlacement: Dispatch<SetStateAction<PlacementState>>; cancelPlacement: () => void;
   emit: (operation: EditOperation, ids: string[]) => void; setAddPartOpen: (open: boolean) => void; setLeftOpen: (open: boolean) => void;
   setRightOpen: (open: boolean) => void; setOutlineActive: (active: boolean) => void; setOutlineSettingsOpen: (open: boolean) => void;
@@ -24,11 +25,18 @@ type WorkbenchPlacementControllerInputs = {
 };
 
 export function createWorkbenchPlacementActions(input: WorkbenchPlacementControllerInputs) {
-  const beginMatrixPlacement = (rows: number, columns: number, preset: MatrixPresetId, pair?: PairSetup) => {
+  const beginMatrixPlacement = (rows: number, columns: number, preset: MatrixPresetId, pair?: PairSetup, placementMode: 'pointer' | 'origin' = 'pointer') => {
     const definition = input.libraryDefinitions.find((item) => item.id === 'ergogen:ceoloide/switch_mx');
     if (!definition || !input.selectedBoard) return;
     const matrix: Matrix = { id: makeId(), boardId: input.selectedBoard.id, rows, columns, pitch: { x: PITCH_MM, y: PITCH_MM }, edgeGap: { x: 1, y: 1 }, origin: { x: 0, y: 0 }, definitionId: definition.id, partIds: [], cells: [] };
-    const prepared = matrixWithPreset(matrix, preset, input.orientation);
+    const prepared = matrixWithPreset(matrix, preset, input.orientation, [], input.construction);
+    if (placementMode === 'origin') {
+      input.emit({ kind: 'set-matrix', matrix: prepared.matrix, definitions: prepared.definitions }, [prepared.matrix.id]);
+      input.cancelPlacement();
+      input.setExpandedTree(current => new Set(current).add(`matrix:${prepared.matrix.id}`));
+      input.selectScope({ kind: 'matrix', matrixId: prepared.matrix.id });
+      return;
+    }
     input.setPlacement(pair ? { kind: 'mirrored-pair', matrix: prepared.matrix, definitions: prepared.definitions, pair: { ...pair, leftId: makeId(), rightId: makeId(), rightMatrixId: makeId() } } : { kind: 'matrix', matrix: prepared.matrix, definitions: prepared.definitions });
     input.setLeftOpen(false);
     input.setRightOpen(false);
@@ -51,7 +59,9 @@ export function createWorkbenchPlacementActions(input: WorkbenchPlacementControl
     }
     input.addDefinition(definition);
   };
-  const beginPartPlacement = (definition: PartDefinition) => {
+  const beginPartPlacement = (source: PartDefinition) => {
+    const definition = source.generator && isErgogen(source.generator.source) && parameters(source.generator.source).reversible
+      ? normalizeDefinition({ ...source, id: `assembly-placement-${source.id}-${input.construction ?? 'single-sided'}/definition/part`, generator: { ...source.generator, parameters: { ...source.generator.parameters, reversible: input.construction === 'reversible' } } }) : source;
     const point = snapDelta({ x: (input.viewBounds.minX + input.viewBounds.maxX) / 2, y: (input.viewBounds.minY + input.viewBounds.maxY) / 2 }, { x: PITCH_MM, y: PITCH_MM }, input.snapFraction);
     input.setPlacement({ kind: 'part', definition, layoutId: input.layoutTargetId, point });
     input.setAddPartOpen(false);

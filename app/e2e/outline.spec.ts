@@ -157,7 +157,6 @@ test('deleted matrix corners remain empty after resizing and rotation follows th
   await page.getByRole('button', { name: 'New project' }).click();
   await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await configureMatrix(page);
-  await page.getByRole('button', { name: 'Ghost key, row 1, column 1' }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
   await chooseScope(page, 'key');
   await page.getByRole('button', { name: /^SW1, switch mx,/ }).click();

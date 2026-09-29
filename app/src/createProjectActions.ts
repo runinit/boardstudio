@@ -1,11 +1,12 @@
+import { withClosureClearance } from './closureClearance';
 import type { CoreClient } from './CoreClient';
 import type { CoreReply, CoreRequest, EditCommand, ProjectDoc } from '@boardstudio/v2-contracts';
 import { defaultOutlineSettings, emptyProject } from '@boardstudio/v2-contracts';
 import { catalogue as ergogenCatalogue } from '@boardstudio/v2-ergogen';
 import type { MutableRefObject } from 'react';
 import { ExportClient } from './ExportClient';
-import { updateInstanceMechanical } from './hardwareInstances';
-import { deleteProject, listProjects, loadProject, saveAsset, unpackProject } from './storage';
+import { effectiveCaseDocument, effectiveCaseScene, updateInstanceMechanical } from './hardwareInstances';
+import { deleteProject, listProjects, loadProject, saveAsset, unpackProject, resetLocalProjects } from './storage';
 import { matrixWithPreset } from './ui/matrixPresets';
 import { openKeyboardDemo, type DemoId } from './demos/keyboards';
 
@@ -43,9 +44,30 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
       }
 
       const current = projectRef.current;
-      const operation = command.operation.kind === 'set-mechanical' && selectedInstance
-        ? { kind: 'replace-document' as const, document: updateInstanceMechanical(current, selectedInstance.id, command.operation.configuration) }
-        : command.operation;
+      let operation = command.operation;
+      if (operation.kind === 'set-mechanical') {
+        let configuration = operation.configuration;
+        const withConfiguration = () => selectedInstance ? updateInstanceMechanical(current, selectedInstance.id, configuration) : { ...current, mechanical: configuration ?? undefined };
+        if (configuration && configuration.closureMounts === undefined && configuration.mount !== 'gasket') {
+          const snapshot = await client.current.request({ id: crypto.randomUUID(), kind: 'snapshot' });
+          if (snapshot.kind === 'error') throw new Error(snapshot.message);
+          if (snapshot.kind !== 'scene') throw new Error('Unable to read board contours for case setup');
+          const next = withConfiguration();
+          const instance = next.hardware?.instances.find(instance => instance.id === selectedInstance?.id);
+          const physical = effectiveCaseDocument(next, instance);
+          const scene = effectiveCaseScene(next, snapshot.scene, instance);
+          const reply = await client.current.request({ id: crypto.randomUUID(), kind: 'resolve-mechanical', document: physical,
+            contours: scene.boardContours.find(board => board.boardId === configuration!.boardId)?.contours ?? [] });
+          if (reply.kind === 'error') throw new Error(reply.message);
+          if (reply.kind !== 'mechanical-resolved') throw new Error('Unable to resolve case mounting locations');
+          configuration = { ...physical.mechanical!, closureMounts: reply.assembly.suggestedMounts.map(mount => ({ ...mount,
+            id: `auto-closure/${mount.id}`, kind: 'boss', holeDiameter: 2.2,
+            height: configuration!.plateToPcb + configuration!.pcbThickness + Math.max(configuration!.bottomFoamThickness, physical.mechanical!.batteryHeight),
+          })) };
+        }
+        operation = { kind: 'replace-document', document: withClosureClearance(withConfiguration()) };
+      }
+      // Derived mechanical replacements are constructed from the current queued document.
       const baseRevision = command.operation.kind === 'replace-document'
         ? command.baseRevision
         : current.revision;
@@ -95,7 +117,16 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
       if (!client.current || projectId === projectRef.current.id) return;
       const document = await loadProject(projectId);
       if (!document) throw new Error('This keyboard is no longer saved in this browser. Open a project file to restore it.');
-      await accept(await client.current.request({ id: crypto.randomUUID(), kind: 'open', document }), 'open');
+      const core = client.current;
+      const previous = projectRef.current;
+      const reply = await core.request({ id: crypto.randomUUID(), kind: 'open', document });
+      try {
+        await accept(reply, 'open');
+      } catch (error) {
+        // A failed local save leaves the UI on the old document; keep the core aligned.
+        if (reply.kind === 'scene') await core.request({ id: crypto.randomUUID(), kind: 'open', document: previous });
+        throw error;
+      }
     });
   }
 
@@ -120,7 +151,7 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     return result !== false;
   }
 
-  function newProject(): void {
+  function newProject(storage: 'keep' | 'reset' = 'keep'): void {
     schedule(async () => {
       if (!client.current) {
         return;
@@ -130,6 +161,14 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
 
       const reply = await client.current.request({ id: crypto.randomUUID(), kind: 'open', document });
 
+      if (storage === 'reset' && reply.kind === 'scene') {
+        try {
+          await resetLocalProjects(reply.document);
+        } catch (error) {
+          await client.current.request({ id: crypto.randomUUID(), kind: 'open', document: projectRef.current });
+          throw error;
+        }
+      }
       await accept(reply, 'open');
       if (reply.kind === 'scene') onProjectCreated?.(reply.document.id);
     });
@@ -151,7 +190,7 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
     });
   }
 
-  function duplicateDesign(matrixId: string, presetId: Parameters<typeof matrixWithPreset>[1], orientation?: Parameters<typeof matrixWithPreset>[2]): void {
+  function duplicateDesign(matrixId: string, presetId: Parameters<typeof matrixWithPreset>[1], orientation?: Parameters<typeof matrixWithPreset>[2], construction?: Parameters<typeof matrixWithPreset>[4]): void {
     schedule(async () => {
       if (!client.current) {
         return;
@@ -164,7 +203,7 @@ export function createProjectActions({ projectRef, client, exportClient, selecte
         throw new Error('Select a matrix to duplicate the design');
       }
 
-      const variant = matrixWithPreset(matrix, presetId, orientation, original.definitions);
+      const variant = matrixWithPreset(matrix, presetId, orientation, original.definitions, construction);
       const document: ProjectDoc = {
         ...structuredClone(original),
         id: crypto.randomUUID(),

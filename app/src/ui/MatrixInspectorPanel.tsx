@@ -7,7 +7,7 @@ import { KeySizeControls } from './KeySizeControls';
 import { MirrorPairIcon } from './MirroredPairSetup';
 import type { MatrixProjection } from './matrixGeometry';
 import type { MatrixPresetId } from './assemblyCatalog';
-import type { SwitchOrientation } from './assemblyPresets';
+import type { SwitchOrientation, AssemblyConstruction } from './assemblyPresets';
 import type { SelectionScope } from './workbenchTypes';
 
 type SelectedKeycap = { placement: { size: Vec2 }; pitch: Vec2; gap: Vec2 };
@@ -25,7 +25,7 @@ type MatrixInspectorPanelProps = {
   onEdit: (command: EditCommand) => void;
   onLayoutChange: (layout: Layout) => void;
   onUnlink: (layout: Layout) => void;
-  onDuplicateDesign?: (matrixId: string, presetId: MatrixPresetId, orientation?: SwitchOrientation) => void;
+  onDuplicateDesign?: (matrixId: string, presetId: MatrixPresetId, orientation?: SwitchOrientation, construction?: AssemblyConstruction) => void;
   document: ProjectDoc;
   catalog: PartDefinition[];
   projection?: MatrixProjection;

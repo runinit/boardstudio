@@ -4,16 +4,13 @@ import { configureMatrix } from './matrix-setup';
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync } from 'fflate';
-import { buildCase } from '@boardstudio/v2-cad';
+import { buildCase, readStepModel } from '@boardstudio/v2-cad';
 import { prepareCase } from '../../cad/test/native-prepare.mjs';
 import { downloadDraftBoard } from './pcb-package';
 import { openCustomSwitchProject } from './custom-switch';
 
 const placeGuidedMatrix = async (page: import('@playwright/test').Page) => {
   await configureMatrix(page);
-  const ghost = page.getByRole('button', { name: 'Ghost key, row 1, column 1' });
-  await expect(ghost).toBeVisible();
-  await ghost.click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
 };
 
@@ -83,13 +80,21 @@ test('previews and exports the case assembly as STEP', async ({ page }) => {
   await page.goto('/');
   await navigateWorkspace(page, 'Case');
   await expect(page.getByLabel('Complete PCB assembly preview')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText('Preview current')).toBeVisible();
   await page.locator('.wb-topbar').getByRole('button', { name: 'Export', exact: true }).click();
 
   const download = page.waitForEvent('download');
   await page.locator('.wb-export-row').filter({ hasText: 'Case STEP' }).getByRole('button', { name: 'Export' }).click();
-  expect((await download).suggestedFilename()).toBe('Starter keyboard-case.step');
+  const exported = await download;
+  expect(exported.suggestedFilename()).toBe('Starter keyboard-case.step');
+  const model = await readStepModel(new Uint8Array(await readFile((await exported.path())!)));
+  expect(model.mesh.positions.length).toBeGreaterThan(0);
+  expect(model.mesh.normals.length).toBe(model.mesh.positions.length);
+  expect(Array.from(model.mesh.positions).every(Number.isFinite)).toBe(true);
+  expect(model.bounds.max[0]).toBeGreaterThan(model.bounds.min[0]);
+  expect(model.bounds.max[1]).toBeGreaterThan(model.bounds.min[1]);
+  expect(model.bounds.max[2] - model.bounds.min[2]).toBeCloseTo(3, 5);
 });
 
 test('packages a local model with relative KiCad paths', async ({ page }) => {
@@ -138,8 +143,6 @@ test('builds a new keyboard from a matrix and previews its outline', async ({ pa
   await expect(page.getByRole('treeitem', { name: /0 parts/ }).first()).toBeVisible();
   await configureMatrix(page);
   await expect(page.locator('.wb-matrix-cell')).toHaveCount(30);
-  await expect(page.getByRole('button', { name: /^Ghost key, row 1, column 1/ })).toBeVisible();
-  await page.getByRole('button', { name: 'Ghost key, row 1, column 1' }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(60);
   await expect(page.getByRole('treeitem', { name: /60 parts/ }).first()).toBeVisible();
   await expect(page.getByRole('treeitem', { name: /^Matrix 1/ })).toBeVisible();
@@ -153,8 +156,8 @@ test('edits a guided matrix, scopes the tree, staggers a row, and zooms the canv
   await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
   await navigateWorkspace(page, 'PCB');
-  await expect(page.getByRole('combobox', { name: 'Pin for Scan row 1', exact: true })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Pin for Scan column 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Pin for Row 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Pin for Column 1', exact: true })).toBeVisible();
   await navigateWorkspace(page, 'Layout');
 
   await page.getByRole('button', { name: 'Objects options', exact: true }).click();
@@ -406,7 +409,7 @@ test('duplicates a matrix as a separate preset project', async ({ page }) => {
   await page.getByRole('button', { name: 'New project' }).click();
   await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
   await placeGuidedMatrix(page);
-  await expect(page.getByText('Saved locally')).toBeVisible();
+  await expect(page.getByLabel('Saved locally', { exact: true })).toBeVisible();
   const originalId = await page.evaluate(() => localStorage.getItem('boardstudio-v2-active-project'));
   expect(originalId).toBeTruthy();
 
@@ -472,7 +475,7 @@ test('creates a case from a new keyboard project', async ({ page }) => {
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
   await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: '+ New case body' }).click();
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
   await expect(page.getByText('Preview current')).toBeVisible({ timeout: 30_000 });
 });
 

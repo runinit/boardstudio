@@ -11,8 +11,8 @@ test('the Parts catalog shows preferred key parts and uses the canonical starter
   for (const name of ['MX switch', 'Choc V1 / V2 switch', 'Gateron KS27 / KS33 switch', 'Matrix diode (SOD-123 / THT)', 'SK6812 MINI-E']) {
     await expect(library.getByRole('option', { name, exact: true })).toHaveCount(1);
   }
-  await expect(library.getByRole('option')).toHaveCount(37);
-  for (const source of ['builtin:mx-switch', 'builtin:choc-hotswap', 'infused-kim/choc', 'infused-kim/diode']) {
+  await expect(library.getByRole('option')).toHaveCount(38);
+  for (const source of ['builtin:mx-switch', 'builtin:choc-hotswap', 'infused-kim/choc', 'infused-kim/diode', 'infused-kim/nice_nano_pretty']) {
     await expect(library.locator(`[title="${source}"]`)).toHaveCount(0);
   }
   await expect(page.locator('.wb-root')).toHaveAttribute('data-revision', revision!);
@@ -55,16 +55,16 @@ test('placing, undoing, and reloading an assembly never adds duplicate catalog p
   await page.getByRole('button', { name: 'Ghost key, row 1, column 1', exact: true }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
   await parts.click();
-  await expect(library.getByRole('option')).toHaveCount(37);
+  await expect(library.getByRole('option')).toHaveCount(38);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await expect(library.getByRole('option')).toHaveCount(37);
+  await expect(library.getByRole('option')).toHaveCount(38);
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
-  await expect(page.getByText('Saved locally', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Saved locally', { exact: true })).toBeVisible();
   await page.reload();
   await parts.click();
-  await expect(library.getByRole('option')).toHaveCount(37);
+  await expect(library.getByRole('option')).toHaveCount(38);
   await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
 });

@@ -3,10 +3,10 @@ import { emptyProject, type CoreReply, type CoreRequest } from '@boardstudio/v2-
 import type { CoreClient } from './CoreClient';
 import type { ExportClient } from './ExportClient';
 import { createProjectActions } from './createProjectActions';
-import { deleteProject, listProjects, loadProject, saveAsset, unpackProject } from './storage';
+import { deleteProject, listProjects, loadProject, saveAsset, unpackProject, resetLocalProjects } from './storage';
 import { catalogue } from '@boardstudio/v2-ergogen';
 
-vi.mock('./storage', () => ({ deleteProject: vi.fn(), listProjects: vi.fn(), loadProject: vi.fn(), saveAsset: vi.fn(), unpackProject: vi.fn() }));
+vi.mock('./storage', () => ({ deleteProject: vi.fn(), listProjects: vi.fn(), loadProject: vi.fn(), saveAsset: vi.fn(), unpackProject: vi.fn(), resetLocalProjects: vi.fn() }));
 
 function harness() {
   const projectRef = { current: emptyProject('existing', 'Existing project') };
@@ -50,6 +50,18 @@ describe('saved keyboards', () => {
     await expect(test.run()).rejects.toThrow('Storage unavailable');
     expect(test.request).not.toHaveBeenCalled();
     expect(test.accept).not.toHaveBeenCalled();
+  });
+
+  it('restores the working core document when accepting a saved keyboard fails', async () => {
+    const test = harness();
+    const original = test.projectRef.current;
+    vi.mocked(loadProject).mockResolvedValueOnce(emptyProject('saved', 'Saved keyboard'));
+    test.accept.mockRejectedValueOnce(new Error('Storage full'));
+    test.actions.openSavedProject('saved');
+    await expect(test.run()).rejects.toThrow('Storage full');
+    expect(test.request).toHaveBeenCalledTimes(2);
+    expect(test.request).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'open', document: original }));
+    expect(test.projectRef.current).toBe(original);
   });
 
   it('does not reopen the active keyboard and reset its history', async () => {
@@ -237,4 +249,57 @@ describe('deleting saved keyboards', () => {
     await expect(t.run()).rejects.toThrow('Storage unavailable');
     expect(vi.mocked(deleteProject).mock.calls).toHaveLength(before);
   });
+
+});
+
+it('restores the working core document if resetting storage fails', async () => {
+  const test = harness();
+  vi.mocked(resetLocalProjects).mockRejectedValueOnce(new Error('Storage unavailable'));
+  test.actions.newProject('reset');
+  await expect(test.run()).rejects.toThrow('Storage unavailable');
+  expect(test.request).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'open', document: test.projectRef.current }));
+  expect(test.accept).not.toHaveBeenCalled();
+  expect(test.onProjectCreated).not.toHaveBeenCalled();
+});
+
+it('resolves default closure screws and commits them with case settings in one edit', async () => {
+  const { demoProject } = await import('./demo');
+  const { createMechanicalConfiguration } = await import('./mechanicalPresets');
+  const test = harness();
+  const document = demoProject();
+  test.projectRef.current = document;
+  test.request.mockImplementation(async (input: CoreRequest) => {
+    if (input.kind === 'snapshot') return { kind: 'scene', document, scene: { boardContours: [], transforms: [] } } as unknown as CoreReply;
+    if (input.kind === 'resolve-mechanical') return { kind: 'mechanical-resolved', assembly: { suggestedMounts: [{ id: 'one', at: { x: 30, y: 20 }, kind: 'hole', holeDiameter: 3, bossDiameter: 6 }] } } as unknown as CoreReply;
+    return { kind: 'scene', document, scene: {} } as CoreReply;
+  });
+  test.actions.edit({ baseRevision: document.revision, transactionId: 'case', phase: 'commit', targetIds: [], operation: { kind: 'set-mechanical', configuration: createMechanicalConfiguration(document) } });
+  await test.run();
+  const edits = test.request.mock.calls.map(([request]) => request).filter(request => request.kind === 'edit');
+  expect(edits).toHaveLength(1);
+  const operation = edits[0].kind === 'edit' ? edits[0].command.operation : undefined;
+  expect(operation?.kind).toBe('replace-document');
+  if (operation?.kind === 'replace-document') {
+    expect(operation.document.mechanical?.closureMounts?.[0].kind).toBe('boss');
+    expect(operation.document.parts.some(part => part.id.startsWith('case-closure/'))).toBe(true);
+  }
+});
+
+it('bases queued mechanical edits on the document used to construct their replacement', async () => {
+  const test = harness();
+  test.request.mockImplementation(async () => ({ kind: 'scene', document: test.projectRef.current, scene: { revision: 8 } }) as CoreReply);
+  test.actions.edit({ baseRevision: 2, transactionId: 'queued-case', phase: 'commit', targetIds: [], operation: { kind: 'set-mechanical', configuration: null } });
+  test.projectRef.current = { ...test.projectRef.current, revision: 8 };
+  await test.run();
+  expect(test.request).toHaveBeenCalledWith(expect.objectContaining({ command: expect.objectContaining({ baseRevision: 8 }) }));
+});
+
+it('retains stale-revision protection for caller-authored document replacements', async () => {
+  const test = harness();
+  test.request.mockImplementation(async () => ({ kind: 'error', message: 'Stale base revision', revision: 8 }) as CoreReply);
+  const document = test.projectRef.current;
+  test.actions.edit({ baseRevision: 2, transactionId: 'authored-replacement', phase: 'commit', targetIds: [], operation: { kind: 'replace-document', document } });
+  test.projectRef.current = { ...document, revision: 8 };
+  await test.run();
+  expect(test.request).toHaveBeenCalledWith(expect.objectContaining({ command: expect.objectContaining({ baseRevision: 2 }) }));
 });

@@ -444,6 +444,8 @@ fn apply_materializes_switch_diode_and_controller_pins_and_preserves_manual_net(
         .find(|n| n.id.contains("/row/0"))
         .expect("row net");
     assert!(row.pins.iter().any(|p| p.part_id == "mcu-left"));
+    let controller = doc.parts.iter().find(|p| p.id == "mcu-left").unwrap();
+    assert_eq!(controller.generator_parameters.as_ref().and_then(|p| p.get(&plan.row_pins[0])), Some(&serde_json::json!(row.name)));
     assert!(doc.nets.iter().any(|n| n.id.contains("link/matrix/m/r0c0")
         && n.pins.iter().any(|p| p.part_id.ends_with("/diode"))));
 }

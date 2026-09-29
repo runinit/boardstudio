@@ -1,4 +1,4 @@
-import { navigateWorkspace } from './workspace-navigation';
+import { navigateWorkspace, openSetupGuide } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync, strFromU8 } from 'fflate';
@@ -17,13 +17,16 @@ test('configured Case keeps physical half selection and setup available', async 
   await page.goto('/');
   await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Configure mechanical stack', exact: true }).click();
+  await openSetupGuide(page);
+  await page.getByRole('button', { name: /Project & hardware/ }).click();
   await page.getByRole('button', { name: 'Split keyboard', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Reversible layout' }).click();
+  await page.getByRole('button', { name: /Case \(optional\)/ }).click();
   const assembly = page.getByRole('combobox', { name: 'Physical assembly', exact: true });
   await expect(assembly).toBeVisible();
   await assembly.selectOption({ label: 'Right half · peripheral' });
-  await page.getByText('Assembly setup', { exact: true }).click();
-  await expect(page.getByRole('checkbox', { name: 'Turn PCB over for this half' })).toBeChecked();
-  await expect(page.getByRole('button', { name: 'Generate', exact: true })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Reversible layout' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Update preview', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__physicalPreviews.at(-1)?.parts.find((part: any) => part.reference === 'SW5')?.pose.at.x)).toBeLessThan(0);
   const physical = await page.evaluate(() => (window as any).__physicalPreviews.at(-1));
   expect(Math.max(...physical.contours.flatMap((contour: any) => contour.points.map((point: any) => point.x)))).toBeLessThan(20);

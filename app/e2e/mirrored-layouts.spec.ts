@@ -108,9 +108,11 @@ test('linked components keep both halves through save, reopen and geometry edits
   const saved = await archive(page);
   expect(saved.document.layouts![0].partIds).toHaveLength(1);
   expect(saved.document.layouts![1].partIds).toHaveLength(2);
-  const rightComponentId = saved.document.layouts![1].partIds.find(id => saved.document.parts.find(p => p.id === id)?.definitionId === 'ergogen:ceoloide/led_sk6812mini-e')!;
+  const rightComponentId = saved.document.layouts![1].partIds.find(id => saved.document.definitions.find(definition => definition.id === saved.document.parts.find(p => p.id === id)?.definitionId)?.generator?.source === 'ceoloide/led_sk6812mini-e')!;
   const rightComponent = saved.document.parts.find((part) => part.id === rightComponentId)!;
-  expect(rightComponent.definitionId).toBe('ergogen:ceoloide/led_sk6812mini-e');
+  const rightDefinition = saved.document.definitions.find(definition => definition.id === rightComponent.definitionId)!;
+  expect(rightDefinition.generator?.source).toBe('ceoloide/led_sk6812mini-e');
+  expect(rightDefinition.generator?.parameters.reversible).toBe(false);
   const componentId = saved.document.layouts![0].partIds[0];
   const component = saved.document.parts.find((part) => part.id === componentId)!;
   expect(saved.document.definitions.find((definition) => definition.id === component.definitionId)?.name).toBe('rotary encoder ec11 ec12');

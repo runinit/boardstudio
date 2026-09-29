@@ -94,6 +94,7 @@ test('changing support count preserves adopted closures and invalid walls block 
   const closures = panel.locator('details').filter({ has: page.locator('summary').filter({ hasText: /^Closure screws/ }) });
   const xs = closures.getByRole('spinbutton', { name: 'Position X mm', exact: true });
   const ys = closures.getByRole('spinbutton', { name: 'Position Y mm', exact: true });
+  if (await closures.getAttribute('open') === null) await closures.locator('summary').first().click();
   await expect(xs).toHaveCount(4);
   const positions = await Promise.all([xs.evaluateAll(inputs => inputs.map(input => (input as HTMLInputElement).value)), ys.evaluateAll(inputs => inputs.map(input => (input as HTMLInputElement).value))]);
   await page.getByRole('treeitem', { name: /^Gaskets / }).click();
@@ -102,6 +103,7 @@ test('changing support count preserves adopted closures and invalid walls block 
   await count.press('Enter');
   await expect(page.getByRole('button', { name: 'Export geometry', exact: true })).toBeEnabled({ timeout: 45_000 });
   await page.getByRole('button', { name: 'Assembly settings', exact: true }).click();
+  if (await closures.getAttribute('open') === null) await closures.locator('summary').first().click();
   await expect(xs).toHaveCount(4);
   expect(await xs.evaluateAll(inputs => inputs.map(input => (input as HTMLInputElement).value))).toEqual(positions[0]);
   expect(await ys.evaluateAll(inputs => inputs.map(input => (input as HTMLInputElement).value))).toEqual(positions[1]);

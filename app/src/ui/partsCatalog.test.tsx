@@ -10,6 +10,7 @@ it('offers canonical key parts without duplicate legacy choices', () => {
   expect(markup).not.toContain('title="builtin:mx-switch"');
   expect(markup).not.toContain('title="infused-kim/choc"');
   expect(markup).not.toContain('title="infused-kim/diode"');
+  expect(markup).not.toContain('title="infused-kim/nice_nano_pretty"');
   expect(markup).toContain('title="ceoloide/switch_mx"');
   expect(markup).toContain('SK6812 MINI-E');
   expect(definitions).toEqual(before);
@@ -36,4 +37,8 @@ it('keeps placement snapshots out of the catalog without losing existing assignm
   const snapshots = ['assembly-preset-mx-rgb-south-matrix-0/definition/switch', '25aa53b5-59f9-4808-82a5-0b3027aecc9f/definition/switch'].map(id => ({ ...builtin, id }));
   expect(partChoices(snapshots)).toEqual([]);
   expect(partChoices(snapshots, snapshots[1].id)).toEqual([snapshots[1]]);
+});
+
+it('does not bundle the retired Infused Kim controller', () => {
+  expect(catalogue().some(definition => definition.generator?.source === 'infused-kim/nice_nano_pretty')).toBe(false);
 });

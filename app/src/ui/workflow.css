@@ -26,7 +26,7 @@
 .wb-project-menu-heading button { display: grid; place-items: center; width: 36px; height: 36px; padding: 8px; border: 0; color: var(--wb-muted); background: transparent; cursor: pointer; }
 .wb-project-menu-heading svg { width: 18px; height: 18px; }
 .wb-project-workspace-actions { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--wb-rule); }
-.wb-project-workspace-actions button, .wb-workspace-preferences .wb-menu-section button { min-height: 36px; padding: 8px; border: 0; border-radius: 3px; background: transparent; color: var(--wb-ink); font: inherit; text-align: left; cursor: pointer; }
+.wb-project-workspace-actions button, .wb-workspace-preferences .wb-menu-section button { min-height: 36px; padding: 8px; border: 0; border-radius: 4px; background: transparent; color: var(--wb-ink); font: inherit; text-align: left; cursor: pointer; }
 .wb-project-workspace-actions button:hover, .wb-workspace-preferences .wb-menu-section button:hover { background: var(--wb-raised); }
 .wb-workspace-preferences { display: grid; gap: 12px; }
 .wb-workspace-preferences label { display: grid; gap: 6px; }

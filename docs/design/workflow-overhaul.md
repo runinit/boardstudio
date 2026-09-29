@@ -68,3 +68,25 @@ searchable, and shown with measured layout previews; the current project is
 identified first. Demo keyboards are a separate 18-layout gallery that creates
 independent editable copies. New-project and portable-backup actions stay with
 the browser, while the gallery remains the scrolling region on small screens.
+
+
+
+## Integration refinements
+
+The simplified shell retains the current dev onboarding and generation behavior.
+Only the guide offers matrix creation while onboarding is visible; the empty
+canvas offers it after the guide is dismissed. Reset local projects remains an
+explicit, confirmed action in Workspace settings. Export's Back action, Escape,
+and header toggle share the same return behavior.
+
+The keyboard browser tolerates damaged saved records without hiding healthy
+projects or blocking recovery. Failed saved-project acceptance restores the
+previous core document. Saved records remain untouched until an explicit action.
+
+The shell intentionally uses 14px navigation, 15px guide/gallery headings, and
+16px export subsection headings to distinguish navigation and browsing from the
+13px dense editing controls. Export's page heading is 28px on desktop and 24px on
+compact screens. Compact project inputs and preference selectors use 16px to
+avoid browser focus zoom. Secondary gallery labels use the existing 12px label
+token, and controls use the existing 4px radius. The keyboard browser's offset
+neutral shadow is confined to that transient overlay.

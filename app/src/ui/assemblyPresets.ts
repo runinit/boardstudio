@@ -4,11 +4,13 @@ import type {
   AssemblyMember,
   PartDefinition,
 } from '@boardstudio/v2-contracts';
+export type AssemblyConstruction = 'single-sided' | 'reversible';
 export type SwitchOrientation = 'south' | 'north';
 export function assemblyPreset(
   id: string,
   definitions: PartDefinition[],
   orientation: SwitchOrientation = 'south',
+  construction: AssemblyConstruction = 'single-sided',
 ): AssemblyDefinition {
   const preset = matrixPresetDefinitions[id as MatrixPresetId];
   if (!preset) throw new Error(`Unknown assembly preset: ${id}`);
@@ -28,7 +30,7 @@ export function assemblyPreset(
       parameters: {
         hotswap: preset.hotswap,
         solder: !preset.hotswap,
-        reversible: false,
+        reversible: construction === 'reversible',
         // Generator side names the socket, opposite the switch housing.
         side: 'B',
         include_keycap: true,
@@ -43,7 +45,7 @@ export function assemblyPreset(
       pose: { at: { x: 7.4, y: -1.5 }, rotation: 90 },
       side: 'back',
       models: [],
-      parameters: { side: 'B', reversible: false, include_tht: false },
+      parameters: { side: 'B', reversible: construction === 'reversible', include_tht: false },
     });
   if (preset.led) {
     const led =
@@ -60,7 +62,7 @@ export function assemblyPreset(
         pose: { at: { x: 0, y: preset.family === 'choc' ? -4.7 : -4.75 }, rotation: 180 },
         side: 'back',
         models: [],
-        parameters: { side: 'B', reverse_mount: true, reversible: false },
+        parameters: { side: 'B', reverse_mount: true, reversible: construction === 'reversible' },
       });
   }
   if (orientation === 'north') {

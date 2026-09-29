@@ -1069,6 +1069,21 @@ pub(crate) fn materialize_reviewed(
         board.net_ids.retain(|id| !removed.contains(id));
     }
     document.nets.extend(plan.nets.clone());
+    // Keep generated silkscreen in sync with the applied terminal nets.
+    let board_parts = document.boards.iter().find(|board| board.id == *board_id).unwrap().part_ids.clone();
+    for part in document.parts.iter_mut().filter(|part| board_parts.contains(&part.id)) {
+        let Some(definition) = document.definitions.iter().find(|definition| definition.id == part.definition_id && definition.generator.is_some()) else { continue };
+        for (terminal, pads) in &definition.terminals {
+            let net = document.nets.iter().find(|net| net.pins.iter().any(|pin| pin.part_id == part.id && pads.contains(&pin.pad_id)));
+            let parameters = part.generator_parameters.get_or_insert_with(Default::default);
+            if let Some(net) = net {
+                parameters.insert(terminal.clone(), serde_json::json!(net.name));
+            } else {
+                parameters.remove(terminal);
+            }
+        }
+    }
+
     document
         .boards
         .iter_mut()

@@ -1,3 +1,4 @@
+import { mechanicalDefaults } from './mechanicalDefaults';
 import type { MechanicalConfiguration, PhysicalBoardInstance, ProjectDoc, SceneDelta, Vec2 } from '@boardstudio/v2-contracts';
 
 const constructionKeys = [
@@ -10,16 +11,16 @@ const constructionKeys = [
 const reflect = (point: Vec2): Vec2 => ({ x: -point.x, y: point.y });
 
 export function effectiveCaseDocument(document: ProjectDoc, instance?: PhysicalBoardInstance): ProjectDoc {
-  if (!instance) return document;
+  if (!instance) return document.mechanical ? { ...document, mechanical: mechanicalDefaults(document, document.mechanical) } : document;
   const board = document.boards.find(entry => entry.id === instance.boardId);
   const common = document.hardware?.sharedConstruction ?? document.hardware?.instances.find(entry => entry.mechanical)?.mechanical;
-  const base = instance.mechanical ?? (common ? { ...common, openings: [], mounts: [], closureMounts: [], battery: undefined, batteryHeight: 0 } : undefined);
+  const base = instance.mechanical ?? (common ? { ...common, openings: [], mounts: [], closureMounts: undefined, battery: undefined, batteryHeight: 0 } : undefined);
   let mechanical: MechanicalConfiguration | undefined = base ? { ...base, boardId: instance.boardId, pcbThickness: board?.thickness ?? base.pcbThickness } : undefined;
   if (mechanical && common) {
     mechanical = { ...mechanical, ...Object.fromEntries(constructionKeys.map(key => [key, common[key]])),
       gasketLayout: common.gasketLayout ? { ...common.gasketLayout, supports: instance.mechanical?.gasketLayout?.supports ?? [] } : mechanical.gasketLayout };
   }
-  if (mechanical?.battery) mechanical = { ...mechanical, batteryHeight: mechanical.battery.size.z };
+  if (mechanical) mechanical = mechanicalDefaults(document, mechanical, instance.flipped);
   if (!instance.flipped) return { ...document, mechanical };
   const selected = new Set(board?.partIds);
   return {

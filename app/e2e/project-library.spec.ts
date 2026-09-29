@@ -42,6 +42,8 @@ test('keyboard browser fits small screens and always offers a way back', async (
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(640);
+  await expect(page.getByRole('textbox', { name: 'Project name', exact: true })).toHaveCSS('font-size', '16px');
+  await expect(page.getByRole('searchbox', { name: 'Search saved keyboards' })).toHaveCSS('font-size', '16px');
   await page.getByRole('searchbox', { name: 'Search saved keyboards' }).fill('no matching keyboard');
   await expect(page.getByText('No keyboards match your search.')).toBeVisible();
   await page.getByRole('button', { name: 'Clear search', exact: true }).click();
@@ -114,4 +116,29 @@ test('deleting the last keyboard starts a blank project without restoring the de
   await expect(page.locator('.wb-project-name')).toHaveText('Untitled keyboard');
   await page.getByRole('button', {name:'Project',exact:true}).click();
   await expect(page.getByRole('button', {name:'Open Starter keyboard',exact:true})).toHaveCount(0);
+});
+
+test('rapid saved-project switching preserves edits and the selected keyboard after reload', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByLabel('Saved locally', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  const name = `Keyboard ${'試験⌨️'.repeat(30)}`;
+  await page.getByRole('textbox', { name: 'Project name', exact: true }).fill(name);
+  await page.getByRole('textbox', { name: 'Project name', exact: true }).press('Enter');
+  await expect(page.getByLabel('Saved locally', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'New project', exact: true }).click();
+  await expect(page.locator('.wb-project-name')).toHaveText('Untitled keyboard');
+  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await page.getByRole('button', { name: `Open ${name}`, exact: true }).click();
+  await expect(page.locator('.wb-project-name')).toHaveText(name);
+  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await page.getByRole('button', { name: 'Open Untitled keyboard', exact: true }).click();
+  await expect(page.locator('.wb-project-name')).toHaveText('Untitled keyboard');
+  await page.reload();
+  await expect(page.locator('.wb-project-name')).toHaveText('Untitled keyboard');
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await expect(page.getByRole('button', { name: `Open ${name}`, exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await expect(page.locator('.app-error')).toHaveCount(0);
 });

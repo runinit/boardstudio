@@ -648,7 +648,8 @@ fn adopt_unassigned_components(
         .clone();
     let unassigned: Vec<_> = board_parts
         .into_iter()
-        .filter(|id| !assigned.contains(id))
+        // Case hardware is resolved in board coordinates, independently of layout mirrors.
+        .filter(|id| !assigned.contains(id) && !id.starts_with("case-closure/"))
         .filter_map(|id| {
             let part = doc.parts.iter().find(|part| part.id == id)?;
             let on_source_side = if source_is_left {
@@ -988,4 +989,20 @@ pub(crate) fn move_keys(
         changed.extend(sync(doc, &matrix.id)?);
     }
     Ok((changed, handled))
+}
+
+#[cfg(test)]
+mod case_hardware_tests {
+    use super::*;
+
+    #[test]
+    fn case_clearance_holes_are_not_adopted_by_linked_layouts() {
+        let mut doc = ProjectDoc::empty("case", "Case");
+        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["case-closure/board/10/10"],"netIds":[],"thickness":1.6}])).unwrap();
+        doc.parts = serde_json::from_value(serde_json::json!([{"id":"case-closure/board/10/10","definitionId":"hole","reference":"MH1","pose":{"at":{"x":10,"y":10},"rotation":0},"side":"front"}])).unwrap();
+        doc.matrices = serde_json::from_value(serde_json::json!([{"id":"matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}])).unwrap();
+        doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixId":"matrix","partIds":[]}])).unwrap();
+        adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
+        assert!(doc.layouts[0].part_ids.is_empty());
+    }
 }

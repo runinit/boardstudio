@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { catalogue, geometry, normalizeDefinition, parameters, parseForms, render } from '../src/index.ts';
 
 const definitions = catalogue();
-assert.equal(definitions.length, 37);
+assert.equal(definitions.length, 36);
+assert.ok(!definitions.some(({ generator }) => generator?.source === 'infused-kim/nice_nano_pretty'), 'retired controller stays out of the catalogue');
 
 for (const definition of definitions.filter(({ kind }) => kind !== 'utility')) {
   assert.ok(definition.courtyard.length >= 3, `${definition.id} must have a physical outline envelope`);

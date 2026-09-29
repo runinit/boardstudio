@@ -22,9 +22,10 @@ export function WorkbenchLayers({ layers, hidden, onToggle }: { layers: string[]
 }
 
 export function SceneFootprint({ definition, part, hidden }: { definition: PartDefinition; part: Part; hidden: ReadonlySet<string> }) {
+  const drawing = definition.generator && part.generatorParameters ? { ...definition, generator: { ...definition.generator, parameters: { ...definition.generator.parameters, ...part.generatorParameters } } } : definition;
   const hiddenGraphics = new Set(ergogenPreviewLayers(definition, true).filter((layer) => hidden.has(boardLayer(layer, part.side))).map((layer) => `graphics:${layer}`));
   return <g className="wb-scene-footprint">
-    <g transform="scale(1,-1)"><Ergogen2DPreview definition={definition} hideKeycap hiddenLayers={hiddenGraphics} /></g>
+    <g transform="scale(1,-1)"><Ergogen2DPreview definition={drawing} hideKeycap hiddenLayers={hiddenGraphics} /></g>
     {definition.pads.map((pad) => {
       const copperVisible = pad.plated !== false && !hidden.has('Pads') && (pad.drill
         ? !hidden.has('F.Cu') || !hidden.has('B.Cu')

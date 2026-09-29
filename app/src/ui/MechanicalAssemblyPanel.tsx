@@ -1,5 +1,7 @@
 import { insertSizes, resizeInsert } from '../gasketEditing';
 import { defaultGasketLayout, defaultInternalGasket, gasketFoamPresets } from '../gasketEditing';
+import { CaseIcon } from './CaseChoice';
+import { stabilizerCandidates } from '../mechanicalDefaults';
 import type { GenerationState } from '../generationState';
 import React from 'react';
 import type {
@@ -49,8 +51,7 @@ const numericFields = [
   ['plateFoamThickness', 'Plate foam'],
   ['pcbThickness', 'PCB thickness'],
   ['bottomFoamThickness', 'Bottom foam'],
-  ['batteryHeight', 'Battery height'],
-  ['bottomThickness', 'Bottom thickness'],
+    ['bottomThickness', 'Bottom thickness'],
   ['wallThickness', 'Wall thickness'],
   ['clearance', 'Clearance'],
 ] as const;
@@ -81,6 +82,7 @@ type Props = {
   document: ProjectDoc;
   boardId?: string;
   projectSession?: number;
+  instanceId?: string;
   definitions: PartDefinition[];
   configuration?: MechanicalConfiguration;
   assembly?: MechanicalAssembly;
@@ -101,7 +103,7 @@ type Props = {
 
 function MountList({ title, value, onChange, allowAdd = true }: { title: string; value: Mount[]; onChange: (value: Mount[]) => void; allowAdd?: boolean }) {
   const update = (id: string, patch: Partial<Mount>) => onChange(value.map((mount) => mount.id === id ? { ...mount, ...patch } : mount));
-  return <InspectorSection title={title} detail={`${value.length}`} defaultOpen={value.length > 0}>
+  return <InspectorSection title={title} detail={`${value.length}`}>
     {value.map((mount, index) => <div className="wb-mech-mount" key={mount.id}>
       <header><strong>{mount.kind === 'boss' ? 'Boss' : 'Hole'} {index + 1}</strong><button type="button" className="wb-mech-quiet" onClick={() => onChange(value.filter((entry) => entry.id !== mount.id))}>Remove</button></header>
       <label className="wb-mech-field"><span>Mount type</span><select value={mount.kind} onChange={(event) => update(mount.id, { kind: event.target.value as Mount['kind'] })}><option value="hole">Hole</option><option value="boss">Boss</option></select></label>
@@ -396,8 +398,8 @@ function HardwareAndFits({ configuration, assembly, onChange }: {
   </InspectorSection>;
 }
 
-export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnosticsRequest = 0, onDiagnosticsShown, generationTarget, onRevealDiagnostics, document, boardId, projectSession, definitions, configuration, assembly, onChange: commitConfiguration, onResolve, onCancel, generation, livePreview, onLivePreviewChange, onExport, onShowFinding, selectedLayer, onSelectLayer, onMechanicalProfile, onExtractMechanicalProfile, onEditParts }: Props) {
-  const draftScope = `${document.id}:${boardId ?? configuration?.boardId ?? ''}:${projectSession ?? 0}`;
+export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnosticsRequest = 0, onDiagnosticsShown, generationTarget, onRevealDiagnostics, document, boardId, projectSession, instanceId, definitions, configuration, assembly, onChange: commitConfiguration, onResolve, onCancel, generation, livePreview, onLivePreviewChange, onExport, onShowFinding, selectedLayer, onSelectLayer, onMechanicalProfile, onExtractMechanicalProfile, onEditParts }: Props) {
+  const draftScope = `${document.id}:${boardId ?? configuration?.boardId ?? ''}:${projectSession ?? 0}:${instanceId ?? ''}`;
   const currentDraftScope = React.useRef(draftScope);
   currentDraftScope.current = draftScope;
   const draft = React.useRef(new MechanicalDraft(configuration, draftScope, document.revision));
@@ -488,6 +490,16 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
       profiles,
     });
   };
+  const unknownDefinitions = usedDefinitions.filter(definition => definition.kind === 'switch' && !definition.mechanicalProfile && !inferSwitchFamily(definition) && !config?.profiles.some(profile => profile.definitionId === definition.id));
+  const candidates = config ? stabilizerCandidates(document, config.boardId) : [];
+  const initializedScopes = React.useRef(new Set<string>());
+  React.useEffect(() => {
+    if (!config || config.closureMounts !== undefined || config.mount === 'gasket' || !assembly?.suggestedMounts.length || initializedScopes.current.has(draftScope)) return;
+    initializedScopes.current.add(draftScope);
+    onChange(config);
+  }, [draftScope, config?.closureMounts, config?.mount, assembly?.revision]);
+  const initializingMounts = configuration?.closureMounts === undefined && configuration?.mount !== 'gasket' && Boolean(assembly?.suggestedMounts.length);
+  const closureScrews = () => (assembly?.suggestedMounts ?? []).map(mount => ({ ...mount, id: `auto-closure/${mount.id}`, kind: 'boss' as const, holeDiameter: 2.2, height: config!.plateToPcb + config!.pcbThickness + Math.max(config!.bottomFoamThickness, config!.batteryHeight) }));
   const layers = assembly?.stack ?? [];
   const findings = mechanicalFindings(assembly, document);
   const readiness = suppliedReadiness ?? caseReadiness({ revision: document.revision,
@@ -531,7 +543,7 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
     return <div className="wb-mechanical-panel">
       <button type="button" className="wb-mech-quiet" onClick={() => onSelectLayer?.('')}>Assembly settings</button>
       <div className="wb-inspect-head"><h2>{title}</h2></div>
-      <CaseGenerationControls livePreview={livePreview} onLivePreviewChange={onLivePreviewChange} target={generationTarget} generation={generation} readiness={readiness} onGenerate={onResolve} onCancel={onCancel} onExport={onExport} />
+      {configuration && <CaseGenerationControls livePreview={livePreview} onLivePreviewChange={onLivePreviewChange} target={generationTarget} generation={generation} readiness={initializingMounts ? { ...readiness, canExport: false, message: 'Saving mounting defaults…' } : readiness} onGenerate={initializingMounts ? undefined : onResolve} onCancel={onCancel} onExport={onExport} />}
       {selectedSupport ? <>
         <p className="wb-mech-hint">Matching upper and lower pads. Drag this gasket directly to another side in Edit gaskets.</p>
         {selectedSupport.fitError ? <p role="alert" className="wb-mech-error">{selectedSupport.fitError} Preview and export stay blocked until it fits.</p> : <p className="wb-mech-hint">Fits at this position.</p>}
@@ -551,52 +563,53 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
   }
 
   return <div className="wb-mechanical-panel">
-    <div className="wb-inspect-head"><h2>Mechanical assembly</h2><span className="wb-mini-tag">{config ? 'Configured' : 'Optional'}</span></div>
+    {!config && <div className="wb-inspect-head"><h2>Case construction</h2></div>}
     {!config ? <div className="wb-mech-start"><p>Resolve the keyboard stack from assigned part profiles, plate settings, and the case outline.</p><button className="wb-primary" disabled={!document.boards.length} onClick={() => onChange(createMechanicalConfiguration(document, boardId))}>Configure mechanical stack</button></div> : <>
-      <CaseGenerationControls livePreview={livePreview} onLivePreviewChange={onLivePreviewChange} target={generationTarget} generation={generation} readiness={readiness} onGenerate={onResolve} onCancel={onCancel} onExport={onExport}>
+      {configuration && <CaseGenerationControls livePreview={livePreview} onLivePreviewChange={onLivePreviewChange} target={generationTarget} generation={generation} readiness={initializingMounts ? { ...readiness, canExport: false, message: 'Saving mounting defaults…' } : readiness} onGenerate={initializingMounts ? undefined : onResolve} onCancel={onCancel} onExport={onExport}>
         <span className="wb-mech-revision">{assembly ? `Configuration resolved · r${assembly.revision}` : 'Configuration resolving'}</span>
-      </CaseGenerationControls>
+      </CaseGenerationControls>}
       <div ref={diagnosticsRef}><InspectorSection title="Mechanical diagnostics" detail={`${findings.length}`} defaultOpen={findings.some(finding => finding.severity === 'error')}>
         <FindingList document={document} assembly={assembly} findings={findings} onShow={onShowFinding ?? (() => {})} />
       </InspectorSection></div>
       <InspectorSection title="Construction" detail={manufacturingMethods[config.method]} defaultOpen>
         <label className="wb-mech-field"><span>Method</span><select value={config.method} onChange={(event) => update({ method: event.target.value as MechanicalConfiguration['method'] })}>{Object.entries(manufacturingMethods).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="wb-mech-field"><span>Mount style</span><select value={config.mount} onChange={(event) => update({ mount: event.target.value as MechanicalConfiguration['mount'], ...(event.target.value === 'gasket' ? { gasketLayout: config.gasketLayout ?? defaultGasketLayout(), gasketTravel: config.internalGasket ? config.gasketTravel : 0.1, internalGasket: config.internalGasket ?? defaultInternalGasket(), integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false } : {}) })}><option value="tray">Tray</option><option value="rigid">Rigid mount</option><option value="gasket">Gasket mount</option></select></label>
+        <label className="wb-mech-field"><span>Mount style</span><select value={config.mount} onChange={(event) => update({ mount: event.target.value as MechanicalConfiguration['mount'], ...(event.target.value === 'gasket' ? { closureMounts: config.closureMounts?.filter(mount => !mount.id.startsWith('auto-closure/')), gasketLayout: config.gasketLayout ?? defaultGasketLayout(), gasketTravel: config.internalGasket ? config.gasketTravel : 0.1, internalGasket: config.internalGasket ?? defaultInternalGasket(), integratedPlateFrame: false, bottomStyle: 'shell', middleFrame: false } : {}) })}><option value="tray">Tray</option><option value="rigid">Rigid mount</option><option value="gasket">Gasket mount</option></select></label>
         <label className="wb-mech-field"><span>Bottom construction</span><select disabled={config.mount === 'gasket'} value={config.bottomStyle ?? 'shell'} onChange={(event) => update({ bottomStyle: event.target.value as MechanicalConfiguration['bottomStyle'] })}><option value="shell">Tray shell</option><option value="sheet">Flat sheet</option></select></label>
         {config.bottomStyle === 'sheet' && <label className="wb-mech-check"><input type="checkbox" checked={config.middleFrame ?? false} onChange={(event) => update({ middleFrame: event.target.checked })} /><span>Add middle frame</span></label>}
         <label className="wb-mech-check"><input type="checkbox" disabled={config.mount === 'gasket'} checked={config.integratedPlateFrame} onChange={(event) => update({ integratedPlateFrame: event.target.checked })} /><span>Integrate plate frame into case</span></label>
       </InspectorSection>
-      <InspectorSection title="Inherited part profiles" detail={`${usedDefinitions.length} part types`} defaultOpen={false}>
+      {unknownDefinitions.length > 0 && <InspectorSection title="Missing part profiles" detail={`${usedDefinitions.length} part types`} defaultOpen={false}>
         <p className="wb-mech-hint">Fit profiles are defined with each part in Parts and inherited here by every layout and case.</p>
-        <div className="wb-mech-inherited-profiles">{usedDefinitions.map((definition) => {
+        <div className="wb-mech-inherited-profiles">{unknownDefinitions.map((definition) => {
           const profile = definition.mechanicalProfile ?? config.profiles.find(entry => entry.definitionId === definition.id);
           const family = profile?.switchFamily ?? inferSwitchFamily(definition);
           const description = profile ? profile.source : family ? `${family.toUpperCase()} fit · automatic` : definition.kind === 'switch' ? 'Choose a fit family in Parts' : 'Uses footprint clearance';
           const gap = family ? plateToPcbGap(family, config.plateThickness) : profile?.plateToPcb;
           return <div className="wb-mech-inherited-profile" key={definition.id}><strong>{definition.name}</strong><span>{description}{gap !== undefined && ` · ${gap.toFixed(2)} mm`}</span>{onEditParts && <button type="button" className="wb-mech-quiet" onClick={() => onEditParts(definition.id)}>Edit in Parts</button>}</div>;
         })}</div>
-      </InspectorSection>
-      <InspectorSection title="Advanced source geometry" detail="Parts library" className="wb-mech-source-profile-editor" defaultOpen={false}>
+      </InspectorSection>}
+      {unknownDefinitions.length > 0 && <InspectorSection title="Advanced source geometry" detail="Parts library" className="wb-mech-source-profile-editor" defaultOpen={false}>
         <p className="wb-mech-hint">Switch mounting height and plate thickness come from the selected fit drawing. Unknown switch families must be selected before plate generation.</p>
         {usedDefinitions.length === 0 ? <p className="wb-mech-hint">Place parts to assign mechanical profiles.</p> : <div className="wb-mech-profile-add"><label className="wb-mech-field"><span>Library fit profile</span><select aria-label="Library fit profile" value={profileSource} onChange={(event) => setProfileSource(event.target.value as typeof profileSource)}><option value="">Choose a switch family…</option><option value="mx-switch">MX switch</option><option value="choc-v1-switch">Choc v1 switch</option><option value="choc-v2-switch">Choc v2 switch</option><option value="mx-stab2u">MX stabilizer · 2u</option><option value="mx-stab625u">MX stabilizer · 6.25u</option></select><select aria-label="Assign library fit profile to" value="" disabled={profilePending || !onMechanicalProfile || !profileSource} onChange={(event) => void assignProfile(event.target.value)}><option value="">Choose a placed part type…</option>{usedDefinitions.filter((definition) => !config.profiles.some((profile) => profile.definitionId === definition.id)).map((definition) => <option key={definition.id} value={definition.id}>{definition.name}</option>)}</select></label><label className="wb-mech-field"><span>Custom KiCad geometry</span><select aria-label="Assign custom geometry profile to" value="" onChange={(event) => { const definitionId = event.target.value; if (!definitionId) return; const definition = usedDefinitions.find((entry) => entry.id === definitionId); if (!definition) return; const family = inferSwitchFamily(definition); update({ profiles: [...config.profiles, { definitionId, source: `KiCad ${definition.name}`, cutouts: [], plateToPcb: family ? plateToPcbGap(family, config.plateThickness) : config.plateToPcb, ...(family ? { switchFamily: family } : {}) }] }); }}><option value="">Choose imported part type…</option>{usedDefinitions.filter((definition) => Boolean(definition.kicadSource) && !config.profiles.some((profile) => profile.definitionId === definition.id)).map((definition) => <option key={definition.id} value={definition.id}>{definition.name}</option>)}</select></label></div>}
         {profilePending && <p className="wb-mech-hint" role="status">Loading library profile…</p>}
         {profileError && <p className="wb-mech-error" role="alert">{profileError}</p>}
         {config.profiles.map((profile) => <ProfileEditor key={`${draftScope}:${profile.definitionId}`} profile={profile} definitions={definitions} onSelectSwitchFamily={(family) => selectProfileFamily(profile.definitionId, family)} onExtract={onExtractMechanicalProfile ? (mappings) => onExtractMechanicalProfile(definitions.find((definition) => definition.id === profile.definitionId)?.kicadSource?.source ?? '', mappings) : undefined} onChange={(next) => { if (currentDraftScope.current === draftScope && draft.current.value === config) update({ profiles: config.profiles.map((entry) => entry.definitionId === next.definitionId ? next : entry) }); }} onRemove={() => update({ profiles: config.profiles.filter((entry) => entry.definitionId !== profile.definitionId) })} />)}
-      </InspectorSection>
+      </InspectorSection>}
       <InspectorSection title="Dimensions & clearances" detail="mm" defaultOpen={false}>
         <div className="wb-mech-numbers">{numericFields.map(([key, label]) => <NumberField key={key} label={label} value={config[key]} onCommit={(value) => update({ [key]: value })} />)}</div>
         <p className="wb-mech-hint">Plate underside to PCB top: {profileSpacing?.toFixed(2) ?? 'Choose a supported switch family to resolve'}{profileSpacing !== undefined && ' mm, derived from the switch mounting dimensions.'}</p>
         <NumberField label="Radial opening allowance" value={config.openingAllowance ?? 0} min={-1} max={1} onCommit={(openingAllowance) => update({ openingAllowance })} />
       </InspectorSection>
       <InspectorSection title="Resolved stack" detail={`${layers.length} layers`} defaultOpen={false}>
-        {layers.length ? <div className="wb-mech-stack" aria-label="Resolved mechanical stack">{layers.map((layer) => <button type="button" className={`wb-mech-layer${selectedLayer === layer.id ? ' is-selected' : ''}`} aria-pressed={selectedLayer === layer.id} onClick={() => onSelectLayer?.(selectedLayer === layer.id ? '' : layer.id)} key={layer.id}><span className="wb-mech-layer-swatch" /><strong>{layer.id === 'retainer' && config.internalGasket ? 'Top case' : layer.id === 'pcb' ? 'PCB' : layer.id.replace(/-/g, ' ').replace(/^./, letter => letter.toUpperCase())}</strong><span>{layer.thickness.toFixed(2)} mm</span><small>Z {layer.z.toFixed(2)}</small></button>)}</div> : <p className="wb-mech-hint">The stack appears after the current revision resolves.</p>}
+        {layers.length ? <div className="wb-mech-stack" aria-label="Resolved mechanical stack">{layers.map((layer) => <button type="button" className={`wb-mech-layer${selectedLayer === layer.id ? ' is-selected' : ''}`} aria-pressed={selectedLayer === layer.id} onClick={() => onSelectLayer?.(selectedLayer === layer.id ? '' : layer.id)} key={layer.id}>{layer.id === 'battery' ? <CaseIcon kind="battery"/> : <span className="wb-mech-layer-swatch" />}<strong>{layer.id === 'retainer' && config.internalGasket ? 'Top case' : layer.id === 'pcb' ? 'PCB' : layer.id.replace(/-/g, ' ').replace(/^./, letter => letter.toUpperCase())}</strong><span>{layer.thickness.toFixed(2)} mm</span><small>Z {layer.z.toFixed(2)}</small></button>)}</div> : <p className="wb-mech-hint">The stack appears after the current revision resolves.</p>}
       </InspectorSection>
       <section className="wb-mech-option-group" aria-label="Openings and battery"><h3>Openings & battery</h3>
       <InspectorSection title="Case openings" detail={`${config.openings?.length ?? 0}`}>
         <OpeningListEditor title="Document-coordinate access openings" openings={config.openings ?? []} onChange={(openings) => update({ openings })} />
       </InspectorSection>
-      <InspectorSection title="Battery" detail={config.battery ? 'Configured' : 'Optional'} defaultOpen={Boolean(config.battery)}>
-        <label className="wb-mech-check"><input type="checkbox" checked={Boolean(config.battery)} onChange={(event) => update({ battery: event.target.checked ? { size: { x: 30, y: 20, z: 6 }, at: { x: 0, y: 0 }, cableExit: { x: 0, y: 0 }, cableWidth: 2 } : undefined })} /><span>Include a battery envelope</span></label>
+      <InspectorSection title="Battery" detail={document.hardware?.transport === 'wireless' ? 'Wireless' : config.battery ? 'Configured' : 'Optional'}>
+        {document.hardware?.transport === 'wireless' && <p className="wb-mech-hint">Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam.</p>}
+        {document.hardware?.transport !== 'wireless' && <label className="wb-mech-check"><input type="checkbox" checked={Boolean(config.battery)} onChange={(event) => update({ battery: event.target.checked ? { size: { x: 30, y: 20, z: 6 }, at: { x: 0, y: 0 }, cableExit: { x: 0, y: 0 }, cableWidth: 2 } : undefined })} /><span>Include a battery envelope</span></label>}
         {config.battery && <div className="wb-mech-numbers wb-mech-battery">
           <NumberField label="Width" value={config.battery.size.x} onCommit={(x) => update({ battery: { ...config.battery!, size: { ...config.battery!.size, x } } })} min={0.1} />
           <NumberField label="Depth" value={config.battery.size.y} onCommit={(y) => update({ battery: { ...config.battery!, size: { ...config.battery!.size, y } } })} min={0.1} />
@@ -616,7 +629,11 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
       <MountList title="Closure screws" value={config.closureMounts ?? []} onChange={(closureMounts) => update({ closureMounts })} allowAdd={!config.internalGasket} />
       <HardwareAndFits configuration={config} assembly={assembly} onChange={update} />
       <InspectorSection title="Suggested mount locations" detail={`${assembly?.suggestedMounts?.length ?? 0} candidates`}>
+{config.internalGasket ? <>
         {assembly?.suggestedMounts?.length ? <><p className="wb-mech-hint">Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed.</p><button type="button" className="wb-mech-quiet" onClick={() => update(config.internalGasket ? { closureMounts: assembly.suggestedMounts } : { mounts: assembly.suggestedMounts })}>{config.internalGasket ? 'Adopt closure positions' : 'Adopt suggested mounts'}</button></> : <p className="wb-mech-hint">Resolve the current geometry to see clearance-tested mounting locations.</p>}
+</> : <>
+        {assembly?.suggestedMounts?.length ? <><p className="wb-mech-hint">Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws.</p><div className="wb-mount-candidates">{assembly.suggestedMounts.map((mount, index) => <span key={mount.id}>{index + 1}: X {mount.at.x.toFixed(1)}, Y {mount.at.y.toFixed(1)} mm</span>)}</div><button type="button" className="wb-mech-quiet" onClick={() => update({ mounts: assembly.suggestedMounts })}>Adopt suggested mounts</button><button type="button" className="wb-mech-quiet" onClick={() => update({ closureMounts: [...(config.closureMounts ?? []), ...closureScrews()] })}>Add suggested closure screws</button></> : <p className="wb-mech-hint">No additional clear locations fit the current outline, openings and battery. Move obstructions or extend the outline to make room.</p>}
+</>}
       </InspectorSection>
       </section>
       <section className="wb-mech-option-group" aria-label="Manufacturing overrides"><h3>Manufacturing overrides</h3>
@@ -672,22 +689,12 @@ export function MechanicalAssemblyPanel({ readiness: suppliedReadiness, diagnost
         })}
         <p className="wb-mech-hint">Supported constraint set: {supportedConstraintVersion}.</p>
       </InspectorSection>
-      <InspectorSection title="Stabilizer fit" detail={`${config.stabilizers?.length ?? 0}`}>
-        {document.parts.filter((part) => document.boards.find((board) => board.id === config.boardId)?.partIds.includes(part.id) && definitions.find((definition) => definition.id === part.definitionId)?.kind === 'switch').map((part) => {
-          const current: MechanicalStabilizerOverride = config.stabilizers?.find((entry) => entry.partId === part.id) ?? { partId: part.id, kind: 'none', units: 2 };
-          const change = (next: typeof current) => update({ stabilizers: [...(config.stabilizers ?? []).filter((entry) => entry.partId !== part.id), next] });
-          const assignProfile = async (value: string) => {
-            if (value === 'shared') {
-              const shared = config.profiles.find((profile) => profile.definitionId === part.definitionId);
-              change({ ...current, profile: shared });
-            } else if (value === 'mx-stab2u' || value === 'mx-stab625u' || value === 'mx-switch') {
-              if (!onMechanicalProfile) return;
-              await profileController.current.assignStabilizer(part.id, part.definitionId, value, onMechanicalProfile, profileFeedback);
-            } else change({ ...current, profile: undefined });
-          };
-          return <div className="wb-mech-stabilizer" key={part.id}><strong>{part.reference}</strong><label className="wb-mech-field"><span>Mount</span><select value={current.kind} onChange={(event) => change({ ...current, kind: event.target.value as typeof current.kind })}><option value="none">None</option><option value="pcb-mount">PCB mount</option><option value="plate-mount">Plate mount</option></select></label><div className="wb-mech-numbers"><label className="wb-mech-field"><span>Key width</span><select value={current.units} onChange={(event) => change({ ...current, units: Number(event.target.value) })}><option value="2">2u</option><option value="6.25">6.25u</option></select></label><NumberField label="Rotation" value={current.rotation ?? 0} onCommit={(rotation) => change({ ...current, rotation })} min={-360}/></div>{current.kind === 'plate-mount' && <label className="wb-mech-field"><span>Plate opening profile</span><select value={current.profile ? current.profile.source : config.profiles.some((profile) => profile.definitionId === part.definitionId) ? 'shared' : ''} disabled={profilePending} onChange={(event) => void assignProfile(event.target.value)}><option value="">Choose cutout source…</option>{config.profiles.some((profile) => profile.definitionId === part.definitionId) && <option value="shared">Use assigned {definitions.find((definition) => definition.id === part.definitionId)?.name} profile</option>}<option value="mx-stab2u">Built-in 2u stabilizer</option><option value="mx-stab625u">Built-in 6.25u stabilizer</option></select></label>}</div>;
+      <InspectorSection title="Stabilizer fit" detail={`${candidates.length} wide keys`}>
+        {candidates.map(({ part, keyUnits, stabilizer }) => {
+          const current = config.stabilizers?.find(entry => entry.partId === part.id) ?? stabilizer;
+          return <div className="wb-mech-stabilizer" key={part.id}><strong>{part.reference} · {keyUnits}u</strong><label className="wb-mech-field"><span>Stabilizer</span><select aria-label={`Stabilizer for ${part.reference}`} value={current.kind} onChange={event => update({ stabilizers: [...(config.stabilizers ?? []).filter(entry => entry.partId !== part.id), { ...current, kind: event.target.value as MechanicalStabilizerOverride['kind'] }] })}><option value="pcb-mount">Cherry PCB mount · {stabilizer.units}u</option><option value="none">None</option>{current.profile && <option value="plate-mount">Custom plate mount</option>}</select></label><p className="wb-mech-hint">Size and orientation follow the key layout.</p></div>;
         })}
-        {!document.parts.some((part) => definitions.find((definition) => definition.id === part.definitionId)?.kind === 'switch') && <p className="wb-mech-hint">Place switch instances to set stabilizer fit.</p>}
+        {!candidates.length && <p className="wb-mech-hint">No keys in this layout need stabilizers.</p>}
       </InspectorSection>
 
       </section>

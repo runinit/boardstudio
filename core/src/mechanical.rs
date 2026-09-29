@@ -1356,10 +1356,11 @@ fn construct_bodies(
                     let mut mounts = config.closure_mounts.clone().unwrap_or_default();
                     mounts.extend(suspension_bosses.clone());
                     mounts
-                } else if id == "plate" && config.mount == MechanicalMount::Rigid {
+                } else if id == "plate" {
                     let mut mounts: Vec<Mount> = config
                         .mounts
                         .iter()
+                        .filter(|_| config.mount == MechanicalMount::Rigid)
                         .map(|mount| {
                             let mut hole = mount.clone();
                             hole.kind = MountKind::Hole;
@@ -1368,9 +1369,15 @@ fn construct_bodies(
                             hole
                         })
                         .collect();
-                    if config.integrated_plate_frame {
-                        mounts.extend(config.closure_mounts.clone().unwrap_or_default());
-                    }
+                    mounts.extend(config.closure_mounts.iter().flatten().map(|mount| {
+                        let mut mating = mount.clone();
+                        if !config.integrated_plate_frame {
+                            mating.kind = MountKind::Hole;
+                            mating.height = None;
+                            mating.boss_diameter = None;
+                        }
+                        mating
+                    }));
                     mounts
                 } else {
                     vec![]
@@ -1502,7 +1509,27 @@ fn finalize_assembly(
         });
     }
     if config.internal_gasket.is_none() || config.mount != MechanicalMount::Gasket {
-        result.suggested_mounts = crate::mechanical_checks::propose_mounts(config, &result.plate_contours);
+    let mut mounting_contours = result.plate_contours.clone();
+    let board = document.boards.iter().find(|board| board.id == config.board_id);
+    for part in document.parts.iter().filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id))) {
+        let Some(definition) = document.definitions.iter().find(|definition| definition.id == part.definition_id) else { continue };
+        if definition.kind != PartKind::Switch && definition.courtyard.len() >= 3 {
+            mounting_contours.push(Contour { hole: true, points: transform_part_points(part, &definition.courtyard) });
+        }
+        for pad in &definition.pads {
+            let (sin, cos) = pad.rotation.unwrap_or(0.0).to_radians().sin_cos();
+            let points = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(x, y)| Vec2 {
+                x: pad.at.x + x * pad.size.x / 2.0 * cos - y * pad.size.y / 2.0 * sin,
+                y: pad.at.y + x * pad.size.x / 2.0 * sin + y * pad.size.y / 2.0 * cos,
+            });
+            mounting_contours.push(Contour { hole: true, points: transform_part_points(part, &points) });
+        }
+    }
+    for opening in config.openings.iter().flatten() {
+        mounting_contours.push(Contour { hole: true, points: opening.points.clone() });
+    }
+    result.suggested_mounts =
+        crate::mechanical_checks::propose_mounts(config, &mounting_contours);
     }
     result.diagnostics.extend(crate::mechanical_checks::check(
         config,
@@ -1749,8 +1776,8 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         return result;
     };
     // PCB top is the stable zero plane; layers below it have negative Z.
-    let battery_z = bottom_foam_z - battery_height;
-    let bottom_z = battery_z - config.bottom_thickness;
+    let battery_z = if config.battery.is_some() { pcb_bottom - battery_height } else { bottom_foam_z - battery_height };
+    let bottom_z = bottom_foam_z.min(battery_z) - config.bottom_thickness;
     result.stack.extend(build_stack(
         config,
         pcb_bottom,

@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { configureMatrix } from './matrix-setup';
+async function configureMatrix(page: Page, rows: number, columns: number) {
+  await page.getByRole('button', { name: 'Add object', exact: true }).click();
+  await page.getByRole('button', { name: 'Mirrored pair…', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Rows per half', exact: true }).fill(String(rows));
+  await page.getByRole('spinbutton', { name: 'Columns per half', exact: true }).fill(String(columns));
+  await page.getByRole('button', { name: 'Preview placement', exact: true }).click();
+}
 
 declare global {
   interface Window {
@@ -38,7 +44,7 @@ test.beforeEach(async ({ page }) => {
 
 test('pointer motion translates cached origin projection without another core request', async ({ page }) => {
   await configureMatrix(page, 2, 2);
-  const ghost = page.locator('.is-placement-preview');
+  const ghost = page.locator('.is-placement-preview').first();
   await expect(ghost.locator('.wb-matrix-cell')).toHaveCount(4);
   await expect.poll(() => page.evaluate(() => window.matrixDraftTest.requests)).toBe(1);
   const canvas = page.locator('svg.wb-canvas');
@@ -69,12 +75,12 @@ test('cancelled and superseded draft replies cannot restore an obsolete ghost', 
   await configureMatrix(page, 3, 3);
   await expect.poll(() => page.evaluate(() => window.matrixDraftTest.requests)).toBe(3);
   await page.evaluate(() => window.matrixDraftTest.release(2));
-  await expect(page.locator('.is-placement-preview .wb-matrix-cell')).toHaveCount(9);
+  await expect(page.locator('.is-placement-preview .wb-matrix-cell')).toHaveCount(18);
   await page.evaluate(() => window.matrixDraftTest.release(1));
   await expect.poll(() => page.evaluate(() => window.matrixDraftTest.replies)).toBe(3);
   await nextPaint(page);
-  await expect(page.locator('.is-placement-preview .wb-matrix-cell')).toHaveCount(9);
-  await page.getByRole('button', { name: 'Ghost key, row 1, column 1' }).click();
+  await expect(page.locator('.is-placement-preview .wb-matrix-cell')).toHaveCount(18);
+  await page.getByRole('button', { name: 'Ghost key, row 1, column 1' }).first().click();
   await expect(page.locator('.is-placement-preview')).toHaveCount(0);
 });
 

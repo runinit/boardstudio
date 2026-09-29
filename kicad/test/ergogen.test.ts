@@ -154,7 +154,7 @@ test('KiCad 10 parses default board output from every bundled generator', { skip
 });
 
 test('standalone export batches all Ergogen generators and reports skipped board utilities', () => {
-  assert.equal(definitions.length, 37);
+  assert.equal(definitions.length, 36);
   const doc = emptyProject('ergogen-library', 'Ergogen library');
   doc.definitions = definitions;
   const paths = new Map(definitions.flatMap((item) => modelAssetIds(item).map((id) => [

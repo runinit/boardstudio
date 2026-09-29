@@ -29,3 +29,10 @@ test('origin snapping finds off-grid origins, corners and rotated physical edges
   expect(edge?.at).toEqual({ x: 3, y: 9 });
   expect(edge?.label).toContain('edge');
 });
+
+test('a controller snaps to the key gap and aligns its top edge in the same move', () => {
+  const controller: PartDefinition = { id: 'controller', name: 'Controller', kind: 'controller', pads: [], courtyard: [{x:-9,y:-16},{x:9,y:-16},{x:9,y:16},{x:-9,y:16}] };
+  const moving = { ...part('moving', 19.6), definitionId: controller.id, pose: { at: { x: 19.6, y: -6.4 }, rotation: 0 } };
+  const snap = snapPart(moving, [part('fixed', 0)], new Map([...definitions, [controller.id, controller]]), 1, 1);
+  expect(snap?.at).toEqual({ x: 19, y: -7 });
+});

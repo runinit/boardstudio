@@ -94,6 +94,28 @@ export async function deleteProject(id: string): Promise<void> {
   });
 }
 
+/** Replace project data atomically so a failed write cannot erase the old projects. */
+export async function resetLocalProjects(document: ProjectDoc): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction([PROJECT_STORE, ASSET_STORE], 'readwrite');
+    transaction.oncomplete = () => { db.close(); resolve(); };
+    transaction.onabort = () => { db.close(); reject(transaction.error ?? new Error('Local reset was cancelled')); };
+    try {
+      transaction.objectStore(PROJECT_STORE).clear();
+      transaction.objectStore(ASSET_STORE).clear();
+      transaction.objectStore(PROJECT_STORE).put(document);
+    } catch (error) {
+      transaction.abort();
+      reject(error);
+    }
+  });
+  localStorage.setItem(ACTIVE_PROJECT_KEY, document.id);
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('boardstudio:v2:setup-guide:')) localStorage.removeItem(key);
+  }
+}
+
 export async function saveAsset(sha256: string, bytes: Uint8Array): Promise<void> {
   const db = await openDb();
 

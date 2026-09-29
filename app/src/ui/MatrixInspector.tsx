@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type {
   EditCommand,
   Matrix,
@@ -10,7 +10,8 @@ import type {
   Vec2
 } from '../../../contracts/src/index';
 import { assemblyName, matrixPresetDefinitions, type MatrixPresetId } from './assemblyCatalog';
-import { type SwitchOrientation } from './assemblyPresets';
+import { reversibleLayout } from '../projectConstruction';
+import { type SwitchOrientation, type AssemblyConstruction } from './assemblyPresets';
 import { ToolIcon } from './CommandMenu';
 import { CaseNumber, OrientationControl } from './InspectorControls';
 import { InspectorSection } from './InspectorSection';
@@ -93,11 +94,18 @@ export const CellInspector = ({ matrix, scope, definitions, onChange, projection
   </section>;
 };
 
-export const MatrixEditor = ({ document, catalog, onEdit, scope, onDuplicateDesign }: { document: ProjectDoc; catalog: PartDefinition[]; onEdit: (command: EditCommand) => void; scope: SelectionScope | null; onDuplicateDesign?: (matrixId: string, presetId: MatrixPresetId, orientation?: SwitchOrientation) => void }) => {
+export const MatrixEditor = ({ document, catalog, onEdit, scope, onDuplicateDesign }: { document: ProjectDoc; catalog: PartDefinition[]; onEdit: (command: EditCommand) => void; scope: SelectionScope | null; onDuplicateDesign?: (matrixId: string, presetId: MatrixPresetId, orientation?: SwitchOrientation, construction?: AssemblyConstruction) => void }) => {
   const [presetError, setPresetError] = useState('');
   const [presetId, setPresetId] = useState<MatrixPresetId>('mx-solder');
   const [orientation, setOrientation] = useState<SwitchOrientation>('south');
   const matrix = document.matrices.find((item) => item.id === scope?.matrixId);
+  const construction: AssemblyConstruction = reversibleLayout(document) ? 'reversible' : 'single-sided';
+  useEffect(() => {
+    const variant = matrix?.cells?.find(cell => cell.definitionId === matrix.definitionId)?.variant;
+    const preset = variant?.split('/')[1];
+    if (preset && Object.hasOwn(matrixPresetDefinitions, preset)) setPresetId(preset as MatrixPresetId);
+    setOrientation(variant?.endsWith('/north') ? 'north' : 'south');
+  }, [matrix?.id, matrix?.definitionId, document.definitions]);
   const definitions = new Map(document.definitions.map((definition) => [definition.id, definition]));
   const commit = (next: Matrix, definitions?: PartDefinition[]) => onEdit({
     baseRevision: document.revision,
@@ -142,12 +150,12 @@ export const MatrixEditor = ({ document, catalog, onEdit, scope, onDuplicateDesi
         <div className="wb-inspector-actions">
           <button className="wb-secondary" onClick={() => {
             try {
-              const result = matrixWithPreset(matrix, presetId, orientation, document.definitions);
+              const result = matrixWithPreset(matrix, presetId, orientation, document.definitions, construction);
               setPresetError('');
               commit(result.matrix, result.definitions);
             } catch (error) { setPresetError(error instanceof Error ? error.message : String(error)); }
           }}>Update assembly preset</button>
-          <button className="wb-inspector-link" disabled={!onDuplicateDesign} onClick={() => onDuplicateDesign?.(matrix.id, presetId, orientation)}>Duplicate design as variant</button>
+          <button className="wb-inspector-link" disabled={!onDuplicateDesign} onClick={() => onDuplicateDesign?.(matrix.id, presetId, orientation, construction)}>Duplicate design as variant</button>
         </div>
         {presetError && <p role="alert">{presetError}</p>}
         <label className="wb-script-select-label">Switch footprint<select aria-label="Matrix part definition" value={matrix.definitionId} onChange={(event) => { const definition = catalog.find(item => item.id === event.target.value); if (definition) commit({ ...matrix, definitionId: definition.id }, [definition]); }}>

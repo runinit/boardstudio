@@ -29,7 +29,8 @@ function previewKeys(document: ProjectDoc) {
   });
 }
 
-function KeyboardPreview({ keys }: { keys: ReturnType<typeof previewKeys> }) {
+function KeyboardPreview({ keys, unavailable }: { keys: ReturnType<typeof previewKeys>; unavailable?: boolean }) {
+  if (unavailable) return <div className="wb-keyboard-preview is-empty"><ProjectLibraryIcon name="keyboard" /><span>Preview unavailable</span></div>;
   if (!keys.length) return <div className="wb-keyboard-preview is-empty"><ProjectLibraryIcon name="keyboard" /><span>No keys placed</span></div>;
   const extents = keys.map(key => {
     const angle = key.angle * Math.PI / 180;
@@ -44,12 +45,30 @@ function KeyboardPreview({ keys }: { keys: ReturnType<typeof previewKeys> }) {
   </svg></div>;
 }
 
-function KeyboardTile({ name, keys, boardCount, current, demo, onOpen, onDelete }: { name: string; keys: ReturnType<typeof previewKeys>; boardCount: number; current?: boolean; demo?: boolean; onOpen: () => void; onDelete?: () => void }) {
+function KeyboardTile({ name, keys, boardCount, current, demo, unavailable, onOpen, onDelete }: { name: string; keys: ReturnType<typeof previewKeys>; boardCount: number; current?: boolean; demo?: boolean; unavailable?: boolean; onOpen: () => void; onDelete?: () => void }) {
   return <div className="wb-keyboard-card"><button type="button" className={`wb-keyboard-tile${current ? ' is-current' : ''}`} aria-label={`${demo ? 'Start' : 'Open'} ${name}`} aria-current={current ? 'true' : undefined} onClick={onOpen}>
-    <KeyboardPreview keys={keys} />
+    <KeyboardPreview keys={keys} unavailable={unavailable} />
     <span className="wb-keyboard-tile-title">{name}</span>
-    <span className="wb-keyboard-tile-detail">{keys.length} keys · {boardCount > 1 ? `${boardCount} boards` : 'Single board'}{current && <span className="wb-keyboard-current"><ProjectLibraryIcon name="check" />Current</span>}</span>
+    <span className="wb-keyboard-tile-detail">{unavailable ? 'Open to check this keyboard' : `${keys.length} keys · ${boardCount > 1 ? `${boardCount} boards` : 'Single board'}`}{current && <span className="wb-keyboard-current"><ProjectLibraryIcon name="check" />Current</span>}</span>
   </button>{onDelete && <button type="button" className="wb-keyboard-delete" aria-label={`Delete ${name}`} title={`Delete ${name}`} onClick={onDelete}><ProjectLibraryIcon name="delete" /></button>}</div>;
+}
+
+function projectName(project: ProjectDoc): string {
+  return typeof project.name === 'string' && project.name.trim() ? project.name : 'Untitled keyboard';
+}
+
+function SavedKeyboardTile({ project, current, onOpen, onDelete }: { project: ProjectDoc; current: boolean; onOpen: () => void; onDelete?: () => void }) {
+  let keys: ReturnType<typeof previewKeys> = [];
+  let boardCount = 0;
+  let unavailable = false;
+  try {
+    keys = previewKeys(project);
+    boardCount = project.boards.length;
+  } catch {
+    // Older or damaged records must not prevent access to healthy keyboards or recovery.
+    unavailable = true;
+  }
+  return <KeyboardTile name={projectName(project)} keys={keys} boardCount={boardCount} current={current} unavailable={unavailable} onOpen={onOpen} onDelete={onDelete} />;
 }
 
 export function ProjectLibrary({ document, onOpen, onOpenDemo, onDelete }: { document: ProjectDoc; onOpen?: (id: string) => void; onOpenDemo?: (id: DemoId) => void; onDelete?: (id: string) => Promise<boolean> }) {
@@ -66,7 +85,7 @@ export function ProjectLibrary({ document, onOpen, onOpenDemo, onDelete }: { doc
 
   useEffect(() => {
     if (pendingDelete) dialog.current?.showModal();
-    else dialog.current?.close();
+    else if (dialog.current?.open) dialog.current.close();
   }, [pendingDelete?.id]);
 
   async function confirmDelete() {
@@ -99,8 +118,8 @@ export function ProjectLibrary({ document, onOpen, onOpenDemo, onDelete }: { doc
     return () => { cancelled = true; };
   }, [document.id, retry]);
 
-  const saved = [document, ...projects.filter(project => project.id !== document.id).sort((a, b) => a.name.localeCompare(b.name))];
-  const matches = saved.filter(project => project.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const saved = [document, ...projects.filter(project => project.id !== document.id).sort((a, b) => projectName(a).localeCompare(projectName(b)))];
+  const matches = saved.filter(project => projectName(project).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
 
   return <div className="wb-keyboard-library-scroll">
     <section aria-label="Your keyboards" className="wb-keyboard-section">
@@ -108,7 +127,7 @@ export function ProjectLibrary({ document, onOpen, onOpenDemo, onDelete }: { doc
       <div className="wb-keyboard-search"><ProjectLibraryIcon name="search" /><input ref={search} type="search" aria-label="Search saved keyboards" placeholder="Search your keyboards" value={query} onChange={event => setQuery(event.target.value)} />{query && <button onClick={() => setQuery('')}>Clear search</button>}</div>
       {status === 'loading' && <p role="status">Loading saved keyboards…</p>}
       {status === 'failed' && <p role="alert">Saved keyboards could not be loaded. <button className="wb-library-text-action" onClick={() => setRetry(value => value + 1)}>Try again</button></p>}
-      <div className="wb-keyboard-grid">{matches.map(project => <KeyboardTile key={project.id} name={project.name} keys={previewKeys(project)} boardCount={project.boards.length} current={project.id === document.id} onDelete={onDelete ? () => { setDeleteError(''); setPendingDelete(project); } : undefined} onOpen={() => onOpen?.(project.id)} />)}</div>
+      <div className="wb-keyboard-grid">{matches.map(project => <SavedKeyboardTile key={project.id} project={project} onDelete={onDelete ? () => { setDeleteError(''); setPendingDelete(project); } : undefined} current={project.id === document.id} onOpen={() => onOpen?.(project.id)} />)}</div>
       {!matches.length && <p className="wb-keyboard-empty">No keyboards match your search.</p>}
     </section>
     {onOpenDemo && <section aria-label="Demo keyboards" className="wb-keyboard-section wb-keyboard-demos">
