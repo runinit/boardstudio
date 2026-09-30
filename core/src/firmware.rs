@@ -34,6 +34,12 @@ pub struct FirmwareKey {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct FirmwareRequest {
+    #[serde(default)]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub keymap: Option<crate::model::KeymapConfiguration>,
+    #[serde(default)]
+    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<String>>", optional))]
+    pub encoder_ids: Vec<String>,
     pub controller_profile: String,
     pub board_name: String,
     pub rows: Vec<ScanPin>,
@@ -135,17 +141,15 @@ fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
     if !request.key_bindings.is_empty() && request.key_bindings.len() != request.keys.len() {
         return Err("Key bindings must match the current layout positions".into());
     }
-    if request.key_bindings.iter().any(|binding| {
-        binding != "&none"
-            && binding != "&trans"
-            && !binding.strip_prefix("&kp ").is_some_and(|key| {
-                !key.is_empty()
-                    && key
-                        .chars()
-                        .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
-            })
-    }) {
+    if request
+        .key_bindings
+        .iter()
+        .any(|b| !crate::keymap::legacy_binding(b))
+    {
         return Err("Unsupported key binding".into());
+    }
+    if let Some(map) = &request.keymap {
+        crate::keymap::validate(map)?;
     }
     let mut seen_gpio = std::collections::BTreeSet::new();
     if request
@@ -189,6 +193,17 @@ fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
 }
 
 pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
+    // An encoder-only board uses its push inputs as the primary direct scanner.
+    fn normalize_push_only(half: &mut FirmwareRequest) {
+        if half.mode == FirmwareScanMode::Direct && half.direct_pins.is_empty() && !half.auxiliary_pins.is_empty() {
+            half.direct_pins = std::mem::take(&mut half.auxiliary_pins);
+            for key in &mut half.keys { key.row = 0; }
+        }
+    }
+    let mut normalized = request.clone();
+    normalize_push_only(&mut normalized);
+    if let Some(half) = &mut normalized.peripheral { normalize_push_only(half); }
+    let request = &normalized;
     validate_half(request)?;
     let transport = request.transport.as_ref().map(|mode| match mode {
         SplitTransport::Wireless => "wireless",
@@ -235,7 +250,7 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
             column: key.column,
         }));
     }
-    let mut files = BTreeMap::new();
+    let mut files: BTreeMap<String, String> = BTreeMap::new();
     files.insert("config/boards/shields/boardstudio/Kconfig.shield".into(), "config SHIELD_BOARDSTUDIO\n    def_bool $(shields_list_contains,boardstudio)\n\nconfig SHIELD_BOARDSTUDIO_LEFT\n    def_bool $(shields_list_contains,boardstudio_left)\n\nconfig SHIELD_BOARDSTUDIO_RIGHT\n    def_bool $(shields_list_contains,boardstudio_right)\n".into());
     let mut all_keys = request.keys.clone();
     if let Some(peripheral) = request.peripheral.as_deref() {
@@ -243,7 +258,7 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     }
     files.insert(
         "config/boards/shields/boardstudio/boardstudio.keymap".into(),
-        keymap(&all_keys, request),
+        keymap(&all_keys, request)?,
     );
     let overlay_text = overlay(
         request,
@@ -320,6 +335,18 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
             "config/boards/shields/boardstudio/boardstudio.conf".into(),
             request.peripheral_config.join("\n"),
         );
+    }
+    if request
+        .keymap
+        .as_ref()
+        .is_some_and(|map| !map.macros.is_empty())
+    {
+        // 128 tap steps expand to 256 queued events; leave capacity for other inputs.
+        for (path, text) in &mut files {
+            if path.ends_with(".conf") {
+                text.push_str("\nCONFIG_ZMK_BEHAVIORS_QUEUE_SIZE=512\n");
+            }
+        }
     }
     Ok(FirmwarePackage {
         files,
@@ -468,7 +495,7 @@ fn gpio_spec_flags(gpio: &str, flags: &str) -> String {
     }
 }
 
-fn keymap(keys: &[FirmwareKey], request: &FirmwareRequest) -> String {
+fn keymap(keys: &[FirmwareKey], request: &FirmwareRequest) -> Result<String, String> {
     let mut values = if request.key_bindings.is_empty() {
         vec!["&none".to_string(); request.keys.len()]
     } else {
@@ -482,11 +509,19 @@ fn keymap(keys: &[FirmwareKey], request: &FirmwareRequest) -> String {
         });
     }
     debug_assert_eq!(values.len(), keys.len());
+    if let Some(map) = &request.keymap {
+        let ids = keys.iter().map(|key| key.id.clone()).collect::<Vec<_>>();
+        let mut encoders = request.encoder_ids.clone();
+        if let Some(half) = &request.peripheral {
+            encoders.extend(half.encoder_ids.clone());
+        }
+        return crate::keymap::source(map, &ids, &values, &encoders);
+    }
     let bindings = values.join(" ");
-    format!(
+    Ok(format!(
         "#include <behaviors.dtsi>\n#include <dt-bindings/zmk/keys.h>\n\n/ {{\n    keymap {{ compatible = \"zmk,keymap\"; default_layer {{ bindings = <{}>; }}; }};\n}};\n",
         bindings
-    )
+    ))
 }
 
 fn local_build_script(request: &FirmwareRequest) -> String {
@@ -563,6 +598,8 @@ mod tests {
     use super::*;
     fn request() -> FirmwareRequest {
         FirmwareRequest {
+            keymap: None,
+            encoder_ids: vec![],
             controller_profile: "ceoloide/mcu_nice_nano".into(),
             board_name: "test".into(),
             rows: vec![ScanPin {

@@ -342,6 +342,7 @@ pub(crate) struct ComposedOutline {
     pub findings: Vec<Finding>,
     pub bridges: Vec<crate::model::OutlineBridge>,
     pub gaps: Vec<crate::model::OutlineGap>,
+    pub corner_locations: Vec<Vec2>,
 }
 fn compose<'a>(
     features: impl Iterator<Item = &'a OutlineFeature>,
@@ -455,9 +456,11 @@ fn compose<'a>(
         });
     }
     let source = contours(&shapes);
+    let mut corner_locations = vec![];
     if let Some(settings) = finishing {
         match automatic::finish(shapes.clone(), settings) {
-            Ok((finished, reduced)) => {
+            Ok((finished, reduced, locations)) => {
+                corner_locations = locations;
                 shapes = finished;
                 if let Some(actual) = reduced {
                     findings.push(Finding {id:"outline:corners:fitted".into(),severity:Severity::Warning,scope:Scope::Outline,message:format!("Corner size reduced from {} mm to as little as {:.3} mm to fit nearby edges",settings.size,actual),target_ids:target_ids.clone()});
@@ -474,6 +477,7 @@ fn compose<'a>(
     }
     ComposedOutline {
         source,
+        corner_locations,
         contours: contours(&shapes),
         findings,
         bridges,
@@ -611,11 +615,17 @@ pub(crate) fn board_outline_scenes(
 pub fn board_contours(
     doc: &ProjectDoc,
     cache: &OutlineCache,
-) -> (Vec<crate::model::BoardContours>, Vec<Finding>) {
+) -> (
+    Vec<crate::model::BoardContours>,
+    Vec<Finding>,
+    Vec<crate::model::FindingMarker>,
+) {
     let mut boards = Vec::with_capacity(doc.boards.len());
     let mut findings = vec![];
+    let mut markers = vec![];
     for board in &doc.boards {
         let result = board_source(doc, cache, board);
+        markers.extend(corner_markers_for(&board.id, &result.corner_locations));
         for problem in result.findings {
             findings.push(Finding {
                 id: format!("board:{}:feature:{}", board.id, problem.id),
@@ -633,7 +643,7 @@ pub fn board_contours(
             contours: result.contours,
         });
     }
-    (boards, findings)
+    (boards, findings, markers)
 }
 
 pub fn part_valid(part: &Part, doc: &ProjectDoc) -> bool {
@@ -825,4 +835,46 @@ mod tests {
     fn compare_200() {
         compare(200);
     }
+}
+
+/// Mark only the vertices where finishing actually reduced the requested size.
+fn corner_markers_for(board_id: &str, locations: &[Vec2]) -> Vec<crate::model::FindingMarker> {
+    if locations.is_empty() {
+        return vec![];
+    }
+    let contours: Vec<_> = locations
+        .iter()
+        .map(|p| Contour {
+            hole: false,
+            points: vec![
+                Vec2 {
+                    x: p.x - 0.8,
+                    y: p.y - 0.8,
+                },
+                Vec2 {
+                    x: p.x + 0.8,
+                    y: p.y - 0.8,
+                },
+                Vec2 {
+                    x: p.x + 0.8,
+                    y: p.y + 0.8,
+                },
+                Vec2 {
+                    x: p.x - 0.8,
+                    y: p.y + 0.8,
+                },
+            ],
+        })
+        .collect();
+    [
+        "outline:corners:fitted".to_owned(),
+        format!("board:{board_id}:feature:outline:corners:fitted"),
+    ]
+    .into_iter()
+    .map(|finding_id| crate::model::FindingMarker {
+        finding_id,
+        board_id: board_id.to_owned(),
+        contours: contours.clone(),
+    })
+    .collect()
 }

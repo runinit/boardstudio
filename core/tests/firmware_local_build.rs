@@ -7,6 +7,8 @@ fn local_script_executes_exact_build_arguments_and_preserves_manifest() {
     let root = std::env::temp_dir().join(format!("boardstudio local zmk {}", std::process::id()));
     fs::create_dir_all(root.join("bin")).unwrap();
     let request = FirmwareRequest {
+        keymap: None,
+        encoder_ids: vec![],
         controller_profile: "ceoloide/mcu_nice_nano".into(),
         board_name: "test".into(),
         rows: vec![ScanPin {

@@ -685,5 +685,32 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
             }
         }
     }
+    for board in &doc.boards {
+        for finding in findings.iter().filter(|finding| {
+            !finding.id.starts_with("keycaps/") && !finding.id.ends_with("outline:corners:fitted")
+        }) {
+            let contours: Vec<_> = doc
+                .parts
+                .iter()
+                .filter(|part| {
+                    board.part_ids.contains(&part.id) && finding.target_ids.contains(&part.id)
+                })
+                .filter_map(|part| {
+                    doc.definitions
+                        .iter()
+                        .find(|definition| definition.id == part.definition_id)
+                        .filter(|definition| !definition.courtyard.is_empty())
+                        .map(|definition| contour(world(part, &definition.courtyard)))
+                })
+                .collect();
+            if !contours.is_empty() {
+                markers.push(FindingMarker {
+                    finding_id: finding.id.clone(),
+                    board_id: board.id.clone(),
+                    contours,
+                });
+            }
+        }
+    }
     markers
 }

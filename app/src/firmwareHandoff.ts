@@ -34,8 +34,11 @@ export function firmwareRequest(document: ProjectDoc, plan: ElectricalPlan, peri
   const auxiliaryPins = auxiliary.map(item => pin(plan.peripheralTerminals[item.function], plan.peripheralPins[item.function]));
   auxiliary.forEach((item, index) => keys.push({ id: item.id, row: mode === 'direct' ? 1 : rows.length, column: index }));
   const configuredBindings = document.hardware?.boards.find(board => board.boardId === plan.boardId)?.keyBindings ?? {};
-  const peripherals = peripheralFirmware(plan);
+  const sensorIds = [...plan.peripherals, ...(peripheralPlan?.peripherals ?? [])].filter(item => item.kind === 'encoder').map(item => item.partId);
+  const peripherals = peripheralFirmware(plan, sensorIds);
   const request: FirmwareRequest = {
+    keymap: document.keymap ?? undefined,
+    encoder_ids: plan.peripherals.filter(item => item.kind === 'encoder').map(item => item.partId),
     controller_profile: controllerProfile!,
     board_name: plan.boardId ?? document.name,
     rows, columns, keys, diode_direction: plan.diodeDirection,
@@ -45,7 +48,7 @@ export function firmwareRequest(document: ProjectDoc, plan: ElectricalPlan, peri
     uart_rx: transport === 'wired' ? uartPin(plan, 'split-rx') : null,
     matrix_row_offset: 0,
     peripheral_overlays: peripherals.overlays,
-    peripheral: peripheralPlan ? { ...firmwareRequest({ ...document, hardware: { topology: 'unibody', transport: 'none', boards: document.hardware?.boards ?? [], instances: [], sharedConstruction: null } }, peripheralPlan).request, transport: transport === 'wireless' ? 'wireless' : transport === 'wired' ? 'wired-uart' : null, matrix_row_offset: plan.rowPins.length, uart_tx: transport === 'wired' ? uartPin(peripheralPlan, 'split-rx') : null, uart_rx: transport === 'wired' ? uartPin(peripheralPlan, 'split-tx') : null } : null,
+    peripheral: peripheralPlan ? { ...firmwareRequest({ ...document, hardware: { topology: 'unibody', transport: 'none', boards: document.hardware?.boards ?? [], instances: [], sharedConstruction: null } }, peripheralPlan).request, peripheral_overlays: peripheralFirmware(peripheralPlan, sensorIds).overlays, transport: transport === 'wireless' ? 'wireless' : transport === 'wired' ? 'wired-uart' : null, matrix_row_offset: plan.rowPins.length, uart_tx: transport === 'wired' ? uartPin(peripheralPlan, 'split-rx') : null, uart_rx: transport === 'wired' ? uartPin(peripheralPlan, 'split-tx') : null } : null,
   };
   return { request, warnings: plan.diagnostics.filter(d => d.severity !== 'error').map(d => d.message) };
 }

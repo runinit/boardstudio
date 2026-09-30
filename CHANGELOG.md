@@ -43,3 +43,26 @@
 - Validate all repository gate stages: 364 app tests, 205 production browser tests, package/build checks, and the corrected Pages smoke test; reopen actual STEP exports and inspect PCB artifacts.
 - Complete Impeccable desktop/mobile and light/dark review; harden saved-project failures and mechanical save transitions, polish mobile inputs and gallery tokens, and document detector advisories.
 - Review preservation against both inputs, verify all 58 source hashes, retain behavioral test assertions, and record integration instructions and verification limits in docs/ui-integration-validation.md.
+
+## 2026-09-30 (keymap workspace direction)
+- Record clean-room ZMK and DYA references, local editing/export scope, compatibility constraints, and approved public Rust/browser test boundaries.
+
+## 2026-09-30 (task tracking simplification)
+- Consolidate the current feature into three deliverables and group the existing backlog separately.
+
+## 2026-09-30 (keymap and Keycaps implementation)
+- Separate physical Keycaps settings from logical keymap editing and preserve settings, legacy base bindings, Undo and project round trips.
+- Add Rust-owned layers, hold taps, layer actions, sticky keys, macros and encoder assignments with validated field edits and deterministic ZMK export.
+- Verify layer/macro persistence and encoder rotation/push export through browser workflows; preserve sibling edits and bound expanded macro bindings and queue capacity.
+
+## 2026-09-30 (located finding navigation)
+- Carry reduced-corner locations from finishing geometry and reuse resolved keycap envelopes for clearance markers.
+- Route Keycaps and assembly finding actions through shared navigation, preserve focus when changing workspace, and scope markers to the active board.
+- Highlight known mount/gasket positions in assembly views and retain layer selection when diagnostics provide no point location.
+- Verify fitted-corner and cross-workspace clearance navigation with browser regressions and preserve precise markers over generic object fallbacks.
+
+## 2026-09-30 (keymap verification and completion)
+- Pass 334 core, 26 renderer, 469 app, 23 native CAD, 49 JavaScript CAD and 35 KiCad tests plus Ergogen verification.
+- Pass 23 browser scenarios, contract/runtime/repository checks, core WASM and app production builds, and native/WASM parity.
+- Resolve standards/spec review findings and record the bounded design review, supported behaviors and source/device verification limits.
+- Finish the three current deliverables while preserving the earlier backlog and recovered worktrees.

@@ -22,7 +22,7 @@ import { getBounds } from './canvasBounds';
 import { type MatrixScene } from './matrixGeometry';
 import { type WiringAssignment } from './WiringPanel';
 
-export type Mode = 'Design' | 'PCB' | 'Keymap' | 'Case' | 'Library' | 'Export';
+export type Mode = 'Design' | 'PCB' | 'Keymap' | 'Keycaps' | 'Case' | 'Library' | 'Export';
 
 export type { ExportKind } from '../exports/context';
 import type { ExportKind } from '../exports/context';
@@ -48,7 +48,7 @@ export type Props = {
   onSelectCaseInstance?: (id: string, boardId: string) => void;
   setupControls?: ReactNode;
   wiringStatus?: { current: boolean; ready: boolean; applied: boolean };
-  wiring?: { existingConnections?: { names: string[]; pinCount: number; onReplace: () => void }; ready?: boolean; firmwareControls?: ReactNode; controller?: { name: string; detail?: string }; controllerOptions?: { id: string; name: string; detail?: string }[]; selectedControllerId?: string; onControllerChange?: (id: string) => void; topology?: string; onTopologyChange?: (topology: 'matrix' | 'direct') => void; assignments?: WiringAssignment[]; usedPins?: string[]; freePins?: string[]; findings?: string[]; onToggleLock?: (assignment: WiringAssignment) => void; onAssignPin?: (assignmentId: string, pin: string) => void; protectedSummary?: string; onReviewRemap?: () => void };
+  wiring?: { existingConnections?: { names: string[]; pinCount: number; onReplace: () => void }; ready?: boolean; firmwareControls?: ReactNode; encoders?: { id: string; name: string }[]; controller?: { name: string; detail?: string }; controllerOptions?: { id: string; name: string; detail?: string }[]; selectedControllerId?: string; onControllerChange?: (id: string) => void; topology?: string; onTopologyChange?: (topology: 'matrix' | 'direct') => void; assignments?: WiringAssignment[]; usedPins?: string[]; freePins?: string[]; findings?: string[]; onToggleLock?: (assignment: WiringAssignment) => void; onAssignPin?: (assignmentId: string, pin: string) => void; protectedSummary?: string; onReviewRemap?: () => void };
   onResolveWiring?: () => void;
   onApplyWiring?: () => void;
   onReviewWiring?: (assignment: WiringAssignment) => void;

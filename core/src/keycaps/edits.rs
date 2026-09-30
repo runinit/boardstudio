@@ -36,6 +36,27 @@ pub(crate) fn apply_edit(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec
                 }
             };
             board.key_bindings.insert(key_id.clone(), binding.clone());
+            if let Some(map) = &mut doc.keymap {
+                let value = if let Some(code) = binding
+                    .strip_prefix("&kp ")
+                    .filter(|code| crate::keymap::keycode(code))
+                {
+                    KeyBinding::KeyPress {
+                        keycode: code.into(),
+                    }
+                } else if binding == "&trans" {
+                    KeyBinding::Transparent
+                } else if binding == "&none" {
+                    KeyBinding::None
+                } else {
+                    return Err("Use the structured Keymap editor for this behavior".into());
+                };
+                map.layers
+                    .first_mut()
+                    .ok_or("Keymap needs a base layer")?
+                    .bindings
+                    .insert(key_id.clone(), value);
+            }
             Ok(vec![board_id.clone(), key_id.clone()])
         }
         EditOperation::SetKeycapBoard { board_id, change } => {

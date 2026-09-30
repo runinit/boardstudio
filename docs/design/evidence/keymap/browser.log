@@ -1,0 +1,32 @@
+[WebServer] (node:305982) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 23 tests using 1 worker
+
+(node:306058) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/finding-locations.spec.ts:6:1 › Show outline highlights reduced corners instead of the whole perimeter (1.1s)
+  ✓   2 e2e/finding-locations.spec.ts:21:1 › Keycaps finding action retains its highlight after changing workspace (996ms)
+  ✓   3 e2e/keycaps.spec.ts:8:1 › keymap profiles, legends, colors, Undo, persistence, CAD preview and exports (6.5s)
+  ✓   4 e2e/keycaps.spec.ts:66:1 › keymap controls remain usable on a narrow screen (1.0s)
+  ✓   5 e2e/keymap-workspace.spec.ts:7:1 › layers, hold taps and structured macros persist and export through Rust (2.0s)
+  ✓   6 e2e/keymap-workspace.spec.ts:43:1 › keymap controls fit a narrow viewport (952ms)
+  ✓   7 e2e/keymap-workspace.spec.ts:52:1 › encoder rotation and push bindings reach the local ZMK package (1.4s)
+  ✓   8 e2e/outline-editing.spec.ts:19:1 › outline points use the mm grid, drag cancellation, numeric edits, undo and reload (1.9s)
+  ✓   9 e2e/outline-editing.spec.ts:62:1 › manual connection endpoints follow components and positive width persists (1.3s)
+  ✓  10 e2e/outline-editing.spec.ts:86:1 › selected point is shared with the inspector and drawing can undo or cancel without changing the board (940ms)
+  ✓  11 e2e/outline-editing.spec.ts:118:1 › mobile outline drawing closes panels and supports undo and closing at the first point (1.4s)
+  ✓  12 e2e/outline-snapping.spec.ts:3:1 › outline editing exposes the same snap settings as layout (788ms)
+  ✓  13 e2e/outline-snapping.spec.ts:23:1 › drawing and perimeter dragging show right-edge guides, snap the preview and click alike, and release with Alt (1.1s)
+  ✓  14 e2e/outline-snapping.spec.ts:61:1 › a drawn addition closes a shallow recess with material rather than a new cutout (893ms)
+  ✓  15 e2e/outline-versions.spec.ts:31:1 › retained red gaps repair, Keep gap persists, and bridge references highlight the same material (2.0s)
+  ✓  16 e2e/outline-versions.spec.ts:80:1 › first edit creates a fixed version, lifecycle supports Undo, and invalid active output stays editable and saveable (2.7s)
+  ✓  17 e2e/outline.spec.ts:35:1 › deleting a corner changes the perimeter, finishing and exports follow it, and undo restores it (1.9s)
+  ✓  18 e2e/outline.spec.ts:82:1 › draws additions and persistent cutouts without duplicate double-click vertices (944ms)
+  ✓  19 e2e/outline.spec.ts:111:1 › part inclusion and margin controls survive save and affect the contour (1.2s)
+  ✓  20 e2e/outline.spec.ts:137:1 › outline settings fit desktop and mobile and invalid drawings block exports (762ms)
+  ✓  21 e2e/outline.spec.ts:156:1 › deleted matrix corners remain empty after resizing and rotation follows the contour frame (1.2s)
+  ✓  22 e2e/outline.spec.ts:181:1 › definition keycaps update the outline and per-instance overrides can be reset (1.2s)
+  ✓  23 e2e/outline.spec.ts:200:1 › a newly introduced library definition joins the board automatic envelope (794ms)
+
+  23 passed (35.9s)

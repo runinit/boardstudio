@@ -1,74 +1,61 @@
 import { useState } from 'react';
-import type { EditOperation, KeycapBoardChange, KeycapKeyChange, KeycapMatrixChange, KeycapKeySettings, KeycapMatrixSettings, KeycapProfile } from '@boardstudio/v2-contracts';
-import { defaultKeycapKey } from '../keycapSettings';
+import type { KeyBinding, KeymapChange, KeymapConfiguration, KeymapLayer, KeymapMacro, MacroStep, MacroChange } from '@boardstudio/v2-contracts';
 import type { KeymapView } from './createKeymapWorkspace';
-import { bindingLabel, keyBindingChoices } from './keyBindingChoices';
+import { KeyBindingEditor, bindingTitle } from './KeyBindingEditor';
 import { InspectorSection } from './InspectorSection';
 import './keymap.css';
 
-const profiles: readonly (readonly [KeycapProfile, string])[] = [['cherry', 'Cherry'], ['oem', 'OEM'], ['dcs', 'DCS'], ['dsa', 'DSA'], ['sa', 'SA'], ['hi-pro', 'Hi-Pro'], ['g20', 'G20'], ['choc', 'Choc']];
-const profileOptions = <><option value="">No generated keycap</option>{profiles.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</>;
-export function KeymapPanel({ view, selectedKeyId, onEdit, onSelect, onExport, onExportKeycaps, findings, firmwareControls }: {
-  view: KeymapView; selectedKeyId?: string;
-  onEdit: (operation: EditOperation) => void; onSelect: (id: string) => void; onExport: () => void; onExportKeycaps: () => void;
-  findings: string[]; firmwareControls?: React.ReactNode;
+export function KeymapPanel({ view, map, layer, selectedKeyId, onLayer, onSelect, bindingFor, onChange, onExport, encoders }: {
+  view: KeymapView; map: KeymapConfiguration; layer: KeymapLayer; selectedKeyId?: string;
+  onLayer: (id: string) => void; onSelect: (id: string) => void; bindingFor: (id: string) => KeyBinding;
+  onChange: (change: KeymapChange) => void; onExport: () => void; encoders: { id: string; name: string }[];
 }) {
-  const { boardId, keys, colors, matrices } = view;
-  const selectedKey = keys.find(key => key.part.id === selectedKeyId);
-  const part = selectedKey?.part;
-  const override = selectedKey?.settings ?? defaultKeycapKey;
-  const binding = selectedKey?.binding ?? '&none';
   const [query, setQuery] = useState('');
-  const setKey = (change: KeycapKeyChange) => { if (part) onEdit({ kind: 'set-keycap-key', keyId: part.id, change }); };
-  const setMatrix = (matrixId: string, change: KeycapMatrixChange) => onEdit({ kind: 'set-matrix-keycaps', matrixId, change });
-  const setBoard = (change: KeycapBoardChange) => onEdit({ kind: 'set-keycap-board', boardId, change });
+  const [section, setSection] = useState<'keys' | 'macros' | 'encoders'>('keys');
+  const selected = view.keys.find(key => key.part.id === selectedKeyId);
+  const addLayer = () => { const id = crypto.randomUUID(); onChange({ kind: 'add-layer', id, name: `Layer ${map.layers.length}` }); onLayer(id); };
   return <div className="wb-keymap-panel">
-    <div className="wb-inspect-head"><h2>Keymap & keycaps</h2><span>{keys.filter(key => key.binding !== '&none').length}/{keys.length} assigned</span></div>
-    {!keys.length && <p className="wb-empty-note">Add switches in Layout to create a keymap.</p>}
-    <InspectorSection title="Board colors" defaultOpen>
-      <label>Keycap color<input aria-label="Board keycap color" type="color" value={colors.color} onChange={event => setBoard({ kind: 'color', value: event.target.value })} /></label>
-      <label>Legend color<input aria-label="Board legend color" type="color" value={colors.legendColor} onChange={event => setBoard({ kind: 'legend-color', value: event.target.value })} /></label>
-      <label>Minimum clearance (mm)<input aria-label="Keycap clearance" type="number" min="0" max="5" step="0.1" value={colors.clearance} onChange={event => { if (event.target.value !== '') setBoard({ kind: 'clearance', value: Number(event.target.value) }); }} /></label>
+    <div className="wb-inspect-head"><h2>Keymap</h2><span>{map.layers.length} layers · {view.keys.length} keys</span></div>
+    <InspectorSection title="Layers" defaultOpen>
+      <div className="wb-layer-list" role="group" aria-label="Keymap layers">{map.layers.map((entry, index) => <button key={entry.id} aria-pressed={entry.id === layer.id} onClick={() => onLayer(entry.id)}><span>{index}</span>{entry.name}</button>)}</div>
+      <button disabled={map.layers.length >= 32} onClick={addLayer}>Add layer</button>
+      <label>Layer name<input aria-label="Layer name" maxLength={32} key={`${layer.id}:${layer.name}`} defaultValue={layer.name} onBlur={event => { if (event.target.value !== layer.name) onChange({ kind: 'rename-layer', id: layer.id, name: event.target.value }); }} /></label>
+      {layer.id !== map.layers[0].id && <button onClick={() => onChange({ kind: 'remove-layer', id: layer.id })}>Remove layer</button>}
+      <p className="wb-empty-note">Higher layers take precedence. Transparent keys fall through to the layer below.</p>
     </InspectorSection>
-    <InspectorSection title="Matrix profiles" defaultOpen>
-      {matrices.map(matrix => {
-        const setting = matrix.settings;
-        return <fieldset className="wb-keycap-matrix" key={matrix.id}><legend>{matrix.name}</legend>
-          <label>Profile<select aria-label={`Keycap profile for ${matrix.name}`} value={setting.profile ?? ''} onChange={event => setMatrix(matrix.id, { kind: 'profile', value: event.target.value as KeycapProfile || null })}>{profileOptions}</select></label>
-          <details><summary>Profile dimensions & socket</summary>
-            <label>First profile row<input aria-label={`First profile row for ${matrix.name}`} type="number" min="1" max="5" step="1" value={setting.firstRow} onChange={event => { if (event.target.value) setMatrix(matrix.id, { kind: 'first-row', value: Number(event.target.value) }); }} /></label>
-            <label>Wall thickness (mm)<input type="number" min="0.8" max="2" step="0.1" value={setting.wallThickness} onChange={event => { if (event.target.value) setMatrix(matrix.id, { kind: 'wall-thickness', value: Number(event.target.value) }); }} /></label>
-            <label>Socket<select aria-label={`Keycap socket for ${matrix.name}`} value={setting.mount ?? ''} onChange={event => setMatrix(matrix.id, { kind: 'mount', value: event.target.value as KeycapMatrixSettings['mount'] || null })}><option value="">From switch profile</option><option value="mx">MX cross</option><option value="choc-v1">Choc v1</option><option value="choc-v2">Choc v2 cross</option><option value="alps">Alps</option></select></label>
-          </details>
-        </fieldset>;
-      })}
-      {!matrices.length && <p className="wb-empty-note">Standalone switches use their individual profile override.</p>}
-    </InspectorSection>
-    <InspectorSection title={part ? `${part.reference} · key` : 'Select a key'} defaultOpen>
+    <div className="wb-keymap-actions" role="group" aria-label="Keymap editors">{(['keys', 'macros', 'encoders'] as const).map(tab => <button key={tab} aria-pressed={section === tab} onClick={() => setSection(tab)}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}</div>
+    {section === 'keys' && <InspectorSection title={selected ? `${selected.part.reference} · ${layer.name}` : 'Select a key'} defaultOpen>
       <label>Find a key<input type="search" aria-label="Find a key" value={query} onChange={event => setQuery(event.target.value)} /></label>
-      <label>Selected key<select aria-label="Selected key" value={part?.id ?? ''} onChange={event => onSelect(event.target.value)}><option value="">Choose on the layout…</option>{keys.filter(key => `${key.part.reference} ${bindingLabel(key.binding)}`.toLowerCase().includes(query.toLowerCase())).map(key => <option key={key.part.id} value={key.part.id}>{key.part.reference} · {bindingLabel(key.binding) || 'Unassigned'}</option>)}</select></label>
-      {part && <div key={part.id}>
-        <label>ZMK binding<select aria-label={`Binding for ${part.reference}`} value={binding} onChange={event => onEdit({ kind: 'set-key-binding', boardId, keyId: part.id, binding: event.target.value })}>{!keyBindingChoices.some(([value]) => value === binding) && <option value={binding}>{binding}</option>}{keyBindingChoices.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label>Legend<input aria-label={`Legend for ${part.reference}`} maxLength={12} defaultValue={override.legend ?? ''} key={`${part.id}:${override.legend ?? 'auto'}`} placeholder={bindingLabel(binding) || 'From binding'} onBlur={event => { if (event.target.value !== (override.legend ?? '')) setKey({ kind: 'legend', value: event.target.value }); }} /></label>
-        <div className="wb-keymap-actions"><button onClick={() => setKey({ kind: 'legend', value: null })}>Use binding legend</button><button onClick={() => setKey({ kind: 'legend', value: '' })}>Blank keycap</button></div>
-        <label>Keycap color<input aria-label={`Keycap color for ${part.reference}`} type="color" value={override.color ?? colors.color} onChange={event => setKey({ kind: 'color', value: event.target.value })} /></label>
-        {override.color && <button onClick={() => setKey({ kind: 'color', value: null })}>Use board color</button>}
-        <details><summary>Keycap overrides</summary>
-          <label>Profile<select aria-label={`Profile override for ${part.reference}`} value={override.profile ?? ''} onChange={event => setKey({ kind: 'profile', value: event.target.value as KeycapProfile || null })}><option value="">From matrix</option>{profiles.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
-          <label>Socket<select aria-label={`Socket override for ${part.reference}`} value={override.mount ?? ''} onChange={event => setKey({ kind: 'mount', value: event.target.value as KeycapKeySettings['mount'] || null })}><option value="">From matrix / switch</option><option value="mx">MX cross</option><option value="choc-v1">Choc v1</option><option value="choc-v2">Choc v2 cross</option><option value="alps">Alps</option></select></label>
-          <label>Profile row<input type="number" aria-label={`Profile row for ${part.reference}`} min="1" max="5" value={override.row ?? ''} placeholder="From matrix" onChange={event => setKey({ kind: 'row', value: event.target.value ? Number(event.target.value) : null })} /></label>
-          <label>Width (u)<input aria-label={`Keycap width for ${part.reference}`} type="number" min="0.75" max="7" step="0.25" value={override.units?.x ?? ''} placeholder="From envelope" onChange={event => setKey({ kind: 'units', value: event.target.value ? { x: Number(event.target.value), y: override.units?.y ?? 1 } : null })} /></label>
-          <label>Depth (u)<input aria-label={`Keycap depth for ${part.reference}`} type="number" min="0.75" max="7" step="0.25" value={override.units?.y ?? ''} placeholder="From envelope" onChange={event => setKey({ kind: 'units', value: event.target.value ? { x: override.units?.x ?? 1, y: Number(event.target.value) } : null })} /></label>
-        </details>
-      </div>}
-    </InspectorSection>
-    {firmwareControls && <InspectorSection title="All firmware positions">{firmwareControls}</InspectorSection>}
-    <InspectorSection title="Clearance findings" detail={`${findings.length}`} defaultOpen={findings.length > 0}>
-      {findings.map((finding, index) => <p key={index} className="wb-empty-note">{finding}</p>)}
-      <p className="wb-empty-note">Checks use conservative keycap envelopes through full switch travel. Generate the Case assembly to check its walls and solids.</p>
-    </InspectorSection>
-    <button disabled={!keys.length} onClick={onExportKeycaps}>Export keycap STEP</button>
-    <button className="wb-primary" disabled={!keys.length} onClick={onExport}>Export ZMK source</button>
-    <p className="wb-empty-note">Includes the keymap, resolved scan pins, and a local build script. Configure the controller and wiring in PCB before export.</p>
+      <label>Selected key<select aria-label="Selected key" value={selected?.part.id ?? ''} onChange={event => onSelect(event.target.value)}><option value="">Choose on the layout…</option>{view.keys.filter(key => `${key.part.reference} ${bindingTitle(bindingFor(key.part.id), map)}`.toLowerCase().includes(query.toLowerCase())).map(key => <option key={key.part.id} value={key.part.id}>{key.part.reference} · {bindingTitle(bindingFor(key.part.id), map)}</option>)}</select></label>
+      {selected ? <KeyBindingEditor label={selected.part.reference} value={bindingFor(selected.part.id)} map={map} onChange={binding => onChange({ kind: 'binding', layerId: layer.id, keyId: selected.part.id, binding })} /> : <p className="wb-empty-note">Select a switch on the layout to assign its behavior.</p>}
+    </InspectorSection>}
+    {section === 'macros' && <InspectorSection title="Macros" defaultOpen>
+      {map.macros.map(macro => <MacroEditor key={macro.id} macro={macro} onChange={change => onChange({ kind: 'edit-macro', macroId: macro.id, change })} onRemove={() => onChange({ kind: 'remove-macro', id: macro.id })} />)}
+      {!map.macros.length && <p className="wb-empty-note">Build a sequence of key taps, presses, releases and delays, then assign it to a key.</p>}
+      <button onClick={() => onChange({ kind: 'save-macro', value: { id: crypto.randomUUID(), name: `Macro ${map.macros.length + 1}`, tapMs: 30, waitMs: 0, steps: [{ kind: 'tap', binding: { kind: 'key-press', keycode: 'A' } }] } })}>Add macro</button>
+    </InspectorSection>}
+    {section === 'encoders' && <InspectorSection title={`Encoders · ${layer.name}`} defaultOpen>
+      {!encoders.length && <p className="wb-empty-note">Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here.</p>}
+      {encoders.map(encoder => {
+        const value = layer.sensors[encoder.id] ?? { clockwise: { kind: 'none' as const }, counterclockwise: { kind: 'none' as const } };
+        return <div key={encoder.id}><h3>{encoder.name}</h3>{(['clockwise', 'counterclockwise'] as const).map(direction => <details key={direction} open><summary>{direction === 'clockwise' ? 'Clockwise' : 'Counterclockwise'}</summary><KeyBindingEditor label={`${encoder.name} ${direction}`} value={value[direction]} map={map} onChange={binding => onChange({ kind: 'encoder', layerId: layer.id, encoderId: encoder.id, direction, binding })} /></details>)}<details><summary>Push button</summary><KeyBindingEditor label={`${encoder.name} push`} value={bindingFor(`${encoder.id}/push`)} map={map} onChange={binding => onChange({ kind: 'binding', layerId: layer.id, keyId: `${encoder.id}/push`, binding })} /></details></div>;
+      })}
+    </InspectorSection>}
+    <button className="wb-primary" disabled={!view.keys.length && !encoders.length} onClick={onExport}>Export ZMK source</button>
+    <p className="wb-empty-note">Local source export. Configure controller and wiring in PCB before building firmware.</p>
   </div>;
+}
+function MacroEditor({ macro, onChange, onRemove }: { macro: KeymapMacro; onChange: (change: MacroChange) => void; onRemove: () => void }) {
+  const update = (index: number, step: MacroStep) => onChange({ kind: 'step', index, value: step });
+  return <fieldset className="wb-keycap-matrix"><legend>{macro.name}</legend>
+    <label>Name<input aria-label={`Macro name ${macro.name}`} maxLength={32} key={macro.name} defaultValue={macro.name} onBlur={event => { if (event.target.value !== macro.name) onChange({ kind: 'name', value: event.target.value }); }} /></label>
+    {(['tapMs', 'waitMs'] as const).map(field => <label key={field}>{field === 'tapMs' ? 'Tap duration (ms)' : 'Between actions (ms)'}<input aria-label={`${macro.name} ${field}`} type="number" min={0} max={10000} defaultValue={macro[field]} key={macro[field]} onBlur={event => { const value = Number(event.target.value); if (value !== macro[field]) onChange({ kind: field === 'tapMs' ? 'tap-ms' : 'wait-ms', value }); }} /></label>)}
+    {macro.steps.map((step, index) => <div className="wb-macro-step" key={index}>
+      <label>Step {index + 1}<select aria-label={`${macro.name} step ${index + 1}`} value={step.kind} onChange={event => update(index, event.target.value === 'wait' ? { kind: 'wait', ms: 100 } : { kind: event.target.value as 'tap' | 'press' | 'release', binding: { kind: 'key-press', keycode: 'A' } })}>{['tap', 'press', 'release', 'wait'].map(kind => <option key={kind}>{kind}</option>)}</select></label>
+      {step.kind === 'wait' ? <label>Delay (ms)<input type="number" min={0} max={10000} defaultValue={step.ms} key={step.ms} onBlur={event => { const ms = Number(event.target.value); if (ms !== step.ms) update(index, { ...step, ms }); }} /></label> : <label>Keycode<input defaultValue={'keycode' in step.binding ? step.binding.keycode : ''} key={JSON.stringify(step.binding)} onBlur={event => { const keycode = event.target.value.trim(); if (!('keycode' in step.binding) || keycode !== step.binding.keycode) update(index, { ...step, binding: { kind: 'key-press', keycode } }); }} /></label>}
+      <button disabled={macro.steps.length === 1} onClick={() => onChange({ kind: 'remove-step', index })}>Remove step {index + 1}</button>
+    </div>)}
+    <button disabled={macro.steps.length >= 128} onClick={() => onChange({ kind: 'add-step', value: { kind: 'tap', binding: { kind: 'key-press', keycode: 'A' } } })}>Add step</button>
+    <button onClick={onRemove}>Remove macro</button>
+  </fieldset>;
 }

@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
-import type { EditOperation, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part, PartDefinition, ProjectDoc, SceneDelta, Vec2 } from '@boardstudio/v2-contracts';
+import type { KeyBinding, KeymapConfiguration, EditOperation, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part, PartDefinition, ProjectDoc, SceneDelta, Vec2 } from '@boardstudio/v2-contracts';
 import { defaultKeycapBoard, defaultKeycapKey, defaultKeycapMatrix, keyBinding } from '../keycapSettings';
 import { bindingLabel } from './keyBindingChoices';
 import { KeymapLayout } from './KeymapLayout';
+import { KeycapPanel } from './KeycapPanel';
+import { bindingTitle } from './KeyBindingEditor';
 import { KeymapPanel } from './KeymapPanel';
 import type { ExportKind } from './workbenchTypes';
 
@@ -25,10 +27,14 @@ type Inputs = {
   emit: (operation: EditOperation, targetIds: string[]) => unknown;
   exportFile: (kind: ExportKind, boardId: string) => void;
   firmwareControls?: ReactNode;
+  encoders?: { id: string; name: string }[];
+  showFinding: (finding: SceneDelta['findings'][number]) => void;
+  layerId: string;
+  onLayer: (id: string) => void;
 };
 
 /** Both keymap surfaces share membership, presentation defaults, and edit targets. */
-export function createKeymapWorkspace({ document, scene, boardId, parts, definitions, selected, selectedKeyId, selectKey, emit, exportFile, firmwareControls }: Inputs) {
+export function createKeymapWorkspace({ document, scene, boardId, parts, definitions, selected, selectedKeyId, selectKey, emit, exportFile, layerId, onLayer, encoders = [], showFinding }: Inputs) {
   const board = document.boards.find(board => board.id === boardId);
   const colors = document.keycaps?.boards[boardId] ?? defaultKeycapBoard;
   let view: KeymapView | undefined;
@@ -56,10 +62,22 @@ export function createKeymapWorkspace({ document, scene, boardId, parts, definit
       case 'set-keycap-key': return emit(operation, [operation.keyId]);
     }
   };
+  const map: KeymapConfiguration = (document.keymap?.layers.length ? document.keymap : undefined) ?? { layers: [{ id: 'base', name: 'Base', bindings: {}, sensors: {} }], macros: [] };
+  const layer = map.layers.find(entry => entry.id === layerId) ?? map.layers[0];
+  const bindingFor = (id: string): KeyBinding => {
+    if (layer.bindings[id]) return layer.bindings[id];
+    if (layer !== map.layers[0]) return { kind: 'transparent' };
+    const legacy = keyBinding(document, boardId, id);
+    return legacy.startsWith('&kp ') ? { kind: 'key-press', keycode: legacy.slice(4) } : { kind: legacy === '&trans' ? 'transparent' : 'none' };
+  };
+
   return {
-    panel: () => <KeymapPanel view={readView()} selectedKeyId={selectedKeyId} onSelect={selectKey} onEdit={edit}
-      onExport={() => exportFile('firmware', boardId)} onExportKeycaps={() => exportFile('keycaps-step', boardId)}
-      findings={scene.findings.filter(finding => finding.id.startsWith('keycaps/')).map(finding => finding.message)} firmwareControls={firmwareControls} />,
-    canvas: () => <KeymapLayout keys={readView().keys} selected={selected} onSelect={selectKey} />,
+    panel: () => <KeymapPanel view={readView()} map={map} layer={layer} selectedKeyId={selectedKeyId} onSelect={selectKey} onLayer={onLayer} bindingFor={bindingFor} encoders={encoders}
+      onChange={change => emit({ kind: 'edit-keymap', change }, [boardId])} onExport={() => exportFile('firmware', boardId)} />,
+    keycapsPanel: () => <KeycapPanel view={readView()} selectedKeyId={selectedKeyId} onSelect={selectKey} onEdit={edit}
+      onExportKeycaps={() => exportFile('keycaps-step', boardId)}
+      document={document} onShowFinding={showFinding} findings={scene.findings.filter(finding => finding.id.startsWith('keycaps/'))} />,
+    canvas: () => <KeymapLayout keys={readView().keys.map(key => ({ ...key, legend: bindingTitle(bindingFor(key.part.id), map) }))} selected={selected} onSelect={selectKey} />,
+    keycapsCanvas: () => <KeymapLayout keys={readView().keys} selected={selected} onSelect={selectKey} />,
   };
 }

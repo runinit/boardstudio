@@ -29,3 +29,18 @@ describe('firmware handoff conversion', () => {
     expect(() => firmwareRequest(demoProject(), value)).toThrow(/display-i2c/);
   });
 });
+
+it('registers split encoders in a shared global order with remote nodes disabled', () => {
+  const document = demoProject(); document.hardware = { topology: 'split', transport: 'wireless', boards: [], instances: [], sharedConstruction: null };
+  const left = plan(); const right = plan(); right.boardId = 'right';
+  for (const [value, id] of [[left, 'left-knob'], [right, 'right-knob']] as const) {
+    value.peripherals = [{ partId: id, source: 'ceoloide/rotary_encoder_ec11_ec12', kind: 'encoder', gpioTerminals: [['A', 'encoder-a'], ['C', 'encoder-b']], fixedTerminals: [] }];
+    value.peripheralPins = { 'encoder-a': 'P0.02', 'encoder-b': 'P0.03' };
+  }
+  const request = firmwareRequest(document, left, right).request;
+  const sensors = (overlays: string[]) => overlays.find(value => value.includes('zmk,keymap-sensors'));
+  expect(sensors(request.peripheral_overlays)).toBe(sensors(request.peripheral!.peripheral_overlays));
+  expect(request.peripheral_overlays.join('\n')).toContain('status = "disabled"');
+  expect(request.peripheral!.peripheral_overlays.join('\n')).toContain('status = "disabled"');
+  expect(request.encoder_ids).toEqual(['left-knob']); expect(request.peripheral!.encoder_ids).toEqual(['right-knob']);
+});

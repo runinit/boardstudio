@@ -185,6 +185,22 @@ pub(crate) fn resolve(
         };
         let color = key.color.unwrap_or_else(|| defaults.color.clone());
         let legend = key.legend.unwrap_or_else(|| {
+            let typed = doc
+                .keymap
+                .as_ref()
+                .and_then(|map| map.layers.first())
+                .and_then(|layer| layer.bindings.get(&part.id));
+            if let Some(binding) = typed {
+                return match binding {
+                    KeyBinding::KeyPress { keycode } | KeyBinding::StickyKey { keycode } => {
+                        binding_legend(&format!("&kp {keycode}"))
+                    }
+                    KeyBinding::ModTap { tap, .. } | KeyBinding::LayerTap { tap, .. } => {
+                        binding_legend(&format!("&kp {tap}"))
+                    }
+                    _ => String::new(),
+                };
+            }
             bindings
                 .and_then(|b| b.get(&part.id))
                 .map(|b| binding_legend(b))
@@ -597,4 +613,34 @@ fn round_boundary(at: Vec2, diameter: f64) -> Vec<Vec2> {
             }
         })
         .collect()
+}
+
+/// Shared scene markers use the same resolved envelopes as clearance validation.
+pub(crate) fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMarker> {
+    let mut markers = vec![];
+    for board in &doc.boards {
+        let resolution = resolve(doc, &board.id, None);
+        for finding in findings
+            .iter()
+            .filter(|finding| finding.id.starts_with("keycaps/"))
+        {
+            let contours: Vec<_> = resolution
+                .specs
+                .iter()
+                .filter(|spec| finding.target_ids.contains(&spec.id))
+                .map(|spec| Contour {
+                    points: envelope(spec),
+                    hole: false,
+                })
+                .collect();
+            if !contours.is_empty() {
+                markers.push(FindingMarker {
+                    finding_id: finding.id.clone(),
+                    board_id: board.id.clone(),
+                    contours,
+                });
+            }
+        }
+    }
+    markers
 }

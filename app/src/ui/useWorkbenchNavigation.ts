@@ -38,7 +38,7 @@ export function useWorkbenchNavigation({ documentId, session, boardId, beforeNav
       setZoom(camera?.zoom ?? 1);
       setPan(camera?.pan ?? { x: 0, y: 0 });
     }
-    if (next === 'Design' || next === 'PCB' || next === 'Keymap' || next === 'Case') setLastDesignMode(next);
+    if (next === 'Design' || next === 'PCB' || next === 'Keymap' || next === 'Keycaps' || next === 'Case') setLastDesignMode(next);
     setMode(next);
   };
 

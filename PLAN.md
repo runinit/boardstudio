@@ -1,5 +1,30 @@
 # Generation and edit performance plan
 
+## Immediate feature: keymap workspace and located findings
+
+Separate physical Keycaps settings from the Keymap workflow. Rebuild Keymap
+inside the existing workbench design system with layer selection, key selection,
+a searchable behavior/keycode editor, and dedicated macro and encoder controls.
+Use clean-room observations of ZMK Studio and DYA Studio, preserving local
+projects, stable key identities, Undo/Redo, and export snapshot ownership.
+
+Rust owns a typed persisted keymap, validation, behavior semantics, and ZMK source
+generation. Support key press, mod-tap, layer-tap, layer actions, transparent/none,
+macros, and per-layer encoder rotation. Retain legacy bindings and safe modifier
+expressions; reject unknown references and invalid source tokens. Hardware
+encoder wiring remains owned by the existing electrical handoff. Local editing
+and ZMK source export are the agreed scope; live keyboard connectivity is future
+work. Keep an explicit documented path for remaining ZMK behavior families.
+
+Finding locations must originate with their geometry diagnostics, survive board
+and part wrappers, and drive all findings surfaces. Show affected corners/edges,
+component envelopes, or mechanical features where known; retain a truthful
+whole-object fallback for diagnostics without a meaningful geometric location.
+Test through the agreed public Rust edit/firmware-export APIs and browser
+workflows. Record regressions before fixes, regenerate contracts, run affected
+build/checks and the final full suite, review standards and spec, and commit.
+
+
 ## Immediate prerequisite: recover preserved outline work
 
 Before resuming pending Phase 3 performance work, recover the outline and related
@@ -332,3 +357,6 @@ artifacts. The rest of the linked experiment plan remains unexecuted; no product
 integration or full-application acceptance is claimed. Generate a separate
 execution checklist when a follow-up implementation is selected. Preserve
 Phase 1/2 history and all failed benchmark artifacts.
+
+### Tracking scope
+Track this request as three deliverables: keymap and Keycaps, located findings, and verification/review. Keep the existing backlog separate and do not expand this request into additional tasks.

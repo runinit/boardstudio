@@ -7,6 +7,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/tmp/boardstudio-zmk-check"));
     let request = FirmwareRequest {
+        keymap: None,
+        encoder_ids: vec![],
         controller_profile: "ceoloide/mcu_nice_nano".into(),
         board_name: "boardstudio-check".into(),
         rows: vec![ScanPin {
@@ -40,8 +42,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
         peripheral_overlays: vec![],
         peripheral: Some(Box::new(FirmwareRequest {
+            keymap: None,
+            encoder_ids: vec![],
             transport: Some(SplitTransport::WiredUart),
             ..FirmwareRequest {
+                keymap: None,
+                encoder_ids: vec![],
                 controller_profile: "ceoloide/mcu_nice_nano".into(),
                 board_name: "boardstudio-check-right".into(),
                 rows: vec![ScanPin {

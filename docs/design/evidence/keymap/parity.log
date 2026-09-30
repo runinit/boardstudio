@@ -1,0 +1,5 @@
+   Compiling boardstudio_core v0.1.0 (/home/chris/01_Projects/ts-boardstudio2/core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.37s
+Archive diagnostic (4 MiB incompressible asset): ZIP 4196477 bytes; WASM linear-memory high water 14680064 bytes (before 1900544); Node peak RSS 182714368 bytes.
+Matrix diagnostic: 9-cell scene 1554 bytes; 500-cell draft 55945 bytes.
+Native/WASM boundary parity: 17 core requests, 9 archive requests passed. WASM initialization 7.8 ms; raw size 5202092 bytes. Diagnostic memory: {"rss":182714368,"heapTotal":20168704,"heapUsed":11384136,"external":58092139,"arrayBuffers":51699777}

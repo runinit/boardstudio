@@ -1,3 +1,7 @@
+pub use crate::keymap::{
+    EncoderBinding, EncoderDirection, KeyBinding, KeymapChange, KeymapConfiguration, KeymapLayer,
+    KeymapMacro, MacroChange, MacroStep,
+};
 pub use boardstudio_contracts::{
     KeycapBoardSettings, KeycapConfiguration, KeycapKeySettings, KeycapMatrixSettings, KeycapMount,
     KeycapProfile, KeycapSpec, Pose2, Side, Vec2,
@@ -878,6 +882,8 @@ pub struct LayoutMirrorLink {
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct ProjectDoc {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keymap: Option<KeymapConfiguration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keycaps: Option<KeycapConfiguration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hardware: Option<HardwareConfiguration>,
@@ -935,6 +941,7 @@ pub struct ProjectDoc {
 impl ProjectDoc {
     pub fn empty(id: &str, name: &str) -> Self {
         Self {
+            keymap: None,
             keycaps: None,
             hardware: None,
             mechanical: None,
@@ -1055,6 +1062,9 @@ pub enum MatrixSplayChange {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum EditOperation {
+    EditKeymap {
+        change: KeymapChange,
+    },
     SetKeyBinding {
         #[serde(rename = "boardId")]
         board_id: String,

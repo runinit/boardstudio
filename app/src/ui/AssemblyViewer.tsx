@@ -1,5 +1,6 @@
 import type { CaseDisplay } from './caseDisplay';
 import type { GenerationState } from '../generationState';
+import { FindingList } from './FindingList';
 import { useMemo } from 'react';
 import { useAssemblyPreview } from '../useAssemblyPreview';
 import type {
@@ -29,7 +30,7 @@ export function AssemblyViewer({
   onCaseMountChange,
   onCaseMountDraft,
   onCasePreviewDraft,
-  selectedLayer,
+  selectedLayer, onShowFinding, focusedFinding,
   onSelectLayer,
   onSelect,
   colorScheme,
@@ -50,6 +51,8 @@ export function AssemblyViewer({
   onCaseMountDraft?: (bodyId: string, mounts: Mount[] | null, disposition?: 'commit') => void;
   onCasePreviewDraft?: (document: ProjectDoc | null, disposition?: 'commit') => void;
   selectedLayer?: string;
+  focusedFinding?: import('@boardstudio/v2-contracts').Finding;
+  onShowFinding?: (finding: import('@boardstudio/v2-contracts').Finding) => void;
   onSelectLayer?: (id: string) => void;
   onSelect?: (reference: string) => void;
   colorScheme: 'light' | 'dark';
@@ -78,6 +81,7 @@ export function AssemblyViewer({
           authoredCaseBodies={authoredBodies}
           mechanicalConfiguration={document.mechanical}
           display={display} onDisplayChange={onDisplayChange}
+          focusedFinding={focusedFinding}
           selectedLayer={selectedLayer}
           onSelectLayer={onSelectLayer}
           reference={shownReference}
@@ -89,7 +93,7 @@ export function AssemblyViewer({
       )}
       {keycapsPending && <p className="wb-assembly-loading" role="status">Generating keycap CAD…</p>}
       {keycapError && <div role="alert" className="wb-assembly-error">{keycapError}<button onClick={retry}>Retry keycaps</button></div>}
-      {keycapResolution && keycapResolution.findings.length > 0 && <details className="wb-assembly-notices" open><summary>Keycap clearance · {keycapResolution.findings.length} findings</summary>{keycapResolution.findings.map(finding => <p key={finding.id}>{finding.message}</p>)}</details>}
+      {keycapResolution && keycapResolution.findings.length > 0 && <details className="wb-assembly-notices" open><summary>Keycap clearance · {keycapResolution.findings.length} findings</summary>{onShowFinding ? <FindingList document={document} findings={keycapResolution.findings} onShow={onShowFinding} /> : keycapResolution.findings.map(finding => <p key={finding.id}>{finding.message}</p>)}</details>}
       {pending && (
         <p className="wb-assembly-loading" role="status">
           Preparing PCB assembly…

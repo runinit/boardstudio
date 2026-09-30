@@ -2,6 +2,14 @@
 
 <!-- phase: 3 -->
 
+## Current request
+
+- [x] Keymap and Keycaps: Separate physical settings, build layer/behavior/macro/encoder editors, and support validated Rust editing and ZMK export. Implemented typed Rust edits/export and separate workspaces; layer, macro, encoder, Undo and persistence browser workflows verified.
+- [x] Finding highlights: Carry diagnostic locations from Rust and focus affected geometry through finding actions. Exact fitted-corner locations and keycap envelopes pass Rust/browser regressions; component and mechanical finding actions share focus, with truthful layer fallback.
+- [x] Verify and finish: Affected checks/builds, 23 browser workflows and standards/spec/design review pass; fixes and verification are recorded for the feature commit.
+
+## Existing backlog
+
 - [x] Outline recovery A: Recheck current `dev` and the preserved outline worktree; snapshot all modified and untracked outline/mechanical files with their original base revision and verify file hashes, preserving source worktrees and unrelated edits (outcome: 54 modified and 48 untracked files captured in `.scratch/outline-recovery/20260930T175121Z`; archive file hashes and modes verified; source content, status, and HEAD unchanged).
 - [x] Outline recovery B: Create an isolated integration branch/worktree from current `dev`; record its revision, newer features, affected checks, and baseline failures (depends: Outline recovery A).
 - [x] Outline recovery C: Materialize the verified snapshot in a separate recovery checkout based on the original outline revision and capture a recovery commit including untracked files; verify it against the snapshot without altering the source worktree (depends: Outline recovery B).

@@ -5,6 +5,7 @@ const views = [
   { mode: 'Design', label: 'Layout' },
   { mode: 'PCB', label: 'PCB' },
   { mode: 'Keymap', label: 'Keymap' },
+  { mode: 'Keycaps', label: 'Keycaps' },
   { mode: 'Case', label: 'Case' },
   { mode: 'Library', label: 'Parts' },
 ] as const;

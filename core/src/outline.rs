@@ -376,14 +376,15 @@ fn inside(path: &Path, p: [f64; 2]) -> bool {
 pub(super) fn finish(
     shapes: Shapes,
     settings: &OutlineSettings,
-) -> Result<(Shapes, Option<f64>), String> {
+) -> Result<(Shapes, Option<f64>, Vec<Vec2>), String> {
     if !settings.size.is_finite() || settings.size < 0.0 {
         return Err("Corner size must be nonnegative".into());
     }
     if settings.corners == CornerStyle::Sharp || settings.size == 0.0 {
-        return Ok((shapes, None));
+        return Ok((shapes, None, vec![]));
     }
     let mut reduced: Option<f64> = None;
+    let mut locations = vec![];
     let mut result = vec![];
     for shape in shapes {
         let mut finished = vec![];
@@ -415,6 +416,7 @@ pub(super) fn finish(
                         tangent
                     };
                     reduced = Some(reduced.map_or(actual, |old| old.min(actual)));
+                    locations.push(Vec2 { x: p[0], y: p[1] });
                 }
                 let start = [p[0] + u[0] * tangent, p[1] + u[1] * tangent];
                 let end = [p[0] + v[0] * tangent, p[1] + v[1] * tangent];
@@ -473,5 +475,5 @@ pub(super) fn finish(
             return Err("Corner finishing intersects another contour; reduce its size".into());
         }
     }
-    Ok((result, reduced))
+    Ok((result, reduced, locations))
 }

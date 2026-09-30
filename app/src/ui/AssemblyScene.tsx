@@ -13,7 +13,7 @@ import type { LoadedModel, AssemblyBody } from '../assemblyPreview';
 export type { AssemblyBody } from '../assemblyPreview';
 type AssemblyView = 'assembled' | 'exploded' | 'section';
 
-export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies = [], mechanical, generation, preparedCase, onGasketChange, onGasketDraft, onCaseMountChange, onCaseMountDraft, mechanicalConfiguration, selectedLayer = '', reference, onSelect, onSelectLayer, colorScheme, persistenceKey, display, onDisplayChange }: {
+export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies = [], mechanical, generation, preparedCase, onGasketChange, onGasketDraft, onCaseMountChange, onCaseMountDraft, mechanicalConfiguration, selectedLayer = '', focusedFinding, reference, onSelect, onSelectLayer, colorScheme, persistenceKey, display, onDisplayChange }: {
   board: PcbPreview;
   models: LoadedModel[];
   bodies?: AssemblyBody[];
@@ -27,6 +27,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   onCaseMountDraft?: (bodyId: string, mounts: Mount[] | null, disposition?: 'commit') => void;
   mechanicalConfiguration?: MechanicalConfiguration;
   selectedLayer?: string;
+  focusedFinding?: import('@boardstudio/v2-contracts').Finding;
   reference?: BoardReference;
   onSelect?: (reference: string) => void;
   onSelectLayer?: (id: string) => void;
@@ -173,8 +174,8 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   }, [ready, board, models, geometryBodies, reference, stackKey, batteryKey, exactRevision.current]);
 
   useEffect(() => {
-    renderer.current?.setState({ hidden: [...hidden, ...(!editingGaskets && !editingMounts ? ['GasketHandles'] : [])], selectedLayer, view, mode: displayMode, theme: colorScheme, explodeAmount, sectionPlane, sectionPosition, showSectionPlane, showHidden, colors: display?.colors ?? {} });
-  }, [ready, hidden, selectedLayer, view, displayMode, colorScheme, editingGaskets, editingMounts, explodeAmount, sectionPlane, sectionPosition, showSectionPlane, showHidden, display?.colors]);
+    renderer.current?.setState({ hidden: [...hidden, ...(!editingGaskets && !editingMounts && !focusedFinding ? ['GasketHandles'] : [])], selectedLayer, view, mode: displayMode, theme: colorScheme, explodeAmount, sectionPlane, sectionPosition, showSectionPlane, showHidden, colors: display?.colors ?? {} });
+  }, [ready, hidden, selectedLayer, view, displayMode, colorScheme, editingGaskets, editingMounts, explodeAmount, sectionPlane, sectionPosition, showSectionPlane, showHidden, display?.colors, focusedFinding]);
 
   useEffect(() => {
     const current = renderer.current;
@@ -222,7 +223,11 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
       if (draftFrame.current !== undefined) cancelAnimationFrame(draftFrame.current);
       draftFrame.current = undefined; pendingDraft.current = undefined;
     };
-    current.setHandles(editingGaskets && mechanicalConfiguration ? handles(original) : editingMounts ? mountHandles() : []);
+    const located = focusedFinding ? [
+      ...mountHandles().filter(handle => focusedFinding.targetIds.some(id => handle.id.endsWith(`/${id}`))),
+      ...handles(original).filter(handle => focusedFinding.targetIds.some(id => handle.id === `gasket-handle:${id}` || id.startsWith(`gasket:${handle.id.slice('gasket-handle:'.length)}:`))),
+    ] : [];
+    current.setHandles(located.length ? located.map(handle => ({ ...handle, invalid: true })) : editingGaskets && mechanicalConfiguration ? handles(original) : editingMounts ? mountHandles() : []);
     let moving = '';
     let pending = original;
     let valid = true;
@@ -311,7 +316,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
       if (moving) gasketDraftRef.current?.(null);
       current.setDrag(undefined);
     };
-  }, [ready, editingGaskets, editingMounts, mechanical, authoredCaseBodies, mechanicalConfiguration, board]);
+  }, [ready, editingGaskets, editingMounts, mechanical, authoredCaseBodies, mechanicalConfiguration, board, focusedFinding]);
 
   const unlinkGasket = () => {
     if (!mechanical || !mechanicalConfiguration || !onGasketChange) return;

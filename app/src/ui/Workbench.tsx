@@ -101,7 +101,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
       setInspectorTab('properties');
       setLeftOpen(false);
       if (next === 'Export') setRightOpen(false);
-      if (next === 'Keymap') setRightOpen(true);
+      if (changed) setFocusedFindingId('');
+      if (next === 'Keymap' || next === 'Keycaps') setRightOpen(true);
       setScriptsOpen(false);
       setOutlineSettingsOpen(false);
       setProjectMenuOpen(false);
@@ -209,7 +210,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [selectedBridgeId, setSelectedBridgeId] = useState('');
   const [focusedGap, setFocusedGap] = useState<SceneDelta['contours'][number] | null>(null);
   const [focusedFindingId, setFocusedFindingId] = useState('');
-  useEffect(() => { setSelectedBridgeId(''); setFocusedGap(null); setFocusedFindingId(''); }, [mode, selectedBoardIdProp, document.id, projectSession]);
+  const [focusedFinding, setFocusedFinding] = useState<SceneDelta['findings'][number] | undefined>();
+  useEffect(() => { setSelectedBridgeId(''); setFocusedGap(null); setFocusedFindingId(''); }, [selectedBoardIdProp, document.id, projectSession]);
   const [scriptsOpen, setScriptsOpen] = useState(false);
   const [projectName, setProjectName] = useState(document.name);
   const [boardName, setBoardName] = useState('');
@@ -945,9 +947,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
   const [pendingFinding, setPendingFinding] = useState<SceneDelta['findings'][number] | null>(null);
   const showFinding = (finding: SceneDelta['findings'][number]) => {
+    setFocusedFinding(finding);
     const target = findingTarget(finding, document, mechanicalAssembly);
     if (target.mechanicalLayer) {
       changeMode('Case'); setSelectedMechanicalLayer(target.mechanicalLayer.id); setShowFindings(false); setRightOpen(true);
+      setFocusedFindingId(finding.id);
       return;
     }
     const board = target.board ?? document.boards.find((item) => target.part ? item.partIds.includes(target.part.id) : target.matrix ? target.matrix.partIds.some((id) => item.partIds.includes(id)) : target.body?.boardId === item.id);
@@ -963,7 +967,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     else if (target.body) setCaseBodyId(target.body.id);
     setRightOpen(true);
     setFocusedFindingId(finding.id); setFocusedGap(null); setSelectedBridgeId('');
-    const marker = scene.findingMarkers?.find(item => item.findingId === finding.id);
+    const marker = scene.findingMarkers?.find(item => item.findingId === finding.id && item.boardId === selectedBoardId);
     if (marker?.contours.length) fitParts([], marker.contours);
     if (!compactInspector) inspectorPanel.setMode('pinned');
     requestAnimationFrame(() => globalThis.document.querySelector<HTMLElement>('#wb-inspector button, #wb-inspector input')?.focus());
@@ -976,7 +980,9 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const pcbWorkspace = usePcbWorkspace({ document, boardId: selectedBoardId, activePart, definitions, wiring, onResolveWiring, onApplyWiring, onReviewWiring, chooseController, clearSelection: () => { setScope(null); setSelected([]); }, emit });
   const scriptEditor = useScriptEditor({ document, scene, emit, showFinding });
 
+  const [keymapLayerId, setKeymapLayerId] = useState('base');
   const keymap = createKeymapWorkspace({ document, scene, boardId: selectedBoardId, parts: visibleParts, definitions, selected: selectedIds, selectedKeyId: activePart?.id,
+    showFinding, encoders: wiring?.encoders, layerId: keymapLayerId, onLayer: setKeymapLayerId,
     selectKey: id => { setSelectionMode('key'); choosePart(id); }, emit, exportFile: onExport, firmwareControls: wiring?.firmwareControls,
   });
 
@@ -996,6 +1002,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
     if (mode === 'Design' && outlineSettingsOpen) return outline.inspector();
 
     if (mode === 'Keymap') return keymap.panel();
+    if (mode === 'Keycaps') return keymap.keycapsPanel();
 
     if (mode === 'PCB') return pcbWorkspace.panel();
 
@@ -1285,17 +1292,17 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
               <button data-close-menu disabled={!scope} onClick={() => { setInspectorTab('relations'); revealInspector(); }}>Relationships</button>
             </CommandMenu>
             {snapControls}
-          </> : <div className="wb-canvas-context"><ModeIcon mode={mode} /><strong>{viewLabel}</strong><span>{mode === 'Case' ? 'Assembly & components' : mode === 'Library' ? 'Footprint & model preview' : assembly3d ? 'PCB assembly' : 'Artifacts & readiness'}</span></div>}
+          </> : <div className="wb-canvas-context"><ModeIcon mode={mode} /><strong>{viewLabel}</strong><span>{mode === 'Case' ? 'Assembly & components' : mode === 'Library' ? 'Footprint & model preview' : mode === 'Keymap' ? 'Layers & key behaviors' : mode === 'Keycaps' ? 'Profiles, legends & fit' : assembly3d ? 'PCB assembly' : 'Artifacts & readiness'}</span></div>}
           {transformTool && <button className="wb-command-trigger wb-transform-active" aria-label="Finish transform" title="Finish transform (Esc)" onClick={() => { setTransformTool(null); setOriginPicking(false); }}><ToolIcon name={transformTool} />{transformTool[0].toUpperCase() + transformTool.slice(1)} · Done</button>}
         </div>}
-          {(mode === 'Design' || mode === 'Keymap') && !outlineActive && <div className={`wb-design-view-toggle ${assembly3d && mode === 'Keymap' ? 'is-assembly' : ''}`} role="group" aria-label="Design view"><button aria-pressed={!assembly3d} onClick={() => setAssembly3d(false)}>2D</button><button aria-pressed={assembly3d} onClick={() => { cancelInteractions(); setCommandMenu(null); setTransformTool(null); cancelPlacement(); setAssembly3d(true); }}>3D assembly</button>{!assembly3d && <button aria-pressed={showFootprints} onClick={() => setShowFootprints(!showFootprints)}>Footprints</button>}</div>}
+          {(mode === 'Design' || mode === 'Keymap' || mode === 'Keycaps') && !outlineActive && <div className={`wb-design-view-toggle ${assembly3d && (mode === 'Keymap' || mode === 'Keycaps') ? 'is-assembly' : ''}`} role="group" aria-label="Design view"><button aria-pressed={!assembly3d} onClick={() => setAssembly3d(false)}>2D</button><button aria-pressed={assembly3d} onClick={() => { cancelInteractions(); setCommandMenu(null); setTransformTool(null); cancelPlacement(); setAssembly3d(true); }}>3D assembly</button>{!assembly3d && <button aria-pressed={showFootprints} onClick={() => setShowFootprints(!showFootprints)}>Footprints</button>}</div>}
         {mode === 'Case' && <div className="wb-case-action-bar" ref={setCaseActionsTarget} />}
         <div className={`wb-canvas-stage wb-layer-surface ${leftOpen || rightOpen ? 'has-drawer' : ''} ${mode === 'Design' && !showFootprints ? 'is-layout-simplified' : ''}`}>
           <svg tabIndex={0} onKeyDown={(event) => { if (matrixGhost) {
             if (event.key === 'Enter') { event.preventDefault(); placeMatrixAt(matrixGhost.origin); }
             if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction<0?-snapFraction:PITCH_MM*(snapFraction||.25); setPlacement((current) => current.kind === 'matrix' || current.kind === 'mirrored-pair' ? movePlacement(current, { x: current.matrix.origin.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.matrix.origin.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); }
             return;
-          } if (!pendingPart) return; if (event.key === 'Enter') { event.preventDefault(); placePendingPart(placementPoint); } if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction < 0 ? -snapFraction : snapFraction ? PITCH_MM * snapFraction : nudgeStep; setPlacement((current) => current.kind === 'part' ? movePlacement(current, { x: current.point.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.point.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); } }} ref={svgRef} className={`wb-canvas ${matrixGhost ? 'is-placing-matrix' : ''}`} style={{ display: mode === 'Case' || mode === 'Library' || ((mode === 'Design' || mode === 'Keymap') && assembly3d) ? 'none' : undefined }} viewBox={`${viewBounds.minX} ${-viewBounds.maxY} ${viewBounds.width} ${viewBounds.height}`} role="application" aria-label="Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." onPointerDown={startCanvasPan} onPointerMove={moveCanvasPointer} onPointerUp={endCanvasPointer} onPointerCancel={endCanvasPointer} onLostPointerCapture={endCanvasPointer} onClickCapture={(event) => { if (matrixGhost) { event.stopPropagation(); drawOutline(event); } }} onClick={drawOutline} onDoubleClick={outline.finish}>
+          } if (!pendingPart) return; if (event.key === 'Enter') { event.preventDefault(); placePendingPart(placementPoint); } if (event.key.startsWith('Arrow')) { event.preventDefault(); const step = snapFraction < 0 ? -snapFraction : snapFraction ? PITCH_MM * snapFraction : nudgeStep; setPlacement((current) => current.kind === 'part' ? movePlacement(current, { x: current.point.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: current.point.y + (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0) }) : current); } }} ref={svgRef} className={`wb-canvas ${matrixGhost ? 'is-placing-matrix' : ''}`} style={{ display: mode === 'Case' || mode === 'Library' || ((mode === 'Design' || mode === 'Keymap' || mode === 'Keycaps') && assembly3d) ? 'none' : undefined }} viewBox={`${viewBounds.minX} ${-viewBounds.maxY} ${viewBounds.width} ${viewBounds.height}`} role="application" aria-label="Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." onPointerDown={startCanvasPan} onPointerMove={moveCanvasPointer} onPointerUp={endCanvasPointer} onPointerCancel={endCanvasPointer} onLostPointerCapture={endCanvasPointer} onClickCapture={(event) => { if (matrixGhost) { event.stopPropagation(); drawOutline(event); } }} onClick={drawOutline} onDoubleClick={outline.finish}>
             <defs><pattern id="wb-grid-small" width={outlineActive || outlineFeature ? outline.gridSpacing() : unit / 2} height={outlineActive || outlineFeature ? outline.gridSpacing() : unit / 2} patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r={outlineActive || outlineFeature ? viewBounds.width / Math.max(canvasSize.width, 1) * 0.7 : 0.12} fill="var(--wb-grid-large)" stroke="none" /></pattern></defs>
             <rect x={viewBounds.minX} y={-viewBounds.maxY} width={viewBounds.width} height={viewBounds.height} fill="url(#wb-grid-small)" />
             <g transform="scale(1,-1)" style={outlineActive || outlineFeature || pendingPart || originPicking ? { pointerEvents: 'none' } : undefined}>
@@ -1305,10 +1312,11 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
                 <MatrixGhost matrix={pairPreview?.matrix ?? matrixGhost} projection={matrixGhostProjections.get(matrixGhost.id)} scope={null} ghost onSelect={() => undefined} onStagger={() => undefined} />
               </g>}
               {mode === 'Keymap' && keymap.canvas()}
+              {mode === 'Keycaps' && keymap.keycapsCanvas()}
               {mode === 'Design' && !hiddenLayers.has('Keys') && visibleMatrices.map((matrix) => <MatrixGhost key={matrix.id} matrix={matrix} projection={matrixScenes.get(matrix.id)} parts={parts} definitions={definitions} scope={scope} onSelect={(row, column) => selectScope({ kind: 'key', matrixId: matrix.id, row, column })} onStagger={(event, axis, index) => startStagger(event, matrix, axis, index)} />)}
               {visibleParts.filter((part) => !hiddenLayers.has(keyEnvelopes.has(part.id) ? 'Keys' : 'Components')).map((part) => {
                 const definition = definitions.get(part.definitionId);
-                if (mode === 'Keymap') return null;
+                if (mode === 'Keymap' || mode === 'Keycaps') return null;
                 return <ScenePart key={part.id} part={part} definition={definition} active={selectedIds.has(part.id)} constrained={constrainedTargetIds.has(part.id)} handlers={sceneHandlers} hiddenLayers={hiddenLayers} keycap={keyEnvelopes.get(part.id) ?? (definition?.kind === 'switch' ? part.keycap ?? definition.keycap : undefined)} pcb={mode === 'PCB'} footprints={mode === 'PCB' || showFootprints} />;
               })}
               {(mode === 'Design' || mode === 'PCB') && scene.findingMarkers?.filter(marker => marker.boardId === selectedBoardId && (marker.findingId === focusedFindingId || scene.findings.some(finding => finding.id === marker.findingId && finding.severity === 'error'))).map(marker => <g key={marker.findingId} className={`wb-outline-finding ${marker.findingId === focusedFindingId ? 'is-focused' : ''}`} data-finding-id={marker.findingId}>
@@ -1342,7 +1350,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
           {pairSetup && mode === 'Design'  && <MirroredPairSetup presets={(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => ({ id, name: assemblyName(id) }))} onPreview={(setup) => beginMatrixPlacement(setup.rows, setup.columns, setup.preset as MatrixPresetId, setup)} onCancel={() => { cancelPlacement(); (compactObjects && !leftOpen ? window.document.getElementById('wb-objects-toggle') : addPartRef.current)?.focus(); }} />}
           {mode === 'Library' && !editingAssembly && <LibraryWorkspace document={document} definition={previewDefinition} title={libraryAssembly ? assemblyName(libraryAssembly) : previewDefinition ? partCatalogLabel(previewDefinition) : undefined} companions={libraryCompanions} rotation={libraryRecipeEntries[0]?.rotation ?? 0} compiled={libraryCompiled} compilePending={previewCompilePending} compileError={previewCompileError} mechanicalProfile={(previewDefinition as (PartDefinition & { mechanicalProfile?: MechanicalPartProfile }) | undefined)?.mechanicalProfile} onSaveMechanicalProfile={(profile) => { if (!previewDefinition) return; const snapshot = { ...previewDefinition, mechanicalProfile: profile }; const nextDefinitions = document.definitions.some((entry) => entry.id === previewDefinition.id) ? document.definitions.map((entry) => entry.id === previewDefinition.id ? snapshot : entry) : [...document.definitions, snapshot]; emit({ kind: 'replace-document', document: { ...document, definitions: nextDefinitions } }, [previewDefinition.id]); }} onMechanicalProfile={onMechanicalProfile} onExtractMechanicalProfile={onExtractMechanicalProfile} show3d={library3dOpen} onViewChange={setLibrary3dOpen} colorScheme={colorScheme} />}
           {mode === 'Library' && editingAssembly && <React.Suspense fallback={<p>Loading assembly editor…</p>}><AssemblyEditor key={editingAssembly.id} document={document} initial={editingAssembly} matrixName={selectedMatrix ? selectedMatrix.name?.trim() || `Matrix ${document.matrices.indexOf(selectedMatrix) + 1}` : 'selected matrix'} onApply={selectedMatrix ? assembly => { const prepared = matrixWithAssembly(selectedMatrix, assembly, libraryDefinitions, document.revision); emit({ kind: 'set-matrix', ...prepared }, [selectedMatrix.id]); } : undefined} definitions={libraryDefinitions} boardId={selectedBoard?.id} colorScheme={colorScheme} onChange={next => emit({ kind: 'replace-document', document: next }, [editingAssembly.id])} onClose={() => setEditingAssembly(null)} onPlace={next => { emit({ kind: 'replace-document', document: next }, []); setEditingAssembly(null); changeMode('Design'); setAssembly3d(true); }} /></React.Suspense>}
-          {(mode === 'Case' || ((mode === 'Design' || mode === 'Keymap') && assembly3d)) && selectedBoard && <React.Suspense fallback={<p role="status">Loading assembly viewer…</p>}><AssemblyViewer projectSession={projectSession} key={selectedCaseInstanceId ?? selectedBoard.id} display={caseDisplay.current} onDisplayChange={caseDisplay.update} displayKey={selectedCaseInstanceId ?? selectedBoard.id} document={assemblyDocument} boardId={selectedBoard.id} contours={assemblyContours} bodies={showCaseGeometry ? caseBodies?.map(body => ({ id: body.id, name: body.name, mesh: body })) : undefined} preparedCase={showCaseGeometry ? preparedCase : undefined} generation={showCaseGeometry ? generation : undefined} onCasePreviewDraft={onCasePreviewDraft} onCaseMountChange={(bodyId, mounts) => { const body = document.caseBodies.find(entry => entry.id === bodyId); if (body) return emit({ kind: 'set-case', body: { ...body, mounts } }, [bodyId]); }} onGasketChange={configuration => emit({ kind: 'set-mechanical', configuration }, [document.id])} mechanical={showCaseGeometry && generatedCase ? mechanicalAssembly : undefined} selectedLayer={selectedMechanicalLayer} onSelectLayer={setSelectedMechanicalLayer} colorScheme={colorScheme} onSelect={reference => { const part = document.parts.find(p => p.reference === reference); if (part) choosePart(part.id); }} /></React.Suspense>}
+          {(mode === 'Case' || ((mode === 'Design' || mode === 'Keymap' || mode === 'Keycaps') && assembly3d)) && selectedBoard && <React.Suspense fallback={<p role="status">Loading assembly viewer…</p>}><AssemblyViewer projectSession={projectSession} key={selectedCaseInstanceId ?? selectedBoard.id} display={caseDisplay.current} onDisplayChange={caseDisplay.update} displayKey={selectedCaseInstanceId ?? selectedBoard.id} document={assemblyDocument} boardId={selectedBoard.id} contours={assemblyContours} bodies={showCaseGeometry ? caseBodies?.map(body => ({ id: body.id, name: body.name, mesh: body })) : undefined} preparedCase={showCaseGeometry ? preparedCase : undefined} generation={showCaseGeometry ? generation : undefined} onCasePreviewDraft={onCasePreviewDraft} onCaseMountChange={(bodyId, mounts) => { const body = document.caseBodies.find(entry => entry.id === bodyId); if (body) return emit({ kind: 'set-case', body: { ...body, mounts } }, [bodyId]); }} onGasketChange={configuration => emit({ kind: 'set-mechanical', configuration }, [document.id])} mechanical={showCaseGeometry && generatedCase ? mechanicalAssembly : undefined} focusedFinding={focusedFinding?.id === focusedFindingId ? focusedFinding : undefined} onShowFinding={showFinding} selectedLayer={selectedMechanicalLayer} onSelectLayer={id => { setFocusedFindingId(''); setSelectedMechanicalLayer(id); }} colorScheme={colorScheme} onSelect={reference => { const part = document.parts.find(p => p.reference === reference); if (part) choosePart(part.id); }} /></React.Suspense>}
           {!guideVisible && mode !== 'Case' && mode !== 'Library' && !assembly3d && !matrixGhost && !pendingPart && visibleParts.length === 0 && visibleContours.length === 0 && visibleMatrices.length === 0 && <div className="wb-canvas-empty"><div className="wb-empty-cursor"><CursorIcon /></div><h2>Build your keyboard layout</h2><p>Start with a key matrix. Its switches and companions create the board outline as you edit.</p><button className="wb-primary" onClick={() => { dismissGuide(); changeMode('Design'); createGuidedMatrix(); }}>Add key matrix <ArrowIcon /></button><button className="wb-empty-secondary" onClick={() => changeMode('Library')}>Browse individual parts</button></div>}
           {snapGuide && <div className="wb-canvas-hint" role="status">{snapGuide.label}</div>}
           {originPicking && <div className="wb-canvas-hint" role="status">Pick splay origin · Click the canvas · Esc cancels</div>}

@@ -9,6 +9,7 @@ pub mod electrical_profiles;
 pub mod firmware;
 mod geometry;
 mod keycaps;
+mod keymap;
 mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
@@ -22,7 +23,7 @@ mod validate;
 use geometry::{OutlineCache, outlines};
 use matrix::layout;
 use model::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -126,6 +127,11 @@ impl CoreEngine {
             CoreRequest::Open { id, mut document } => {
                 if document.format != "boardstudio/v2" {
                     return self.error(id, "Unsupported document format");
+                }
+                if let Some(map) = &document.keymap {
+                    if let Err(message) = keymap::validate(map) {
+                        return self.error(id, &message);
+                    }
                 }
                 if let Err(message) = script::apply_scripts(&mut document) {
                     return self.error(id, &message);
@@ -394,6 +400,11 @@ impl CoreEngine {
             Ok(changed) => changed,
             Err(message) => return self.error(id, &message),
         };
+        if let Some(map) = &next.keymap {
+            if let Err(message) = keymap::validate(map) {
+                return self.error(id, &message);
+            }
+        }
         let mut changed = changed;
         electrical::preserve_handoff(&self.document, &mut next);
         if let Err(message) = layout::validate(&next) {
@@ -561,13 +572,45 @@ impl CoreEngine {
             }
         }
         findings.extend(validate::validate(doc));
-        let (board_contours, board_findings) = geometry::board_contours(doc, cache);
+        let (board_contours, board_findings, corner_markers) = geometry::board_contours(doc, cache);
+        let fitted_targets: BTreeSet<_> = board_findings
+            .iter()
+            .filter(|finding| finding.id.ends_with(":feature:outline:corners:fitted"))
+            .flat_map(|finding| finding.target_ids.iter().cloned())
+            .collect();
+        findings.retain(|finding| {
+            finding.id != "outline:corners:fitted"
+                || !finding
+                    .target_ids
+                    .iter()
+                    .all(|id| fitted_targets.contains(id))
+        });
         findings.extend(board_findings);
         let board_outline_scenes = geometry::board_outline_scenes(doc, cache);
         let (outline_findings, mut finding_markers) =
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);
         findings.extend(outline_findings);
-        finding_markers.extend(outline_validation::feature_markers(doc, &findings));
+        let mut generic_markers: BTreeMap<(String, String), Vec<Contour>> = BTreeMap::new();
+        for marker in outline_validation::feature_markers(doc, &findings) {
+            generic_markers
+                .entry((marker.finding_id, marker.board_id))
+                .or_default()
+                .extend(marker.contours);
+        }
+        for ((finding_id, board_id), contours) in generic_markers {
+            if !finding_markers
+                .iter()
+                .any(|marker| marker.finding_id == finding_id && marker.board_id == board_id)
+            {
+                finding_markers.push(FindingMarker {
+                    finding_id,
+                    board_id,
+                    contours,
+                });
+            }
+        }
+        finding_markers.extend(corner_markers);
+        finding_markers.extend(keycaps::finding_markers(doc, &findings));
         for board in &board_contours {
             if board.contours.is_empty() {
                 findings.push(Finding {
@@ -836,6 +879,7 @@ fn affects_outline(op: &EditOperation) -> bool {
 
 fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
     match op {
+        EditOperation::EditKeymap { change } => keymap::apply_edit(doc, change),
         EditOperation::SetKeyBinding { .. }
         | EditOperation::SetKeycapBoard { .. }
         | EditOperation::SetMatrixKeycaps { .. }

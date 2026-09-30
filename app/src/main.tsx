@@ -25,7 +25,7 @@ function App() {
   const [error, setError] = useState('');
   const [embedUsedModels, setEmbedUsedModels] = useState(true);
   const [setupRequest, setSetupRequest] = useState<{ projectId: string; requestId: string }>();
-  const [activeMode, setActiveMode] = useState<'Design' | 'PCB' | 'Keymap' | 'Case' | 'Library' | 'Export'>('Design');
+  const [activeMode, setActiveMode] = useState<'Design' | 'PCB' | 'Keymap' | 'Keycaps' | 'Case' | 'Library' | 'Export'>('Design');
   const caseClient = useRef<CaseClient | null>(null);
   const exportClient = useRef<ExportClient | null>(null);
   const exportCaseClient = useRef<CaseClient | null>(null);
@@ -126,6 +126,7 @@ function App() {
           },
         } : undefined,
         ready: Boolean(activePlan && !activePlan.diagnostics.some(finding => finding.severity === 'error')),
+        encoders: activePlan?.peripherals.filter(item => item.kind === 'encoder').map(item => ({ id: item.partId, name: project.parts.find(part => part.id === item.partId)?.reference ?? item.partId })),
         firmwareControls: <FirmwareKeymapPanel keys={[...(activePlan?.assignments.map(assignment => ({ id: assignment.keyId, label: project.parts.find(part => part.id === assignment.keyId)?.reference ?? assignment.keyId })) ?? []), ...(activePlan?.peripherals.filter(peripheral => peripheral.kind === 'encoder' && peripheral.gpioTerminals.some(([terminal]) => terminal === 'S1')).map(peripheral => ({ id: `${peripheral.partId}/push`, label: `${project.parts.find(part => part.id === peripheral.partId)?.reference ?? peripheral.partId} push` })) ?? [])]} bindings={wiringConfiguration?.keyBindings ?? {}} onChange={(keyId, binding) => edit({ baseRevision: project.revision, transactionId: crypto.randomUUID(), phase: 'commit', targetIds: [selectedBoardId, keyId], operation: { kind: 'set-key-binding', boardId: selectedBoardId, keyId, binding } })} />,
         controllerOptions, selectedControllerId: wiringConfiguration?.controllerPartId ?? activePlan?.controllerPartId ?? '',
         controller: controllerOptions.find(option => option.id === (wiringConfiguration?.controllerPartId ?? activePlan?.controllerPartId)),

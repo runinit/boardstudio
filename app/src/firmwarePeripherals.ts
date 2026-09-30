@@ -16,7 +16,7 @@ const requiredRole = (plan: ElectricalPlan, peripheral: PeripheralRequirement, r
   return required(plan, fn && plan.peripheralPins[fn] ? fn : fn ? `${peripheral.partId}/${fn}` : `${peripheral.partId}/${fallback}`);
 };
 
-export function peripheralFirmware(plan: ElectricalPlan): PeripheralFirmware {
+export function peripheralFirmware(plan: ElectricalPlan, sensorIds = plan.peripherals.filter(item => item.kind === 'encoder').map(item => item.partId)): PeripheralFirmware {
   const displays = plan.peripherals.filter(p => p.kind === 'display-i2c' || p.kind === 'display-spi');
   if (displays.length > 1) {
     const buses = new Set(displays.map(display => display.kind));
@@ -33,7 +33,8 @@ export function peripheralFirmware(plan: ElectricalPlan): PeripheralFirmware {
     else if (!['split', 'power-switch', 'reset', 'battery'].includes(peripheral.kind)) throw new Error(`No source-verified firmware profile for ${peripheral.kind}`);
   }
   const encoders = plan.peripherals.filter(item => item.kind === 'encoder');
-  if (encoders.length) overlays.push(`/ { sensors { compatible = "zmk,keymap-sensors"; sensors = <${encoders.map(item => `&${encoderLabel(item.partId)}`).join(' ')}>; triggers-per-rotation = <20>; }; };`);
+  for (const id of sensorIds.filter(id => !encoders.some(item => item.partId === id))) overlays.push(`/ { ${encoderLabel(id)}: ${encoderLabel(id)} { compatible = "alps,ec11"; status = "disabled"; }; };`);
+  if (sensorIds.length) overlays.push(`/ { sensors { compatible = "zmk,keymap-sensors"; sensors = <${sensorIds.map(id => `&${encoderLabel(id)}`).join(' ')}>; triggers-per-rotation = <20>; }; };`);
   return { overlays, config: [...new Set(config)] };
 }
 
@@ -52,7 +53,7 @@ const encoderLabel = (id: string) => `encoder_${Array.from(new TextEncoder().enc
 function encoderOverlay(plan: ElectricalPlan, peripheral: PeripheralRequirement): string {
   const a = requiredRole(plan, peripheral, 'A', 'encoder/A');
   const b = requiredRole(plan, peripheral, 'C', 'encoder/C');
-  return `/ { ${encoderLabel(peripheral.partId)}: ${encoderLabel(peripheral.partId)} { compatible = "alps,ec11"; a-gpios = <${a.replace('GPIO_ACTIVE_HIGH', '(GPIO_ACTIVE_HIGH | GPIO_PULL_UP)')}>; b-gpios = <${b.replace('GPIO_ACTIVE_HIGH', '(GPIO_ACTIVE_HIGH | GPIO_PULL_UP)')}>; steps = <80>; }; };`;
+  return `/ { ${encoderLabel(peripheral.partId)}: ${encoderLabel(peripheral.partId)} { compatible = "alps,ec11"; status = "okay"; a-gpios = <${a.replace('GPIO_ACTIVE_HIGH', '(GPIO_ACTIVE_HIGH | GPIO_PULL_UP)')}>; b-gpios = <${b.replace('GPIO_ACTIVE_HIGH', '(GPIO_ACTIVE_HIGH | GPIO_PULL_UP)')}>; steps = <80>; }; };`;
 }
 
 function rgbOverlay(plan: ElectricalPlan, peripheral: PeripheralRequirement): string {
