@@ -22,9 +22,11 @@ test('configured Case keeps physical half selection and setup available', async 
   await page.getByRole('button', { name: 'Split keyboard', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Reversible layout' }).click();
   await page.getByRole('button', { name: /Case \(optional\)/ }).click();
-  const assembly = page.getByRole('combobox', { name: 'Physical assembly', exact: true });
+  await page.getByRole('button', { name: 'Back to objects', exact: true }).click();
+  const assembly = page.getByRole('treeitem', { name: 'Right case assembly', exact: true });
   await expect(assembly).toBeVisible();
-  await assembly.selectOption({ label: 'Right half · peripheral' });
+  await assembly.click();
+  await expect(assembly).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('checkbox', { name: 'Reversible layout' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Update preview', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__physicalPreviews.at(-1)?.parts.find((part: any) => part.reference === 'SW5')?.pose.at.x)).toBeLessThan(0);
