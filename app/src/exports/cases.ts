@@ -27,7 +27,7 @@ export async function exportMechanical(context: ExportContext, services: ExportS
   if (!configuration || configuration.boardId !== context.boardId) throw new Error('Enable a mechanical assembly for the selected board before export');
   if (!context.isPreviewCurrent() || scene.revision !== document.revision) throw new Error('The committed scene is still resolving');
   const contours = scene.boardContours.find(entry => entry.boardId === configuration.boardId)?.contours ?? [];
-  const files = await exportMechanicalAssembly({ document, contours, core: services.core(), cad: services.cad(), exporter: services.exporter(), isCurrent: context.isPreviewCurrent });
+  const files = await exportMechanicalAssembly({ document, contours, outlineReady: scene.boardReadiness.find(entry => entry.boardId === configuration.boardId)?.outline ?? false, core: services.core(), cad: services.cad(), exporter: services.exporter(), isCurrent: context.isPreviewCurrent });
   context.assertCurrent();
   const bytes = await packHandoff(files, services.exporter());
   if (!context.isPreviewCurrent()) throw new Error('The assembly changed during export; export the current revision again');

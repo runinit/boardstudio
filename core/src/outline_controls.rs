@@ -33,6 +33,7 @@ pub(crate) fn dependencies(feature: &OutlineFeature) -> Vec<&str> {
         OutlineFeature::PartEnvelope {
             part_ids,
             connections,
+            settings,
             ..
         } => part_ids
             .iter()
@@ -43,6 +44,14 @@ pub(crate) fn dependencies(feature: &OutlineFeature) -> Vec<&str> {
                     .iter()
                     .filter_map(|point| point.part_id.as_deref())
             }))
+            .chain(
+                settings
+                    .repair
+                    .iter()
+                    .flat_map(|repair| &repair.keep_gaps)
+                    .flat_map(|gap| &gap.points)
+                    .filter_map(|point| point.part_id.as_deref()),
+            )
             .collect(),
         OutlineFeature::Polygon { anchor_part_id, .. }
         | OutlineFeature::Rect { anchor_part_id, .. } => {

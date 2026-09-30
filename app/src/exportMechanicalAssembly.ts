@@ -26,12 +26,14 @@ export function mechanicalStl(result: CaseResult): Uint8Array {
 export async function exportMechanicalAssembly(input: {
   document: ProjectDoc;
   contours: Contour[];
+  outlineReady: boolean;
   core: CoreClient;
   cad: CaseClient;
   exporter: ExportClient;
   isCurrent: () => boolean;
 }): Promise<Record<string, Uint8Array>> {
   const { document, contours, core, cad, exporter, isCurrent } = input;
+  if (!input.outlineReady) throw new Error('Resolve active outline findings before exporting plate or case artifacts');
   const revision = document.revision;
   const check = (actual = revision): void => {
     if (!isCurrent() || actual !== revision) throw new Error('Mechanical export became stale; export again');

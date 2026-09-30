@@ -7,6 +7,13 @@ import type { CaseClient } from './CaseClient';
 import type { ExportClient } from './ExportClient';
 
 describe('mechanical package', () => {
+  it('rejects an invalid active outline before generating plate or case deliverables', async () => {
+    const { input, cad } = fixture();
+    await expect(exportMechanicalAssembly({ ...input, outlineReady: false })).rejects.toThrow('outline');
+    expect(input.core.request).not.toHaveBeenCalled();
+    expect(cad.request).not.toHaveBeenCalled();
+    expect(input.exporter.artifact).not.toHaveBeenCalled();
+  });
   it('writes binary STL triangles in millimetres', () => {
     const data = mechanicalStl({ revision: 7, step: new Uint8Array(), mesh: {
       positions: new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0]),
@@ -25,7 +32,7 @@ describe('mechanical package', () => {
       return { kind: 'mechanical-resolved', assembly: { revision: 0 } };
     }) };
     const exporter = { artifact: vi.fn() };
-    await expect(exportMechanicalAssembly({ document: emptyProject('id', 'Board'), contours: [],
+    await expect(exportMechanicalAssembly({ document: emptyProject('id', 'Board'), contours: [], outlineReady: true,
       core: core as unknown as CoreClient, cad: {} as CaseClient,
       exporter: exporter as unknown as ExportClient, isCurrent: () => current,
     })).rejects.toThrow('stale');
@@ -37,7 +44,7 @@ describe('mechanical package', () => {
       revision: 0, diagnostics: [{ severity: 'error', message: 'Profile is unqualified' }],
     } })) };
     const exporter = { artifact: vi.fn() };
-    await expect(exportMechanicalAssembly({ document: emptyProject('id', 'Board'), contours: [],
+    await expect(exportMechanicalAssembly({ document: emptyProject('id', 'Board'), contours: [], outlineReady: true,
       core: core as unknown as CoreClient, cad: {} as CaseClient,
       exporter: exporter as unknown as ExportClient, isCurrent: () => true,
     })).rejects.toThrow('Profile is unqualified');
@@ -94,5 +101,5 @@ function fixture() {
   const exporter = { artifact: vi.fn(async (request: Extract<ArtifactRequest, { kind: 'export-mechanical-plate' | 'export-outline' }>) => request.kind === 'export-mechanical-plate'
     ? { kind: 'export-mechanical-plate', result: { revision: 0, files: [{ filename: 'mechanical-plate.kicad_pcb', content: '(kicad_pcb)' }] } }
     : { kind: 'export-outline', result: { filename: request.request.filename, content: 'outline' } }) };
-  return { cad, input: { document, contours, core: core as unknown as CoreClient, cad: cad as unknown as CaseClient, exporter: exporter as unknown as ExportClient, isCurrent: () => true } };
+  return { cad, input: { document, contours, outlineReady: true, core: core as unknown as CoreClient, cad: cad as unknown as CaseClient, exporter: exporter as unknown as ExportClient, isCurrent: () => true } };
 }

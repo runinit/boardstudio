@@ -19,8 +19,10 @@ export function presentedFindings(findings: Finding[], document: ProjectDoc): Fi
 }
 
 export function findingTarget(finding: Finding, document: ProjectDoc, assembly?: MechanicalAssembly) {
-  const outline = document.outline.find((feature) => finding.targetIds.includes(feature.id));
-  const board = document.boards.find((item) => finding.targetIds.includes(item.id) || (outline && item.outlineIds.includes(outline.id)));
+  const owner = document.boardOutlines?.find(state => state.versions.some(version => version.id === state.activeVersionId && version.geometry.features.some(feature => finding.targetIds.includes(feature.id))));
+  const outline = document.outline.find((feature) => finding.targetIds.includes(feature.id))
+    ?? owner?.versions.find(version => version.id === owner.activeVersionId)?.geometry.features.find(feature => finding.targetIds.includes(feature.id));
+  const board = document.boards.find((item) => finding.targetIds.includes(item.id) || item.id === owner?.boardId || (outline && item.outlineIds.includes(outline.id)));
   const part = document.parts.find((item) => finding.targetIds.includes(item.id));
   const matrix = document.matrices.find((item) => finding.targetIds.includes(item.id));
   const body = document.caseBodies.find((item) => finding.targetIds.includes(item.id));

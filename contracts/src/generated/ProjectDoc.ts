@@ -2,6 +2,7 @@
 import type { AssemblyDefinition } from "./AssemblyDefinition";
 import type { Asset } from "./Asset";
 import type { Board } from "./Board";
+import type { BoardOutline } from "./BoardOutline";
 import type { BoardReference } from "./BoardReference";
 import type { CaseBody } from "./CaseBody";
 import type { Constraint } from "./Constraint";
@@ -18,4 +19,4 @@ import type { PartDefinition } from "./PartDefinition";
 import type { Script } from "./Script";
 import type { JsonValue } from "./serde_json/JsonValue";
 
-export type ProjectDoc = { keycaps?: KeycapConfiguration, hardware?: HardwareConfiguration, mechanical?: MechanicalConfiguration, boardReferences?: Array<BoardReference>, assemblies?: Array<AssemblyDefinition>, format: "boardstudio/v2", id: string, name: string, revision: number, parameters: { [key in string]: JsonValue }, definitions: Array<PartDefinition>, parts: Array<Part>, matrices: Array<Matrix>, layouts?: Array<Layout>, nets: Array<Net>, outline: Array<OutlineFeature>, boards: Array<Board>, caseBodies: Array<CaseBody>, materials: Array<Material>, assets: Array<Asset>, scripts: Array<Script>, constraints: Array<Constraint>, };
+export type ProjectDoc = { keycaps?: KeycapConfiguration, hardware?: HardwareConfiguration, mechanical?: MechanicalConfiguration, boardReferences?: Array<BoardReference>, assemblies?: Array<AssemblyDefinition>, format: "boardstudio/v2", id: string, name: string, revision: number, parameters: { [key in string]: JsonValue }, definitions: Array<PartDefinition>, parts: Array<Part>, matrices: Array<Matrix>, layouts?: Array<Layout>, nets: Array<Net>, outline: Array<OutlineFeature>, boardOutlines?: Array<BoardOutline>, boards: Array<Board>, caseBodies: Array<CaseBody>, materials: Array<Material>, assets: Array<Asset>, scripts: Array<Script>, constraints: Array<Constraint>, };

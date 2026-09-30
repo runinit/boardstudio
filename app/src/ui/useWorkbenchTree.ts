@@ -1,5 +1,5 @@
 import { displayIds, type useCaseDisplay } from './caseDisplay';
-import type { Board, MechanicalAssembly, ProjectDoc } from '@boardstudio/v2-contracts';
+import type { Board, BoardOutlineScene, MechanicalAssembly, ProjectDoc } from '@boardstudio/v2-contracts';
 import type { Dispatch, KeyboardEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
 import type {
@@ -50,10 +50,15 @@ type Inputs = {
   setCaseBodyId: Dispatch<SetStateAction<string>>;
   setRightOpen: Dispatch<SetStateAction<boolean>>;
   selectedMechanicalLayer: string;
+  outlineScene?: BoardOutlineScene;
+  outlineOpen: boolean;
+  selectedBridgeId: string;
+  onOutline: (versionId?: string | null) => void;
+  onBridge: (id: string) => void;
   setSelectedMechanicalLayer: Dispatch<SetStateAction<string>>
 };
 
-export function useWorkbenchTree({ caseDisplay, selectedCaseInstanceId, onSelectCaseInstance, document, mechanicalAssembly, selectedBoardId, expandedTree, selectedBoard, visibleParts, toggleTree, setScope, setSelected, setOutlineSettingsOpen, visibleMatrices, boardLayouts, memberMaps, treeParts, scope, selectScope, matrixScenes, treeGrouping, matrixCellOverrides, definitions, nudgePart, treeVisibleParts, mode, changeMode, setExpandedTree, matrixMap, selected, activeCaseBody, setCaseBodyId, setRightOpen, selectedMechanicalLayer, setSelectedMechanicalLayer }: Inputs) {
+export function useWorkbenchTree({ caseDisplay, selectedCaseInstanceId, onSelectCaseInstance, document, mechanicalAssembly, selectedBoardId, expandedTree, selectedBoard, visibleParts, toggleTree, setScope, setSelected, setOutlineSettingsOpen, visibleMatrices, boardLayouts, memberMaps, treeParts, scope, selectScope, matrixScenes, treeGrouping, matrixCellOverrides, definitions, nudgePart, treeVisibleParts, mode, changeMode, setExpandedTree, matrixMap, selected, activeCaseBody, setCaseBodyId, setRightOpen, selectedMechanicalLayer, setSelectedMechanicalLayer, outlineScene, outlineOpen, selectedBridgeId, onOutline, onBridge }: Inputs) {
   const treeEntries = useMemo<TreeEntry[]>(() => {
     const rows: TreeEntry[] = [];
     if (mode === 'Case') {
@@ -127,8 +132,29 @@ export function useWorkbenchTree({ caseDisplay, selectedCaseInstanceId, onSelect
       onSelect: () => { setScope(null); setSelected([]); setOutlineSettingsOpen(false); if (!boardExpanded) toggleTree(boardKey); },
     });
     if (!boardExpanded) return rows;
+    const outlineKey = `outline:${selectedBoardId}`;
+    const outlineExpanded = expandedTree.has(outlineKey);
+    const outline = document.boardOutlines?.find(state => state.boardId === selectedBoardId);
+    const activeVersion = outline?.versions.find(version => version.id === outline.activeVersionId);
+    const bridges = outlineScene?.bridges ?? [];
+    const bridgeEntry = (bridge: typeof bridges[number], index: number, level: number, context: string): TreeEntry => ({
+      id: `${context}:bridge:${bridge.id}`, label: `Bridge ${index + 1}`, detail: `${bridge.width} mm`, kind: 'bridge', level,
+      selected: outlineOpen && selectedBridgeId === bridge.id, onSelect: () => onBridge(bridge.id),
+    });
+    const outlineRows: TreeEntry[] = [{ id: outlineKey, label: 'Outline', detail: activeVersion?.name ?? 'Generated', kind: 'outline', level: 1,
+      selected: outlineOpen && !selectedBridgeId, expandable: true, expanded: outlineExpanded,
+      onToggle: () => toggleTree(outlineKey), onSelect: () => { if (!outlineExpanded) toggleTree(outlineKey); onOutline(); },
+    }];
+    if (outlineExpanded) {
+      outlineRows.push({ id: `${outlineKey}:generated`, label: 'Generated', detail: !activeVersion ? 'Active' : 'Follows layout', kind: 'outline-version', level: 2,
+        selected: outlineOpen && !activeVersion && !selectedBridgeId, onSelect: () => onOutline(null) });
+      for (const version of outline?.versions ?? []) outlineRows.push({ id: `${outlineKey}:version:${version.id}`, label: version.name,
+        detail: version.id === activeVersion?.id ? 'Active' : 'Fixed', kind: 'outline-version', level: 2,
+        selected: outlineOpen && version.id === activeVersion?.id && !selectedBridgeId, onSelect: () => onOutline(version.id) });
+      outlineRows.push(...bridges.map((bridge, index) => bridgeEntry(bridge, index, 2, outlineKey)));
+    }
     if (mode === 'PCB') {
-      const entries: TreeEntry[] = [rows[0]];
+      const entries: TreeEntry[] = [rows[0], ...outlineRows];
       for (const part of treeVisibleParts) entries.push({
         id: `${mode}:${part.id}`, label: part.reference,
         detail: mode === 'PCB' ? `${definitions.get(part.definitionId)?.name ?? 'Component'} · ${part.side}` : `${definitions.get(part.definitionId)?.name ?? 'Part'} · Reference`,
@@ -155,6 +181,7 @@ export function useWorkbenchTree({ caseDisplay, selectedCaseInstanceId, onSelect
         onToggle: () => toggleTree(matrixKey),
         onSelect: () => selectScope({ kind: 'matrix', matrixId: matrix.id }),
       });
+      if (isExpanded) rows.push(...bridges.flatMap((bridge, index) => bridge.matrixIds.includes(matrix.id) ? [bridgeEntry(bridge, index, 2, matrixKey)] : []));
       const projection = matrixScenes.get(matrix.id)?.scene;
       if (!isExpanded || !projection) continue;
       const columnCount = projection.columns.length;
@@ -248,7 +275,7 @@ export function useWorkbenchTree({ caseDisplay, selectedCaseInstanceId, onSelect
         groups.set(key, children);
       }
     }
-    const result: TreeEntry[] = [rows[0]];
+    const result: TreeEntry[] = [rows[0], ...outlineRows];
     const layoutKey = `layout:${selectedBoardId}`;
     const layoutExpanded = expandedTree.has(layoutKey);
     if (groups.has('') || boardLayouts.length === 0) result.push({
@@ -295,6 +322,6 @@ export function useWorkbenchTree({ caseDisplay, selectedCaseInstanceId, onSelect
       }
     }
     return result;
-  }, [caseDisplay.current, caseDisplay.read, selectedCaseInstanceId, document.hardware, mode, selected, document.caseBodies, activeCaseBody?.id, selectedBoardId, selectedBoard?.name, visibleMatrices, treeVisibleParts, expandedTree, scope, treeParts, definitions, matrixCellOverrides, selectScope, toggleTree, treeGrouping, memberMaps, matrixScenes, document.matrices, boardLayouts, mechanicalAssembly, selectedMechanicalLayer]);
+  }, [caseDisplay.current, caseDisplay.read, selectedCaseInstanceId, document.hardware, mode, selected, document.caseBodies, activeCaseBody?.id, selectedBoardId, selectedBoard?.name, visibleMatrices, treeVisibleParts, expandedTree, scope, treeParts, definitions, matrixCellOverrides, selectScope, toggleTree, treeGrouping, memberMaps, matrixScenes, document.matrices, boardLayouts, mechanicalAssembly, selectedMechanicalLayer, document.boardOutlines, outlineScene, outlineOpen, selectedBridgeId, onOutline, onBridge]);
   return { treeEntries };
 }

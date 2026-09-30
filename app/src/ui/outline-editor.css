@@ -10,6 +10,25 @@
 .wb-outline-select select, .wb-outline-grid-control select { min-width: 0; min-height: 34px; padding: 5px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: inherit; }
 .wb-outline-select select { width: 100%; }
 .wb-outline-panel select:focus-visible, .wb-outline-editor select:focus-visible, .wb-outline-drawing-bar select:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.wb-outline-version-name { display: grid; gap: 6px; margin-top: 12px; color: var(--wb-muted); font-size: 12px; }
+.wb-outline-version-name input { min-width: 0; width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; background: var(--wb-panel); color: var(--wb-ink); font: inherit; }
+.wb-outline-version-name input:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.wb-outline-version-actions { display: flex; gap: 8px; margin-top: 12px; }
+.wb-outline-version-actions button { flex: 1; }
+.wb-outline-version-actions button:disabled { opacity: .45; cursor: default; }
+.wb-outline-edit-perimeter { width: 100%; margin: 8px 0 16px; }
+.wb-outline-gap-list { display: grid; }
+.wb-outline-gap-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--wb-rule); font-size: 12px; }
+.wb-outline-gap-focus { display: grid; gap: 2px; flex: 1; min-height: 44px; padding: 6px 8px; border: 0; border-radius: 4px; color: var(--wb-ink); background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.wb-outline-gap-focus:hover { background: var(--wb-surface-soft); }
+.wb-outline-gap-focus small { color: var(--wb-muted); font-variant-numeric: tabular-nums; }
+.wb-outline-gap-row label, .wb-outline-checkbox { display: flex; align-items: center; gap: 6px; min-height: 36px; }
+.wb-outline-gap-row input, .wb-outline-checkbox input { accent-color: var(--wb-accent); }
+.wb-outline-panel .wb-measure-list { font-variant-numeric: tabular-nums; }
+.wb-outline-finding, .wb-outline-highlight { pointer-events: none; }
+.wb-outline-finding polygon { fill: var(--wb-status-error-surface); fill-opacity: .35; stroke: var(--wb-status-error); stroke-width: 1.5; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.wb-outline-finding.is-focused polygon { stroke-width: 2.5; fill-opacity: .6; }
+.wb-outline-highlight { fill: var(--wb-selection-surface); fill-opacity: .5; stroke: var(--wb-accent); stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
 .wb-outline-manual { padding: 16px 0; border-top: 1px solid var(--wb-rule); }
 .wb-outline-manual .wb-subtitle, .wb-outline-feature-list .wb-subtitle { margin: 0 0 8px; }
 .wb-outline-tools { display: grid; }
@@ -96,3 +115,15 @@
   .wb-outline-canvas-context { gap: 8px; font-size: 12px; }
   .wb-outline-canvas-context > span { display: none; }
 }
+
+/* Large transparent hit targets stay usable; the visible marks stay compact. */
+.wb-outline-knob { fill: none; stroke-width: 1.25; }
+.wb-outline-controls .wb-outline-point-number { opacity: 0; }
+.wb-outline-controls g[data-selected='true'] > .wb-outline-point-number,
+.wb-outline-controls g:hover > .wb-outline-point-number { opacity: 1; }
+.wb-outline-midpoint-mark { opacity: 0; }
+.wb-outline-insert:hover + .wb-outline-midpoint-mark,
+.wb-outline-insert:focus-visible + .wb-outline-midpoint-mark { opacity: 1; }
+.wb-outline-snap-guides { pointer-events: none; }
+.wb-outline-snap-guides line { stroke: var(--wb-accent); stroke-width: 1; stroke-dasharray: 6 4; opacity: .8; vector-effect: non-scaling-stroke; }
+.wb-outline-snap-guides .wb-outline-point-number { opacity: 1; }

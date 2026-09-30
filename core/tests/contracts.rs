@@ -128,7 +128,7 @@ fn artifact_import_protocol_preserves_authoritative_source_in_document_json() {
                 jobs: vec![FootprintCompileJob {
                     id: "unsupported-job".into(),
                     definition: unsupported,
-                        side: Side::Front,
+                    side: Side::Front,
                 }],
             })
             .unwrap(),

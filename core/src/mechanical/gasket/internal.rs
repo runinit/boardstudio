@@ -381,7 +381,11 @@ pub(super) fn generate(
     let component_offset = required_offset(&rings, &component_envelopes, document.revision)?;
     let cap_offset = required_offset(&rings, &caps, document.revision)?;
     let pad_inner = front.max(cap_offset) + TAB_MARGIN;
-    let maximum_width = foam.supports.iter().filter_map(|s| s.width).fold(foam.width, f64::max);
+    let maximum_width = foam
+        .supports
+        .iter()
+        .filter_map(|s| s.width)
+        .fold(foam.width, f64::max);
     let tab_outer = pad_inner + maximum_width + TAB_MARGIN;
     let pocket_outer = tab_outer + clearance;
     let contact = config.plate_to_pcb - compressed;
@@ -471,7 +475,9 @@ pub(super) fn generate(
     let top_opening = union(&expanded_outline(&rings, front, document.revision)?, &caps);
     for (id, volume) in component_volumes {
         if volume.z - travel - settings.tolerance < floor_z || !contained(&volume.points, &cavity) {
-            return Err(format!("Component {id} exceeds the resolved floating clearance envelope; supply a compatible component profile or case dimensions."));
+            return Err(format!(
+                "Component {id} exceeds the resolved floating clearance envelope; supply a compatible component profile or case dimensions."
+            ));
         }
     }
     let mut openings = old_bottom.body.openings.clone().unwrap_or_default();
@@ -525,16 +531,26 @@ pub(super) fn generate(
             }
             continue;
         }
-        let perimeter: f64 = ring.points.iter().enumerate()
-            .map(|(i, p)| distance(*p, ring.points[(i + 1) % ring.points.len()])).sum();
+        let perimeter: f64 = ring
+            .points
+            .iter()
+            .enumerate()
+            .map(|(i, p)| distance(*p, ring.points[(i + 1) % ring.points.len()]))
+            .sum();
         // Add screws in pairs to keep opposite perimeter targets balanced.
         let closure_count = ((perimeter / (2. * CLOSURE_SPACING_MM)).ceil() * 2.).max(4.) as usize;
         if closure_count > MAX_AUTOMATIC_CLOSURES {
-            return Err(format!("Case region {id} needs more than {MAX_AUTOMATIC_CLOSURES} automatic closure screws; split the case into smaller regions."));
+            return Err(format!(
+                "Case region {id} needs more than {MAX_AUTOMATIC_CLOSURES} automatic closure screws; split the case into smaller regions."
+            ));
         }
         // Compact four-screw cases reserve long straight runs for pads.
         // Larger layouts also need screws along those runs to limit gaps.
-        let end_search_radius = if closure_count == 4 { f64::INFINITY } else { CLOSURE_END_PREFERENCE_MM };
+        let end_search_radius = if closure_count == 4 {
+            f64::INFINITY
+        } else {
+            CLOSURE_END_PREFERENCE_MM
+        };
         let minimum_anchor_gap = 0.5 / closure_count as f64;
         for slot in 0..closure_count {
             let clear: Vec<_> = available
@@ -545,9 +561,9 @@ pub(super) fn generate(
                         (other_id.starts_with(&format!("closure:{id}:"))
                             && delta.min(1. - delta) < minimum_anchor_gap)
                             || overlaps(
-                            &rectangle(c, 2. * closure_radius + 1., -front, outer_offset),
-                            &rectangle(other, 2. * closure_radius + 1., -front, outer_offset),
-                        )
+                                &rectangle(c, 2. * closure_radius + 1., -front, outer_offset),
+                                &rectangle(other, 2. * closure_radius + 1., -front, outer_offset),
+                            )
                     })
                 })
                 .cloned()
@@ -604,12 +620,7 @@ pub(super) fn generate(
             -front,
             pocket_outer.max(outer_offset),
         );
-        let root = rectangle(
-            candidate,
-            length + 2. * TAB_MARGIN,
-            ROOT_OVERLAP,
-            tab_outer,
-        );
+        let root = rectangle(candidate, length + 2. * TAB_MARGIN, ROOT_OVERLAP, tab_outer);
         let buffered = expanded_outline(
             &[Contour {
                 points: pocket.clone(),
@@ -641,58 +652,161 @@ pub(super) fn generate(
     let automatic = foam.auto_size.unwrap_or(true);
     let automatic_count = settings.auto_count.unwrap_or(settings.support_count == 4);
     let mut chosen: Vec<(String, Candidate, f64, f64)> = vec![];
-    let side = |c: &Candidate| if c.normal.x.abs() > c.normal.y.abs() {
-        if c.normal.x > 0. { 0 } else { 1 }
-    } else if c.normal.y > 0. { 2 } else { 3 };
+    let side = |c: &Candidate| {
+        if c.normal.x.abs() > c.normal.y.abs() {
+            if c.normal.x > 0. { 0 } else { 1 }
+        } else if c.normal.y > 0. {
+            2
+        } else {
+            3
+        }
+    };
     for (index, ring) in rings.iter().enumerate() {
         let id = region_id(document, &config.board_id, ring, index);
         let key = outline_key(ring);
         // Editing tracks cover the entire perimeter. Fit is a separate result.
-        let tracks = placement::tracks(ring,&id);
-        let region = Region { id:id.clone(), key:key.clone(), candidates:vec![], tracks };
-        let pinned: Vec<_> = foam.supports.iter().filter(|s| s.region_id == id && s.placement != Some(GasketPlacement::Generated))
-            .filter_map(|s| on_track(&region,s.anchor).map(|c|(s,c))).collect();
-        let lengths: Vec<f64> = if automatic { (1..=8).rev().map(|n|n as f64*10.).chain(std::iter::once(5.)).collect() } else { vec![foam.length] };
-        let collides = |c: &Candidate, length: f64, other: &Candidate, other_length: f64, other_width: f64| overlaps(
-            &rectangle(c,length+2.*TAB_MARGIN+2.*clearance,ROOT_OVERLAP,pad_inner+foam.width+TAB_MARGIN+clearance),
-            &rectangle(other,other_length+2.*TAB_MARGIN+2.*clearance,ROOT_OVERLAP,pad_inner+other_width+TAB_MARGIN+clearance));
-        let plan = placement::plan(&region,
-            (!automatic_count).then_some(settings.support_count.max(4).saturating_sub(pinned.len())),
-            &lengths, TAB_MARGIN+clearance+1., &pinned.iter().map(|(_,c)|c.clone()).collect::<Vec<_>>(),
-            |c,length,planned| valid_support(c,length,foam.width)
-                && !pinned.iter().any(|(s,other)|collides(c,length,other,s.length.unwrap_or(foam.length),s.width.unwrap_or(foam.width)))
-                && !chosen.iter().any(|(_,other,other_length,other_width)|collides(c,length,other,*other_length,*other_width))
-                && !planned.iter().any(|(other,other_length)|collides(c,length,other,*other_length,foam.width))
-                && document.layouts.iter().filter_map(|l|l.mirror_link.as_ref().map(|link|(l,link)))
-                    .filter(|(l,link)| l.id==id || link.source_id==id).all(|(_,link)|valid_support(&reflect(c,link.axis_x),length,foam.width)));
-        let mut slots:Vec<usize> = if automatic_count {
-            pinned.iter().filter_map(|(s,_)|s.id.strip_prefix(&format!("{id}:"))?.parse().ok()).filter(|slot|*slot<MAX_SUPPORTS).collect()
-        } else { (0..settings.support_count.max(4)).collect() };
+        let tracks = placement::tracks(ring, &id);
+        let region = Region {
+            id: id.clone(),
+            key: key.clone(),
+            candidates: vec![],
+            tracks,
+        };
+        let pinned: Vec<_> = foam
+            .supports
+            .iter()
+            .filter(|s| s.region_id == id && s.placement != Some(GasketPlacement::Generated))
+            .filter_map(|s| on_track(&region, s.anchor).map(|c| (s, c)))
+            .collect();
+        let lengths: Vec<f64> = if automatic {
+            (1..=8)
+                .rev()
+                .map(|n| n as f64 * 10.)
+                .chain(std::iter::once(5.))
+                .collect()
+        } else {
+            vec![foam.length]
+        };
+        let collides =
+            |c: &Candidate, length: f64, other: &Candidate, other_length: f64, other_width: f64| {
+                overlaps(
+                    &rectangle(
+                        c,
+                        length + 2. * TAB_MARGIN + 2. * clearance,
+                        ROOT_OVERLAP,
+                        pad_inner + foam.width + TAB_MARGIN + clearance,
+                    ),
+                    &rectangle(
+                        other,
+                        other_length + 2. * TAB_MARGIN + 2. * clearance,
+                        ROOT_OVERLAP,
+                        pad_inner + other_width + TAB_MARGIN + clearance,
+                    ),
+                )
+            };
+        let plan = placement::plan(
+            &region,
+            (!automatic_count)
+                .then_some(settings.support_count.max(4).saturating_sub(pinned.len())),
+            &lengths,
+            TAB_MARGIN + clearance + 1.,
+            &pinned.iter().map(|(_, c)| c.clone()).collect::<Vec<_>>(),
+            |c, length, planned| {
+                valid_support(c, length, foam.width)
+                    && !pinned.iter().any(|(s, other)| {
+                        collides(
+                            c,
+                            length,
+                            other,
+                            s.length.unwrap_or(foam.length),
+                            s.width.unwrap_or(foam.width),
+                        )
+                    })
+                    && !chosen.iter().any(|(_, other, other_length, other_width)| {
+                        collides(c, length, other, *other_length, *other_width)
+                    })
+                    && !planned.iter().any(|(other, other_length)| {
+                        collides(c, length, other, *other_length, foam.width)
+                    })
+                    && document
+                        .layouts
+                        .iter()
+                        .filter_map(|l| l.mirror_link.as_ref().map(|link| (l, link)))
+                        .filter(|(l, link)| l.id == id || link.source_id == id)
+                        .all(|(_, link)| {
+                            valid_support(&reflect(c, link.axis_x), length, foam.width)
+                        })
+            },
+        );
+        let mut slots: Vec<usize> = if automatic_count {
+            pinned
+                .iter()
+                .filter_map(|(s, _)| s.id.strip_prefix(&format!("{id}:"))?.parse().ok())
+                .filter(|slot| *slot < MAX_SUPPORTS)
+                .collect()
+        } else {
+            (0..settings.support_count.max(4)).collect()
+        };
         if automatic_count {
-            let mut slot=0;
+            let mut slot = 0;
             for _ in &plan {
-                while slots.contains(&slot) {slot+=1;}
-                slots.push(slot); slot+=1;
+                while slots.contains(&slot) {
+                    slot += 1;
+                }
+                slots.push(slot);
+                slot += 1;
             }
         }
-        let mut planned=plan.into_iter();
-        slots.sort_by_key(|slot| !foam.supports.iter().any(|s| s.id == format!("{id}:{slot}") && s.placement != Some(GasketPlacement::Generated)));
+        let mut planned = plan.into_iter();
+        slots.sort_by_key(|slot| {
+            !foam.supports.iter().any(|s| {
+                s.id == format!("{id}:{slot}") && s.placement != Some(GasketPlacement::Generated)
+            })
+        });
         for slot in slots {
             let support_id = format!("{id}:{slot}");
-            let saved = foam.supports.iter().find(|s| s.id == support_id && s.placement != Some(GasketPlacement::Generated));
-            let width = saved.and_then(|s|s.width).unwrap_or(foam.width);
-            let clear = |c: &Candidate, length: f64| !chosen.iter().any(|(_, other, other_length, other_width)| overlaps(
-                &rectangle(c, length+2.*TAB_MARGIN+2.*clearance, ROOT_OVERLAP, pad_inner+width+TAB_MARGIN+clearance),
-                &rectangle(other, other_length+2.*TAB_MARGIN+2.*clearance, ROOT_OVERLAP, pad_inner+other_width+TAB_MARGIN+clearance)));
+            let saved = foam
+                .supports
+                .iter()
+                .find(|s| s.id == support_id && s.placement != Some(GasketPlacement::Generated));
+            let width = saved.and_then(|s| s.width).unwrap_or(foam.width);
+            let clear = |c: &Candidate, length: f64| {
+                !chosen.iter().any(|(_, other, other_length, other_width)| {
+                    overlaps(
+                        &rectangle(
+                            c,
+                            length + 2. * TAB_MARGIN + 2. * clearance,
+                            ROOT_OVERLAP,
+                            pad_inner + width + TAB_MARGIN + clearance,
+                        ),
+                        &rectangle(
+                            other,
+                            other_length + 2. * TAB_MARGIN + 2. * clearance,
+                            ROOT_OVERLAP,
+                            pad_inner + other_width + TAB_MARGIN + clearance,
+                        ),
+                    )
+                })
+            };
             let (candidate, length, mut fit_error) = if let Some(saved) = saved {
                 let length = saved.length.unwrap_or(foam.length);
-                let c = on_track(&region, saved.anchor).ok_or_else(||format!("Support {support_id} has an invalid perimeter anchor."))?;
+                let c = on_track(&region, saved.anchor).ok_or_else(|| {
+                    format!("Support {support_id} has an invalid perimeter anchor.")
+                })?;
                 let error = if saved.region_id != id || saved.outline_key != key {
                     Some("Outline changed; move this gasket to confirm its position.".to_string())
-                } else if !length.is_finite() || length <= 0. || !width.is_finite() || width <= 0. || !valid_support(&c,length,width) || !clear(&c,length) {
+                } else if !length.is_finite()
+                    || length <= 0.
+                    || !width.is_finite()
+                    || width <= 0.
+                    || !valid_support(&c, length, width)
+                    || !clear(&c, length)
+                {
                     Some("Gasket does not fit here; shorten it or move it clear of corners, closures and other supports.".to_string())
-                } else { None };
-                (c,length,error)
+                } else {
+                    None
+                };
+                (c, length, error)
             } else {
                 planned.next().map(|(c,length)|(c,length,None)).unwrap_or_else(|| {
                     let occupied: Vec<_> = chosen.iter().filter(|(name,_,_,_)|name.starts_with(&format!("{id}:"))).map(|(_,c,_,_)|side(c)).collect();
@@ -702,35 +816,67 @@ pub(super) fn generate(
                     (candidate,if automatic {5.} else {foam.length},Some("No clear support fits this count; reduce the count or adjust the gasket, openings or closures.".into()))
                 })
             };
-            if !length.is_finite() || !width.is_finite() { fit_error = Some("Gasket dimensions must be finite.".into()); }
+            if !length.is_finite() || !width.is_finite() {
+                fit_error = Some("Gasket dimensions must be finite.".into());
+            }
             result.gasket_supports.push(MechanicalGasketSupport {
                 fit_error,
-                placement:Some(if saved.is_some() {GasketPlacement::User} else {GasketPlacement::Generated}),
-                id:support_id.clone(), region_id:id.clone(), outline_key:key.clone(), anchor:candidate.anchor,
-                at:candidate.at, tangent:candidate.tangent, normal:candidate.normal, length, width, z:contact, thickness:compressed,
-                pair_id:None, mirror_axis:None, unlinked:saved.is_some_and(|s|s.unlinked),
+                placement: Some(if saved.is_some() {
+                    GasketPlacement::User
+                } else {
+                    GasketPlacement::Generated
+                }),
+                id: support_id.clone(),
+                region_id: id.clone(),
+                outline_key: key.clone(),
+                anchor: candidate.anchor,
+                at: candidate.at,
+                tangent: candidate.tangent,
+                normal: candidate.normal,
+                length,
+                width,
+                z: contact,
+                thickness: compressed,
+                pair_id: None,
+                mirror_axis: None,
+                unlinked: saved.is_some_and(|s| s.unlinked),
             });
-            chosen.push((support_id,candidate,length,width));
+            chosen.push((support_id, candidate, length, width));
         }
         result.gasket_tracks.extend(region.tracks);
     }
-    if let Some(saved) = foam
-        .supports
-        .iter()
-        .find(|s| s.placement != Some(GasketPlacement::Generated) && !chosen.iter().any(|(id, _, _, _)| *id == s.id))
-    {
-        return Err(format!("Saved support {} cannot be discarded by a count or region change; remove it explicitly.",saved.id));
+    if let Some(saved) = foam.supports.iter().find(|s| {
+        s.placement != Some(GasketPlacement::Generated)
+            && !chosen.iter().any(|(id, _, _, _)| *id == s.id)
+    }) {
+        return Err(format!(
+            "Saved support {} cannot be discarded by a count or region change; remove it explicitly.",
+            saved.id
+        ));
     }
     // Placement prioritizes pinned supports; presentation keeps stable slot order.
-    result.gasket_supports.sort_by(|a,b| {
-        let slot = |id: &str| id.rsplit(':').next().and_then(|value|value.parse::<usize>().ok()).unwrap_or(0);
-        a.region_id.cmp(&b.region_id).then_with(||slot(&a.id).cmp(&slot(&b.id)))
+    result.gasket_supports.sort_by(|a, b| {
+        let slot = |id: &str| {
+            id.rsplit(':')
+                .next()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(0)
+        };
+        a.region_id
+            .cmp(&b.region_id)
+            .then_with(|| slot(&a.id).cmp(&slot(&b.id)))
     });
     for layout in &document.layouts {
         let Some(link) = &layout.mirror_link else {
             continue;
         };
-        for slot in 0..result.gasket_supports.iter().filter_map(|s|s.id.rsplit(':').next()?.parse::<usize>().ok()).max().map_or(0,|slot|slot+1) {
+        for slot in 0..result
+            .gasket_supports
+            .iter()
+            .filter_map(|s| s.id.rsplit(':').next()?.parse::<usize>().ok())
+            .max()
+            .map_or(0, |slot| slot + 1)
+        {
             let source_id = format!("{}:{slot}", link.source_id);
             let target_id = format!("{}:{slot}", layout.id);
             let Some(source) = result
@@ -765,7 +911,9 @@ pub(super) fn generate(
             if follower_support.placement == Some(GasketPlacement::User)
                 && distance(reflected, follower_support.at) > 0.001
             {
-                return Err(format!("Pinned linked supports {source_id} and {target_id} disagree; explicitly move or unlink them."));
+                return Err(format!(
+                    "Pinned linked supports {source_id} and {target_id} disagree; explicitly move or unlink them."
+                ));
             }
             let tracks: Vec<_> = result
                 .gasket_tracks
@@ -790,7 +938,11 @@ pub(super) fn generate(
             let support = &mut result.gasket_supports[follower];
             support.length = master_support.length;
             support.width = master_support.width;
-            support.fit_error = if conflict { Some("Linked gasket does not fit; resize, move or unlink it.".into()) } else { master_support.fit_error.clone() };
+            support.fit_error = if conflict {
+                Some("Linked gasket does not fit; resize, move or unlink it.".into())
+            } else {
+                master_support.fit_error.clone()
+            };
             support.at = candidate.at;
             support.anchor = candidate.anchor;
             support.tangent = candidate.tangent;
@@ -803,22 +955,48 @@ pub(super) fn generate(
             *chosen
                 .iter_mut()
                 .find(|(id, _, _, _)| *id == follower_support.id)
-                .unwrap() = (follower_support.id.clone(), candidate, master_support.length, master_support.width);
+                .unwrap() = (
+                follower_support.id.clone(),
+                candidate,
+                master_support.length,
+                master_support.width,
+            );
         }
     }
     // Validate final reflected positions together, not against a follower's temporary placement.
     for (index, (id, candidate, length, width)) in chosen.iter().enumerate() {
-        if chosen[..index].iter().any(|(_,other,other_length,other_width)| overlaps(
-            &rectangle(candidate,length+2.*TAB_MARGIN+2.*clearance,ROOT_OVERLAP,pad_inner+width+TAB_MARGIN+clearance),
-            &rectangle(other,other_length+2.*TAB_MARGIN+2.*clearance,ROOT_OVERLAP,pad_inner+other_width+TAB_MARGIN+clearance))) {
-            if let Some(support) = result.gasket_supports.iter_mut().find(|s|s.id==*id) {
-                support.fit_error = Some("Gasket overlaps another support; shorten or move it.".into());
+        if chosen[..index]
+            .iter()
+            .any(|(_, other, other_length, other_width)| {
+                overlaps(
+                    &rectangle(
+                        candidate,
+                        length + 2. * TAB_MARGIN + 2. * clearance,
+                        ROOT_OVERLAP,
+                        pad_inner + width + TAB_MARGIN + clearance,
+                    ),
+                    &rectangle(
+                        other,
+                        other_length + 2. * TAB_MARGIN + 2. * clearance,
+                        ROOT_OVERLAP,
+                        pad_inner + other_width + TAB_MARGIN + clearance,
+                    ),
+                )
+            })
+        {
+            if let Some(support) = result.gasket_supports.iter_mut().find(|s| s.id == *id) {
+                support.fit_error =
+                    Some("Gasket overlaps another support; shorten or move it.".into());
             }
         }
     }
     for (index, ring) in rings.iter().enumerate() {
-        let id = region_id(document,&config.board_id,ring,index);
-        let sides: std::collections::HashSet<_> = chosen.iter().filter(|(name,_,_,_)|name.starts_with(&format!("{id}:"))).map(|(_,c,_,_)|side(c)).collect();
+        let id = region_id(document, &config.board_id, ring, index);
+        let sides: std::collections::HashSet<_> = chosen
+            .iter()
+            .filter(|(name, _, _, _)| name.starts_with(&format!("{id}:")))
+            .map(|(_, c, _, _)| side(c))
+            .collect();
         if sides.len() < 4 {
             result.diagnostics.push(Finding { id:format!("gasket-coverage:{id}"), severity:Severity::Error, scope:Scope::Case,
                 message:"Gaskets must support all four sides; move or reset the supports to restore coverage.".into(), target_ids:vec![] });
@@ -827,15 +1005,29 @@ pub(super) fn generate(
     }
     for support in &result.gasket_supports {
         if let Some(message) = &support.fit_error {
-            result.diagnostics.push(Finding { id:format!("gasket-fit:{}",support.id),severity:Severity::Error,scope:Scope::Case,
-                message:message.clone(),target_ids:vec![format!("gasket:{}:lower",support.id)] });
+            result.diagnostics.push(Finding {
+                id: format!("gasket-fit:{}", support.id),
+                severity: Severity::Error,
+                scope: Scope::Case,
+                message: message.clone(),
+                target_ids: vec![format!("gasket:{}:lower", support.id)],
+            });
             result.generation_blocked = true;
         }
     }
-    if result.generation_blocked { return Ok(()); }
+    if result.generation_blocked {
+        return Ok(());
+    }
     let tabs: Vec<_> = chosen
         .iter()
-        .map(|(_, c, length, width)| rectangle(c, length + 2. * TAB_MARGIN, ROOT_OVERLAP, pad_inner+width+TAB_MARGIN))
+        .map(|(_, c, length, width)| {
+            rectangle(
+                c,
+                length + 2. * TAB_MARGIN,
+                ROOT_OVERLAP,
+                pad_inner + width + TAB_MARGIN,
+            )
+        })
         .collect();
     result.plate_contours = union(&nominal, &tabs);
     result

@@ -4,6 +4,37 @@ Board Studio describes keyboard boards and their associated mechanical assemblie
 
 ## Language
 
+**Generated outline**:
+A board boundary derived from the current placement of its included components
+and the chosen outline settings; it updates as the layout changes.
+
+**Outline refinement**:
+An accepted alternative boundary that remains linked to its source components
+and follows their placement. Freezing or manually editing it creates a separate
+fixed copy while retaining the linked version.
+
+**Edited outline**:
+A manually modified copy of an outline, retained separately from its generated
+source. Its geometry stays fixed when components move; clearance findings identify
+where the changed layout no longer fits.
+
+**Outline version**:
+A named alternative board boundary belonging to one PCB design, with its own
+cutouts, bridges, protected gaps and corner finishing. Versions share component
+placement while retaining independent outline choices.
+
+**Active outline**:
+The outline version selected to define the current board shape and its exports.
+
+**Outline bridge**:
+PCB material connecting component groups within one outline version. A bridge
+may appear in multiple matrix contexts while remaining one connection.
+
+**Protected gap**:
+A deliberately retained recess in a generated board boundary, excluded from
+automatic gap filling through the Keep gap action. Protection follows its source
+components on generated/refined outlines and remains fixed on edited copies.
+
 **Case exterior**:
 The outer boundary shared by a case's tray and top, sized from the board and the
 space required by its mechanical features and clearances.

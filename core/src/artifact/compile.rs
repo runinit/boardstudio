@@ -7,10 +7,16 @@ pub fn compile_authored(
     side: Side,
 ) -> Result<CompiledFootprint, String> {
     if definition.kicad_source.is_some() {
-        return Err(format!("Footprint '{}' has authoritative KiCad source and must use source projection", definition.id));
+        return Err(format!(
+            "Footprint '{}' has authoritative KiCad source and must use source projection",
+            definition.id
+        ));
     }
     if let Some(generator) = &definition.generator {
-        return Err(format!("Unsupported authored-footprint generator: {}", generator.source));
+        return Err(format!(
+            "Unsupported authored-footprint generator: {}",
+            generator.source
+        ));
     }
     let mut geometry = FootprintGeometry {
         side,
@@ -24,7 +30,12 @@ pub fn compile_authored(
     }
     validate_geometry(definition, &geometry)?;
     let preview_svg = Some(preview_svg(&geometry)?);
-    Ok(CompiledFootprint { definition: definition.clone(), geometry, diagnostics: vec![], preview_svg })
+    Ok(CompiledFootprint {
+        definition: definition.clone(),
+        geometry,
+        diagnostics: vec![],
+        preview_svg,
+    })
 }
 
 pub fn validate_geometry(
@@ -230,9 +241,15 @@ mod tests {
     fn retired_generators_cannot_fall_back_to_saved_pad_geometry() {
         let mut definition = definition();
         definition.generator = Some(crate::model::PartGenerator {
-            source: "builtin:rgb-led".into(), version: "builtin-1".into(), parameters: Default::default()
+            source: "builtin:rgb-led".into(),
+            version: "builtin-1".into(),
+            parameters: Default::default(),
         });
-        assert!(compile_authored(&definition, Side::Front).unwrap_err().contains("Unsupported"));
+        assert!(
+            compile_authored(&definition, Side::Front)
+                .unwrap_err()
+                .contains("Unsupported")
+        );
     }
 
     #[test]
@@ -250,13 +267,9 @@ mod tests {
     #[test]
     fn net_label_changes_do_not_change_compiled_geometry() {
         let mut definition = definition();
-        let without_net = compile_authored(&definition, Side::Front)
-            .unwrap()
-            .geometry;
+        let without_net = compile_authored(&definition, Side::Front).unwrap().geometry;
         definition.pads[0].net_id = Some("row".into());
-        let with_net = compile_authored(&definition, Side::Front)
-            .unwrap()
-            .geometry;
+        let with_net = compile_authored(&definition, Side::Front).unwrap().geometry;
         assert_eq!(without_net, with_net);
     }
 

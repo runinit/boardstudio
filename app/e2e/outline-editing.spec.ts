@@ -18,8 +18,12 @@ async function draw(page:Page,kind:string,points:Point[]) {
 
 test('outline points use the mm grid, drag cancellation, numeric edits, undo and reload',async({page},info)=>{
   await page.goto('/');await openOutline(page);
+  await page.getByRole('button',{name:'Snap',exact:true}).click();
+  await page.getByLabel('Snap increment').selectOption('-1');
+  await page.getByLabel('Geometry snap',{exact:true}).uncheck();
+  await page.getByRole('button',{name:'Snap',exact:true}).click();
   await draw(page,'Draw addition',[{x:1,y:-1},{x:5,y:-1},{x:5,y:-5}]);
-  await page.getByLabel('Outline point grid').selectOption('0.5');
+  await page.getByLabel('Outline point grid').selectOption('-0.5');
   const handle=page.getByRole('button',{name:'Outline point 1',exact:true});
   await handle.focus();await page.keyboard.press('ArrowLeft');
   await expect(page.getByLabel('Point 1 X')).toHaveValue('0.5');
@@ -40,8 +44,9 @@ test('outline points use the mm grid, drag cancellation, numeric edits, undo and
   await page.getByRole('button',{name:'Remove point 2',exact:true}).click();
   await expect(page.locator('.wb-outline-handle')).toHaveCount(3);
   await page.getByLabel('Point 1 X').fill('-3.25');await page.getByLabel('Point 1 X').blur();
-  await page.getByLabel('Shape attachment').selectOption({label:'SW1'});
   await expect(page.getByLabel('Point 1 X')).toHaveValue('-3.25');
+  await expect(page.getByLabel('Shape attachment')).toHaveCount(0);
+  await expect(page.getByText('This outline stays fixed when components move.',{exact:false})).toBeVisible();
   await page.screenshot({path:info.outputPath('points-desktop.png')});
   await page.setViewportSize({width:390,height:844});
   await expect(page.getByLabel('Point 1 X')).toBeVisible();
@@ -51,7 +56,7 @@ test('outline points use the mm grid, drag cancellation, numeric edits, undo and
   await expect(page.getByLabel('Saved locally',{exact:true})).toBeVisible();await page.reload();await openOutline(page);
   await page.getByRole('button',{name:'Edit addition 1',exact:true}).click();
   await expect(page.getByLabel('Point 1 X')).toHaveValue('-3.25');
-  await expect(page.getByLabel('Shape attachment')).not.toHaveValue('');
+  await expect(page.getByLabel('Shape attachment')).toHaveCount(0);
 });
 
 test('manual connection endpoints follow components and positive width persists',async({page})=>{

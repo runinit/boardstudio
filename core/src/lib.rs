@@ -8,12 +8,14 @@ pub mod electrical_peripherals;
 pub mod electrical_profiles;
 pub mod firmware;
 mod geometry;
-mod outline_controls;
 mod keycaps;
 mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod model;
+mod outline_controls;
+mod outline_validation;
+mod outline_versions;
 mod script;
 mod validate;
 
@@ -443,6 +445,7 @@ impl CoreEngine {
             );
         }
         next.revision = self.document.revision + 1;
+        outline_versions::refresh_recovery(&mut next, &cache);
         self.undo.push(self.document.clone());
         self.redo.clear();
         self.document = next;
@@ -529,6 +532,7 @@ impl CoreEngine {
 
     fn recompute(&mut self) {
         (self.outline_cache, self.contours, self.findings) = outlines(&self.document, None, &[]);
+        outline_versions::refresh_recovery(&mut self.document, &self.outline_cache);
     }
 
     fn scene(
@@ -559,6 +563,11 @@ impl CoreEngine {
         findings.extend(validate::validate(doc));
         let (board_contours, board_findings) = geometry::board_contours(doc, cache);
         findings.extend(board_findings);
+        let board_outline_scenes = geometry::board_outline_scenes(doc, cache);
+        let (outline_findings, mut finding_markers) =
+            outline_validation::validate(doc, &board_contours, &board_outline_scenes);
+        findings.extend(outline_findings);
+        finding_markers.extend(outline_validation::feature_markers(doc, &findings));
         for board in &board_contours {
             if board.contours.is_empty() {
                 findings.push(Finding {
@@ -615,7 +624,12 @@ impl CoreEngine {
                             || finding.id.ends_with(":empty-outline"))
                 });
                 let outline = !board.contours.is_empty() && !invalid_outline;
-                let pcb = layout && outline && !invalid_pcb;
+                let valid_layout = !findings.iter().any(|finding| {
+                    finding.severity == Severity::Error
+                        && finding.scope == Scope::Layout
+                        && relevant(finding)
+                });
+                let pcb = valid_layout && outline && !invalid_pcb;
                 let bodies: Vec<_> = doc
                     .case_bodies
                     .iter()
@@ -672,6 +686,8 @@ impl CoreEngine {
             contours: contours.to_vec(),
             board_contours,
             board_readiness,
+            board_outline_scenes,
+            finding_markers,
             findings,
             readiness: Readiness {
                 layout,
@@ -802,6 +818,9 @@ fn affects_outline(op: &EditOperation) -> bool {
         op,
         EditOperation::MoveParts { .. }
             | EditOperation::SetOutline { .. }
+            | EditOperation::CopyOutline { .. }
+            | EditOperation::SelectOutline { .. }
+            | EditOperation::RemoveOutline { .. }
             | EditOperation::AddPart { .. }
             | EditOperation::RemoveParts { .. }
             | EditOperation::RemoveMatrix { .. }
@@ -880,13 +899,24 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
         }
         EditOperation::SetOutline { feature } => {
             let id = feature.id().to_string();
-            if let Some(current) = doc.outline.iter_mut().find(|item| item.id() == id) {
+            let current = doc
+                .board_outlines
+                .iter_mut()
+                .flat_map(|state| &mut state.versions)
+                .flat_map(|version| &mut version.geometry.features)
+                .find(|item| item.id() == id)
+                .or_else(|| doc.outline.iter_mut().find(|item| item.id() == id));
+            if let Some(current) = current {
                 *current = feature.clone();
             } else {
                 doc.outline.push(feature.clone());
             }
             Ok(vec![id])
         }
+        operation @ (EditOperation::CopyOutline { .. }
+        | EditOperation::SelectOutline { .. }
+        | EditOperation::RenameOutline { .. }
+        | EditOperation::RemoveOutline { .. }) => outline_versions::apply(doc, operation),
         EditOperation::AddPart { part, board_id } => {
             if doc.parts.iter().any(|item| item.id == part.id) {
                 return Err(format!("Duplicate part {}", part.id));

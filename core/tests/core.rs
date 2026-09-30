@@ -1474,7 +1474,9 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
     )))
     .1;
     let mut left = doc.layouts[0].clone();
-    if !left.part_ids.contains(&local.id) { left.part_ids.push(local.id.clone()); }
+    if !left.part_ids.contains(&local.id) {
+        left.part_ids.push(local.id.clone());
+    }
     doc = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
@@ -1492,9 +1494,20 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
         },
     )))
     .1;
-    assert_eq!(doc.parts.iter().find(|part| part.id == local.id).unwrap().pose, local.pose);
+    assert_eq!(
+        doc.parts
+            .iter()
+            .find(|part| part.id == local.id)
+            .unwrap()
+            .pose,
+        local.pose
+    );
     assert_eq!(doc.layouts[1].part_ids.len(), 1);
-    let counterpart = doc.parts.iter().find(|part| part.id == doc.layouts[1].part_ids[0]).unwrap();
+    let counterpart = doc
+        .parts
+        .iter()
+        .find(|part| part.id == doc.layouts[1].part_ids[0])
+        .unwrap();
     assert!((counterpart.pose.at.x + local.pose.at.x - 20.0).abs() < 1e-8);
     let mut independent = doc.layouts[1].clone();
     independent.mirror_link = None;
@@ -1506,7 +1519,17 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
         },
     )))
     .1;
-    assert_eq!(unlinked.parts.iter().map(|part| (&part.id, &part.pose)).collect::<Vec<_>>(), doc.parts.iter().map(|part| (&part.id, &part.pose)).collect::<Vec<_>>());
+    assert_eq!(
+        unlinked
+            .parts
+            .iter()
+            .map(|part| (&part.id, &part.pose))
+            .collect::<Vec<_>>(),
+        doc.parts
+            .iter()
+            .map(|part| (&part.id, &part.pose))
+            .collect::<Vec<_>>()
+    );
     let mut change = unlinked.matrices[0].clone();
     change.rows += 1;
     let changed = scene(engine.handle(edit(
@@ -1630,7 +1653,7 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
     value.row_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 6];
     value.column_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 7];
     value.cells = vec![MatrixCell {
-            assemblies_local: None,
+        assemblies_local: None,
         row: 5,
         column: 0,
         enabled: true,
@@ -1684,7 +1707,7 @@ fn new_matrix_rejects_out_of_bounds_edits() {
     );
     value.row_offsets.clear();
     value.cells = vec![MatrixCell {
-            assemblies_local: None,
+        assemblies_local: None,
         row: 1,
         column: 0,
         enabled: true,
@@ -2293,11 +2316,20 @@ fn constraint_preview_commit_and_undo() {
     ));
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undone.parts[1].pose.at.x, 10.0);
-    let (_, moved) = scene(engine.handle(edit(2, EditPhase::Commit, EditOperation::MoveParts {
-        positions: vec![Position { id: "target".into(), at: Vec2 { x: 8.0, y: 0.0 } }],
-    })));
+    let (_, moved) = scene(engine.handle(edit(
+        2,
+        EditPhase::Commit,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "target".into(),
+                at: Vec2 { x: 8.0, y: 0.0 },
+            }],
+        },
+    )));
     assert_eq!(moved.parts[1].pose.at.x, 8.0);
-    let (_, restored) = scene(engine.handle(CoreRequest::Undo { id: "undo-offset".into() }));
+    let (_, restored) = scene(engine.handle(CoreRequest::Undo {
+        id: "undo-offset".into(),
+    }));
     assert_eq!(restored.parts[1].pose.at.x, 10.0);
 }
 

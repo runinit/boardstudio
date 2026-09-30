@@ -78,12 +78,8 @@ fn wired_document() -> ProjectDoc {
     let mut diode_terms = BTreeMap::new();
     diode_terms.insert("anode".into(), vec!["A".into()]);
     diode_terms.insert("cathode".into(), vec!["K".into()]);
-    doc.definitions.push(definition(
-        "diode",
-        PartKind::Passive,
-        diode_terms,
-        None,
-    ));
+    doc.definitions
+        .push(definition("diode", PartKind::Passive, diode_terms, None));
     let mut mcu_terms = BTreeMap::new();
     for p in [
         "GND", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P14", "P15", "P16",
@@ -385,7 +381,12 @@ fn resolver_scopes_board_and_honors_controller_and_locks() {
     let assignment_pins = plan
         .assignments
         .iter()
-        .map(|assignment| (assignment.key_id.as_str(), (assignment.row_pin.as_str(), assignment.column_pin.as_str())))
+        .map(|assignment| {
+            (
+                assignment.key_id.as_str(),
+                (assignment.row_pin.as_str(), assignment.column_pin.as_str()),
+            )
+        })
         .collect::<BTreeMap<_, _>>();
     assert_eq!(
         assignment_pins,
@@ -396,7 +397,11 @@ fn resolver_scopes_board_and_honors_controller_and_locks() {
             ("matrix/m/r1c1", ("P19", "P20")),
         ])
     );
-    let row_zero = plan.nets.iter().find(|net| net.id.ends_with("/row/0")).unwrap();
+    let row_zero = plan
+        .nets
+        .iter()
+        .find(|net| net.id.ends_with("/row/0"))
+        .unwrap();
     let row_zero_pins = row_zero
         .pins
         .iter()
@@ -410,7 +415,11 @@ fn resolver_scopes_board_and_honors_controller_and_locks() {
             ("mcu-left", "P1"),
         ])
     );
-    assert!(plan.diagnostics.iter().all(|item| item.code != "protected-pin-change"));
+    assert!(
+        plan.diagnostics
+            .iter()
+            .all(|item| item.code != "protected-pin-change")
+    );
     assert!(plan.assignments.iter().any(|a| a.locked));
     assert!(
         plan.diagnostics
@@ -445,7 +454,13 @@ fn apply_materializes_switch_diode_and_controller_pins_and_preserves_manual_net(
         .expect("row net");
     assert!(row.pins.iter().any(|p| p.part_id == "mcu-left"));
     let controller = doc.parts.iter().find(|p| p.id == "mcu-left").unwrap();
-    assert_eq!(controller.generator_parameters.as_ref().and_then(|p| p.get(&plan.row_pins[0])), Some(&serde_json::json!(row.name)));
+    assert_eq!(
+        controller
+            .generator_parameters
+            .as_ref()
+            .and_then(|p| p.get(&plan.row_pins[0])),
+        Some(&serde_json::json!(row.name))
+    );
     assert!(doc.nets.iter().any(|n| n.id.contains("link/matrix/m/r0c0")
         && n.pins.iter().any(|p| p.part_id.ends_with("/diode"))));
 }

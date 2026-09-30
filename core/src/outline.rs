@@ -1,5 +1,7 @@
 //! Automatic perimeter construction in board coordinates. Authored cutouts are composed later.
-use super::{MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, Path, SCALE, Shapes, rect, snap};
+use super::{
+    FeatureShape, MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, Path, SCALE, Shapes, cleanup, rect, snap,
+};
 use crate::model::{CornerStyle, OutlineSettings, PartKind, ProjectDoc, Vec2};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
@@ -68,7 +70,7 @@ fn nearest(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
     let t = ((v[0] * d[0] + v[1] * d[1]) / (d[0] * d[0] + d[1] * d[1])).clamp(0.0, 1.0);
     [a[0] + t * d[0], a[1] + t * d[1]]
 }
-fn bridge(shapes: &Shapes, width: f64) -> Path {
+fn bridge(shapes: &Shapes, width: f64) -> (Path, [[f64; 2]; 2]) {
     let mut best = (f64::INFINITY, [0.0; 2], [0.0; 2]);
     for i in 0..shapes.len() {
         for j in i + 1..shapes.len() {
@@ -97,33 +99,44 @@ fn bridge(shapes: &Shapes, width: f64) -> Path {
     let (distance, a, b) = best;
     if distance < 1e-9 {
         // A point contact still needs a web with positive area.
-        return rect(Vec2 { x: a[0], y: a[1] }, Vec2 { x: width, y: width }, 0.0);
+        return (
+            rect(Vec2 { x: a[0], y: a[1] }, Vec2 { x: width, y: width }, 0.0),
+            [a, b],
+        );
     }
     let u = [(b[0] - a[0]) / distance, (b[1] - a[1]) / distance];
     let v = [-u[1] * width / 2.0, u[0] * width / 2.0];
     // Extend into both islands so quantization cannot leave a point-only connection.
     let a = [a[0] - u[0] * width / 2.0, a[1] - u[1] * width / 2.0];
     let b = [b[0] + u[0] * width / 2.0, b[1] + u[1] * width / 2.0];
-    vec![
-        [a[0] - v[0], a[1] - v[1]],
-        [b[0] - v[0], b[1] - v[1]],
-        [b[0] + v[0], b[1] + v[1]],
-        [a[0] + v[0], a[1] + v[1]],
-    ]
+    (
+        vec![
+            [a[0] - v[0], a[1] - v[1]],
+            [b[0] - v[0], b[1] - v[1]],
+            [b[0] + v[0], b[1] + v[1]],
+            [a[0] + v[0], a[1] + v[1]],
+        ],
+        [best.1, best.2],
+    )
 }
 pub(super) fn envelope(
     doc: &ProjectDoc,
+    feature_id: &str,
     ids: &[String],
     margin: f64,
     settings: &OutlineSettings,
     connections: &[crate::model::OutlineConnection],
-) -> Result<(Shapes, Vec<String>), String> {
+) -> Result<FeatureShape, String> {
+    let repair = settings.repair.clone().unwrap_or_default();
+    cleanup::validate(&repair)?;
     if !margin.is_finite()
         || margin < 0.0
         || !settings.bridge_width.is_finite()
-        || settings.bridge_width <= 0.0
+        || settings.bridge_width < 0.001
     {
-        return Err("Margins must be nonnegative and bridge width must be positive".into());
+        return Err(
+            "Margins must be nonnegative and bridge width must be at least 0.001 mm".into(),
+        );
     }
     let members: BTreeSet<_> = ids.iter().collect();
     let defs: BTreeMap<_, _> = doc.definitions.iter().map(|d| (&d.id, d)).collect();
@@ -150,7 +163,8 @@ pub(super) fn envelope(
     let mut shapes: Shapes = vec![];
     let mut notices = vec![];
     let mut fallback_definitions = BTreeSet::new();
-    for p in selected {
+    let mut envelopes = vec![];
+    for p in &selected {
         let d = defs
             .get(&p.definition_id)
             .ok_or("Outline part definition is missing")?;
@@ -205,15 +219,20 @@ pub(super) fn envelope(
                 .map_err(|_| "Outline offset is outside supported coordinate range")?
         };
         shapes = shapes.overlay(&expanded, OverlayRule::Union, FillRule::NonZero);
+        envelopes.push((p.id.as_str(), expanded));
     }
     if shapes.is_empty() {
         return Err("Outline has no included physical envelopes".into());
     }
     // Authored paths join islands before the nearest automatic bridges are chosen.
+    let mut bridges = vec![];
     for connection in connections {
-        let points = connection.points.iter()
+        let points = connection
+            .points
+            .iter()
             .map(|point| crate::outline_controls::point(doc, point))
             .collect::<Result<Vec<_>, _>>()?;
+        let mut corridors: Shapes = vec![];
         for pair in points.windows(2) {
             let a = pair[0];
             let b = pair[1];
@@ -225,16 +244,51 @@ pub(super) fn envelope(
             let uy = (b.y - a.y) / distance;
             let h = connection.width / 2.0;
             let path = vec![
-                [a.x - ux*h - uy*h, a.y - uy*h + ux*h],
-                [b.x + ux*h - uy*h, b.y + uy*h + ux*h],
-                [b.x + ux*h + uy*h, b.y + uy*h - ux*h],
-                [a.x - ux*h + uy*h, a.y - uy*h - ux*h],
+                [a.x - ux * h - uy * h, a.y - uy * h + ux * h],
+                [b.x + ux * h - uy * h, b.y + uy * h + ux * h],
+                [b.x + ux * h + uy * h, b.y + uy * h - ux * h],
+                [a.x - ux * h + uy * h, a.y - uy * h - ux * h],
             ];
             shapes = shapes.overlay(&vec![vec![path]], OverlayRule::Union, FillRule::NonZero);
+            corridors = corridors.overlay(
+                &vec![vec![vec![
+                    [a.x - ux * h - uy * h, a.y - uy * h + ux * h],
+                    [b.x + ux * h - uy * h, b.y + uy * h + ux * h],
+                    [b.x + ux * h + uy * h, b.y + uy * h - ux * h],
+                    [a.x - ux * h + uy * h, a.y - uy * h - ux * h],
+                ]]],
+                OverlayRule::Union,
+                FillRule::NonZero,
+            );
+        }
+        if let Some(path) = corridors.first().and_then(|shape| shape.first()) {
+            bridges.push(cleanup::bridge_metadata(
+                doc,
+                feature_id,
+                Some(&connection.id),
+                connection.width,
+                path,
+                &points,
+                &envelopes,
+            ));
         }
     }
     while shapes.len() > 1 {
-        let web = bridge(&shapes, settings.bridge_width);
+        let width = if repair.enabled {
+            settings.bridge_width.max(repair.minimum_connection_width)
+        } else {
+            settings.bridge_width
+        };
+        let (web, ends) = bridge(&shapes, width);
+        bridges.push(cleanup::bridge_metadata(
+            doc,
+            feature_id,
+            None,
+            width,
+            &web,
+            &ends.map(|p| Vec2 { x: p[0], y: p[1] }),
+            &envelopes,
+        ));
         let count = shapes.len();
         shapes = shapes.overlay(&web, OverlayRule::Union, FillRule::NonZero);
         if shapes.len() >= count {
@@ -247,7 +301,46 @@ pub(super) fn envelope(
     for shape in &mut shapes {
         shape.truncate(1);
     }
-    Ok((shapes, notices))
+    // Repair an existing narrow neck before protections/cutouts are applied.
+    // A protected conflict remains visible and is reported by active-outline validation.
+    if repair.enabled && repair.minimum_connection_width > 0.0 {
+        for _ in 0..selected.len() {
+            let style = OutlineStyle::new(-repair.minimum_connection_width / 2.0)
+                .line_join(LineJoin::Miter(0.1));
+            let cores = shapes
+                .outline_fixed_scale(&style, SCALE)
+                .map_err(|_| "Connection measurement is outside supported coordinates")?;
+            if cores.len() <= shapes.len() {
+                break;
+            }
+            let width = repair.minimum_connection_width + 0.01;
+            let (web, ends) = bridge(&cores, width);
+            let widened = shapes.overlay(&web, OverlayRule::Union, FillRule::NonZero);
+            let after = widened
+                .outline_fixed_scale(&style, SCALE)
+                .map_err(|_| "Connection repair is outside supported coordinates")?;
+            if after.len() >= cores.len() {
+                break;
+            }
+            bridges.push(cleanup::bridge_metadata(
+                doc,
+                feature_id,
+                None,
+                width,
+                &web,
+                &ends.map(|p| Vec2 { x: p[0], y: p[1] }),
+                &envelopes,
+            ));
+            shapes = widened;
+        }
+    }
+    let gaps = cleanup::repair(doc, feature_id, &mut shapes, &repair, &envelopes)?;
+    Ok(FeatureShape {
+        shapes,
+        notices,
+        bridges,
+        gaps,
+    })
 }
 // Finishing must not make a cutout cross an exterior or another cutout.
 fn rings_intersect(a: &Path, b: &Path) -> bool {

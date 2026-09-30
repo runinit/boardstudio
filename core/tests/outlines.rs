@@ -16,7 +16,10 @@ fn document() -> ProjectDoc {
 fn matrix_document() -> ProjectDoc {
     let mut serialized = serde_json::to_string(&document()).unwrap();
     for index in 0..9 {
-        serialized = serialized.replace(&format!("\"k{index}\""), &format!("\"matrix/main/r{}c{}\"", index / 3, index % 3));
+        serialized = serialized.replace(
+            &format!("\"k{index}\""),
+            &format!("\"matrix/main/r{}c{}\"", index / 3, index % 3),
+        );
     }
     serde_json::from_str(&serialized).unwrap()
 }
@@ -271,6 +274,7 @@ fn components_can_use_zero_margin_or_be_excluded() {
     doc.parts[0].outline = Some(PartOutline {
         excluded: false,
         margin: Some(0.0),
+        ..Default::default()
     });
     let mut core = CoreEngine::new();
     let result = scene(core.handle(CoreRequest::Open {
@@ -333,6 +337,13 @@ fn islands_bridge_interior_gaps_fill_and_undo_restores_corner() {
 #[test]
 fn oversized_finishing_reports_requested_and_applied_sizes() {
     let mut doc = document();
+    // This test isolates corner fitting. Body/support conflicts have separate checks.
+    for part in &mut doc.parts {
+        part.outline = Some(PartOutline {
+            allow_body_overhang: true,
+            ..Default::default()
+        });
+    }
     let mut feature = serde_json::to_value(&doc.outline[0]).unwrap();
     feature["settings"] = json!({"corners":"fillet","size":1000,"bridgeWidth":10});
     doc.outline[0] = serde_json::from_value(feature).unwrap();
@@ -446,6 +457,13 @@ fn grid_aligned_matrix_does_not_report_spurious_corner_reductions() {
 fn edge_notch_is_preserved_and_interior_deletion_is_filled() {
     let mut doc = document();
     doc.parts.retain(|p| p.id != "k1" && p.id != "k4");
+    // The 11.15 mm mouth qualifies for cleanup by default. A lower limit preserves it.
+    if let OutlineFeature::PartEnvelope { settings, .. } = &mut doc.outline[0] {
+        settings.repair = Some(OutlineRepairSettings {
+            maximum_gap_span: 10.0,
+            ..Default::default()
+        });
+    }
     let result = scene(CoreEngine::new().handle(CoreRequest::Open {
         id: "open".into(),
         document: doc,
@@ -542,7 +560,11 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
         id: "open".into(),
         document: doc,
     }));
-    let removed = commit(&mut core, 0, json!({"kind":"remove-parts","ids":["matrix/main/r0c0"]}));
+    let removed = commit(
+        &mut core,
+        0,
+        json!({"kind":"remove-parts","ids":["matrix/main/r0c0"]}),
+    );
     assert!(
         !removed
             .findings
@@ -551,7 +573,11 @@ fn current_matrix_deletions_record_disabled_cells_before_resizing() {
         "{:?}",
         removed.findings
     );
-    commit(&mut core, 1, json!({"kind":"remove-parts","ids":["matrix/main/r0c1"]}));
+    commit(
+        &mut core,
+        1,
+        json!({"kind":"remove-parts","ids":["matrix/main/r0c1"]}),
+    );
     let CoreReply::Scene { document: doc, .. } =
         core.handle(CoreRequest::Snapshot { id: "snap".into() })
     else {
@@ -984,4 +1010,70 @@ fn manual_connections_respect_linked_split_boundaries() {
             result.findings
         );
     }
+}
+
+#[test]
+fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
+    let mut doc = document();
+    doc.outline = serde_json::from_value(json!([
+        {"id":"perimeter","kind":"polygon","operation":"add","points":[
+            {"x":0,"y":0},{"x":40,"y":0},{"x":40,"y":40},{"x":30,"y":40},
+            {"x":30,"y":20},{"x":20,"y":20},{"x":20,"y":40},{"x":0,"y":40}]},
+        {"id":"authored","kind":"rect","operation":"subtract","center":{"x":10,"y":10},"size":{"x":4,"y":4},"radius":0},
+        {"id":"addition","kind":"polygon","operation":"add","points":[
+            {"x":19,"y":39},{"x":31,"y":39},{"x":31,"y":45},{"x":19,"y":45}]},
+        {"id":"overlap","kind":"polygon","operation":"add","points":[
+            {"x":8,"y":8},{"x":12,"y":8},{"x":12,"y":12},{"x":8,"y":12}]}
+    ])).unwrap();
+    doc.boards[0].outline_ids = vec![
+        "perimeter".into(),
+        "authored".into(),
+        "addition".into(),
+        "overlap".into(),
+    ];
+    let legacy = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "legacy".into(),
+        document: doc.clone(),
+    }));
+    assert!(
+        !contains(&legacy.contours, 25.0, 30.0),
+        "Legacy script composition retains its explicit union topology"
+    );
+    // Exercise the fixed-copy ownership used by Draw addition; leave legacy
+    // unowned script composition unchanged.
+    let features = std::mem::take(&mut doc.outline);
+    doc.boards[0].outline_ids.clear();
+    doc.board_outlines = vec![BoardOutline {
+        board_id: "board".into(),
+        active_version_id: Some("fixed".into()),
+        generated_last_valid: None,
+        versions: vec![OutlineVersion {
+            id: "fixed".into(),
+            name: "Edited outline".into(),
+            source: OutlineProvenance {
+                revision: 0,
+                version_id: None,
+            },
+            geometry: OutlineSnapshot {
+                features,
+                settings: OutlineSettings::default(),
+                expected_regions: 1,
+                bridges: vec![],
+                protected_gaps: vec![],
+            },
+        }],
+    }];
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "addition".into(),
+        document: doc,
+    }));
+    assert!(
+        contains(&result.contours, 25.0, 30.0),
+        "Addition must fill a newly enclosed recess, not turn it into a cutout"
+    );
+    assert!(
+        !contains(&result.contours, 10.0, 10.0),
+        "Existing authored cutouts must remain"
+    );
+    assert_eq!(result.contours.iter().filter(|c| c.hole).count(), 1);
 }

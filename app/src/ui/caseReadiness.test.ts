@@ -8,6 +8,12 @@ const current = { revision: 3, sceneRevision: 3, previewRevision: 3, boardId: 'b
   generation: { status: 'ready' as const, revision: 3 }, assembly };
 
 describe('case readiness', () => {
+  it('blocks fabrication with current solids when the active board outline is invalid', () => {
+    const blocked = caseReadiness({ ...current, outlineReady: false });
+    expect(blocked.canExport).toBe(false);
+    expect(blocked.message).toContain('outline');
+    expect(blocked.reviewRequired).toBe(true);
+  });
   it('permits current geometry with warnings but blocks errors', () => {
     const finding = { id: 'fit', scope: 'case' as const, targetIds: ['plate'], severity: 'warning' as const, message: 'Review the fit' };
     expect(caseReadiness(current).canExport).toBe(true);

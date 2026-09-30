@@ -1,6 +1,6 @@
 import type { OutlineControlPoint, OutlineFeature, Part, Vec2 } from '@boardstudio/v2-contracts';
 
-export type OutlineSelection = { featureId: string; connectionId?: string };
+export type OutlineSelection = { featureId: string; connectionId?: string; contour?: number };
 export type OutlineDrawMode = 'add' | 'subtract' | 'connect';
 
 export function outlineWorld(at: Vec2, part?: Part): Vec2 {
@@ -18,6 +18,7 @@ export function outlineLocal(at: Vec2, part?: Part): Vec2 {
 }
 
 export function snapOutline(point: Vec2, grid: number): Vec2 {
+  if (grid <= 0) return point;
   return { x: Number((Math.round(point.x/grid)*grid).toFixed(6)), y: Number((Math.round(point.y/grid)*grid).toFixed(6)) };
 }
 

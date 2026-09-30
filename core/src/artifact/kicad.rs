@@ -336,8 +336,7 @@ fn native_footprint(
         definition: definition.clone(),
         side: part.map_or(Side::Front, |part| part.side.clone()),
     };
-    let compiled =
-        compile::compile_authored(&job.definition, job.side).map_err(validation)?;
+    let compiled = compile::compile_authored(&job.definition, job.side).map_err(validation)?;
     let geometry = &compiled.geometry;
     assert_geometry(geometry)?;
     let back = matches!(geometry.side, Side::Back);
@@ -452,8 +451,7 @@ fn native_footprint(
 
 fn is_ergogen(definition: &PartDefinition) -> bool {
     definition.generator.as_ref().is_some_and(|generator| {
-        generator.source.starts_with("ceoloide/")
-            || generator.source.starts_with("infused-kim/")
+        generator.source.starts_with("ceoloide/") || generator.source.starts_with("infused-kim/")
     })
 }
 

@@ -318,7 +318,9 @@ fn validate_body(ir: &CaseIR) -> Result<(), String> {
             || !height.is_finite()
             || height <= 0.
         {
-            return Err(format!("Case body '{id}' feature '{feature_id}' requires a unique ID and finite positive geometry"));
+            return Err(format!(
+                "Case body '{id}' feature '{feature_id}' requires a unique ID and finite positive geometry"
+            ));
         }
     }
     for opening in body.openings.as_deref().unwrap_or_default() {

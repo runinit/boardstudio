@@ -299,34 +299,40 @@ mod tests {
         .unwrap();
         let reset = update(&changed, 1, &MatrixSplayChange::Origin { world: None }).unwrap();
         assert!(reset.column_origins[1].is_none());
-        assert!(update(
-            &before,
-            9,
-            &MatrixSplayChange::Angle {
-                angle: 1.0,
-                affect: MatrixSplayAffect::Column
-            }
-        )
-        .is_err());
-        assert!(update(
-            &before,
-            1,
-            &MatrixSplayChange::Angle {
-                angle: f64::NAN,
-                affect: MatrixSplayAffect::Column
-            }
-        )
-        .is_err());
-        assert!(update(
-            &before,
-            1,
-            &MatrixSplayChange::Origin {
-                world: Some(Vec2 {
-                    x: f64::NAN,
-                    y: 0.0
-                })
-            }
-        )
-        .is_err());
+        assert!(
+            update(
+                &before,
+                9,
+                &MatrixSplayChange::Angle {
+                    angle: 1.0,
+                    affect: MatrixSplayAffect::Column
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            update(
+                &before,
+                1,
+                &MatrixSplayChange::Angle {
+                    angle: f64::NAN,
+                    affect: MatrixSplayAffect::Column
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            update(
+                &before,
+                1,
+                &MatrixSplayChange::Origin {
+                    world: Some(Vec2 {
+                        x: f64::NAN,
+                        y: 0.0
+                    })
+                }
+            )
+            .is_err()
+        );
     }
 }

@@ -51,6 +51,7 @@ test('deleting a corner changes the perimeter, finishing and exports follow it, 
 
   await page.getByRole('button', { name: 'Add object', exact: true }).click();
   await page.getByRole('button', { name: 'Board outline…', exact: true }).click();
+  await page.locator('summary').filter({ hasText: 'Automatic outline' }).click();
   await page.getByLabel('Outline corners').selectOption('chamfer');
   await expect.poll(() => contours(page)).not.toEqual(deleted);
   await expect(page.getByLabel('Chamfer size')).toBeVisible();
@@ -83,6 +84,7 @@ test('draws additions and persistent cutouts without duplicate double-click vert
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
   await page.getByRole('button', { name: 'Add object', exact: true }).click();
   await page.getByRole('button', { name: 'Board outline…', exact: true }).click();
+  await page.locator('summary').filter({ hasText: 'Automatic outline' }).click();
   await page.getByLabel('Outline corners').selectOption('sharp');
   await page.getByRole('button', { name: 'Draw addition' }).click();
   await clickPoint(page, { x: 1, y: -1 });
@@ -99,8 +101,8 @@ test('draws additions and persistent cutouts without duplicate double-click vert
   await expect(page.locator('.wb-outline-shape.is-hole')).toHaveCount(1);
   expect(contains(await contours(page), { x: 10, y: -9 })).toBe(false);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await page.getByLabel('Outline margin').fill('5');
-  await page.getByLabel('Outline margin').blur();
+  await page.locator('summary').filter({ hasText: 'Outline settings' }).click();
+  await page.getByLabel('Outline corners').selectOption('chamfer');
   await expect(page.locator('.wb-outline-shape.is-hole')).toHaveCount(1);
   await page.getByRole('button', { name: 'Remove cutout 2' }).click();
   await expect(page.locator('.wb-outline-shape.is-hole')).toHaveCount(0);

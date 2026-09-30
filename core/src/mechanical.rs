@@ -432,7 +432,8 @@ fn resolve_profiles(
             && profile.plate_to_pcb == 5.0
             && profile.source_geometry.as_ref().is_some_and(|source| {
                 source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
-                    || source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
+                    || source.text
+                        == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
             })
         {
             profile.switch_family = Some(MechanicalSwitchFamily::Mx);
@@ -1509,27 +1510,50 @@ fn finalize_assembly(
         });
     }
     if config.internal_gasket.is_none() || config.mount != MechanicalMount::Gasket {
-    let mut mounting_contours = result.plate_contours.clone();
-    let board = document.boards.iter().find(|board| board.id == config.board_id);
-    for part in document.parts.iter().filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id))) {
-        let Some(definition) = document.definitions.iter().find(|definition| definition.id == part.definition_id) else { continue };
-        if definition.kind != PartKind::Switch && definition.courtyard.len() >= 3 {
-            mounting_contours.push(Contour { hole: true, points: transform_part_points(part, &definition.courtyard) });
+        let mut mounting_contours = result.plate_contours.clone();
+        let board = document
+            .boards
+            .iter()
+            .find(|board| board.id == config.board_id);
+        for part in document
+            .parts
+            .iter()
+            .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
+        {
+            let Some(definition) = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+            else {
+                continue;
+            };
+            if definition.kind != PartKind::Switch && definition.courtyard.len() >= 3 {
+                mounting_contours.push(Contour {
+                    hole: true,
+                    points: transform_part_points(part, &definition.courtyard),
+                });
+            }
+            for pad in &definition.pads {
+                let (sin, cos) = pad.rotation.unwrap_or(0.0).to_radians().sin_cos();
+                let points =
+                    [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(x, y)| Vec2 {
+                        x: pad.at.x + x * pad.size.x / 2.0 * cos - y * pad.size.y / 2.0 * sin,
+                        y: pad.at.y + x * pad.size.x / 2.0 * sin + y * pad.size.y / 2.0 * cos,
+                    });
+                mounting_contours.push(Contour {
+                    hole: true,
+                    points: transform_part_points(part, &points),
+                });
+            }
         }
-        for pad in &definition.pads {
-            let (sin, cos) = pad.rotation.unwrap_or(0.0).to_radians().sin_cos();
-            let points = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(x, y)| Vec2 {
-                x: pad.at.x + x * pad.size.x / 2.0 * cos - y * pad.size.y / 2.0 * sin,
-                y: pad.at.y + x * pad.size.x / 2.0 * sin + y * pad.size.y / 2.0 * cos,
+        for opening in config.openings.iter().flatten() {
+            mounting_contours.push(Contour {
+                hole: true,
+                points: opening.points.clone(),
             });
-            mounting_contours.push(Contour { hole: true, points: transform_part_points(part, &points) });
         }
-    }
-    for opening in config.openings.iter().flatten() {
-        mounting_contours.push(Contour { hole: true, points: opening.points.clone() });
-    }
-    result.suggested_mounts =
-        crate::mechanical_checks::propose_mounts(config, &mounting_contours);
+        result.suggested_mounts =
+            crate::mechanical_checks::propose_mounts(config, &mounting_contours);
     }
     result.diagnostics.extend(crate::mechanical_checks::check(
         config,
@@ -1776,7 +1800,11 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         return result;
     };
     // PCB top is the stable zero plane; layers below it have negative Z.
-    let battery_z = if config.battery.is_some() { pcb_bottom - battery_height } else { bottom_foam_z - battery_height };
+    let battery_z = if config.battery.is_some() {
+        pcb_bottom - battery_height
+    } else {
+        bottom_foam_z - battery_height
+    };
     let bottom_z = bottom_foam_z.min(battery_z) - config.bottom_thickness;
     result.stack.extend(build_stack(
         config,
@@ -2668,17 +2696,20 @@ mod tests {
     }
     #[test]
     fn imported_stabilizers_use_the_mx_mounting_datum() {
-        let catalogue: serde_json::Value = serde_json::from_str(include_str!(
-            "../../app/src/parts/imported-parts.json"
-        )).unwrap();
+        let catalogue: serde_json::Value =
+            serde_json::from_str(include_str!("../../app/src/parts/imported-parts.json")).unwrap();
         for imported in catalogue["parts"].as_array().unwrap() {
-            let definition: PartDefinition = serde_json::from_value(imported["definition"].clone()).unwrap();
+            let definition: PartDefinition =
+                serde_json::from_value(imported["definition"].clone()).unwrap();
             for (thickness, legacy) in [(1.4, false), (1.5, false), (1.6, false), (1.5, true)] {
                 let mut doc = ProjectDoc::empty("test", "test");
-                doc.boards.push(serde_json::from_value(serde_json::json!({
-                    "id":"board", "name":"Board", "outlineIds":[],
-                    "partIds":["key", "stab"], "netIds":[], "thickness":1.6
-                })).unwrap());
+                doc.boards.push(
+                    serde_json::from_value(serde_json::json!({
+                        "id":"board", "name":"Board", "outlineIds":[],
+                        "partIds":["key", "stab"], "netIds":[], "thickness":1.6
+                    }))
+                    .unwrap(),
+                );
                 doc.definitions.push(serde_json::from_value(serde_json::json!({
                     "id":"switch", "name":"Switch", "kind":"switch", "courtyard":[], "pads":[],
                     "generator":{"source":"ceoloide/switch_mx","version":"bundled-1","parameters":{}}
@@ -2690,26 +2721,45 @@ mod tests {
                     profile.plate_to_pcb = 5.0;
                 }
                 for (id, definition_id) in [("key", "switch"), ("stab", definition.id.as_str())] {
-                    doc.parts.push(serde_json::from_value(serde_json::json!({
-                        "id":id,"definitionId":definition_id,"reference":id,
-                        "pose":{"at":{"x":70,"y":30},"rotation":0},"side":"front"
-                    })).unwrap());
+                    doc.parts.push(
+                        serde_json::from_value(serde_json::json!({
+                            "id":id,"definitionId":definition_id,"reference":id,
+                            "pose":{"at":{"x":70,"y":30},"rotation":0},"side":"front"
+                        }))
+                        .unwrap(),
+                    );
                 }
                 let mut settings = config();
                 settings.plate_thickness = thickness;
                 doc.mechanical = Some(settings);
-                let outline = Contour { hole: false, points: vec![
-                    Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 140.0, y: 0.0 },
-                    Vec2 { x: 140.0, y: 60.0 }, Vec2 { x: 0.0, y: 60.0 },
-                ] };
+                let outline = Contour {
+                    hole: false,
+                    points: vec![
+                        Vec2 { x: 0.0, y: 0.0 },
+                        Vec2 { x: 140.0, y: 0.0 },
+                        Vec2 { x: 140.0, y: 60.0 },
+                        Vec2 { x: 0.0, y: 60.0 },
+                    ],
+                };
                 let saved = doc.clone();
                 let result = resolve(&doc, std::slice::from_ref(&outline));
                 assert_eq!(doc, saved);
                 assert!(!result.generation_blocked, "{:?}", result.diagnostics);
-                assert!(!result.diagnostics.iter().any(|d| d.id.contains("engagement:")),
-                    "{} at {thickness}: {:?}", definition.id, result.diagnostics);
+                assert!(
+                    !result
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.id.contains("engagement:")),
+                    "{} at {thickness}: {:?}",
+                    definition.id,
+                    result.diagnostics
+                );
                 assert_eq!(result.plate_contours.iter().filter(|c| c.hole).count(), 3);
-                let plate = result.stack.iter().find(|layer| layer.id == "plate").unwrap();
+                let plate = result
+                    .stack
+                    .iter()
+                    .find(|layer| layer.id == "plate")
+                    .unwrap();
                 assert!((plate.z + plate.thickness - 5.0).abs() < 1e-9);
 
                 // Unknown/custom engagement remains authoritative, even for a
@@ -2719,16 +2769,27 @@ mod tests {
                 profile.plate_to_pcb = 4.0;
                 let invalid = resolve(&doc, std::slice::from_ref(&outline));
                 assert!(invalid.generation_blocked);
-                assert!(invalid.diagnostics.iter().any(|d| d.id == "mechanical:engagement:stab"));
+                assert!(
+                    invalid
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.id == "mechanical:engagement:stab")
+                );
 
                 // A low-profile switch cannot share the MX stabilizer stack.
                 doc.definitions[1] = definition.clone();
                 doc.mechanical.as_mut().unwrap().profiles.push(
-                    builtin_profile("switch".into(), MechanicalBuiltinProfile::ChocV1Switch, 2.0).unwrap()
+                    builtin_profile("switch".into(), MechanicalBuiltinProfile::ChocV1Switch, 2.0)
+                        .unwrap(),
                 );
                 let incompatible = resolve(&doc, &[outline]);
                 assert!(incompatible.generation_blocked);
-                assert!(incompatible.diagnostics.iter().any(|d| d.id == "mechanical:engagement:stab"));
+                assert!(
+                    incompatible
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.id == "mechanical:engagement:stab")
+                );
             }
         }
     }

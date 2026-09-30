@@ -26,10 +26,12 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
         let (min, max) = bounds(&contour.points);
         let columns = (((max.x - min.x) / 2.0).ceil() as usize).clamp(1, 80);
         let rows = (((max.y - min.y) / 2.0).ceil() as usize).clamp(1, 80);
-        for at in (0..=rows).flat_map(|row| (0..=columns).map(move |column| Vec2 {
-            x: min.x + margin + (max.x - min.x - 2.0 * margin) * column as f64 / columns as f64,
-            y: min.y + margin + (max.y - min.y - 2.0 * margin) * row as f64 / rows as f64,
-        })) {
+        for at in (0..=rows).flat_map(|row| {
+            (0..=columns).map(move |column| Vec2 {
+                x: min.x + margin + (max.x - min.x - 2.0 * margin) * column as f64 / columns as f64,
+                y: min.y + margin + (max.y - min.y - 2.0 * margin) * row as f64 / rows as f64,
+            })
+        }) {
             let contained = contains(&contour.points, at)
                 && !contours
                     .iter()
@@ -77,11 +79,23 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
     // Pick well-separated supports rather than clustering at the first clear corner.
     let mut selected: Vec<Mount> = vec![];
     while !proposals.is_empty() && selected.len() < 4 {
-        let index = if selected.is_empty() { 0 } else {
-            proposals.iter().enumerate().max_by(|(_, a), (_, b)| {
-                let distance = |mount: &Mount| selected.iter().map(|other| (mount.at.x - other.at.x).hypot(mount.at.y - other.at.y)).fold(f64::INFINITY, f64::min);
-                distance(a).total_cmp(&distance(b))
-            }).unwrap().0
+        let index = if selected.is_empty() {
+            0
+        } else {
+            proposals
+                .iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| {
+                    let distance = |mount: &Mount| {
+                        selected
+                            .iter()
+                            .map(|other| (mount.at.x - other.at.x).hypot(mount.at.y - other.at.y))
+                            .fold(f64::INFINITY, f64::min)
+                    };
+                    distance(a).total_cmp(&distance(b))
+                })
+                .unwrap()
+                .0
         };
         selected.push(proposals.remove(index));
     }
@@ -310,12 +324,18 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
     }
     // Internal closures are validated against their case lands by the generator;
     // their independent positions intentionally lie outside the floating plate.
-    let internal_closures = config.internal_gasket.is_some()
-        && config.mount == crate::model::MechanicalMount::Gasket;
+    let internal_closures =
+        config.internal_gasket.is_some() && config.mount == crate::model::MechanicalMount::Gasket;
     let mounts: Vec<_> = config
         .mounts
         .iter()
-        .chain(config.closure_mounts.iter().flatten().filter(|_| !internal_closures))
+        .chain(
+            config
+                .closure_mounts
+                .iter()
+                .flatten()
+                .filter(|_| !internal_closures),
+        )
         .collect();
     for (index, mount) in mounts.iter().enumerate() {
         let radius = mount.boss_diameter.unwrap_or(mount.hole_diameter) / 2.0;

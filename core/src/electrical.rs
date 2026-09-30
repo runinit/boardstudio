@@ -160,9 +160,10 @@ fn terminal<'a>(definition: &'a PartDefinition, row: bool) -> &'a str {
 fn diode_terminals(definition: &PartDefinition) -> Option<(&str, &str)> {
     // Only known semantic terminals qualify; pad numbers never establish polarity.
     for (anode, cathode) in [("anode", "cathode"), ("A", "K"), ("from", "to")] {
-        let known_source = definition.generator.as_ref().is_some_and(|generator| {
-            generator.source == "ceoloide/diode_tht_sod123"
-        });
+        let known_source = definition
+            .generator
+            .as_ref()
+            .is_some_and(|generator| generator.source == "ceoloide/diode_tht_sod123");
         if anode == "from" && !known_source {
             continue;
         }
@@ -215,7 +216,11 @@ fn discover_keys<'a>(
         let mut members = BTreeMap::new();
         for row in 0..matrix.rows {
             for column in 0..matrix.columns {
-                if matrix.cells.iter().any(|cell| cell.row == row && cell.column == column && !cell.enabled) {
+                if matrix
+                    .cells
+                    .iter()
+                    .any(|cell| cell.row == row && cell.column == column && !cell.enabled)
+                {
                     continue;
                 }
                 members.insert((row, column), format!("{prefix}r{row}c{column}"));
@@ -223,22 +228,61 @@ fn discover_keys<'a>(
         }
         for column in 0..matrix.columns {
             for row in 0..matrix.rows {
-                let Some(id) = members.get(&(row, column)) else { continue };
-                let Some(part) = doc.parts.iter().find(|part| part.id == *id && board.part_ids.contains(&part.id)) else { continue };
-                let Some(definition) = definition(doc, part) else { continue };
-                let companions = doc.parts.iter().filter(|candidate| {
-                    candidate.id.starts_with(&format!("{id}/")) && board.part_ids.contains(&candidate.id)
-                }).filter_map(|candidate| {
-                    let definition = doc.definitions.iter().find(|definition| definition.id == candidate.definition_id)?;
-                    diode_terminals(definition).map(|_| (candidate, definition))
-                }).collect::<Vec<_>>();
+                let Some(id) = members.get(&(row, column)) else {
+                    continue;
+                };
+                let Some(part) = doc
+                    .parts
+                    .iter()
+                    .find(|part| part.id == *id && board.part_ids.contains(&part.id))
+                else {
+                    continue;
+                };
+                let Some(definition) = definition(doc, part) else {
+                    continue;
+                };
+                let companions = doc
+                    .parts
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.id.starts_with(&format!("{id}/"))
+                            && board.part_ids.contains(&candidate.id)
+                    })
+                    .filter_map(|candidate| {
+                        let definition = doc
+                            .definitions
+                            .iter()
+                            .find(|definition| definition.id == candidate.definition_id)?;
+                        diode_terminals(definition).map(|_| (candidate, definition))
+                    })
+                    .collect::<Vec<_>>();
                 if mode == ElectricalMode::Matrix && companions.len() != 1 {
-                    diagnostic(diagnostics, "matrix-diode-required", format!("{} needs exactly one diode with known polarity", part.reference), Some(id));
+                    diagnostic(
+                        diagnostics,
+                        "matrix-diode-required",
+                        format!(
+                            "{} needs exactly one diode with known polarity",
+                            part.reference
+                        ),
+                        Some(id),
+                    );
                 }
-                if pins(definition, terminal(definition, true), id).is_empty() || pins(definition, terminal(definition, false), id).is_empty() {
-                    diagnostic(diagnostics, "switch-terminals-missing", format!("{} needs two named switch terminals", part.reference), Some(id));
+                if pins(definition, terminal(definition, true), id).is_empty()
+                    || pins(definition, terminal(definition, false), id).is_empty()
+                {
+                    diagnostic(
+                        diagnostics,
+                        "switch-terminals-missing",
+                        format!("{} needs two named switch terminals", part.reference),
+                        Some(id),
+                    );
                 }
-                keys.push(MatrixKey { part, definition, matrix, diode: companions.first().copied() });
+                keys.push(MatrixKey {
+                    part,
+                    definition,
+                    matrix,
+                    diode: companions.first().copied(),
+                });
             }
         }
     }
@@ -252,41 +296,103 @@ fn allocate_pins<'a>(
     baseline: Option<&ElectricalHandoffBaseline>,
     previous: &BTreeMap<String, String>,
     diagnostics: &mut Vec<ElectricalDiagnostic>,
-) -> (BTreeMap<String, &'a crate::electrical_profiles::PinCapability>, BTreeSet<&'a str>) {
+) -> (
+    BTreeMap<String, &'a crate::electrical_profiles::PinCapability>,
+    BTreeSet<&'a str>,
+) {
     let mut allocated = BTreeMap::new();
     let mut used = BTreeSet::new();
     for function in functions {
-        if let (Some(lock), Some(protected)) = (locks.get(function), baseline.and_then(|item| item.assignments.get(function))) {
-            let requested = capabilities.iter().find(|pin| pin.terminal == lock || pin.firmware_gpio == lock);
-            if !requested.is_some_and(|pin| pin.terminal == protected || pin.firmware_gpio == protected) {
-                diagnostic(diagnostics, "protected-pin-change", format!("{function} was handed off on {protected}; review a remap before changing it"), None);
+        if let (Some(lock), Some(protected)) = (
+            locks.get(function),
+            baseline.and_then(|item| item.assignments.get(function)),
+        ) {
+            let requested = capabilities
+                .iter()
+                .find(|pin| pin.terminal == lock || pin.firmware_gpio == lock);
+            if !requested
+                .is_some_and(|pin| pin.terminal == protected || pin.firmware_gpio == protected)
+            {
+                diagnostic(
+                    diagnostics,
+                    "protected-pin-change",
+                    format!(
+                        "{function} was handed off on {protected}; review a remap before changing it"
+                    ),
+                    None,
+                );
             }
         }
-        let pinned = locks.get(function).or_else(|| baseline.and_then(|item| item.assignments.get(function)));
+        let pinned = locks
+            .get(function)
+            .or_else(|| baseline.and_then(|item| item.assignments.get(function)));
         if let Some(value) = pinned {
-            match capabilities.iter().find(|pin| pin.terminal == value || pin.firmware_gpio == value).copied() {
-                Some(pin) if used.insert(pin.firmware_gpio) => { allocated.insert(function.clone(), pin); }
-                Some(_) => diagnostic(diagnostics, "conflicting-lock", format!("{function} conflicts with another assignment to {value}"), None),
-                None => diagnostic(diagnostics, "unavailable-locked-pin", format!("{function} requires {value}; review the pin assignment before changing it"), None),
+            match capabilities
+                .iter()
+                .find(|pin| pin.terminal == value || pin.firmware_gpio == value)
+                .copied()
+            {
+                Some(pin) if used.insert(pin.firmware_gpio) => {
+                    allocated.insert(function.clone(), pin);
+                }
+                Some(_) => diagnostic(
+                    diagnostics,
+                    "conflicting-lock",
+                    format!("{function} conflicts with another assignment to {value}"),
+                    None,
+                ),
+                None => diagnostic(
+                    diagnostics,
+                    "unavailable-locked-pin",
+                    format!(
+                        "{function} requires {value}; review the pin assignment before changing it"
+                    ),
+                    None,
+                ),
             }
         }
     }
     for function in functions {
-        if allocated.contains_key(function) || locks.contains_key(function) || baseline.is_some_and(|item| item.assignments.contains_key(function)) { continue; }
+        if allocated.contains_key(function)
+            || locks.contains_key(function)
+            || baseline.is_some_and(|item| item.assignments.contains_key(function))
+        {
+            continue;
+        }
         if let Some(previous_pin) = previous.get(function) {
-            if let Some(pin) = capabilities.iter().find(|pin| pin.terminal == previous_pin && !used.contains(pin.firmware_gpio)).copied() {
+            if let Some(pin) = capabilities
+                .iter()
+                .find(|pin| pin.terminal == previous_pin && !used.contains(pin.firmware_gpio))
+                .copied()
+            {
                 used.insert(pin.firmware_gpio);
                 allocated.insert(function.clone(), pin);
             }
         }
     }
     for function in functions {
-        if allocated.contains_key(function) || locks.contains_key(function) || baseline.is_some_and(|item| item.assignments.contains_key(function)) { continue; }
-        if let Some(pin) = capabilities.iter().find(|pin| !used.contains(pin.firmware_gpio)).copied() {
+        if allocated.contains_key(function)
+            || locks.contains_key(function)
+            || baseline.is_some_and(|item| item.assignments.contains_key(function))
+        {
+            continue;
+        }
+        if let Some(pin) = capabilities
+            .iter()
+            .find(|pin| !used.contains(pin.firmware_gpio))
+            .copied()
+        {
             used.insert(pin.firmware_gpio);
             allocated.insert(function.clone(), pin);
         } else {
-            diagnostic(diagnostics, "insufficient-controller-pins", format!("No available GPIO for {function}. Choose a larger controller or change wiring mode explicitly."), None);
+            diagnostic(
+                diagnostics,
+                "insufficient-controller-pins",
+                format!(
+                    "No available GPIO for {function}. Choose a larger controller or change wiring mode explicitly."
+                ),
+                None,
+            );
         }
     }
     (allocated, used)
@@ -299,15 +405,29 @@ fn finalize_nets(
     diagnostics: &mut Vec<ElectricalDiagnostic>,
 ) -> Vec<Net> {
     for net in nets.values_mut() {
-        net.pins.sort_by(|a, b| (&a.part_id, &a.pad_id).cmp(&(&b.part_id, &b.pad_id)));
+        net.pins
+            .sort_by(|a, b| (&a.part_id, &a.pad_id).cmp(&(&b.part_id, &b.pad_id)));
         net.pins.dedup();
         for pin in &net.pins {
-            if let Some(manual) = manual_nets.iter().find(|other| !other.id.starts_with(prefix) && other.pins.contains(pin)) {
-                diagnostic(diagnostics, "manual-net-conflict", format!("{} already belongs to manual net {}; review it before automatic wiring", pin.part_id, manual.name), Some(&pin.part_id));
+            if let Some(manual) = manual_nets
+                .iter()
+                .find(|other| !other.id.starts_with(prefix) && other.pins.contains(pin))
+            {
+                diagnostic(
+                    diagnostics,
+                    "manual-net-conflict",
+                    format!(
+                        "{} already belongs to manual net {}; review it before automatic wiring",
+                        pin.part_id, manual.name
+                    ),
+                    Some(&pin.part_id),
+                );
             }
         }
     }
-    nets.into_values().filter(|net| !net.pins.is_empty()).collect()
+    nets.into_values()
+        .filter(|net| !net.pins.is_empty())
+        .collect()
 }
 
 fn resolve_jumpers(
@@ -317,31 +437,81 @@ fn resolve_jumpers(
     instance: Option<&PhysicalBoardInstance>,
     controller_id: Option<&String>,
     diagnostics: &mut Vec<ElectricalDiagnostic>,
-) -> (Vec<crate::electrical_jumpers::JumperRecipe>, BTreeMap<String, String>) {
+) -> (
+    Vec<crate::electrical_jumpers::JumperRecipe>,
+    BTreeMap<String, String>,
+) {
     let mut recipes = vec![];
     let mut aliases = BTreeMap::new();
-    for part in doc.parts.iter().filter(|part| board.part_ids.contains(&part.id)) {
-        let Some(definition) = definition(doc, part) else { continue };
+    for part in doc
+        .parts
+        .iter()
+        .filter(|part| board.part_ids.contains(&part.id))
+    {
+        let Some(definition) = definition(doc, part) else {
+            continue;
+        };
         let mut populated = part.clone();
         if instance.is_some_and(|item| item.flipped) {
-            populated.side = if part.side == Side::Front { Side::Back } else { Side::Front };
-            populated.generator_parameters.get_or_insert_with(Default::default).insert("side".into(), serde_json::json!(if populated.side == Side::Front { "F" } else { "B" }));
+            populated.side = if part.side == Side::Front {
+                Side::Back
+            } else {
+                Side::Front
+            };
+            populated
+                .generator_parameters
+                .get_or_insert_with(Default::default)
+                .insert(
+                    "side".into(),
+                    serde_json::json!(if populated.side == Side::Front {
+                        "F"
+                    } else {
+                        "B"
+                    }),
+                );
         }
         if let Some(recipe) = crate::electrical_jumpers::describe(&populated, definition) {
-            diagnostics.extend(recipe.diagnostics.iter().map(|item| ElectricalDiagnostic { code: item.code.clone(), severity: item.severity.clone(), message: format!("{}: {}", part.reference, item.message), key_id: Some(part.id.clone()) }));
-            if controller_id == Some(&part.id) { aliases.extend(recipe.terminal_aliases.clone()); }
+            diagnostics.extend(recipe.diagnostics.iter().map(|item| ElectricalDiagnostic {
+                code: item.code.clone(),
+                severity: item.severity.clone(),
+                message: format!("{}: {}", part.reference, item.message),
+                key_id: Some(part.id.clone()),
+            }));
+            if controller_id == Some(&part.id) {
+                aliases.extend(recipe.terminal_aliases.clone());
+            }
             if let Some(config) = config {
                 for site in &recipe.sites {
                     if let Some(state) = config.jumper_states.get(&site.id) {
-                        if (*state == crate::electrical_profiles::JumperState::Bridged) != site.close {
-                            diagnostic(diagnostics, "jumper-state-conflict", format!("{}: jumper {} disagrees with the selected population face", part.reference, site.id), Some(&part.id));
+                        if (*state == crate::electrical_profiles::JumperState::Bridged)
+                            != site.close
+                        {
+                            diagnostic(
+                                diagnostics,
+                                "jumper-state-conflict",
+                                format!(
+                                    "{}: jumper {} disagrees with the selected population face",
+                                    part.reference, site.id
+                                ),
+                                Some(&part.id),
+                            );
                         }
                     }
                 }
             }
             recipes.push(recipe);
-        } else if enabled(part, definition, "reversible", false) && definition.generator.as_ref().is_some_and(|generator| generator.source.contains("nice_view")) {
-            diagnostic(diagnostics, "jumper-profile-required", format!("{} needs a reviewed jumper recipe", part.reference), Some(&part.id));
+        } else if enabled(part, definition, "reversible", false)
+            && definition
+                .generator
+                .as_ref()
+                .is_some_and(|generator| generator.source.contains("nice_view"))
+        {
+            diagnostic(
+                diagnostics,
+                "jumper-profile-required",
+                format!("{} needs a reviewed jumper recipe", part.reference),
+                Some(&part.id),
+            );
         }
     }
     (recipes, aliases)
@@ -356,7 +526,12 @@ fn required_signals<'a>(
 ) -> Vec<String> {
     let mut functions = peripherals
         .iter()
-        .flat_map(|peripheral| peripheral.gpio_terminals.iter().map(|(_, function)| function.clone()))
+        .flat_map(|peripheral| {
+            peripheral
+                .gpio_terminals
+                .iter()
+                .map(|(_, function)| function.clone())
+        })
         .collect::<BTreeSet<_>>();
     if mode == ElectricalMode::Matrix {
         functions.extend((0..rows).map(|row| format!("row/{row}")));
@@ -864,19 +1039,15 @@ pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
             Some(&part.id),
         );
     }
-    let functions = required_signals(
-        &plan.peripherals,
-        plan.mode,
-        rows,
-        columns,
-        keys.iter(),
-    );
+    let functions = required_signals(&plan.peripherals, plan.mode, rows, columns, keys.iter());
     let (allocated, used) = allocate_pins(
         &functions,
         &capabilities,
         &locks,
         baseline,
-        &config.map(|item| item.assignments.clone()).unwrap_or_default(),
+        &config
+            .map(|item| item.assignments.clone())
+            .unwrap_or_default(),
         &mut plan.diagnostics,
     );
     plan.free_pins = capabilities
@@ -1070,12 +1241,32 @@ pub(crate) fn materialize_reviewed(
     }
     document.nets.extend(plan.nets.clone());
     // Keep generated silkscreen in sync with the applied terminal nets.
-    let board_parts = document.boards.iter().find(|board| board.id == *board_id).unwrap().part_ids.clone();
-    for part in document.parts.iter_mut().filter(|part| board_parts.contains(&part.id)) {
-        let Some(definition) = document.definitions.iter().find(|definition| definition.id == part.definition_id && definition.generator.is_some()) else { continue };
+    let board_parts = document
+        .boards
+        .iter()
+        .find(|board| board.id == *board_id)
+        .unwrap()
+        .part_ids
+        .clone();
+    for part in document
+        .parts
+        .iter_mut()
+        .filter(|part| board_parts.contains(&part.id))
+    {
+        let Some(definition) = document.definitions.iter().find(|definition| {
+            definition.id == part.definition_id && definition.generator.is_some()
+        }) else {
+            continue;
+        };
         for (terminal, pads) in &definition.terminals {
-            let net = document.nets.iter().find(|net| net.pins.iter().any(|pin| pin.part_id == part.id && pads.contains(&pin.pad_id)));
-            let parameters = part.generator_parameters.get_or_insert_with(Default::default);
+            let net = document.nets.iter().find(|net| {
+                net.pins
+                    .iter()
+                    .any(|pin| pin.part_id == part.id && pads.contains(&pin.pad_id))
+            });
+            let parameters = part
+                .generator_parameters
+                .get_or_insert_with(Default::default);
             if let Some(net) = net {
                 parameters.insert(terminal.clone(), serde_json::json!(net.name));
             } else {

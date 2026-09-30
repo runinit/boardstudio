@@ -1,42 +1,60 @@
 import { useEffect, useRef, useState } from 'react';
-import type { EditPhase, OutlineFeature, Part } from '@boardstudio/v2-contracts';
+import type { EditPhase, OutlineFeature, Part, Vec2 } from '@boardstudio/v2-contracts';
 import { insertOutlinePoint, moveOutlinePoint, outlinePoints, removeOutlinePoint, snapOutline } from './outlineEditing';
+import { OutlineSnapGuides } from './OutlineSnapGuides';
+import type { OutlineSnap, OutlineSnapContext } from './outlineSnapping';
 import { pointFromEvent } from './workbenchGeometry';
 
-type Props = { feature: OutlineFeature; connectionId?: string; parts: Part[]; grid: number; scale: number; selectedPoint: number; onSelectPoint: (index: number) => void; onDragChange: (active: boolean) => void; onChange: (feature: OutlineFeature, phase: EditPhase, transaction: string) => void };
-type Drag = { feature: OutlineFeature; index: number; transaction: string; target: SVGCircleElement; pointerId: number; pending: OutlineFeature; moved: boolean };
+type Props = { feature: OutlineFeature; connectionId?: string; parts: Part[]; grid: number; snap?: (point: Vec2, context?:OutlineSnapContext, free?:boolean) => OutlineSnap; scale: number; selectedPoint: number; onSelectPoint: (index: number) => void; onDragChange: (active: boolean) => void; onCancel?: () => void; onChange: (feature: OutlineFeature, phase: EditPhase, transaction: string) => void };
+type Drag = { feature: OutlineFeature; index: number; transaction: string; target: SVGCircleElement; pointerId: number; pending: OutlineFeature; moved: boolean; world?:Vec2 };
 
-export function OutlineControlOverlay({ feature, connectionId, parts, grid, scale, selectedPoint, onSelectPoint, onDragChange, onChange }: Props) {
+export function OutlineControlOverlay({ feature, connectionId, parts, grid, snap, scale, selectedPoint, onSelectPoint, onDragChange, onChange, onCancel }: Props) {
   const drag = useRef<Drag|null>(null);
   const frame = useRef<number|undefined>(undefined);
-  const current = useRef({onChange,onDragChange});
-  current.current = {onChange,onDragChange};
+  const current = useRef({onChange,onDragChange,onCancel,snap});
+  current.current = {onChange,onDragChange,onCancel,snap};
+  const [guidance,setGuidance] = useState<OutlineSnap|null>(null);
   const [preview,setPreview] = useState<OutlineFeature|null>(null);
   const finish = (commit: boolean) => {
     const state = drag.current;
     if (!state) return;
     drag.current = null;
-    setPreview(null);
+    setPreview(null);setGuidance(null);
     current.current.onDragChange(false);
     cancelAnimationFrame(frame.current??0);
     frame.current = undefined;
     if (state.target.hasPointerCapture(state.pointerId)) state.target.releasePointerCapture(state.pointerId);
-    if (state.moved) current.current.onChange(commit?state.pending:state.feature,commit?'commit':'preview',state.transaction);
+    if (state.moved) {
+      if (!commit && current.current.onCancel) current.current.onCancel();
+      else current.current.onChange(commit?state.pending:state.feature,commit?'commit':'preview',state.transaction);
+    }
+  };
+  const updateDrag=(world:Vec2,free:boolean)=>{
+    const state=drag.current;if(!state)return;
+    const original=outlinePoints(state.feature,parts,connectionId), n=original.length;
+    const context={exclude:original[state.index],anchor:original[(state.index+n-1)%n],previous:original[state.index],neighbors:[original[(state.index+1)%n]]};
+    const resolved=current.current.snap?.(world,context,free)??{at:free?world:snapOutline(world,grid),guides:[]};
+    state.world=world;state.pending=moveOutlinePoint(state.feature,state.index,resolved.at,parts,connectionId);state.moved=true;
+    setPreview(state.pending);setGuidance(resolved);
+    if(frame.current!==undefined)return;
+    frame.current=requestAnimationFrame(()=>{frame.current=undefined;if(drag.current)current.current.onChange(drag.current.pending,'preview',drag.current.transaction);});
   };
   useEffect(()=>{
     const key = (event: KeyboardEvent) => {
+      if(event.key==='Alt'&&drag.current?.world){updateDrag(drag.current.world,event.altKey);return;}
       if (!drag.current || !(event.key==='Escape' || (event.ctrlKey||event.metaKey)&&['z','y'].includes(event.key.toLowerCase()))) return;
       event.preventDefault(); event.stopImmediatePropagation(); finish(false);
     };
     const blur = ()=>finish(false);
-    window.addEventListener('keydown',key,true);
+    window.addEventListener('keydown',key,true);window.addEventListener('keyup',key,true);
     window.addEventListener('blur',blur);
-    return ()=>{window.removeEventListener('keydown',key,true);window.removeEventListener('blur',blur);finish(false);};
+    return ()=>{window.removeEventListener('keydown',key,true);window.removeEventListener('keyup',key,true);window.removeEventListener('blur',blur);finish(false);};
   },[]);
   const points = outlinePoints(preview??feature,parts,connectionId);
   const change = (next: OutlineFeature) => { if(next!==feature) onChange(next,'commit',crypto.randomUUID()); };
-  const r = scale*5;
+  const r = scale*3;
   return <g className="wb-outline-controls" transform="scale(1,-1)" onClick={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()}>
+    <OutlineSnapGuides snap={guidance} scale={scale} />
     {feature.kind!=='rect' && <polyline className="wb-outline-control-path" points={(feature.kind==='polygon'?[...points,points[0]]:points).filter(Boolean).map(point=>`${point.x},${point.y}`).join(' ')} />}
     {points.map((point,index)=>{
       const next = points[(index+1)%points.length];
@@ -52,7 +70,7 @@ export function OutlineControlOverlay({ feature, connectionId, parts, grid, scal
             if (event.key==='Delete'||event.key==='Backspace') {event.preventDefault();event.stopPropagation();const next = removeOutlinePoint(feature,index,connectionId); if (next !== feature) { change(next); onSelectPoint(Math.max(0,index-1)); } return;}
             if (!event.key.startsWith('Arrow')) return;
             event.preventDefault();event.stopPropagation();
-            const step=grid*(event.shiftKey?10:1);
+            const step=(grid||.1)*(event.shiftKey?10:1);
             change(moveOutlinePoint(feature,index,{x:point.x+(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0),y:point.y+(event.key==='ArrowUp'?step:event.key==='ArrowDown'?-step:0)},parts,connectionId));
           }}
           onPointerDown={event=>{
@@ -67,11 +85,7 @@ export function OutlineControlOverlay({ feature, connectionId, parts, grid, scal
             event.stopPropagation();
             const world=pointFromEvent(event,event.currentTarget.ownerSVGElement);
             if(!world)return;
-            state.pending=moveOutlinePoint(state.feature,state.index,event.altKey?world:snapOutline(world,grid),parts,connectionId);
-            state.moved=true;
-            setPreview(state.pending);
-            if(frame.current!==undefined)return;
-            frame.current=requestAnimationFrame(()=>{frame.current=undefined;if(drag.current)current.current.onChange(drag.current.pending,'preview',drag.current.transaction);});
+            updateDrag(world,event.altKey);
           }} onPointerUp={event=>{if(drag.current){event.stopPropagation();finish(true);}}} onPointerCancel={()=>finish(false)} onLostPointerCapture={()=>finish(false)} />
         <circle className="wb-outline-knob" cx={point.x} cy={point.y} r={active?r+scale:r} />
         <text className="wb-outline-point-number" transform={`translate(${point.x+scale*10} ${point.y+scale*10}) scale(1,-1)`} fontSize={scale*11} strokeWidth={scale*3}>{index+1}</text>

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { OutlineDrawMode } from './outlineEditing';
 
 export function OutlineToolIcon({ kind }: { kind: OutlineDrawMode | 'remove' | 'back' | 'add-point' | 'attached' }) {
@@ -12,14 +13,16 @@ export function OutlineToolIcon({ kind }: { kind: OutlineDrawMode | 'remove' | '
   </svg>;
 }
 
-export function OutlineGridControl({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return <label className="wb-outline-grid-control"><span>Snap</span><select aria-label="Outline point grid" value={value} onChange={event => onChange(Number(event.target.value))}>
-    <option value={1}>1 mm</option><option value={0.5}>0.5 mm</option><option value={0.1}>0.1 mm</option>
+export const snapGridLabel = (value:number) => value < 0 ? `${-value} mm` : value===0 ? 'Off' : value===.125 ? '⅛u' : value===.25 ? '¼u' : value===.5 ? '½u' : '1u';
+export function OutlineGridControl({ value, selection, onChange, label = 'Outline point grid' }: { value:number; selection?:number; onChange:(value:number)=>void; label?:string }) {
+  return <label className="wb-outline-grid-control"><span>Grid step</span><select aria-label={label} value={selection??-value} onChange={event=>onChange(selection===undefined?-Number(event.target.value):Number(event.target.value))}>
+    <option value={0}>Off</option><option value={.125}>⅛u</option><option value={.25}>¼u</option><option value={.5}>½u</option><option value={1}>1u</option>
+    <option value={-1}>1 mm</option><option value={-.5}>0.5 mm</option><option value={-.1}>0.1 mm</option>
   </select></label>;
 }
 
-export function OutlineDrawingBar({ mode, count, grid, onGrid, onUndo, onCancel, onFinish }: {
-  mode: OutlineDrawMode; count: number; grid: number; onGrid: (value: number) => void;
+export function OutlineDrawingBar({ mode, count, grid, selection, onGrid, snapControls, onUndo, onCancel, onFinish }: {
+  mode: OutlineDrawMode; count: number; grid: number; selection?:number; snapControls?:ReactNode; onGrid: (value: number) => void;
   onUndo: () => void; onCancel: () => void; onFinish: () => void;
 }) {
   const minimum = mode === 'connect' ? 2 : 3;
@@ -31,7 +34,7 @@ export function OutlineDrawingBar({ mode, count, grid, onGrid, onUndo, onCancel,
   }}>
     <div className="wb-outline-drawing-heading"><OutlineToolIcon kind={mode} /><strong>{title}</strong><span role="status" aria-label="Outline drawing">{count} {count === 1 ? 'point' : 'points'}</span></div>
     <p>{remaining ? `Place ${remaining} ${count ? 'more ' : ''}${remaining === 1 ? 'point' : 'points'} to ${mode === 'connect' ? 'connect' : 'close'}.` : mode === 'connect' ? 'Continue the path or finish this connection.' : 'Continue the edge or finish to close the shape.'}</p>
-    <div className="wb-outline-drawing-actions"><OutlineGridControl value={grid} onChange={onGrid} /><button className="wb-secondary" disabled={!count} onClick={onUndo}>Undo point</button><button className="wb-primary" disabled={count < minimum} onClick={onFinish}>{mode === 'connect' ? 'Finish connection' : 'Close outline'}</button><button className="wb-outline-cancel" aria-label="Cancel drawing" onClick={onCancel}>Cancel</button></div>
-    <small><kbd>Enter</kbd> finish <kbd>Esc</kbd> cancel <span>Hold Alt to move freely</span></small>
+    <div className="wb-outline-drawing-actions">{snapControls ?? <OutlineGridControl value={grid} selection={selection} onChange={onGrid} />}<button className="wb-secondary" disabled={!count} onClick={onUndo}>Undo point</button><button className="wb-primary" disabled={count < minimum} onClick={onFinish}>{mode === 'connect' ? 'Finish connection' : 'Close outline'}</button><button className="wb-outline-cancel" aria-label="Cancel drawing" onClick={onCancel}>Cancel</button></div>
+    <small><kbd>Enter</kbd> finish <kbd>Esc</kbd> cancel <span>Guides snap automatically · Hold Alt to move freely</span></small>
   </div>;
 }

@@ -388,6 +388,12 @@ pub struct PartOutline {
     #[cfg_attr(feature = "export-types", ts(as = "Option<f64>", optional))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub margin: Option<f64>,
+    #[cfg_attr(feature = "export-types", ts(as = "Option<bool>", optional))]
+    #[serde(skip_serializing_if = "is_false")]
+    pub allow_body_overhang: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !value
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
@@ -405,6 +411,9 @@ pub struct OutlineSettings {
     pub corners: CornerStyle,
     pub size: f64,
     pub bridge_width: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub repair: Option<OutlineRepairSettings>,
 }
 impl Default for OutlineSettings {
     fn default() -> Self {
@@ -412,8 +421,42 @@ impl Default for OutlineSettings {
             corners: CornerStyle::Sharp,
             size: 2.0,
             bridge_width: 10.0,
+            repair: None,
         }
     }
+}
+/// Generated cleanup is enabled for legacy documents as well as new outlines.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", default)]
+pub struct OutlineRepairSettings {
+    pub enabled: bool,
+    pub maximum_gap_span: f64,
+    pub minimum_connection_width: f64,
+    pub edge_clearance: f64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<ProtectedOutlineGap>>", optional)
+    )]
+    pub keep_gaps: Vec<ProtectedOutlineGap>,
+}
+impl Default for OutlineRepairSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            maximum_gap_span: 20.0,
+            minimum_connection_width: 2.0,
+            edge_clearance: 0.0,
+            keep_gaps: vec![],
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+pub struct ProtectedOutlineGap {
+    pub id: String,
+    pub points: Vec<OutlineControlPoint>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
@@ -436,7 +479,11 @@ pub struct OutlineConnection {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum OutlineFeature {
     Polygon {
-        #[serde(default, rename = "anchorPartId", skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            rename = "anchorPartId",
+            skip_serializing_if = "Option::is_none"
+        )]
         #[cfg_attr(feature = "export-types", ts(optional))]
         anchor_part_id: Option<String>,
         id: String,
@@ -447,7 +494,11 @@ pub enum OutlineFeature {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[cfg_attr(feature = "export-types", ts(optional))]
         rotation: Option<f64>,
-        #[serde(default, rename = "anchorPartId", skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            rename = "anchorPartId",
+            skip_serializing_if = "Option::is_none"
+        )]
         #[cfg_attr(feature = "export-types", ts(optional))]
         anchor_part_id: Option<String>,
         id: String,
@@ -458,7 +509,10 @@ pub enum OutlineFeature {
     },
     PartEnvelope {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<OutlineConnection>>", optional))]
+        #[cfg_attr(
+            feature = "export-types",
+            ts(as = "Option<Vec<OutlineConnection>>", optional)
+        )]
         connections: Vec<OutlineConnection>,
         #[cfg_attr(feature = "export-types", ts(as = "Option<OutlineSettings>", optional))]
         #[serde(default)]
@@ -483,6 +537,99 @@ impl OutlineFeature {
             | Self::PartEnvelope { operation, .. } => *operation,
         }
     }
+}
+/// One geometry owner per physical board. None selects the permanent Generated version.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct BoardOutline {
+    pub board_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub active_version_id: Option<String>,
+    pub versions: Vec<OutlineVersion>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub generated_last_valid: Option<OutlineSnapshot>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineProvenance {
+    pub revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub version_id: Option<String>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+pub struct OutlineVersion {
+    pub id: String,
+    pub name: String,
+    pub source: OutlineProvenance,
+    pub geometry: OutlineSnapshot,
+}
+/// Fixed world geometry, before corner finishing; source IDs are provenance only.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineSnapshot {
+    pub features: Vec<OutlineFeature>,
+    pub settings: OutlineSettings,
+    pub expected_regions: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<OutlineBridge>>", optional)
+    )]
+    pub bridges: Vec<OutlineBridge>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<ProtectedOutlineGap>>", optional)
+    )]
+    pub protected_gaps: Vec<ProtectedOutlineGap>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineBridge {
+    pub id: String,
+    pub width: f64,
+    pub points: Vec<Vec2>,
+    pub part_ids: Vec<String>,
+    pub matrix_ids: Vec<String>,
+    pub authored: bool,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineGap {
+    pub id: String,
+    pub feature_id: String,
+    pub span: f64,
+    pub points: Vec<OutlineControlPoint>,
+    pub protected: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<String>>", optional))]
+    pub protected_ids: Vec<String>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct BoardOutlineScene {
+    pub board_id: String,
+    pub source_contours: Vec<Contour>,
+    pub bridges: Vec<OutlineBridge>,
+    pub gaps: Vec<OutlineGap>,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct FindingMarker {
+    pub finding_id: String,
+    pub board_id: String,
+    pub contours: Vec<Contour>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
@@ -766,6 +913,16 @@ pub struct ProjectDoc {
     pub layouts: Vec<Layout>,
     pub nets: Vec<Net>,
     pub outline: Vec<OutlineFeature>,
+    #[serde(
+        rename = "boardOutlines",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<BoardOutline>>", optional)
+    )]
+    pub board_outlines: Vec<BoardOutline>,
     pub boards: Vec<Board>,
     #[serde(rename = "caseBodies")]
     pub case_bodies: Vec<CaseBody>,
@@ -794,6 +951,7 @@ impl ProjectDoc {
             layouts: vec![],
             nets: vec![],
             outline: vec![],
+            board_outlines: vec![],
             boards: vec![],
             case_bodies: vec![],
             materials: vec![],
@@ -928,6 +1086,38 @@ pub enum EditOperation {
     SetOutline {
         feature: OutlineFeature,
     },
+    CopyOutline {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(rename = "versionId")]
+        version_id: String,
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        edit: Option<OutlineContourEdit>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        feature: Option<OutlineFeature>,
+    },
+    SelectOutline {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(rename = "versionId", default)]
+        version_id: Option<String>,
+    },
+    RenameOutline {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(rename = "versionId")]
+        version_id: String,
+        name: String,
+    },
+    RemoveOutline {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(rename = "versionId")]
+        version_id: String,
+    },
     AddPart {
         part: Part,
         #[cfg_attr(feature = "export-types", ts(optional))]
@@ -976,6 +1166,12 @@ pub enum EditOperation {
     ReplaceDocument {
         document: ProjectDoc,
     },
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+pub struct OutlineContourEdit {
+    pub contour: u32,
+    pub points: Vec<Vec2>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
@@ -1133,6 +1329,26 @@ pub struct SceneDelta {
     pub board_contours: Vec<BoardContours>,
     #[serde(rename = "boardReadiness")]
     pub board_readiness: Vec<BoardReadiness>,
+    #[serde(
+        rename = "boardOutlineScenes",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<BoardOutlineScene>>", optional)
+    )]
+    pub board_outline_scenes: Vec<BoardOutlineScene>,
+    #[serde(
+        rename = "findingMarkers",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<FindingMarker>>", optional)
+    )]
+    pub finding_markers: Vec<FindingMarker>,
     pub findings: Vec<Finding>,
     pub readiness: Readiness,
 }
@@ -2102,7 +2318,10 @@ pub struct MechanicalStackLayer {
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalAssembly {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<MechanicalMaterialSpecification>>", optional))]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<MechanicalMaterialSpecification>>", optional)
+    )]
     pub generated_materials: Vec<MechanicalMaterialSpecification>,
     #[serde(default)]
     pub gasket_supports: Vec<MechanicalGasketSupport>,

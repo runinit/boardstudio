@@ -68,9 +68,10 @@ export const localMatrixDelta = (matrix: Matrix, delta: Vec2, column = 0): Vec2 
   return { x: x * Math.cos(splay) - y * Math.sin(splay), y: x * Math.sin(splay) + y * Math.cos(splay) };
 };
 
+/** Positive values are unit fractions; negative values are shared mm steps. */
 export const snapDelta = (delta: Vec2, pitch: Vec2, fraction: number): Vec2 => fraction === 0 ? delta : ({
-  x: Math.round(delta.x / Math.max(0.001, pitch.x * fraction)) * pitch.x * fraction,
-  y: Math.round(delta.y / Math.max(0.001, pitch.y * fraction)) * pitch.y * fraction,
+  x: Math.round(delta.x / Math.max(0.001, (fraction < 0 ? -fraction : pitch.x * fraction))) * (fraction < 0 ? -fraction : pitch.x * fraction),
+  y: Math.round(delta.y / Math.max(0.001, (fraction < 0 ? -fraction : pitch.y * fraction))) * (fraction < 0 ? -fraction : pitch.y * fraction),
 });
 
 export const createPart = (definition: PartDefinition, parts: Part[]): Part => {

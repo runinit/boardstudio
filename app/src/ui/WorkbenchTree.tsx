@@ -10,7 +10,7 @@ export type TreeEntry = {
   expandable?: boolean;
   expanded?: boolean;
   selected?: boolean;
-  kind: 'layout' | 'components' | 'pcb' | 'case' | 'board' | 'matrix' | 'row' | 'column' | 'key' | 'component';
+  kind: 'layout' | 'components' | 'pcb' | 'case' | 'board' | 'matrix' | 'row' | 'column' | 'key' | 'component' | 'outline' | 'outline-version' | 'bridge';
   onToggle?: () => void;
   onSelect: () => void;
   onKeyDown?: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
@@ -63,6 +63,8 @@ export const WorkbenchTree = ({ entries }: { entries: TreeEntry[] }) => {
 };
 
 const TreeGlyph = ({ kind }: { kind: TreeEntry['kind'] }) => kind === 'pcb' ? <svg viewBox="0 0 16 16"><path d="m1 5 7-4 7 4-7 4ZM1 8l7 4 7-4M1 11l7 4 7-4" /></svg>
+  : kind === 'outline' || kind === 'outline-version' ? <svg viewBox="0 0 16 16"><path d="M2 2h8v3h4v9H2z" />{kind === 'outline-version' && <path d="M5 8h6M5 11h4" />}</svg>
+  : kind === 'bridge' ? <svg viewBox="0 0 16 16"><path d="M2 11V5h12v6M2 8h12" /><circle cx="2" cy="12" r="1.5" /><circle cx="14" cy="12" r="1.5" /></svg>
   : kind === 'case' ? <svg viewBox="0 0 16 16"><path d="m8 1 6 3v8l-6 3-6-3V4ZM2 4l6 3 6-3M8 7v8" /></svg>
   : kind === 'matrix' ? <svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1" /><path d="M6 2v12M10 2v12M2 6h12M2 10h12" /></svg>
   : kind === 'components' ? <svg viewBox="0 0 16 16"><rect x="2" y="2" width="8" height="8" rx="1" /><rect x="6" y="6" width="8" height="8" rx="1" /><path d="M4 4h4M8 8h4" /></svg>

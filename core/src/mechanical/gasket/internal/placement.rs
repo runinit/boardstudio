@@ -149,11 +149,7 @@ pub(super) fn closure(
 
 fn side(candidate: &Candidate) -> usize {
     if candidate.normal.x.abs() > candidate.normal.y.abs() {
-        if candidate.normal.x > 0. {
-            0
-        } else {
-            1
-        }
+        if candidate.normal.x > 0. { 0 } else { 1 }
     } else if candidate.normal.y > 0. {
         2
     } else {

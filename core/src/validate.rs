@@ -102,6 +102,42 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
         }
     }
     for board in &doc.boards {
+        if let Some(state) = doc
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == board.id)
+        {
+            if let Some(id) = &state.active_version_id {
+                if let Some(version) = state.versions.iter().find(|version| &version.id == id) {
+                    for feature in &version.geometry.features {
+                        let fixed = matches!(
+                            feature,
+                            crate::model::OutlineFeature::Polygon {
+                                anchor_part_id: None,
+                                ..
+                            } | crate::model::OutlineFeature::Rect {
+                                anchor_part_id: None,
+                                ..
+                            }
+                        );
+                        if !fixed {
+                            findings.push(error(
+                                Scope::Pcb,
+                                format!(
+                                    "board:{}:outline:fixed-attachment:{}",
+                                    board.id,
+                                    feature.id()
+                                ),
+                                "A fixed version cannot contain live component attachments",
+                                vec![board.id.clone(), feature.id().into()],
+                            ));
+                        }
+                    }
+                } else {
+                    findings.push(error(Scope::Pcb, format!("board:{}:outline:version", board.id), "The active outline version is missing; select Generated or another version", vec![board.id.clone()]));
+                }
+            }
+        }
         if !board.thickness.is_finite() || board.thickness <= 0.0 {
             findings.push(error(
                 Scope::Pcb,
@@ -110,7 +146,9 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
                 vec![board.id.clone()],
             ));
         }
-        if board.outline_ids.is_empty() {
+        if board.outline_ids.is_empty()
+            && crate::outline_versions::active_snapshot(doc, &board.id).is_none()
+        {
             findings.push(error(
                 Scope::Pcb,
                 format!("board:{}:outline", board.id),
@@ -119,7 +157,9 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
             ));
         }
         for id in &board.outline_ids {
-            if !outline_ids.contains(id.as_str()) {
+            if !outline_ids.contains(id.as_str())
+                && crate::outline_versions::active_snapshot(doc, &board.id).is_none()
+            {
                 findings.push(error(
                     Scope::Pcb,
                     format!("board:{}:outline:{}", board.id, id),
@@ -212,8 +252,7 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
             .rows
             .checked_mul(matrix.columns)
             .is_some_and(|count| {
-                matrix.part_ids.len()
-                    != (count as usize).saturating_sub(disabled) + companions
+                matrix.part_ids.len() != (count as usize).saturating_sub(disabled) + companions
             })
         {
             findings.push(error(

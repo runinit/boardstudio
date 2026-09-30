@@ -1,6 +1,6 @@
 use crate::model::{
-    Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, Mirror,
-    OutlineFeature, Part, Pin, Pose2, ProjectDoc, Side, Vec2,
+    Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, Mirror, OutlineFeature,
+    Part, Pin, Pose2, ProjectDoc, Side, Vec2,
 };
 use serde_json::json;
 pub(crate) mod layout;
@@ -37,8 +37,6 @@ fn matrix_terminal_pad_ids(definition: &crate::model::PartDefinition, row: bool)
         .filter(|id| definition.pads.iter().any(|pad| &pad.id == id))
         .collect()
 }
-
-
 
 fn member_id(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
@@ -508,7 +506,11 @@ mod projection_tests {
             pitch: Vec2 { x: 19.0, y: 19.0 },
             origin: Vec2 { x: 0.0, y: 0.0 },
             definition_id: "missing".into(),
-            part_ids: vec!["matrix/m/r0c0".into(), "matrix/m/r0c1".into(), "matrix/m/r0c2".into()],
+            part_ids: vec![
+                "matrix/m/r0c0".into(),
+                "matrix/m/r0c1".into(),
+                "matrix/m/r0c2".into(),
+            ],
             board_id: None,
             mirror: Some(Mirror::X),
             rotation: Some(10.0),
@@ -641,7 +643,10 @@ mod projection_tests {
         m.pitch.x = 19.0;
         m.column_origins = vec![None; m.columns as usize + 1];
         assert!(valid_projection_matrix(&m).is_err());
-        m.column_origins = vec![Some(Vec2 { x: f64::NAN, y: 0.0 })];
+        m.column_origins = vec![Some(Vec2 {
+            x: f64::NAN,
+            y: 0.0,
+        })];
         assert!(valid_projection_matrix(&m).is_err());
     }
 
@@ -912,11 +917,16 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                 }
                 if let Some(&index) = part_index.get(&id) {
                     changed.extend(remap_member_pins(doc, index, &definition_id)?);
-                    let previous = doc.definitions.iter()
+                    let previous = doc
+                        .definitions
+                        .iter()
                         .find(|definition| definition.id == doc.parts[index].definition_id);
                     let authored_keycap = previous
-                        .filter(|definition| definition.envelope_source.as_ref()
-                            .is_some_and(|source| source.keycap == Some(crate::model::EnvelopeOrigin::Authored)))
+                        .filter(|definition| {
+                            definition.envelope_source.as_ref().is_some_and(|source| {
+                                source.keycap == Some(crate::model::EnvelopeOrigin::Authored)
+                            })
+                        })
                         .and_then(|definition| definition.keycap);
                     let part = &mut doc.parts[index];
                     if part.definition_id != definition_id && part.keycap.is_none() {

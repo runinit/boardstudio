@@ -494,7 +494,9 @@ mod tests {
         "(gr_rect (start 0 0) (end 20 10) (layer \"Edge.Cuts\") (stroke (width 0.05)))";
     #[test]
     fn projects_copper_holes_models_and_saved_fills() {
-        let input=format!("(kicad_pcb (general (thickness 1.2)) {EDGE} (segment (start 1 2) (end 5 2) (width 0.3) (layer \"F.Cu\")) (via (at 5 2) (size 0.7) (drill 0.3)) (footprint \"switch\" (layer \"B.Cu\") (at 4 5 30) (property \"Reference\" \"SW1\") (pad \"1\" thru_hole oval (at 2 0 30) (size 3 2) (drill oval 1.5 0.8) (layers \"*.Cu\" \"*.Mask\")) (model \"switch.step\" (offset (xyz 1 2 3)) (rotate (xyz 20 40 70)))) (zone (layer \"B.Cu\")))");
+        let input = format!(
+            "(kicad_pcb (general (thickness 1.2)) {EDGE} (segment (start 1 2) (end 5 2) (width 0.3) (layer \"F.Cu\")) (via (at 5 2) (size 0.7) (drill 0.3)) (footprint \"switch\" (layer \"B.Cu\") (at 4 5 30) (property \"Reference\" \"SW1\") (pad \"1\" thru_hole oval (at 2 0 30) (size 3 2) (drill oval 1.5 0.8) (layers \"*.Cu\" \"*.Mask\")) (model \"switch.step\" (offset (xyz 1 2 3)) (rotate (xyz 20 40 70)))) (zone (layer \"B.Cu\")))"
+        );
         let result = board(&input, 17).unwrap();
         assert_eq!(result.revision, 17);
         assert_eq!(result.thickness, 1.2);
@@ -503,24 +505,30 @@ mod tests {
         assert_eq!(result.models[0].side, Side::Back);
         assert_eq!(result.models[0].offset.y, 2.);
         assert_eq!(result.models[0].pose.at.y, -5.);
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|s| s.contains("no saved fill")));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|s| s.contains("no saved fill"))
+        );
         assert!(result.surfaces.iter().any(|s| s.layer == "B.Mask"));
     }
     #[test]
     fn rejects_open_edges_and_non_finite_values() {
-        assert!(board(
-            "(kicad_pcb (gr_line (start 0 0) (end 1 1) (layer \"Edge.Cuts\")))",
-            0
-        )
-        .is_err());
-        assert!(board(
-            &format!("(kicad_pcb {EDGE} (segment (start NaN 0) (end 1 1) (layer \"F.Cu\")))"),
-            0
-        )
-        .is_err());
+        assert!(
+            board(
+                "(kicad_pcb (gr_line (start 0 0) (end 1 1) (layer \"Edge.Cuts\")))",
+                0
+            )
+            .is_err()
+        );
+        assert!(
+            board(
+                &format!("(kicad_pcb {EDGE} (segment (start NaN 0) (end 1 1) (layer \"F.Cu\")))"),
+                0
+            )
+            .is_err()
+        );
     }
     #[test]
     fn joins_edges_and_classifies_cutouts() {

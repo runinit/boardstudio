@@ -14,7 +14,7 @@ export function mechanicalFindings(assembly: MechanicalAssembly | undefined, doc
   })), document);
 }
 
-export function caseReadiness({ revision, sceneRevision, previewRevision, boardId, configuredBoardId, generation, assembly, hasGeometry = false }: {
+export function caseReadiness({ revision, sceneRevision, previewRevision, boardId, configuredBoardId, generation, assembly, hasGeometry = false, outlineReady = true }: {
   revision: number;
   sceneRevision?: number;
   previewRevision?: number;
@@ -23,6 +23,7 @@ export function caseReadiness({ revision, sceneRevision, previewRevision, boardI
   generation?: GenerationState;
   assembly?: MechanicalAssembly;
   hasGeometry?: boolean;
+  outlineReady?: boolean;
 }) {
   const state = generation ?? { status: 'required' };
   const active = Boolean(boardId && boardId === configuredBoardId);
@@ -31,7 +32,7 @@ export function caseReadiness({ revision, sceneRevision, previewRevision, boardI
   const warnings = resolved ? assembly!.diagnostics.filter(finding => finding.severity === 'warning').length : 0;
   const busy = state.status === 'preparing' || state.status === 'running';
   const current = !state.draft && resolved && state.status === 'ready' && state.revision === revision && previewRevision === revision;
-  const canExport = Boolean(current && !errors && !assembly?.generationBlocked);
+  const canExport = Boolean(current && outlineReady && !errors && !assembly?.generationBlocked);
   const retained = hasGeometry && !current ? ' Previous geometry is shown.' : '';
   let message: string;
   if (!active) message = 'Configure a mechanical stack for this board to generate its case.';
@@ -41,10 +42,11 @@ export function caseReadiness({ revision, sceneRevision, previewRevision, boardI
   else if (state.status === 'cancelled') message = `Preview paused. Update preview when ready.${retained}`;
   else if (state.status === 'blocked' || (resolved && assembly?.generationBlocked)) message = `Generation blocked · review mechanical findings.${retained}`;
   else if (current && errors) message = 'Geometry current · mechanical errors must be resolved before export.';
+  else if (current && !outlineReady) message = 'Geometry current · resolve active outline findings before export.';
   else if (canExport) message = warnings ? 'Geometry current · export available with warnings to review.' : 'Geometry current · ready to export.';
   else if (!resolved) message = `Resolving configuration · export is unavailable.${retained}`;
   else message = `Preview out of date · update the solids before export.${retained}`;
-  return { canExport, message, reviewRequired: errors > 0 || state.status === 'blocked', warnings, busy };
+  return { canExport, message, reviewRequired: !outlineReady || errors > 0 || state.status === 'blocked', warnings, busy };
 }
 
 export type CaseReadiness = ReturnType<typeof caseReadiness>;

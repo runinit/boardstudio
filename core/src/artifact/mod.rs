@@ -47,7 +47,6 @@ pub fn request(json: &str) -> String {
     serde_json::to_string(&reply).expect("artifact reply serializes")
 }
 
-
 fn handle(request: ArtifactRequest) -> ArtifactReply {
     match request {
         ArtifactRequest::ExportMechanicalPlate {

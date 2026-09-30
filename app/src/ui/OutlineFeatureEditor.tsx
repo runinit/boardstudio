@@ -7,12 +7,13 @@ import { attachOutline, insertOutlinePoint, moveOutlinePoint, outlinePoints, rem
 
 type Props = {
   feature: OutlineFeature; connectionId?: string; title: string; parts: Part[];
-  selectedPoint: number; onSelectPoint: (index: number) => void; grid: number; onGrid: (grid: number) => void;
+  selectedPoint: number; onSelectPoint: (index: number) => void; grid: number; gridSelection?:number; onGrid: (grid: number) => void;
   onChange: (feature: OutlineFeature) => void; onClose: () => void;
+  fixed?: boolean; createsCopy?: boolean;
 };
 const measurement = (value: number) => Number(value.toFixed(3));
 
-export function OutlineFeatureEditor({ feature, connectionId, title, parts, selectedPoint, onSelectPoint, grid, onGrid, onChange, onClose }: Props) {
+export function OutlineFeatureEditor({ feature, connectionId, title, parts, selectedPoint, onSelectPoint, grid, gridSelection, onGrid, onChange, onClose, fixed, createsCopy }: Props) {
   const points = outlinePoints(feature, parts, connectionId);
   const index = Math.min(selectedPoint, points.length - 1);
   const point = points[index];
@@ -32,16 +33,16 @@ export function OutlineFeatureEditor({ feature, connectionId, title, parts, sele
   const remove = () => { onChange(removeOutlinePoint(feature, index, connectionId)); onSelectPoint(Math.max(0, index - 1)); };
   return <div className="wb-outline-editor">
     <div className="wb-inspect-head"><h2>{title}</h2><button className="wb-secondary" onClick={onClose}>Done</button></div>
-    <p className="wb-inspector-description">{connection ? 'A path that joins the board’s groups.' : feature.operation === 'subtract' ? 'An opening cut from the board.' : 'An extension of the board edge.'} Changes save as you edit.</p>
+    <p className="wb-inspector-description">{createsCopy ? 'Your first change creates and activates a fixed copy. Generated stays available.' : fixed ? 'This outline stays fixed when components move. Changes save as you edit.' : connection ? 'A generated connection that follows its attached components.' : 'Changes save as you edit.'}</p>
     {feature.kind === 'part-envelope' && connection && <CaseNumber label="Connection width" unit="mm" validation="positive" value={connection.width} onCommit={width => onChange({ ...feature, connections: feature.connections?.map(item => item.id === connection.id ? { ...item, width } : item) })} />}
     {point && <>
-      <div className="wb-outline-point-heading"><h3>{feature.kind === 'rect' ? 'Center position' : `Point ${index + 1}`}<small>{feature.kind !== 'rect' && ` of ${points.length}`}</small></h3><OutlineGridControl value={grid} onChange={onGrid} /></div>
+      <div className="wb-outline-point-heading"><h3>{feature.kind === 'rect' ? 'Center position' : `Point ${index + 1}`}<small>{feature.kind !== 'rect' && ` of ${points.length}`}</small></h3><OutlineGridControl value={grid} selection={gridSelection} onChange={onGrid} /></div>
       <div className="wb-outline-coordinates">{(['x', 'y'] as const).map(axis => <CaseNumber key={`${index}-${axis}`} label={`Point ${index + 1} ${axis.toUpperCase()}`} unit="mm" validation="finite" value={measurement(point[axis])} onCommit={value => onChange(moveOutlinePoint(feature, index, { ...point, [axis]: value }, parts, connectionId))} />)}</div>
-      <label className="wb-outline-select"><span>{connection ? 'Point attachment' : 'Shape attachment'}</span><select aria-label={connection ? `Point ${index + 1} attachment` : 'Shape attachment'} value={attachmentId ?? ''} onChange={event => onChange(attachOutline(feature, event.target.value || undefined, parts, connectionId, index))}>
+      {!fixed && !createsCopy && <label className="wb-outline-select"><span>{connection ? 'Point attachment' : 'Shape attachment'}</span><select aria-label={connection ? `Point ${index + 1} attachment` : 'Shape attachment'} value={attachmentId ?? ''} onChange={event => onChange(attachOutline(feature, event.target.value || undefined, parts, connectionId, index))}>
         <option value="">Fixed on board</option>
         {missingAttachment && <option value={attachmentId}>Missing component</option>}
         {parts.map(part => <option key={part.id} value={part.id}>{part.reference}</option>)}
-      </select></label>
+      </select></label>}
       <p className={`wb-outline-attachment-note${missingAttachment ? ' is-error' : ''}`}>{missingAttachment ? 'This component is missing. Choose another attachment or keep the shape fixed.' : attachmentId ? `Follows ${parts.find(part => part.id === attachmentId)?.reference}. Detaching keeps the current position.` : 'Keeps its position when components move.'}</p>
       {feature.kind !== 'rect' && <div className="wb-outline-point-actions">
         <button className="wb-secondary" aria-label={`Insert after ${index + 1}`} disabled={!!connection && index === points.length - 1} onClick={insert}><OutlineToolIcon kind="add-point" />Insert after</button>
