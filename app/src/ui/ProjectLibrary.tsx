@@ -71,7 +71,7 @@ function SavedKeyboardTile({ project, current, onOpen, onDelete }: { project: Pr
   return <KeyboardTile name={projectName(project)} keys={keys} boardCount={boardCount} current={current} unavailable={unavailable} onOpen={onOpen} onDelete={onDelete} />;
 }
 
-export function ProjectLibrary({ document, onOpen, onOpenDemo, onDelete }: { document: ProjectDoc; onOpen?: (id: string) => void; onOpenDemo?: (id: DemoId) => void; onDelete?: (id: string) => Promise<boolean> }) {
+export function ProjectLibrary({ document, onNew, onOpen, onOpenDemo, onDelete }: { document?: ProjectDoc; onNew?: () => void; onOpen?: (id: string) => void; onOpenDemo?: (id: DemoId) => void; onDelete?: (id: string) => Promise<boolean> }) {
   const [projects, setProjects] = useState<ProjectDoc[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [retry, setRetry] = useState(0);
@@ -116,9 +116,9 @@ export function ProjectLibrary({ document, onOpen, onOpenDemo, onDelete }: { doc
       setStatus('ready');
     }).catch(() => { if (!cancelled) setStatus('failed'); });
     return () => { cancelled = true; };
-  }, [document.id, retry]);
+  }, [document?.id, retry]);
 
-  const saved = [document, ...projects.filter(project => project.id !== document.id).sort((a, b) => projectName(a).localeCompare(projectName(b)))];
+  const saved = [...(document ? [document] : []), ...projects.filter(project => project.id !== document?.id).sort((a, b) => projectName(a).localeCompare(projectName(b)))];
   const matches = saved.filter(project => projectName(project).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
 
   return <div className="wb-keyboard-library-scroll">
@@ -127,8 +127,15 @@ export function ProjectLibrary({ document, onOpen, onOpenDemo, onDelete }: { doc
       <div className="wb-keyboard-search"><ProjectLibraryIcon name="search" /><input ref={search} type="search" aria-label="Search saved keyboards" placeholder="Search your keyboards" value={query} onChange={event => setQuery(event.target.value)} />{query && <button onClick={() => setQuery('')}>Clear search</button>}</div>
       {status === 'loading' && <p role="status">Loading saved keyboards…</p>}
       {status === 'failed' && <p role="alert">Saved keyboards could not be loaded. <button className="wb-library-text-action" onClick={() => setRetry(value => value + 1)}>Try again</button></p>}
-      <div className="wb-keyboard-grid">{matches.map(project => <SavedKeyboardTile key={project.id} project={project} onDelete={onDelete ? () => { setDeleteError(''); setPendingDelete(project); } : undefined} current={project.id === document.id} onOpen={() => onOpen?.(project.id)} />)}</div>
-      {!matches.length && <p className="wb-keyboard-empty">No keyboards match your search.</p>}
+      <div className="wb-keyboard-grid">
+        {onNew && <button type="button" className="wb-keyboard-tile wb-keyboard-new" aria-label="Create new keyboard" autoFocus={!document} onClick={onNew}>
+          <div className="wb-keyboard-preview"><ProjectLibraryIcon name="new" /></div>
+          <span className="wb-keyboard-tile-title">New keyboard</span>
+          <span className="wb-keyboard-tile-detail">Start with guided setup</span>
+        </button>}
+        {matches.map(project => <SavedKeyboardTile key={project.id} project={project} onDelete={onDelete ? () => { setDeleteError(''); setPendingDelete(project); } : undefined} current={project.id === document?.id} onOpen={() => onOpen?.(project.id)} />)}
+      </div>
+      {!matches.length && query.trim() && <p className="wb-keyboard-empty">No keyboards match your search.</p>}
     </section>
     {onOpenDemo && <section aria-label="Demo keyboards" className="wb-keyboard-section wb-keyboard-demos">
       <div className="wb-keyboard-section-heading"><h3>Demo keyboards</h3><span>Start an editable copy</span></div>

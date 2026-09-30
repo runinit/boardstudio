@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { savedProjectState } from './e2e/savedProjectState';
 
 const PORT = Number(process.env.BOARDSTUDIO_TEST_PORT ?? 4328);
+const baseURL = `http://127.0.0.1:${PORT}/`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -10,7 +12,8 @@ export default defineConfig({
   workers: 1,
   use: {
     screenshot: 'only-on-failure',
-    baseURL: `http://127.0.0.1:${PORT}/`,
+    baseURL,
+    storageState: savedProjectState(baseURL),
     ...devices['Desktop Chrome'],
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1,

@@ -1,16 +1,14 @@
 import type { PreparedCasePreview } from './useCaseGeneration';
-import type { CoreReply, ProjectDoc, SceneDelta } from '@boardstudio/v2-contracts';
+import { emptyProject, type CoreReply, type ProjectDoc, type SceneDelta } from '@boardstudio/v2-contracts';
 import type { MutableRefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { CaseClient } from './CaseClient';
 import { CoreClient } from './CoreClient';
 import { ExportClient } from './ExportClient';
 import type { ContextualCaseResult } from './casePreviewContext';
-import { demoProject } from './demo';
-import { activeProjectId, loadProject, saveProject } from './storage';
+import { activeProjectId, listProjects, loadProject, saveProject } from './storage';
 import { recordCadMeasure } from './cadPerformance';
 
-const STARTER_ID = 'starter';
 const EMPTY_SCENE: SceneDelta = {
   revision: 0,
   transactionId: 'initial',
@@ -33,7 +31,8 @@ type Inputs = {
 };
 
 export function useProjectSession({ caseClient, exportClient, previewCache, setSelectedInstanceId, setError }: Inputs) {
-  const [project, setProject] = useState<ProjectDoc>(demoProject);
+  const [project, setProject] = useState<ProjectDoc>(() => emptyProject('', ''));
+  const [hasProject, setHasProject] = useState(false);
 
   const [selectedBoardId, setSelectedBoardId] = useState('main-board');
 
@@ -89,6 +88,7 @@ export function useProjectSession({ caseClient, exportClient, previewCache, setS
     }
     if (mode === 'open') {
       setProjectSession((value) => value + 1);
+      setHasProject(true);
       setReady(true);
       setError('');
     }
@@ -113,9 +113,13 @@ export function useProjectSession({ caseClient, exportClient, previewCache, setS
 
     client.current = core;
     schedule(async () => {
-      const saved = await loadProject(activeProjectId(STARTER_ID));
-      const document = saved ?? demoProject();
-      const reply = await core.request({ id: crypto.randomUUID(), kind: 'open', document });
+      const saved = await loadProject(activeProjectId(''))
+        ?? (await listProjects())[0];
+      if (!saved) {
+        setReady(true);
+        return;
+      }
+      const reply = await core.request({ id: crypto.randomUUID(), kind: 'open', document: saved });
 
       await accept(reply, 'open');
     });
@@ -131,5 +135,5 @@ export function useProjectSession({ caseClient, exportClient, previewCache, setS
     };
   }, []);
 
-  return { project, scene, selectedBoardId, setSelectedBoardId, ready, client, projectSession, saveStatus, projectRef, committedScene, accept, schedule };
+  return { project, hasProject, scene, selectedBoardId, setSelectedBoardId, ready, client, projectSession, saveStatus, projectRef, committedScene, accept, schedule };
 }

@@ -13,6 +13,7 @@ import { FirmwareKeymapPanel } from './ui/FirmwareKeymapPanel';
 import { withReversibleLayout } from './projectConstruction';
 import { HardwareInstancesPanel } from './ui/HardwareInstancesPanel';
 import { Workbench } from './ui/Workbench';
+import { ProjectStart } from './ui/ProjectStart';
 import type { MatrixScene } from './ui/matrixGeometry';
 import { useCaseGeneration } from './useCaseGeneration';
 import { useElectricalPlanning } from './useElectricalPlanning';
@@ -30,16 +31,16 @@ function App() {
   const exportCaseClient = useRef<CaseClient | null>(null);
   useEffect(() => () => exportCaseClient.current?.close(), []);
   const previewCache = useRef(new Map<string, ContextualCaseResult<PreparedCasePreview>>());
-  const { project, scene, selectedBoardId, setSelectedBoardId, ready, client, projectSession, saveStatus, projectRef, committedScene, accept, schedule } = useProjectSession({ caseClient, exportClient, previewCache, setSelectedInstanceId, setError });
+  const { project, hasProject, scene, selectedBoardId, setSelectedBoardId, ready, client, projectSession, saveStatus, projectRef, committedScene, accept, schedule } = useProjectSession({ caseClient, exportClient, previewCache, setSelectedInstanceId, setError });
 
   const selectedInstance = project.hardware?.instances.find(instance => instance.id === selectedInstanceId && instance.boardId === selectedBoardId)
     ?? project.hardware?.instances.find(instance => instance.boardId === selectedBoardId);
 
-  const { physicalDocument, physicalScene, preparedCase, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly, cancelGeneration, generateCase, livePreview, setLivePreview, setPreviewDraft } = useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, projectRef, committedScene, client, caseClient, previewCache, activeMode, ready, setError });
+  const { physicalDocument, physicalScene, preparedCase, generation, currentPreviewContext, visibleCasePreview, visibleMechanicalAssembly, cancelGeneration, generateCase, livePreview, setLivePreview, setPreviewDraft } = useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, projectRef, committedScene, client, caseClient, previewCache, activeMode, ready: ready && hasProject, setError });
 
   const { edit, history, importProject, newProject, openSavedProject, deleteSavedProject, openDemo, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated: projectId => setSetupRequest({ projectId, requestId: crypto.randomUUID() }) });
 
-  const { refreshWiring, resolveWiring, changeWiring, applyWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit });
+  const { refreshWiring, resolveWiring, changeWiring, applyWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready: ready && hasProject, setError, schedule, accept, edit });
 
   const { exportFile, exportMechanical } = createProjectExporter({
     readSnapshot: () => ({ document: projectRef.current, scene: committedScene.current, boardId: currentPreviewContext.current.boardId,
@@ -100,6 +101,8 @@ function App() {
       </div>
     </> : <p role="status">Opening Board Studio…</p>}</main>;
   }
+
+  if (!hasProject) return <ProjectStart error={error} onNew={newProject} onOpen={openSavedProject} onOpenDemo={openDemo} onImport={importProject} />;
 
   return <>
     {error && <div className="app-error" role="alert" onClick={() => setError('')}>{error}</div>}

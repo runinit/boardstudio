@@ -1183,7 +1183,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             event.currentTarget.value = '';
             setProjectMenuOpen(false);
           }} />}
-          <ProjectLibrary document={document} onDelete={onDeleteSavedProject && (async id => {
+          <ProjectLibrary document={document} onNew={onNewProject && (() => { setProjectMenuOpen(false); onNewProject(); })} onDelete={onDeleteSavedProject && (async id => {
             projectDeletionPending.current = true;
             try { return await onDeleteSavedProject(id); }
             finally { projectDeletionPending.current = false; }
