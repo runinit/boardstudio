@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-09-30 (Prioritize safe outline recovery)
+- Fast-forward dev to `b3c452c3` with recovered outlines and integration fixes; pass 324 core, 468 app, 23 native CAD, 49 CAD JavaScript, 28 affected browser, and 5 final main-checkout browser tests, rebuild WASM/app assets, and preserve the original source worktree. Record verification and limits in docs/outline-recovery-integration.md; Phase 3 performance tasks remain pending.
+- Reconcile outline recovery with current dev controllers, preserve keycap operations and export workflow ownership, regenerate contracts, and pass app typechecking; begin Rust/app tests and production core WASM compilation in the isolated integration checkout.
+- Establish isolated integration at `d11497f0` and pass the unchanged Rust core baseline; use standalone `/tmp/boardstudio-outline-integration-local` after shared-worktree index writes are denied.
+- Restore and hash-verify all 102 snapshot files in `/tmp/boardstudio-outline-recovery-local`, capture recovery commit `698706c2`, and begin three-way reconciliation without modifying the preserved source worktree.
+- Snapshot all 102 pending outline/mechanical files from base `6abf3eb9` into `.scratch/outline-recovery/20260930T175121Z`, retaining binary and staged patches, source status, and a hash manifest; verify every archived file hash and mode and confirm the source checkout remained unchanged.
+- Add outline recovery prerequisites to PLAN.md and prepend five dependent recovery tasks to TODO.md before existing work, preserving all prior tasks and completion states; recovery implementation remains pending.
+
 ## 2026-09-28 (Bounded gasket comparisons)
 - Reconcile TODO.md with the generation optimization coverage document: preserve all completed Phase 2 items, activate Phase 3 tracking, and add the remaining E0–E9, separate preview and final-acceptance work without treating bounded screening as production acceptance.
 - Continue the original E0–E9 plan with eight isolated OCCT/construction variants, five browser sessions and five bottom fixtures. Dedicated cuts, combined cutters, and analytic profile holes show modest 4–6% gains; history suppression is small, OBB is workload-dependent, and non-destructive processing/final cleanup regress. Pass 45 native material, independent STEP and browser mesh comparisons plus 16 ordinary native tests. Retain all samples and an explicit coverage table; tabbed meshing, reuse, remaining build/planning experiments and full-app acceptance remain pending.

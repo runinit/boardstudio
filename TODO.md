@@ -2,6 +2,12 @@
 
 <!-- phase: 3 -->
 
+- [x] Outline recovery A: Recheck current `dev` and the preserved outline worktree; snapshot all modified and untracked outline/mechanical files with their original base revision and verify file hashes, preserving source worktrees and unrelated edits (outcome: 54 modified and 48 untracked files captured in `.scratch/outline-recovery/20260930T175121Z`; archive file hashes and modes verified; source content, status, and HEAD unchanged).
+- [x] Outline recovery B: Create an isolated integration branch/worktree from current `dev`; record its revision, newer features, affected checks, and baseline failures (depends: Outline recovery A).
+- [x] Outline recovery C: Materialize the verified snapshot in a separate recovery checkout based on the original outline revision and capture a recovery commit including untracked files; verify it against the snapshot without altering the source worktree (depends: Outline recovery B).
+- [x] Outline recovery D: Apply the recovery commit to the integration branch using three-way reconciliation; resolve overlapping Workbench, export, Rust model, and contract changes by intent while preserving newer `dev` behavior, then regenerate contracts (depends: Outline recovery C).
+- [x] Outline recovery E: Run affected Rust/app tests, contract and build checks, and browser verification of outline repair, versions, snapping, editing, and export readiness; review preservation against both inputs, record failed or blocked gates, and integrate verified changes into `dev` before resuming Phase 3 / E0 (depends: Outline recovery D).
+
 - [x] Establish executable scenario-level performance acceptance, including numeric edits and failing-comparison regressions; preserve the comparable hardware reference and frozen budgets, distinguish incremental gains from the unmet 200 ms p95 exact target, and define cold/burst workloads and full-UI soak criteria before optimization (PLAN 2.1).
 - [x] Attribute remaining gasket-bottom, plate, and numeric-edit costs to changed prepared inputs and exact construction stages; measure cold generation and latest-edit completion during bursts separately, rank changes by measured impact, and record optimization or no-change decisions (PLAN 2.2; depends: 1).
 - [x] Optimize exact gasket bottom opening cuts with pre-change geometry/cache regressions, bounds/material/volume and STEP equivalence, and a focused before/after acceptance check; preserve Boolean semantics, mutation isolation, tolerances, cache budgets, and warm-worker cancellation (PLAN 2.3; depends: 2).

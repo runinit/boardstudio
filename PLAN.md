@@ -1,5 +1,18 @@
 # Generation and edit performance plan
 
+## Immediate prerequisite: recover preserved outline work
+
+Before resuming pending Phase 3 performance work, recover the outline and related
+mechanical changes preserved in `codex/outline-mechanical-wip`. Snapshot modified
+and untracked source files with hash verification, create an isolated integration
+worktree from current `dev`, and capture the preserved edits as a recovery commit
+in an isolated checkout of their original base. Reconcile them with newer `dev`
+changes using three-way integration, regenerate contracts, and verify affected
+Rust, app, build, export, and browser workflows before integrating into `dev`.
+Preserve source worktrees, unrelated edits, existing task states, and baseline
+failures; do not reset, discard, or overwrite newer work. These prerequisites do
+not complete any existing performance task.
+
 ## Objective and scope
 
 Make case generation, regeneration, and repeated edits finish sooner while the

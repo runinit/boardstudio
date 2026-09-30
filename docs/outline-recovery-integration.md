@@ -47,6 +47,10 @@ subsequent shared snapping and inference-guide changes. Later outline stages in
 - All 16 outline browser scenarios passed after the reproduced menu fix.
 - All 12 keycaps, saved-project, electrical handoff, and case-preparation browser
   scenarios passed, including real artifact exports and persistence.
+- Fast-forwarded the main `dev` checkout to `b3c452c3`, refreshed local WASM
+  assets, rebuilt the app, and passed five final snapping/version browser tests
+  against the main checkout. Confirmed recovered controls on the existing
+  `http://127.0.0.1:5173/` development server in a separate browser session.
 - Agent-browser review opened an editable REVIUNG41 demo on its own origin,
   edited a perimeter coordinate, and confirmed an active fixed version with
   Generated still available and no browser errors. User storage was untouched.
