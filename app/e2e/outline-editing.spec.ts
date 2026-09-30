@@ -85,6 +85,10 @@ test('manual connection endpoints follow components and positive width persists'
 
 test('selected point is shared with the inspector and drawing can undo or cancel without changing the board',async({page})=>{
   await page.goto('/');await openOutline(page);
+  await page.getByRole('button',{name:'Snap',exact:true}).click();
+  await page.getByLabel('Snap increment').selectOption('-1');
+  await page.getByLabel('Geometry snap',{exact:true}).uncheck();
+  await page.getByRole('button',{name:'Snap',exact:true}).click();
   const before=await page.locator('.wb-outline-shape').first().getAttribute('points');
   await page.getByRole('button',{name:'Draw addition',exact:true}).click();
   await point(page,{x:1,y:-1});await point(page,{x:5,y:-1});await point(page,{x:5,y:-5});

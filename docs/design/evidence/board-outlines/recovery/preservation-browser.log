@@ -1,0 +1,28 @@
+[WebServer] (node:176839) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 12 tests using 1 worker
+
+(node:176920) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/12] e2e/case-preparation.spec.ts:4:1 › lazily loads CAD and prepares a current case preview and STEP export offline
+e2e/case-preparation.spec.ts:4:1 › lazily loads CAD and prepares a current case preview and STEP export offline
+Renderer WASM cold start: {"wasmInitMs":77.59999999962747,"canvasSceneMs":1438.0999999996275,"transferMs":45.59999999962747,"bytes":6028161}
+
+Case preparation diagnostic: {"bodies":1,"vertices":20,"warmupSamples":2,"measuredSamples":8,"totalMs":{"p50":0.7000000001862645,"p95":0.900000000372529},"wasmMs":{"p50":0.5,"p95":0.599999999627471}}
+
+[2/12] e2e/electrical-handoff.spec.ts:8:1 › configured Case keeps physical half selection and setup available
+[3/12] e2e/electrical-handoff.spec.ts:57:1 › real MCU wiring exports a protected PCB package and matching editable firmware
+[4/12] e2e/keycaps.spec.ts:26:1 › keymap profiles, legends, colors, Undo, persistence, CAD preview and exports
+[5/12] e2e/keycaps.spec.ts:79:1 › keymap controls remain usable on a narrow screen
+[6/12] e2e/project-library.spec.ts:3:1 › saved keyboards remain discoverable and reopen after creating another project
+[7/12] e2e/project-library.spec.ts:21:1 › demo gallery opens editable copies and keeps earlier work
+[8/12] e2e/project-library.spec.ts:36:1 › keyboard browser fits small screens and always offers a way back
+[9/12] e2e/project-library.spec.ts:57:1 › saved keyboard deletion requires confirmation and preserves other keyboards
+[10/12] e2e/project-library.spec.ts:88:1 › deleting the current keyboard opens a remaining saved keyboard
+[11/12] e2e/project-library.spec.ts:105:1 › deleting the last keyboard starts a blank project without restoring the deleted one
+[12/12] e2e/project-library.spec.ts:121:1 › rapid saved-project switching preserves edits and the selected keyboard after reload
+  12 passed (30.8s)

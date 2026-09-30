@@ -1,0 +1,27 @@
+[WebServer] (node:175281) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 16 tests using 1 worker
+
+(node:175384) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/16] e2e/outline-editing.spec.ts:19:1 › outline points use the mm grid, drag cancellation, numeric edits, undo and reload
+[2/16] e2e/outline-editing.spec.ts:62:1 › manual connection endpoints follow components and positive width persists
+[3/16] e2e/outline-editing.spec.ts:86:1 › selected point is shared with the inspector and drawing can undo or cancel without changing the board
+[4/16] e2e/outline-editing.spec.ts:118:1 › mobile outline drawing closes panels and supports undo and closing at the first point
+[5/16] e2e/outline-snapping.spec.ts:3:1 › outline editing exposes the same snap settings as layout
+[6/16] e2e/outline-snapping.spec.ts:23:1 › drawing and perimeter dragging show right-edge guides, snap the preview and click alike, and release with Alt
+[7/16] e2e/outline-snapping.spec.ts:61:1 › a drawn addition closes a shallow recess with material rather than a new cutout
+[8/16] e2e/outline-versions.spec.ts:31:1 › retained red gaps repair, Keep gap persists, and bridge references highlight the same material
+[9/16] e2e/outline-versions.spec.ts:80:1 › first edit creates a fixed version, lifecycle supports Undo, and invalid active output stays editable and saveable
+[10/16] e2e/outline.spec.ts:35:1 › deleting a corner changes the perimeter, finishing and exports follow it, and undo restores it
+[11/16] e2e/outline.spec.ts:82:1 › draws additions and persistent cutouts without duplicate double-click vertices
+[12/16] e2e/outline.spec.ts:111:1 › part inclusion and margin controls survive save and affect the contour
+[13/16] e2e/outline.spec.ts:137:1 › outline settings fit desktop and mobile and invalid drawings block exports
+[14/16] e2e/outline.spec.ts:156:1 › deleted matrix corners remain empty after resizing and rotation follows the contour frame
+[15/16] e2e/outline.spec.ts:181:1 › definition keycaps update the outline and per-instance overrides can be reset
+[16/16] e2e/outline.spec.ts:200:1 › a newly introduced library definition joins the board automatic envelope
+  16 passed (36.8s)

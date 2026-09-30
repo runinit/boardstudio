@@ -1263,7 +1263,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
       {mode === 'Export' ? <section className="wb-export-workspace" aria-label="Export workspace"><div className="wb-export-content"><WorkflowReturn returnMode={lastDesignMode} onNavigate={closeExport} />{getModeDetails()}</div></section> : <section className={`wb-canvas-column${mode === 'Case' ? ' is-case-workbench' : ''}`} aria-label={`${mode === 'Library' ? 'Parts' : mode} canvas`}>
         {mode === 'Library' && <div className="wb-task-return"><WorkflowReturn returnMode={lastDesignMode} onNavigate={changeMode} /></div>}
-        <div hidden={outlineActive} className={`wb-canvas-toolbar ${mode === 'Design' || mode === 'PCB' ? `is-floating ${commandMenu ? 'is-expanded' : ''}` : ''}`} role="toolbar" aria-label={`${viewLabel} commands`}>
+        {!outlineActive && <div className={`wb-canvas-toolbar ${mode === 'Design' || mode === 'PCB' ? `is-floating ${commandMenu ? 'is-expanded' : ''}` : ''}`} role="toolbar" aria-label={`${viewLabel} commands`}>
           {outlineFeature ? outline.toolbar() : (mode === 'Design' && !assembly3d) || mode === 'PCB' ? <>
             <CommandMenu triggerClassName="wb-compact-select" panelClassName="wb-compact-select-panel" attached id="wb-select-menu" label={`Select: ${selectionMode === 'component' ? 'Part' : selectionMode[0].toUpperCase() + selectionMode.slice(1)}`} icon={<ScopeIcon kind={selectionMode} />} open={commandMenu === 'select'} onOpenChange={(open) => { setCommandMenu(open ? 'select' : null); setAddPartOpen(false); }}>
               <p>{!scope ? 'Choose a selection type, then click a key.' : 'Choose the extent of your selection. The change applies now.'}</p>
@@ -1287,7 +1287,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             {snapControls}
           </> : <div className="wb-canvas-context"><ModeIcon mode={mode} /><strong>{viewLabel}</strong><span>{mode === 'Case' ? 'Assembly & components' : mode === 'Library' ? 'Footprint & model preview' : assembly3d ? 'PCB assembly' : 'Artifacts & readiness'}</span></div>}
           {transformTool && <button className="wb-command-trigger wb-transform-active" aria-label="Finish transform" title="Finish transform (Esc)" onClick={() => { setTransformTool(null); setOriginPicking(false); }}><ToolIcon name={transformTool} />{transformTool[0].toUpperCase() + transformTool.slice(1)} · Done</button>}
-        </div>
+        </div>}
           {(mode === 'Design' || mode === 'Keymap') && !outlineActive && <div className={`wb-design-view-toggle ${assembly3d && mode === 'Keymap' ? 'is-assembly' : ''}`} role="group" aria-label="Design view"><button aria-pressed={!assembly3d} onClick={() => setAssembly3d(false)}>2D</button><button aria-pressed={assembly3d} onClick={() => { cancelInteractions(); setCommandMenu(null); setTransformTool(null); cancelPlacement(); setAssembly3d(true); }}>3D assembly</button>{!assembly3d && <button aria-pressed={showFootprints} onClick={() => setShowFootprints(!showFootprints)}>Footprints</button>}</div>}
         {mode === 'Case' && <div className="wb-case-action-bar" ref={setCaseActionsTarget} />}
         <div className={`wb-canvas-stage wb-layer-surface ${leftOpen || rightOpen ? 'has-drawer' : ''} ${mode === 'Design' && !showFootprints ? 'is-layout-simplified' : ''}`}>
