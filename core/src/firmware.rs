@@ -282,6 +282,8 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     );
     files.insert("config/west.yml".into(), "manifest:\n  remotes:\n    - name: zmkfirmware\n      url-base: https://github.com/zmkfirmware\n  projects:\n    - name: zmk\n      remote: zmkfirmware\n      revision: v0.3.0\n      import: app/west.yml\n".into());
     files.insert("build.yaml".into(), build_yaml(request));
+    files.insert("build-local.sh".into(), local_build_script(request));
+    files.insert("README.md".into(), "# Build ZMK locally\n\nInstall the ZMK v0.3.0 local toolchain (west, CMake, Ninja, the Zephyr SDK, and Python dependencies). Extract this package into an empty directory, then run `sh build-local.sh`. The script initializes an isolated west workspace, fetches the pinned manifest, and builds each shield into a separate directory. Firmware outputs are under `build/<shield>/zephyr/zmk.uf2`. Existing workspaces with a different manifest are rejected. See `config/boards/shields/boardstudio/README.md` for hardware and wiring details.\n".into());
     files.insert(".github/workflows/build.yml".into(), "name: Build firmware\non: [push, pull_request, workflow_dispatch]\njobs:\n  build:\n    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@v0.3.0\n".into());
     if let Some(transport) = transport {
         files.insert(
@@ -487,9 +489,38 @@ fn keymap(keys: &[FirmwareKey], request: &FirmwareRequest) -> String {
     )
 }
 
+fn local_build_script(request: &FirmwareRequest) -> String {
+    let shields = if request.transport.is_some() {
+        vec!["boardstudio_left", "boardstudio_right"]
+    } else {
+        vec!["boardstudio"]
+    };
+    let mut script = r#"#!/bin/sh
+set -eu
+package_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$package_dir"
+command -v west >/dev/null 2>&1 || { echo 'Install the ZMK v0.3.0 local toolchain and west first.' >&2; exit 1; }
+if [ ! -d .west ]; then
+  if west topdir >/dev/null 2>&1; then
+    echo 'Extract this package outside an existing west workspace.' >&2; exit 1
+  fi
+  west init -l config
+else
+  manifest_dir=$(west config manifest.path)
+  [ "$manifest_dir" = config ] || { echo 'This workspace uses a different manifest.' >&2; exit 1; }
+fi
+west update
+west zephyr-export
+"#.to_string();
+    for shield in shields {
+        script.push_str(&format!("west build -s zmk/app -d build/{shield} -b nice_nano_v2 -- -DSHIELD={shield} -DZMK_CONFIG=\"$package_dir/config\"\n"));
+    }
+    script
+}
+
 fn instructions(request: &FirmwareRequest, transport: Option<&str>) -> String {
     format!(
-        "# BoardStudio ZMK handoff\n\n- Target: ZMK v0.3.0\n- Controller: `{}`\n- Matrix: {} rows x {} columns\n- Diodes: `{}`\n- Split transport: `{}`\n\nUnassigned positions use `&none`; edit bindings in BoardStudio or the generated keymap before building. The included workflow uses ZMK v0.3.0. For a local build, initialize west from the config directory, update dependencies, and build zmk/app for nice_nano_v2 with ZMK_CONFIG pointing to this config and SHIELD set from build.yaml. Verify the PCB jumper recipe and local routing obligations before assembly.\n",
+        "# BoardStudio ZMK handoff\n\n- Target: ZMK v0.3.0\n- Controller: `{}`\n- Matrix: {} rows x {} columns\n- Diodes: `{}`\n- Split transport: `{}`\n\nUnassigned positions use `&none`; edit bindings in BoardStudio or the generated keymap before building. The included workflow uses ZMK v0.3.0. For a local build, install the ZMK v0.3.0 toolchain and run `sh build-local.sh` from the package root. Builds use isolated directories for each shield. Verify the PCB jumper recipe and local routing obligations before assembly.\n",
         request.controller_profile,
         request.rows.len(),
         request.columns.len(),
@@ -561,6 +592,29 @@ mod tests {
             matrix_row_offset: 0,
         }
     }
+    #[test]
+    fn exports_reproducible_local_build_commands_for_each_half() {
+        let single = generate(&request()).unwrap();
+        let script = single
+            .files
+            .get("build-local.sh")
+            .expect("local build entry point");
+        assert!(script.contains("west init -l config"));
+        assert!(script.contains("west update"));
+        assert!(script.contains("-s zmk/app"));
+        assert!(script.contains("-DSHIELD=boardstudio"));
+        assert!(script.contains("ZMK_CONFIG"));
+        let mut split = request();
+        split.transport = Some(SplitTransport::Wireless);
+        let mut peripheral = request();
+        peripheral.transport = split.transport.clone();
+        split.peripheral = Some(Box::new(peripheral));
+        let package = generate(&split).unwrap();
+        let script = &package.files["build-local.sh"];
+        assert!(script.contains("build/boardstudio_left"));
+        assert!(script.contains("build/boardstudio_right"));
+    }
+
     #[test]
     fn emits_pinned_manifest_and_compact_keymap() {
         let p = generate(&request()).unwrap();

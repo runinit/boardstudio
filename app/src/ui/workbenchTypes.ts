@@ -22,9 +22,9 @@ import { getBounds } from './canvasBounds';
 import { type MatrixScene } from './matrixGeometry';
 import { type WiringAssignment } from './WiringPanel';
 
-export type Mode = 'Design' | 'PCB' | 'Case' | 'Library' | 'Export';
+export type Mode = 'Design' | 'PCB' | 'Keymap' | 'Case' | 'Library' | 'Export';
 
-export type ExportKind = 'project' | 'kicad' | 'kicad-draft' | 'firmware' | 'footprints' | 'case-step' | 'svg' | 'dxf';
+export type ExportKind = 'project' | 'kicad' | 'kicad-draft' | 'firmware' | 'footprints' | 'case-step' | 'keycaps-step' | 'svg' | 'dxf';
 
 export type Props = {
   projectSession?: number;

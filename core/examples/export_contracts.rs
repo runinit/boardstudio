@@ -20,6 +20,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ($($type:ty),+ $(,)?) => { $(<$type>::export(&config)?;)+ };
     }
     export!(
+        KeycapConfiguration,
+        KeycapBoardSettings,
+        KeycapMatrixSettings,
+        KeycapKeySettings,
+        KeycapSpec,
+        KeycapResolution,
+        KeycapProfile,
+        KeycapMount,
         MechanicalHardwareSpecification,
         MechanicalCriticalFit,
         MechanicalBottomStyle,

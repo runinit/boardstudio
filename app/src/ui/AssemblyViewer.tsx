@@ -14,6 +14,8 @@ import type {
 import { modelAssetId } from '@boardstudio/v2-ergogen';
 import { ExportClient } from '../ExportClient';
 import { CaseClient } from '../CaseClient';
+import { CoreClient } from '../CoreClient';
+import type { KeycapResolution } from '@boardstudio/v2-contracts';
 import {
   bundledModel,
   bundledModelBytes,
@@ -71,6 +73,12 @@ export function AssemblyViewer({
 }) {
   const client = useRef<ExportClient | undefined>(undefined),
     cad = useRef<CaseClient | undefined>(undefined);
+  const core = useRef<CoreClient | undefined>(undefined);
+  const [keycaps, setKeycaps] = useState<AssemblyBody[]>([]);
+  const [keycapResolution, setKeycapResolution] = useState<KeycapResolution>();
+  const [keycapError, setKeycapError] = useState('');
+  const [keycapsPending, setKeycapsPending] = useState(false);
+  const allBodies = useMemo(() => [...bodies, ...keycaps], [bodies, keycaps]);
   const cache = useRef(new Map<string, Promise<ModelMesh>>());
   const [board, setBoard] = useState<PcbPreview>(),
     [models, setModels] = useState<LoadedModel[]>([]),
@@ -96,16 +104,46 @@ export function AssemblyViewer({
       `models/preview/${index}.${(document.assets.find((a) => a.id === id)?.name ?? bundledModel(id)?.filename ?? 'model.step').split('.').pop()}`,
     ]);
   }, [document.assets, document.definitions]);
+  const generatedReferences = new Set(document.parts.filter(part => document.keycaps?.keys[part.id]?.profile || document.matrices.some(matrix => matrix.partIds.includes(part.id) && document.keycaps?.matrices[matrix.id]?.profile)).map(part => part.reference));
   const pcbKey = JSON.stringify({ board: document.boards.find(b => b.id === boardId), parts: document.parts,
-    definitions: document.definitions, assets: document.assets, contours, reference, paths });
+    generatedReferences: [...generatedReferences], definitions: document.definitions, assets: document.assets, contours, reference, paths });
   useEffect(
     () => () => {
       client.current?.close();
       cad.current?.close();
+      core.current?.close();
       cache.current.clear();
     },
     [],
   );
+  const keycapKey = JSON.stringify({ id: document.id, revision: document.revision, boardId, keycaps: document.keycaps, parts: document.parts, matrices: document.matrices, hardware: document.hardware, definitions: document.definitions, cases: preparedCase });
+  useEffect(() => {
+    let current = true;
+    const abort = new AbortController();
+    setKeycaps([]); setKeycapError(''); setKeycapResolution(undefined);
+    if (!document.keycaps) { setKeycapsPending(false); return; }
+    setKeycapsPending(true);
+    core.current ??= new CoreClient();
+    void (async () => {
+      const reply = await core.current!.request({ id: crypto.randomUUID(), kind: 'resolve-keycaps', document, boardId, cases: preparedCase ?? null });
+      if (!current) return;
+      if (reply.kind !== 'keycaps-resolved') throw new Error(reply.kind === 'error' ? reply.message : 'Expected resolved keycaps');
+      if (reply.result.revision !== document.revision) return;
+      setKeycapResolution(reply.result);
+      if (reply.result.findings.some(finding => finding.severity === 'error')) return;
+      if (!reply.result.specs.length) return;
+      cad.current ??= new CaseClient();
+      const result = await cad.current.keycaps(document.revision, reply.result.specs, false, abort.signal);
+      if (!current || result.revision !== document.revision) return;
+      setKeycaps((result.bodies ?? []).map(body => {
+        const isLegend = body.id.startsWith('keycap-legend:');
+        const spec = reply.result.specs.find(spec => spec.id === body.id.slice(isLegend ? 14 : 7));
+        return { id: body.id, name: body.name, color: isLegend ? spec?.legendColor : spec?.color, mesh: { positions: body.positions, normals: body.normals } };
+      }));
+    })().catch(cause => { if (current) setKeycapError(String(cause)); }).finally(() => { if (current) setKeycapsPending(false); });
+    return () => { current = false; abort.abort(); };
+  }, [keycapKey, attempt]);
+
   useEffect(() => {
     let current = true;
     setPending(true);
@@ -135,6 +173,7 @@ export function AssemblyViewer({
           paths,
         });
       if (!current || result.revision !== document.revision) return;
+      result = { ...result, models: result.models.filter(model => !(generatedReferences.has(model.reference) && /keycap/i.test(model.path))) };
       setBoard(result);
       setShownReference(reference);
       setModels([]);
@@ -218,7 +257,7 @@ export function AssemblyViewer({
         <AssemblyScene
           board={board}
           models={models}
-          bodies={bodies}
+          bodies={allBodies}
           mechanical={mechanical}
           generation={generation}
           preparedCase={preparedCase}
@@ -235,9 +274,12 @@ export function AssemblyViewer({
         colorScheme={colorScheme}
         key={`${document.id}:${displayKey ?? boardId}`}
         persistenceKey={`${document.id}:${displayKey ?? boardId}`}
-          onSelect={onSelect}
+          onSelect={id => onSelect?.(document.parts.find(part => part.id === id.replace(/^keycap(?:-legend)?:/, ''))?.reference ?? id)}
         />
       )}
+      {keycapsPending && <p className="wb-assembly-loading" role="status">Generating keycap CAD…</p>}
+      {keycapError && <div role="alert" className="wb-assembly-error">{keycapError}<button onClick={() => setAttempt(a => a + 1)}>Retry keycaps</button></div>}
+      {keycapResolution && keycapResolution.findings.length > 0 && <details className="wb-assembly-notices" open><summary>Keycap clearance · {keycapResolution.findings.length} findings</summary>{keycapResolution.findings.map(finding => <p key={finding.id}>{finding.message}</p>)}</details>}
       {pending && (
         <p className="wb-assembly-loading" role="status">
           Preparing PCB assembly…

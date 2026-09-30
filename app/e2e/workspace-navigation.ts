@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-export async function navigateWorkspace(page: Page, view: 'Layout' | 'PCB' | 'Case' | 'Parts') {
+export async function navigateWorkspace(page: Page, view: 'Layout' | 'PCB' | 'Keymap' | 'Case' | 'Parts') {
   await expect(page.locator('.wb-root')).toBeVisible();
   const selector = page.getByRole('combobox', { name: 'Workspace', exact: true });
   if (await selector.isVisible()) {

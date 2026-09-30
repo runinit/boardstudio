@@ -97,7 +97,7 @@ type Inputs = {
 };
 
 export function createProjectExporter({ projectRef, committedScene, client, caseClient, exportClient, selectedBoardId, selectedInstance, embedUsedModels, generation, currentPreviewContext, schedule, accept, ensureExportClient, resolveWiring, applyExportWiring }: Inputs) {
-  function exportFile(kind: 'project' | 'kicad' | 'kicad-draft' | 'firmware' | 'footprints' | 'case-step' | 'svg' | 'dxf', boardId?: string): void {
+  function exportFile(kind: 'project' | 'kicad' | 'kicad-draft' | 'firmware' | 'footprints' | 'case-step' | 'keycaps-step' | 'svg' | 'dxf', boardId?: string): void {
     schedule(async () => {
       let document = projectRef.current;
       let resolved = committedScene.current;
@@ -132,6 +132,20 @@ export function createProjectExporter({ projectRef, committedScene, client, case
         document = prepared.document;
         wiringPlan = prepared.plan;
         resolved = committedScene.current;
+      }
+
+      if (kind === 'keycaps-step') {
+        const reply = await client.current!.request({ id: crypto.randomUUID(), kind: 'resolve-keycaps', document, boardId: board.id, cases: null });
+        if (reply.kind !== 'keycaps-resolved') throw new Error(reply.kind === 'error' ? reply.message : 'Expected resolved keycaps');
+        if (reply.result.revision !== document.revision || projectRef.current.revision !== document.revision) throw new Error('Keycaps changed during export; export again');
+        const errors = reply.result.findings.filter(finding => finding.severity === 'error');
+        if (errors.length) throw new Error(errors.map(finding => finding.message).join('\n'));
+        if (!reply.result.specs.length) throw new Error('Choose a keycap profile in Keymap before export');
+        caseClient.current ??= new CaseClient();
+        const result = await caseClient.current.keycaps(document.revision, reply.result.specs, true);
+        if (projectRef.current.revision !== document.revision) throw new Error('Keycaps changed during export; export again');
+        download(`${document.name}-keycaps.step`, result.step, 'model/step');
+        return;
       }
 
       if (kind === 'firmware') {

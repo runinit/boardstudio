@@ -169,6 +169,7 @@ struct LoadedModelInput {
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct BodyInput {
+    color: Option<String>,
     id: String,
     name: String,
     mesh: MeshInput,
@@ -1038,6 +1039,7 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
             } else if input.theme == "dark" {
                 [0.62, 0.66, 0.72, 1.0]
             } else { [0.68, 0.71, 0.75, 1.0] };
+            let color = body.color.as_deref().and_then(hex_color).unwrap_or(color);
             push_mesh(&mut output, &body.id, body.mesh, Mat4::identity(), color, 0.68, 0.03)?;
         }
     } else if let Some(board) = input.board {
@@ -1325,7 +1327,7 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
             }
         }
         for body in input.bodies {
-            if hidden(&body.id) {
+            if hidden(&body.id) || (body.id.starts_with("keycap") && hidden("Keycaps")) {
                 continue;
             }
             let layer_index = stack_index(&input.mechanical_stack, &body.id);
@@ -1347,6 +1349,7 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
             } else {
                 [0.68, 0.71, 0.75, 1.0]
             };
+            let color = body.color.as_deref().and_then(hex_color).unwrap_or(color);
             push_mesh(
                 &mut output,
                 &body.id,
@@ -1408,6 +1411,9 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
         output.section_x = Some(center_x);
     }
     for object in &mut output.objects {
+        if object.id.starts_with("keycap:") || object.id.starts_with("keycap-legend:") {
+            object.groups.extend(["Keycaps".into(), "Models".into()]);
+        }
         if object.id == "pcb" || object.id == "pcb-selection" {
             if !object.groups.iter().any(|g| g == "PCB") {
                 object.groups.push("PCB".into());
@@ -2029,4 +2035,17 @@ struct HandleInput {
     z: f32,
     #[serde(default)]
     invalid: bool,
+}
+
+fn hex_color(value: &str) -> Option<[f32; 4]> {
+    if value.len() != 7 || !value.starts_with('#') {
+        return None;
+    }
+    let rgb = u32::from_str_radix(&value[1..], 16).ok()?;
+    Some([
+        ((rgb >> 16) & 255) as f32 / 255.0,
+        ((rgb >> 8) & 255) as f32 / 255.0,
+        (rgb & 255) as f32 / 255.0,
+        1.0,
+    ])
 }

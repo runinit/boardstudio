@@ -1,11 +1,11 @@
-import type { CaseResult, PreparedCaseAssemblyIR } from '@boardstudio/v2-contracts';
-import { buildAssembly, readStepModel } from '@boardstudio/v2-cad';
+import type { CaseResult, KeycapSpec, PreparedCaseAssemblyIR } from '@boardstudio/v2-contracts';
+import { buildAssembly, buildKeycaps, readStepModel } from '@boardstudio/v2-cad';
 import type { StepModel, CadProgress } from '@boardstudio/v2-cad';
 import { bodyKey, previewBodies, type BodyPreview } from '../../cad/src/preview';
 import { beginCadMetrics, countCadMetric, endCadMetrics } from '../../cad/src/metrics';
 import { cadTimestamp } from './cadPerformance';
 
-type CaseMessage = ({ id: string; kind: 'case' | 'preview'; ir: PreparedCaseAssemblyIR } | { id: string; kind: 'model'; bytes: Uint8Array }) & { metricsSentAt?: number };
+type CaseMessage = ({ id: string; kind: 'case' | 'preview'; ir: PreparedCaseAssemblyIR } | { id: string; kind: 'model'; bytes: Uint8Array } | { id: string; kind: 'keycaps'; revision: number; specs: KeycapSpec[]; exportStep: boolean }) & { metricsSentAt?: number };
 type CaseReply =
   | { id: string; kind: 'progress'; progress: CadProgress }
   | { id: string; kind: 'preview'; result: PreviewDelta }
@@ -25,13 +25,18 @@ async function handle(message: CaseMessage, receivedAt: number): Promise<void> {
   const send = (reply: CaseReply, buffers: ArrayBufferLike[] = [], triangles = 0) => {
     const diagnostics = metrics ? { ...metrics, requestSentAt: message.metricsSentAt!, receivedAt, startedAt,
       requestTransferredBytes: message.kind === 'model' ? message.bytes.byteLength : 0,
-      revision: message.kind === 'model' ? undefined : message.ir.revision,
+      revision: message.kind === 'model' ? undefined : message.kind === 'keycaps' ? message.revision : message.ir.revision,
       transferredBytes: [...new Set(buffers)].reduce((sum, buffer) => sum + buffer.byteLength, 0),
       triangles, replySentAt: cadTimestamp() } : undefined;
     self.postMessage({ ...reply, ...(diagnostics ? { metrics: diagnostics } : {}) }, [...new Set(buffers)] as Transferable[]);
   };
 
   try {
+    if (message.kind === 'keycaps') {
+      const result = await buildKeycaps(message.revision, message.specs, message.exportStep, () => previews.get(id)?.cancelled === true);
+      send({ id, kind: 'case', result }, [result.step.buffer, ...(result.bodies ?? []).flatMap(body => [body.positions.buffer, body.normals.buffer])]);
+      return;
+    }
     if (message.kind === 'model') {
       const result = await readStepModel(message.bytes);
       const reply: CaseReply = { id, kind: 'model', result };
@@ -76,7 +81,7 @@ async function handle(message: CaseMessage, receivedAt: number): Promise<void> {
       id,
       kind: 'error',
       message: cause instanceof Error ? cause.message : String(cause),
-      revision: message.kind !== 'model' ? message.ir.revision : 0,
+      revision: message.kind === 'model' ? 0 : message.kind === 'keycaps' ? message.revision : message.ir.revision,
     };
 
     send(reply);
@@ -94,7 +99,7 @@ self.onmessage = (event: MessageEvent<CaseMessage | { id: string; kind: 'cancel-
     if (preview) preview.cancelled = true;
     return;
   }
-  if (message.kind === 'preview') previews.set(message.id, { cancelled: false });
+  if (message.kind === 'preview' || message.kind === 'keycaps') previews.set(message.id, { cancelled: false });
   const receivedAt = message.metricsSentAt === undefined ? 0 : cadTimestamp();
   queue = queue.then(() => handle(message, receivedAt));
 };

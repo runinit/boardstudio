@@ -24,7 +24,7 @@ function App() {
   const [error, setError] = useState('');
   const [embedUsedModels, setEmbedUsedModels] = useState(true);
   const [setupRequest, setSetupRequest] = useState<{ projectId: string; requestId: string }>();
-  const [activeMode, setActiveMode] = useState<'Design' | 'PCB' | 'Case' | 'Library' | 'Export'>('Design');
+  const [activeMode, setActiveMode] = useState<'Design' | 'PCB' | 'Keymap' | 'Case' | 'Library' | 'Export'>('Design');
   const caseClient = useRef<CaseClient | null>(null);
   const exportClient = useRef<ExportClient | null>(null);
   const exportCaseClient = useRef<CaseClient | null>(null);

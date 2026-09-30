@@ -1,6 +1,7 @@
 mod model;
 pub use model::{
-    build_assembly, build_case, export_cached_assembly, preview_body, read_step_model,
+    build_assembly, build_case, build_keycaps, export_cached_assembly, preview_body,
+    read_step_model,
 };
 
 #[cfg(target_arch = "wasm32")]

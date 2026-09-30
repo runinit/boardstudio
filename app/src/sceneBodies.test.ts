@@ -13,3 +13,9 @@ test('tracks membership changes by stable id without changing caller-owned array
   expect(changedSceneBodies([a, b], [body('b'), c])).toEqual({ bodies: [c], removed: ['a'] });
   expect(a.mesh.positions).toEqual(new Float32Array([0, 1, 2]));
 });
+test('updates material color even when retained mesh geometry is identical', () => {
+  const previous = { ...body('keycap:sw'), color: '#e8e4dc' };
+  const next = { ...previous, color: '#336699' };
+  expect(changedSceneBodies([previous], [next])).toEqual({ bodies: [next], removed: [] });
+  expect(changedSceneBodies([next], [next])).toEqual({ bodies: [], removed: [] });
+});

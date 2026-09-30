@@ -1,4 +1,4 @@
-import type { CaseResult, PreparedCaseAssemblyIR } from '@boardstudio/v2-contracts';
+import type { CaseResult, KeycapSpec, PreparedCaseAssemblyIR } from '@boardstudio/v2-contracts';
 import type { StepModel, CadProgress, CasePreviewResult } from '@boardstudio/v2-cad';
 import { combinedPreview, type BodyPreview } from '../../cad/src/preview';
 import { cadProfilingEnabled, cadTimestamp, recordCadRequest, type CadWorkerMetrics } from './cadPerformance';
@@ -60,6 +60,24 @@ export class CaseClient {
     };
 
     return worker;
+  }
+
+  keycaps(revision: number, specs: KeycapSpec[], exportStep = false, signal?: AbortSignal): Promise<CaseResult> {
+    if (this.closed) return Promise.reject(new Error('CAD client is closed'));
+    if (signal?.aborted) return Promise.reject(new Error('Keycap preview superseded'));
+    const id = crypto.randomUUID();
+    const abort = () => this.worker.postMessage({ id, kind: 'cancel-preview' });
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, reply => {
+        signal?.removeEventListener('abort', abort);
+        if (signal?.aborted) { reject(new Error('Keycap preview superseded')); return; }
+        if (reply.kind === 'error') reject(new Error(reply.message));
+        else if (reply.kind === 'case' && reply.result.revision === revision) resolve(reply.result);
+        else reject(new Error('Unexpected or stale keycap CAD response'));
+      });
+      signal?.addEventListener('abort', abort, { once: true });
+      this.worker.postMessage({ id, kind: 'keycaps', revision, specs, exportStep });
+    });
   }
 
   request(ir: PreparedCaseAssemblyIR): Promise<CaseResult> {

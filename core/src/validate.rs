@@ -13,6 +13,9 @@ fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Findi
 
 pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
     let mut findings = vec![];
+    for board in &doc.boards {
+        findings.extend(crate::keycaps::resolve(doc, &board.id, None).findings);
+    }
     let parts_by_id: BTreeMap<_, _> = doc
         .parts
         .iter()

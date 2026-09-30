@@ -1,4 +1,6 @@
 mod construction;
+mod keycaps;
+pub use keycaps::build_keycaps;
 mod metrics;
 pub use construction::{build_assembly, build_case, export_cached_assembly, preview_body};
 use metrics::Stage;

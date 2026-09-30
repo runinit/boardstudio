@@ -21,6 +21,7 @@ export const ScopeIcon = ({ kind }: { kind: SelectionScope['kind'] }) => <svg vi
 
 export const ModeIcon = ({ mode }: { mode: Mode }) => <svg viewBox="0 0 20 20" aria-hidden="true" className="wb-mode-icon">
   {mode === 'Design' ? <><path d="M3 14.5 14.5 3l2.5 2.5L5.5 17H3z" /><path d="m11 6 3 3M3 17h14" /></>
+    : mode === 'Keymap' ? <><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M6 7h2M10 7h2M14 7h1M6 10h2M10 10h2M6 13h8" /></>
     : mode === 'PCB' ? <><rect x="3" y="3" width="14" height="14" rx="2" /><circle cx="7" cy="7" r="1.2" /><circle cx="13" cy="13" r="1.2" /><path d="M8 7h3v3M7 8v3h3" /></>
       : mode === 'Case' ? <><path d="m10 2 7 4v8l-7 4-7-4V6z" /><path d="m3 6 7 4 7-4M10 10v8" /></>
         : mode === 'Library' ? <><path d="M4 3h9l3 3v11H4z" /><path d="M13 3v4h4M7 11h6M7 14h6" /></>

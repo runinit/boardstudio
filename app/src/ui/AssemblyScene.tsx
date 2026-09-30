@@ -11,7 +11,7 @@ import { createRendererCanvas, type RendererCanvas } from '../renderClient';
 import './assembly-preview.css';
 
 export type LoadedModel = { id: string; mesh: ModelMesh };
-export type AssemblyBody = { id: string; name: string; mesh: ModelMesh };
+export type AssemblyBody = { id: string; name: string; color?: string; mesh: ModelMesh };
 type AssemblyView = 'assembled' | 'exploded' | 'section';
 
 export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies = [], mechanical, generation, preparedCase, onGasketChange, onGasketDraft, onCaseMountChange, onCaseMountDraft, mechanicalConfiguration, selectedLayer = '', reference, onSelect, onSelectLayer, colorScheme, persistenceKey, display, onDisplayChange }: {
@@ -88,7 +88,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   const [view, setView] = useState<AssemblyView>('assembled');
   const [displayMode, setDisplayMode] = useState<'shaded' | 'wireframe' | 'hybrid'>('hybrid');
   const stableBodies = useRef(bodies);
-  if (bodies.length !== stableBodies.current.length || bodies.some((b,i) => b.id !== stableBodies.current[i]?.id || b.mesh.positions !== stableBodies.current[i]?.mesh.positions)) stableBodies.current = bodies;
+  if (bodies.length !== stableBodies.current.length || bodies.some((b,i) => b.id !== stableBodies.current[i]?.id || b.mesh.positions !== stableBodies.current[i]?.mesh.positions || b.color !== stableBodies.current[i]?.color)) stableBodies.current = bodies;
   const geometryBodies = stableBodies.current;
   // A commit may reuse the displayed draft buffers. Acknowledge its new exact
   // revision through the renderer's zero-delta path without forcing a redraw.

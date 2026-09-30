@@ -9,6 +9,7 @@ pub mod electrical_profiles;
 pub mod firmware;
 mod geometry;
 mod outline_controls;
+mod keycaps;
 mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
@@ -107,6 +108,15 @@ impl Default for CoreEngine {
 impl CoreEngine {
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
         match request {
+            CoreRequest::ResolveKeycaps {
+                id,
+                document,
+                board_id,
+                cases,
+            } => CoreReply::KeycapsResolved {
+                id,
+                result: keycaps::resolve(&document, &board_id, cases.as_ref()),
+            },
             CoreRequest::GenerateFirmware { id, request } => match firmware::generate(&request) {
                 Ok(package) => CoreReply::FirmwareGenerated { id, package },
                 Err(message) => self.error(id, &message),

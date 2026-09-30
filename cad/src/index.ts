@@ -1,4 +1,4 @@
-import type { CaseResult, PreparedCaseAssemblyIR, PreparedCaseIR } from '@boardstudio/v2-contracts';
+import type { KeycapSpec, CaseResult, PreparedCaseAssemblyIR, PreparedCaseIR } from '@boardstudio/v2-contracts';
 import { getKernel } from './kernel.ts';
 import { bodyKey, previewBodies, combinedPreview } from './preview.ts';
 
@@ -45,4 +45,20 @@ export async function previewAssembly(ir: PreparedCaseAssemblyIR, progress: (val
   const result = combinedPreview(await previewBodies(ir, progress));
   // Preserve eager materialization at the public legacy boundary.
   return { ...result };
+}
+
+/** Generates revisioned keycap CAD in the dedicated worker, with optional STEP. */
+export async function buildKeycaps(revision: number, specs: KeycapSpec[], exportStep = false, cancelled: () => boolean = () => false): Promise<CaseResult> {
+  const kernel = await getKernel();
+  if (cancelled()) throw new Error('Keycap preview superseded');
+  if (exportStep) return kernel.build_keycaps({ revision, specs, export: true }) as CaseResult;
+  const bodies: NonNullable<CaseResult['bodies']> = [];
+  for (let index = 0; index < specs.length; index += 8) {
+    if (cancelled()) throw new Error('Keycap preview superseded');
+    const result = kernel.build_keycaps({ revision, specs: specs.slice(index, index + 8), export: false }) as CaseResult;
+    bodies.push(...result.bodies ?? []);
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  if (cancelled()) throw new Error('Keycap preview superseded');
+  return { revision, step: new Uint8Array(), mesh: { positions: new Float32Array(), normals: new Float32Array() }, bodies };
 }

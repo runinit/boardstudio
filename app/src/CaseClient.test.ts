@@ -181,3 +181,21 @@ test('does not post already aborted previews or retain abort listeners after com
   expect(workers[0].sent).toHaveLength(1);
   client.close();
 });
+
+test('keycap requests reject stale replies and cancelled late results without restarting CAD', async () => {
+  vi.stubGlobal('Worker', FakeWorker);
+  const client = new CaseClient();
+  const stale = client.keycaps(7, []);
+  const request = workers[0].sent[0].message as { id: string };
+  workers[0].reply({ id: request.id, kind: 'case', result: { revision: 6 } });
+  await expect(stale).rejects.toThrow('stale');
+  const controller = new AbortController();
+  const superseded = client.keycaps(8, [], false, controller.signal);
+  const next = workers[0].sent[1].message as { id: string };
+  controller.abort();
+  expect(workers[0].sent[2].message).toEqual({ id: next.id, kind: 'cancel-preview' });
+  workers[0].reply({ id: next.id, kind: 'case', result: { revision: 8 } });
+  await expect(superseded).rejects.toThrow('superseded');
+  expect(workers).toHaveLength(1);
+  client.close();
+});
