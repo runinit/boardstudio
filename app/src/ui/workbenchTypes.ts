@@ -24,7 +24,8 @@ import { type WiringAssignment } from './WiringPanel';
 
 export type Mode = 'Design' | 'PCB' | 'Keymap' | 'Case' | 'Library' | 'Export';
 
-export type ExportKind = 'project' | 'kicad' | 'kicad-draft' | 'firmware' | 'footprints' | 'case-step' | 'keycaps-step' | 'svg' | 'dxf';
+export type { ExportKind } from '../exports/context';
+import type { ExportKind } from '../exports/context';
 
 export type Props = {
   projectSession?: number;

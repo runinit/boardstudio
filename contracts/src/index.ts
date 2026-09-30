@@ -1,5 +1,6 @@
 /** All document coordinates are millimetres in a right-handed, Y-up frame. */
 export type * from './generated/index';
+export { keycapDefaults } from './generated/keycapDefaults.ts';
 
 import type { OutlineSettings, ProjectDoc } from './generated/index';
 import type { CoreRequest as RustCoreRequest } from './generated/CoreRequest';

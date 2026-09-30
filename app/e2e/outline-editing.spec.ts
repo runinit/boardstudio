@@ -83,6 +83,12 @@ test('selected point is shared with the inspector and drawing can undo or cancel
   const before=await page.locator('.wb-outline-shape').first().getAttribute('points');
   await page.getByRole('button',{name:'Draw addition',exact:true}).click();
   await point(page,{x:1,y:-1});await point(page,{x:5,y:-1});await point(page,{x:5,y:-5});
+  const firstPoint = await screen(page, { x: 1, y: -1 });
+  // The draft must appear at the clicked mm coordinate, including the Y-up transform.
+  await expect.poll(async () => {
+    const circle = await page.locator('.wb-outline-draft circle').first().boundingBox();
+    return circle ? Math.hypot(circle.x + circle.width / 2 - firstPoint.x, circle.y + circle.height / 2 - firstPoint.y) : Infinity;
+  }).toBeLessThan(2);
   await page.getByRole('button',{name:'Undo point',exact:true}).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('status',{name:'Outline drawing'})).toContainText('2 points');

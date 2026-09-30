@@ -27,6 +27,14 @@ const publicFacades = new Map([
   ['contracts/src/index.ts', 'Rust-generated protocol plus shared document constructors'],
   ['cad/src/index.ts', 'CAD worker/runtime package boundary'],
 ]);
+// These presentation modules delegate domain work through feature interfaces.
+const presentationModules = new Set([
+  'Workbench', 'AssemblyViewer', 'KeymapPanel', 'KeymapLayout',
+  'createKeymapWorkspace', 'useCaseWorkspace', 'usePcbWorkspace',
+  'useOutlineEditor', 'useScriptEditor', 'ConstraintEditor',
+]);
+const keymapModules = new Set(['KeymapPanel', 'KeymapLayout', 'createKeymapWorkspace']);
+const workerModules = new Set(['CoreClient', 'CaseClient', 'ExportClient', 'core.worker', 'case.worker', 'export.worker']);
 
 async function walk(directory, accept, prefix = '') {
   let entries;
@@ -45,6 +53,7 @@ async function walk(directory, accept, prefix = '') {
 function analyze(ast) {
   const edges = [];
   const exported = new Set();
+  let replacesDocument = false;
   function visit(node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       const names = [];
@@ -54,13 +63,15 @@ function analyze(ast) {
       if (bindings && ts.isNamedImports(bindings)) {
         names.push(...bindings.elements.map(binding => (binding.propertyName ?? binding.name).text));
       }
-      edges.push({ specifier: node.moduleSpecifier.text, names });
+      const runtime = !node.importClause?.isTypeOnly && (!bindings || node.importClause?.name
+        || ts.isNamespaceImport(bindings) || bindings.elements.some(binding => !binding.isTypeOnly));
+      edges.push({ specifier: node.moduleSpecifier.text, names, runtime: Boolean(runtime) });
     }
     if (ts.isExportDeclaration(node)) {
       const names = node.exportClause && ts.isNamedExports(node.exportClause)
         ? node.exportClause.elements.map(binding => (binding.propertyName ?? binding.name).text) : ['*'];
       if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-        edges.push({ specifier: node.moduleSpecifier.text, names });
+        edges.push({ specifier: node.moduleSpecifier.text, names, runtime: !node.isTypeOnly });
       }
       if (node.exportClause && ts.isNamedExports(node.exportClause)) {
         node.exportClause.elements.forEach(binding => exported.add(binding.name.text));
@@ -80,17 +91,19 @@ function analyze(ast) {
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && ts.isStringLiteral(node.arguments[0])) {
       // Import promises expose module namespaces. Do not guess which members
       // survive callbacks/destructuring; this exception is local to this edge.
-      edges.push({ specifier: node.arguments[0].text, names: ['*'] });
+      edges.push({ specifier: node.arguments[0].text, names: ['*'], runtime: true });
     }
     if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'URL'
       && node.arguments?.length === 2 && ts.isStringLiteral(node.arguments[0])
       && node.arguments[1].getText(ast) === 'import.meta.url') {
-      edges.push({ specifier: node.arguments[0].text, names: [] });
+      edges.push({ specifier: node.arguments[0].text, names: [], runtime: true });
     }
+    if (ts.isPropertyAssignment(node) && node.name.text === 'kind'
+      && ts.isStringLiteral(node.initializer) && node.initializer.text === 'replace-document') replacesDocument = true;
     node.forEachChild(visit);
   }
   visit(ast);
-  return { edges, exported };
+  return { edges, exported, replacesDocument };
 }
 
 async function check(root = rootDirectory) {
@@ -169,6 +182,21 @@ async function check(root = rootDirectory) {
   }
   for (const [file, info] of infos) {
     if (isTest(file) || !file.includes('/src/') || isGenerated(file)) continue;
+    const name = path.posix.basename(file, path.posix.extname(file));
+    for (const edge of info.edges) {
+      const target = resolve(file, edge.specifier);
+      if (!target) continue;
+      const targetName = path.posix.basename(target, path.posix.extname(target));
+      if (file.startsWith('app/src/ui/') && presentationModules.has(name) && edge.runtime && workerModules.has(targetName)) {
+        issues.push({ kind: 'ownership-boundary', file, message: `Presentation delegates worker ownership to its feature module: ${edge.specifier}` });
+      }
+      if ((file.startsWith('app/src/exports/') || file === 'app/src/assemblyPreview.ts') && target.startsWith('app/src/ui/')) {
+        issues.push({ kind: 'ownership-boundary', file, message: `Domain workflow must not depend on presentation: ${edge.specifier}` });
+      }
+    }
+    if (file.startsWith('app/src/ui/') && keymapModules.has(name) && info.replacesDocument) {
+      issues.push({ kind: 'ownership-boundary', file, message: 'Keymap changes use typed Rust field edits instead of document replacement' });
+    }
     if (!reachable.has(file)) issues.push({ kind: 'unreachable-module', file, message: 'No production entrypoint reaches this module (test imports do not make it production code)' });
     if (publicFacades.has(file)) continue;
     for (const name of info.exported) {

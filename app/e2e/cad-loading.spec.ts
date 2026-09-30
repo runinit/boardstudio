@@ -11,7 +11,7 @@ test('CAD kernel loads its glue and builds a case preview', async ({ page }) => 
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
   await navigateWorkspace(page, 'Case');
   await page.getByRole('button', { name: 'Update preview', exact: true }).click();
-  await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole('region', { name: 'Case generation' }).getByRole('status')).toHaveText('Preview current', { timeout: 45_000 });
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(failed).toEqual([]);
 });

@@ -1,42 +1,9 @@
 //! Independent Cadrum/OCCT keycap construction. Presets arrive from the Rust core.
 use super::*;
-use serde::Serialize;
 use std::{cell::RefCell, collections::VecDeque};
 mod lettering;
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct Spec {
-    id: String,
-    reference: String,
-    profile: String,
-    mount: String,
-    row: u8,
-    size: Point,
-    top_size: Point,
-    height: f64,
-    tilt: f64,
-    dish_depth: f64,
-    spherical: bool,
-    wall_thickness: f64,
-    pose: Pose,
-    side: String,
-    z: f64,
-    travel: f64,
-    legend: String,
-    color: String,
-    legend_color: String,
-}
-#[derive(Clone, Deserialize, Serialize, Debug)]
-struct Point {
-    x: f64,
-    y: f64,
-}
-#[derive(Clone, Deserialize, Serialize, Debug)]
-struct Pose {
-    at: Point,
-    rotation: f64,
-}
+use boardstudio_contracts::{KeycapMount, KeycapSpec as Spec, Side};
 #[derive(Deserialize)]
 struct Request {
     revision: u64,
@@ -85,8 +52,6 @@ fn validate(s: &Spec) -> Result<(), String> {
         || s.top_size.x > s.size.x - 2.0
         || s.top_size.y > s.size.y - 2.0
         || !(1..=5).contains(&s.row)
-        || !["mx", "choc-v1", "choc-v2", "alps"].contains(&s.mount.as_str())
-        || !["front", "back"].contains(&s.side.as_str())
         || s.legend.chars().count() > 12
         || s.legend.chars().any(|c| c.is_control())
     {
@@ -151,7 +116,7 @@ fn template(s: &Spec) -> Result<Template, String> {
             );
         cap = (cap - dish).build().map_err(cadrum_error)?;
     }
-    let socket_depth = if s.mount.starts_with("choc-") {
+    let socket_depth = if matches!(s.mount, KeycapMount::ChocV1 | KeycapMount::ChocV2) {
         2.3
     } else {
         3.6
@@ -160,7 +125,7 @@ fn template(s: &Spec) -> Result<Template, String> {
         return Err("Keycap roof is too low for the socket; reduce wall thickness".into());
     }
     let mut stems = Vec::new();
-    if s.mount == "choc-v1" {
+    if s.mount == KeycapMount::ChocV1 {
         for x in [-2.85, 2.85] {
             let stem = Solid::cube(
                 DVec3::new(x - 2.1, -2.1, 0.0),
@@ -177,7 +142,7 @@ fn template(s: &Spec) -> Result<Template, String> {
             DVec3::new(-3.0, -3.0, 0.0),
             DVec3::new(3.0, 3.0, s.height - wall + 0.1),
         );
-        let socket = if s.mount == "alps" {
+        let socket = if s.mount == KeycapMount::Alps {
             Solid::cube(
                 DVec3::new(-2.3, -1.2, -0.1),
                 DVec3::new(2.3, 1.2, socket_depth),
@@ -246,7 +211,7 @@ fn template(s: &Spec) -> Result<Template, String> {
 fn placed_mesh(mesh: &MeshData, s: &Spec) -> MeshData {
     let a = s.pose.rotation.to_radians();
     let (sn, cs) = a.sin_cos();
-    let sign = if s.side == "back" { -1.0 } else { 1.0 };
+    let sign = if s.side == Side::Back { -1.0 } else { 1.0 };
     let convert = |input: &[f32], normal: bool| {
         input
             .chunks_exact(3)
@@ -268,7 +233,7 @@ fn placed_mesh(mesh: &MeshData, s: &Spec) -> MeshData {
     }
 }
 fn placed_solid(solid: Solid, s: &Spec) -> Solid {
-    let solid = if s.side == "back" {
+    let solid = if s.side == Side::Back {
         solid.rotate(DVec3::ZERO, DVec3::X, std::f64::consts::PI)
     } else {
         solid
@@ -395,7 +360,7 @@ mod tests {
             ("alps", 10.0),
         ] {
             let mut s = spec();
-            s.mount = mount.into();
+            s.mount = serde_json::from_value(serde_json::json!(mount)).unwrap();
             s.height = height;
             if height < 5.0 {
                 s.dish_depth = 0.4;
@@ -403,7 +368,7 @@ mod tests {
             s.legend = "A".into();
             s.tilt = 6.0;
             let t = template(&s).unwrap();
-            s.side = "back".into();
+            s.side = Side::Back;
             s.z = -8.0;
             let mesh = placed_mesh(&t.cap_mesh, &s);
             assert!(mesh.positions.chunks(3).all(|p| p[2] <= -8.0 + 1e-5));

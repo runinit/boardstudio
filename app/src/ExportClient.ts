@@ -12,6 +12,7 @@ export class ExportClient {
     reject: (error: Error) => void;
   }>();
   private compiled = new Map<string, Promise<CompiledFootprint[]>>();
+  private closed = false;
 
   constructor() {
     this.worker = this.start();
@@ -20,6 +21,7 @@ export class ExportClient {
   private start(): Worker {
     const worker = new Worker(new URL('./export.worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = (event: MessageEvent<ExportWorkerReply>) => {
+      if (this.closed || worker !== this.worker) return;
       const reply = event.data;
       const pending = this.pending.get(reply.id);
       if (!pending) return;
@@ -30,7 +32,9 @@ export class ExportClient {
       }
       pending.resolve(reply);
     };
-    worker.onerror = () => {
+    worker.onerror = event => {
+      event.preventDefault();
+      if (this.closed || worker !== this.worker) return;
       for (const pending of this.pending.values()) pending.reject(new Error('Export worker failed and restarted'));
       this.pending.clear();
       worker.terminate();
@@ -40,6 +44,7 @@ export class ExportClient {
   }
 
   preview(input: Omit<ExportRequest, 'id' | 'kind' | 'files'>): Promise<Extract<ArtifactReply, { kind: 'preview-board' }>['result']> {
+    if (this.closed) return Promise.reject(new Error('Export client is closed'));
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve: (reply) => reply.kind === 'preview-board' ? resolve(reply.result) : reject(new Error('Expected PCB preview')), reject });
@@ -48,6 +53,7 @@ export class ExportClient {
   }
 
   request(input: Omit<ExportRequest, 'id'>): Promise<Extract<ExportReply, { kind: 'file' }>> {
+    if (this.closed) return Promise.reject(new Error('Export client is closed'));
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (reply: ExportWorkerReply) => void, reject });
@@ -63,6 +69,7 @@ export class ExportClient {
   }
 
   archive(input: Omit<ArchiveRequest, 'id'>): Promise<Extract<ArchiveReply, { kind: 'archive' }>> {
+    if (this.closed) return Promise.reject(new Error('Export client is closed'));
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (reply: ExportWorkerReply) => void, reject });
@@ -77,6 +84,7 @@ export class ExportClient {
   }
 
   artifact(input: ArtifactOperation): Promise<ArtifactReply> {
+    if (this.closed) return Promise.reject(new Error('Export client is closed'));
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (reply: ExportWorkerReply) => void, reject });
@@ -101,6 +109,8 @@ export class ExportClient {
   }
 
   close(): void {
+    if (this.closed) return;
+    this.closed = true;
     this.worker.terminate();
     for (const pending of this.pending.values()) pending.reject(new Error('Export worker was closed'));
     this.pending.clear();

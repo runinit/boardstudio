@@ -1,6 +1,8 @@
 //! Independently designed keycap presets and conservative swept-envelope checks.
 //! No KeyV2 source, dimensions, or generated geometry is used here.
 use crate::model::*;
+mod edits;
+pub(crate) use edits::apply_edit;
 
 fn catalog_mount(part: &Part, definition: &PartDefinition) -> Option<KeycapMount> {
     let generator = definition.generator.as_ref()?;

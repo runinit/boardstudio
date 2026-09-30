@@ -119,9 +119,11 @@ test('Parts renders an attached model through the visible 3D control', async ({ 
   const model = await buildCase(prepareCase({ revision: 0, body: { id: 'model', name: 'Model', boardId: 'main-board', kind: 'plate', thickness: 2, clearance: 0 }, contours: [{ hole: false, points: [{ x: -3, y: -3 }, { x: 3, y: -3 }, { x: 3, y: 3 }, { x: -3, y: 3 }] }] }));
   await page.goto('/');
   const document = demoProject();
+  document.name = 'Custom model project';
   document.definitions.push({ ...document.definitions[0], generator: undefined, id: 'custom-model-switch', name: 'Custom model switch' });
   await page.getByRole('button', { name: 'Project', exact: true }).click();
   await page.locator('.wb-project-file-input').setInputFiles({ name: 'custom-switch.boardstudio', mimeType: 'application/zip', buffer: Buffer.from(zipSync({ 'project.json': strToU8(JSON.stringify(document)) })) });
+  await expect(page.getByRole('button', { name: 'Project', exact: true })).toContainText(document.name);
   await navigateWorkspace(page, 'Parts');
   await page.getByRole('option', { name: 'Custom model switch', exact: true }).click();
   await page.locator('.wb-inspector-section > summary').filter({ hasText: '3D model' }).click();

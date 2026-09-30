@@ -8,7 +8,7 @@ import { splitFixture } from './splitMechanicalFixture';
  * status and action names so they continue to describe the workflow if the
  * inspector layout changes.
  */
-async function openCase(page: import('@playwright/test').Page, fixture = false) {
+async function openCase(page: import('@playwright/test').Page, fixture = false, legacyGasket = false) {
   page.setDefaultTimeout(20_000);
   await auditSceneBounds(page);
   await page.addInitScript(() => {
@@ -49,14 +49,19 @@ async function openCase(page: import('@playwright/test').Page, fixture = false) 
         tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
       });
       db.close(); localStorage.setItem('boardstudio-v2-active-project', document.id);
-    }, splitFixture());
+    }, splitFixture(legacyGasket));
     await page.reload();
   }
   await navigateWorkspace(page, 'Case');
   await expect(page.locator('.wb-assembly-scene canvas')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Case generation' })).toBeVisible();
   const configure = page.getByRole('button', { name: 'Configure mechanical stack', exact: true });
-  if (await configure.count()) await configure.click();
+  const canConfigure = await configure.count();
+  if (canConfigure) await configure.click();
+  if (fixture || canConfigure) {
+    await expect(page.getByText(/^Generated assembly preview ·/)).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Case generation' })).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+  }
 }
 
 function liveSwitch(page: import('@playwright/test').Page) {
@@ -81,6 +86,7 @@ test.describe('live case preview', () => {
     await expect(page.getByText('Preparing 3D geometry…', { exact: true })).toHaveCount(0);
     const fullScenes = await page.evaluate(() => (window as any).__livePreviewAudit.fullScenes);
     const thickness = page.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true });
+    await page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Dimensions & clearances' }).click();
     await thickness.fill('2.5');
     await thickness.press('Tab');
     await expect(page.getByText(/Updating preview|Preview current|Geometry current/i).first()).toBeVisible();
@@ -100,6 +106,7 @@ test.describe('live case preview', () => {
     await expect(liveSwitch(page)).not.toBeChecked();
     const before = await page.evaluate(() => (window as any).__livePreviewAudit.replies.length);
     const thickness = page.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true });
+    await page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Dimensions & clearances' }).click();
     await thickness.fill('2.5');
     await thickness.press('Tab');
     await expect(page.getByRole('button', { name: /Update preview/i })).toHaveCount(1);
@@ -115,6 +122,7 @@ test.describe('live case preview', () => {
     await expect(page.getByText(/Preview current|Geometry current/i).first()).toBeVisible({ timeout: 60_000 });
     await page.evaluate(() => { (window as any).__livePreviewAudit.cadDelay = 1200; });
     const thickness = page.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true });
+    await page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Dimensions & clearances' }).click();
     await thickness.fill('2.5');
     await thickness.press('Tab');
     await page.getByRole('button', { name: /Cancel/i }).click();
@@ -150,8 +158,8 @@ test.describe('live case preview', () => {
 
   test('gasket drag commits once on release, Undo restores it, and Escape cancels a draft', async ({ page }) => {
     test.setTimeout(120_000);
-    await openCase(page, true);
-    await page.getByRole('combobox', { name: 'Mount style', exact: true }).selectOption('gasket');
+    await openCase(page, true, true);
+    await expect(page.getByRole('combobox', { name: 'Mount style', exact: true })).toHaveValue('gasket');
     await expect.poll(() => page.evaluate(() => (window as any).__livePreviewAudit.assemblies.at(-1)?.gasketSupports?.length)).toBe(12);
     await page.getByRole('button', { name: /Update preview/i }).first().click();
     await expect(page.getByText(/Preview current|Geometry current/i).first()).toBeVisible({ timeout: 60_000 });

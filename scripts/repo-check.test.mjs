@@ -112,3 +112,38 @@ test('checks valid Markdown directories and reports missing local paths', async 
     await cleanup(root);
   }
 });
+
+test('enforces presentation and export ownership while allowing type-only worker contracts', async () => {
+  const root = await fixture();
+  try {
+    await mkdir(path.join(root, 'app/src/ui'), { recursive: true });
+    await mkdir(path.join(root, 'app/src/exports'), { recursive: true });
+    await writeFile(path.join(root, 'app/src/main.tsx'), "import './ui/Workbench'; import './ui/AssemblyViewer'; import './exports/pcb';\n");
+    await writeFile(path.join(root, 'app/src/CoreClient.ts'), 'export class CoreClient {}\n');
+    await writeFile(path.join(root, 'app/src/CaseClient.ts'), 'export class CaseClient {}\n');
+    await writeFile(path.join(root, 'app/src/ExportClient.ts'), 'export class ExportClient {}\n');
+    await writeFile(path.join(root, 'app/src/ui/Workbench.tsx'), "import type { CoreClient } from '../CoreClient'; export type Client = CoreClient;\n");
+    await writeFile(path.join(root, 'app/src/ui/AssemblyViewer.tsx'), "import { CaseClient as CAD } from '../CaseClient'; import('../ExportClient'); const worker = new CAD();\n");
+    await writeFile(path.join(root, 'app/src/exports/pcb.ts'), "import type { Client } from '../ui/Workbench'; export type ExportClient = Client;\n");
+    const issues = (await check(root)).issues.filter(issue => issue.kind === 'ownership-boundary');
+    assert.equal(issues.filter(issue => issue.file === 'app/src/ui/AssemblyViewer.tsx').length, 2);
+    assert.equal(issues.some(issue => issue.file === 'app/src/ui/Workbench.tsx'), false);
+    assert.equal(issues.some(issue => issue.file === 'app/src/exports/pcb.ts'), true);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test('keymap presentation submits field edits instead of replacing the project', async () => {
+  const root = await fixture();
+  try {
+    await mkdir(path.join(root, 'app/src/ui'), { recursive: true });
+    await writeFile(path.join(root, 'app/src/main.tsx'), "import './ui/KeymapPanel';\n");
+    await writeFile(path.join(root, 'app/src/ui/KeymapPanel.tsx'), "const old = { kind: 'replace-document', document: {} }; const allowed = { kind: 'set-key-binding' };\n");
+    const issues = (await check(root)).issues.filter(issue => issue.kind === 'ownership-boundary');
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0].file, 'app/src/ui/KeymapPanel.tsx');
+  } finally {
+    await cleanup(root);
+  }
+});

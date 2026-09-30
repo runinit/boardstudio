@@ -3,7 +3,7 @@ import { demoProject } from '../src/demo';
 import { createMechanicalConfiguration } from '../src/mechanicalPresets';
 import type { ProjectDoc } from '@boardstudio/v2-contracts';
 
-export function splitFixture(): ProjectDoc {
+export function splitFixture(legacyGasket = false): ProjectDoc {
   const doc = demoProject();
   doc.id = 'split-test'; doc.name = 'Split generation fixture';
   doc.parts = []; doc.matrices = []; doc.layouts = []; doc.nets = []; doc.outline = []; doc.caseBodies = [];
@@ -27,6 +27,8 @@ export function splitFixture(): ProjectDoc {
   doc.boards[0].outlineIds = doc.outline.map(outline => outline.id);
   doc.boards[0].netIds = [];
   doc.mechanical = createMechanicalConfiguration(doc, 'main-board');
+  // Saved legacy stacks retain their tabbed generator when no internal version is set.
+  if (legacyGasket) doc.mechanical = { ...doc.mechanical, mount: 'gasket', gasketTravel: 0.1,
+    gasketLayout: { length: 12, width: 3, thickness: 2, compression: 0.15, supports: [] } };
   return doc;
 }
-

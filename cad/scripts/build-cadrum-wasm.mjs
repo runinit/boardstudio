@@ -16,12 +16,14 @@ const runtime = process.env.CADRUM_CONTAINER_RUNTIME || (available('podman') ? '
 if (!runtime) throw new Error('Building the Cadrum WASM module requires Podman or Docker');
 
 run(runtime, ['build', '--file', 'wasm/Containerfile', '--tag', image, '.'], cadRoot);
+const contractsRoot = fileURLToPath(new URL('../../contracts/rust', import.meta.url));
+const contractsMount = `${contractsRoot}:/workspace/contracts/rust:ro`;
 const cadMount = `${cadRoot}:/workspace/cad${runtime === 'podman' ? ':Z' : ''}`;
 // wasm-pack 0.15 mistakes its previous package manifest for wasm-bindgen's
 // dependency map. Remove only the generated manifest before rebuilding it.
 rmSync(new URL('../wasm/pkg/package.json', import.meta.url), { force: true });
 run(runtime, [
-  'run', '--rm', '--volume', cadMount, '--workdir', '/workspace/cad',
+  'run', '--rm', '--volume', cadMount, '--volume', contractsMount, '--workdir', '/workspace/cad',
   '--env', `OCCT_ROOT=/workspace/cad/${occtRelative}`,
   '--env', 'CARGO_TARGET_DIR=/workspace/cad/wasm/target',
   image, 'wasm-pack', 'build', 'wasm', '--target', 'web', '--out-dir', 'pkg',

@@ -15,11 +15,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|| PathBuf::from("../contracts/src/generated"));
     fs::create_dir_all(&output)?;
 
-    let config = Config::new().with_large_int("number").with_out_dir(output);
+    let config = Config::new()
+        .with_large_int("number")
+        .with_out_dir(output.clone());
     macro_rules! export {
         ($($type:ty),+ $(,)?) => { $(<$type>::export(&config)?;)+ };
     }
     export!(
+        KeycapBoardChange,
+        KeycapMatrixChange,
+        KeycapKeyChange,
         KeycapConfiguration,
         KeycapBoardSettings,
         KeycapMatrixSettings,
@@ -198,5 +203,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ArtifactRequest,
         ArtifactReply,
     );
+    let defaults = serde_json::json!({
+        "board": KeycapBoardSettings::default(),
+        "matrix": KeycapMatrixSettings::default(),
+        "key": KeycapKeySettings::default(),
+    });
+    fs::write(
+        output.join("keycapDefaults.ts"),
+        format!(
+            "// Generated from Rust defaults. Do not edit.\nimport type {{ KeycapBoardSettings, KeycapMatrixSettings, KeycapKeySettings }} from './index';\nexport const keycapDefaults = {} satisfies {{ board: KeycapBoardSettings; matrix: KeycapMatrixSettings; key: KeycapKeySettings }};\n",
+            serde_json::to_string_pretty(&defaults)?
+        ),
+    )?;
     Ok(())
 }

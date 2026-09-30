@@ -20,7 +20,7 @@ test('lazily loads CAD and prepares a current case preview and STEP export offli
     };
   });
 
-  await page.goto('/');
+  await page.goto('/?cadMetrics=1');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
   await expect.poll(() => wasmRequests.size).toBeGreaterThan(0);
   expect([...wasmRequests].some((url) => /boardstudio_renderer_wasm_bg/i.test(url))).toBe(false);
@@ -33,6 +33,7 @@ test('lazily loads CAD and prepares a current case preview and STEP export offli
   await expect.poll(() => wasmRequests.size).toBeGreaterThan(wasmBeforeCase);
   await expect(page.locator('.wb-assembly-scene canvas')).toBeVisible();
   await expect(page.getByRole('group', { name: 'Assembly camera' }).getByRole('button', { name: 'Fit', exact: true })).toBeEnabled();
+  await expect.poll(() => page.evaluate(() => performance.getEntriesByName('boardstudio.renderer.canvas.cold-start').length)).toBeGreaterThan(0);
   const rendererTiming = await page.evaluate(() => {
     const wasm = performance.getEntriesByName('boardstudio.renderer.wasm.cold-start').at(-1);
     const canvas = performance.getEntriesByName('boardstudio.renderer.canvas.cold-start').at(-1);

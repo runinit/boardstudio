@@ -817,6 +817,10 @@ fn affects_outline(op: &EditOperation) -> bool {
 
 fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
     match op {
+        EditOperation::SetKeyBinding { .. }
+        | EditOperation::SetKeycapBoard { .. }
+        | EditOperation::SetMatrixKeycaps { .. }
+        | EditOperation::SetKeycapKey { .. } => keycaps::apply_edit(doc, op),
         EditOperation::MoveParts { positions } => {
             let (mut changed, handled) = layout::move_keys(doc, positions)?;
             for position in positions {

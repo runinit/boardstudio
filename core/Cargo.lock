@@ -37,9 +37,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-contracts"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "ts-rs",
+]
+
+[[package]]
 name = "boardstudio_core"
 version = "0.1.0"
 dependencies = [
+ "boardstudio-contracts",
  "i_overlay",
  "js-sys",
  "kiutils_sexpr",

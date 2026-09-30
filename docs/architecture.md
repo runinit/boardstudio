@@ -15,28 +15,51 @@ explicit document references and actions; there is no additional global store.
 | `useProjectSession` | Core worker lifecycle, serialized operation queue, committed versus preview scenes, persistence, project-open invalidation |
 | `createProjectActions` | Undo/redo, new/import/duplicate projects, imported parts/models, undoable edits |
 | `useCaseGeneration` | Physical-instance resolution, generation state, cancellation, cache reuse, revision/session checks |
-| `useElectricalPlanning` | Wiring resolution, pin assignments, locks, protected handoff review data, export wiring preparation |
-| `createProjectExporter` | Project, PCB, firmware, footprint, outline, and mechanical packaging; model assets; downloads |
+| `useElectricalPlanning` | Wiring resolution, pin assignments, locks, and protected handoff review data |
+| `createProjectExporter` | Queued export snapshot capture and browser delivery |
+| `exports/` | Project/footprint/outline, PCB, firmware, keycap, and case workflows; source model packaging; handoff protection |
+| `AssemblyPreview` | Preview worker lifetimes, independent PCB/keycap requests, cancellation, model conversion cache, stale reply rejection |
 
 The project session and case controller share the existing preview cache only so
-opening a project invalidates it. Async callbacks keep using current document
-references and captured revision/context guards. Export protection is persisted
-only after the artifact is produced, before its download.
+opening a project invalidates it. Async callbacks compare captured document, scene, board, physical instance, and
+project session. Export workflows use one committed `ExportContext`; only their
+own accepted wiring edits can advance it. A project with the same ID and revision
+but a different open session cannot receive a previous export. PCB protection is
+persisted only after packaging succeeds and before the download. Export CAD uses
+a separate client from preview CAD.
 
-The workbench keeps shared selection state and pointer transaction references.
-`useWorkbenchSelection` handles selection actions; `useWorkbenchTree` derives the
-object tree. `createCanvasInteractions` owns drag, stagger, splay, and pan updates,
-including the final pointer sample, captured transaction identity, and rollback.
-Escape and board/mode switches cancel active edits; opening another project
-discards captured work without replaying it into the new document.
+The workbench composes feature interfaces and keeps shared selection, placement,
+canvas projection, pointer transactions, and panel navigation. Feature drafts and
+editing actions belong to these owners:
+
+| Feature owner | Responsibility |
+| --- | --- |
+| `useWorkbenchNavigation` | Workflow return state and per-board workflow cameras; project/session reset |
+| `useWorkbenchTheme` | Browser preference, system appearance subscription, document theme |
+| `useOutlineEditor` | Outline drawing/point selection, snap grid, keyboard actions, inspector and canvas overlays |
+| `ConstraintEditor` | Placement relationship form drafts and add/update/remove actions |
+| `useScriptEditor` | Geometry script selection, source/result drafts, saves, and findings |
+| `usePcbWorkspace` | Net creation, terminal assignments, generator overrides, and PCB inspector |
+| `useCaseWorkspace` | Authored bodies/mounts, layer selection/appearance, readiness, diagnostics, and case inspector |
+| `createKeymapWorkspace` | Shared key membership/read model, selection, typed edit targets, keymap inspector and canvas |
+
+`useWorkbenchSelection` handles shared selection actions; `useWorkbenchTree`
+derives the object tree. `createCanvasInteractions` owns drag, stagger, splay,
+and pan updates, including the final pointer sample, captured transaction identity,
+and rollback. Escape and board/mode switches cancel active edits; opening another
+project discards captured work without replaying it into the new document.
 `createCanvasCamera` handles camera actions, and `CanvasObjects` renders geometry.
-`MatrixInspectorPanel`, `CaseInspectorPanel`, and `PartsInspectorPanel` compose
-selection-specific controls through explicit action callbacks. Document mutations
-are submitted through the workbench and `createLibraryActions`.
+`MatrixInspectorPanel` and `PartsInspectorPanel` compose selection-specific controls.
 `createWorkbenchPlacementActions` prepares and commits part, matrix, and mirrored
-pair placement using that same edit path. `createWorkbenchEditActions` holds the
-pure terminal assignment, definition replacement, and constraint builders.
-The workbench retains pointer transactions and projection cancellation.
+pair placement using the normal edit path. `createWorkbenchEditActions` holds pure
+terminal-assignment, definition-replacement, and constraint builders.
+
+Keymap and firmware-position controls submit `set-key-binding`, `set-keycap-board`,
+`set-matrix-keycaps`, and `set-keycap-key` operations. Rust merges those field edits
+into the current document, validates targets and dimensions, and preserves other
+bindings, pin locks, and protected handoffs. Null inherits a legend; an empty string
+selects a blank keycap. Undo and redo use the existing core history. Presentation
+uses generated Rust defaults and does not manufacture replacement configurations.
 
 `planKeycapResize` plans keycap dimensions and neighbour reflow from the current
 document and resolved placements. It maps linked-half selections to canonical
@@ -47,8 +70,15 @@ resolution remains responsible for propagating mirrored positions.
 Parts preview construction and placement are separate: `sampleAssembly` produces
 an isolated preview document; `assemblyPlacement` creates document snapshots.
 `assemblyCatalog` is the preset registry used by recipes and selectors.
-`AssemblyViewer` is the single preview model-loading owner. Export model packaging
-has its own asset resolver because it packages source files rather than meshes.
+`AssemblyViewer` renders snapshots from `useAssemblyPreview`. Its `AssemblyPreview`
+owner creates workers lazily, retains at most 80 model conversion promises, evicts
+failed conversions, and closes all owned workers on unmount. PCB and keycap inputs
+have separate request sequences: stale core resolution never starts CAD, obsolete
+keycap CAD is aborted, and late replies cannot replace the current scene. In-flight
+model conversions can be reused across geometry revisions within the same scope.
+Project session, board, or instance changes clear the previous scene and cache.
+Export model packaging has its own asset resolver because it packages source files
+rather than meshes.
 `assemblyEditorController` owns immutable member/model changes, assembly saves,
 and asset-import document guards. `MechanicalProfileController` owns asynchronous
 library/stabilizer profile assignment. It rejects responses after a scope change,
@@ -77,6 +107,15 @@ preparation succeeds for the current context. Full export uses the separate CAD
 request path.
 
 ## Rust ownership and privacy
+
+`contracts/rust` owns the shared keycap profile/mount enums, keycap configuration,
+`KeycapSpec`, and its 2D pose types. Core re-exports preserve existing Rust paths;
+CAD consumes the same specification without a private duplicate. The crate contains
+wire types and defaults, with no CAD kernel or core-engine dependency. Core owns
+profile resolution, settings validation, and clearance; CAD owns solid construction.
+Contract generation writes both TypeScript types and `keycapDefaults.ts`. The drift
+check covers defaults as well as schemas; runtime barrels export only intended values.
+
 
 `core/src/artifact/kicad.rs` retains shared formatting, footprint serialization,
 and snapshot/electrical validation helpers. Private child modules handle export
@@ -134,7 +173,9 @@ changes are part of this removal. TypeScript checks unused locals and parameters
 ## Validation entrypoints
 
 - `pnpm check:repo`: authored module/export reachability, runtime dependencies,
-  and local documentation links, with fixtures for the scanner itself.
+  local documentation links, and feature ownership boundaries, with scanner fixtures.
+  Workbench/preview/keymap presentation must delegate domain workers; preview/export
+  domain modules cannot import UI; keymap controls cannot replace whole documents.
 - `pnpm check`: repository hygiene, contract and generator-catalog drift, runtime imports, native and package tests,
   WASM and production builds, boundary checks, browser tests, and Pages checks.
 - `pnpm precommit`: core/CAD/renderer preparation and app/CAD typechecks.
@@ -145,6 +186,13 @@ Use `BOARDSTUDIO_CHROMIUM=/usr/bin/chromium` on hosts with system Chromium and n
 Playwright-managed browser. Keep browser behavior assertions when updating stale
 selectors: selection now uses the Select menu, and canonical assemblies number
 both switches and their companion parts.
+Timing tests opt into `?cadMetrics=1` and wait for the first accepted renderer scene
+before reading cold-start measures. Legacy gasket fixtures specify their saved
+tabbed configuration and dimensions; selecting Gasket in the UI enables the newer
+internal generator. Functional tests open disclosures before editing their controls.
+Set `BOARDSTUDIO_TEST_PORT` to a free port when verifying an isolated worktree;
+production, Pages, and performance tests share that override without stopping an
+existing preview server. The default remains 4328; development tests use 4329.
 
 Geometry-only browser fixtures have no controller and use the explicit draft PCB
 handoff. Fixtures with existing manual nets must review their replacement through
@@ -157,6 +205,12 @@ The CAD build removes its generated `wasm/pkg/package.json` before invoking
 wasm-pack 0.15. That version otherwise reads its previous full manifest as a
 dependency-only map and rejects array fields on repeated builds. Source manifests
 and compiled caches are retained.
+
+Interface tests cover preview supersession, session/board/instance changes, shared
+in-flight model conversion, failed-cache retry, worker closure, navigation camera
+isolation, stale export delivery, and packaging/protection/save ordering. Public
+core tests cover field merging, invalid edits, encoder push positions, and undo/redo.
+Native/WASM boundary parity includes all four keymap edit operations.
 
 For export equivalence, the core test
 `native_board_output_can_be_written_for_kicad_cli_oracle` accepts

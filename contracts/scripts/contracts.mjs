@@ -36,7 +36,7 @@ function run(output) {
 
 function barrel(types) {
   return `${types
-    .filter((name) => !['CoreRequest.ts', 'CoreReply.ts'].includes(path.basename(name)))
+    .filter((name) => !['CoreRequest.ts', 'CoreReply.ts', 'keycapDefaults.ts'].includes(path.basename(name)))
     .map((name) => `export type * from './${name.replace(/\.ts$/, '')}';`)
     .join('\n')}\n`;
 }

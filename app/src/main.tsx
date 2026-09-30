@@ -39,9 +39,17 @@ function App() {
 
   const { edit, history, importProject, newProject, openSavedProject, deleteSavedProject, openDemo, duplicateDesign, importPart, importModel } = createProjectActions({ projectRef, client, exportClient, selectedInstance, schedule, accept, ensureExportClient, onProjectCreated: projectId => setSetupRequest({ projectId, requestId: crypto.randomUUID() }) });
 
-  const { refreshWiring, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit });
+  const { refreshWiring, resolveWiring, changeWiring, applyWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments } = useElectricalPlanning({ project, projectRef, selectedBoardId, client, ready, setError, schedule, accept, edit });
 
-  const { exportFile, exportMechanical } = createProjectExporter({ projectRef, committedScene, client, caseClient: exportCaseClient, exportClient, selectedBoardId, selectedInstance, embedUsedModels, generation, currentPreviewContext, schedule, accept, ensureExportClient, resolveWiring, applyExportWiring });
+  const { exportFile, exportMechanical } = createProjectExporter({
+    readSnapshot: () => ({ document: projectRef.current, scene: committedScene.current, boardId: currentPreviewContext.current.boardId,
+      instance: projectRef.current.hardware?.instances.find(instance => instance.id === currentPreviewContext.current.instanceId),
+      embedUsedModels, generation, previewContext: currentPreviewContext.current }),
+    services: {
+      core: () => { if (!client.current) throw new Error('The project is still opening'); return client.current; },
+      cad: () => exportCaseClient.current ??= new CaseClient(), exporter: ensureExportClient, resolveWiring, accept,
+    }, schedule,
+  });
 
   function ensureExportClient(): ExportClient {
     exportClient.current ??= new ExportClient();
@@ -115,7 +123,7 @@ function App() {
           },
         } : undefined,
         ready: Boolean(activePlan && !activePlan.diagnostics.some(finding => finding.severity === 'error')),
-        firmwareControls: <FirmwareKeymapPanel keys={[...(activePlan?.assignments.map(assignment => ({ id: assignment.keyId, label: project.parts.find(part => part.id === assignment.keyId)?.reference ?? assignment.keyId })) ?? []), ...(activePlan?.peripherals.filter(peripheral => peripheral.kind === 'encoder' && peripheral.gpioTerminals.some(([terminal]) => terminal === 'S1')).map(peripheral => ({ id: `${peripheral.partId}/push`, label: `${project.parts.find(part => part.id === peripheral.partId)?.reference ?? peripheral.partId} push` })) ?? [])]} bindings={wiringConfiguration?.keyBindings ?? {}} onChange={(keyId, binding) => changeWiring({ keyBindings: { ...wiringConfiguration?.keyBindings, [keyId]: binding } })} />,
+        firmwareControls: <FirmwareKeymapPanel keys={[...(activePlan?.assignments.map(assignment => ({ id: assignment.keyId, label: project.parts.find(part => part.id === assignment.keyId)?.reference ?? assignment.keyId })) ?? []), ...(activePlan?.peripherals.filter(peripheral => peripheral.kind === 'encoder' && peripheral.gpioTerminals.some(([terminal]) => terminal === 'S1')).map(peripheral => ({ id: `${peripheral.partId}/push`, label: `${project.parts.find(part => part.id === peripheral.partId)?.reference ?? peripheral.partId} push` })) ?? [])]} bindings={wiringConfiguration?.keyBindings ?? {}} onChange={(keyId, binding) => edit({ baseRevision: project.revision, transactionId: crypto.randomUUID(), phase: 'commit', targetIds: [selectedBoardId, keyId], operation: { kind: 'set-key-binding', boardId: selectedBoardId, keyId, binding } })} />,
         controllerOptions, selectedControllerId: wiringConfiguration?.controllerPartId ?? activePlan?.controllerPartId ?? '',
         controller: controllerOptions.find(option => option.id === (wiringConfiguration?.controllerPartId ?? activePlan?.controllerPartId)),
         onControllerChange: controllerPartId => changeWiring({ controllerPartId }),

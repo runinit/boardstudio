@@ -36,6 +36,7 @@ const document = emptyProject('boundary-fixture', 'Boundary fixture');
 document.definitions = [{ id: 'switch', name: 'Switch', kind: 'switch', pads: [], courtyard: [] }];
 document.matrices = [matrix];
 document.parts = matrix.partIds.map((id, index) => ({ id, definitionId: 'switch', reference: `S${index + 1}`, side: 'front', pose: { at: { x: (index % 3) * 19, y: index < 3 ? 0 : -38 }, rotation: index * 3 } }));
+document.boards = [{ id: 'board', name: 'Boundary board', partIds: matrix.partIds, outlineIds: [], netIds: [], thickness: 1.6 }];
 const command = (phase) => ({ baseRevision: 0, transactionId: 'move', phase, targetIds: ['matrix/matrix/r0c0'], operation: { kind: 'move-parts', positions: [{ id: 'matrix/matrix/r0c0', at: { x: 10, y: 12 } }] } });
 const requests = [
   { id: 'open', kind: 'open', document },
@@ -50,6 +51,13 @@ const requests = [
   { id: 'redo', kind: 'redo' },
   { id: 'large-draft', kind: 'project-matrices', baseRevision: 3, matrices: [{ ...matrix, rows: 50, columns: 10, cells: [], partIds: [] }] },
   ...['preview', 'commit'].map((phase) => ({ id: `splay-${phase}`, kind: 'edit', command: { baseRevision: 3, transactionId: 'splay', phase, targetIds: ['matrix'], operation: { kind: 'set-matrix-splay', matrixId: 'matrix', column: 1, change: { kind: 'origin', world: { x: 5, y: -12 } } } } })),
+  ...[
+    { kind: 'set-key-binding', boardId: 'board', keyId: 'matrix/matrix/r0c0', binding: '&kp A' },
+    { kind: 'set-matrix-keycaps', matrixId: 'matrix', change: { kind: 'profile', value: 'dsa' } },
+    { kind: 'set-keycap-board', boardId: 'board', change: { kind: 'color', value: '#123456' } },
+    { kind: 'set-keycap-key', keyId: 'matrix/matrix/r0c0', change: { kind: 'legend', value: '' } },
+  ].map((operation, index) => ({ id: `keymap-${index}`, kind: 'edit', command: { baseRevision: 4 + index, transactionId: `keymap-${index}`, phase: 'commit', targetIds: [], operation } })),
+
 ];
 const native = spawnSync(path.join(root, 'core/target/debug/examples/core_request'), { input: `${requests.map((request) => JSON.stringify(request)).join('\n')}\n`, encoding: 'utf8' });
 if (native.error) throw native.error;
@@ -81,6 +89,10 @@ try {
   assert.equal(nativeReplies[4].kind, 'preview');
   assert.deepEqual(nativeReplies[1].scene.matrixScenes, nativeReplies[5].scene.matrixScenes);
   assert.equal(nativeReplies[7].kind, 'error');
+  assert.equal(nativeReplies[13].document.hardware.boards[0].keyBindings['matrix/matrix/r0c0'], '&kp A');
+  assert.equal(nativeReplies[14].document.keycaps.matrices.matrix.wallThickness, 1.2);
+  assert.equal(nativeReplies[15].document.keycaps.boards.board.color, '#123456');
+  assert.equal(nativeReplies[16].document.keycaps.keys['matrix/matrix/r0c0'].legend, '');
 } finally {
   engine.free();
 }

@@ -60,7 +60,7 @@ async function setup(page: Page, mode: 'numeric' | 'gasket' | 'mount' = 'numeric
   }, Boolean(process.env.BOARDSTUDIO_LIVE_PREPARED));
   await page.goto('/?cadMetrics=1');
   await expect(page.locator('.wb-root')).toBeVisible();
-  const fixture = splitFixture();
+  const fixture = splitFixture(mode === 'gasket');
   fixture.id = `live-preview-${mode}`;
   if (mode === 'gasket') fixture.mechanical = { ...fixture.mechanical!, mount: 'gasket', integratedPlateFrame: false, gasketTravel: 0.3, bottomStyle: 'shell' };
   if (mode === 'mount') {
@@ -89,6 +89,7 @@ async function setup(page: Page, mode: 'numeric' | 'gasket' | 'mount' = 'numeric
   await expect(page.getByRole('switch', { name: 'Live preview', exact: true })).toBeChecked();
   await expect(page.getByText('Preparing 3D geometry…', { exact: true })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => performance.getEntriesByName('boardstudio.cad.preview.paint-opportunity').length)).toBeGreaterThan(0);
+  if (mode === 'numeric') await page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Dimensions & clearances' }).click();
   return diagnostics(page);
 }
 

@@ -49,6 +49,7 @@ test('compact case settings stay labeled and disclosure choices survive edits', 
   await expect(page.locator('.wb-mech-revision').first()).toContainText('Configuration resolved');
   const construction = page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Construction' });
   await construction.click();
+  await page.locator('.wb-mechanical-panel summary').filter({ hasText: 'Dimensions & clearances' }).click();
   const thickness = page.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true });
   await thickness.fill('2.5'); await thickness.press('Tab');
   await expect(construction.locator('..')).not.toHaveAttribute('open');

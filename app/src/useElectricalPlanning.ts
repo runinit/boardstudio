@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { CoreClient } from './CoreClient';
 import { existingConnectionReview } from './electricalHandoff';
-import { canPublishElectricalPlan, isCurrentElectricalPlan, isWiringApplied, type ElectricalPlanContext } from './electricalPlanContext';
+import { canPublishElectricalPlan, isCurrentElectricalPlan, type ElectricalPlanContext } from './electricalPlanContext';
 import type { WiringAssignment } from './ui/WiringPanel';
 
 type Inputs = {
@@ -94,16 +94,5 @@ export function useElectricalPlanning({ project, projectRef, selectedBoardId, cl
 
   const assignments: WiringAssignment[] = [...scanAssignments, ...Object.entries(activePlan?.peripheralTerminals ?? {}).map(([id, pin]) => ({ id, label: id.startsWith('peripheral/') ? id.split('/').slice(-2).join(' · ') : id, value: pin, detail: activePlan?.peripheralPins[id], locked: Boolean(wiringConfiguration?.locks[id]) }))];
 
-  async function applyExportWiring(document: ProjectDoc, boardId: string, draft: boolean): Promise<{ document: ProjectDoc; plan: ElectricalPlan }> {
-    const plan = await resolveWiring(document, boardId);
-    const errors = plan.diagnostics.filter(finding => finding.severity === 'error');
-    if (!draft && errors.length) throw new Error(errors.map(finding => finding.message).join('\n'));
-    if (isWiringApplied(document, plan)) return { document, plan };
-    const reply = await client.current!.request({ id: crypto.randomUUID(), kind: 'apply-electrical', baseRevision: document.revision, plan, draft });
-    if (reply.kind !== 'scene') throw new Error(reply.kind === 'error' ? reply.message : 'Expected applied wiring');
-    await accept(reply, 'commit');
-    return { document: reply.document, plan: await resolveWiring(reply.document, boardId) };
-  }
-
-  return { refreshWiring, resolveWiring, changeWiring, applyWiring, applyExportWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments };
+  return { refreshWiring, resolveWiring, changeWiring, applyWiring, wiringConfiguration, controllerOptions, activePlan, connectionReview, assignments };
 }

@@ -85,3 +85,16 @@ test('projects matrix drafts without changing the client snapshot', async () => 
   await expect(pending).resolves.toEqual(reply);
   client.close();
 });
+
+test('closing settles pending requests and rejects subsequent work without restarting', async () => {
+  vi.stubGlobal('Worker', FakeWorker);
+  const client = new CoreClient();
+  let reply: CoreReply | undefined;
+  void client.request({ id: 'pending', kind: 'snapshot' }).then(result => { reply = result; });
+  client.close();
+  await Promise.resolve();
+  expect(reply?.kind).toBe('error');
+  await expect(client.request({ id: 'closed', kind: 'snapshot' })).resolves.toMatchObject({ id: 'closed', kind: 'error' });
+  workers[0].fail();
+  expect(workers).toHaveLength(1);
+});

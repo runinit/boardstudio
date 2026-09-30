@@ -5,7 +5,7 @@ import { splitFixture } from './splitMechanicalFixture';
 import type { MechanicalAssembly } from '@boardstudio/v2-contracts';
 
 
-async function setup(page: Page) {
+async function setup(page: Page, legacyGasket = false) {
   page.setDefaultTimeout(15_000);
   await auditSceneBounds(page);
   await page.addInitScript(() => {
@@ -31,7 +31,7 @@ async function setup(page: Page) {
       return original.call(this, message, ...rest);
     };
   });
-  await page.goto('/');
+  await page.goto('/?cadMetrics=1');
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
   await page.evaluate(async document => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -44,7 +44,7 @@ async function setup(page: Page) {
       transaction.oncomplete = () => resolve(); transaction.onerror = () => reject(transaction.error);
     });
     db.close(); localStorage.setItem('boardstudio-v2-active-project', document.id);
-  }, splitFixture());
+  }, splitFixture(legacyGasket));
   await page.reload();
   await page.getByRole('button', { name: /^Collapse left half$/i }).click({ timeout: 10000 });
   await page.getByRole('button', { name: /^Collapse right half$/i }).click({ timeout: 10000 });
@@ -101,6 +101,7 @@ test('split CAD is manual, cancellable, cached and independent of display change
   const timings = await page.evaluate(() => performance.getEntriesByType('measure').filter(entry => /boardstudio\.(cad|renderer)/.test(entry.name)).map(entry => ({ name: entry.name, ms: Math.round(entry.duration * 100) / 100 })));
   console.info('Split generation timings', JSON.stringify(timings));
   await info.attach('split-timings', { body: JSON.stringify(timings, null, 2), contentType: 'application/json' });
+  await panel.locator('summary').filter({ hasText: 'Dimensions & clearances' }).click();
   await panel.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true }).fill('2.5');
   await panel.getByRole('spinbutton', { name: 'Wall thickness mm', exact: true }).press('Tab');
   await expect(page.getByRole('region', { name: 'Case generation' }).getByText(/Preview out of date|Preview paused/i)).toBeVisible();
@@ -114,8 +115,8 @@ test('split CAD is manual, cancellable, cached and independent of display change
 
 test('gaskets create six linked support pairs, a retainer and editable preview handles', async ({ page }, info) => {
   test.setTimeout(180_000);
-  const panel = await setup(page);
-  await panel.getByRole('combobox', { name: 'Mount style', exact: true }).selectOption('gasket');
+  const panel = await setup(page, true);
+  await expect(panel.getByRole('combobox', { name: 'Mount style', exact: true })).toHaveValue('gasket');
   await expect.poll(async () => page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1)?.gasketSupports.length)).toBe(12);
   const assembly: MechanicalAssembly = await page.evaluate(() => (window as any).__generationAudit.assemblies.at(-1));
   expect(assembly.generationBlocked, JSON.stringify(assembly.diagnostics)).toBe(false);

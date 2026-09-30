@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import type { PartDefinition } from '@boardstudio/v2-contracts';
+import { emptyProject } from '@boardstudio/v2-contracts';
 import { ExportClient } from './ExportClient';
 import type { ExportWorkerRequest, ExportWorkerReply } from './export.worker';
 
@@ -62,4 +63,17 @@ test('copies archive buffers before transfer and resolves archive replies', asyn
   workers[0].reply({ id: 'archive', kind: 'archive', reply: { kind: 'packed', bytes } });
   await expect(pending).resolves.toMatchObject({ reply: { kind: 'packed' } });
   client.close();
+});
+
+test('closed workers cannot restart or accept new exports', async () => {
+  vi.stubGlobal('Worker', FakeWorker);
+  const client = new ExportClient();
+  client.close();
+  workers[0].onerror?.({ preventDefault() {} } as ErrorEvent);
+  expect(workers).toHaveLength(1);
+  await expect(client.artifact({ kind: 'preview-board', source: '', revision: 0 })).rejects.toThrow('closed');
+  await expect(client.preview({ document: emptyProject('closed', 'Closed'), boardId: 'board', contours: [], paths: [] })).rejects.toThrow('closed');
+  await expect(client.archive({ kind: 'archive', request: { kind: 'pack-files', entries: [] }, buffers: [] })).rejects.toThrow('closed');
+  await expect(client.request({ kind: 'footprints', document: emptyProject('closed', 'Closed'), paths: [], files: {} })).rejects.toThrow('closed');
+  expect(workers[0].sent).toHaveLength(0);
 });

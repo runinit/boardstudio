@@ -6,12 +6,11 @@ import type { MechanicalGasketSupport } from '@boardstudio/v2-contracts';
 import type { GenerationState } from '../generationState';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardReference, CaseBody, MechanicalAssembly, MechanicalConfiguration, Mount, PcbPreview, PreparedCaseAssemblyIR } from '@boardstudio/v2-contracts';
-import type { ModelMesh } from '../modelMesh';
 import { createRendererCanvas, type RendererCanvas } from '../renderClient';
 import './assembly-preview.css';
 
-export type LoadedModel = { id: string; mesh: ModelMesh };
-export type AssemblyBody = { id: string; name: string; color?: string; mesh: ModelMesh };
+import type { LoadedModel, AssemblyBody } from '../assemblyPreview';
+export type { AssemblyBody } from '../assemblyPreview';
 type AssemblyView = 'assembled' | 'exploded' | 'section';
 
 export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies = [], mechanical, generation, preparedCase, onGasketChange, onGasketDraft, onCaseMountChange, onCaseMountDraft, mechanicalConfiguration, selectedLayer = '', reference, onSelect, onSelectLayer, colorScheme, persistenceKey, display, onDisplayChange }: {

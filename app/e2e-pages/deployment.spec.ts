@@ -22,8 +22,8 @@ test('Pages subpath loads workers, CAD, models and offline exports', async ({ pa
   await navigateWorkspace(page, 'Layout');
   const wasmBeforeCad = wasmRequests.length;
   await navigateWorkspace(page, 'Case');
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
-  await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Case generation' }).getByRole('status')).toHaveText('Preview current', { timeout: 45_000 });
   await expect.poll(() => wasmRequests.length).toBeGreaterThan(wasmBeforeCad);
   expect(wasmRequests.some((url) => /cadrum/i.test(url) && new URL(url).pathname.startsWith('/boardstudio/'))).toBe(true);
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
@@ -33,8 +33,8 @@ test('Pages subpath loads workers, CAD, models and offline exports', async ({ pa
   await page.reload();
   await expect(page.locator('.wb-outline-shape')).toHaveCount(1);
   await navigateWorkspace(page, 'Case');
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
-  await expect(page.getByText('Preview current', { exact: true })).toBeVisible({ timeout: 45_000 });
+  await page.getByRole('button', { name: 'Update preview', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Case generation' }).getByRole('status')).toHaveText('Preview current', { timeout: 45_000 });
   await page.locator('.wb-topbar').getByRole('button', { name: 'Export', exact: true }).click();
   const download = page.waitForEvent('download');
   await page.locator('.wb-export-row').filter({ hasText: 'Case STEP' }).getByRole('button', { name: 'Export' }).click();
