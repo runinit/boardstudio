@@ -1,7 +1,0 @@
-{
-  "completedSessions": 3,
-  "failedSession": 4,
-  "acceptanceEligible": false,
-  "reason": "First mount move did not create a revision; UI displayed Blocked move was not saved. Incomplete run retained, not pooled into final comparison.",
-  "followup": "Mount screen targets now use the camera from the actual draw; all saved mount coordinates are asserted. A fresh five-session run is stored in phase2-planar-live-verified."
-}

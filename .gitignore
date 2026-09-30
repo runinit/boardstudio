@@ -38,3 +38,9 @@ SKILL.md
 /data/state_store.db/
 /data/stream_store/
 ts-boardstudio2.code-workspace
+
+# Local memory journals and generated benchmark runs.
+.memsearch/
+/app/performance-results/
+/cad/bench/results/*/
+!/cad/bench/results/baseline/
