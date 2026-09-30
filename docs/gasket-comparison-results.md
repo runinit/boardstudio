@@ -1,5 +1,8 @@
 # Gasket generation comparison results
 
+Historical raw artifacts and experimental sources now live in the performance
+worktree. See [Development worktrees](development-worktrees.md) for their location.
+
 Measured 2026-09-28 against `49d33a91`. The current design and production backend
 are unchanged. These are isolated, uncached **single-bottom** experiments, not
 new application release-to-paint measurements. The exact gasket target remains
@@ -158,11 +161,11 @@ explicitly released, but no complete memory/renderer/export soak has been run.
 The existing full application acceptance suite was not rerun for these isolated
 experiments. It remains required before any production adoption.
 
-- [Reproduction commands and implementation](../cad/experiments/gasket/README.md).
-- [Raw observations and artifacts](../cad/bench/results/phase3-gasket-comparisons/README.md).
-- [Per-fixture/session comparisons and attribution](../cad/bench/results/phase3-gasket-comparisons/analysis.json).
-- [Preview geometry checks](../cad/bench/results/phase3-gasket-comparisons/preview-validation.json).
-- [Failed attempts and fixes](../cad/bench/results/phase3-gasket-comparisons/failure-investigations.json).
+- Reproduction commands and implementation (`cad/experiments/gasket/README.md` in the performance worktree).
+- Raw observations and artifacts (`cad/bench/results/phase3-gasket-comparisons/README.md` in the performance worktree).
+- Per-fixture/session comparisons and attribution (`cad/bench/results/phase3-gasket-comparisons/analysis.json` in the performance worktree).
+- Preview geometry checks (`cad/bench/results/phase3-gasket-comparisons/preview-validation.json` in the performance worktree).
+- Failed attempts and fixes (`cad/bench/results/phase3-gasket-comparisons/failure-investigations.json` in the performance worktree).
 
 ## Revised priorities
 

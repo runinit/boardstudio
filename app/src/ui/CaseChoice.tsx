@@ -15,6 +15,3 @@ const paths: Record<string, ReactNode> = {
 export function CaseIcon({ kind }: { kind: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{paths[kind]}</svg>;
 }
-export function CaseChoice({ label, value, options, onChange }: { label: string; value: string; options: Record<string, string>; onChange: (value: string) => void }) {
-  return <div className="wb-case-choice"><span>{label}</span><div role="group" aria-label={label}>{Object.entries(options).map(([id, name]) => <button type="button" key={id} aria-pressed={value === id} onClick={() => onChange(id)}><CaseIcon kind={id}/><span>{name}</span></button>)}</div></div>;
-}

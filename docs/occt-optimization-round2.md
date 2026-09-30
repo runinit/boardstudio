@@ -1,5 +1,8 @@
 # Remaining-plan OCCT screening
 
+Historical raw artifacts and experimental sources now live in the performance
+worktree. See [Development worktrees](development-worktrees.md) for their location.
+
 This continues E2/E3/E5/E8/E9 from the original optimization plan. The earlier
 engine comparison did not complete those experiments. All changes here are in
 staged diagnostic crates; production CAD, the case design, tolerances, and result
@@ -47,7 +50,7 @@ There were zero occupancy mismatches, with about 31,100 samples per captured
 bottom and 47,100 per rotated mesh. These checks supplement the exact native and
 STEP checks below; they do not prove arbitrary input eligibility.
 
-[Raw results, provenance, and per-session analysis](../cad/bench/results/phase3-occt-round2/README.md)
+Raw results, provenance, and per-session analysis (`cad/bench/results/phase3-occt-round2/README.md` in the performance worktree)
 are retained separately from the first comparison.
 
 ## Independent variants
@@ -116,6 +119,6 @@ appropriate granularity. In particular:
 - Broader eligibility/fallback, contact, multi-body, cold/burst, interaction,
   export and memory-soak checks remain required before any production adoption.
 
-[Reproduction scripts](../cad/experiments/gasket/README.md) preserve both experiment
+Reproduction scripts (`cad/experiments/gasket/README.md` in the performance worktree) preserve both experiment
 rounds and provide configurable variant/fixture lists. The first-round results
 are retained separately rather than overwritten.

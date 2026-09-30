@@ -1,5 +1,8 @@
 # Live case preview and performance reconciliation
 
+Historical raw artifacts and experimental sources now live in the performance
+worktree. See [Development worktrees](development-worktrees.md) for their location.
+
 Updated 2026-09-27. Implementation is in the UI worktree at `0ca5e3f1`
 plus uncommitted changes. Functional and performance verification are recorded
 separately below; historical CAD results are not results for this build.
@@ -166,14 +169,14 @@ excluded unchanged board/model geometry. These timings do not measure physical
 display latency. The performance runner's success means the existing gates passed;
 the new exact-refinement target remains diagnostic and failed.
 
-The [raw workbench/live report](../app/performance-results/live-preview-2026-09-27.json)
+The raw workbench/live report (`app/performance-results/live-preview-2026-09-27.json` in the performance worktree)
 preserves all sessions, action samples, and provenance. Full historical CAD
 acceptance and long-session memory validation remain separate gates.
 
 The CAD smoke run completed all 30 fixture/scenario combinations with one sample
 each, including cold and warm STEP model import. Every sample had request metrics
-and a paint opportunity. Its [summary](../cad/bench/results/live-preview-smoke-2026-09-27/summary.json)
-and [comparison](../cad/bench/results/live-preview-smoke-2026-09-27/comparison.json)
+and a paint opportunity. Its summary (`cad/bench/results/live-preview-smoke-2026-09-27/summary.json` in the performance worktree)
+and comparison (`cad/bench/results/live-preview-smoke-2026-09-27/comparison.json` in the performance worktree)
 are retained with compressed raw samples. Comparison exited nonzero as expected:
 fixture hashes and scenario coverage match, but sampling is insufficient and the
 renderer identity differs from the historical reference. This verifies the harness,
@@ -209,7 +212,7 @@ Native renderer/CAD suites and the full repository browser suite were not rerun
 for these application-only fixes.
 
 The isolated live diagnostic passed its collection and retained-geometry checks;
-its [fresh report](../app/performance-results/live-preview-review-fixes-2026-09-27.json)
+its fresh report (`app/performance-results/live-preview-review-fixes-2026-09-27.json` in the performance worktree)
 keeps the earlier report intact. On the recorded Chromium 153.0.8010.52 / Ryzen 9
 8945HS environment, pointer callback work was 0.4 ms p95 and render submission
 was 2.9 ms p95. All 75 handle updates uploaded zero meshes; five body patches
@@ -248,7 +251,7 @@ and matrix, outline, and pointer checks without budget changes. Median session
 p95 painted times were 33.5/33.5/33.4/34.1 ms for 100-key single/row and 200-key
 single/row edits. The final live diagnostic also passed collection and retained
 geometry assertions. Comparison with the fresh, equivalently instrumented
-[before report](../app/performance-results/live-preview-perf-before-2026-09-27.json):
+before report (`app/performance-results/live-preview-perf-before-2026-09-27.json` in the performance worktree):
 
 | Action | Before p50 / p95 | After p50 / p95 |
 | --- | --- | --- |
@@ -257,7 +260,7 @@ geometry assertions. Comparison with the fresh, equivalently instrumented
 | Gasket release | 1140.3 / 1256.3 ms | 831.1 / 874.8 ms |
 | Mount release | 576.8 / 618.0 ms | 524.9 / 530.0 ms |
 
-The [final raw report](../app/performance-results/live-preview-perf-final-2026-09-27.json)
+The final raw report (`app/performance-results/live-preview-perf-final-2026-09-27.json` in the performance worktree)
 preserves five workbench sessions and the live samples on Chromium 153.0.8010.52,
 Node 26.10.0, Ryzen 9 8945HS, and a 1280×720 viewport. These live comparisons
 contain five actions each, not five independent sessions or statistical acceptance

@@ -1,5 +1,8 @@
 # Generation optimization experiments
 
+Historical raw artifacts and experimental sources now live in the performance
+worktree. See [Development worktrees](development-worktrees.md) for their location.
+
 Planned 2026-09-28 against `49d33a91`. This is Phase 3 of [PLAN.md](../PLAN.md).
 It consolidates the gasket, parametric construction, Cadrum/OCCT, and alternative
 kernel discussions. The selected bounded E0/E1/E7, Manifold-preview, and
@@ -78,11 +81,11 @@ is retained history, not a replacement for the final 370 ms result.
 Evidence:
 
 - [Latest report and validation](generation-performance.md#latest-phase-2-status).
-- [Final live summary](../app/performance-results/phase2-scene-live/summary.json)
-  and [comparison](../app/performance-results/phase2-scene-live/comparison.json).
-- [Retained stage attribution](../app/performance-results/phase2-scene-live/gasket-attribution-comparison.json).
-- [Final CAD summary](../cad/bench/results/phase2-scene-final/summary.json)
-  and [comparison](../cad/bench/results/phase2-scene-final/comparison.json).
+- Final live summary (`app/performance-results/phase2-scene-live/summary.json` in the performance worktree)
+  and comparison (`app/performance-results/phase2-scene-live/comparison.json` in the performance worktree).
+- Retained stage attribution (`app/performance-results/phase2-scene-live/gasket-attribution-comparison.json` in the performance worktree).
+- Final CAD summary (`cad/bench/results/phase2-scene-final/summary.json` in the performance worktree)
+  and comparison (`cad/bench/results/phase2-scene-final/comparison.json` in the performance worktree).
 - [Frozen CAD protocol](../cad/bench/README.md) and [budgets](../cad/bench/budgets.json).
 
 Already completed: batched deferred Boolean expressions, exact reduction of
