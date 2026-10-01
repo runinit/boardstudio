@@ -240,15 +240,17 @@ fn CaseCanvas(scene: Rc<CadScene>) -> Element {
     let left = host.clone();
     let right = host.clone();
     let zoom = host.clone();
+    let zoom_out = host.clone();
     rsx! {
         div { class: "m1-case-view",
             div { role: "group", "aria-label": "Case camera",
                 button { onclick: move |_| { if let Some(host) = fit.borrow().as_ref() { let _ = host.fit(); } }, "Fit case" }
                 button { onclick: move |_| { if let Some(host) = top.borrow().as_ref() { let _ = host.view("top"); } }, "Top view" }
-                button { onclick: move |_| { if let Some(host) = iso.borrow().as_ref() { let _ = host.view("iso"); } }, "Isometric view" }
-                button { onclick: move |_| { if let Some(host) = left.borrow().as_ref() { let _ = host.orbit(-0.3, 0.0); } }, "Rotate left" }
-                button { onclick: move |_| { if let Some(host) = right.borrow().as_ref() { let _ = host.orbit(0.3, 0.0); } }, "Rotate right" }
-                button { onclick: move |_| { if let Some(host) = zoom.borrow().as_ref() { let _ = host.zoom(1.15); } }, "Zoom case" }
+                button { onclick: move |_| { if let Some(host) = iso.borrow().as_ref() { let _ = host.view("isometric"); } }, "Isometric view" }
+                button { onclick: move |_| { if let Some(host) = left.borrow().as_ref() { let _ = host.orbit(-50.0, 0.0); } }, "Rotate left" }
+                button { onclick: move |_| { if let Some(host) = right.borrow().as_ref() { let _ = host.orbit(50.0, 0.0); } }, "Rotate right" }
+                button { onclick: move |_| { if let Some(host) = zoom.borrow().as_ref() { let _ = host.zoom(0.85); } }, "Zoom in" }
+                button { onclick: move |_| { if let Some(host) = zoom_out.borrow().as_ref() { let _ = host.zoom(1.15); } }, "Zoom out" }
             }
             canvas { style: "width:100%;height:320px;display:block", tabindex: "0", role: "img", "aria-label": "Generated case assembly; use camera controls to inspect", onmounted: mount }
         }
@@ -267,7 +269,7 @@ fn scene_input(scene: &CadScene, keep_camera: bool) -> Result<JsValue, String> {
         .as_ref()
         .map(|assembly| assembly.stack.as_slice())
         .unwrap_or_default();
-    let packet = serde_json::json!({ "revision": scene.result.revision, "kind":"assembly", "theme":"light", "view":"iso", "keepCamera":keep_camera, "hidden":[], "board": {"revision":scene.result.revision,"thickness":board.thickness,"contours":contours,"surfaces":[],"holes":[],"models":[]}, "models":[], "mechanicalStack":stack });
+    let packet = serde_json::json!({ "revision": scene.result.revision, "kind":"assembly", "theme":"light", "view":"isometric", "keepCamera":keep_camera, "hidden":[], "board": {"revision":scene.result.revision,"thickness":board.thickness,"contours":contours,"surfaces":[],"holes":[],"models":[]}, "models":[], "mechanicalStack":stack });
     let input = js_sys::JSON::parse(&packet.to_string()).map_err(|e| format!("{e:?}"))?;
     let bodies = Array::new();
     for body in &scene.result.bodies {
