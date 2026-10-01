@@ -1,0 +1,17 @@
+$ node --test scripts/repo-check.test.mjs && node scripts/repo-check.mjs
+✔ follows workers, dynamic imports, and type-only imports while finding dead modules (46.575386ms)
+✔ reports missing explicit roots without treating package imports as local edges (16.910831ms)
+✔ tracks re-export chains, type imports, namespaces, defaults, and worker URLs (18.763425ms)
+✔ scopes dependency usage to the package and distinguishes side effects from comments (11.500186ms)
+✔ checks valid Markdown directories and reports missing local paths (13.510357ms)
+✔ enforces presentation and export ownership while allowing type-only worker contracts (20.205998ms)
+✔ keymap presentation submits field edits instead of replacing the project (15.468278ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 248.034643
+Repository check passed: 616 authored modules, 418 production-reachable.

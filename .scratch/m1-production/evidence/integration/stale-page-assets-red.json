@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "/tmp/m1-stale-release-regression.py"
+  ],
+  "exit": 1,
+  "source": "bc1c6b52",
+  "expected": "one current Dioxus page WASM per staged prefix",
+  "actual": "three page WASMs in root; assertion stops before subpath",
+  "preservation": "all earlier outputs retained; corrected builder moves prior dx public directory into uniquely named build output before each prefix build"
+}

@@ -55,8 +55,12 @@ def main():
     run("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"])
     run("fixtures", ["node", REPO / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"])
     for mode, prefix in [("root", "/"), ("subpath", "/boardstudio/")]:
-        run(f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--no-default-features", "--features", "page", "--cargo-args=--locked"], WEB)
         public = WEB / "target/dx/boardstudio-web/release/web/public"
+        # Dioxus retains prior hashed assets. Preserve them outside this release
+        # and build into a fresh public directory so cache contents are repeatable.
+        if public.exists():
+            shutil.move(public, output / f"previous-dx-public-{mode}")
+        run(f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--no-default-features", "--features", "page", "--cargo-args=--locked"], WEB)
         destination = output / f"site-{mode}"
         if mode == "subpath":
             destination /= "boardstudio"

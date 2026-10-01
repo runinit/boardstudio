@@ -1,0 +1,21 @@
+{
+  "source_commit": "bc1c6b524ec5a6350ca432472bf4ff543482aeb5",
+  "production_review_commit": "2040e23ba2cd97aef3757d24b81fe2463d6f86be",
+  "argv": [
+    "python3",
+    "scripts/build-m1.py",
+    "m1-release-20261001-bc1c6b52"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+  "exit": 0,
+  "commands": 18,
+  "sources_verified": 925,
+  "staged_asset_hashes_verified": true,
+  "production_diff_from_review": "",
+  "provenance_path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-bc1c6b52/provenance.json",
+  "provenance_sha256": "651bdbc4a3f87e8e4dd9c1334e248efdfc03f829909b2bfd64ec60815859cf6c",
+  "portable_provenance": "release-bc1c6b52-provenance.json",
+  "verified_at": "2026-10-01T22:46:29.683746+00:00",
+  "gate_scope": "Complete locked build and asset identity; acceptance scenarios recorded separately.",
+  "later_finding": "Build exits0 and assets match captured hashes, but stage includes obsolete Dioxus page WASM outputs from earlier builds. Reproducibility/cache-inventory gate fails; source/page component observations remain attributable."
+}
