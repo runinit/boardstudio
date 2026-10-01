@@ -1,7 +1,7 @@
 {
   "sourceCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
   "releaseId": "m1-release-20261001-8f509433",
-  "candidateUrl": null,
+  "candidateUrl": "http://127.0.0.1:46880/",
   "route": "root site route; exact URL pending coordinator",
   "releaseProvenancePath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/integration/release-8f509433-provenance.json",
   "releaseProvenanceSha256": "99f3fb7bec34df7154f3ed4602384b0745a714f879f636810cf1bbc22a697ed6",
@@ -61,5 +61,10 @@
     "index.html": "79e2b40fff22d5316680e6ab9a9d4bf3a466ff95365052029268b2b3ee904a37",
     "service-worker.js": "6f6a30d3b78a222d3f4daa5a1555053b72e3e45086a20a0f81c17e36827f50fc"
   },
-  "quietHostSignal": null
+  "quietHostSignal": {
+    "source": "host_design final QA handoff",
+    "message": "Final browser QA complete; pristine 8f509433 release idle at http://127.0.0.1:46880/ with no QA worker overlay; quiet-host handoff clear.",
+    "evidencePath": ".scratch/m1-production/evidence/browser-storage/release-8f509433-final-qa.md",
+    "inventoryPath": ".scratch/m1-production/evidence/browser-storage/release-inventory-8f509433.json"
+  }
 }
