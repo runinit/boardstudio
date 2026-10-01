@@ -1,6 +1,27 @@
 use super::*;
 
 pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, ArtifactError> {
+    validate_plan(&request.plan)?;
+    planning::require_plan_qualification(&request.plan)?;
+    finish(request)
+}
+
+pub(in crate::artifact) fn finish_preview(
+    request: FinishExportRequest,
+) -> Result<PcbPreview, ArtifactError> {
+    if !matches!(request.plan.target, ExportTarget::Board { .. }) {
+        return Err(validation("Preview requires a board"));
+    }
+    let revision = request.plan.revision;
+    let artifact = finish(request)?;
+    let board = artifact
+        .files
+        .first()
+        .ok_or_else(|| validation("Preview returned no board"))?;
+    crate::artifact::preview::board(&board.content, revision)
+}
+
+fn finish(request: FinishExportRequest) -> Result<ExportArtifact, ArtifactError> {
     let plan = request.plan;
     validate_plan(&plan)?;
     if request.results.len() != plan.jobs.len() {
@@ -291,21 +312,25 @@ fn finish_standalone(
                 )?
             )
         } else if is_imported(definition) {
-            source::patch_footprint(
-                &definition.kicad_source.as_ref().expect("checked").source,
-                &FootprintPatch {
-                    footprint_name: Some(safe_name(&definition.name)),
-                    reference: Some("REF**".into()),
-                    value: Some(definition.name.clone()),
-                    placement: Some(Pose2 {
-                        at: Vec2::default(),
-                        rotation: 0.0,
-                    }),
-                    side: Side::Front,
-                    pad_nets: BTreeMap::new(),
-                    uuid_scope: format!("definition:{}", definition.id),
-                    model_forms: managed_model_forms(definition, &plan.model_paths)?,
-                },
+            override_models(
+                source::patch_footprint(
+                    &definition.kicad_source.as_ref().expect("checked").source,
+                    &FootprintPatch {
+                        footprint_name: Some(safe_name(&definition.name)),
+                        reference: Some("REF**".into()),
+                        value: Some(definition.name.clone()),
+                        placement: Some(Pose2 {
+                            at: Vec2::default(),
+                            rotation: 0.0,
+                        }),
+                        side: Side::Front,
+                        pad_nets: BTreeMap::new(),
+                        uuid_scope: format!("definition:{}", definition.id),
+                        model_forms: managed_model_forms(definition, &plan.model_paths)?,
+                    },
+                )?,
+                definition,
+                &plan.model_paths,
             )?
         } else {
             format!(
@@ -410,18 +435,22 @@ fn finish_board(
                     )));
                 }
             }
-            footprints.push(source::patch_footprint(
-                &definition.kicad_source.as_ref().expect("checked").source,
-                &FootprintPatch {
-                    footprint_name: Some(safe_name(&definition.name)),
-                    reference: Some(part.reference.clone()),
-                    value: Some(definition.name.clone()),
-                    placement: Some(part.pose),
-                    side: part.side.clone(),
-                    pad_nets,
-                    uuid_scope: scope,
-                    model_forms: managed_model_forms(definition, &plan.model_paths)?,
-                },
+            footprints.push(override_models(
+                source::patch_footprint(
+                    &definition.kicad_source.as_ref().expect("checked").source,
+                    &FootprintPatch {
+                        footprint_name: Some(safe_name(&definition.name)),
+                        reference: Some(part.reference.clone()),
+                        value: Some(definition.name.clone()),
+                        placement: Some(part.pose),
+                        side: part.side.clone(),
+                        pad_nets,
+                        uuid_scope: scope,
+                        model_forms: managed_model_forms(definition, &plan.model_paths)?,
+                    },
+                )?,
+                definition,
+                &plan.model_paths,
             )?);
             continue;
         }

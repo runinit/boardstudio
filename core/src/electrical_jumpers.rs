@@ -267,6 +267,7 @@ mod tests {
                 generator_parameters: Some(params),
             },
             PartDefinition {
+                hardware_profile: None,
                 input_profile: None,
                 id: "d".into(),
                 name: "d".into(),

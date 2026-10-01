@@ -1,3 +1,4 @@
+pub use crate::hardware::{HardwareGate, HardwareOutput, HardwareProfile, HardwareSource};
 pub use crate::inputs::{EncoderDriver, InputProfile, PressContacts, PressScanMode, RotaryProfile};
 pub use crate::keymap::{
     EncoderBinding, EncoderDirection, KeyBinding, KeymapChange, KeymapConfiguration, KeymapLayer,
@@ -131,6 +132,13 @@ pub struct KicadSource {
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
 #[serde(deny_unknown_fields)]
 pub struct PartDefinition {
+    #[serde(
+        rename = "hardwareProfile",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub hardware_profile: Option<HardwareProfile>,
     #[serde(
         rename = "inputProfile",
         default,
@@ -1852,6 +1860,14 @@ pub enum ArtifactRequest {
         definition_id: String,
         source: String,
     },
+    PreparePreview {
+        id: String,
+        request: PrepareExportRequest,
+    },
+    FinishPreview {
+        id: String,
+        request: FinishExportRequest,
+    },
     PrepareExport {
         id: String,
         request: PrepareExportRequest,
@@ -1890,6 +1906,10 @@ pub enum ArtifactReply {
     ImportFootprint {
         id: String,
         result: CompiledFootprint,
+    },
+    PreparePreview {
+        id: String,
+        result: ExportPlan,
     },
     PrepareExport {
         id: String,

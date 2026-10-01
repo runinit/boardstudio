@@ -7,6 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/tmp/boardstudio-zmk-check"));
     let request = FirmwareRequest {
+        qualification: None,
         encoders: vec![],
         keymap: None,
         encoder_ids: vec![],
@@ -43,11 +44,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
         peripheral_overlays: vec![],
         peripheral: Some(Box::new(FirmwareRequest {
+            qualification: None,
             encoders: vec![],
             keymap: None,
             encoder_ids: vec![],
             transport: Some(SplitTransport::WiredUart),
             ..FirmwareRequest {
+                qualification: None,
                 encoders: vec![],
                 keymap: None,
                 encoder_ids: vec![],

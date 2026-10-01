@@ -193,7 +193,15 @@ fn graphic(
         {
             return Ok(());
         }
-        let at = pose(n)?;
+        // KiCad text may omit its angle before the optional unlocked flag.
+        let at = if child(n, "at").is_some_and(|at| value(at, 3) == "unlocked") {
+            Pose2 {
+                at: xy(n, "at")?,
+                rotation: 0.,
+            }
+        } else {
+            pose(n)?
+        };
         let text = if tag == "fp_text" || tag == "property" {
             value(n, 2)
         } else {

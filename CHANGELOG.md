@@ -2,6 +2,8 @@
 
 ## 2026-10-01 (encoder/VIK implementation progress)
 
+- Add ticket 2 nominal THQWGD001 library integration: three distinct assembly variants, seven pinned footprints/cut helpers, portable STEP models, output-specific qualification gates, precise occupied-bound fit markers and separate nominal preview. Preserve public firmware Eq with compact provenance/gate snapshots; fix cached KiCad text and retained absolute model paths. Physical variants, back-side continuity/alignment and manufacturing qualification remain open.
+
 - Complete ticket 1: support semantic encoder press contacts, exclusive matrix/direct/unassigned scanning, identity-preserving replacement and independent layered rotation with validated local ZMK export. Preserve legacy peripheral profiles and reserve wired-split UART GPIOs. Verify public RED/GREEN, 351 core tests, 26 renderer tests, 35 KiCad tests, 23 native CAD tests, 49 JavaScript CAD tests, 469 app tests, nine browser workflows, production builds and native/WASM parity; pass separate standards/spec reviews. Keep VIK and unrelated test cleanup outside this commit.
 
 ## 2026-09-30 (Prioritize safe outline recovery)

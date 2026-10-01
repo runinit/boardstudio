@@ -1,4 +1,4 @@
-use crate::model::{CaseKind, Finding, MountKind, ProjectDoc, Scope, Severity};
+use crate::model::{CaseKind, Finding, HardwareOutput, MountKind, ProjectDoc, Scope, Severity};
 use std::collections::{BTreeMap, BTreeSet};
 
 fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Finding {
@@ -12,7 +12,7 @@ fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Findi
 }
 
 pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
-    let mut findings = vec![];
+    let mut findings = crate::hardware::nominal_fit(doc).0;
     for board in &doc.boards {
         findings.extend(crate::keycaps::resolve(doc, &board.id, None).findings);
     }
@@ -23,6 +23,24 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
         if crate::inputs::profile(def).rotary.is_some() && crate::inputs::matrix_member(doc, part) {
             findings.push(Finding{id:format!("input/{}/assembly-fit",part.id),scope:Scope::Layout,severity:Severity::Warning,
                 message:"The encoder retains this key's bindings and companion parts. Review companion clearance and its own knob or wheel envelope; the former keycap is not a qualified encoder assembly.".into(),target_ids:vec![part.id.clone()]});
+        }
+        for gate in def.hardware_profile.iter().flat_map(|p| &p.gates) {
+            let (scope, severity) = match gate.output {
+                HardwareOutput::Footprint | HardwareOutput::Electrical => {
+                    (Scope::Pcb, Severity::Error)
+                }
+                HardwareOutput::Mechanical => (Scope::Case, Severity::Error),
+                HardwareOutput::Model | HardwareOutput::Firmware => {
+                    (Scope::Layout, Severity::Warning)
+                }
+            };
+            findings.push(Finding {
+                id: format!("hardware/{}/{}", part.id, gate.code),
+                scope,
+                severity,
+                message: gate.message.clone(),
+                target_ids: vec![part.id.clone()],
+            });
         }
     }
     let parts_by_id: BTreeMap<_, _> = doc

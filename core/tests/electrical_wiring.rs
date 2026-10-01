@@ -26,6 +26,7 @@ fn definition(
         })
         .collect();
     PartDefinition {
+        hardware_profile: None,
         input_profile: None,
         id: id.into(),
         name: id.into(),

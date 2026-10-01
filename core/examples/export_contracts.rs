@@ -3,7 +3,8 @@ use boardstudio_core::electrical_jumpers::{JumperDiagnostic, JumperRecipe, Jumpe
 use boardstudio_core::electrical_peripherals::PeripheralRequirement;
 use boardstudio_core::electrical_profiles::JumperState;
 use boardstudio_core::firmware::{
-    FirmwareKey, FirmwarePackage, FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
+    FirmwareKey, FirmwarePackage, FirmwarePartQualification, FirmwareQualification,
+    FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
 };
 use boardstudio_core::model::*;
 use std::{env, fs, path::PathBuf};
@@ -22,6 +23,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ($($type:ty),+ $(,)?) => { $(<$type>::export(&config)?;)+ };
     }
     export!(
+        HardwareSource,
+        HardwareOutput,
+        HardwareGate,
+        HardwareProfile,
         InputProfile,
         PressContacts,
         PressScanMode,
@@ -158,6 +163,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         JumperRecipe,
         JumperSite,
         JumperDiagnostic,
+        FirmwarePartQualification,
+        FirmwareQualification,
         FirmwareKey,
         FirmwarePackage,
         FirmwareRequest,

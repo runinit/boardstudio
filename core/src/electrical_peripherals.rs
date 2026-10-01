@@ -219,6 +219,7 @@ mod tests {
     fn doc(source: &str, params: BTreeMap<String, serde_json::Value>) -> ProjectDoc {
         let mut d = ProjectDoc::empty("p", "p");
         d.definitions.push(PartDefinition {
+            hardware_profile: None,
             input_profile: None,
             id: "peripheral".into(),
             name: "Peripheral".into(),

@@ -39,6 +39,13 @@ export function firmwareRequest(document: ProjectDoc, plan: ElectricalPlan, peri
   const legacyPeripherals = (current: ElectricalPlan) => peripheralFirmware(profiled ? { ...current, peripherals: current.peripherals.filter(item => item.kind !== 'encoder') } : current, profiled ? [] : sensorIds);
   const peripherals = legacyPeripherals(plan);
   const request: FirmwareRequest = {
+    qualification: plan.boardId ? {
+      boardId: plan.boardId,
+      parts: document.parts.filter(part => document.boards.find(board => board.id === plan.boardId)?.partIds.includes(part.id)).flatMap(part => {
+        const definition = document.definitions.find(definition => definition.id === part.definitionId);
+        return definition?.hardwareProfile ? [{ partId: part.id, name: definition.name, source: definition.hardwareProfile.source, gates: definition.hardwareProfile.gates }] : [];
+      }),
+    } : undefined,
     encoders: profiled ? plan.peripherals.flatMap(item => {
       if (item.kind !== 'encoder' || !item.rotary) return [];
       const gpio = (terminal: string) => findPeripheralPin(plan, item.gpioTerminals.find(([name]) => name === terminal)?.[1] ?? '') ?? '';

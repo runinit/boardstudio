@@ -45,6 +45,11 @@
       "url": "https://github.com/infused-kim/kb_ergogen_fp",
       "commit": "bb80a207d8a6fa7b9245caad2c2d97e2adc2f612",
       "license": "CC BY-NC-SA-4.0"
+    },
+    "thqwgd001": {
+      "url": "https://github.com/Taro-Hayashi/THQWGD001",
+      "commit": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "license": "vendor/thqwgd001/ATTRIBUTION.md"
     }
   },
   "footprints": {
@@ -163,7 +168,9 @@
       "infused-kim/nice_nano_pretty": [
         "vendor/infused-kim/3d_models/Nice_Nano_V2.step"
       ],
-      "infused-kim/nice_view": ["vendor/infused-kim/3d_models/Nice_View.step"],
+      "infused-kim/nice_view": [
+        "vendor/infused-kim/3d_models/Nice_View.step"
+      ],
       "infused-kim/smd_0805": [
         "vendor/infused-kim/3d_models/SMD_0805_Capacitor.step",
         "vendor/infused-kim/3d_models/SMD_0805_Resistor.step"

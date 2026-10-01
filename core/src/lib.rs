@@ -8,6 +8,7 @@ pub mod electrical_peripherals;
 pub mod electrical_profiles;
 pub mod firmware;
 mod geometry;
+mod hardware;
 mod inputs;
 mod keycaps;
 mod keymap;
@@ -592,6 +593,7 @@ impl CoreEngine {
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);
         findings.extend(outline_findings);
         finding_markers.extend(inputs::finding_markers(doc, &findings));
+        finding_markers.extend(hardware::nominal_fit(doc).1);
         let mut generic_markers: BTreeMap<(String, String), Vec<Contour>> = BTreeMap::new();
         for marker in outline_validation::feature_markers(doc, &findings) {
             generic_markers

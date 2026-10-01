@@ -705,7 +705,8 @@ fn collect_part_geometry(
             );
         }
         if !profile.plate_to_pcb.is_finite()
-            || (profile.plate_to_pcb - config.plate_to_pcb).abs() > 0.001
+            || ((is_switch || !profile.cutouts.is_empty())
+                && (profile.plate_to_pcb - config.plate_to_pcb).abs() > 0.001)
         {
             issue(
                 &format!("engagement:{}", part.id),
@@ -917,8 +918,17 @@ fn collect_part_geometry(
             }
         }
         for volume in profile.clearance_volumes.iter().flatten() {
+            let surface_frame = definition.is_some_and(|d| {
+                d.hardware_profile
+                    .as_ref()
+                    .is_some_and(|p| p.footprint_surface_volumes)
+            });
             let transformed = CaseOpening {
-                z: volume.z,
+                z: if surface_frame && part.side == Side::Back {
+                    -config.pcb_thickness - volume.z - volume.height
+                } else {
+                    volume.z
+                },
                 height: volume.height,
                 points: transform_part_points(part, &volume.points),
             };
@@ -1792,6 +1802,31 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         &mut result.plate_contours,
         &mut issue,
     );
+    for part in document
+        .parts
+        .iter()
+        .filter(|part| board.part_ids.contains(&part.id))
+    {
+        if let Some(definition) = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == part.definition_id)
+        {
+            for gate in definition
+                .hardware_profile
+                .iter()
+                .flat_map(|profile| &profile.gates)
+                .filter(|gate| gate.output == HardwareOutput::Mechanical)
+            {
+                issue(
+                    &format!("hardware/{}/{}", part.id, gate.code),
+                    Severity::Error,
+                    &gate.message,
+                    vec![part.id.clone()],
+                );
+            }
+        }
+    }
     let Some(BatterySpace {
         height: battery_height,
         bottom_foam_contours,
@@ -2698,7 +2733,22 @@ mod tests {
     fn imported_stabilizers_use_the_mx_mounting_datum() {
         let catalogue: serde_json::Value =
             serde_json::from_str(include_str!("../../app/src/parts/imported-parts.json")).unwrap();
-        for imported in catalogue["parts"].as_array().unwrap() {
+        let stabilizers: Vec<_> = catalogue["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|part| {
+                part["definition"]["id"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with("kicad:marbastlib/STAB_MX_"))
+            })
+            .collect();
+        assert_eq!(
+            stabilizers.len(),
+            2,
+            "Both imported MX stabilizer sizes must retain datum coverage"
+        );
+        for imported in stabilizers {
             let definition: PartDefinition =
                 serde_json::from_value(imported["definition"].clone()).unwrap();
             for (thickness, legacy) in [(1.4, false), (1.5, false), (1.6, false), (1.5, true)] {

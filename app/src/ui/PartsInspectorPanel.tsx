@@ -7,6 +7,7 @@ import { GeneratorFields } from './GeneratorFields';
 import { DraftInput, ModelVector, OrientationControl } from './InspectorControls';
 import { InspectorSection } from './InspectorSection';
 import { InputProfileEditor } from './InputProfileEditor';
+import { HardwareReadiness } from './HardwareReadiness';
 import { matrixInputAvailable } from './inputCapabilities';
 import { DefinitionKeycapControls } from './OutlineInspector';
 import { partCatalogLabel } from './partsCatalog';
@@ -51,6 +52,7 @@ export function PartsInspectorPanel({ document, libraryAssembly, libraryDefiniti
       <p className="wb-inspector-description">{selectedLibraryDefinition.kind === 'switch' ? 'Switch footprint' : selectedLibraryDefinition.kind === 'custom' ? 'Custom component' : 'Component footprint'} · {formatSize(selectedLibraryDefinition.courtyard)}</p>
       <button className="wb-primary wb-place-part" disabled={Boolean(generator.error) || (applyToKey && !matrixInputAvailable(selectedLibraryDefinition))} onClick={() => onPlaceDefinition(selectedLibraryDefinition)}>{applyToKey ? 'Apply to selected key' : 'Place component'} <ArrowIcon /></button>
       {applyToKey && !matrixInputAvailable(selectedLibraryDefinition) && <p className="wb-empty-note">This footprint needs an independent press contact pair to replace a matrix key. Clear the key selection to place it as a standalone component.</p>}
+      {selectedLibraryDefinition.hardwareProfile && <HardwareReadiness source={selectedLibraryDefinition.hardwareProfile.source} gates={selectedLibraryDefinition.hardwareProfile.gates}/>}
       {ergogenGenerator && <fieldset className="wb-generator-settings">
         <legend>Part options</legend>
         {ergogenGenerator && <GeneratorFields definition={selectedLibraryDefinition} edits={libraryParameters} onChange={updateGenerator} onImportModel={onImportModel} error={generator.error} />}

@@ -33,9 +33,30 @@ pub struct FirmwareKey {
     pub column: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FirmwarePartQualification {
+    pub part_id: String,
+    pub name: String,
+    pub source: crate::model::HardwareSource,
+    pub gates: Vec<crate::model::HardwareGate>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FirmwareQualification {
+    pub board_id: String,
+    pub parts: Vec<FirmwarePartQualification>,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct FirmwareRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub qualification: Option<FirmwareQualification>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[cfg_attr(
         feature = "export-types",
@@ -94,6 +115,18 @@ pub struct FirmwarePackage {
 }
 
 fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
+    if let Some(qualification) = &request.qualification {
+        for part in &qualification.parts {
+            if let Some(gate) = part
+                .gates
+                .iter()
+                .find(|gate| gate.output == crate::model::HardwareOutput::Firmware)
+            {
+                return Err(format!("{}: {}", part.name, gate.message));
+            }
+        }
+    }
+
     let controller = profile(&request.controller_profile).ok_or_else(|| {
         format!(
             "unsupported controller profile: {}",
@@ -614,6 +647,7 @@ mod tests {
     use super::*;
     fn request() -> FirmwareRequest {
         FirmwareRequest {
+            qualification: None,
             encoders: vec![],
             keymap: None,
             encoder_ids: vec![],
