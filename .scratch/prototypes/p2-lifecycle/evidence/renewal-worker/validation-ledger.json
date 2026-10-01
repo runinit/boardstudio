@@ -1,0 +1,170 @@
+{
+  "candidate": "prototype/boardstudio-p2-lifecycle-r1",
+  "headBeforeCandidateCommit": "c6101309c13eeb276e59c17b9059d01785c1481f",
+  "disposition": "incomplete; required gates remain blocked",
+  "environment": {
+    "worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001",
+    "taskTemp": "wasm/target/renewal-worker/tmp-dx-r1",
+    "fixtureSha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae",
+    "repairedBuildUrls": [
+      "http://127.0.0.1:4394/",
+      "http://127.0.0.1:4393/boardstudio/"
+    ]
+  },
+  "passed": [
+    {
+      "command": "cargo test --locked",
+      "cwd": "wasm/",
+      "exit": 0,
+      "result": "6 gesture tests + 1 public-engine history test passed",
+      "log": "p2-native-tests.log.gz"
+    },
+    {
+      "command": "cargo check --locked --target wasm32-unknown-unknown",
+      "cwd": "wasm/",
+      "exit": 0,
+      "env": {
+        "TMPDIR": "target/renewal-worker/tmp-dx-r1"
+      },
+      "log": "final-wasm-check.log.gz"
+    },
+    {
+      "cwd": "wasm/",
+      "exit": 0,
+      "env": {
+        "TMPDIR": "target/renewal-worker/tmp-dx-r1",
+        "cwd": "wasm/"
+      },
+      "modes": [
+        "root",
+        "subpath /boardstudio/"
+      ],
+      "logs": [
+        "dx-r2-root-build.log.gz",
+        "dx-r2-subpath-build.log.gz"
+      ],
+      "stages": [
+        "staging-root-dpr-r2-20261001.json",
+        "staging-subpath-dpr-r2-20261001.json"
+      ],
+      "commands": [
+        "dx build --web --release --base-path / --cargo-args=\"--locked\"",
+        "dx build --web --release --base-path /boardstudio/ --cargo-args=\"--locked\""
+      ],
+      "log": null,
+      "operation": "Fresh locked Dioxus release builds (root and subpath)"
+    },
+    {
+      "command": "cargo test --manifest-path core/Cargo.toml --locked",
+      "exit": 0,
+      "result": "334 passed, 6 existing ignored",
+      "log": "core-native-tests.log.gz"
+    },
+    {
+      "command": "cargo test --manifest-path renderer/Cargo.toml --locked",
+      "exit": 0,
+      "result": "26 passed",
+      "log": "renderer-native-tests.log.gz"
+    },
+    {
+      "command": "pnpm --dir app test",
+      "exit": 0,
+      "result": "81 suites, 469 tests passed",
+      "log": "app-vitest-reused-cad.log.gz"
+    },
+    {
+      "command": "pnpm --dir app build",
+      "exit": 0,
+      "log": "app-build.log.gz"
+    },
+    {
+      "command": "pnpm run check:contracts",
+      "exit": 0,
+      "log": "check-contracts.log.gz"
+    },
+    {
+      "command": "pnpm run test:contracts",
+      "exit": 0,
+      "log": "test-contracts.log.gz"
+    },
+    {
+      "command": "pnpm run check:boundaries",
+      "exit": 0,
+      "log": "check-boundaries.log.gz"
+    },
+    {
+      "command": "pnpm run check:repo",
+      "exit": 0,
+      "result": "7 tests, 553 authored modules/369 production-reachable",
+      "log": "check-repo.log.gz"
+    },
+    {
+      "command": "BOARDSTUDIO_TEST_PORT=4399 BOARDSTUDIO_CHROMIUM=/usr/bin/chromium TMPDIR=target/renewal-worker/tmp-dx-r1 /home/chris/01_Projects/ts-boardstudio2/app/node_modules/.bin/playwright test --config /home/chris/01_Projects/ts-boardstudio2/app/playwright.config.ts /home/chris/01_Projects/ts-boardstudio2/app/e2e/canvas-interactions.spec.ts --workers=1 --retries=0 --output=target/renewal-worker/app-playwright-canvas-final",
+      "exit": 0,
+      "result": "4 tests passed; isolated port 4397; system Chromium; task-local TMPDIR",
+      "statusEvidence": "app-canvas-interactions-last-run.json",
+      "cwd": "wasm/",
+      "env": {
+        "BOARDSTUDIO_TEST_PORT": "4399",
+        "BOARDSTUDIO_CHROMIUM": "/usr/bin/chromium",
+        "TMPDIR": "target/renewal-worker/tmp-dx-r1"
+      },
+      "log": "app-playwright-canvas-final.log.gz"
+    },
+    {
+      "command": "BOARDSTUDIO_TEST_PORT=4398 BOARDSTUDIO_CHROMIUM=/usr/bin/chromium TMPDIR=target/renewal-worker/tmp-dx-r1 /home/chris/01_Projects/ts-boardstudio2/app/node_modules/.bin/playwright test --config /home/chris/01_Projects/ts-boardstudio2/app/playwright.config.ts /home/chris/01_Projects/ts-boardstudio2/app/e2e/workbench.spec.ts --grep \"updates the outline during a part drag|moves a focused part with arrow keys\" --workers=1 --retries=0 --output=target/renewal-worker/app-playwright-workbench-targeted",
+      "exit": 0,
+      "result": "2 focused drag/keyboard tests passed; isolated port 4398; system Chromium; task-local TMPDIR",
+      "log": "app-playwright-workbench-targeted.log.gz",
+      "cwd": "wasm/",
+      "env": {
+        "BOARDSTUDIO_TEST_PORT": "4398",
+        "BOARDSTUDIO_CHROMIUM": "/usr/bin/chromium",
+        "TMPDIR": "target/renewal-worker/tmp-dx-r1"
+      }
+    },
+    {
+      "browser": "Chromium agent-browser",
+      "result": "Independent root-owned browser checks are separately recorded; this worker ran same-fixture pairing and interaction repro only."
+    }
+  ],
+  "blockedOrFailed": [
+    {
+      "gate": "P2 paired drag behavior",
+      "result": "blocked: verified focus-induced document scroll changes SVG coordinate frame between pointerdown and move; fixture key jumps off board. No source repair performed because implementation budget 2/2 exhausted.",
+      "evidence": "p2-offboard-focus-repro.json; p2lifecycle-focus-scroll-offboard.png"
+    },
+    {
+      "gate": "renderer strict Clippy native/WASM",
+      "result": "blocked by existing provider-owned renderer source lints; no provider edits, suppression, or relaxed flags",
+      "logs": [
+        "renderer-clippy-native.log.gz",
+        "renderer-clippy-wasm.log.gz"
+      ]
+    },
+    {
+      "gate": "core strict Clippy",
+      "result": "exit 101 on existing provider lints; no provider edits",
+      "log": "core-strict-clippy.log.gz"
+    },
+    {
+      "gate": "core fmt --check",
+      "result": "exit 1 on three unchanged provider files (firmware.rs, keycaps.rs, keymap_workflow.rs); no provider edits",
+      "log": "core-fmt-check.log.gz"
+    },
+    {
+      "gate": "HTML accessibility",
+      "result": "Axe result was observed earlier (serious html-has-lang violation, color contrast incomplete for SVG nodes), but the exact invocation and raw JSON report were not retained. Treat the accessibility gate as unverified/incomplete."
+    },
+    {
+      "gate": "cross-navigation old browser context",
+      "result": "one reused context that navigated from 4392 to 4394 fetched old-origin JS and failed; fresh 4394 root session passed, discrepancy unresolved; no source repair"
+    }
+  ],
+  "limitations": [
+    "Renderer proof is a board-only attachment using a bare reduced scene from the immutable fixture, not full-project, 3D, or dropped-field parity.",
+    "Traffic sizes are UTF-8 lengths of serialized JSON representations only, not structured-clone wire/heap measurements; drag request/reply counts and representation bytes are in p2-drag-traffic.json.",
+    "The historical same4 green TDD note used an earlier absolute-pointerup expectation; final approved contract is capture-relative delta plus origin (47.5,22.0 rather than 147.5,102.0). The historical note and observed RED outputs remain preserved; no unchanged-test-byte claim is made.",
+    "No app/provider source, public API, dependency pin, or acceptance gate was changed to clear an existing failure."
+  ]
+}

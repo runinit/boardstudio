@@ -1,0 +1,18 @@
+{
+  "integration_base": "689f8962f77e04b1150a9541128fec7aca28addc",
+  "source_candidate": "b2cf39db55db7826368031e61bb1b033bb652800",
+  "reviewed_source_documentation_candidate": "57bd6eceed3bce9ad9b854121e93d8adc22f7bf8",
+  "handoff_branch": "docs/boardstudio-p2-handoff",
+  "checks": [
+    {
+      "command": "git diff --check",
+      "exit": 0
+    },
+    {
+      "command": "pnpm run check:repo",
+      "exit": 0,
+      "result": "7 scripts; 553 authored modules; 369 production-reachable modules"
+    }
+  ],
+  "scope": "Status/docs/evidence-only handoff; executable P2 source is excluded. Integration of the handoff into the dedicated migration branch remains pending."
+}

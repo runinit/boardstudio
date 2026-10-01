@@ -1,0 +1,12 @@
+{
+  "cause": "cargo fmt --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --all",
+  "effect": "Rustfmt changed only core/src/firmware.rs, core/tests/keycaps.rs, and core/tests/keymap_workflow.rs through prototype path-dependency formatting.",
+  "preserved_diff": "evidence/renewal-worker/unowned-core-format.patch",
+  "preserved_diff_sha256": "964b407db5a810df7778b661ccde9e8180241a37f7d0b0bea7f5ee6cd095d74b",
+  "preserved_pre_restore_files": "evidence/renewal-worker/unowned-core-format-before.tar.gz",
+  "preserved_pre_restore_files_sha256": "1b2b9299880cdd068b337b09134faddb401c9801b47a4566a38f47ff4bbb25e8",
+  "restore": "git apply --reverse --check patch; git apply --reverse patch",
+  "restore_validation": "git diff --exit-code -- core/src/firmware.rs core/tests/keycaps.rs core/tests/keymap_workflow.rs passed; all three match HEAD.",
+  "budget": "Administrative repair 2/2 for formatter-scope issue; implementation repair budget remains 0/2.",
+  "note": "No unowned provider edits were staged or discarded; their exact patch and pre-restore contents are committed as task-local evidence."
+}

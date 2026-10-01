@@ -1,0 +1,139 @@
+{
+  "task": "P2-LIFECYCLE P2-r1-R1",
+  "scope": "Independent coordinator Chromium confirmation of interim subpath artifact before the live-DPR repair; not final acceptance or whole-editor parity",
+  "url": "http://127.0.0.1:4392/boardstudio/",
+  "browser_session": "p2-coordinator-4485103529b9",
+  "executable": "/usr/bin/chromium",
+  "viewport": {
+    "width": 1280,
+    "height": 720,
+    "dpr": 1
+  },
+  "stage_manifest": "../renewal-worker/staging-subpath-tmpdir-r1-20261001.json",
+  "app_wasm_sha256": "7ed8e3e900f80c9fe8400a5042a9db64a6bfc99af17b3c9fe02fb9a1c157e1ce",
+  "visible_canvas": "Coordinator inspected screenshot ../../target/renewal/browser/subpath-initial.png: green board geometry visibly painted against dark canvas",
+  "assertions": [
+    "Actual integer-coordinate mouse drag committed through public CoreEngine worker",
+    "One Undo restored exact initial visible target pose",
+    "One Redo restored exact committed visible target pose",
+    "Page fetched repaired app WASM7448875 bytes and existing renderer WASM867474 bytes",
+    "Browser errors empty after initial mount"
+  ],
+  "limits": [
+    "Subpath only at this checkpoint",
+    "Initial visible-frame and ordinary gesture/history confirmation; no final DPR/cleanup/late-result/reference/resource/a11y acceptance",
+    "Fractional mouse coordinate CLI invocation rejected; preserved as command usage diagnostic, corrected to integer coordinates"
+  ],
+  "commands": [
+    {
+      "command": "agent-browser --session p2-coordinator-4485103529b9 mouse move 392.83375549316406 442.4729309082031",
+      "exit_code": 1,
+      "output": "Missing arguments for: mouse move\nUsage: agent-browser mouse move <x> <y>\n",
+      "note": "CLI rejects fractional coordinates; no page mutation. Use integer coordinates."
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 mouse move 393 442",
+      "chunk_id": "59647f",
+      "wall_time_seconds": 0.000061226,
+      "exit_code": 0,
+      "original_token_count": 3,
+      "output": "✓ Done\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 mouse down left",
+      "chunk_id": "096cc1",
+      "wall_time_seconds": 0.000024086,
+      "exit_code": 0,
+      "original_token_count": 3,
+      "output": "✓ Done\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 mouse move 426 450",
+      "chunk_id": "e14d15",
+      "wall_time_seconds": 0.000017082,
+      "exit_code": 0,
+      "original_token_count": 3,
+      "output": "✓ Done\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 mouse up left",
+      "chunk_id": "c51ba6",
+      "wall_time_seconds": 0.000018565,
+      "exit_code": 0,
+      "original_token_count": 3,
+      "output": "✓ Done\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 eval --stdin <<'JS'\n(() => ({status:document.querySelector('.status').textContent,transform:document.querySelector('[data-part-id=\"matrix/main-right-keys/r0c0\"]').getAttribute('transform'),canvasState:document.querySelector('canvas').getAttribute('data-renderer-state'),submissions:document.querySelector('canvas').getAttribute('data-render-submissions')}))()\nJS",
+      "chunk_id": "379c42",
+      "wall_time_seconds": 0.000013155,
+      "exit_code": 0,
+      "original_token_count": 47,
+      "output": "{\n  \"canvasState\": \"active\",\n  \"status\": \"Drag committed by public CoreEngine worker\",\n  \"submissions\": \"4\",\n  \"transform\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\"\n}\n"
+    },
+    {
+      "command": "snapshot -i -d 2",
+      "chunk_id": "74364d",
+      "wall_time_seconds": 0.000013194,
+      "exit_code": 0,
+      "original_token_count": 1025,
+      "output": "- heading \"BoardStudio P2 lifecycle probe\" [level=1, ref=e1]\n- button \"Unmount editor panel\" [ref=e2]\n- button \"Undo\" [ref=e3]\n- button \"Redo\" [ref=e4]\n- heading \"Keyboard layout\" [level=2, ref=e5]\n- application \"Keyboard layout editor\" [ref=e6] focusable [tabindex]\n  - button \"main-right-keys-SW1, selected drag target\" [ref=e8]\n  - button \"main-diode-18-right-keys\" [ref=e9]\n  - button \"main-right-keys-SW2\" [ref=e10]\n  - button \"main-diode-17-right-keys\" [ref=e11]\n  - button \"main-right-keys-SW3\" [ref=e12]\n  - button \"main-diode-13-right-keys\" [ref=e13]\n  - button \"main-right-keys-SW4\" [ref=e14]\n  - button \"main-diode-14-right-keys\" [ref=e15]\n  - button \"main-right-keys-SW5\" [ref=e16]\n  - button \"main-diode-15-right-keys\" [ref=e17]\n  - button \"main-right-keys-SW6\" [ref=e18]\n  - button \"main-diode-16-right-keys\" [ref=e19]\n  - button \"main-right-keys-SW7\" [ref=e20]\n  - button \"main-diode-12-right-keys\" [ref=e21]\n  - button \"main-right-keys-SW8\" [ref=e22]\n  - button \"main-diode-11-right-keys\" [ref=e23]\n  - button \"main-right-keys-SW9\" [ref=e24]\n  - button \"main-diode-7-right-keys\" [ref=e25]\n  - button \"main-right-keys-SW10\" [ref=e26]\n  - button \"main-diode-8-right-keys\" [ref=e27]\n  - button \"main-right-keys-SW11\" [ref=e28]\n  - button \"main-diode-9-right-keys\" [ref=e29]\n  - button \"main-right-keys-SW12\" [ref=e30]\n  - button \"main-diode-10-right-keys\" [ref=e31]\n  - button \"main-right-keys-SW13\" [ref=e32]\n  - button \"main-diode-6-right-keys\" [ref=e33]\n  - button \"main-right-keys-SW14\" [ref=e34]\n  - button \"main-diode-5-right-keys\" [ref=e35]\n  - button \"main-right-keys-SW15\" [ref=e36]\n  - button \"main-diode-1-right-keys\" [ref=e37]\n  - button \"main-right-keys-SW16\" [ref=e38]\n  - button \"main-diode-2-right-keys\" [ref=e39]\n  - button \"main-right-keys-SW17\" [ref=e40]\n  - button \"main-diode-3-right-keys\" [ref=e41]\n  - button \"main-right-keys-SW18\" [ref=e42]\n  - button \"main-diode-4-right-keys\" [ref=e43]\n  - button \"main-left-keys-SW1\" [ref=e44]\n  - button \"main-diode-16-left-keys\" [ref=e45]\n  - button \"main-left-keys-SW2\" [ref=e46]\n  - button \"main-diode-15-left-keys\" [ref=e47]\n  - button \"main-left-keys-SW3\" [ref=e48]\n  - button \"main-diode-14-left-keys\" [ref=e49]\n  - button \"main-left-keys-SW4\" [ref=e50]\n  - button \"main-diode-13-left-keys\" [ref=e51]\n  - button \"main-left-keys-SW5\" [ref=e52]\n  - button \"main-diode-17-left-keys\" [ref=e53]\n  - button \"main-left-keys-SW6\" [ref=e54]\n  - button \"main-diode-18-left-keys\" [ref=e55]\n  - button \"main-left-keys-SW7\" [ref=e56]\n  - button \"main-diode-10-left-keys\" [ref=e57]\n  - button \"main-left-keys-SW8\" [ref=e58]\n  - button \"main-diode-9-left-keys\" [ref=e59]\n  - button \"main-left-keys-SW9\" [ref=e60]\n  - button \"main-diode-8-left-keys\" [ref=e61]\n  - button \"main-left-keys-SW10\" [ref=e62]\n  - button \"main-diode-7-left-keys\" [ref=e63]\n  - button \"main-left-keys-SW11\" [ref=e64]\n  - button \"main-diode-11-left-keys\" [ref=e65]\n  - button \"main-left-keys-SW12\" [ref=e66]\n  - button \"main-diode-12-left-keys\" [ref=e67]\n  - button \"main-left-keys-SW13\" [ref=e68]\n  - button \"main-diode-4-left-keys\" [ref=e69]\n  - button \"main-left-keys-SW14\" [ref=e70]\n  - button \"main-diode-3-left-keys\" [ref=e71]\n  - button \"main-left-keys-SW15\" [ref=e72]\n  - button \"main-diode-2-left-keys\" [ref=e73]\n  - button \"main-left-keys-SW16\" [ref=e74]\n  - button \"main-diode-1-left-keys\" [ref=e75]\n  - button \"main-left-keys-SW17\" [ref=e76]\n  - button \"main-diode-5-left-keys\" [ref=e77]\n  - button \"main-left-keys-SW18\" [ref=e78]\n  - button \"main-diode-6-left-keys\" [ref=e79]\n  - button \"main-thumbs-SW1\" [ref=e80]\n  - button \"main-diode-2-thumbs\" [ref=e81]\n  - button \"main-thumbs-SW2\" [ref=e82]\n  - button \"main-diode-4-thumbs\" [ref=e83]\n  - button \"main-thumbs-SW3\" [ref=e84]\n  - button \"main-diode-5-thumbs\" [ref=e85]\n  - button \"main-stabilizer-5-thumbs\" [ref=e86]\n  - button \"main-thumbs-SW4\" [ref=e87]\n  - button \"main-diode-3-thumbs\" [ref=e88]\n  - button \"main-thumbs-SW5\" [ref=e89]\n  - button \"main-diode-1-thumbs\" [ref=e90]\n  - button \"main-U1\" [ref=e91]\n  - button \"main-RST\" [ref=e92]\n- heading \"Existing 3D renderer\" [level=2, ref=e7]\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 click @e3",
+      "chunk_id": "73b192",
+      "wall_time_seconds": 0.000008216,
+      "exit_code": 0,
+      "original_token_count": 3,
+      "output": "✓ Done\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 wait --text 'One-step Undo completed'",
+      "chunk_id": "1460c0",
+      "wall_time_seconds": 0.000013185,
+      "exit_code": 0,
+      "original_token_count": 6,
+      "output": "One-step Undo completed\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 eval --stdin <<'JS'\n(() => {const transform=document.querySelector('[data-part-id=\"matrix/main-right-keys/r0c0\"]').getAttribute('transform');const expected='translate(519.8244267835937 248.40467708047873) rotate(-10)';if(transform!==expected)throw new Error('Undo did not restore original visible pose: '+transform);return {assertion:'One Undo restores exact original visible target pose',pass:true,transform,status:document.querySelector('.status').textContent};})()\nJS",
+      "chunk_id": "f885de",
+      "wall_time_seconds": 0.000012253,
+      "exit_code": 0,
+      "original_token_count": 52,
+      "output": "{\n  \"assertion\": \"One Undo restores exact original visible target pose\",\n  \"pass\": true,\n  \"status\": \"One-step Undo completed\",\n  \"transform\": \"translate(519.8244267835937 248.40467708047873) rotate(-10)\"\n}\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 click @e4",
+      "chunk_id": "db902c",
+      "wall_time_seconds": 0.00001064,
+      "exit_code": 0,
+      "original_token_count": 3,
+      "output": "✓ Done\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 wait --text 'One-step Redo completed'",
+      "chunk_id": "674e09",
+      "wall_time_seconds": 0.000011772,
+      "exit_code": 0,
+      "original_token_count": 6,
+      "output": "One-step Redo completed\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 eval --stdin <<'JS'\n(() => {const transform=document.querySelector('[data-part-id=\"matrix/main-right-keys/r0c0\"]').getAttribute('transform');const expected='translate(568.4253104360238 260.1960603004334) rotate(-10)';if(transform!==expected)throw new Error('Redo did not restore committed visible pose: '+transform);return {assertion:'One Redo restores exact committed visible target pose',pass:true,transform,status:document.querySelector('.status').textContent};})()\nJS",
+      "chunk_id": "9dd612",
+      "wall_time_seconds": 0.000015579,
+      "exit_code": 0,
+      "original_token_count": 52,
+      "output": "{\n  \"assertion\": \"One Redo restores exact committed visible target pose\",\n  \"pass\": true,\n  \"status\": \"One-step Redo completed\",\n  \"transform\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\"\n}\n"
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-4485103529b9 eval --stdin <<'JS'\nperformance.getEntriesByType('resource').filter(e=>e.name.includes('.wasm')).map(e=>({url:e.name,transferSize:e.transferSize,decodedBodySize:e.decodedBodySize}))\nJS",
+      "chunk_id": "afd3a4",
+      "wall_time_seconds": 0.000012363,
+      "exit_code": 0,
+      "original_token_count": 85,
+      "output": "[\n  {\n    \"decodedBodySize\": 7448875,\n    \"transferSize\": 7449175,\n    \"url\": \"http://127.0.0.1:4392/boardstudio/assets/p2-lifecycle-probe_bg-dxhd17938f28d94ebe9.wasm\"\n  },\n  {\n    \"decodedBodySize\": 867474,\n    \"transferSize\": 867774,\n    \"url\": \"http://127.0.0.1:4392/boardstudio/assets/renderer/boardstudio_renderer_wasm_bg.wasm\"\n  }\n]\n"
+    }
+  ]
+}

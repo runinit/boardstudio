@@ -495,3 +495,184 @@ Standards/Spec review; no executable probe, provider code or format patch is
 applied. Final review/integration/check/closure commits and results are persisted
 in the owned `target/final-handoff.json` and integration-owned copy after review.
 No main merge, push, deploy or protected-worktree changes.
+
+## P2-r1-R1 approved Luna Fast renewal
+
+User **approved** the exact renewal/execution policy after the Wayfinder routing
+investigation. Proposal commit e4d622bd and SHA-256
+`8d44c8b16fc5f7e4245dc3894ab912d0e14fc19713a7d1b13f073923ebfe5d45`;
+[authority](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/task-start.json),
+[approved decision](../../.scratch/dioxus-browser-trial/issues/08-choose-p2-execution-policy.md).
+Integration base689f8962; new owned worktree
+/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001, branch
+prototype/boardstudio-p2-lifecycle-r1. Checkout authorization/fixture commit
+e5383450 precedes the assigned writer. Original exhausted P2 worktree remains.
+
+Before executable edits, copy the full existing Reviung41 project fixture;
+105292 bytes, SHA b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae,
+existing unlocked switch matrix/main-right-keys/r0c0. No document fields are
+removed. Initial metadata preparation assumed bare SW references and failed;
+administrative repair1 uses the actual definition kind. Its partial static-copy
+commit is preserved; authority is completed before writer assignment. This does
+not consume the renewed implementation repair budget or conceal a failed gate.
+New finite limits are two implementation and two administrative repairs.
+
+Fresh read-only Luna/medium smoke verifies actual clean base/worktree, installed
+Codex0.159.3, Dioxus0.7.10, Rust1.98, pnpm12.6, wasm-pack0.15, agent-browser0.38.1
+and Chromium153. Required commands and exact unapplied raw patch/four-file hashes
+are available. Unsupported git apply --stdin fails read-only; the justified stdin
+hyphen fallback applicability check passes. DB and turn_context independently
+confirm Luna/medium. Results are preserved before supported archival with DB proof.
+One coding writer requests Luna/high Fast/priority; independent DB/turn_context
+confirm Luna/high. Current config requests Fast; runtime served tier is absent,
+not inferred from agent self-identification or configuration. No model/config/
+permission change, paid external service or protected-worktree write occurs.
+
+The exact approved formatting patch is applied; renderer fmt passes. Required
+native strict Clippy fails with14 lib/17 test renderer errors, including existing
+assets/wrl/geometry/dead-code patterns; WASM strict Clippy fails with29 lib/33 test
+renderer errors. Vendor warnings are separate. This blocks
+acceptance and is not silently suppressed or fixed outside the exact-format
+allowance. [Worker evidence](../../.scratch/prototypes/p2-lifecycle/evidence/renewal-worker/)
+retains commands/output. The approved interim-demo clause allows safe independent
+P2 implementation/build/runtime work to continue, clearly incomplete until every
+original gate is met. No executable candidate acceptance/integration is claimed.
+Root alone updates canonical status and integration; writer touches only its
+assigned paths and commits coherent verified increments. Final candidate/review/
+integration results and all failures/unperformed gates will be recorded here.
+
+Administrative repair2: the writer's standalone prototype `cargo fmt --all`
+also formatted three core path-dependency files outside its ownership. The
+writer reported the command and preserved both the exact patch and complete
+post-format file bytes in the worker evidence directory before reverse-checking
+and reversing only its own accidental formatting. All three files then matched
+HEAD; no unrelated changes were reset or discarded. The administrative budget
+is now2/2; implementation repairs remain0/2 at this checkpoint. Later formatter
+checks must target owned prototype sources without recursively formatting
+providers. The protected assessment's31 recorded files, HEAD and historical
+dirty status remain unchanged in the coordinator's read-only preservation audit.
+
+Implementation repair1: Chromium rejected a truncated packaged Dioxus WASM
+module; coordinator Node validation independently confirmed the same invalid
+2,281,472-byte staged artifact. Upstream Rust and direct optimizer artifacts
+validated. The host's /tmp tmpfs was nearly full, while the owned home filesystem
+had adequate capacity. An unchanged locked Dioxus build using a task-local
+TMPDIR produced valid7,448,875-byte WASM without pin, optimizer-flag or gate
+changes. Failed output remains preserved. The explicit staging script supplies
+stable sibling worker/renderer URLs alongside Dioxus's hashed release assets.
+
+The interim subpath release at http://127.0.0.1:4392/boardstudio/ runs. In its
+independent task-owned Chromium session the coordinator inspected actual visible
+board pixels, committed a real mouse drag and asserted exact visible target
+restoration through one Undo and Redo. The browser fetched the repaired WASM;
+initial errors were empty. [Interim coordinator evidence](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/root-interim-browser.json)
+records the artifact and limits. This is not the final reviewed candidate.
+
+Implementation repair2: live DPR-only emulation left the mounted canvas at DPR1,
+while remounting at DPR2 sized it correctly. The scoped owned resolution-query
+notification and teardown path now passes native browser notification checks;
+locked r2 releases serve root4394 and subpath4393. The implementation budget is now2/2; another
+diagnosed failed acceptance gate cannot authorize a third repair. Required
+baseline provider lints and all unperformed checks remain explicit; no acceptance
+or executable integration is inferred from this working interim build.
+
+Coordinator checks the r2 root release in a fresh owned Chromium session: visible
+green board pixels, native DPR1→2 on the same canvas at unchanged CSS dimensions,
+and repeated mount/unmount with instrumented actual listeners, ResizeObserver,
+RAF and generated renderer dispose/free. Four normal unmounts return tracked
+resources to zero. Actual WEBGL_lose_context reports explicit failure and stops
+frames; the fifth unmount cleans resources and a new mount succeeds. These are
+scoped lifetime assertions, not a whole-process GPU-memory or full-editor claim.
+[Independent checkpoint](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/root-browser-checkpoint.json)
+retains commands and limitations. A reused session navigating from4392 to4394
+failed initialization and requested renderer JS from the previous4392 origin;
+the fresh session fetched the correct4394 assets. The discrepancy remains
+unexplained and is not erased by the successful fresh-session result.
+
+Full reference app tests now pass81 suites/469 tests after copying the exact
+accepted CAD artifact into the new worktree's ignored output. The frontend build,
+contracts/tests, repository and boundary checks pass. Full native core tests and
+renderer26 tests pass. Read-only core fmt still fails on three unchanged provider
+files; core strict Clippy fails69 library/76 library-test diagnostics. The exact
+four-file renderer-format allowance does not authorize those provider repairs.
+Provider gates remain blocking. Remaining paired reference, accessibility,
+resource and final exact-candidate review evidence is still being collected;
+this checkpoint does not mark P2 complete or integrate its executable code.
+
+The r2 root coordinator session also passes trusted Tab reachability to the
+named SVG surface, a keyboard move followed by exact one-step Undo, and a real
+mouse drag followed by exact one-step Undo/Redo. The coordinator independently
+reruns the locked native prototype suite:7 tests pass. [Scoped probe record](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/root-browser-probe.json)
+retains the full command/output ledger. Worker axe reports html-has-lang at both
+prefixes; contrast and screen-reader evidence are incomplete. This newly found
+accessibility failure remains blocking with no third implementation repair.
+
+**Additional verified behavior blocker:** at1280×577/DPR1, the copied target's
+pointerdown at(393,442) captures the SVG coordinate frame before focusing it.
+Focus scrolls the page139px and moves the SVG top273.125→134.125; subsequent
+move/up at(423,466) use the shifted frame. The actual public worker commits
+pose(147.285,-51.02)→(160.4281293,-122.4876778), revision3→4, moving the target
+offboard. The corresponding reference remains unscrolled. Different fitted
+view scales mean identical CSS deltas alone do not establish geometric parity;
+the captured-frame discontinuity is the directly observed defect.
+[Exact coordinate/request/pose evidence](../../.scratch/prototypes/p2-lifecycle/evidence/renewal-worker/p2-offboard-focus-repro.json)
+and screenshots are retained. The coordinator separately observes focus-induced
+scroll116px at1280×600; its mutated overlapping fixture did not reproduce this
+exact target move, so that observation is only corroborating frame evidence.
+The earlier1280×720 trusted drag/Undo/Redo pass remains scoped to that viewport.
+No source repair follows the exhausted2/2 implementation budget.
+
+A controlled delay of the actual generated renderer module import, followed by
+panel unmount before the Promise resolves, makes zero WebGL allocations and
+leaves zero tracked listeners/observers/RAF; stale status is not published and
+a later fresh mount succeeds. [Coordinator late-import/focus evidence](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/root-late-import-and-focus.json)
+records this test and its instrumentation. It does not waive the confirmed drag,
+accessibility or provider gate failures. The source candidate stays isolated;
+only accurate status/evidence may enter the dedicated migration branch.
+
+The writer freezes owned prototype/evidence source at
+`b2cf39db55db7826368031e61bb1b033bb652800`; its index is released. Results are
+preserved before supported archival; current read-only DB confirms Luna/high
+and archived1. [Final worker ledger](../../.scratch/prototypes/p2-lifecycle/evidence/renewal-worker/validation-ledger.json)
+retains actual locked Dioxus build commands, both prefix stages, native334 core
+passes/6 existing ignored, renderer26, prototype7, app469, contract/repository/
+boundary results and blocked checks. Existing reference browser cancellation/
+history tests pass4/4 on the final valid task-temp run at4399; focused part drag/
+Undo and keyboard nudge/Undo pass2/2 at4398, retries0/one worker. No provider
+source or assertion was changed. Axe raw execution/report was not retained;
+that gate is unverified despite the reported violation, and contrast/screen-
+reader/focus-equivalence evidence remains incomplete. The coordinator observes
+the empty html language attribute directly. No blanket browser acceptance follows.
+
+[Frozen source hashes](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/frozen-source.json)
+and [owned server/restart inventory](../../.scratch/prototypes/p2-lifecycle/evidence/renewal-worker/owned-servers.json)
+make the incomplete release reviewable. The coordinator independently reruns the
+frozen locked native probe:7/7 pass. All31 protected historical file hashes,
+HEAD and dirty status match the original preservation record. Fresh Standards
+and Spec reviews follow against current integration base689f8962; no executable
+candidate integration or task completion is authorized while these gates fail.
+
+The status handoff is prepared separately from689f8962 on
+docs/boardstudio-p2-handoff. [Handoff scope](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/handoff-scope.json)
+contains documentation, the immutable copied fixture and selected recorded
+evidence. It excludes executable Rust/JS/Python, Cargo manifests/locks, WASM and
+the renderer formatting changes. Those remain solely in preserved source
+`b2cf39db`, full review candidate`57bd6ece`, under
+/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001.
+The formatter and build pass claims above describe that owned prototype
+candidate; provider sources on the migration branch remain at the prior accepted
+base. The copied evidence subset is not a standalone rebuildable prototype.
+
+Final independent reviews completed read-only against source/report candidate
+`57bd6eceed3bce9ad9b854121e93d8adc22f7bf8` and integration base689f8962. The
+Spec review confirms the short-viewport focus-scroll coordinate defect and rejects
+executable acceptance. It also found the inherited prototype README still says
+the predecessor run is unstarted and points to its old authority path. That
+README records historical predecessor status and was preserved; this renewal
+RUN/task status is the current authority. The Standards review found no hard
+standards violation, identified only an optional inspection/readability note
+about the1,088line web module, and withdrew an initial pointer-capture finding
+after confirming existing lost-pointer-capture cancellation. Both reports are
+[retained here](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/).
+Review completion does not satisfy the failed provider, drag or accessibility
+gates. The code candidate is not integrated.

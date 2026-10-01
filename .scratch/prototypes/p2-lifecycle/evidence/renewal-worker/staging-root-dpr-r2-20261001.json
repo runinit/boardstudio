@@ -1,0 +1,34 @@
+{
+  "mode": "root",
+  "build_id": "dpr-r2-20261001",
+  "base_path": "/",
+  "dioxus_public": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/dx/p2-lifecycle-probe/release/web/public",
+  "staged_site": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/renewal-worker/site-root-dpr-r2-20261001",
+  "dioxus_assets": {
+    "assets/boardstudio_renderer_wasm-dxh4d7fd5e795157440.js": "ba153e2e95b9fb9690b975b055224344e0ff31e7626fd62132ccc98ca4f78a0c",
+    "assets/boardstudio_renderer_wasm_bg-dxha266dffd2d3dd698.wasm": "ed5e115042045358680ad4355ddceb5d457aa3b906f23646fc31494caf979864",
+    "assets/p1_core-dxhebaf8c8fb986034.js": "0b33a127bbdf50e54f08c66ff3a0822cf26ffb351b4abc09e30dd10ee829c9d6",
+    "assets/p1_core_bg-dxh5c7186b180a68870.wasm": "913041a1fc01e5337dbfb3c0c53a217761c31209965ae3268d4780d9113a7f26",
+    "assets/p2-lifecycle-probe-dxh1dd97281c9c1bf8.js": "a91c3c029222a63e0f6dec4427fa74bd6f3ce66183690cd4424cb44b445b49e8",
+    "assets/p2-lifecycle-probe-dxh432a29c01de4af1e.js": "14f826e88eeba929a28c7636b93fa3ba39c8c732dbdba462f7524357aecaf549",
+    "assets/p2-lifecycle-probe-dxh68fd6cecbc9467d.js": "63b5c2cc2a810ce4cefe003ae963b39492d1c22df0183991125d617a3cf7791a",
+    "assets/p2-lifecycle-probe-dxhd1f4566d8d37c94c.js": "ddd1cc5db7c4c0a7d47554c1ba7d3ecfda0d25a77ebbfde246af1a15ff6c53ed",
+    "assets/p2-lifecycle-probe_bg-dxhd17938f28d94ebe9.wasm": "7ed8e3e900f80c9fe8400a5042a9db64a6bfc99af17b3c9fe02fb9a1c157e1ce",
+    "assets/p2-lifecycle-probe_bg-dxhd1ed8b8fc5a59135.wasm": "3624990ee51631e90deca5a9cc1335144929c75bcdc57b539c11cd7a122abaf9",
+    "assets/p2-lifecycle-probe_bg-dxhdaedaee6c2678d1.wasm": "ab9aafaa76d109ec4727d398ada8734bdd8f8bdd87007d4515bb858ac270f740",
+    "assets/worker-entry-dxh355de976edf88e9.js": "e72d2960adf1c0bace4fd849ea4cdb29019f2889ec402d62ccfe15435de250cc"
+  },
+  "same_origin_worker_renderer_assets": {
+    "assets/p1-worker/p1_core.js": "22159af2bcdea073243e47408c716900021ba52055161ad2de5547a0a1e9870d",
+    "assets/p1-worker/p1_core_bg.wasm": "913041a1fc01e5337dbfb3c0c53a217761c31209965ae3268d4780d9113a7f26",
+    "assets/renderer/boardstudio_renderer_wasm.js": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+    "assets/renderer/boardstudio_renderer_wasm_bg.wasm": "ed5e115042045358680ad4355ddceb5d457aa3b906f23646fc31494caf979864",
+    "assets/worker/worker-entry.js": "652acf853416adcf6af0cd83183a048df67d6c53cad3608af313117d3647c948"
+  },
+  "asset_url_paths": {
+    "worker_entry": "/assets/worker/worker-entry.js",
+    "renderer_module": "/assets/renderer/boardstudio_renderer_wasm.js",
+    "renderer_wasm": "/assets/renderer/boardstudio_renderer_wasm_bg.wasm"
+  },
+  "fixture_sha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae"
+}

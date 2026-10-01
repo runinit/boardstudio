@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-10-01",
+  "note": "Servers are intentionally left running so fresh reviewers can inspect stages. Root sessions may use ports 4393 and 4394; do not terminate without coordinating.",
+  "servers": [
+    {"port": 4391, "pid": 3824272, "command": "python3 -m http.server 4391 --bind 127.0.0.1 --directory .scratch/prototypes/p2-lifecycle/wasm/target/renewal-worker/site-subpath-final-20261001", "url": "http://127.0.0.1:4391/", "stage": "older initial subpath stage"},
+    {"port": 4392, "pid": 3845705, "command": "python3 -m http.server 4392 --bind 127.0.0.1 --directory target/renewal-worker/site-subpath-tmpdir-r1-20261001", "url": "http://127.0.0.1:4392/", "stage": "first TMPDIR repair stage, before DPR listener patch"},
+    {"port": 4393, "pid": 3869147, "command": "python3 -m http.server 4393 --bind 127.0.0.1 --directory target/renewal-worker/site-subpath-dpr-r2-20261001", "url": "http://127.0.0.1:4393/boardstudio/", "stage": "fresh repaired subpath r2 release"},
+    {"port": 4394, "pid": 3881831, "command": "python3 -m http.server 4394 --bind 127.0.0.1 --directory target/renewal-worker/site-root-dpr-r2-20261001", "url": "http://127.0.0.1:4394/", "stage": "fresh repaired root r2 release"},
+    {"port": 4395, "pid": 3917341, "command": "pnpm --dir app exec vite preview --host 127.0.0.1 --port 4395 --strictPort", "url": "http://127.0.0.1:4395/", "stage": "built reference app preview"},
+    {"port": 4396, "pid": 3921257, "command": "python3 -u .scratch/prototypes/p2-lifecycle/evidence/renewal-worker/reference-fixture-server.py", "stage": "copied reference-fixture CORS server"}
+  ],
+  "testServers": [
+    {"port": 4397, "status": "exited", "purpose": "first canvas-interactions run; last-run status passed but task TMPDIR was supplied as a missing relative path from the worktree root; superseded by valid run on 4399"},
+    {"port": 4398, "status": "exited", "purpose": "focused workbench drag/keyboard E2E; passed"},
+    {"port": 4399, "status": "exited", "purpose": "final canvas-interactions E2E with system Chromium and valid task-local TMPDIR; passed"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "recorded_utc": "2026-10-01T15:31:30.863757+00:00",
+  "requested_model": "gpt-6-luna",
+  "requested_effort": "medium",
+  "thread": {
+    "id": "01a0f815-8a37-7332-b2b5-3b87061bb61b",
+    "agent_path": "/root/luna_fast_execution_research",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "medium",
+    "archived": 1,
+    "rollout_path": "/home/chris/.codex/sessions/2026/10/01/rollout-2026-10-01T11-29-16-01a0f815-8a37-7332-b2b5-3b87061bb61b.jsonl"
+  },
+  "turn_context": [
+    {
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2",
+      "service_tier_present": false
+    }
+  ],
+  "configured_fast": true,
+  "served_tier_confirmation": false,
+  "investigator_doctor_command": "codex --strict-config -m gpt-6-luna -c model_reasoning_effort=high -c service_tier=fast doctor --summary --json",
+  "investigator_doctor_exit": 0,
+  "permission_or_config_changes": false,
+  "archival": "Results preserved then supported set_thread_archived succeeded; readonly DB independently confirms archived=1"
+}
