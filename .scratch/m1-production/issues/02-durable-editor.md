@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** native session and browser composition implemented; interaction/storage browser acceptance in progress
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 

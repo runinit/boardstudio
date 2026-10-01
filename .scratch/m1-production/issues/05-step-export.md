@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** captured independent STEP execution implemented; readback/cancellation acceptance in progress
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 
