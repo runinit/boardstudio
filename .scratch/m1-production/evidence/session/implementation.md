@@ -21,8 +21,9 @@ Candidate branch: `codex/m1-session-worker-20261001`, created from integration `
 
 - `cargo test --manifest-path application/Cargo.toml --locked --test durable_session`: 8 passed.
 - `cargo clippy --manifest-path application/Cargo.toml --locked --all-targets -- -D warnings`: passed.
-- `cargo fmt --manifest-path application/Cargo.toml`: applied; final `--check` remains to run before commit.
-- `git diff --check`: remains to run before commit.
+- `cargo fmt --manifest-path application/Cargo.toml --check`: passed after merging integration tip `57594008`.
+- `git diff --check 57594008..HEAD`: passed after the merge.
+- Integration tip `57594008` was merged into the worker branch; no conflicts.
 
 ## Limits
 
