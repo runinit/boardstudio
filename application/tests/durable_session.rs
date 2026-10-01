@@ -14,6 +14,8 @@ fn fixture() -> ProjectDoc {
         courtyard: vec![],
         pads: vec![],
         models: None,
+        hardware_profile: None,
+        input_profile: None,
         keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
         envelope_source: None,
         kicad_source: None,
@@ -569,6 +571,84 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
             outcome: TerminalOutcome::Completed
         }
     )));
+}
+
+#[test]
+fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let accepted = session
+        .read_model()
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .as_ref()
+        .clone();
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let (save_attempt_id, _) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("quota".into()),
+    });
+
+    let effects = session.submit(Event::RecoverWithDocument {
+        operation_id: OperationId(71),
+        document: accepted,
+    });
+    assert!(
+        matches!(effects.first(), Some(Effect::Core { request, .. }) if matches!(**request, CoreRequest::Open { .. }))
+    );
+    let active_epoch = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Core { executor_epoch, .. } => Some(*executor_epoch),
+            _ => None,
+        })
+        .unwrap();
+
+    session.complete(Completion::ExecutorRestarted {
+        executor_epoch: ExecutorEpoch(active_epoch.0 - 1),
+    });
+    session.submit(Event::Open {
+        operation_id: OperationId(72),
+        document: fixture(),
+    });
+    let open = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Core { request, .. } => Some((**request).clone()),
+            _ => None,
+        })
+        .unwrap();
+    let mut restarted = CoreEngine::new();
+    let reply = restarted.handle(open);
+    let effects = session.complete(Completion::Core {
+        request_id: core_effect(&effects).0,
+        executor_epoch: active_epoch,
+        reply: Box::new(reply),
+    });
+    let (save_attempt_id, _) = save_effect(&effects);
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+    let next_epoch = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Core { executor_epoch, .. } => Some(*executor_epoch),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(next_epoch, active_epoch);
 }
 
 #[test]
