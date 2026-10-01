@@ -714,14 +714,25 @@ mod feature_edge_tests {
 
     #[test]
     fn coplanar_triangle_diagonals_are_not_cad_edges() {
-        let mesh = MeshData { positions: vec![[0.,0.,0.],[10.,0.,0.],[10.,10.,0.],[0.,10.,0.]], indices: vec![0,1,2,0,2,3], ..MeshData::default() };
+        let mesh = MeshData {
+            positions: vec![[0., 0., 0.], [10., 0., 0.], [10., 10., 0.], [0., 10., 0.]],
+            indices: vec![0, 1, 2, 0, 2, 3],
+            ..MeshData::default()
+        };
         assert_eq!(feature_edges(&mesh).len(), 4);
     }
 
     #[test]
     fn solid_box_has_twelve_feature_edges() {
-        let points = [[0.,0.],[10.,0.],[10.,10.],[0.,10.]];
-        let mesh = board_mesh(&[BoardContour { points: &points, hole: false }], 2.).unwrap();
+        let points = [[0., 0.], [10., 0.], [10., 10.], [0., 10.]];
+        let mesh = board_mesh(
+            &[BoardContour {
+                points: &points,
+                hole: false,
+            }],
+            2.,
+        )
+        .unwrap();
         assert_eq!(feature_edges(&mesh).len(), 12);
     }
 }

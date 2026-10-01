@@ -50,9 +50,12 @@ pub fn pcb_model_transform(
 
 /// The local handle mesh is retained while its physical frame moves.
 pub(crate) fn handle_pose(at: [f32; 3], tangent: [f32; 2], normal: [f32; 2]) -> Mat4 {
-    Mat4::from_cols(Vec4::new(tangent[0], tangent[1], 0., 0.),
-        Vec4::new(normal[0], normal[1], 0., 0.), Vec4::new(0., 0., 1., 0.),
-        Vec4::new(at[0], at[1], at[2], 1.))
+    Mat4::from_cols(
+        Vec4::new(tangent[0], tangent[1], 0., 0.),
+        Vec4::new(normal[0], normal[1], 0., 0.),
+        Vec4::new(0., 0., 1., 0.),
+        Vec4::new(at[0], at[1], at[2], 1.),
+    )
 }
 
 #[cfg(test)]
@@ -64,7 +67,9 @@ mod handle_tests {
         let world = transform_point(pose, [2., 0.5, 0.3]);
         assert_eq!(world, [11.5, 26., 7.3]);
         let local = transform_point(pose.invert().unwrap(), world);
-        for (a, b) in local.into_iter().zip([2., 0.5, 0.3]) { assert!((a - b).abs() < 0.00001); }
+        for (a, b) in local.into_iter().zip([2., 0.5, 0.3]) {
+            assert!((a - b).abs() < 0.00001);
+        }
         let ray = pose.invert().unwrap() * Vec4::new(0., 0., -1., 0.);
         assert_eq!(ray, Vec4::new(0., 0., -1., 0.));
     }

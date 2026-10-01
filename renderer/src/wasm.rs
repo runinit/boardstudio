@@ -69,10 +69,16 @@ fn float_buffer<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Vec<f32>, D::
     read_float_buffer(value).map_err(serde::de::Error::custom)
 }
 
-fn optional_float_buffer<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Option<Vec<f32>>, D::Error> {
+fn optional_float_buffer<'de, D: serde::Deserializer<'de>>(
+    de: D,
+) -> Result<Option<Vec<f32>>, D::Error> {
     let value: JsValue = serde_wasm_bindgen::preserve::deserialize(de)?;
-    if value.is_null() || value.is_undefined() { return Ok(None); }
-    read_float_buffer(value).map(Some).map_err(serde::de::Error::custom)
+    if value.is_null() || value.is_undefined() {
+        return Ok(None);
+    }
+    read_float_buffer(value)
+        .map(Some)
+        .map_err(serde::de::Error::custom)
 }
 
 #[derive(Default, Deserialize)]
@@ -246,7 +252,10 @@ impl Material for SectionMaterial {
 
     fn use_uniforms(&self, program: &Program, viewer: &dyn Viewer, lights: &[&dyn three_d::Light]) {
         self.physical.use_uniforms(program, viewer, lights);
-        program.use_uniform("sectionPlane", self.section.unwrap_or(Vec4::new(0., 0., 0., 0.)));
+        program.use_uniform(
+            "sectionPlane",
+            self.section.unwrap_or(Vec4::new(0., 0., 0., 0.)),
+        );
         program.use_uniform("sectionEnabled", i32::from(self.section.is_some()));
     }
 
@@ -329,10 +338,24 @@ impl Renderer {
                 100_000.0,
             ),
             section_plane: {
-                let mut material = PhysicalMaterial::new_transparent(&context, &CpuMaterial { albedo:Srgba::new(92,165,235,55), roughness:1., ..CpuMaterial::default() });
+                let mut material = PhysicalMaterial::new_transparent(
+                    &context,
+                    &CpuMaterial {
+                        albedo: Srgba::new(92, 165, 235, 55),
+                        roughness: 1.,
+                        ..CpuMaterial::default()
+                    },
+                );
                 material.render_states.cull = Cull::None;
                 material.render_states.write_mask = three_d::WriteMask::COLOR;
-                Gm::new(Mesh::new(&context, &CpuMesh::square()), SectionMaterial { physical: material, section: None, depth_only: false })
+                Gm::new(
+                    Mesh::new(&context, &CpuMesh::square()),
+                    SectionMaterial {
+                        physical: material,
+                        section: None,
+                        depth_only: false,
+                    },
+                )
             },
             context,
             objects: Vec::new(),
@@ -421,8 +444,8 @@ impl Renderer {
     /// ids, so unchanged PCB and model meshes remain resident in the GPU.
     #[wasm_bindgen(js_name = setPreparedScenePatch)]
     pub fn set_prepared_scene_patch(&mut self, value: JsValue) -> Result<bool, JsValue> {
-        let input: PreparedScenePatch = serde_wasm_bindgen::from_value(value)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let input: PreparedScenePatch =
+            serde_wasm_bindgen::from_value(value).map_err(|e| JsValue::from_str(&e.to_string()))?;
         if is_stale_scene_revision(self.revision, input.revision) {
             return Ok(false);
         }
@@ -434,14 +457,31 @@ impl Renderer {
             keep_camera: true,
         };
         for object in input.objects {
-            push_mesh(&mut changed, &object.id, object.mesh, Mat4::identity(), object.color,
-                object.roughness, object.metallic)?;
+            push_mesh(
+                &mut changed,
+                &object.id,
+                object.mesh,
+                Mat4::identity(),
+                object.color,
+                object.roughness,
+                object.metallic,
+            )?;
             let item = changed.objects.last_mut().unwrap();
             item.groups = object.groups;
             item.explode = object.explode;
             item.edges = Some(MeshData {
-                positions: object.edges.positions.chunks_exact(3).map(|p| [p[0], p[1], p[2]]).collect(),
-                normals: object.edges.normals.chunks_exact(3).map(|p| [p[0], p[1], p[2]]).collect(),
+                positions: object
+                    .edges
+                    .positions
+                    .chunks_exact(3)
+                    .map(|p| [p[0], p[1], p[2]])
+                    .collect(),
+                normals: object
+                    .edges
+                    .normals
+                    .chunks_exact(3)
+                    .map(|p| [p[0], p[1], p[2]])
+                    .collect(),
                 indices: (0..object.edges.positions.len() as u32 / 3).collect(),
                 colors: None,
             });
@@ -464,10 +504,7 @@ impl Renderer {
         let lights: [&dyn three_d::Light; 4] = [&self.light, &self.fill, &self.rim, &self.ambient];
         target.render(
             &self.camera,
-            self.objects
-                .iter()
-                .filter(|o| o.visible)
-                .map(|o| &o.object),
+            self.objects.iter().filter(|o| o.visible).map(|o| &o.object),
             &lights,
         );
         if self.state.mode != "shaded" || self.state.show_hidden {
@@ -475,7 +512,7 @@ impl Renderer {
                 &self.camera,
                 self.objects
                     .iter()
-                        .filter(|o| {
+                    .filter(|o| {
                         o.visible
                             && !o
                                 .groups
@@ -490,7 +527,7 @@ impl Renderer {
                 &self.camera,
                 self.objects
                     .iter()
-                        .filter(|o| o.visible && o.id == self.state.selected_layer)
+                    .filter(|o| o.visible && o.id == self.state.selected_layer)
                     .map(|o| &o.edges),
                 &lights,
             );
@@ -501,9 +538,17 @@ impl Renderer {
         // Editing handles are an overlay: bottom-case mounts must remain
         // visible and reachable through the PCB and retained solids.
         target.clear(ClearState::depth(1.));
-        target.render(&self.camera, self.handles.iter().filter(|o| o.visible).map(|o| &o.object), &lights);
+        target.render(
+            &self.camera,
+            self.handles.iter().filter(|o| o.visible).map(|o| &o.object),
+            &lights,
+        );
         if self.state.mode != "shaded" || self.state.show_hidden {
-            target.render(&self.camera, self.handles.iter().filter(|o| o.visible).map(|o| &o.edges), &lights);
+            target.render(
+                &self.camera,
+                self.handles.iter().filter(|o| o.visible).map(|o| &o.edges),
+                &lights,
+            );
         }
         Ok(())
     }
@@ -514,12 +559,24 @@ impl Renderer {
         // Derive fit bounds on demand without rebuilding any geometry.
         let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
         let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
-        for object in self.objects.iter().filter(|item| item.visible && item.id != "pcb-selection") {
-            let offset = if self.state.view == "exploded" { object.explode * self.state.explode_amount.unwrap_or(1.) } else { 0. };
+        for object in self
+            .objects
+            .iter()
+            .filter(|item| item.visible && item.id != "pcb-selection")
+        {
+            let offset = if self.state.view == "exploded" {
+                object.explode * self.state.explode_amount.unwrap_or(1.)
+            } else {
+                0.
+            };
             for point in object.triangles.iter().flatten() {
                 let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
-                low.x = low.x.min(point.x); low.y = low.y.min(point.y); low.z = low.z.min(point.z);
-                high.x = high.x.max(point.x); high.y = high.y.max(point.y); high.z = high.z.max(point.z);
+                low.x = low.x.min(point.x);
+                low.y = low.y.min(point.y);
+                low.z = low.z.min(point.z);
+                high.x = high.x.max(point.x);
+                high.y = high.y.max(point.y);
+                high.z = high.z.max(point.z);
             }
         }
         if low.x.is_finite() {
@@ -585,17 +642,36 @@ impl Renderer {
             if !handle.length.is_finite() || handle.length <= 0.0 {
                 continue;
             }
-            let existing = previous.iter().position(|item| item.id == handle.id)
+            let existing = previous
+                .iter()
+                .position(|item| item.id == handle.id)
                 .map(|index| previous.swap_remove(index));
-            let mut item = if let Some(item) = existing.filter(|item| item.handle_length == Some(handle.length)) {
+            let mut item = if let Some(item) =
+                existing.filter(|item| item.handle_length == Some(handle.length))
+            {
                 item
             } else {
-                let points = [[-handle.length / 2., -0.7], [handle.length / 2., -0.7],
-                    [handle.length / 2., 0.7], [-handle.length / 2., 0.7]];
-                let data = board_mesh(&[BoardContour { points: &points, hole: false }], 0.6)
-                    .map_err(|error| JsValue::from_str(&error))?;
-                let mut built = BuiltScene { objects: vec![], bounds: None, section_x: None,
-                    revision: 0, keep_camera: true };
+                let points = [
+                    [-handle.length / 2., -0.7],
+                    [handle.length / 2., -0.7],
+                    [handle.length / 2., 0.7],
+                    [-handle.length / 2., 0.7],
+                ];
+                let data = board_mesh(
+                    &[BoardContour {
+                        points: &points,
+                        hole: false,
+                    }],
+                    0.6,
+                )
+                .map_err(|error| JsValue::from_str(&error))?;
+                let mut built = BuiltScene {
+                    objects: vec![],
+                    bounds: None,
+                    section_x: None,
+                    revision: 0,
+                    keep_camera: true,
+                };
                 push_data(&mut built, &handle.id, data, [1., 0.65, 0.15, 1.], 0.6, 0.0);
                 let mut object = built.objects.remove(0);
                 object.groups = vec!["GasketHandles".into()];
@@ -604,11 +680,16 @@ impl Renderer {
                 uploaded.handle_length = Some(handle.length);
                 uploaded
             };
-            item.pose = crate::math::handle_pose([handle.at.x, handle.at.y, handle.z],
-                [handle.tangent.x, handle.tangent.y], [handle.normal.x, handle.normal.y]);
+            item.pose = crate::math::handle_pose(
+                [handle.at.x, handle.at.y, handle.z],
+                [handle.tangent.x, handle.tangent.y],
+                [handle.normal.x, handle.normal.y],
+            );
             item.object.material.physical.albedo = if handle.invalid {
                 Srgba::new(230, 31, 26, 255)
-            } else { Srgba::new(255, 166, 38, 255) };
+            } else {
+                Srgba::new(255, 166, 38, 255)
+            };
             next.push(item);
         }
         self.handles = next;
@@ -647,7 +728,9 @@ impl Renderer {
             } else {
                 0.
             };
-            let Some(inverse) = object.pose.invert() else { continue; };
+            let Some(inverse) = object.pose.invert() else {
+                continue;
+            };
             let origin = (inverse * (origin - Vec3::new(0., 0., offset)).extend(1.)).truncate();
             let direction = (inverse * direction.extend(0.)).truncate();
             for triangle in &object.triangles {
@@ -673,7 +756,10 @@ impl Renderer {
                     continue;
                 }
                 let p = origin + direction * distance;
-                if section.is_some_and(|plane| { let world = (object.pose * p.extend(1.)).truncate(); world.dot(plane.truncate()) > plane.w }) {
+                if section.is_some_and(|plane| {
+                    let world = (object.pose * p.extend(1.)).truncate();
+                    world.dot(plane.truncate()) > plane.w
+                }) {
                     continue;
                 }
                 nearest = distance;
@@ -692,7 +778,11 @@ impl Renderer {
 }
 
 impl Renderer {
-    fn accept_scene_patch(&mut self, items: BuiltScene, removed: Vec<String>) -> Result<bool, JsValue> {
+    fn accept_scene_patch(
+        &mut self,
+        items: BuiltScene,
+        removed: Vec<String>,
+    ) -> Result<bool, JsValue> {
         let removed: std::collections::HashSet<_> = removed.into_iter().collect();
         let mut previous = std::mem::take(&mut self.objects);
         previous.retain(|item| !removed.contains(&item.id));
@@ -758,29 +848,85 @@ impl Renderer {
         for object in &self.objects {
             for point in object.triangles.iter().flatten() {
                 let p = (object.pose * point.extend(1.)).truncate();
-                low.x = low.x.min(p.x); low.y = low.y.min(p.y); low.z = low.z.min(p.z);
-                high.x = high.x.max(p.x); high.y = high.y.max(p.y); high.z = high.z.max(p.z);
+                low.x = low.x.min(p.x);
+                low.y = low.y.min(p.y);
+                low.z = low.z.min(p.z);
+                high.x = high.x.max(p.x);
+                high.y = high.y.max(p.y);
+                high.z = high.z.max(p.z);
             }
         }
-        if !low.x.is_finite() { low = Vec3::new(-1.,-1.,-1.); high = -low; }
-        let (equation, center) = section_location([low.x, low.y, low.z], [high.x, high.y, high.z], &self.state.section_plane, self.state.section_position);
-        (Vec4::new(equation[0], equation[1], equation[2], equation[3]), Vec3::new(center[0],center[1],center[2]), (high - low).magnitude() * 0.6)
+        if !low.x.is_finite() {
+            low = Vec3::new(-1., -1., -1.);
+            high = -low;
+        }
+        let (equation, center) = section_location(
+            [low.x, low.y, low.z],
+            [high.x, high.y, high.z],
+            &self.state.section_plane,
+            self.state.section_position,
+        );
+        (
+            Vec4::new(equation[0], equation[1], equation[2], equation[3]),
+            Vec3::new(center[0], center[1], center[2]),
+            (high - low).magnitude() * 0.6,
+        )
     }
     fn apply_state(&mut self) {
         let (equation, center, radius) = self.section_equation();
         let rotation = match self.state.section_plane.as_str() {
-            "XY" => Mat4::identity(), "XZ" => Mat4::from_angle_x(three_d::degrees(90.)), _ => Mat4::from_angle_y(three_d::degrees(90.))
+            "XY" => Mat4::identity(),
+            "XZ" => Mat4::from_angle_x(three_d::degrees(90.)),
+            _ => Mat4::from_angle_y(three_d::degrees(90.)),
         };
-        self.section_plane.geometry.set_transformation(Mat4::from_translation(center) * rotation * Mat4::from_scale(radius));
+        self.section_plane.geometry.set_transformation(
+            Mat4::from_translation(center) * rotation * Mat4::from_scale(radius),
+        );
         for item in self.objects.iter_mut().chain(&mut self.handles) {
-            item.visible = !self.state.hidden.iter().any(|g| g == "Assembly" || g == &item.id || item.groups.contains(g)
-                || (g == "Gaskets" && (item.id.starts_with("gasket:") || item.id.starts_with("gasket-handle:")))
-                || (item.id.starts_with("gasket-handle:") && g == &format!("{}:lower", item.id.replacen("gasket-handle:", "gasket:", 1))));
-            let color = self.state.colors.get(&item.id).or_else(|| item.groups.iter().find_map(|group| self.state.colors.get(group)))
-                .or_else(|| item.id.starts_with("gasket:").then(|| self.state.colors.get("Gaskets")).flatten());
-            item.object.material.physical.albedo = color.and_then(|value| u32::from_str_radix(value.trim_start_matches('#'),16).ok())
-                .map(|rgb| Srgba::new((rgb>>16) as u8,(rgb>>8) as u8,rgb as u8,item.base_color.a)).unwrap_or(item.base_color);
-            item.edges.material.physical.render_states.depth_test = if self.state.show_hidden { three_d::DepthTest::Always } else { three_d::DepthTest::LessOrEqual };
+            item.visible = !self.state.hidden.iter().any(|g| {
+                g == "Assembly"
+                    || g == &item.id
+                    || item.groups.contains(g)
+                    || (g == "Gaskets"
+                        && (item.id.starts_with("gasket:")
+                            || item.id.starts_with("gasket-handle:")))
+                    || (item.id.starts_with("gasket-handle:")
+                        && g == &format!(
+                            "{}:lower",
+                            item.id.replacen("gasket-handle:", "gasket:", 1)
+                        ))
+            });
+            let color = self
+                .state
+                .colors
+                .get(&item.id)
+                .or_else(|| {
+                    item.groups
+                        .iter()
+                        .find_map(|group| self.state.colors.get(group))
+                })
+                .or_else(|| {
+                    item.id
+                        .starts_with("gasket:")
+                        .then(|| self.state.colors.get("Gaskets"))
+                        .flatten()
+                });
+            item.object.material.physical.albedo = color
+                .and_then(|value| u32::from_str_radix(value.trim_start_matches('#'), 16).ok())
+                .map(|rgb| {
+                    Srgba::new(
+                        (rgb >> 16) as u8,
+                        (rgb >> 8) as u8,
+                        rgb as u8,
+                        item.base_color.a,
+                    )
+                })
+                .unwrap_or(item.base_color);
+            item.edges.material.physical.render_states.depth_test = if self.state.show_hidden {
+                three_d::DepthTest::Always
+            } else {
+                three_d::DepthTest::LessOrEqual
+            };
             item.edges.material.physical.render_states.write_mask = three_d::WriteMask::COLOR;
             if item.id == "pcb-selection" {
                 item.visible &= self.state.selected_layer == "pcb";
@@ -1032,15 +1178,27 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
         }
     } else if input.kind == "bodyPatch" {
         for body in input.bodies {
-            let color = if body.id.to_ascii_lowercase().contains("foam") || body.id.to_ascii_lowercase().contains("gasket") {
+            let color = if body.id.to_ascii_lowercase().contains("foam")
+                || body.id.to_ascii_lowercase().contains("gasket")
+            {
                 [0.20, 0.18, 0.24, 1.0]
             } else if body.id.to_ascii_lowercase().contains("plate") {
                 [0.34, 0.57, 0.44, 1.0]
             } else if input.theme == "dark" {
                 [0.62, 0.66, 0.72, 1.0]
-            } else { [0.68, 0.71, 0.75, 1.0] };
+            } else {
+                [0.68, 0.71, 0.75, 1.0]
+            };
             let color = body.color.as_deref().and_then(hex_color).unwrap_or(color);
-            push_mesh(&mut output, &body.id, body.mesh, Mat4::identity(), color, 0.68, 0.03)?;
+            push_mesh(
+                &mut output,
+                &body.id,
+                body.mesh,
+                Mat4::identity(),
+                color,
+                0.68,
+                0.03,
+            )?;
         }
     } else if let Some(board) = input.board {
         let hidden = |id: &str| input.hidden.iter().any(|entry| entry == id);
