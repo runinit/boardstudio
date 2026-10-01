@@ -1,0 +1,37 @@
+{
+  "task": "P2 accessibility follow-up: set the prototype document language",
+  "base": "57bd6eceed3bce9ad9b854121e93d8adc22f7bf8",
+  "source": ".scratch/prototypes/p2-lifecycle/wasm/src/main.rs",
+  "api": {
+    "dioxus": "0.7.10",
+    "effect": "Root use_effect sets document language after render.",
+    "document_access": "Existing web-sys 0.3.106 dependency and Document, Element, Window features; no manifest or lockfile changes.",
+    "note": "Dioxus 0.7.10 document re-export is gated behind the disabled document feature, so the implementation uses the already-enabled web-sys document_element().set_attribute() API."
+  },
+  "checks": [
+    {
+      "command": "cargo check --locked --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --target wasm32-unknown-unknown",
+      "exit": 0
+    },
+    {
+      "command": "TMPDIR=target/renewal-worker/tmp-dx-r1 dx build --web --release --base-path / --cargo-args=\"--locked\"",
+      "cwd": ".scratch/prototypes/p2-lifecycle/wasm",
+      "exit": 0,
+      "result": "Release bundle built; generated WASM is 7,456,397 bytes and begins with the WebAssembly magic bytes 00 61 73 6d."
+    },
+    {
+      "command": "Direct Playwright 1.63.0 against http://127.0.0.1:4402/: navigate waitUntil=networkidle; waitForFunction(document.documentElement.lang === 'en'); assert response 200 and #main has children",
+      "exit": 0,
+      "result": {
+        "responseStatus": 200,
+        "documentLang": "en",
+        "mainChildren": 2
+      },
+      "limitation": "The standalone static server returned 404 for /assets/worker/worker-entry.js; this is outside the language-attribute change."
+    }
+  ],
+  "not_claimed": [
+    "Full axe audit or resolution of the previously missing raw axe report.",
+    "Contrast, screen-reader, or broader accessibility parity."
+  ]
+}
