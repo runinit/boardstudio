@@ -1,0 +1,11 @@
+{
+  "command": [
+    "codex",
+    "--strict-config",
+    "doctor",
+    "--json"
+  ],
+  "exit_code": 0,
+  "log": "config-doctor.log.gz",
+  "raw_sha256": "89ccd3e663cd2f8ad2e59eecd889de8e984cafe3a639a481faafec93f7788683"
+}

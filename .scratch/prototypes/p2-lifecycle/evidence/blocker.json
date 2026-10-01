@@ -1,0 +1,40 @@
+{
+  "task": "P2-LIFECYCLE",
+  "plan_revision": "P2-r1",
+  "base": "7ed7b5ec9a58449615b05bf7e95eb888711d864b",
+  "status": "blocked before executable implementation: required existing renderer format gate fails",
+  "category": "Pre-existing provider formatting, not an introduced P2 defect",
+  "failed_gate": "baseline-renderer-fmt.json",
+  "changed_file_candidates": {
+    "renderer/src/geometry.rs": "43eae03edd7e26eeef41840ba5a1680122aae9e7961aba2caa3b41f6253f0881",
+    "renderer/src/math.rs": "b6b8bf51c84183ebe66ace0221b3fa1fc568cbccf915e5bbe6cad215fc9f88a7",
+    "renderer/src/mechanical.rs": "1da169569638399399630190c8708ae255de21f4a512565bed1193ebe2ab5b40",
+    "renderer/src/wasm.rs": "e25ef71cd67bd7f51b6dc1de888d5cee6586b57f322edd56e172ed3d5166eaae"
+  },
+  "same_bytes_as_approved_base": {
+    "renderer/src/geometry.rs": true,
+    "renderer/src/math.rs": true,
+    "renderer/src/mechanical.rs": true,
+    "renderer/src/wasm.rs": true
+  },
+  "provider_status": "",
+  "repair_attempts": 0,
+  "repair_limit": 2,
+  "reason_no_repair": "Approved file boundary is prototype subtree and coordinator documents; renderer changes excluded. No exception or provider-format scope expansion inferred.",
+  "executed": [
+    "Config doctor0",
+    "Git base/worktree/clean checkout confirmed",
+    "Fresh read-only Luna/medium smoke; independent runtime confirmed",
+    "Frozen pnpm install0",
+    "Required renderer cargo fmt check1"
+  ],
+  "unperformed": [
+    "Prototype source/TDD/native tests",
+    "Core/renderer Clippy/tests/WASM builds",
+    "Dioxus release/browser/paired frame/cleanup/a11y/resource assertions",
+    "Complete mount/downcast/teardown API verification"
+  ],
+  "safe_remaining_tasks": [],
+  "next": "Approve bounded formatting-only prerequisite for these exact existing renderer files, retaining strict fmt gate; then resume P2 from same base/owned worktree with full planned verification",
+  "preserved": "No source provider edits, protected work untouched, no tests/baselines/gates weakened"
+}

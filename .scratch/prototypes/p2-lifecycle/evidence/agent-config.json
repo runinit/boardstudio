@@ -1,0 +1,8 @@
+{
+  "agents": {
+    "max_concurrent_threads_per_session": 3,
+    "default_subagent_model": "gpt-6-luna",
+    "default_subagent_reasoning_effort": "high"
+  },
+  "note": "Configured defaults are not runtime proof; smoke.json contains independent actual model/effort. Main session retained; no config writes."
+}

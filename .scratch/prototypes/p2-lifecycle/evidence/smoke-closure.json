@@ -1,0 +1,7 @@
+{
+  "id": "01a0f7fd-4d0d-7ed0-b148-fc7116a7bfd8",
+  "model": "gpt-6-luna",
+  "effort": "medium",
+  "archived": 1,
+  "method": "supported set_thread_archived, DB read-only confirmation"
+}

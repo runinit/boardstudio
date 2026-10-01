@@ -31,6 +31,7 @@ unauthorized model/provider switch or automatic prototype promotion is allowed.
 | P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; original P1-CAD blocked run preserved; P1-CAD bounded feasibility accepted through reviewed/integrated `8015b57f` |
 | P1-CAD-F1 | Explicit “do it” approval of [P1-CAD-F1-r1](../../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md): two serial reviewed findings | Complete: exact source reviewed, integrated and validated; [current handoff](#p1-cad-f1-bounded-findings-repair) |
 | P1-U64 | Explicit renewed defect-only [P1-U64-r1 authority](../../.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json) | Complete; exact source `cce8e78b` reviewed, integrated and validated; [handoff](#p1-u64-accepted-source-and-resumable-handoff) |
+| P2-LIFECYCLE | Explicit “approved” response to exact [P2-r1](../../.scratch/prototypes/p2-lifecycle/PLAN.md), proposal SHA e9a715cb…; one bounded lifecycle task | Blocked before executable implementation: unchanged renderer fmt fails; [handoff](#p2-r1-preflight-blocked) |
 
 TOOL-1 may write only its project-owned tool directory under
 `/home/chris/.local/share/boardstudio/tools/dioxus-cli/0.7.10`, an absent
@@ -426,3 +427,61 @@ without rewriting immutable reviewed commits. All worktrees/failures remain.
 P2/P3, full-M1, CAD revisions above JS Number's safe range, performance and
 production adoption remain unproved and outside this run. No push/deployment/
 main merge or protected-worktree mutation is authorized.
+
+
+## P2-r1 preflight blocked
+
+The user explicitly **“approved”** the proposed P2-r1 next task set after the
+completed P1 handoff. Exact original proposal SHA-256:
+`e9a715cbc6049cd9e6baf9dddb0db20aedad33124e7f23ef4888053e36e700db`.
+[PLAN](../../.scratch/prototypes/p2-lifecycle/PLAN.md) preserves that supplied
+proposal's initial approval-pending wording as history;
+[task-start](../../.scratch/prototypes/p2-lifecycle/evidence/task-start.json)
+records the actual approval, exact specifications, ownership, pre-agreed public
+engine/gesture/lifecycle seams and zero of two repair attempts. Base:
+`7ed7b5ec9a58449615b05bf7e95eb888711d864b`. Coordinator-owned worktree
+`/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-20261001`, branch
+`prototype/boardstudio-p2-lifecycle`; actual clean checkout was verified before
+recording plan/evidence. No executable probe source is written.
+
+Codex0.159.3 strict-config doctor succeeds; installed Dioxus0.7.10/CLI, Rust1.98
+and pnpm12.6 match accepted pins. Frozen dependency installation succeeds with
+no manifest/lock changes. Configuration retains max3 child threads and Luna/high
+defaults; a fresh read-only Luna/medium smoke is independently confirmed by DB/
+turn-context, preserved and archived through the supported tool with DB proof.
+No writes were delegated. Context7 resolves exact Dioxus0.7.10 and tagged
+side-effect sources; complete DOM-downcast/teardown/API verification remains
+unperformed after the blocker. A provider API source smoke finds resize/dispose/
+generated free, but proves no actual GPU disposal or painted-frame behavior.
+Doctor's standalone sandbox metadata does not override the current never/
+danger-full-access execution permissions. No routing/config/permission changes.
+
+**Required failed gate:**
+`cargo fmt --manifest-path renderer/Cargo.toml --all -- --check` exits1 with
+formatting differences in `renderer/src/geometry.rs`, `math.rs`, `mechanical.rs`
+and `wasm.rs`. All four files are byte-identical to the approved base. This is a
+pre-existing formatting failure, not a P2 regression; its raw output/SHA and
+provenance are in [blocker](../../.scratch/prototypes/p2-lifecycle/evidence/blocker.json).
+The approved file boundary permits the isolated prototype and coordinator docs;
+it excludes renderer changes. No renderer edit or gate waiver is inferred.
+
+A concrete [formatting-only patch](../../.scratch/prototypes/p2-lifecycle/evidence/proposed-renderer-format.patch.gz)
+is generated from independent temporary copies with rustfmt; it is **unapplied**,
+and `git apply --check` passes.
+[Exact scope extension](../../.scratch/prototypes/p2-lifecycle/evidence/scope-extension.json)
+requests only those four source files, preserving renderer behavior/API/pins and
+the strict formatter gate. After that bounded approval, apply it as repair1 within
+the existing two-attempt limit, run all affected renderer checks, then resume the
+original P2 TDD/build/browser/lifecycle/paired-resource/review/integration gates.
+Native/WASM tests/lints/builds, reference frontend, actual Chromium/P2 painting,
+gesture/history, resize/DPR, focus/a11y, resource cleanup and paired acceptance
+are unperformed. No gate is silently omitted, green or weakened.
+
+No safe unblocked task remains in this defined one-task set. Preserve this
+worktree/branch, failed output and patch; P2 remains unchecked. P3, full M1,
+CAD-u64/provider changes and production adoption remain outside approved scope.
+Only status/evidence is eligible for local integration after fresh exact
+Standards/Spec review; no executable probe, provider code or format patch is
+applied. Final review/integration/check/closure commits and results are persisted
+in the owned `target/final-handoff.json` and integration-owned copy after review.
+No main merge, push, deploy or protected-worktree changes.

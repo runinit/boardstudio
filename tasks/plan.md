@@ -176,3 +176,20 @@ task set, ownership and two-attempt limit are in
 and [bounded plan](../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md).
 Existing P1 acceptance/review/integration gates still apply; P2/P3 and automatic
 production promotion remain excluded.
+
+
+## P2-r1 approved continuation, preflight blocked
+
+The user's subsequent “approved” authorizes the exact
+[P2-r1 lifecycle proposal](../.scratch/prototypes/p2-lifecycle/PLAN.md) from
+`7ed7b5ec`: one isolated SVG/engine gesture surface and existing renderer canvas.
+[Task-start](../.scratch/prototypes/p2-lifecycle/evidence/task-start.json) records
+its approval/hash, specs, ownership and two-repair limit before executable edits.
+This is the next accepted P2 charter, not a new architecture or migration backlog.
+
+The required unchanged renderer fmt gate fails. Its four candidate files match
+the base; no renderer change is within this task's approved file boundary.
+P2 is blocked with zero repairs and no executable implementation. A concrete
+formatting-only patch is preserved for one bounded scope-extension approval;
+the original strict gate and all P2 runtime/build/review requirements remain.
+[Current blocked ledger](../docs/migration/RUN.md#p2-r1-preflight-blocked).
