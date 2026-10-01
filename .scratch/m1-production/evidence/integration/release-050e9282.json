@@ -1,0 +1,8 @@
+{
+  "source_commit": "050e9282e076628b411db99e9def21677616a0f4",
+  "provenance_sha256": "046a45477c2b4e1d8013cf2e75104b80ae24d787ee692fc38f4aa8655829e8eb",
+  "provenance_path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-050e9282/provenance.json",
+  "exit": 0,
+  "production_sources_unchanged": true,
+  "limitation": "Pre-review-fix source; failed-export registration cleanup9b865587 requires updated application/page release. Component policies unaffected."
+}
