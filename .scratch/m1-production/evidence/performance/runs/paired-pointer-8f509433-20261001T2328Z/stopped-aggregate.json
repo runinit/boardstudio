@@ -67,7 +67,7 @@
     "stderrSummary": ""
   },
   "driverSha256": "e0fca0dab79c24161c7f098aef4b8e166bec2916ee6e2d1ddc3b5fd4a8f427ea",
-  "wrapperSha256": "e0fca0dab79c24161c7f098aef4b8e166bec2916ee6e2d1ddc3b5fd4a8f427ea",
+  "wrapperSha256": "a6ca47a55d05d3bc5be93b2abcfe1a5000c257fb0bf85b12ddb569614a86dd6a",
   "schedule": {
     "sessionsRequested": 5,
     "completeCandidateSessions": 2,
@@ -332,5 +332,7 @@
     }
   ],
   "stopReason": "Root requested stopping repeated reference failures after session 2 while diagnosing the public import navigation race; no production code or budgets changed.",
-  "recordedAt": "2026-10-01T23:35:52.117Z"
+  "recordedAt": "2026-10-01T23:35:52.117Z",
+  "wrapperPath": ".scratch/m1-production/evidence/performance/run-candidate-pointer-sessions.mjs",
+  "runDriverSha256": "e0fca0dab79c24161c7f098aef4b8e166bec2916ee6e2d1ddc3b5fd4a8f427ea"
 }
