@@ -22,3 +22,6 @@ mod tests {
         assert_eq!(CORE_WORKER_FRAME_VERSION, 1);
     }
 }
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub mod renderer_host;

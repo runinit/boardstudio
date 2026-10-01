@@ -11,11 +11,12 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["page", "core-worker"]
-page = ["dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers"]
+page = ["dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers"]
 core-worker = ["dep:boardstudio_core"]
 test-harness = []
 
 [dependencies]
+boardstudio-application = { path = "../application", optional = true }
 boardstudio_core = { path = "../core", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
@@ -33,5 +34,5 @@ futures-channel = "=0.3.34"
 web-sys = { version = "=0.3.106", features = [
   "DedicatedWorkerGlobalScope", "DomException", "ErrorEvent", "Event", "EventTarget", "MessageEvent",
   "Worker", "WorkerOptions", "WorkerType", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbOpenDbRequest",
-  "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStoreParameters", "Storage", "Window"
+  "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStoreParameters", "Storage", "Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlCanvasElement", "SvgElement", "PointerEvent", "KeyboardEvent", "FocusOptions", "DomRect", "Response", "Request", "Blob", "BlobPropertyBag", "Url", "Location", "Node", "File", "FileList", "HtmlInputElement", "ResizeObserver", "MediaQueryList"
 ] }

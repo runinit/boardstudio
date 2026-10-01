@@ -1,11 +1,18 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
-use boardstudio_application::{Completion, Effect, Event, Lifecycle, OperationId, ReadModel, SaveResult, Session, TerminalOutcome};
+use boardstudio_application::{
+    Completion, Effect, Event, Lifecycle, OperationId, ReadModel, SaveResult, Session,
+    TerminalOutcome,
+};
 use boardstudio_core::model::{ArchiveReply, ProjectDoc};
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use js_sys::{Array, Uint8Array};
-use std::{cell::{Cell, RefCell}, collections::{BTreeMap, VecDeque}, rc::Rc};
-use wasm_bindgen::{closure::Closure, JsCast};
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use std::{
+    cell::{Cell, RefCell},
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    rc::Rc,
+};
+use wasm_bindgen::{JsCast, closure::Closure};
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{Blob, HtmlAnchorElement, SvgElement, Url};
 
 type Notifier = Rc<dyn Fn()>;
@@ -18,6 +25,7 @@ pub struct Runtime {
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Vec<u8>>>,
+    cancelled_exports: RefCell<BTreeSet<OperationId>>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
@@ -29,31 +37,56 @@ impl Runtime {
         let prefix = deployment_prefix()?;
         Ok(Rc::new(Self {
             session: RefCell::new(Session::new()),
-            core: RefCell::new(Rc::new(CoreWorker::new(&resource_url("assets/core-worker/entry.js")?).map_err(|e| e.to_string())?)),
-            store: BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" }).map_err(|e| e.to_string())?,
-            next_operation: Cell::new(1), assets: RefCell::new(BTreeMap::new()),
-            artifacts: RefCell::new(BTreeMap::new()), frames: RefCell::new(BTreeMap::new()),
-            surface: RefCell::new(None), notify: RefCell::new(None),
+            core: RefCell::new(Rc::new(
+                CoreWorker::new(&resource_url("assets/core-worker/entry.js")?)
+                    .map_err(|e| e.to_string())?,
+            )),
+            store: BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
+                .map_err(|e| e.to_string())?,
+            next_operation: Cell::new(1),
+            assets: RefCell::new(BTreeMap::new()),
+            artifacts: RefCell::new(BTreeMap::new()),
+            cancelled_exports: RefCell::new(BTreeSet::new()),
+            frames: RefCell::new(BTreeMap::new()),
+            surface: RefCell::new(None),
+            notify: RefCell::new(None),
             status: RefCell::new("Open a saved keyboard or an editable demo copy.".into()),
             open_sequence: Cell::new(0),
         }))
     }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();
-        self.next_operation.set(id.checked_add(1).expect("operation identity exhausted"));
+        self.next_operation
+            .set(id.checked_add(1).expect("operation identity exhausted"));
         OperationId(id)
     }
-    pub fn scope(&self) -> Option<boardstudio_application::Scope> { self.session.borrow().scope() }
-    pub fn model(&self) -> ReadModel { self.session.borrow().read_model().clone() }
-    pub fn status(&self) -> String { self.status.borrow().clone() }
-    pub fn subscribe(&self, notify: Notifier) { *self.notify.borrow_mut() = Some(notify); }
-    pub fn unsubscribe(&self) { self.notify.borrow_mut().take(); }
-    pub fn surface(&self, surface: SvgElement) { *self.surface.borrow_mut() = Some(surface); }
+    pub fn scope(&self) -> Option<boardstudio_application::Scope> {
+        self.session.borrow().scope()
+    }
+    pub fn model(&self) -> ReadModel {
+        self.session.borrow().read_model().clone()
+    }
+    pub fn status(&self) -> String {
+        self.status.borrow().clone()
+    }
+    pub fn subscribe(&self, notify: Notifier) {
+        *self.notify.borrow_mut() = Some(notify);
+    }
+    pub fn unsubscribe(&self) {
+        self.notify.borrow_mut().take();
+    }
+    pub fn surface(&self, surface: SvgElement) {
+        *self.surface.borrow_mut() = Some(surface);
+    }
     pub fn report(&self, status: impl Into<String>) {
         *self.status.borrow_mut() = status.into();
         self.changed();
     }
-    fn changed(&self) { if let Some(notify) = self.notify.borrow().as_ref().cloned() { notify(); } }
+    fn changed(&self) {
+        if let Some(notify) = self.notify.borrow().as_ref().cloned() {
+            notify();
+        }
+    }
     pub fn submit(self: &Rc<Self>, event: Event) {
         let effects = self.session.borrow_mut().submit(event);
         self.changed();
@@ -79,52 +112,98 @@ impl Runtime {
     }
     async fn run(self: &Rc<Self>, effect: Effect) -> Vec<Effect> {
         match effect {
-            Effect::Core { request_id, executor_epoch, request, .. } => {
+            Effect::Core {
+                request_id,
+                executor_epoch,
+                request,
+                ..
+            } => {
                 let core = self.core.borrow().clone();
-                match core.request(&format!("core-{}", request_id.0), &executor_epoch.0.to_string(), &request).await {
-                    Ok(reply) => self.complete(Completion::Core { request_id, executor_epoch, reply }),
-                    Err(error) => self.complete(Completion::CoreFailed { request_id, executor_epoch, reason: error.to_string() }),
+                match core
+                    .request(
+                        &format!("m1-{}", request_id.0),
+                        &executor_epoch.0.to_string(),
+                        &request,
+                    )
+                    .await
+                {
+                    Ok(reply) => self.complete(Completion::Core {
+                        request_id,
+                        executor_epoch,
+                        reply: Box::new(reply),
+                    }),
+                    Err(error) => self.complete(Completion::CoreFailed {
+                        request_id,
+                        executor_epoch,
+                        reason: error.to_string(),
+                    }),
                 }
             }
             Effect::RestartCoreExecutor { executor_epoch } => {
                 self.core.borrow().close();
-                match resource_url("assets/core-worker/entry.js").and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string())) {
+                match resource_url("assets/core-worker/entry.js")
+                    .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
+                {
                     Ok(core) => {
                         let core = Rc::new(core);
                         *self.core.borrow_mut() = core.clone();
                         match core.ready().await {
-                            Ok(()) => self.complete(Completion::ExecutorRestarted { executor_epoch }),
-                            Err(error) => { self.report(format!("Executor restart failed: {error}")); vec![] }
+                            Ok(()) => {
+                                self.complete(Completion::ExecutorRestarted { executor_epoch })
+                            }
+                            Err(error) => {
+                                self.report(format!("Executor restart failed: {error}"));
+                                vec![]
+                            }
                         }
                     }
-                    Err(error) => { self.report(error); vec![] }
+                    Err(error) => {
+                        self.report(error);
+                        vec![]
+                    }
                 }
             }
-            Effect::Persist { document, save_attempt_id, .. } => {
-                let assets = self.assets.borrow().iter().filter(|(hash, _)| document.assets.iter().any(|a| &a.sha256 == *hash))
-                    .map(|(hash, bytes)| (hash.clone(), bytes.clone())).collect();
+            Effect::Persist {
+                document,
+                save_attempt_id,
+                ..
+            } => {
+                let assets = self
+                    .assets
+                    .borrow()
+                    .iter()
+                    .filter(|(hash, _)| document.assets.iter().any(|a| &a.sha256 == *hash))
+                    .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
+                    .collect();
                 let result = match self.store.save_document(&document, &assets).await {
                     Ok(()) => SaveResult::Committed,
                     Err(error) => SaveResult::Aborted(error.to_string()),
                 };
-                self.complete(Completion::Persist { save_attempt_id, result })
+                self.complete(Completion::Persist {
+                    save_attempt_id,
+                    result,
+                })
             }
             Effect::Settled { outcome, .. } => {
                 match outcome {
                     TerminalOutcome::Completed => self.report("Saved locally."),
-                    TerminalOutcome::Rejected(reason) | TerminalOutcome::PersistenceFailed(reason)
-                    | TerminalOutcome::BlockedByRecovery(reason) | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
+                    TerminalOutcome::Rejected(reason)
+                    | TerminalOutcome::PersistenceFailed(reason)
+                    | TerminalOutcome::BlockedByRecovery(reason)
+                    | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
                     TerminalOutcome::Cancelled => self.report("Cancelled."),
                     TerminalOutcome::Closed => self.report("Editor closed."),
-                    TerminalOutcome::Superseded => {},
+                    TerminalOutcome::Superseded => {}
                 }
                 vec![]
             }
             Effect::CapturePointer { pointer_id } => {
-                if let Some(svg) = self.surface.borrow().as_ref() {
-                    if let Ok(pointer) = i32::try_from(pointer_id) {
-                        let result = svg.set_pointer_capture(pointer);
-                        if let Err(error) = result { self.report(format!("Pointer capture failed: {error:?}")); }
+                if let Some(svg) = self.surface.borrow().as_ref()
+                    && let Ok(pointer) = i32::try_from(pointer_id)
+                {
+                    let result = svg.set_pointer_capture(pointer);
+                    if let Err(error) = result {
+                        self.report(format!("Pointer capture failed: {error:?}"));
                     }
                 }
                 vec![]
@@ -132,7 +211,10 @@ impl Runtime {
             Effect::ReleasePointer { pointer_id } => {
                 if let Some(svg) = self.surface.borrow().as_ref()
                     && let Ok(pointer) = i32::try_from(pointer_id)
-                    && svg.has_pointer_capture(pointer) { let _ = svg.release_pointer_capture(pointer); }
+                    && svg.has_pointer_capture(pointer)
+                {
+                    let _ = svg.release_pointer_capture(pointer);
+                }
                 vec![]
             }
             Effect::RequestFrame { generation } => {
@@ -142,12 +224,23 @@ impl Runtime {
                         if let Some(this) = weak.upgrade() {
                             this.submit(Event::GestureFrame { generation });
                             // Drop the executing callback after the browser returns from it.
-                            spawn_local(async move { this.frames.borrow_mut().remove(&generation); });
+                            spawn_local(async move {
+                                this.frames.borrow_mut().remove(&generation);
+                            });
                         }
                     });
-                    match web_sys::window().ok_or_else(|| "window unavailable".to_owned())
-                        .and_then(|window| window.request_animation_frame(callback.as_ref().unchecked_ref()).map_err(|e| format!("{e:?}"))) {
-                        Ok(handle) => { self.frames.borrow_mut().insert(generation, (handle, callback)); }
+                    match web_sys::window()
+                        .ok_or_else(|| "window unavailable".to_owned())
+                        .and_then(|window| {
+                            window
+                                .request_animation_frame(callback.as_ref().unchecked_ref())
+                                .map_err(|e| format!("{e:?}"))
+                        }) {
+                        Ok(handle) => {
+                            self.frames
+                                .borrow_mut()
+                                .insert(generation, (handle, callback));
+                        }
                         Err(error) => self.report(error),
                     }
                 }
@@ -155,50 +248,102 @@ impl Runtime {
             }
             Effect::CancelFrame { generation } => {
                 if let Some((handle, _)) = self.frames.borrow_mut().remove(&generation)
-                    && let Some(window) = web_sys::window() { let _ = window.cancel_animation_frame(handle); }
+                    && let Some(window) = web_sys::window()
+                {
+                    let _ = window.cancel_animation_frame(handle);
+                }
                 vec![]
             }
-            Effect::RunExport { operation_id, scope, snapshot } => {
-                match self.pack_archive(&snapshot.document).await {
-                    Ok(bytes) => {
-                        let current = self.session.borrow().scope() == Some(scope.clone())
-                            && self.model().accepted.as_ref().is_some_and(|s| s.token == snapshot.token);
-                        if !current { return self.complete(Completion::ExportFailed { operation_id, reason: "Archive scope changed before delivery.".into() }); }
-                        let artifact_id = format!("archive-{}", operation_id.0);
-                        self.artifacts.borrow_mut().insert(artifact_id.clone(), bytes);
-                        self.complete(Completion::ExportFinished { operation_id, token: snapshot.token, scope, artifact_id })
+            Effect::RunExport {
+                operation_id,
+                scope,
+                snapshot,
+            } => match self.pack_archive(&snapshot.document).await {
+                Ok(bytes) => {
+                    let current = self.session.borrow().scope() == Some(scope.clone())
+                        && self
+                            .model()
+                            .accepted
+                            .as_ref()
+                            .is_some_and(|s| s.token == snapshot.token);
+                    if !current || self.cancelled_exports.borrow_mut().remove(&operation_id) {
+                        return self.complete(Completion::ExportFailed {
+                            operation_id,
+                            reason: "Archive scope changed before delivery.".into(),
+                        });
                     }
-                    Err(reason) => self.complete(Completion::ExportFailed { operation_id, reason }),
+                    let artifact_id = format!("archive-{}", operation_id.0);
+                    self.artifacts
+                        .borrow_mut()
+                        .insert(artifact_id.clone(), bytes);
+                    self.complete(Completion::ExportFinished {
+                        operation_id,
+                        token: snapshot.token,
+                        scope,
+                        artifact_id,
+                    })
                 }
-            }
+                Err(reason) => self.complete(Completion::ExportFailed {
+                    operation_id,
+                    reason,
+                }),
+            },
             Effect::DeliverExport { artifact_id, .. } => {
                 if let Some(bytes) = self.artifacts.borrow_mut().remove(&artifact_id)
-                    && let Err(error) = deliver(&bytes, "keyboard.boardstudio") { self.report(error); }
+                    && let Err(error) = deliver(&bytes, "keyboard.boardstudio")
+                {
+                    self.report(error);
+                }
                 vec![]
             }
-            Effect::RunGeneration { job_id, scope, .. } => self.complete(Completion::GenerationFailed {
-                job_id, scope, reason: "Exact case generation is awaiting M1 ticket 04 integration.".into() }),
+            Effect::RunGeneration { job_id, scope, .. } => {
+                self.complete(Completion::GenerationFailed {
+                    job_id,
+                    scope,
+                    reason: "Exact case generation is awaiting M1 ticket 04 integration.".into(),
+                })
+            }
             Effect::CancelJob { .. } => vec![],
+            Effect::CancelExport { operation_id } => {
+                self.cancelled_exports.borrow_mut().insert(operation_id);
+                self.artifacts
+                    .borrow_mut()
+                    .remove(&format!("archive-{}", operation_id.0));
+                vec![]
+            }
         }
     }
     fn cancel_frames(&self) {
         if let Some(window) = web_sys::window() {
-            for (_, (handle, _)) in std::mem::take(&mut *self.frames.borrow_mut()) { let _ = window.cancel_animation_frame(handle); }
+            for (_, (handle, _)) in std::mem::take(&mut *self.frames.borrow_mut()) {
+                let _ = window.cancel_animation_frame(handle);
+            }
         }
     }
     pub fn open_fixture(self: &Rc<Self>, name: &str) {
         let name = name.to_owned();
-        let Ok(sequence) = self.begin_open() else { self.report("Open identity exhausted."); return; };
+        let Ok(sequence) = self.begin_open() else {
+            self.report("Open identity exhausted.");
+            return;
+        };
         let this = self.clone();
         spawn_local(async move {
             match fetch_bytes(&format!("assets/fixtures/{name}.boardstudio")).await {
-                Ok(bytes) => { if let Err(error) = this.import_archive_at(bytes, sequence).await { this.report(error); } }
+                Ok(bytes) => {
+                    if let Err(error) = this.import_archive_at(bytes, sequence).await {
+                        this.report(error);
+                    }
+                }
                 Err(error) => this.report(error),
             }
         });
     }
     fn begin_open(&self) -> Result<u64, String> {
-        let sequence = self.open_sequence.get().checked_add(1).ok_or("open identity exhausted")?;
+        let sequence = self
+            .open_sequence
+            .get()
+            .checked_add(1)
+            .ok_or("open identity exhausted")?;
         self.open_sequence.set(sequence);
         Ok(sequence)
     }
@@ -206,30 +351,66 @@ impl Runtime {
         let sequence = self.begin_open()?;
         self.import_archive_at(bytes, sequence).await
     }
-    async fn import_archive_at(self: &Rc<Self>, bytes: Vec<u8>, sequence: u64) -> Result<(), String> {
+    async fn import_archive_at(
+        self: &Rc<Self>,
+        bytes: Vec<u8>,
+        sequence: u64,
+    ) -> Result<(), String> {
         let operation = self.operation();
         let core = self.core.borrow().clone();
-        let result = core.archive(&format!("import-{}", operation.0), "1", "{\"kind\":\"unpack-project\"}", vec![Uint8Array::from(bytes.as_slice())]).await.map_err(|e| e.to_string())?;
-        let reply: ArchiveReply = serde_json::from_str(&result.metadata).map_err(|e| e.to_string())?;
-        let ArchiveReply::Unpacked { project_json, assets } = reply else { return Err(format!("Archive rejected: {reply:?}")); };
-        let document: ProjectDoc = serde_json::from_str(&project_json).map_err(|e| e.to_string())?;
+        let result = core
+            .archive(
+                &format!("import-{}", operation.0),
+                "1",
+                "{\"kind\":\"unpack-project\"}",
+                vec![Uint8Array::from(bytes.as_slice())],
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        let reply: ArchiveReply =
+            serde_json::from_str(&result.metadata).map_err(|e| e.to_string())?;
+        let ArchiveReply::Unpacked {
+            project_json,
+            assets,
+        } = reply
+        else {
+            return Err(format!("Archive rejected: {reply:?}"));
+        };
+        let document: ProjectDoc =
+            serde_json::from_str(&project_json).map_err(|e| e.to_string())?;
         let mut copied = BTreeMap::new();
         for asset in assets {
-            let bytes = result.buffers.get(asset.buffer_index as usize).ok_or("Archive omitted an asset buffer")?;
+            let bytes = result
+                .buffers
+                .get(asset.buffer_index as usize)
+                .ok_or("Archive omitted an asset buffer")?;
             copied.insert(asset.sha256, bytes.to_vec());
         }
-        if self.open_sequence.get() != sequence { return Err("Open superseded by another import.".into()); }
+        if self.open_sequence.get() != sequence {
+            return Err("Open superseded by another import.".into());
+        }
         self.assets.borrow_mut().extend(copied);
-        self.submit(Event::Open { operation_id: operation, document });
+        self.submit(Event::Open {
+            operation_id: operation,
+            document,
+        });
         Ok(())
     }
     pub fn open_saved(self: &Rc<Self>, id: String) {
-        let Ok(sequence) = self.begin_open() else { self.report("Open identity exhausted."); return; };
+        let Ok(sequence) = self.begin_open() else {
+            self.report("Open identity exhausted.");
+            return;
+        };
         let this = self.clone();
         spawn_local(async move {
             match this.store.load_document(id).await {
-                Ok(Some(document)) if this.open_sequence.get() == sequence => this.submit(Event::Open { operation_id: this.operation(), document }),
-                Ok(Some(_)) => {},
+                Ok(Some(document)) if this.open_sequence.get() == sequence => {
+                    this.submit(Event::Open {
+                        operation_id: this.operation(),
+                        document,
+                    })
+                }
+                Ok(Some(_)) => {}
                 Ok(None) => this.report("Saved keyboard is unavailable."),
                 Err(error) => this.report(error.to_string()),
             }
@@ -239,45 +420,97 @@ impl Runtime {
         let mut buffers = vec![];
         let mut entries = vec![];
         for asset in &document.assets {
-            let bytes = self.store.load_asset(asset.sha256.clone()).await.map_err(|e| e.to_string())?.ok_or_else(|| format!("Missing asset: {}", asset.name))?;
+            let bytes = self
+                .store
+                .load_asset(asset.sha256.clone())
+                .await
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("Missing asset: {}", asset.name))?;
             entries.push(serde_json::json!({"path": format!("assets/{}", asset.sha256), "bufferIndex": buffers.len()}));
             buffers.push(bytes);
         }
         let metadata = serde_json::json!({"kind":"pack-project", "projectJson":serde_json::to_string(document).map_err(|e| e.to_string())?, "assets":entries}).to_string();
         let operation = self.operation();
         let core = self.core.borrow().clone();
-        let result = core.archive(&format!("pack-{}", operation.0), "1", &metadata, buffers).await.map_err(|e| e.to_string())?;
+        let result = core
+            .archive(&format!("pack-{}", operation.0), "1", &metadata, buffers)
+            .await
+            .map_err(|e| e.to_string())?;
         match serde_json::from_str::<ArchiveReply>(&result.metadata).map_err(|e| e.to_string())? {
-            ArchiveReply::Packed => result.buffers.first().map(Uint8Array::to_vec).ok_or_else(|| "Archive returned no bytes.".into()),
+            ArchiveReply::Packed => result
+                .buffers
+                .first()
+                .map(Uint8Array::to_vec)
+                .ok_or_else(|| "Archive returned no bytes.".into()),
             reply => Err(format!("Archive export rejected: {reply:?}")),
         }
     }
 }
-impl Drop for Runtime { fn drop(&mut self) { self.cancel_frames(); self.core.borrow().close(); } }
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        self.cancel_frames();
+        self.core.borrow().close();
+    }
+}
 
 pub fn deployment_prefix() -> Result<&'static str, String> {
-    let path = web_sys::window().ok_or("window unavailable")?.location().pathname().map_err(|e| format!("{e:?}"))?;
-    Ok(if path == "/boardstudio" || path.starts_with("/boardstudio/") { "/boardstudio/" } else { "/" })
+    let path = web_sys::window()
+        .ok_or("window unavailable")?
+        .location()
+        .pathname()
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(
+        if path == "/boardstudio" || path.starts_with("/boardstudio/") {
+            "/boardstudio/"
+        } else {
+            "/"
+        },
+    )
 }
 pub fn resource_url(path: &str) -> Result<String, String> {
-    let origin = web_sys::window().ok_or("window unavailable")?.location().origin().map_err(|e| format!("{e:?}"))?;
+    let origin = web_sys::window()
+        .ok_or("window unavailable")?
+        .location()
+        .origin()
+        .map_err(|e| format!("{e:?}"))?;
     Ok(format!("{origin}{}{path}", deployment_prefix()?))
 }
 async fn fetch_bytes(path: &str) -> Result<Vec<u8>, String> {
     let window = web_sys::window().ok_or("window unavailable")?;
-    let response = JsFuture::from(window.fetch_with_str(&resource_url(path)?)).await.map_err(|e| format!("{e:?}"))?.dyn_into::<web_sys::Response>().map_err(|e| format!("{e:?}"))?;
-    if !response.ok() { return Err(format!("Required asset unavailable: {path} ({})", response.status())); }
-    let buffer = JsFuture::from(response.array_buffer().map_err(|e| format!("{e:?}"))?).await.map_err(|e| format!("{e:?}"))?;
+    let response = JsFuture::from(window.fetch_with_str(&resource_url(path)?))
+        .await
+        .map_err(|e| format!("{e:?}"))?
+        .dyn_into::<web_sys::Response>()
+        .map_err(|e| format!("{e:?}"))?;
+    if !response.ok() {
+        return Err(format!(
+            "Required asset unavailable: {path} ({})",
+            response.status()
+        ));
+    }
+    let buffer = JsFuture::from(response.array_buffer().map_err(|e| format!("{e:?}"))?)
+        .await
+        .map_err(|e| format!("{e:?}"))?;
     Ok(Uint8Array::new(&buffer).to_vec())
 }
 fn deliver(bytes: &[u8], filename: &str) -> Result<(), String> {
-    let parts = Array::new(); parts.push(&Uint8Array::from(bytes));
+    let parts = Array::new();
+    parts.push(&Uint8Array::from(bytes));
     let blob = Blob::new_with_u8_array_sequence(&parts).map_err(|e| format!("{e:?}"))?;
     let url = Url::create_object_url_with_blob(&blob).map_err(|e| format!("{e:?}"))?;
     let result = (|| {
-        let document = web_sys::window().and_then(|w| w.document()).ok_or("document unavailable")?;
-        let anchor = document.create_element("a").map_err(|e| format!("{e:?}"))?.dyn_into::<HtmlAnchorElement>().map_err(|e| format!("{e:?}"))?;
-        anchor.set_href(&url); anchor.set_download(filename); anchor.click(); Ok(())
+        let document = web_sys::window()
+            .and_then(|w| w.document())
+            .ok_or("document unavailable")?;
+        let anchor = document
+            .create_element("a")
+            .map_err(|e| format!("{e:?}"))?
+            .dyn_into::<HtmlAnchorElement>()
+            .map_err(|e| format!("{e:?}"))?;
+        anchor.set_href(&url);
+        anchor.set_download(filename);
+        anchor.click();
+        Ok(())
     })();
     Url::revoke_object_url(&url).map_err(|e| format!("{e:?}"))?;
     result

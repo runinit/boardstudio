@@ -167,6 +167,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-application"
+version = "0.1.0"
+dependencies = [
+ "boardstudio_core",
+]
+
+[[package]]
 name = "boardstudio-contracts"
 version = "0.1.0"
 dependencies = [
@@ -177,6 +184,7 @@ dependencies = [
 name = "boardstudio-web"
 version = "0.1.0"
 dependencies = [
+ "boardstudio-application",
  "boardstudio_core",
  "dioxus",
  "dioxus-web",
