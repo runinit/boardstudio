@@ -116,6 +116,11 @@ impl CadWorker {
         })
     }
 
+    /// Whether this worker has failed or been closed and cannot serve requests.
+    pub fn is_closed(&self) -> bool {
+        self.state.borrow().closed
+    }
+
     pub async fn ready(&self) -> Result<(), CadWorkerError> {
         let (sender, receiver) = oneshot::channel();
         {
