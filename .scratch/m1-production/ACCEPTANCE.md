@@ -26,3 +26,14 @@ Each executed command records argv, work directory, source commit/dirty content 
 ## Closure
 
 Coordinator updates each local ticket, root TODO and current production run only after integration verification and required review. Gate outcomes are pass, fail, blocked or unperformed; absent checks are never pass. Relevant screen-reader or budget/API approval blockers remain explicit while independent work continues. Ticket 06 cannot close while any required gate is failed or unperformed. M1 acceptance authorizes no database cutover, push, deploy, main merge or React removal.
+
+## Available assistive technology — 2026-10-01
+
+The host inventory found no Orca command, installed package or Flatpak.
+Speech Dispatcher and eSpeak are present, but provide speech synthesis rather
+than screen-reader navigation. Relevant screen-reader interaction remains
+**blocked**; AX tree inspection and raw axe/contrast checks cannot close it.
+The remaining browser and performance gates continue independently. A later
+manual check should cover opening a copied project, reaching/selecting a part,
+preview/cancel/commit announcements, save-failure/recovery status, case generation
+and export using an actual screen reader on the tested release.

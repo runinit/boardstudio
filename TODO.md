@@ -94,7 +94,7 @@ These are isolated integration probes; production adoption is not implicit.
 
 See [specification](.scratch/m1-production/spec.md), [task graph](.scratch/m1-production/PLAN.md) and [current state](docs/migration/m1-production-run.json).
 
-- [ ] M1-01: [Reconcile the exact newer provider reference](.scratch/m1-production/issues/01-providers.md)
+- [x] M1-01: [Reconcile the exact newer provider reference](.scratch/m1-production/issues/01-providers.md)
 - [ ] M1-02: [Open, edit, durably save and recover one copied keyboard](.scratch/m1-production/issues/02-durable-editor.md)
 - [ ] M1-03: [Reload and exchange faithful archives, including offline reopen](.scratch/m1-production/issues/03-archives-offline.md)
 - [ ] M1-04: [Generate and inspect the committed case in workers](.scratch/m1-production/issues/04-exact-case.md)
