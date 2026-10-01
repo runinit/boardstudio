@@ -745,10 +745,18 @@ impl Runtime {
         spawn_local(async move {
             match this.store.load_document(id).await {
                 Ok(Some(document)) if this.open_sequence.get() == sequence => {
-                    this.submit(Event::Open {
-                        operation_id: this.operation(),
-                        document,
-                    })
+                    let operation_id = this.operation();
+                    if this.model().lifecycle == Lifecycle::RecoveryRequired {
+                        this.submit(Event::RecoverWithDocument {
+                            operation_id,
+                            document,
+                        });
+                    } else {
+                        this.submit(Event::Open {
+                            operation_id,
+                            document,
+                        });
+                    }
                 }
                 Ok(Some(_)) => {}
                 Ok(None) if this.open_sequence.get() == sequence => {
