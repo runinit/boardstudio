@@ -1,4 +1,4 @@
-use boardstudio_core::{CoreEngine, archive};
+use boardstudio_core::{CoreEngine, archive, artifact_request};
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use serde::Deserialize;
 use serde_json::Value;
@@ -18,6 +18,11 @@ enum WorkerMessage {
         executor_epoch: String,
         metadata: String,
         buffers: Vec<u32>,
+    },
+    Artifact {
+        request_id: String,
+        executor_epoch: String,
+        frame: String,
     },
 }
 
@@ -130,6 +135,48 @@ fn dispatch(
             Reflect::set(&response, &"frame".into(), &reply.into())?;
             Reflect::set(&response, &"buffers".into(), &output)?;
             scope.post_message_with_transfer(&response, &transfers)
+        }
+        WorkerMessage::Artifact {
+            request_id,
+            executor_epoch,
+            frame,
+        } => {
+            let request_value: Value = serde_json::from_str(&frame)
+                .map_err(|error| JsValue::from_str(&error.to_string()))?;
+            let request_frame_id = request_value
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| JsValue::from_str("artifact request has no string id"))?;
+            if request_frame_id != request_id {
+                return post_error(
+                    scope,
+                    &request_id,
+                    executor_epoch,
+                    "artifact request id mismatch",
+                );
+            }
+            let reply_json = artifact_request(&frame);
+            let reply_id = serde_json::from_str::<Value>(&reply_json)
+                .ok()
+                .and_then(|value| value.get("id").and_then(Value::as_str).map(str::to_owned));
+            if reply_id.as_deref() != Some(request_id.as_str()) {
+                return post_error(
+                    scope,
+                    &request_id,
+                    executor_epoch,
+                    "artifact reply id mismatch",
+                );
+            }
+            let response = Object::new();
+            Reflect::set(&response, &"kind".into(), &"artifact".into())?;
+            Reflect::set(&response, &"request_id".into(), &request_id.into())?;
+            Reflect::set(
+                &response,
+                &"executor_epoch".into(),
+                &JsValue::from_str(&executor_epoch),
+            )?;
+            Reflect::set(&response, &"frame".into(), &reply_json.into())?;
+            scope.post_message(&response)
         }
     }
 }

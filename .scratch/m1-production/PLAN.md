@@ -10,7 +10,7 @@ The provider reconciliation is the required prefactor. Remaining tickets deliver
 
 - The to-spec parent and six numbered tickets define user behavior, dependencies, oracles, task categories and exclusions.
 - Provider reconciliation evidence pins both repositories, overlapping edits, preserved checkouts/stashes and affected checks.
-- Session design records typed effects, identities, durable transitions, gesture/job/export behavior and tested public seams.
+- [Session design](SESSION.md) records typed effects, identities, durable transitions, gesture/job/export behavior and tested public seams.
 - Host boundary inventory records worker/storage/renderer/file/service-worker contracts, generated glue, ownership/copies and retirement criteria.
 - Build/run documentation records exact toolchain, locked commands, fixture preparation, isolated databases, root/subpath stages and asset hashes.
 - Compatibility/evidence records retain native and browser command outputs, archive and STEP oracles, visual/a11y/performance/resource limits and failed gates.

@@ -405,7 +405,7 @@ impl Runtime {
                     cancelled.set(true);
                 }
                 if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
-                    worker.cancel(&format!("case-{}", job_id.0));
+                    let _ = worker.cancel(&format!("case-{}", job_id.0));
                     worker.close();
                 }
                 vec![]
@@ -460,6 +460,15 @@ impl Runtime {
             .generate_current(job_id, &scope, &snapshot, &cancelled)
             .await;
         self.cad_jobs.borrow_mut().remove(&job_id);
+        let current_job = matches!(self.model().generation,
+            boardstudio_application::GenerationStatus::Preparing { job_id: active }
+            | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+        if result.is_err()
+            && current_job
+            && let Some((_, worker)) = self.cad_worker.borrow_mut().take()
+        {
+            worker.close();
+        }
         match result {
             Ok(()) => self.complete(Completion::GenerationFinished {
                 job_id,
@@ -489,7 +498,10 @@ impl Runtime {
         cancelled: &Cell<bool>,
     ) -> Result<(), CadJobError> {
         let guard = || {
-            if cancelled.get() || !self.snapshot_current(snapshot.token, scope) {
+            let current_job = matches!(self.model().generation,
+                boardstudio_application::GenerationStatus::Preparing { job_id: active }
+                | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+            if cancelled.get() || !current_job || !self.snapshot_current(snapshot.token, scope) {
                 Err(CadJobError::Cancelled)
             } else {
                 Ok(())
@@ -546,7 +558,9 @@ impl Runtime {
                 .await
                 .map_err(|e| CadJobError::Failed(e.to_string()))?;
             guard()?;
-            let result = validate_reply(&request, reply, &prepared.identity)?;
+            let mut result = validate_reply(&request, reply, &prepared.identity)?;
+            // Renderer retention needs meshes only; manufacturing exports have their own worker.
+            result.step = Vec::new();
             *self.cad_scene.borrow_mut() = Some(Rc::new(CadScene {
                 scope: scope.clone(),
                 token: snapshot.token,
@@ -731,10 +745,18 @@ impl Runtime {
         spawn_local(async move {
             match this.store.load_document(id).await {
                 Ok(Some(document)) if this.open_sequence.get() == sequence => {
-                    this.submit(Event::Open {
-                        operation_id: this.operation(),
-                        document,
-                    })
+                    let operation_id = this.operation();
+                    if this.model().lifecycle == Lifecycle::RecoveryRequired {
+                        this.submit(Event::RecoverWithDocument {
+                            operation_id,
+                            document,
+                        });
+                    } else {
+                        this.submit(Event::Open {
+                            operation_id,
+                            document,
+                        });
+                    }
                 }
                 Ok(Some(_)) => {}
                 Ok(None) if this.open_sequence.get() == sequence => {

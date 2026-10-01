@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** provider reconciliation integrated; final exact-candidate review pending
 
 **Category:** behavior-preserving migration plus explicitly approved transparent Rust enum boxing (RUN approval, 2026-10-01); ticket 02 includes the already accepted recovery behavior.
 

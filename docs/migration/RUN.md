@@ -805,3 +805,22 @@ presentation/runtime now compiles and passes strict page WASM Clippy at
 recovery, archive, offline, CAD/renderer, STEP, presentation and performance
 gates remain open. CAD/STEP worker and offline policy development proceed
 independently; their acceptance still follows the task graph.
+
+### CAD and offline implementation checkpoint
+
+Integration `e96cd223` contains the reconciled provider/boxing changes, scoped
+browser host, Rust offline policy and CAD worker. The public application suite
+passes eleven tests, including save-abort recovery and active-board snapping;
+five CAD tests cover snapshot identity, safe-range rejection and payload checks.
+Page and CAD-worker WASM library checks pass. Offline minimal-shell browser
+proof covers root/subpath separation, offline reopen, update and missing assets;
+full application offline acceptance is still open.
+
+Consumer `f5e287b9` adds captured generation, independent STEP worker/export
+lifetimes, scope/token checks before delivery, case settings and renderer camera
+controls. Numeric/pointer UI repairs and browser storage/archive proofs are in
+progress. The full page check currently waits for the interaction worker's
+`import_file` adapter. The canvas nominal PCB reference does not claim generator
+execution or populated PCB parity. No production ticket is closed by this
+checkpoint; final release, exact geometry/readback, resource, accessibility,
+performance and Standards/Spec review gates remain open.

@@ -1,6 +1,6 @@
-# M1 reproducible build and staging design
+# M1 reproducible build and staging
 
-Status: design only. No production web package or passing M1 bundle is claimed here. Implementation fills in verified commands and outputs, then updates this file and run evidence. Avoid shell instructions that overwrite an earlier release or evidence directory.
+Status: maintained build implementation exists; final complete M1 release and acceptance remain pending. Partial builds and failures are retained under evidence/providers. Never overwrite an earlier release or evidence directory.
 
 ## Toolchain and package layout
 
@@ -31,3 +31,26 @@ Cached offline checks run after real install and registration control, then seve
 ## User-test handoff
 
 After acceptance, provide a complete editable copied-project demo and concrete local launch instructions with tested artifacts. Describe any unavailable checks or compatibility limits. Do not offer a built probe as completed M1, change production data, push, deploy or remove React.
+
+## Maintained build entrypoint
+
+Run `python3 scripts/build-m1.py <unique-build-id>` from the integration checkout.
+The script refuses an existing `web/target/builds/<unique-build-id>` directory,
+rebuilds locked core/core-worker/CAD-worker/renderer/CAD modules, prepares complete
+copied fixtures, and stages separate Dioxus root and subpath releases. Each stage
+receives its own full manifest and Rust offline policy. `provenance.json` retains
+source hashes, argv, cwd, features, environment, command times, exit codes, logs
+and staged file hashes. A source change during the build fails provenance.
+
+Serve the resulting `site-root` and `site-subpath` directories with separate owned
+local HTTP servers. Open `/` on the root server and `/boardstudio/` on the subpath
+server. Trial storage uses `boardstudio-m1-root` and `boardstudio-m1-boardstudio`;
+production `boardstudio-v2` is untouched. Browser acceptance must use these
+release artifacts. A Dioxus development page with separately staged provider
+assets is useful for repairs but is not final release evidence.
+
+The current canvas shows exact case bodies and a nominal PCB contour reference.
+M1 permits embedded part definitions without executing generator authoring/PCB
+export (ADR 0003); this does not assert populated PCB preview or generator parity.
+Case settings on a physical instance require its own supported document update
+policy; the current UI directs setting edits to the canonical board.

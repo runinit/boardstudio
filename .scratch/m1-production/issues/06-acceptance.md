@@ -4,7 +4,7 @@
 
 **Blocked by:** 03, 05
 
-**Status:** ready-for-agent
+**Status:** implementation gates in progress; final release and independent reviews pending
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 

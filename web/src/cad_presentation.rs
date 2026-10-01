@@ -128,13 +128,12 @@ fn CaseCanvas(scene: Rc<CadScene>) -> Element {
         let host = host.clone();
         let runtime = runtime.clone();
         move |(scene,)| {
-            if mounted() {
-                if let Some(host) = host.borrow().as_ref()
-                    && let Err(error) =
-                        scene_input(&scene, true).and_then(|input| host.update_scene(input))
-                {
-                    runtime.report(error);
-                }
+            if mounted()
+                && let Some(host) = host.borrow().as_ref()
+                && let Err(error) =
+                    scene_input(&scene, true).and_then(|input| host.update_scene(input))
+            {
+                runtime.report(error);
             }
         }
     }));
