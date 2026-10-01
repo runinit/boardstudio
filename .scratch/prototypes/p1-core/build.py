@@ -9,6 +9,6 @@ if len(sys.argv) == 3:
     public, prefix = Path(sys.argv[1]).resolve(), sys.argv[2]
     if prefix not in ("/", "/boardstudio/"): raise ValueError("out-of-scope prefix")
     if not (public / "index.html").is_file(): raise ValueError("missing CLI host artifact")
-    site = p / "evidence/site" / prefix.lstrip("/")
+    site = p / "evidence/u64-repair/site" / prefix.lstrip("/")
     shutil.copytree(public, site, dirs_exist_ok=True)
     shutil.copytree(out, site / "worker", dirs_exist_ok=True)

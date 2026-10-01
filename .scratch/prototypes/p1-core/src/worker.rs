@@ -25,7 +25,11 @@ fn dispatch(
     engine: &mut CoreEngine,
     data: JsValue,
 ) -> Result<(), JsValue> {
-    let request: Request = serde_wasm_bindgen::from_value(Reflect::get(&data, &"frame".into())?)?;
+    let frame = Reflect::get(&data, &"frame".into())?
+        .as_string()
+        .ok_or_else(|| JsValue::from_str("request frame must be JSON text"))?;
+    let request: Request =
+        serde_json::from_str(&frame).map_err(|error| JsValue::from_str(&error.to_string()))?;
     if matches!(request.action, Action::Crash) {
         wasm_bindgen::throw_str("intentional P1 worker crash");
     }
@@ -73,7 +77,10 @@ fn post(
     Reflect::set(
         &message,
         &"frame".into(),
-        &serde_wasm_bindgen::to_value(&reply)?,
+        &JsValue::from_str(
+            &serde_json::to_string(&reply)
+                .map_err(|error| JsValue::from_str(&error.to_string()))?,
+        ),
     )?;
     if let Some(buffer) = buffer {
         Reflect::set(&message, &"buffer".into(), &buffer)?;

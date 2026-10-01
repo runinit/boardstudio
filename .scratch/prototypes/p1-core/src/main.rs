@@ -91,6 +91,47 @@ async fn run_probe() -> Result<serde_json::Value, String> {
     if id != "snapshot-probe" || snapshot != document {
         return Err("Snapshot changed document".into());
     }
+    let mut precision_cases = Vec::new();
+    for (index, revision) in [9_007_199_254_740_991_u64, 9_007_199_254_740_993, u64::MAX]
+        .into_iter()
+        .enumerate()
+    {
+        let mut expected = ProjectDoc::empty("precision-copy", "P1 public-value oracle");
+        expected.revision = revision;
+        expected.parameters.insert("integer-boundaries".into(), serde_json::json!({
+            "unsigned": [9_007_199_254_740_991_u64, 9_007_199_254_740_993_u64, u64::MAX],
+            "signed": [i64::MIN, -9_007_199_254_740_993_i64, i64::MAX],
+            "nested": [null, true, {"fraction": 1.25, "whole_float": 1.0, "negative_zero": -0.0, "label": "preserve"}],
+        }));
+        let opened = Identity {
+            epoch: 1,
+            operation: 100 + index as u32 * 2,
+        };
+        worker.send(
+            opened,
+            Action::Core(Box::new(CoreRequest::Open {
+                id: format!("precision-open-{index}"),
+                document: expected.clone(),
+            })),
+            None,
+        )?;
+        let (reply, _) = worker.wait(opened).await?;
+        assert_precision_reply(reply, &format!("precision-open-{index}"), &expected)?;
+        let captured = Identity {
+            epoch: 1,
+            operation: opened.operation + 1,
+        };
+        worker.send(
+            captured,
+            Action::Core(Box::new(CoreRequest::Snapshot {
+                id: format!("precision-snapshot-{index}"),
+            })),
+            None,
+        )?;
+        let (reply, _) = worker.wait(captured).await?;
+        assert_precision_reply(reply, &format!("precision-snapshot-{index}"), &expected)?;
+        precision_cases.push(revision.to_string());
+    }
     let noise = Identity {
         epoch: 1,
         operation: 3,
@@ -160,7 +201,7 @@ async fn run_probe() -> Result<serde_json::Value, String> {
         return Err(format!("init did not settle via error: {error}"));
     }
     Ok(
-        serde_json::json!({"status":"passed","prefix":prefix,"worker_url":url,"open":"passed","snapshot":"passed","invalid_stale_unsolicited_rejected":worker.rejected(),"sender_bytes_after_transfer":detached,"received_bytes":received,"close":"settled","crash":"settled","init_failure":"settled","serialization":"serde-wasm-bindgen structured frame; core document copied across boundary; test buffer copied once to JS and once from JS for assertion"}),
+        serde_json::json!({"status":"passed","prefix":prefix,"worker_url":url,"open":"passed","snapshot":"passed","precision_cases":precision_cases,"parameter_values":"preserved","invalid_stale_unsolicited_rejected":worker.rejected(),"sender_bytes_after_transfer":detached,"received_bytes":received,"close":"settled","crash":"settled","init_failure":"settled","serialization":"Rust serde_json text frame; core document encoded/decoded and frame copied across boundary; test buffer copied once to JS and once from JS for assertion"}),
     )
 }
 
@@ -174,4 +215,35 @@ async fn wait_ready(client: &host::Client) -> Result<(), String> {
     }
     client.close();
     Err("initialization deadline exceeded".into())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn assert_precision_reply(
+    reply: boardstudio_p1_core::Reply,
+    expected_id: &str,
+    expected: &boardstudio_core::model::ProjectDoc,
+) -> Result<(), String> {
+    use boardstudio_core::model::CoreReply;
+    use boardstudio_p1_core::ResultPayload;
+    let ResultPayload::Core(reply) = reply.payload else {
+        return Err("expected precision core reply".into());
+    };
+    let CoreReply::Scene {
+        id,
+        document,
+        scene,
+    } = *reply
+    else {
+        return Err("expected precision scene".into());
+    };
+    if id != expected_id || document != *expected || scene.revision != expected.revision {
+        return Err("provider request/reply integer or parameter meaning changed".into());
+    }
+    // Preserve the provider's serialized JSON value representation too, including -0.0 and 1.0.
+    if serde_json::to_string(&document).map_err(|e| e.to_string())?
+        != serde_json::to_string(expected).map_err(|e| e.to_string())?
+    {
+        return Err("provider JSON parameter representation changed".into());
+    }
+    Ok(())
 }

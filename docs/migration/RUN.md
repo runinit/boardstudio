@@ -193,3 +193,13 @@ a two-attempt limit. No CAD task, kernel/API change or prototype production
 adoption is part of this user request. The Matt router uses diagnosing-bugs,
 TDD and two-axis code review. Existing local Markdown tracking is mapped for
 the skills; no repository-wide agent configuration or external tracker changes.
+
+P1-U64 development evidence: the strengthened public host/worker regression failed
+with the default codec on `i64::MIN` before the revision cases completed
+([RED](../../.scratch/prototypes/p1-core/evidence/u64-repair/red-command.json)).
+Rust serde_json opaque text frames replace the four host/worker conversion calls;
+engine/provider source, typed envelopes, manifests, lockfile, versions and buffer
+transfer are unchanged. Fresh locked worker and Dioxus root/subpath release
+builds and both Chromium assertions now pass. The original P1-CORE failure
+records remain historical. The current candidate is not accepted until exact
+Standards/Spec review and integration validation; canonical completion stays open.

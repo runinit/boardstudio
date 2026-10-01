@@ -1,0 +1,33 @@
+{
+  "source_baseline": "2caf0874a85539cf3c55cb278a7a01f73abbfaf3",
+  "source_hashes": {
+    ".scratch/prototypes/p1-core/Cargo.toml": "2127f76e14a379ba9613bdb1fcbed4304e3d31628e73da7286ca5f1cf5356507",
+    ".scratch/prototypes/p1-core/Cargo.lock": "9d37c77513b80f1b54508e756a50b949438eacef4f64b0fc82727246904e18c9",
+    ".scratch/prototypes/p1-core/build.py": "22fdb8846cac511258a7d7ae7c3f7146e2f6ac6c46a3f95343313e6afb4dfd7e",
+    ".scratch/prototypes/p1-core/evidence/verify-browser.py": "462fbbc045b8720170aff7f9dfe20b9c8865cc95a0004f8ee5538ea13cbb760b",
+    ".scratch/prototypes/p1-core/src/host.rs": "18d98cab2b9d7f3449fb54e294121ec81e16e73bdc61386023da4eddde92f434",
+    ".scratch/prototypes/p1-core/src/lib.rs": "8ce839c6d2c6bed047fc71ead0cf9d662b2e7b2d5ceea55925b24895f1e41c1d",
+    ".scratch/prototypes/p1-core/src/main.rs": "aa9ca975282c4b8cd4318e9c092e84912ab6a06d5b6c3bab3db8e8597b8f79a6",
+    ".scratch/prototypes/p1-core/src/worker.rs": "23daf72ce6299015a31e0b0950dabc78d8ed7e00b10c5e14b8336a20dbb4bc80"
+  },
+  "worker_files": {
+    "worker-pkg/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+    "worker-pkg/README.md": "a78c1f8edb0d1ff3aa3f428fedcc309c3e497bb46bf4b06df10f2de8ebc85da8",
+    "worker-pkg/boardstudio_p1_core.d.ts": "8583cb0f1b55dba4e2f2b7a4dc8bf33114d4ac592bff62e45c9eb5a39d281510",
+    "worker-pkg/boardstudio_p1_core.js": "f4b8f47c5b30f22011afe481209c44cd99dd66ab8c469d6e3f3b196aee977d40",
+    "worker-pkg/boardstudio_p1_core_bg.wasm": "559786e9ed6ce5da30b1018afa6239d67a0da19746e8fd019a61c0d15d3c36f4",
+    "worker-pkg/boardstudio_p1_core_bg.wasm.d.ts": "0a6307e40c44cf2466760dbe4d92e598ac4179dde083694710613cf89c46fe6d",
+    "worker-pkg/package.json": "0560a8c51a943dbd41e210d1f1ffde2d3d7479fab896e0fef952e9aacc8aa4ef",
+    "worker-pkg/worker-entry.js": "ffcaaa86c61e116ca9d1e251d3335d0822293a85e29aaef4137ff8782382b925"
+  },
+  "provider_regression_reuse": {
+    "record": "../provider-evidence.json",
+    "current_source_proof": "pre-review-repo-checks.json, provider-unchanged.log",
+    "current_manifest_lock_unchanged": true
+  },
+  "red_expected_failure": "i64::MIN rejected by prior codec on actual Client.send",
+  "fresh_release_browser_checks": "green-release-browser.json",
+  "prior_precision_records": "historical failure/diagnostic provenance only",
+  "repair_attempts": 1,
+  "remaining_scope": "exact-candidate review, integration validation, handoff; P1-CAD and adoption excluded"
+}

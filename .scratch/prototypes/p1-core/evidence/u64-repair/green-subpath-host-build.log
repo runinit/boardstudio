@@ -1,0 +1,12 @@
+  0.00s  INFO Building project...
+  0.79s  INFO Compiled [202/207]: dioxus_cli_config
+  0.96s  INFO Compiled [203/207]: dioxus_devtools
+  1.19s  INFO Compiled [204/207]: dioxus
+  1.34s  INFO Compiled [205/207]: dioxus_web
+  1.67s  INFO Compiled [206/207]: boardstudio_p1_core
+  3.81s  INFO Compiled [207/207]: boardstudio-p1-core
+  3.84s  INFO Bundling app...
+  3.97s  INFO Running wasm-bindgen...
+  9.65s  INFO Copying asset (1/2): /home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public/wasm/boardstudio-p1-core_bg.wasm
+  9.66s  INFO Copying asset (2/2): /home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public/wasm/boardstudio-p1-core.js
+  9.66s  INFO Client build completed successfully! 🚀 path="/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public"

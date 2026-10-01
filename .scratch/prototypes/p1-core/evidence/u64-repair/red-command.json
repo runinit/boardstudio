@@ -1,0 +1,10 @@
+{
+  "command": [
+    "python3",
+    "evidence/verify-browser.py",
+    "/"
+  ],
+  "exit_code": 1,
+  "log": "red-browser.log",
+  "expected": "real Client.send serializer rejects large nested integers; new provider precision assertions must fail"
+}

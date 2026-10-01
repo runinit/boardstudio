@@ -45,7 +45,8 @@ impl Client {
             }
             let decoded = Reflect::get(&data, &"frame".into())
                 .ok()
-                .and_then(|frame| serde_wasm_bindgen::from_value::<Reply>(frame).ok());
+                .and_then(|frame| frame.as_string())
+                .and_then(|frame| serde_json::from_str::<Reply>(&frame).ok());
             if let Some(reply) = decoded
                 && state.callers.complete(reply.id)
             {
@@ -86,7 +87,10 @@ impl Client {
             Reflect::set(
                 &object,
                 &"frame".into(),
-                &serde_wasm_bindgen::to_value(&Request { id, action })?,
+                &JsValue::from_str(
+                    &serde_json::to_string(&Request { id, action })
+                        .map_err(|error| JsValue::from_str(&error.to_string()))?,
+                ),
             )?;
             if let Some(bytes) = bytes {
                 let buffer = bytes.buffer();

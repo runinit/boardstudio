@@ -2,7 +2,8 @@ from pathlib import Path
 import json, subprocess, socket, time, sys
 p = Path(__file__).resolve().parent
 prefix = sys.argv[1]
-name = "boardstudio-p1-core-20261001-" + ("subpath" if prefix != "/" else "root")
+p = p / "u64-repair"
+name = "boardstudio-p1-u64-20261001-" + ("subpath" if prefix != "/" else "root")
 sock = socket.socket(); sock.bind(("127.0.0.1", 0)); port = sock.getsockname()[1]; sock.close()
 log = (p / (name + "-server.log")).open("w")
 server = subprocess.Popen(["python3", "-m", "http.server", str(port), "--bind", "127.0.0.1", "--directory", str(p / "site")], stdout=log, stderr=subprocess.STDOUT)
@@ -33,6 +34,8 @@ try:
     assert result["status"] == "passed", result
     assert result["prefix"] == prefix, "host prefix mismatch"
     assert result["open"] == "passed" and result["snapshot"] == "passed"
+    assert result["precision_cases"] == ["9007199254740991", "9007199254740993", "18446744073709551615"]
+    assert result["parameter_values"] == "preserved"
     assert result["invalid_stale_unsolicited_rejected"] == 3
     assert result["sender_bytes_after_transfer"] == 0 and result["received_bytes"] == [3, 1, 4]
     assert all(result[key] == "settled" for key in ["close", "crash", "init_failure"])
@@ -40,9 +43,11 @@ try:
 except Exception as error:
     verdict["error"] = str(error)
 finally:
-    browser(["close"])
-    server.terminate(); server.wait(timeout=10); log.close()
-    verdict["commands"] = commands
-    (p / (name + "-browser.json")).write_text(json.dumps(verdict, indent=2) + "\n")
+    try:
+        browser(["close"])
+    finally:
+        server.terminate(); server.wait(timeout=10); log.close()
+        verdict["commands"] = commands
+        (p / (name + "-browser.json")).write_text(json.dumps(verdict, indent=2) + "\n")
 print(json.dumps({k:v for k,v in verdict.items() if k != "commands"}, indent=2))
 sys.exit(0 if verdict["status"] == "passed" else 1)

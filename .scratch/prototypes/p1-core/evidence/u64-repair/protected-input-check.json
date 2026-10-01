@@ -1,0 +1,8 @@
+{
+  "source_worktree": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+  "count": 31,
+  "changes": [],
+  "result": "unchanged",
+  "current_source_head": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+  "source_status": " M CHANGELOG.md\n M PLAN.md\n M TODO.md\n?? .scratch/\n?? CAPABILITY-MAP.md\n?? CONSTRAINTS.md\n?? SPEC-editor-session.md\n?? docs/adr/0003-rust-application-ownership.md\n?? docs/dioxus-context-baseline-evidence.json\n?? docs/dioxus-context-baseline.md\n"
+}

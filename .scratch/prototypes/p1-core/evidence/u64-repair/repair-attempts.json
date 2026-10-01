@@ -1,0 +1,20 @@
+{
+  "limit": 2,
+  "attempts": [
+    {
+      "attempt": 1,
+      "category": "evidence packaging",
+      "failed_command": [
+        "git",
+        "diff",
+        "--cached",
+        "--check"
+      ],
+      "exit_code": 2,
+      "diagnosis": "New raw Cargo stdout ends with a blank line, rejected by staged whitespace gate. No code/test/build failure.",
+      "correction": "Track native-test.log.gz with raw SHA; preserve original bytes at task-owned target/u64-native-test.raw.log. No gate relaxation or source change.",
+      "raw_sha256": "0ff790721d96232904ef6f9ea826de0b9f18b06c939662ebe7f6ce4e9c67ec7a",
+      "status": "staged whitespace gate passed (exit 0)"
+    }
+  ]
+}

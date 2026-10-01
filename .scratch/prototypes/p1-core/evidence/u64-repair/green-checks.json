@@ -1,0 +1,84 @@
+[
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--locked"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core",
+    "exit_code": 0,
+    "log": "native-test.log.gz",
+    "encoding": "gzip",
+    "raw_sha256": "0ff790721d96232904ef6f9ea826de0b9f18b06c939662ebe7f6ce4e9c67ec7a"
+  },
+  {
+    "command": [
+      "cargo",
+      "build",
+      "--locked"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core",
+    "exit_code": 0,
+    "log": "native-build.log"
+  },
+  {
+    "command": [
+      "cargo",
+      "fmt",
+      "--check"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core",
+    "exit_code": 0,
+    "log": "fmt.log"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core",
+    "exit_code": 0,
+    "log": "native-clippy.log"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--lib",
+      "--target",
+      "wasm32-unknown-unknown",
+      "--no-default-features",
+      "--features",
+      "worker",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core",
+    "exit_code": 0,
+    "log": "worker-clippy.log"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--bin",
+      "boardstudio-p1-core",
+      "--target",
+      "wasm32-unknown-unknown",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core",
+    "exit_code": 0,
+    "log": "host-clippy.log"
+  }
+]

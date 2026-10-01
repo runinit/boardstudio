@@ -1,0 +1,22 @@
+[
+  {
+    "command": [
+      "node",
+      "/tmp/boardstudio-migration-specs-review-20261001/scripts/repo-check.mjs",
+      "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001",
+    "exit_code": 0,
+    "log": "repo-check-final.log"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001",
+    "exit_code": 0,
+    "log": "whitespace-final.log"
+  }
+]

@@ -32,7 +32,7 @@
     "two independent read-only Standards and Spec reviews against current integration base; validate resulting integration revision"
   ],
   "repair_limit": 2,
-  "repair_attempts": 0,
+  "repair_attempts": 1,
   "preflight_note": "Archive path guard initially rejected benign parent directory entries before any writes; verified directory parents now explicitly allowed, extraction uses data filter.",
   "scope_excludes": [
     "P1-CAD execution",

@@ -7,6 +7,10 @@
 - [x] DOC-1: Complete and technically validate all six M1 module specifications, continuing the accepted map/ADR; preserve protected worktrees and exact inputs, record preflight/advance approval and retain all runtime limitations. Evidence: [run ledger](docs/migration/RUN.md).
 - [x] TOOL-1: Install official pinned Dioxus CLI 0.7.10 following the user's explicit installation request; verify official archive SHA-256 and `dx --version`, without PATH/config changes or overwriting an existing executable. [Install evidence](.scratch/migration-specs-validation/tool-install.json); independent command/help verification exits 0.
 
+## Renewed defect-only task: P1-U64-r1
+
+- [ ] P1-U64 — corrected isolated prototype passes the real host/worker precision and lifecycle assertions at root/subpath; awaiting remaining checks, exact-candidate Standards/Spec review and integration validation. [Authority and scope](.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json). No CAD execution or production adoption in this task.
+
 ## Authorized bounded task set: P1-r1
 
 Plan/spec/advance approval: [P1-r1](tasks/plan.md) and [run ledger](docs/migration/RUN.md).
