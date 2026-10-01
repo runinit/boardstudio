@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Public CadWorker decoder regression</title>
+<pre id="result">running</pre>
+<script type="module">
+import init, { test_cad_worker_request } from "./decoder-test-wasm/boardstudio_cad_decoder_test.js";
+
+const output = document.querySelector("#result");
+const timeout = (label) => new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} request did not settle`)), 1500));
+const invoke = (mode) => Promise.race([
+  test_cad_worker_request(new URL(`./decoder-test-worker.js?bodies=${mode}`, location.href).href),
+  timeout(mode),
+]);
+
+try {
+  await init();
+  const omittedCount = await invoke("omitted");
+  if (omittedCount !== 0) throw new Error(`omitted bodies decoded to ${omittedCount} entries`);
+  let malformedMessage = "";
+  try {
+    await invoke("object");
+  } catch (error) {
+    malformedMessage = String(error);
+  }
+  if (!malformedMessage.includes("bodies must be an array")) {
+    throw new Error(`malformed bodies returned an unexpected result: ${malformedMessage}`);
+  }
+  output.textContent = "PASS: omitted bodies settle as an empty list; malformed bodies settle with a decoder error";
+} catch (error) {
+  output.textContent = `FAIL: ${String(error)}`;
+  throw error;
+}
+</script>

@@ -212,6 +212,35 @@ impl Drop for CadWorker {
     }
 }
 
+/// Browser-only test seam for exercising the public worker request path with a mock Worker.
+#[cfg(feature = "test-harness")]
+#[wasm_bindgen]
+pub async fn test_cad_worker_request(url: String) -> Result<u32, JsValue> {
+    let worker = CadWorker::new(&url).map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let reply = worker
+        .request(CadRequest {
+            request_id: "decoder-regression-request".into(),
+            job_id: "decoder-regression-job".into(),
+            identity: CadSnapshotIdentity {
+                token: 1,
+                session_epoch: 1,
+                document_id: "decoder-regression-document".into(),
+                board_id: "decoder-regression-board".into(),
+                instance_id: None,
+                revision: 1,
+            },
+            operation: CadOperation::ReadStep,
+            prepared: None,
+            input_bytes: vec![1],
+        })
+        .await
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let result = reply
+        .result
+        .ok_or_else(|| JsValue::from_str("CAD test worker returned no result"))?;
+    Ok(result.bodies.len() as u32)
+}
+
 fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
     if request.request_id.is_empty() || request.job_id.is_empty() {
         return Err(CadWorkerError(
@@ -339,7 +368,14 @@ fn decode_result(value: JsValue) -> Result<CadResult, String> {
     } else {
         Some(decode_mesh(mesh_value)?)
     };
-    let body_values = Array::from(&Reflect::get(&value, &"bodies".into()).map_err(js_message)?);
+    let bodies_value = Reflect::get(&value, &"bodies".into()).map_err(js_message)?;
+    let body_values = if bodies_value.is_undefined() {
+        Array::new()
+    } else if Array::is_array(&bodies_value) {
+        Array::from(&bodies_value)
+    } else {
+        return Err("CAD result bodies must be an array when present".into());
+    };
     let mut bodies = Vec::with_capacity(body_values.length() as usize);
     for body in body_values.iter() {
         bodies.push(CadBodyMesh {
