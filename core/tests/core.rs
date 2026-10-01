@@ -47,6 +47,7 @@ fn preview_does_not_commit_and_stale_edit_fails() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),
@@ -279,6 +280,7 @@ fn part_envelope_tracks_committed_move() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),
@@ -351,6 +353,7 @@ fn scripts_emit_stable_ids_and_keep_visual_pose() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),
@@ -416,6 +419,7 @@ fn added_part_joins_board_and_envelope_then_removes_cleanly() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),
@@ -608,6 +612,7 @@ fn pcb_readiness_checks_pads_outlines_and_thickness() {
     doc.outline
         .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),
@@ -726,6 +731,7 @@ fn invalid_definition_geometry_blocks_own_board() {
             generator_parameters: None,
         });
         doc.definitions.push(PartDefinition {
+            input_profile: None,
             mechanical_profile: None,
             id: format!("{id}-def"),
             name: id.into(),
@@ -799,6 +805,7 @@ fn empty_definition_and_pad_ids_are_reported() {
     let mut engine = CoreEngine::new();
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "".into(),
         name: "Custom".into(),
@@ -862,6 +869,7 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
     doc.outline
         .push(rect("edge", 0.0, 0.0, 20.0, 20.0, Operation::Add));
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "part".into(),
         name: "Part".into(),
@@ -1188,6 +1196,7 @@ fn case_mounts_walls_and_gasket_are_validated() {
 fn matrix_doc() -> ProjectDoc {
     let mut doc = ProjectDoc::empty("p", "Project");
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),

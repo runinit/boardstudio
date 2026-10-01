@@ -136,7 +136,7 @@ fn pins(definition: &PartDefinition, terminal: &str, part: &str) -> Vec<Pin> {
             definition
                 .pads
                 .iter()
-                .any(|pad| pad.id == *id && pad.plated != Some(false))
+                .any(|pad| pad.id == *id && (pad.plated != Some(false) || pad.drill.is_none()))
         })
         .map(|pad_id| Pin {
             part_id: part.into(),
@@ -145,6 +145,13 @@ fn pins(definition: &PartDefinition, terminal: &str, part: &str) -> Vec<Pin> {
         .collect()
 }
 fn terminal<'a>(definition: &'a PartDefinition, row: bool) -> &'a str {
+    if let Some(press) = definition
+        .input_profile
+        .as_ref()
+        .and_then(|p| p.press.as_ref())
+    {
+        return if row { &press.row } else { &press.column };
+    }
     definition
         .matrix_terminals
         .as_ref()
@@ -241,6 +248,11 @@ fn discover_keys<'a>(
                 let Some(definition) = definition(doc, part) else {
                     continue;
                 };
+                if crate::inputs::profile(definition).press.is_some()
+                    && crate::inputs::scan_mode(doc, part) != crate::inputs::PressScanMode::Matrix
+                {
+                    continue;
+                }
                 let companions = doc
                     .parts
                     .iter()
@@ -1022,10 +1034,9 @@ pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
                 .peripherals
                 .iter()
                 .any(|peripheral| peripheral.part_id == part.id)
-            || definition
-                .pads
-                .iter()
-                .all(|pad| pad.plated == Some(false) || pad.number.is_empty())
+            || definition.pads.iter().all(|pad| {
+                (pad.plated == Some(false) && pad.drill.is_some()) || pad.number.is_empty()
+            })
         {
             continue;
         }
@@ -1215,10 +1226,10 @@ pub(crate) fn materialize_reviewed(
                     .find(|part| part.id == pin.part_id)
                     .and_then(|part| definition(document, part))
                     .is_some_and(|definition| {
-                        definition
-                            .pads
-                            .iter()
-                            .any(|pad| pad.id == pin.pad_id && pad.plated != Some(false))
+                        definition.pads.iter().any(|pad| {
+                            pad.id == pin.pad_id
+                                && (pad.plated != Some(false) || pad.drill.is_none())
+                        })
                     })
             {
                 return Err(format!(

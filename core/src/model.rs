@@ -1,3 +1,4 @@
+pub use crate::inputs::{EncoderDriver, InputProfile, PressContacts, PressScanMode, RotaryProfile};
 pub use crate::keymap::{
     EncoderBinding, EncoderDirection, KeyBinding, KeymapChange, KeymapConfiguration, KeymapLayer,
     KeymapMacro, MacroChange, MacroStep,
@@ -130,6 +131,13 @@ pub struct KicadSource {
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
 #[serde(deny_unknown_fields)]
 pub struct PartDefinition {
+    #[serde(
+        rename = "inputProfile",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub input_profile: Option<InputProfile>,
     pub id: String,
     pub name: String,
     pub kind: PartKind,
@@ -1062,6 +1070,11 @@ pub enum MatrixSplayChange {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum EditOperation {
+    SetInputScanMode {
+        #[serde(rename = "partId")]
+        part_id: String,
+        mode: PressScanMode,
+    },
     EditKeymap {
         change: KeymapChange,
     },

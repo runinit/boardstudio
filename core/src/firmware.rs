@@ -7,6 +7,8 @@
 use crate::electrical_profiles::profile;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+mod encoders;
+pub use encoders::FirmwareEncoder;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
@@ -34,6 +36,12 @@ pub struct FirmwareKey {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub struct FirmwareRequest {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<FirmwareEncoder>>", optional)
+    )]
+    pub encoders: Vec<FirmwareEncoder>,
     #[serde(default)]
     #[cfg_attr(feature = "export-types", ts(optional))]
     pub keymap: Option<crate::model::KeymapConfiguration>,
@@ -195,14 +203,22 @@ fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
 pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     // An encoder-only board uses its push inputs as the primary direct scanner.
     fn normalize_push_only(half: &mut FirmwareRequest) {
-        if half.mode == FirmwareScanMode::Direct && half.direct_pins.is_empty() && !half.auxiliary_pins.is_empty() {
+        if half.mode == FirmwareScanMode::Direct
+            && half.direct_pins.is_empty()
+            && !half.auxiliary_pins.is_empty()
+        {
             half.direct_pins = std::mem::take(&mut half.auxiliary_pins);
-            for key in &mut half.keys { key.row = 0; }
+            for key in &mut half.keys {
+                key.row = 0;
+            }
         }
     }
     let mut normalized = request.clone();
+    encoders::prepare(&mut normalized)?;
     normalize_push_only(&mut normalized);
-    if let Some(half) = &mut normalized.peripheral { normalize_push_only(half); }
+    if let Some(half) = &mut normalized.peripheral {
+        normalize_push_only(half);
+    }
     let request = &normalized;
     validate_half(request)?;
     let transport = request.transport.as_ref().map(|mode| match mode {
@@ -598,6 +614,7 @@ mod tests {
     use super::*;
     fn request() -> FirmwareRequest {
         FirmwareRequest {
+            encoders: vec![],
             keymap: None,
             encoder_ids: vec![],
             controller_profile: "ceoloide/mcu_nice_nano".into(),

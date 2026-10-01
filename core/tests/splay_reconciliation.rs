@@ -28,6 +28,7 @@ fn matrix() -> Matrix {
 fn open() -> CoreEngine {
     let mut doc = ProjectDoc::empty("p", "P");
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),

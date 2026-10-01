@@ -22,6 +22,7 @@ fn pad(id: &str) -> Pad {
 
 fn definition(id: &str, pads: Vec<Pad>) -> PartDefinition {
     PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: id.into(),
         name: id.into(),

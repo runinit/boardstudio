@@ -8,6 +8,7 @@ pub mod electrical_peripherals;
 pub mod electrical_profiles;
 pub mod firmware;
 mod geometry;
+mod inputs;
 mod keycaps;
 mod keymap;
 mod matrix;
@@ -590,6 +591,7 @@ impl CoreEngine {
         let (outline_findings, mut finding_markers) =
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);
         findings.extend(outline_findings);
+        finding_markers.extend(inputs::finding_markers(doc, &findings));
         let mut generic_markers: BTreeMap<(String, String), Vec<Contour>> = BTreeMap::new();
         for marker in outline_validation::feature_markers(doc, &findings) {
             generic_markers
@@ -879,6 +881,9 @@ fn affects_outline(op: &EditOperation) -> bool {
 
 fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
     match op {
+        EditOperation::SetInputScanMode { part_id, mode } => {
+            inputs::set_scan_mode(doc, part_id, *mode)
+        }
         EditOperation::EditKeymap { change } => keymap::apply_edit(doc, change),
         EditOperation::SetKeyBinding { .. }
         | EditOperation::SetKeycapBoard { .. }

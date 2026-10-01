@@ -26,6 +26,7 @@ fn definition(
         })
         .collect();
     PartDefinition {
+        input_profile: None,
         id: id.into(),
         name: id.into(),
         kind,

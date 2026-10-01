@@ -66,6 +66,7 @@ pub(super) fn import_footprint(source: &str, id: &str) -> Result<CompiledFootpri
         projection.courtyard
     };
     let definition = PartDefinition {
+        input_profile: None,
         id: id.to_owned(),
         name,
         kind: PartKind::Custom,

@@ -22,6 +22,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ($($type:ty),+ $(,)?) => { $(<$type>::export(&config)?;)+ };
     }
     export!(
+        InputProfile,
+        PressContacts,
+        PressScanMode,
+        RotaryProfile,
+        EncoderDriver,
+        boardstudio_core::firmware::FirmwareEncoder,
         KeycapBoardChange,
         KeycapMatrixChange,
         KeycapKeyChange,

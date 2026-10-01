@@ -689,6 +689,7 @@ mod tests {
     fn fixture(keys: usize) -> ProjectDoc {
         let mut doc = ProjectDoc::empty("bench", "Benchmark");
         doc.definitions.push(PartDefinition {
+            input_profile: None,
             mechanical_profile: None,
             id: "switch".into(),
             name: "Switch".into(),

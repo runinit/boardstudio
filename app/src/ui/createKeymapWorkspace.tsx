@@ -27,7 +27,7 @@ type Inputs = {
   emit: (operation: EditOperation, targetIds: string[]) => unknown;
   exportFile: (kind: ExportKind, boardId: string) => void;
   firmwareControls?: ReactNode;
-  encoders?: { id: string; name: string }[];
+  encoders?: { id: string; name: string; pushKeyId?: string | null }[];
   showFinding: (finding: SceneDelta['findings'][number]) => void;
   layerId: string;
   onLayer: (id: string) => void;
@@ -40,7 +40,8 @@ export function createKeymapWorkspace({ document, scene, boardId, parts, definit
   let view: KeymapView | undefined;
   const readView = (): KeymapView => view ??= {
     boardId, colors,
-    keys: parts.filter(part => board?.partIds.includes(part.id) && definitions.get(part.definitionId)?.kind === 'switch').map(part => {
+    keys: parts.filter(part => board?.partIds.includes(part.id) && (definitions.get(part.definitionId)?.kind === 'switch'
+      || document.matrices.some(matrix => matrix.partIds.includes(part.id) && part.id.startsWith(`matrix/${matrix.id}/`) && !part.id.slice(`matrix/${matrix.id}/`.length).includes('/')))).map(part => {
       const settings = document.keycaps?.keys[part.id] ?? defaultKeycapKey;
       const binding = keyBinding(document, boardId, part.id);
       return {

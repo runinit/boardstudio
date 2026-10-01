@@ -78,6 +78,7 @@ fn deleting_corner_creates_notch_and_retains_neighbors() {
 fn automatic_part_envelopes_exclude_nonphysical_utilities() {
     let mut doc = document();
     doc.definitions.push(PartDefinition {
+        input_profile: None,
         mechanical_profile: None,
         id: "utility".into(),
         name: "Board note".into(),

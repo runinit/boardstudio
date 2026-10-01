@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-10-01 (encoder/VIK implementation progress)
+
+- Complete ticket 1: support semantic encoder press contacts, exclusive matrix/direct/unassigned scanning, identity-preserving replacement and independent layered rotation with validated local ZMK export. Preserve legacy peripheral profiles and reserve wired-split UART GPIOs. Verify public RED/GREEN, 351 core tests, 26 renderer tests, 35 KiCad tests, 23 native CAD tests, 49 JavaScript CAD tests, 469 app tests, nine browser workflows, production builds and native/WASM parity; pass separate standards/spec reviews. Keep VIK and unrelated test cleanup outside this commit.
+
 ## 2026-09-30 (Prioritize safe outline recovery)
 - Fast-forward dev to `b3c452c3` with recovered outlines and integration fixes; pass 324 core, 468 app, 23 native CAD, 49 CAD JavaScript, 28 affected browser, and 5 final main-checkout browser tests, rebuild WASM/app assets, and preserve the original source worktree. Record verification and limits in docs/outline-recovery-integration.md; Phase 3 performance tasks remain pending.
 - Reconcile outline recovery with current dev controllers, preserve keycap operations and export workflow ownership, regenerate contracts, and pass app typechecking; begin Rust/app tests and production core WASM compilation in the isolated integration checkout.

@@ -6,6 +6,8 @@ import { assemblyPreset, type SwitchOrientation } from './assemblyPresets';
 import { GeneratorFields } from './GeneratorFields';
 import { DraftInput, ModelVector, OrientationControl } from './InspectorControls';
 import { InspectorSection } from './InspectorSection';
+import { InputProfileEditor } from './InputProfileEditor';
+import { matrixInputAvailable } from './inputCapabilities';
 import { DefinitionKeycapControls } from './OutlineInspector';
 import { partCatalogLabel } from './partsCatalog';
 import { ArrowIcon } from './WorkbenchIcons';
@@ -47,7 +49,8 @@ export function PartsInspectorPanel({ document, libraryAssembly, libraryDefiniti
     {libraryAssembly && <section aria-label="Assembly settings"><p className="wb-empty-note">{matrixPresetDefinitions[libraryAssembly].led ? 'SK6812 MINI-E mounted underneath, shining through the PCB into the switch. The LED sits opposite the socket or solder pins.' : 'Switch footprint with an underside diode.'}</p><OrientationControl value={assemblyOrientation} onChange={setAssemblyOrientation} /><button className="wb-primary" onClick={() => onPlaceAssembly(libraryAssembly)}>Place key assembly</button><button className="wb-secondary" onClick={() => setEditingAssembly(assemblyPreset(libraryAssembly, libraryDefinitions, assemblyOrientation))}>Customize 3D assembly</button></section>}
     {!libraryAssembly && selectedLibraryDefinition && <section className="wb-library-preview" aria-label="Selected footprint settings">
       <p className="wb-inspector-description">{selectedLibraryDefinition.kind === 'switch' ? 'Switch footprint' : selectedLibraryDefinition.kind === 'custom' ? 'Custom component' : 'Component footprint'} · {formatSize(selectedLibraryDefinition.courtyard)}</p>
-      <button className="wb-primary wb-place-part" disabled={Boolean(generator.error)} onClick={() => onPlaceDefinition(selectedLibraryDefinition)}>{applyToKey ? 'Apply to selected key' : 'Place component'} <ArrowIcon /></button>
+      <button className="wb-primary wb-place-part" disabled={Boolean(generator.error) || (applyToKey && !matrixInputAvailable(selectedLibraryDefinition))} onClick={() => onPlaceDefinition(selectedLibraryDefinition)}>{applyToKey ? 'Apply to selected key' : 'Place component'} <ArrowIcon /></button>
+      {applyToKey && !matrixInputAvailable(selectedLibraryDefinition) && <p className="wb-empty-note">This footprint needs an independent press contact pair to replace a matrix key. Clear the key selection to place it as a standalone component.</p>}
       {ergogenGenerator && <fieldset className="wb-generator-settings">
         <legend>Part options</legend>
         {ergogenGenerator && <GeneratorFields definition={selectedLibraryDefinition} edits={libraryParameters} onChange={updateGenerator} onImportModel={onImportModel} error={generator.error} />}
@@ -57,6 +60,7 @@ export function PartsInspectorPanel({ document, libraryAssembly, libraryDefiniti
         <button className="wb-secondary" disabled={Boolean(generator.error || previewCompilePending || previewCompileError)} onClick={saveGenerator}>Apply generator settings</button>
       </fieldset>}
       {selectedLibraryDefinition.envelopeNotice && <p className="wb-empty-note">{selectedLibraryDefinition.envelopeNotice}</p>}
+      <InputProfileEditor definition={selectedLibraryDefinition} onChange={inputProfile => updateDefinition({ inputProfile })} />
       {!ergogenGenerator && <InspectorSection title="Keycap & outline" defaultOpen={selectedLibraryDefinition.kind === 'switch'}>
         <DefinitionKeycapControls definition={selectedLibraryDefinition} onChange={(keycap) => updateDefinition({ keycap })} />
         {selectedLibraryDefinition.kind !== 'switch' && <p className="wb-empty-note">The component courtyard defines its outline contribution. Adjust the edge margin after placing it.</p>}

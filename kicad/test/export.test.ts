@@ -148,14 +148,20 @@ test('standalone footprint rejects invalid courtyard and pad geometry', () => {
   assert.throws(() => exportNativeFootprint(projectWith(definition), definition.id), /Invalid pad|Invalid/u);
 });
 
-test('standalone footprint requires distinct nonempty pad numbers', () => {
+test('standalone footprints retain repeated logical numbers with unique physical pad identities', () => {
   const { doc } = fixture();
   const definition = doc.definitions[0];
   definition.pads[0].number = ' ';
-  assert.throws(() => exportNativeFootprint(projectWith(definition), definition.id), /Duplicate or empty pad number/u);
+  assert.throws(() => exportNativeFootprint(projectWith(definition), definition.id), /Empty electrical pad number/u);
 
   definition.pads[0].number = '2';
-  assert.throws(() => exportNativeFootprint(projectWith(definition), definition.id), /Duplicate or empty pad number/u);
+  const exported = exportNativeFootprint(projectWith(definition), definition.id);
+  const imported = importNativeFootprint(exported.content, 'repeated-pads');
+  assert.deepEqual(imported.pads.map(pad => pad.number), ['2', '2']);
+  assert.notEqual(imported.pads[0].id, imported.pads[1].id);
+
+  definition.pads[1].id = definition.pads[0].id;
+  assert.throws(() => exportNativeFootprint(projectWith(definition), definition.id), /Duplicate .*pad/u);
 });
 
 test('imports supported external footprint pads and courtyard', () => {
