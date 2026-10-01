@@ -1,6 +1,6 @@
 {
   "source_base_commit": "a3172ee64f2fcea0bda7795ed2c8654947e17808",
-  "source_tree": "isolated presentation-only change from 8f509433 production source; not final release",
+  "source_tree": "isolated presentation-only change from 8f509433 production source, committed as 9a5b20985a9db1f4c0f0d635c43e1dd5439bbfd9; not final release",
   "presentation_sha256": "26c51b677220d23f72aa1c8efd57e39938ade4ebdc5ba3975cc7ba57a3abac01",
   "build_command": [
     "dx",
@@ -71,7 +71,7 @@
   "scope": "focused public UI correctness only; page built from proposal; unchanged providers/assets copied from verified release",
   "offline_setup": "intentionally omitted from this focused component artifact; Runtime reports service-worker setup unavailable; not release/offline acceptance",
   "candidateUrl": "http://127.0.0.1:46911/",
-  "sourceCommit": "a3172ee64f2fcea0bda7795ed2c8654947e17808",
+  "sourceCommit": "9a5b20985a9db1f4c0f0d635c43e1dd5439bbfd9",
   "baseProductionCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
   "sourcePatchFile": "web/src/presentation.rs",
   "sourcePatchSha256": "26c51b677220d23f72aa1c8efd57e39938ade4ebdc5ba3975cc7ba57a3abac01",
