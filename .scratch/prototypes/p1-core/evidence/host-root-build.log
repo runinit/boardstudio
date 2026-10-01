@@ -1,0 +1,190 @@
+  0.00s  INFO Building project...
+  0.20s  INFO Installing wasm-bindgen-cli@0.2.129...
+  1.48s  INFO wasm-bindgen-cli@0.2.129 was successfully installed from GitHub.
+  1.48s  INFO Installing esbuild v0.27.3 from https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.27.3.tgz...
+  1.85s  INFO esbuild v0.27.3 installed successfully
+  2.31s  INFO Compiled [  1/207]: cfg_if
+  2.34s  INFO Compiled [  2/207]: futures_sink
+  2.34s  INFO Compiled [  3/207]: unicode_ident
+  2.35s  INFO Compiled [  4/207]: pin_project_lite
+  2.35s  INFO Compiled [  5/207]: unicode_ident
+  2.40s  INFO Compiled [  6/207]: futures_core
+  2.43s  INFO Compiled [  7/207]: build-script-build
+  2.43s  INFO Compiled [  8/207]: futures_task
+  2.43s  INFO Compiled [  9/207]: build-script-build
+  2.45s  INFO Compiled [ 12/207]: futures_io
+  2.45s  INFO Compiled [ 13/207]: slab
+  2.48s  INFO Compiled [ 15/207]: build-script-build
+  2.49s  INFO Compiled [ 16/207]: build-script-build
+  2.51s  INFO Compiled [ 17/207]: scopeguard
+  2.51s  INFO Compiled [ 18/207]: build-script-build
+  2.52s  INFO Compiled [ 20/207]: build-script-build
+  2.53s  INFO Compiled [ 21/207]: build-script-build
+  2.53s  INFO Compiled [ 22/207]: bumpalo
+  2.53s  INFO Compiled [ 23/207]: version_check
+  2.56s  INFO Compiled [ 27/207]: build-script-build
+  2.58s  INFO Compiled [ 28/207]: smallvec
+  2.59s  INFO Compiled [ 29/207]: unicode_xid
+  2.62s  INFO Compiled [ 32/207]: konst_macro_rules
+  2.63s  INFO Compiled [ 33/207]: build-script-build
+  2.64s  INFO Compiled [ 34/207]: build-script-build
+  2.67s  INFO Compiled [ 36/207]: wasm_bindgen_shared
+  2.70s  INFO Compiled [ 38/207]: rustc_hash
+  2.73s  INFO Compiled [ 39/207]: longest_increasing_subsequence
+  2.74s  INFO Compiled [ 40/207]: build-script-build
+  2.75s  INFO Compiled [ 41/207]: dioxus_core_types
+  2.75s  INFO Compiled [ 42/207]: lock_api
+  2.77s  INFO Compiled [ 43/207]: futures_channel
+  2.78s  INFO Compiled [ 44/207]: fnv
+  2.81s  INFO Compiled [ 46/207]: ident_case
+  2.85s  INFO Compiled [ 47/207]: autocfg
+  2.85s  INFO Compiled [ 48/207]: build-script-build
+  2.85s  INFO Compiled [ 49/207]: parking_lot_core
+  2.91s  INFO Compiled [ 51/207]: memchr
+  2.92s  INFO Compiled [ 52/207]: lazy_js_bundle
+  2.93s  INFO Compiled [ 53/207]: konst
+  2.93s  INFO Compiled [ 54/207]: build-script-build
+  2.94s  INFO Compiled [ 55/207]: build-script-build
+  2.95s  INFO Compiled [ 56/207]: build-script-build
+  2.97s  INFO Compiled [ 59/207]: build-script-build
+  2.98s  INFO Compiled [ 60/207]: rustversion
+  2.99s  INFO Compiled [ 62/207]: crunchy
+  3.01s  INFO Compiled [ 64/207]: build-script-build
+  3.01s  INFO Compiled [ 65/207]: cfg_if
+  3.06s  INFO Compiled [ 67/207]: wasm_bindgen_shared
+  3.08s  INFO Compiled [ 68/207]: portable_atomic
+  3.11s  INFO Compiled [ 69/207]: build-script-build
+  3.12s  INFO Compiled [ 70/207]: build-script-build
+  3.12s  INFO Compiled [ 71/207]: build-script-build
+  3.13s  INFO Compiled [ 73/207]: unicode_segmentation
+  3.15s  INFO Compiled [ 76/207]: tiny_keccak
+  3.17s  INFO Compiled [ 77/207]: itoa
+  3.19s  INFO Compiled [ 78/207]: zmij
+  3.23s  INFO Compiled [ 79/207]: once_cell
+  3.25s  INFO Compiled [ 80/207]: once_cell
+  3.25s  INFO Compiled [ 81/207]: bitflags
+  3.28s  INFO Compiled [ 82/207]: build-script-build
+  3.30s  INFO Compiled [ 83/207]: build-script-build
+  3.34s  INFO Compiled [ 85/207]: build-script-build
+  3.35s  INFO Compiled [ 86/207]: build-script-build
+  3.38s  INFO Compiled [ 87/207]: convert_case
+  3.38s  INFO Compiled [ 88/207]: quote
+  3.39s  INFO Compiled [ 89/207]: build-script-build
+  3.42s  INFO Compiled [ 90/207]: proc_macro2
+  3.43s  INFO Compiled [ 91/207]: anyhow
+  3.44s  INFO Compiled [ 92/207]: rustc_hash
+  3.50s  INFO Compiled [ 94/207]: build-script-build
+  3.57s  INFO Compiled [ 99/207]: build-script-build
+  3.61s  INFO Compiled [101/207]: equivalent
+  3.63s  INFO Compiled [102/207]: build-script-build
+  3.64s  INFO Compiled [103/207]: parking_lot
+  3.67s  INFO Compiled [104/207]: sledgehammer_utils
+  3.67s  INFO Compiled [105/207]: static_assertions
+  3.81s  INFO Compiled [107/207]: num_traits
+  3.82s  INFO Compiled [108/207]: crc32fast
+  3.89s  INFO Compiled [109/207]: smartstring
+  3.90s  INFO Compiled [110/207]: send_wrapper
+  3.94s  INFO Compiled [111/207]: typenum
+  4.07s  INFO Compiled [112/207]: i_key_sort
+  4.10s  INFO Compiled [113/207]: const_format_proc_macros
+  4.10s  INFO Compiled [114/207]: tracing_core
+  4.18s  INFO Compiled [115/207]: thin_vec
+  4.20s  INFO Compiled [116/207]: libc
+  4.20s  INFO Compiled [117/207]: keyboard_types
+  4.25s  INFO Compiled [118/207]: bytes
+  4.28s  INFO Compiled [119/207]: dioxus_config_macros
+  4.28s  INFO Compiled [120/207]: getrandom
+  4.31s  INFO Compiled [121/207]: hashbrown
+  4.35s  INFO Compiled [122/207]: dioxus_config_macro
+  4.38s  INFO Compiled [123/207]: i_tree
+  4.42s  INFO Compiled [124/207]: hybrid_array
+  4.44s  INFO Compiled [125/207]: i_float
+  4.47s  INFO Compiled [126/207]: const_random_macro
+  4.50s  INFO Compiled [127/207]: const_random
+  4.51s  INFO Compiled [128/207]: euclid
+  4.52s  INFO Compiled [129/207]: const_format
+  4.54s  INFO Compiled [130/207]: block_buffer
+  4.54s  INFO Compiled [131/207]: libm
+  4.68s  INFO Compiled [132/207]: i_shape
+  4.83s  INFO Compiled [133/207]: indexmap
+  5.05s  INFO Compiled [134/207]: serde_core
+  5.15s  INFO Compiled [135/207]: digest
+  5.21s  INFO Compiled [136/207]: flate2
+  5.22s  INFO Compiled [137/207]: zlib_rs
+  5.26s  INFO Compiled [138/207]: typed_path
+  5.51s  INFO Compiled [139/207]: crypto_common
+  5.77s  INFO Compiled [140/207]: i_overlay
+  5.85s  INFO Compiled [141/207]: zip
+  5.88s  INFO Compiled [142/207]: serde_json
+  5.93s  INFO Compiled [143/207]: sha2
+  6.27s  INFO Compiled [144/207]: proc_macro2_diagnostics
+  6.45s  INFO Compiled [145/207]: syn
+  6.47s  INFO Compiled [146/207]: syn
+  6.53s  INFO Compiled [147/207]: zerocopy
+  6.67s  INFO Compiled [148/207]: ahash
+  6.71s  INFO Compiled [149/207]: dioxus_html_internal_macro
+  6.71s  INFO Compiled [150/207]: warnings_macro
+  6.94s  INFO Compiled [151/207]: dioxus_stores_macro
+  6.94s  INFO Compiled [152/207]: futures_macro
+  6.94s  INFO Compiled [153/207]: async_trait
+  7.11s  INFO Compiled [154/207]: pin_project_internal
+  7.15s  INFO Compiled [155/207]: pin_project
+  7.21s  INFO Compiled [156/207]: dioxus_rsx
+  7.21s  INFO Compiled [157/207]: tracing_attributes
+  7.21s  INFO Compiled [158/207]: rhai_codegen
+  7.27s  INFO Compiled [159/207]: thiserror_impl
+  7.30s  INFO Compiled [160/207]: sledgehammer_bindgen_macro
+  7.30s  INFO Compiled [161/207]: thiserror
+  7.38s  INFO Compiled [162/207]: warnings
+  7.40s  INFO Compiled [163/207]: tracing
+  7.44s  INFO Compiled [164/207]: kiutils_sexpr
+  7.59s  INFO Compiled [165/207]: generational_box
+  7.79s  INFO Compiled [166/207]: darling_core
+  7.86s  INFO Compiled [167/207]: dioxus_core_macro
+  7.90s  INFO Compiled [168/207]: darling_macro
+  7.92s  INFO Compiled [169/207]: darling
+  8.09s  INFO Compiled [170/207]: serde_derive
+  8.39s  INFO Compiled [171/207]: serde
+  8.39s  INFO Compiled [172/207]: enumset_derive
+  8.40s  INFO Compiled [173/207]: subsecond_types
+  8.52s  INFO Compiled [174/207]: boardstudio_contracts
+  8.55s  INFO Compiled [175/207]: enumset
+  8.65s  INFO Compiled [176/207]: slotmap
+  8.89s  INFO Compiled [177/207]: wasm_bindgen_macro_support
+  8.92s  INFO Compiled [178/207]: futures_util
+  9.00s  INFO Compiled [179/207]: wasm_bindgen_macro
+  9.59s  INFO Compiled [180/207]: sledgehammer_bindgen
+  9.64s  INFO Compiled [181/207]: getrandom
+  9.65s  INFO Compiled [182/207]: dioxus_cli_config
+  9.66s  INFO Compiled [183/207]: wasm_bindgen
+ 14.22s  INFO Compiled [184/207]: wasm_bindgen_futures
+ 14.32s  INFO Compiled [185/207]: web_time
+ 14.34s  INFO Compiled [186/207]: gloo_timers
+ 14.46s  INFO Compiled [187/207]: serde_wasm_bindgen
+ 14.71s  INFO Compiled [188/207]: js_sys
+ 22.87s  INFO Compiled [189/207]: rhai
+ 23.14s  INFO Compiled [190/207]: subsecond
+ 23.29s  INFO Compiled [191/207]: web_sys
+ 23.58s  INFO Compiled [192/207]: dioxus_interpreter_js
+ 23.97s  INFO Compiled [193/207]: wasm_streams
+ 24.50s  INFO Compiled [194/207]: dioxus_devtools_types
+ 24.54s  INFO Compiled [195/207]: dioxus_history
+ 24.87s  INFO Compiled [196/207]: dioxus_signals
+ 24.89s  INFO Compiled [197/207]: dioxus_core
+ 25.08s  INFO Compiled [198/207]: dioxus_devtools
+ 25.13s  INFO Compiled [199/207]: dioxus_hooks
+ 25.22s  INFO Compiled [200/207]: dioxus_stores
+ 25.88s  INFO Compiled [201/207]: dioxus_html
+ 26.07s  INFO Compiled [202/207]: dioxus_document
+ 26.26s  INFO Compiled [203/207]: dioxus
+ 26.41s  INFO Compiled [204/207]: dioxus_web
+ 42.24s  INFO Compiled [205/207]: boardstudio_core
+ 42.55s  INFO Compiled [206/207]: boardstudio_p1_core
+ 53.46s  INFO Compiled [207/207]: boardstudio-p1-core
+ 53.48s  INFO Bundling app...
+ 53.59s  INFO Running wasm-bindgen...
+ 55.56s  INFO Installing wasm-opt
+ 58.94s  INFO wasm-opt installed from Github
+ 62.68s  INFO Copying asset (1/2): /tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public/wasm/boardstudio-p1-core_bg.wasm
+ 62.69s  INFO Copying asset (2/2): /tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public/wasm/boardstudio-p1-core.js
+ 62.69s  INFO Client build completed successfully! 🚀 path="/tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public"

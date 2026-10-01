@@ -1,0 +1,112 @@
+{
+  "status": "passed",
+  "url": "http://127.0.0.1:52385/",
+  "report": {
+    "close": "settled",
+    "crash": "settled",
+    "init_failure": "settled",
+    "invalid_stale_unsolicited_rejected": 3,
+    "open": "passed",
+    "prefix": "/",
+    "received_bytes": [
+      3,
+      1,
+      4
+    ],
+    "sender_bytes_after_transfer": 0,
+    "serialization": "serde-wasm-bindgen structured frame; core document copied across boundary; test buffer copied once to JS and once from JS for assertion",
+    "snapshot": "passed",
+    "status": "passed",
+    "worker_url": "/worker/worker-entry.js"
+  },
+  "commands": [
+    {
+      "command": [
+        "agent-browser",
+        "--session",
+        "boardstudio-p1-core-20261001-root",
+        "--executable-path",
+        "/usr/bin/chromium",
+        "--json",
+        "open",
+        "http://127.0.0.1:52385/"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":10997649587079013033},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"targetId\":\"25D950F42E86C39A8FE04A315F680140\",\"title\":\"dioxus | \u26fa\",\"url\":\"http://127.0.0.1:52385/\"},\"error\":null}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "agent-browser",
+        "--session",
+        "boardstudio-p1-core-20261001-root",
+        "--executable-path",
+        "/usr/bin/chromium",
+        "--json",
+        "eval",
+        "(() => { const text = document.querySelector('#report')?.textContent; try { return JSON.parse(text); } catch { return null; } })()"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":10997649587079013033},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:52385/\",\"result\":null},\"error\":null}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "agent-browser",
+        "--session",
+        "boardstudio-p1-core-20261001-root",
+        "--executable-path",
+        "/usr/bin/chromium",
+        "--json",
+        "eval",
+        "(() => { const text = document.querySelector('#report')?.textContent; try { return JSON.parse(text); } catch { return null; } })()"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":10997649587079013033},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:52385/\",\"result\":{\"close\":\"settled\",\"crash\":\"settled\",\"init_failure\":\"settled\",\"invalid_stale_unsolicited_rejected\":3,\"open\":\"passed\",\"prefix\":\"/\",\"received_bytes\":[3,1,4],\"sender_bytes_after_transfer\":0,\"serialization\":\"serde-wasm-bindgen structured frame; core document copied across boundary; test buffer copied once to JS and once from JS for assertion\",\"snapshot\":\"passed\",\"status\":\"passed\",\"worker_url\":\"/worker/worker-entry.js\"}},\"error\":null}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "agent-browser",
+        "--session",
+        "boardstudio-p1-core-20261001-root",
+        "--executable-path",
+        "/usr/bin/chromium",
+        "--json",
+        "snapshot",
+        "-i"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"success\":true,\"data\":{\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":10997649587079013033},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"},\"origin\":\"http://127.0.0.1:52385/\",\"refs\":{\"e1\":{\"name\":\"P1 core worker feasibility\",\"role\":\"heading\"}},\"removedRefs\":[],\"snapshot\":\"- heading \\\"P1 core worker feasibility\\\" [level=1, ref=e1]\"},\"error\":null}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "agent-browser",
+        "--session",
+        "boardstudio-p1-core-20261001-root",
+        "--executable-path",
+        "/usr/bin/chromium",
+        "--json",
+        "errors"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"success\":true,\"data\":{\"errors\":[],\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":true,\"engine\":\"chrome\",\"launchHash\":10997649587079013033},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":true,\"saveStatus\":\"not_attempted\"}},\"error\":null}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "agent-browser",
+        "--session",
+        "boardstudio-p1-core-20261001-root",
+        "--executable-path",
+        "/usr/bin/chromium",
+        "--json",
+        "close"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"success\":true,\"data\":{\"closed\":true,\"lifecycle\":{\"effectiveLaunch\":{\"browserLaunched\":false,\"engine\":\"chrome\",\"launchHash\":null},\"launched\":false,\"relaunchedBrowser\":false,\"restartedBackground\":false,\"restoreStatus\":\"not_configured\",\"reused\":false,\"saveStatus\":\"not_configured\"},\"restoreStatus\":\"not_configured\",\"saveStatus\":\"not_configured\"},\"error\":null}\n",
+      "stderr": ""
+    }
+  ]
+}

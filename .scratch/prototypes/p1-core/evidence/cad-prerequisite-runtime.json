@@ -1,0 +1,16 @@
+[
+  {
+    "tool": "podman",
+    "path": "/usr/bin/podman",
+    "exit_code": 0,
+    "available": true,
+    "stderr": ""
+  },
+  {
+    "tool": "docker",
+    "path": "/usr/bin/docker",
+    "exit_code": 0,
+    "available": true,
+    "stderr": "Emulate Docker CLI using podman. Create /etc/containers/nodocker to quiet msg.\n"
+  }
+]

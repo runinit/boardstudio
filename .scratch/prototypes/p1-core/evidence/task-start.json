@@ -1,0 +1,39 @@
+{
+  "task": "P1-CORE",
+  "category": "isolated feasibility prototype; preserve public core contracts",
+  "base": "e9950d17ed9d1a067df4660783740edd26343b19",
+  "approved_spec_commit": "47d6dbce5af2285d1f886ef63d2d4c7b1de57925",
+  "plan": "P1-r1",
+  "approval": "Assume everything is approved in advance",
+  "owner": "coordinator",
+  "worktree": "/tmp/boardstudio-p1-core-20261001",
+  "branch": "prototype/boardstudio-p1-core",
+  "allowed_path": ".scratch/prototypes/p1-core",
+  "acceptance": "tasks/plan.md P1-CORE",
+  "repair_attempts": 2,
+  "native_red_expected": "missing Identity and Callers implementations; compile-error before new transport logic",
+  "runtime_oracles": [
+    "root and /boardstudio/: Open(empty copied test document) then Snapshot preserve id/revision",
+    "unsolicited/stale/invalid replies leave pending identity intact",
+    "worker close/error/init failure settles every caller, no automatic replay",
+    "transferred [3,1,4] buffer detaches sender and receiver retains bytes"
+  ],
+  "limits": "transport-only; empty document is not representative M1 geometry, no persistence/history/parity claims",
+  "red": {
+    "exit_code": 101,
+    "log": "native-red.log",
+    "diagnosis": "expected unresolved Identity/Callers only"
+  },
+  "green": {
+    "exit_code": 0,
+    "log": "native-green.log"
+  },
+  "repair_1": {
+    "diagnosis": "wasm-pack positional EXTRA_OPTIONS consumed --out-dir after --locked; Cargo rejected --out-dir",
+    "change": "place every wasm-pack-owned option before Cargo extra options; no dependency/toolchain change"
+  },
+  "repair_2": {
+    "diagnosis": "WASM host Clippy -D warnings rejects nested reply decode/identity conditional (collapsible_if)",
+    "change": "combine predicates using Rust let-chain; preserve reply rejection and caller settlement semantics; rebuild/test affected host both prefixes"
+  }
+}

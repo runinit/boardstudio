@@ -1,0 +1,114 @@
+{
+  "root_public": "/tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public",
+  "root_build_exit": 0,
+  "served_root": "/tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core/evidence/site",
+  "assets": [
+    {
+      "path": "assets/boardstudio-p1-core-dxh1250962294277ff.js",
+      "bytes": 54671,
+      "sha256": "87953754a51403bc99bf693e4666691d2944652b6b00b4ddd39576905f1e5900"
+    },
+    {
+      "path": "assets/boardstudio-p1-core_bg-dxhe285a1f27625c01d.wasm",
+      "bytes": 7599461,
+      "sha256": "41d9369fe266b21177084d4b9fb641c3402bf1ffc2213355a3585372ad3b3e54"
+    },
+    {
+      "path": "boardstudio/assets/boardstudio-p1-core-dxh1250962294277ff.js",
+      "bytes": 54671,
+      "sha256": "87953754a51403bc99bf693e4666691d2944652b6b00b4ddd39576905f1e5900"
+    },
+    {
+      "path": "boardstudio/assets/boardstudio-p1-core-dxha04e3d841d4aa.js",
+      "bytes": 54681,
+      "sha256": "1c2a40d85877b686e10e733443038417ef6d1417ce53f4f5f060b25d71ef8ded"
+    },
+    {
+      "path": "boardstudio/assets/boardstudio-p1-core_bg-dxhe285a1f27625c01d.wasm",
+      "bytes": 7599461,
+      "sha256": "41d9369fe266b21177084d4b9fb641c3402bf1ffc2213355a3585372ad3b3e54"
+    },
+    {
+      "path": "boardstudio/index.html",
+      "bytes": 553,
+      "sha256": "f721ca129118650eb186a0fce9711e5b85c9290da5cc85f3c8e28b2619973ac9"
+    },
+    {
+      "path": "boardstudio/worker/.gitignore",
+      "bytes": 1,
+      "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+      "path": "boardstudio/worker/boardstudio_p1_core.d.ts",
+      "bytes": 2712,
+      "sha256": "8583cb0f1b55dba4e2f2b7a4dc8bf33114d4ac592bff62e45c9eb5a39d281510"
+    },
+    {
+      "path": "boardstudio/worker/boardstudio_p1_core.js",
+      "bytes": 24720,
+      "sha256": "3b96f5e7900e8d8fae421efc3b0d84ebe8d0f9253f0b74ddeb03ecd35df511e7"
+    },
+    {
+      "path": "boardstudio/worker/boardstudio_p1_core_bg.wasm",
+      "bytes": 6522106,
+      "sha256": "354beedd2eb665aa144fa7fece9a7c89e1abc3dcca17e1a447f1dc8bd0666957"
+    },
+    {
+      "path": "boardstudio/worker/boardstudio_p1_core_bg.wasm.d.ts",
+      "bytes": 1241,
+      "sha256": "0a6307e40c44cf2466760dbe4d92e598ac4179dde083694710613cf89c46fe6d"
+    },
+    {
+      "path": "boardstudio/worker/package.json",
+      "bytes": 310,
+      "sha256": "0560a8c51a943dbd41e210d1f1ffde2d3d7479fab896e0fef952e9aacc8aa4ef"
+    },
+    {
+      "path": "boardstudio/worker/worker-entry.js",
+      "bytes": 93,
+      "sha256": "ffcaaa86c61e116ca9d1e251d3335d0822293a85e29aaef4137ff8782382b925"
+    },
+    {
+      "path": "index.html",
+      "bytes": 537,
+      "sha256": "851008a14b3908463ab81f2aea6dbc334747da69a0d7a8aebf3b76163445a881"
+    },
+    {
+      "path": "worker/.gitignore",
+      "bytes": 1,
+      "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+      "path": "worker/boardstudio_p1_core.d.ts",
+      "bytes": 2712,
+      "sha256": "8583cb0f1b55dba4e2f2b7a4dc8bf33114d4ac592bff62e45c9eb5a39d281510"
+    },
+    {
+      "path": "worker/boardstudio_p1_core.js",
+      "bytes": 24720,
+      "sha256": "3b96f5e7900e8d8fae421efc3b0d84ebe8d0f9253f0b74ddeb03ecd35df511e7"
+    },
+    {
+      "path": "worker/boardstudio_p1_core_bg.wasm",
+      "bytes": 6522106,
+      "sha256": "354beedd2eb665aa144fa7fece9a7c89e1abc3dcca17e1a447f1dc8bd0666957"
+    },
+    {
+      "path": "worker/boardstudio_p1_core_bg.wasm.d.ts",
+      "bytes": 1241,
+      "sha256": "0a6307e40c44cf2466760dbe4d92e598ac4179dde083694710613cf89c46fe6d"
+    },
+    {
+      "path": "worker/package.json",
+      "bytes": 310,
+      "sha256": "0560a8c51a943dbd41e210d1f1ffde2d3d7479fab896e0fef952e9aacc8aa4ef"
+    },
+    {
+      "path": "worker/worker-entry.js",
+      "bytes": 93,
+      "sha256": "ffcaaa86c61e116ca9d1e251d3335d0822293a85e29aaef4137ff8782382b925"
+    }
+  ],
+  "subpath_public": "/tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public",
+  "subpath_build_exit": 0
+}

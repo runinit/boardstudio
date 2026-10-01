@@ -1,0 +1,24 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "core/Cargo.toml",
+    "--locked"
+  ],
+  "exit_code": 0,
+  "executed_worktree": "/tmp/boardstudio-migration-specs-review-20261001",
+  "source_base": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+  "reuse_proof_command": [
+    "git",
+    "diff",
+    "--exit-code",
+    "47d6dbce",
+    "--",
+    "core",
+    "contracts"
+  ],
+  "reuse_proof_exit": 0,
+  "retained_log": "core-provider-test.log",
+  "sha256": "549b01522b3600ff3111ca93d4a4d5ea1e0dacc182e097b0b8952dc76bd284c7"
+}

@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "url": "http://127.0.0.1:43049/boardstudio/",
+  "report": {
+    "close": "settled",
+    "crash": "settled",
+    "init_failure": "settled",
+    "invalid_stale_unsolicited_rejected": 3,
+    "open": "passed",
+    "prefix": "/boardstudio/",
+    "received_bytes": [
+      3,
+      1,
+      4
+    ],
+    "sender_bytes_after_transfer": 0,
+    "serialization": "serde-wasm-bindgen structured frame; core document copied across boundary; test buffer copied once to JS and once from JS for assertion",
+    "snapshot": "passed",
+    "status": "passed",
+    "worker_url": "/boardstudio/worker/worker-entry.js"
+  }
+}

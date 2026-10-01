@@ -1,0 +1,155 @@
+    Updating crates.io index
+     Locking 349 packages to latest Rust 1.98.0 compatible versions
+      Adding generic-array v0.14.7 (available: v0.14.9)
+      Adding gloo-timers v0.3.0 (available: v0.4.0)
+      Adding matchit v0.8.4 (available: v0.8.6)
+   Compiling unicode-ident v1.0.26
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling cfg-if v1.0.5
+   Compiling wasm-bindgen-shared v0.2.129
+   Compiling version_check v0.9.5
+   Compiling portable-atomic v1.15.0
+   Compiling crunchy v0.2.4
+   Compiling autocfg v1.5.1
+   Compiling libc v0.2.189
+   Compiling tiny-keccak v2.0.2
+   Compiling rustversion v1.0.23
+   Compiling serde_core v1.0.229
+   Compiling libm v0.2.16
+   Compiling typenum v1.20.1
+   Compiling bumpalo v3.20.3
+   Compiling zerocopy v0.8.59
+   Compiling once_cell v1.21.4
+   Compiling crc32fast v1.5.2
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling thiserror v2.0.21
+   Compiling ahash v0.8.12
+   Compiling pin-project-lite v0.2.17
+   Compiling static_assertions v1.1.0
+   Compiling serde_json v1.0.151
+   Compiling equivalent v1.0.2
+   Compiling futures-task v0.3.34
+   Compiling memchr v2.8.3
+   Compiling hashbrown v0.17.1
+   Compiling num-traits v0.2.19
+   Compiling smartstring v1.0.1
+   Compiling futures-core v0.3.34
+   Compiling slab v0.4.12
+   Compiling zlib-rs v0.6.8
+   Compiling futures-util v0.3.34
+   Compiling wasm-bindgen v0.2.129
+   Compiling typed-path v0.12.3
+   Compiling i_tree v0.19.0
+   Compiling cpufeatures v0.3.1
+   Compiling i_key_sort v0.11.0
+   Compiling itoa v1.0.18
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling bitflags v2.13.2
+   Compiling indexmap v2.14.2
+   Compiling smallvec v1.16.2
+   Compiling thin-vec v0.2.20
+   Compiling hybrid-array v0.4.15
+   Compiling i_float v5.0.0
+   Compiling getrandom v0.2.17
+   Compiling const-random-macro v0.1.16
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling i_shape v5.0.0
+   Compiling const-random v0.1.18
+   Compiling i_overlay v9.0.0
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling flate2 v1.1.10
+   Compiling rhai_codegen v3.2.0
+   Compiling wasm-bindgen-macro-support v0.2.129
+   Compiling zip v8.6.0
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive v1.0.229
+   Compiling rhai v1.26.1
+   Compiling kiutils_sexpr v0.1.1
+   Compiling boardstudio-contracts v0.1.0 (/tmp/boardstudio-p1-core-20261001/contracts/rust)
+   Compiling wasm-bindgen-macro v0.2.129
+   Compiling js-sys v0.3.106
+   Compiling boardstudio_core v0.1.0 (/tmp/boardstudio-p1-core-20261001/core)
+   Compiling boardstudio-p1-core v0.0.0 (/tmp/boardstudio-p1-core-20261001/.scratch/prototypes/p1-core)
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+ --> src/lib.rs:8:18
+  |
+8 |         let id = Identity { epoch: 7, operation: 11 };
+  |                  ^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+  --> src/lib.rs:10:35
+   |
+10 |         assert!(!callers.complete(Identity { epoch: 6, operation: 11 }));
+   |                                   ^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+  --> src/lib.rs:11:35
+   |
+11 |         assert!(!callers.complete(Identity { epoch: 7, operation: 99 }));
+   |                                   ^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+  --> src/lib.rs:21:18
+   |
+21 |         let id = Identity { epoch: 1, operation: 2 };
+   |                  ^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+  --> src/lib.rs:24:31
+   |
+24 |         assert!(callers.begin(Identity { epoch: 0, operation: 3 }).is_err());
+   |                               ^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+  --> src/lib.rs:31:17
+   |
+31 |         let a = Identity { epoch: 5, operation: 1 };
+   |                 ^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+  --> src/lib.rs:32:17
+   |
+32 |         let b = Identity { epoch: 5, operation: 2 };
+   |                 ^^^^^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Identity` in this scope
+  --> src/lib.rs:37:31
+   |
+37 |         assert!(callers.begin(Identity { epoch: 5, operation: 3 }).is_err());
+   |                               ^^^^^^^^ not found in this scope
+
+warning: unused import: `super::*`
+ --> src/lib.rs:3:9
+  |
+3 |     use super::*;
+  |         ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0433]: cannot find type `Callers` in this scope
+ --> src/lib.rs:7:27
+  |
+7 |         let mut callers = Callers::new(7);
+  |                           ^^^^^^^ use of undeclared type `Callers`
+
+error[E0433]: cannot find type `Callers` in this scope
+  --> src/lib.rs:20:27
+   |
+20 |         let mut callers = Callers::new(1);
+   |                           ^^^^^^^ use of undeclared type `Callers`
+
+error[E0433]: cannot find type `Callers` in this scope
+  --> src/lib.rs:30:27
+   |
+30 |         let mut callers = Callers::new(5);
+   |                           ^^^^^^^ use of undeclared type `Callers`
+
+Some errors have detailed explanations: E0422, E0433.
+For more information about an error, try `rustc --explain E0422`.
+warning: `boardstudio-p1-core` (lib test) generated 1 warning
+error: could not compile `boardstudio-p1-core` (lib test) due to 11 previous errors; 1 warning emitted

@@ -1,0 +1,50 @@
+[
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      ".scratch/prototypes/p1-core/Cargo.toml",
+      "--locked"
+    ],
+    "exit_code": 0,
+    "log": "native-suite-increment1.log"
+  },
+  {
+    "command": [
+      "cargo",
+      "build",
+      "--manifest-path",
+      ".scratch/prototypes/p1-core/Cargo.toml",
+      "--locked"
+    ],
+    "exit_code": 0,
+    "log": "native-build-increment1.log"
+  },
+  {
+    "command": [
+      "cargo",
+      "fmt",
+      "--manifest-path",
+      ".scratch/prototypes/p1-core/Cargo.toml",
+      "--check"
+    ],
+    "exit_code": 0,
+    "log": "fmt-increment1.log"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--manifest-path",
+      ".scratch/prototypes/p1-core/Cargo.toml",
+      "--locked",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "log": "clippy-increment1.log"
+  }
+]

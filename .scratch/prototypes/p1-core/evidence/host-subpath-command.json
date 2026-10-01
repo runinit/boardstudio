@@ -1,0 +1,13 @@
+{
+  "command": [
+    "dx",
+    "build",
+    "--web",
+    "--release",
+    "--base-path",
+    "/boardstudio/",
+    "--cargo-args=--locked"
+  ],
+  "exit_code": 0,
+  "log": "host-subpath-build.log"
+}

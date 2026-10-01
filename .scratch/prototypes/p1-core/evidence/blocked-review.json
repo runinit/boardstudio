@@ -1,0 +1,28 @@
+{
+  "task": "P1-CORE",
+  "status": "blocked; unaccepted",
+  "base": "e9950d17ed9d1a067df4660783740edd26343b19",
+  "candidate": "3f25e9d9a6679d551acd6e9439e2f19ca844e0ee",
+  "reviewed": "3f25e9d9a6679d551acd6e9439e2f19ca844e0ee",
+  "review_agent": "/root/spec_review",
+  "requested_model": "gpt-6-luna",
+  "requested_effort": "high",
+  "observable_runtime_confirmation": "Codex state DB and latest stored turn_context both confirm gpt-6-luna/high/openai",
+  "review_result": "Critical valid-u64 compatibility failure at host request and worker reply serde_wasm_bindgen::to_value; native oracle and real Chromium worker failure confirmed, reviewer addendum inspected runtime records.",
+  "failed_gate": {
+    "command": [
+      "python3",
+      ".scratch/prototypes/p1-core/evidence/check-large-integer-contract.py"
+    ],
+    "exit_code": 1,
+    "log": "large-integer-contract-failure.log"
+  },
+  "diagnostic_browser_exit": 0,
+  "diagnostic_browser_meaning": "Expected serializer error observed; this is a successful diagnosis, not passing provider compatibility.",
+  "repair_attempts": 2,
+  "additional_repair": "not attempted",
+  "integration": "none; candidate remains only on owned prototype branch",
+  "next_eligible_tasks": [],
+  "P1-CAD": "blocked on P1-CORE; no implementation/build/worktree created",
+  "unfinished": "full valid-u64/arbitrary-JSON transport, accepted P1-CORE integration and P1-CAD; P2/P3/M1 production gates remain open"
+}

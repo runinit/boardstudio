@@ -1,0 +1,48 @@
+{
+  "task": "P1-U64",
+  "revision": "P1-U64-r1",
+  "category": "defect correction in isolated feasibility prototype",
+  "authorization": "2026-10-01 user: $ask-matt resolve this u64 serialization falure; renewed bounded repair supersedes prior exhausted run for this defect only",
+  "integration_base": "8b293b0847b50b865334dd9078e8e2b20a84966e",
+  "failed_candidate": "3f25e9d9a6679d551acd6e9439e2f19ca844e0ee",
+  "imported_immutable_source": "6519a8c2215b68855cd1bc097001199ffd4b10e3",
+  "worktree": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001",
+  "branch": "prototype/boardstudio-p1-u64",
+  "owner": "coordinator",
+  "allowed_code": ".scratch/prototypes/p1-core/",
+  "coordinator_docs": [
+    "docs/migration/RUN.md",
+    "TODO.md",
+    "docs/agents/issue-tracker.md",
+    "docs/agents/domain.md",
+    ".scratch/migration-specs-validation/"
+  ],
+  "specs": [
+    "SPEC-host-platform.md",
+    "SPEC-document-engine.md",
+    "SPEC-editor-session.md",
+    "docs/adr/0003-rust-application-ownership.md",
+    "tasks/plan.md P1-r1"
+  ],
+  "seams": "already-approved P1 public transport: host Client.send -> real worker CoreEngine.handle -> host typed reply; request and reply values plus transfer/lifecycle",
+  "acceptance": [
+    "full u64 revisions/scene revisions and arbitrary nested JSON u64/i64/float/null values survive real Rust host/worker Open/Snapshot at root and /boardstudio/",
+    "existing native protocol/provider regressions and transfer/noise/close/crash/init assertions preserved",
+    "locked fresh worker/host builds, fmt/native+WASM Clippy and real Chromium assertions",
+    "two independent read-only Standards and Spec reviews against current integration base; validate resulting integration revision"
+  ],
+  "repair_limit": 2,
+  "repair_attempts": 0,
+  "preflight_note": "Archive path guard initially rejected benign parent directory entries before any writes; verified directory parents now explicitly allowed, extraction uses data filter.",
+  "scope_excludes": [
+    "P1-CAD execution",
+    "production adoption",
+    "private API changes",
+    "engine/provider rewrites",
+    "Dioxus/version changes",
+    "push/deploy/main merge",
+    "protected-worktree modifications"
+  ],
+  "skills": "ask-matt router -> diagnosing-bugs -> tdd -> code-review; existing local tracker reused",
+  "diagnosis_reuse": "prior native oracle + real Chromium reproduction + pinned serde-wasm-bindgen0.6.5 source sufficient; repeat fresh regression, no rediscovery"
+}

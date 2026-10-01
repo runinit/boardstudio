@@ -178,3 +178,18 @@ closure/protected-input audit updates only administrative records. All 31
 protected source inputs still match their initial hashes; the migration and
 failed-prototype working trees are clean. Download/source/check logs remain
 preserved as untracked run artifacts in the original review worktree.
+
+## Renewed bounded P1-U64 repair
+
+User request `$ask-matt resolve this u64 serialization falure` explicitly
+authorizes this defect repair after the previous P1-CORE run stopped. Scope:
+P1-U64-r1, one task, the approved P1 transport seam, preserve full u64/i64 and
+nested arbitrary-JSON values in both directions. Reuse the accepted specs/ADR
+and diagnosis. Import the failed prototype from immutable `6519a8c2` into a
+new worktree based on `8b293b08`; preserve the original failed worktree/branch.
+See its exact [authority, scope and checks](../../.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json).
+The previous two attempts remain historical; this explicit new repair run has
+a two-attempt limit. No CAD task, kernel/API change or prototype production
+adoption is part of this user request. The Matt router uses diagnosing-bugs,
+TDD and two-axis code review. Existing local Markdown tracking is mapped for
+the skills; no repository-wide agent configuration or external tracker changes.
