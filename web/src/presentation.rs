@@ -88,21 +88,25 @@ pub fn App() -> Element {
 fn Library() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
+    let recovery_required =
+        runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired;
     let mut saved = use_signal(Vec::<(String, String)>::new);
-    use_effect({
-        let runtime = runtime.clone();
-        move || {
-            let runtime = runtime.clone();
-            spawn_local(async move {
-                match runtime.store.list_documents().await {
-                    Ok(documents) => {
-                        saved.set(documents.into_iter().map(|d| (d.id, d.name)).collect())
-                    }
-                    Err(error) => runtime.report(error.to_string()),
-                }
-            });
-        }
-    });
+    let accepted_identity = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
+    let list_runtime = runtime.clone();
+    use_effect(use_reactive!(|accepted_identity| {
+        let _ = accepted_identity;
+        let runtime = list_runtime.clone();
+        spawn_local(async move {
+            match runtime.store.list_documents().await {
+                Ok(documents) => saved.set(documents.into_iter().map(|d| (d.id, d.name)).collect()),
+                Err(error) => runtime.report(error.to_string()),
+            }
+        });
+    }));
     let reviung = runtime.clone();
     let sofle = runtime.clone();
     let import = runtime.clone();
@@ -120,7 +124,7 @@ fn Library() -> Element {
                 }}
             }
             for (id, name) in saved() {
-                button { key: "{id}", onclick: { let runtime = runtime.clone(); move |_| runtime.open_saved(id.clone()) }, "{name}" }
+                button { key: "{id}", onclick: { let runtime = runtime.clone(); move |_| runtime.open_saved(id.clone()) }, if recovery_required { "Recover from {name} (discard pending changes)" } else { "{name}" } }
             }
         }
     }
@@ -311,13 +315,13 @@ fn Editor() -> Element {
         let drag = drag.clone();
         let space_down = space_down.clone();
         move |event: KeyboardEvent| {
-            let Some(key) = event.data().try_as_web_event() else {
-                return;
-            };
-            if key.key() == " " || key.code() == "Space" {
+            let key = event.data().key().to_string();
+            let code = event.data().code().to_string();
+            let modifiers = event.data().modifiers();
+            if key == " " || code == "Space" {
                 space_down.set(true);
-                key.prevent_default();
-            } else if key.key() == "Escape" {
+                event.prevent_default();
+            } else if key == "Escape" {
                 if let Some(current) = drag.borrow_mut().take()
                     && current.active
                     && !current.pan
@@ -326,9 +330,9 @@ fn Editor() -> Element {
                         pointer_id: current.pointer,
                     });
                 }
-            } else if (key.ctrl_key() || key.meta_key()) && key.key().eq_ignore_ascii_case("z") {
-                key.prevent_default();
-                runtime.submit(if key.shift_key() {
+            } else if (modifiers.ctrl() || modifiers.meta()) && key.eq_ignore_ascii_case("z") {
+                event.prevent_default();
+                runtime.submit(if modifiers.shift() {
                     Event::Redo {
                         operation_id: runtime.operation(),
                     }
@@ -343,9 +347,9 @@ fn Editor() -> Element {
     let key_up = {
         let space_down = space_down.clone();
         move |event: KeyboardEvent| {
-            if let Some(key) = event.data().try_as_web_event()
-                && (key.key() == " " || key.code() == "Space")
-            {
+            let key = event.data().key().to_string();
+            let code = event.data().code().to_string();
+            if key == " " || code == "Space" {
                 space_down.set(false);
             }
         }
@@ -593,12 +597,11 @@ fn Inspector() -> Element {
         let mut x = x;
         let mut y = y;
         Rc::new(RefCell::new(Box::new(move |event: KeyboardEvent| {
-            let Some(key) = event.data().try_as_web_event() else {
-                return;
-            };
-            if key.key() == "Escape" {
-                key.prevent_default();
-                if let Some(edit) = numeric_edit.borrow_mut().take() {
+            let key = event.data().key().to_string();
+            if key == "Escape" {
+                event.prevent_default();
+                let edit = numeric_edit.borrow_mut().take();
+                if let Some(edit) = edit {
                     let start = edit.start;
                     submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
                 }
@@ -629,8 +632,8 @@ fn Inspector() -> Element {
                     y.set(restored_y);
                 }
                 runtime.report("Position preview canceled.");
-            } else if key.key() == "Enter" {
-                key.prevent_default();
+            } else if key == "Enter" {
+                event.prevent_default();
                 commit_numeric(&runtime, &numeric_edit, &x(), &y());
             }
         })))
@@ -646,7 +649,7 @@ fn Inspector() -> Element {
             })
         }
     });
-    rsx! { aside { class: "m1-inspector", "aria-label": "Component inspector", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) },
+    rsx! { aside { class: "m1-inspector", "aria-label": "Component inspector",
         details { class: "m1-component-picker", open: true,
             summary { "Components ({component_items.len()})" }
             div { role: "listbox", "aria-label": "Components on current board", class: "m1-component-list",
@@ -660,10 +663,10 @@ fn Inspector() -> Element {
                             let select_component = select_component_key.clone();
                             let items_for_key = items_for_key.clone();
                             move |event: KeyboardEvent| {
-                                let Some(key) = event.data().try_as_web_event() else { return; };
-                                let next = match key.key().as_str() { "ArrowDown" => Some(index + 1), "ArrowUp" => Some(index.saturating_sub(1)), "Home" => Some(0), "End" => Some(items_for_key.len().saturating_sub(1)), _ => None };
+                                let key = event.data().key().to_string();
+                                let next = match key.as_str() { "ArrowDown" => Some(index + 1), "ArrowUp" => Some(index.saturating_sub(1)), "Home" => Some(0), "End" => Some(items_for_key.len().saturating_sub(1)), _ => None };
                                 let Some(next) = next.filter(|next| *next < items_for_key.len()) else { return; };
-                                key.prevent_default();
+                                event.prevent_default();
                                 if let Some((_, next_id, _, _, _)) = items_for_key.get(next) { select_component(next_id.clone()); }
                                 if let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-component-{next}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok()) { let _ = element.focus(); }
                             }
@@ -675,7 +678,7 @@ fn Inspector() -> Element {
         h2 { "Position" }
         if let Some(part) = selected {
             p { "{part.reference}" }
-            label { "X (mm)" input { id: "m1-position-x", r#type: "number", step: "any", value: "{x}", oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
+            label { "X (mm)" input { id: "m1-position-x", r#type: "number", step: "any", value: "{x}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
                 x.set(event.value());
                 let (Ok(px), Ok(py)) = (event.value().parse::<f64>(), y().parse::<f64>()) else { return; };
                 if !px.is_finite() || !py.is_finite() { return; }
@@ -684,7 +687,7 @@ fn Inspector() -> Element {
                 let edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at });
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
             }} } }
-            label { "Y (mm)" input { id: "m1-position-y", r#type: "number", step: "any", value: "{y}", oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
+            label { "Y (mm)" input { id: "m1-position-y", r#type: "number", step: "any", value: "{y}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
                 y.set(event.value());
                 let (Ok(px), Ok(py)) = (x().parse::<f64>(), event.value().parse::<f64>()) else { return; };
                 if !px.is_finite() || !py.is_finite() { return; }
