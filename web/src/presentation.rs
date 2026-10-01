@@ -554,6 +554,7 @@ fn Inspector() -> Element {
                 .collect()
         })
         .unwrap_or_default();
+    let has_selected_component = component_items.iter().any(|item| item.4);
     let mut x = use_signal(String::new);
     let mut y = use_signal(String::new);
     let numeric_edit = use_hook(|| Rc::new(RefCell::new(None::<NumericEdit>)));
@@ -659,7 +660,7 @@ fn Inspector() -> Element {
                         let select_component_click = select_component.clone();
                         let select_component_key = select_component.clone();
                         let items_for_key = component_items.clone();
-                        rsx! { button { key: "{id}", id: "m1-component-{index}", class: if is_selected { "m1-component selected" } else { "m1-component" }, role: "option", "aria-selected": "{is_selected}", tabindex: if is_selected { "0" } else { "-1" }, onclick: move |_| select_component_click(id_for_click.clone()), onkeydown: {
+                        rsx! { button { key: "{id}", id: "m1-component-{index}", class: if is_selected { "m1-component selected" } else { "m1-component" }, role: "option", "aria-selected": "{is_selected}", tabindex: if is_selected || (!has_selected_component && index == 0) { "0" } else { "-1" }, onclick: move |_| select_component_click(id_for_click.clone()), onkeydown: {
                             let select_component = select_component_key.clone();
                             let items_for_key = items_for_key.clone();
                             move |event: KeyboardEvent| {
