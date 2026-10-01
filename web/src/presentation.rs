@@ -153,7 +153,8 @@ fn Editor() -> Element {
         .filter(|p| board.is_some_and(|b| b.part_ids.contains(&p.id)))
         .cloned()
         .collect();
-    let visible_ids: Vec<String> = visible.iter().map(|part| part.id.clone()).collect();
+    let visible_ids: Rc<Vec<String>> =
+        Rc::new(visible.iter().map(|part| part.id.clone()).collect());
     let points: Vec<_> = visible.iter().map(|p| p.pose.at).collect();
     let min_x = points.iter().map(|p| p.x).reduce(f64::min).unwrap_or(-50.0) - 20.0;
     let max_x = points.iter().map(|p| p.x).reduce(f64::max).unwrap_or(50.0) + 20.0;
@@ -480,7 +481,7 @@ fn Editor() -> Element {
                                         let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
                                         let current = runtime.model();
                                         if !current.selected_part_ids.contains(&id) || mode != SelectionMode::Replace {
-                                            let range_part_ids = if mode == SelectionMode::Range { range_ids.clone() } else { vec![] };
+                                            let range_part_ids = if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { vec![] };
                                             runtime.submit(Event::SelectParts { operation_id: runtime.operation(), part_ids: vec![id.clone()], range_part_ids, mode });
                                         }
                                         let current = runtime.model();
