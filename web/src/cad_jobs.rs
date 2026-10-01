@@ -433,7 +433,7 @@ async fn prepare_captured_case_for_step(
     validate_prepared(identity, prepared, mechanical_assembly)
 }
 
-#[cfg(feature = "page")]
+#[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
 fn validate_prepared(
     identity: CadSnapshotIdentity,
     prepared: PreparedCaseAssemblyIR,
@@ -749,7 +749,7 @@ fn mechanical_defaults(
     configuration
 }
 
-#[cfg(feature = "page")]
+#[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
 fn preparation_request(
     snapshot: &AcceptedSnapshot,
     scope: &Scope,
