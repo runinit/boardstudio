@@ -61,8 +61,9 @@ export function AssemblyViewer({
   onDisplayChange?: (next: CaseDisplay) => void;
   displayKey?: string;
 }) {
-  const { board, models, messages, error, pending, keycaps, keycapResolution, keycapError, keycapsPending, reference: shownReference, retry } = useAssemblyPreview({ document, boardId, contours, preparedCase, session: projectSession, instanceId: displayKey });
-  const allBodies = useMemo(() => [...bodies, ...keycaps], [bodies, keycaps]);
+  const pcbTopZ=mechanical?.stack.length?0:document.boards.find(board=>board.id===boardId)?.thickness??1.6;
+  const { board, models, messages, error, pending, keycaps, keycapResolution, keycapError, keycapsPending, moduleBodies, modulesPending, moduleError, reference: shownReference, retry } = useAssemblyPreview({ document, boardId, contours, preparedCase, session: projectSession, instanceId: displayKey,pcbTopZ });
+  const allBodies = useMemo(() => [...bodies, ...keycaps,...moduleBodies], [bodies, keycaps,moduleBodies]);
   const authoredBodies = useMemo(() => document.caseBodies.filter(body => body.boardId === boardId), [document.caseBodies, boardId]);
   return (
     <div className="wb-assembly-view">
@@ -88,10 +89,12 @@ export function AssemblyViewer({
         colorScheme={colorScheme}
         key={`${document.id}:${displayKey ?? boardId}`}
         persistenceKey={`${document.id}:${displayKey ?? boardId}`}
-          onSelect={id => onSelect?.(document.parts.find(part => part.id === id.replace(/^keycap(?:-legend)?:/, ''))?.reference ?? id)}
+          onSelect={id => onSelect?.(document.parts.find(part => part.id === id.replace(/^keycap(?:-legend)?:/, ''))?.reference ?? id.replace(/^module-(?:body|model)\//u,'').replace(/\/\d+$/u,''))}
         />
       )}
       {keycapsPending && <p className="wb-assembly-loading" role="status">Generating keycap CAD…</p>}
+      {modulesPending&&<p className="wb-assembly-loading" role="status">Preparing mounted modules…</p>}
+      {moduleError&&<div role="alert" className="wb-assembly-error">{moduleError}<button onClick={retry}>Retry module preview</button></div>}
       {keycapError && <div role="alert" className="wb-assembly-error">{keycapError}<button onClick={retry}>Retry keycaps</button></div>}
       {keycapResolution && keycapResolution.findings.length > 0 && <details className="wb-assembly-notices" open><summary>Keycap clearance · {keycapResolution.findings.length} findings</summary>{onShowFinding ? <FindingList document={document} findings={keycapResolution.findings} onShow={onShowFinding} /> : keycapResolution.findings.map(finding => <p key={finding.id}>{finding.message}</p>)}</details>}
       {pending && (

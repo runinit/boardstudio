@@ -349,15 +349,17 @@ pub(crate) fn apply_edit(
                     crate::electrical_peripherals::describe(doc, &b.id)
                         .iter()
                         .any(|p| {
-                            p.kind == "encoder"
+                            (p.kind == "encoder" || p.kind == "press")
                                 && p.part_id == id
-                                && p.gpio_terminals
-                                    .iter()
-                                    .any(|(terminal, _)| terminal == "S1")
+                                && p.press_key_id.as_deref() == Some(key_id.as_str())
                         })
                 });
+            let matrix_press = crate::inputs::profile(def).press.is_some()
+                && crate::inputs::matrix_member(doc, part);
             if (key_id.ends_with("/push") && !push)
-                || (!key_id.ends_with("/push") && def.kind != crate::model::PartKind::Switch)
+                || (!key_id.ends_with("/push")
+                    && def.kind != crate::model::PartKind::Switch
+                    && !matrix_press)
             {
                 return Err("Keymap bindings require switches or encoder push inputs".into());
             }

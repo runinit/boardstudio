@@ -154,6 +154,8 @@ fn build_region_upstream(
     if !base_z.is_finite() || !total_height.is_finite() || total_height <= 0.0 {
         return Err("Case body has invalid height or elevation".into());
     }
+    let (mount_hole_z, mount_hole_height) =
+        mount_hole_range(body, &region.mounts, base_z, total_height);
 
     let mut edges = polygon_edges(&region.outer, base_z)?;
     for hole in &region.holes {
@@ -268,7 +270,14 @@ fn build_region_upstream(
         let cutters = region
             .mounts
             .iter()
-            .map(|mount| make_cylinder(&mount.at, base_z, mount.hole_diameter, total_height))
+            .map(|mount| {
+                make_cylinder(
+                    &mount.at,
+                    mount_hole_z,
+                    mount.hole_diameter,
+                    mount_hole_height,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?;
         if mode.mount_holes {
             subtract_many(&mut solids, &cutters)?;
@@ -300,12 +309,38 @@ fn build_region_upstream(
             let _stage = Stage::new("mountHoleCuts");
             subtract(
                 &mut solids,
-                make_cylinder(&mount.at, base_z, mount.hole_diameter, total_height)?,
+                make_cylinder(
+                    &mount.at,
+                    mount_hole_z,
+                    mount.hole_diameter,
+                    mount_hole_height,
+                )?,
             )?;
         }
     }
 
     Ok(solids)
+}
+
+fn mount_hole_range(
+    body: &CaseBody,
+    mounts: &[Mount],
+    base_z: f64,
+    total_height: f64,
+) -> (f64, f64) {
+    let mut low = base_z;
+    let mut high = base_z + total_height;
+    for mount in mounts.iter().filter(|mount| mount.kind == MountKind::Boss) {
+        let Some(height) = mount.height else { continue };
+        let boss_z = if body.kind == CaseKind::Lid {
+            base_z + body.wall_height.unwrap_or(0.0) - height
+        } else {
+            base_z + body.thickness
+        };
+        low = low.min(boss_z);
+        high = high.max(boss_z + height);
+    }
+    (low, high - low)
 }
 
 fn point_in_polygon(point: &Vec2, polygon: &[Vec2]) -> bool {
@@ -495,13 +530,15 @@ fn opening_remainder(opening: &CaseOpening, previous: &[&CaseOpening]) -> Option
             let within = middle > rect_x[0] && middle < rect_x[1];
             if within
                 && !ys
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .any(|pair| pair[0] <= rect_y[0] && pair[1] >= rect_y[1])
             {
                 contains_rectangle = false;
                 break;
             }
-            for pair in ys.chunks_exact(2) {
+            for pair in ys.as_chunks::<2>().0 {
                 let intervals = if within {
                     [
                         (pair[0], pair[1].min(rect_y[0])),

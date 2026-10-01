@@ -71,6 +71,8 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
   const mechanicalRef = useRef(mechanical);
   mechanicalRef.current = mechanical;
   const [ready, setReady] = useState(false);
+  // Background geometry updates retain a scene the camera can still navigate.
+  const [sceneReady, setSceneReady] = useState(false);
   const [error, setError] = useState('');
   const hiddenKey = `boardstudio:v2:layers:assembly:${persistenceKey ?? 'default'}`;
   const [localHidden, setLocalHidden] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(hiddenKey) ?? '[]') as string[]); } catch { return new Set(); } });
@@ -161,6 +163,7 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
       const update = bodyOnly ? current.setSceneBodies({ revision, bodies: geometryBodies }) : current.setScene(packet);
       void update.then(accepted => {
       if (accepted) {
+        setSceneReady(true);
         appliedBase.current = { board, models, reference, stackKey, batteryKey };
         if (!keepCamera) fitted.current = true;
         if (models.length > 0) fittedModels.current = true;
@@ -374,10 +377,10 @@ export function AssemblyScene({ board, models, bodies = [], authoredCaseBodies =
     <canvas ref={canvas} aria-label="3D PCB assembly. Drag to orbit, scroll to zoom." />
     {preparing && <span role="status" className="wb-scene-preparing">Preparing 3D geometry…</span>}
     <div className="wb-assembly-controls" role="group" aria-label="Assembly camera">
-      <button disabled={!ready || preparing} onClick={() => showView('fit')}>Fit</button>
-      <button disabled={!ready || preparing} onClick={() => showView('top')}>Top</button>
-      <button disabled={!ready || preparing} onClick={() => showView('bottom')}>Bottom</button>
-      <button disabled={!ready || preparing} onClick={() => showView('isometric')}>Isometric</button>
+      <button disabled={!ready || !sceneReady} onClick={() => showView('fit')}>Fit</button>
+      <button disabled={!ready || !sceneReady} onClick={() => showView('top')}>Top</button>
+      <button disabled={!ready || !sceneReady} onClick={() => showView('bottom')}>Bottom</button>
+      <button disabled={!ready || !sceneReady} onClick={() => showView('isometric')}>Isometric</button>
     </div>
     {mechanical && <output role="status" className="wb-mechanical-preview-status">{solidsBlocked ? 'Case solids blocked' : generatedBodyCount > 0 && generatedBodyCount === mechanical.case.bodies.length && (!generation || generation.status === 'ready' && generation.revision === mechanical.revision) ? `Generated CAD solids · ${mechanical.case.bodies.length} parts at revision ${mechanical.revision}` : bodies.length ? 'Showing previous geometry' : 'No generated solids'}</output>}
     {gasketMessage && <output className="wb-gasket-message" role="status">{gasketMessage}</output>}

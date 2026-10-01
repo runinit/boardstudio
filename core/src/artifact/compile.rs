@@ -53,15 +53,12 @@ pub fn validate_geometry(
     }
 
     let mut ids = BTreeSet::new();
-    let mut numbers = BTreeSet::new();
     for pad in &geometry.pads {
         if !ids.insert(pad.id.as_str()) {
             return Err(format!("Duplicate footprint pad id: {}", pad.id));
         }
-        if (pad.number.trim().is_empty() && pad.plated != Some(false))
-            || (!pad.number.trim().is_empty() && !numbers.insert(pad.number.as_str()))
-        {
-            return Err(format!("Duplicate or empty pad number: {}", pad.number));
+        if pad.number.trim().is_empty() && pad.plated != Some(false) {
+            return Err(format!("Empty electrical pad number: {}", pad.id));
         }
         if !finite_point(pad.at)
             || !finite_point(pad.size)

@@ -20,6 +20,17 @@
 ## 2026-09-30 (Full-Rust/Dioxus context reconciliation)
 - Reconcile the committed dev baseline `96dd51d3` on `docs/dioxus-context-baseline` in a new isolated worktree; use Addy's installed context-engineering workflow, preserve 50 linked decision/research artifacts byte-for-byte, classify accepted/provisional/superseded/open decisions and record current Rust/browser ownership plus the next coordinator decision. Preserve original worktrees and concurrent implementation; create no migration code or commits.
 - Record 334 passing core, 26 renderer and 23 native CAD tests, source-stable validation and passing contract/type/frontend stages; retain formatting/Clippy failures, nine archive subprocess failures, WASM packaging and browser/parity blockers, cached-build provenance and unavailable performance/visual gates without repairs or baseline updates.
+## 2026-10-01 (mounted-module PCB review)
+
+- Show source-owned module footprints and artwork in PCB mode with independent layers. Add nearby source-backed host VIK connectors without moving reviewed anchors or authored outlines, configurable host mounting drills, and annular board standoffs. Keep incomplete-support previews inspectable while fabrication stays blocked; retain unresolved source qualification gates.
+
+## 2026-10-01 (encoder/VIK implementation progress)
+
+- Add mounted VIK placement, explicit circuit reuse, case supports and scoped rotary export. Import every researched catalog row with pinned provenance and 31 model-bound checks; retain unresolved assembly, driver and source gates. Prepare an editable mixed-module project for human app review; physical QA is deferred. Skip empty-module wiring and finding scans during ordinary edits.
+
+- Add ticket 2 nominal THQWGD001 library integration: three distinct assembly variants, seven pinned footprints/cut helpers, portable STEP models, output-specific qualification gates, precise occupied-bound fit markers and separate nominal preview. Preserve public firmware Eq with compact provenance/gate snapshots; fix cached KiCad text and retained absolute model paths. Physical variants, back-side continuity/alignment and manufacturing qualification remain open.
+
+- Complete ticket 1: support semantic encoder press contacts, exclusive matrix/direct/unassigned scanning, identity-preserving replacement and independent layered rotation with validated local ZMK export. Preserve legacy peripheral profiles and reserve wired-split UART GPIOs. Verify public RED/GREEN, 351 core tests, 26 renderer tests, 35 KiCad tests, 23 native CAD tests, 49 JavaScript CAD tests, 469 app tests, nine browser workflows, production builds and native/WASM parity; pass separate standards/spec reviews. Keep VIK and unrelated test cleanup outside this commit.
 
 ## 2026-09-30 (Prioritize safe outline recovery)
 - Fast-forward dev to `b3c452c3` with recovered outlines and integration fixes; pass 324 core, 468 app, 23 native CAD, 49 CAD JavaScript, 28 affected browser, and 5 final main-checkout browser tests, rebuild WASM/app assets, and preserve the original source worktree. Record verification and limits in docs/outline-recovery-integration.md; Phase 3 performance tasks remain pending.

@@ -4,14 +4,14 @@ import type { ElectricalPlan, FirmwareKey, FirmwareRequest, FirmwareScanMode, Pe
 type FirmwareHandoffResult = { request: FirmwareRequest; warnings: string[] };
 type PlanExtensions = ElectricalPlan & { moduleAliases?: Record<string, string>; peripheralTerminals?: Record<string, string>; jumpers?: unknown[]; instanceId?: string | null };
 
-function errors(plan: ElectricalPlan): string[] { return plan.diagnostics.filter(d => d.severity === 'error').map(d => d.message); }
+function errors(plan: ElectricalPlan): string[] { return plan.diagnostics.filter(d => d.severity === 'error' && !d.code.startsWith('module/')).map(d => d.message); }
 
 function pin(terminal: string, gpio: string): ScanPin { return { terminal, gpio }; }
 
 function peripheralWarnings(plan: ElectricalPlan): string[] {
   return plan.peripherals.flatMap((item: PeripheralRequirement) => {
     const unresolved = item.gpioTerminals.some(([_, fn]) => !findPeripheralPin(plan, fn));
-    const unsupported = !['split', 'power-switch', 'reset', 'battery', 'display-i2c', 'display-spi', 'encoder', 'rgb'].includes(item.kind);
+    const unsupported = !['split', 'power-switch', 'reset', 'battery', 'display-i2c', 'display-spi', 'encoder', 'press', 'rgb', 'vik'].includes(item.kind);
     return unresolved ? [`No resolved GPIO for ${item.kind} ${item.partId}`] : unsupported ? [`Firmware profile for ${item.kind} is not implemented; export is blocked`] : [];
   });
 }
@@ -30,15 +30,70 @@ export function firmwareRequest(document: ProjectDoc, plan: ElectricalPlan, peri
   const columns = (mode === 'matrix' ? plan.columnPins : []).map((terminal, index) => pin(extended.moduleAliases?.[terminal] ?? terminal, assignments.find(a => a.column === index)?.columnFirmwareGpio ?? '')).filter(p => p.gpio);
   const keys: FirmwareKey[] = assignments.map(a => ({ id: a.keyId, row: a.row, column: a.column }));
   const directPins = assignments.map(a => a.directGpio ? pin(plan.moduleAliases[a.columnPin] ?? a.columnPin, a.directGpio) : null).filter((p): p is ScanPin => Boolean(p));
-  const auxiliary = plan.peripherals.flatMap(peripheral => peripheral.gpioTerminals.filter(([terminal]) => peripheral.kind === 'encoder' && terminal === 'S1').map(([,fn]) => ({ id: `${peripheral.partId}/push`, function: fn })));
+  const auxiliary = plan.peripherals.flatMap(peripheral => peripheral.gpioTerminals.filter(([terminal,fn]) => (peripheral.kind === 'encoder' || peripheral.kind === 'press') && (fn.endsWith('/encoder-push') || fn.endsWith('/input-push') || terminal === 'S1')).map(([,fn]) => ({ id: peripheral.pressKeyId ?? `${peripheral.partId}/push`, function: fn })));
   const auxiliaryPins = auxiliary.map(item => pin(plan.peripheralTerminals[item.function], plan.peripheralPins[item.function]));
   auxiliary.forEach((item, index) => keys.push({ id: item.id, row: mode === 'direct' ? 1 : rows.length, column: index }));
   const configuredBindings = document.hardware?.boards.find(board => board.boardId === plan.boardId)?.keyBindings ?? {};
   const sensorIds = [...plan.peripherals, ...(peripheralPlan?.peripherals ?? [])].filter(item => item.kind === 'encoder').map(item => item.partId);
-  const peripherals = peripheralFirmware(plan, sensorIds);
+  const profiled = [...plan.peripherals, ...(peripheralPlan?.peripherals ?? [])].filter(item => item.kind === 'encoder').every(item => Boolean(item.rotary));
+  const legacyPeripherals = (current: ElectricalPlan) => peripheralFirmware(profiled ? { ...current, peripherals: current.peripherals.filter(item => item.kind !== 'encoder') } : current, profiled ? [] : sensorIds);
+  const peripherals = legacyPeripherals(plan);
+  const physicalInstanceId = extended.instanceId ?? document.physicalInstanceId ?? undefined;
+  const boardModules = (document.modules ?? []).filter(module => module.hostBoardId === plan.boardId && !module.detached);
+  if (!physicalInstanceId && boardModules.some(module => module.hostInstanceId)) {
+    throw new Error('Select a physical host instance before exporting modules attached to a specific keyboard half');
+  }
+  const moduleQualifications = boardModules.map(module => {
+    const definition = (document.moduleDefinitions ?? []).find(item => item.id === module.definitionId);
+    if (!definition) throw new Error(`Module snapshot is missing for ${module.id}`);
+    return {
+      id: module.id,
+      name: definition.name,
+      hostInstanceId: module.hostInstanceId ?? undefined,
+      protocol: definition.electrical.protocol,
+      catalogueRow: definition.catalogueRow ?? undefined,
+      source: definition.source,
+      rotaryProfile: definition.electrical.rotaryProfile ?? undefined,
+      gates: definition.gates,
+    };
+  });
+  const moduleEncoders = boardModules.flatMap(module => {
+    if (module.hostInstanceId && physicalInstanceId && module.hostInstanceId !== physicalInstanceId) return [];
+    const definition = (document.moduleDefinitions ?? []).find(item => item.id === module.definitionId);
+    const rotary = definition?.catalogueRow === 'ec11-evqwgd001' ? definition.electrical.rotaryProfile : undefined;
+    if (!rotary) return [];
+    const source = (signal: string) => `vik/${plan.boardId}/${module.connection?.hostConnectorPartId ?? ''}/${signal}`;
+    const aGpio = findPeripheralPin(plan, source(rotary.a));
+    const bGpio = findPeripheralPin(plan, source(rotary.b));
+    if (!aGpio || !bGpio) return [];
+    return [{ id: module.id, profile: rotary, aGpio, bGpio }];
+  });
+  const moduleFindings = plan.diagnostics
+    .filter(diagnostic => diagnostic.severity === 'error' && diagnostic.code.startsWith('module/'))
+    .map(diagnostic => ({ id: diagnostic.code, message: diagnostic.message }));
   const request: FirmwareRequest = {
+    qualification: plan.boardId ? {
+      boardId: plan.boardId,
+      parts: document.parts.filter(part => document.boards.find(board => board.id === plan.boardId)?.partIds.includes(part.id)).flatMap(part => {
+        const definition = document.definitions.find(definition => definition.id === part.definitionId);
+        return definition?.hardwareProfile ? [{ partId: part.id, name: definition.name, source: definition.hardwareProfile.source, gates: definition.hardwareProfile.gates }] : [];
+      }),
+    } : undefined,
+    hardware: plan.boardId ? {
+      boardId: plan.boardId,
+      physicalInstanceId,
+      modules: moduleQualifications,
+      physicalInstances: (document.hardware?.instances ?? []).map(instance => ({ id: instance.id, boardId: instance.boardId })),
+      moduleFindings,
+      embeddedCircuitIds: (document.embeddedCircuits ?? []).filter(circuit => circuit.hostBoardId === plan.boardId).map(circuit => circuit.id),
+    } : undefined,
+    encoders: profiled ? [...plan.peripherals.flatMap(item => {
+      if (item.kind !== 'encoder' || !item.rotary) return [];
+      const gpio = (terminal: string) => findPeripheralPin(plan, item.gpioTerminals.find(([name]) => name === terminal)?.[1] ?? '') ?? '';
+      return [{ id: item.partId, profile: item.rotary, aGpio: gpio(item.rotary.a), bGpio: gpio(item.rotary.b) }];
+    }), ...moduleEncoders] : undefined,
     keymap: document.keymap ?? undefined,
-    encoder_ids: plan.peripherals.filter(item => item.kind === 'encoder').map(item => item.partId),
+    encoder_ids: [...plan.peripherals.filter(item => item.kind === 'encoder').map(item => item.partId), ...moduleEncoders.map(encoder => encoder.id)],
     controller_profile: controllerProfile!,
     board_name: plan.boardId ?? document.name,
     rows, columns, keys, diode_direction: plan.diodeDirection,
@@ -48,7 +103,7 @@ export function firmwareRequest(document: ProjectDoc, plan: ElectricalPlan, peri
     uart_rx: transport === 'wired' ? uartPin(plan, 'split-rx') : null,
     matrix_row_offset: 0,
     peripheral_overlays: peripherals.overlays,
-    peripheral: peripheralPlan ? { ...firmwareRequest({ ...document, hardware: { topology: 'unibody', transport: 'none', boards: document.hardware?.boards ?? [], instances: [], sharedConstruction: null } }, peripheralPlan).request, peripheral_overlays: peripheralFirmware(peripheralPlan, sensorIds).overlays, transport: transport === 'wireless' ? 'wireless' : transport === 'wired' ? 'wired-uart' : null, matrix_row_offset: plan.rowPins.length, uart_tx: transport === 'wired' ? uartPin(peripheralPlan, 'split-rx') : null, uart_rx: transport === 'wired' ? uartPin(peripheralPlan, 'split-tx') : null } : null,
+    peripheral: peripheralPlan ? { ...firmwareRequest({ ...document, hardware: { topology: 'unibody', transport: 'none', boards: document.hardware?.boards ?? [], instances: document.hardware?.instances ?? [], sharedConstruction: null } }, peripheralPlan).request, peripheral_overlays: legacyPeripherals(peripheralPlan).overlays, transport: transport === 'wireless' ? 'wireless' : transport === 'wired' ? 'wired-uart' : null, matrix_row_offset: plan.rowPins.length, uart_tx: transport === 'wired' ? uartPin(peripheralPlan, 'split-rx') : null, uart_rx: transport === 'wired' ? uartPin(peripheralPlan, 'split-tx') : null } : null,
   };
   return { request, warnings: plan.diagnostics.filter(d => d.severity !== 'error').map(d => d.message) };
 }

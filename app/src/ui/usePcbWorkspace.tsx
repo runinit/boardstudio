@@ -58,6 +58,12 @@ export function usePcbWorkspace({ document, boardId, activePart, definitions, wi
       const assigned = boardNets.reduce((total, net) => total + net.pins.filter((pin) => selectedBoard?.partIds.includes(pin.partId) ?? true).length, 0);
       return <>
         <div className="wb-inspect-head"><h2>{activePart && activeDefinition ? `${activePart.reference} · ${activeDefinition.name}` : 'Board setup'}</h2><span className="wb-mini-tag">{activePart && activeDefinition ? `${selectedBoard?.name ?? 'Board'} / PCB` : `${document.boards.length} board${document.boards.length === 1 ? '' : 's'}`}</span></div>
+        {activePart && activeDefinition && (activeDefinition.inputProfile?.press || activeDefinition.generator?.source === 'ceoloide/rotary_encoder_ec11_ec12') && <InspectorSection title="Press input" defaultOpen>
+          <label>Scan mode<select aria-label="Press scan mode" value={String(activePart.properties?.pressScanMode ?? (document.matrices.some(matrix => matrix.partIds.includes(activePart.id)) ? 'matrix' : 'direct'))} onChange={event => emit({ kind: 'set-input-scan-mode', partId: activePart.id, mode: event.target.value as 'matrix' | 'direct' | 'unassigned' }, [activePart.id])}>
+            <option value="matrix" disabled={!document.matrices.some(matrix => matrix.partIds.includes(activePart.id)) || activeDefinition.inputProfile?.press?.independent === false}>Matrix key</option>
+            <option value="direct">Direct GPIO</option><option value="unassigned">Unassigned</option>
+          </select></label><p className="wb-empty-note">Rotation uses separate GPIOs. Apply the board wiring plan after changing the press connection.</p>
+        </InspectorSection>}
         <InspectorSection title="Board details" detail={selectedBoard?.name}>
         {selectedBoard ? <dl className="wb-measure-list">
           <Measure label="Board" value={selectedBoard.name} />

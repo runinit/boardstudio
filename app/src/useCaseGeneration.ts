@@ -66,6 +66,13 @@ type PreviewJob = {
 const sameIdentity = (a: CasePreviewContext, b: CasePreviewContext) => a.documentId === b.documentId
   && a.boardId === b.boardId && a.instanceId === b.instanceId && a.session === b.session;
 
+function blockedOnlyByMissingBoardSupports(assembly: MechanicalAssembly): boolean {
+  const blockers = assembly.diagnostics.filter(finding => finding.severity === 'error');
+  return assembly.generationBlocked && blockers.length > 0 && blockers.every(finding =>
+    finding.scope === 'pcb'
+    && /^module\/.+\/(?:board-support|host-drill)(?:\/|$)/.test(finding.id));
+}
+
 export function useCaseGeneration({ project, scene, selectedBoardId, selectedInstance, projectSession, committedScene, client, caseClient, previewCache, activeMode, ready, setError }: Inputs) {
   const [casePreview, setCasePreview] = useState<ContextualCaseResult<PreparedCasePreview>>();
   const [draftPreview, setDraftPreview] = useState<ContextualCaseResult<PreparedCasePreview>>();
@@ -122,13 +129,20 @@ export function useCaseGeneration({ project, scene, selectedBoardId, selectedIns
     setGeneration({ status: 'preparing', revision: job.context.revision });
     try {
       let ir = caseAssembly(job.document, job.scene, job.context.boardId);
+      let fabricationBlocked = false;
       if (job.document.mechanical?.boardId === job.context.boardId) {
         const contours = job.scene.boardContours.find(entry => entry.boardId === job.context.boardId)?.contours ?? [];
         const assembly = await resolveMechanical(client.current!, job.document, contours, () => isCurrent(job));
         if (!assembly || !isCurrent(job)) return;
         // Gesture geometry is presentation-only; inspector diagnostics remain committed.
         if (job.draftSequence === undefined) setMechanicalAssembly({ context: job.context, result: assembly });
-        if (assembly.generationBlocked) { setGeneration({ status: 'blocked' }); return; }
+        if (assembly.generationBlocked) {
+          if (!blockedOnlyByMissingBoardSupports(assembly)) {
+            setGeneration({ status: 'blocked' });
+            return;
+          }
+          fabricationBlocked = true;
+        }
         ir = assembly.case;
       }
       const result = await generateCasePreview(client.current!, () => {
@@ -151,7 +165,9 @@ export function useCaseGeneration({ project, scene, selectedBoardId, selectedIns
         setCasePreview(completed);
         setDraftPreview(undefined);
         completedDraft.current = undefined;
-        setGeneration({ status: 'ready', revision: result.revision });
+        setGeneration(fabricationBlocked
+          ? { status: 'blocked' }
+          : { status: 'ready', revision: result.revision });
       }
     } catch (cause) {
       if (isCurrent(job)) setGeneration({ status: 'failed', message: String(cause) });
