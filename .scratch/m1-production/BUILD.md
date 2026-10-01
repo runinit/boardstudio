@@ -55,3 +55,14 @@ export (ADR 0003); this does not assert populated PCB preview or generator parit
 Physical-instance case settings use the reference shared-construction policy and
 the existing undoable document replacement command. Setting controls wait for
 durable edits and position previews to finish before constructing that update.
+
+## Fresh Dioxus page output
+
+Before each prefix build the builder preserves the previous Dioxus `public`
+directory at `previous-dx-public-<next-mode>` inside the unique build directory.
+The suffix identifies the next build: the `subpath` snapshot therefore contains
+the preceding root output. Only the freshly rebuilt public directory enters
+that prefix's stage and offline manifest. Earlier hashed page WASM files never
+enter the new stage. The source and all staged assets are reverified after both
+prefixes finish. The actual stale-output regression and fresh inventory are
+retained under `evidence/integration/`.

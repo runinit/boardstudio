@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "production implementation frozen at2040e23b; final complete candidate build and browser/performance acceptance in progress",
+  "status": "fresh-prefix build passes; public STEP export decoder repair in progress before final release acceptance",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -32,7 +32,7 @@
       ]
     },
     "05": {
-      "status": "independent fresh-worker STEP readback and wide revision rejection pass; failed-export registration regression fixed/tested; final UI delivery/resource checks in progress",
+      "status": "raw provider STEP/readback pass, but actual UI export fails at optional bodies decoding; focused browser red-green repair in progress",
       "blocked_by": [
         "04"
       ]
@@ -58,10 +58,11 @@
       "EditOperation::SetMountedModule.host_connector_definition"
     ]
   },
-  "production_source": "2040e23ba2cd97aef3757d24b81fe2463d6f86be",
+  "production_source": "fe2ada03",
   "final_build": {
-    "id": "m1-release-20261001-bc1c6b52",
-    "source_commit": "bc1c6b524ec5a6350ca432472bf4ff543482aeb5",
-    "status": "in progress; source identity verification required before use"
-  }
+    "id": "m1-release-20261001-fe2ada03",
+    "source_commit": "fe2ada03",
+    "status": "18 commands0,925sourcehashes andallassetsverified; one current page WASM per prefix; STEP consumer failure remains"
+  },
+  "runtime_source": "2040e23ba2cd97aef3757d24b81fe2463d6f86be"
 }

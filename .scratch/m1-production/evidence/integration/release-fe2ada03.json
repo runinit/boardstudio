@@ -1,0 +1,15 @@
+{
+  "source_commit": "fe2ada035efe6097ea2dc177521c1ca2bee7156f",
+  "runtime_source": "2040e23ba2cd97aef3757d24b81fe2463d6f86be",
+  "build_script_review_commit": "fe2ada03",
+  "exit": 0,
+  "commands": 18,
+  "source_hashes_verified": 925,
+  "asset_hashes_verified": true,
+  "one_page_wasm_per_prefix": true,
+  "provenance_path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-fe2ada03/provenance.json",
+  "provenance_sha256": "a4b4802b5f1a3670500a60b6a1c035655dedd58ee4108151f6a8b0c62e8c34d7",
+  "portable_provenance": "release-fe2ada03-provenance.json",
+  "verified_at": "2026-10-01T22:55:10.827964+00:00",
+  "limitations": "Build/staging corrected; STEP page decoder error diagnosed separately, export acceptance remains failed pending repair."
+}

@@ -867,3 +867,30 @@ See [source checks](../../.scratch/m1-production/evidence/integration/final-sour
 [reviews](../../.scratch/m1-production/evidence/review/standards-2040e23b.md),
 [Spec review](../../.scratch/m1-production/evidence/review/spec-2040e23b.md) and
 [performance protocol](../../.scratch/m1-production/evidence/performance/README.md).
+
+### Fresh-prefix build correction
+
+The complete `bc1c6b52` build exited zero and every captured hash matched, but
+its inventory exposed three Dioxus page WASM binaries retained from prior
+builds. The actual staged-output regression fails with the expected obsolete
+asset assertion. This artifact is retained as component evidence; it fails the
+reproducible release/cache-inventory gate.
+
+Build correction `fe2ada03` preserves each previous Dioxus public directory in
+the new uniquely named build output, then builds each prefix into a fresh
+public directory. Nothing is deleted or discarded. Runtime/provider source
+remains `2040e23b`; independent Standards/Spec review of the script correction
+and complete rebuild `m1-release-20261001-fe2ada03` are in progress. All earlier
+artifacts, successful commands and failed assertions remain retained.
+
+The corrected `fe2ada03` complete build passed all 18 commands. Source and
+staged hashes match; the actual regression is green at both prefixes, with
+one current page WASM and 47 staged files each. Standards and Spec reviews
+report no blocking findings.
+
+A separate real UI check found that export-only CAD replies omit `bodies`,
+while the page decoder calls `Array::from` on that absent field and traps.
+Raw JavaScript worker/readback proof did not exercise this Rust decoder.
+The public UI failure is retained; a separate implementer is building the
+correct public-browser regression and repair. STEP acceptance and final
+release/performance remain open until the corrected page is verified.
