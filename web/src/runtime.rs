@@ -182,7 +182,12 @@ impl Runtime {
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
                 let result = match self.store.save_document(&document, &assets).await {
-                    Ok(()) => SaveResult::Committed,
+                    Ok(()) => {
+                        for asset in &document.assets {
+                            self.assets.borrow_mut().remove(&asset.sha256);
+                        }
+                        SaveResult::Committed
+                    }
                     Err(error) => SaveResult::Aborted(error.to_string()),
                 };
                 self.complete(Completion::Persist {
