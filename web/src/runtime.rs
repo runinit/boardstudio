@@ -546,7 +546,9 @@ impl Runtime {
                 .await
                 .map_err(|e| CadJobError::Failed(e.to_string()))?;
             guard()?;
-            let result = validate_reply(&request, reply, &prepared.identity)?;
+            let mut result = validate_reply(&request, reply, &prepared.identity)?;
+            // Renderer retention needs meshes only; manufacturing exports have their own worker.
+            result.step = Vec::new();
             *self.cad_scene.borrow_mut() = Some(Rc::new(CadScene {
                 scope: scope.clone(),
                 token: snapshot.token,

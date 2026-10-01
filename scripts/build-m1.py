@@ -46,6 +46,8 @@ def main():
             print(log.read_text()[-10000:], file=sys.stderr)
             raise SystemExit(result.returncode)
 
+    for name, command in [("rustc-version", ["rustc", "--version"]), ("cargo-version", ["cargo", "--version"]), ("dx-version", ["dx", "--version"]), ("wasm-pack-version", ["wasm-pack", "--version"]), ("node-version", ["node", "--version"]), ("pnpm-version", ["pnpm", "--version"])]:
+        run(name, command)
     run("core", ["wasm-pack", "build", REPO / "core", "--target", "web", "--release", "--locked"])
     run("core-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"])
     run("cad-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_cad_worker", "--out-dir", output / "cad-worker", "--release", "--locked", "--no-default-features", "--features", "cad-worker"])
