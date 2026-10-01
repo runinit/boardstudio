@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-**Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
+**Category:** behavior-preserving migration plus explicitly approved transparent Rust enum boxing (RUN approval, 2026-10-01); ticket 02 includes the already accepted recovery behavior.
 
 **Authority:** [M1 specification](../spec.md), existing six module specifications and ADR 0003.
 

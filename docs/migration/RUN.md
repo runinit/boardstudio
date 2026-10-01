@@ -784,3 +784,13 @@ capability milestones; detailed whole-migration tasks have not been generated.
 ## Remaining M1 production workflow — 2026-10-01
 
 The user requested to-spec planning of all remaining M1 documentation followed by implementation. [M1-r1 specification](../../.scratch/m1-production/spec.md), [bounded plan and documentation deliverables](../../.scratch/m1-production/PLAN.md), and [current production-slice state](m1-production-run.json) govern this new task set. The completed P2/P3 run stays complete. Newer provider input is main-checkout dev `5a472a94`, fetched into the separate migration repository under a pinned reference. Integration proceeds on `codex/m1-production-20261001` in the persistent continuation; original checkout/stashes and historical evidence stay preserved. No cutover/push/deployment/main merge follows from M1 implementation.
+
+### Approved transparent Rust boxing extension
+
+On 2026-10-01 the user explicitly answered “Approve transparent boxing” for
+`ArtifactReply::PreparePreview.result`, `ArtifactReply::ImportModuleBoard.result`,
+and the `EditOperation::SetMountedModule` instance/definition/host-connector
+payloads. Ticket 01 may implement these `Box<T>` Rust API changes while preserving
+JSON, saved files and generated TypeScript. This bounded approval extends the
+earlier enum-boxing decision; affected native/WASM lint, tests and contract
+checks remain required before integration.
