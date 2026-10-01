@@ -1,0 +1,32 @@
+{
+  "mode": "subpath",
+  "build_id": "followup-r2-subpath-final-20261001",
+  "base_path": "/boardstudio/",
+  "dioxus_public": "/home/chris/.local/share/boardstudio/worktrees/p2-r2-integration/.scratch/prototypes/p2-lifecycle/wasm/target/dx/p2-lifecycle-probe/release/web/public",
+  "staged_site": "/home/chris/.local/share/boardstudio/worktrees/p2-r2-integration/.scratch/prototypes/p2-lifecycle/wasm/target/renewal-worker/site-subpath-followup-r2-subpath-final-20261001/boardstudio",
+  "dioxus_assets": {
+    "assets/boardstudio_renderer_wasm-dxh4d7fd5e795157440.js": "ba153e2e95b9fb9690b975b055224344e0ff31e7626fd62132ccc98ca4f78a0c",
+    "assets/boardstudio_renderer_wasm_bg-dxha266dffd2d3dd698.wasm": "ed5e115042045358680ad4355ddceb5d457aa3b906f23646fc31494caf979864",
+    "assets/p1_core-dxhebaf8c8fb986034.js": "0b33a127bbdf50e54f08c66ff3a0822cf26ffb351b4abc09e30dd10ee829c9d6",
+    "assets/p1_core_bg-dxh5c7186b180a68870.wasm": "913041a1fc01e5337dbfb3c0c53a217761c31209965ae3268d4780d9113a7f26",
+    "assets/p2-lifecycle-probe-dxh3cfc9a16e6c58072.js": "d009bdf2860fa491bcca3550f918b40c347636803b74331a092731e6b7aa6b62",
+    "assets/p2-lifecycle-probe-dxh5c8424ec25b8282.js": "42cfd69907207d7eeb7f0bb2d03862d165688e9f88969ce4bf334040e3e74569",
+    "assets/p2-lifecycle-probe-dxh9d81ae623677d4fe.js": "7134ca557cd33e572df7294bb89786b5bcbbdcb2a7da2fd9cf0689c0d849219b",
+    "assets/p2-lifecycle-probe_bg-dxh69f3f96ce27cdec8.wasm": "e14cedb93d4b56ecddc2af50dc1969a6205cf36a206805bc2d7affc5444e3ab5",
+    "assets/p2-lifecycle-probe_bg-dxhe381233cf88138c.wasm": "adcc48dd429b5073b369e7692eb9e2d11dec748b0d91516e31e559eef758bc4b",
+    "assets/worker-entry-dxh355de976edf88e9.js": "e72d2960adf1c0bace4fd849ea4cdb29019f2889ec402d62ccfe15435de250cc"
+  },
+  "same_origin_worker_renderer_assets": {
+    "assets/p1-worker/p1_core.js": "22159af2bcdea073243e47408c716900021ba52055161ad2de5547a0a1e9870d",
+    "assets/p1-worker/p1_core_bg.wasm": "913041a1fc01e5337dbfb3c0c53a217761c31209965ae3268d4780d9113a7f26",
+    "assets/renderer/boardstudio_renderer_wasm.js": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+    "assets/renderer/boardstudio_renderer_wasm_bg.wasm": "ed5e115042045358680ad4355ddceb5d457aa3b906f23646fc31494caf979864",
+    "assets/worker/worker-entry.js": "652acf853416adcf6af0cd83183a048df67d6c53cad3608af313117d3647c948"
+  },
+  "asset_url_paths": {
+    "worker_entry": "/boardstudio/assets/worker/worker-entry.js",
+    "renderer_module": "/boardstudio/assets/renderer/boardstudio_renderer_wasm.js",
+    "renderer_wasm": "/boardstudio/assets/renderer/boardstudio_renderer_wasm_bg.wasm"
+  },
+  "fixture_sha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae"
+}

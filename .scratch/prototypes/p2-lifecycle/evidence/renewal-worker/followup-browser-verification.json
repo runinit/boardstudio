@@ -1,23 +1,65 @@
 {
   "task": "P2 short-viewport drag and document-language follow-up",
-  "base": "57bd6eceed3bce9ad9b854121e93d8adc22f7bf8",
+  "base": "83562529d1b91ca5035a9147cf1db1af12e8a3fc",
   "code_commits": [
     "ae3b293f950af46636b27043048a478083157b82",
-    "2cae5bfae1df521fbc66343cd0bcc276215a00ca"
+    "2cae5bfae1df521fbc66343cd0bcc276215a00ca",
+    "6aa6b920cb216c54a9252b2a8a50b833bdd5f437",
+    "feeff1cf9d3ddf1fe76b67403c0125aa7753feaa"
   ],
   "integration_worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-r2-integration",
   "build": {
     "command": "TMPDIR=target/renewal-worker/tmp-dx-r2 dx build --web --release --base-path / --cargo-args=\"--locked\"",
     "exit": 0,
-    "staging": "target/renewal-worker/site-root-followup-r2-20261001",
-    "staging_record": ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/staging-root-followup-r2-20261001.json"
+    "staging": "target/renewal-worker/site-root-followup-r2-final-20261001",
+    "staging_record": ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/staging-root-followup-r2-final-20261001.json"
   },
   "browser": {
-    "command": ".scratch/prototypes/p2-lifecycle/wasm/tests/focus-scroll-regression.sh http://127.0.0.1:4403/",
+    "command": ".scratch/prototypes/p2-lifecycle/wasm/tests/focus-scroll-regression.sh http://127.0.0.1:4405/",
     "exit": 0,
     "runner": "Playwright 1.63.0 from the existing app dev dependency, Chromium",
     "evidence": {
-      "url": "http://127.0.0.1:4403/",
+      "url": "http://127.0.0.1:4405/",
+      "viewport": [
+        1280,
+        577
+      ],
+      "initial": {
+        "scrollY": 0,
+        "svgRect": {
+          "left": 39,
+          "top": 273.125,
+          "width": 680.796875,
+          "height": 442.515625
+        },
+        "lang": "en",
+        "targetHit": true,
+        "transform": "translate(519.8244267835937 248.40467708047873) rotate(-10)"
+      },
+      "afterDown": {
+        "scrollY": 0,
+        "svgTop": 273.125,
+        "focused": true
+      },
+      "final": {
+        "scrollY": 0,
+        "svgTop": 273.125,
+        "targetRect": {
+          "left": 387.6168212890625,
+          "top": 445.02972412109375,
+          "right": 457.937255859375,
+          "bottom": 487.8634033203125
+        },
+        "transform": "translate(564.007048285803 283.77882674034265) rotate(-10)",
+        "focused": true
+      },
+      "runtimeErrors": [],
+      "runner": "Playwright 1.63.0 from existing app dev dependency, Chromium"
+    },
+    "subpath_command": ".scratch/prototypes/p2-lifecycle/wasm/tests/focus-scroll-regression.sh http://127.0.0.1:4407/boardstudio/",
+    "subpath_exit": 0,
+    "subpath_evidence": {
+      "url": "http://127.0.0.1:4407/boardstudio/",
       "viewport": [
         1280,
         577
@@ -57,29 +99,50 @@
   "result": "At 1280x577 the exact pointer focus no longer scrolls the page or changes the SVG frame; the drag commits through the public CoreEngine, leaves the SVG focused, and keeps the target on the board. Document lang is en. No browser runtime errors or failed requests.",
   "other_checks": [
     {
-      "command": "cargo test --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --locked",
+      "command": "cargo test --locked --manifest-path core/Cargo.toml",
       "exit": 0,
-      "result": "7 tests passed"
+      "result": "159 unit tests plus integration suites passed on integrated candidate"
     },
     {
-      "command": "cargo fmt --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml -- --check",
-      "exit": 0
+      "command": "cargo clippy --locked --manifest-path core/Cargo.toml --all-targets -- -D warnings",
+      "exit": 101,
+      "result": "Only 3 large_enum_variant findings on public EditOperation, CoreReply, ArtifactReply"
     },
     {
-      "command": "cargo check --locked --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --target wasm32-unknown-unknown",
-      "exit": 0
+      "command": "cargo test --locked --manifest-path renderer/Cargo.toml",
+      "exit": 0,
+      "result": "26 tests passed"
     },
     {
-      "command": "node --check .scratch/prototypes/p2-lifecycle/wasm/tests/focus-scroll-regression.mjs",
-      "exit": 0
+      "command": "cargo clippy --locked --manifest-path renderer/Cargo.toml --all-targets -- -D warnings",
+      "exit": 0,
+      "result": "Native strict Clippy passed"
     },
     {
-      "command": "git diff --check",
-      "exit": 0
+      "command": "TMPDIR=target/renewal-worker/tmp-dx-r2 dx build --web --release --base-path / --cargo-args=\"--locked\"",
+      "exit": 0,
+      "result": "Built full release bundle including worker, core and renderer WASM assets after lint changes"
+    },
+    {
+      "command": "cargo clippy --manifest-path renderer/Cargo.toml --target wasm32-unknown-unknown --all-targets -- -D warnings",
+      "exit": 101,
+      "result": "One arc_with_non_send_sync finding required by three-d 0.19.0 Arc<Context> API"
     }
   ],
   "limitations": [
     "Full axe raw audit, contrast, and screen-reader checks not run.",
-    "Provider core/renderer strict Clippy and core fmt baseline issues remain."
-  ]
+    "Agent-browser CLI remained unusable; direct Playwright/Chromium provided browser evidence.",
+    "Prototype remains isolated from production."
+  ],
+  "candidate": "feeff1cf9d3ddf1fe76b67403c0125aa7753feaa",
+  "review": "No concrete findings; fresh exact-candidate reviewer completed.",
+  "subpath_build": {
+    "command": "TMPDIR=target/renewal-worker/tmp-dx-r2-subpath dx build --web --release --base-path /boardstudio/ --cargo-args=\"--locked\"",
+    "exit": 0,
+    "staging": "target/renewal-worker/site-subpath-followup-r2-subpath-final-20261001",
+    "record": ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/staging-subpath-followup-r2-subpath-final-20261001.json"
+  },
+  "mismatched_base_path_attempt": {
+    "result": "Not accepted as a product regression: serving the root-base-path bundle from /boardstudio/ timed out before mount because generated asset URLs remained /./assets/. Rebuilt with --base-path /boardstudio/ and the regression passed."
+  }
 }
