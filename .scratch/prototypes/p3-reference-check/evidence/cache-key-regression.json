@@ -1,0 +1,11 @@
+{
+  "candidate_source": "9efd6711",
+  "regression_test": "src/lib.rs::cache_prefix_tests::path_hex_encoding_distinguishes_slashes_from_underscores",
+  "red_control": "Historical slash-to-underscore/root-label mapping reconstructed verbatim in a separate rustc test control, function renamed to scope_cache_prefix so the actual new test module can run. No candidate or provider source was modified.",
+  "command": "rustc --test old-mapping.rs -o old-mapping && ./old-mapping",
+  "compile_exit": 0,
+  "test_exit": 101,
+  "expected_failure": "assert_ne receives identical boardstudio-p3-durability-a_b- prefixes for /a/b/ and /a_b/",
+  "log": "cache-key-red.log.gz",
+  "green": "Actual candidate cargo test, recorded in P3 final native log."
+}

@@ -340,3 +340,40 @@ equivalent public-engine history, captured gesture, stale-result and browser
 resource evidence at both deployment prefixes, and production adoption is
 explicitly authorized. Preserve the branch and reports as evidence. P2 alone
 does not authorize React removal, prototype promotion or worktree deletion.
+
+
+## Experimental P3 durability and offline boundary
+
+The coordinator owns the isolated [P3 probe](../.scratch/prototypes/p3-durability/README.md)
+and its [accepted evidence](../.scratch/prototypes/p3-reference-check/evidence/acceptance.json).
+One prototype crate uses separate page and service-worker features: page-only
+CoreEngine/archive dependencies must not be linked into the policy worker. This
+is a feasibility packaging boundary, not a new production capability crate.
+The probe's page-owned CoreEngine produces one controlled edit for save recovery;
+production engine/session ownership still follows the accepted worker/session
+contracts. Copied data, isolated storage names and ephemeral test origins prevent
+another writer from touching the reference application's user data.
+
+Storage code acknowledges transaction completion, retains an already committed
+snapshot after abort, and retries persistence without replaying the edit. The
+existing TypeScript storage adapter is executed by a separate test harness to
+check actual document/asset/archive representation compatibility. The harness
+is test tooling; it is not a retained application-policy bridge.
+
+The service worker contains Rust cache, routing and update policy. Its generated
+initializer embeds the small WASM and initializes it synchronously so Rust
+registers event handlers during module evaluation. This avoids the observed
+failure of a top-level-await initializer in the tested Chromium. Base64 adds
+size; final measured sizes and failed larger experiments are recorded without
+inventing a budget or universal limit. Cache keys encode scope-path bytes
+injectively; lookup uses only the current worker's named cache, while updates
+preserve other scopes. Root/subpath cached navigation and cold failure are
+proven; forced worker-process restart and full production offline integration
+remain future validation.
+
+The named retirement follow-up is **P3 durability retirement**, owned by the
+coordinator during the reviewed production host/session M1 slice. Retire this
+probe only after the real application adapters have equivalent completion,
+abort/recovery, archive compatibility and offline/update evidence. Preserve the
+branch and failed experiments. No prototype code is automatically promoted and
+no React cutover follows from these feasibility results.

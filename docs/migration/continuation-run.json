@@ -1,6 +1,6 @@
 {
   "run": "M1-continuation-20261001",
-  "status": "P2 accepted and integrated; P3 isolated browser/storage/offline proof executing",
+  "status": "complete: approved bounded P2 completion and P3 feasibility accepted; production M1 remains next",
   "approval": "User explicitly requested PLEASE IMPLEMENT THIS PLAN: Remaining Dioxus migration steps, including public-enum boxing and one scoped three-d Arc exception. Earlier repair caps removed by user.",
   "plan_revision": "Remaining Dioxus migration steps / 2026-10-01",
   "specifications": [
@@ -74,14 +74,22 @@
       "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001"
     },
     "P3-DURABILITY": {
-      "status": "implementing: native archive and real IndexedDB abort/retry/reload browser proof passed; small Rust-only service worker starts and reopens offline; cache update validation in progress; not yet accepted",
+      "status": "complete: independently reviewed, exact candidate integrated and coordinator-verified",
       "category": "isolated feasibility prototype",
       "ownership": [
         ".scratch/prototypes/p3-durability"
       ],
       "acceptance": "Real IndexedDB commit/abort/retry without duplicate edit/history; faithful project/assets/archive roundtrip; Rust-owned service-worker cache policy, offline/root/subpath/cold missing assets/update evidence; no production promotion",
       "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001",
-      "worker_base": "b6d75b2b53c9d23bf6ea94a951a22db0c0ceb736"
+      "worker_base": "b6d75b2b53c9d23bf6ea94a951a22db0c0ceb736",
+      "source_commit": "efa2bc4a485f492f747d2a2fc4213fe5c28e7cd6",
+      "integration_base": "dfbfcb16",
+      "merged_source": "9efd6711",
+      "candidate": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+      "reviewed": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+      "integration": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+      "review_evidence": ".scratch/prototypes/p3-reference-check/evidence/review-final.json",
+      "verification_evidence": ".scratch/prototypes/p3-reference-check/evidence/acceptance.json"
     }
   },
   "next_after_acceptance": [
@@ -91,6 +99,20 @@
   "repair_limit": null,
   "review_policy": "Fresh exact-candidate independent review; coordinator alone integrates and records status; changed candidates receive affected checks/review.",
   "next_eligible_tasks": [
-    "P3-DURABILITY: finish offline scope/update checks; independent exact-candidate review and integration validation"
-  ]
+    "Next bounded production slice: reconcile newer dev encoder/VIK/module/provider changes before adoption, then implement the accepted M1 session and web-host/presentation workflow. No remaining task in the completed P2/P3 set."
+  ],
+  "unresolved_approvals": [],
+  "handoff": {
+    "source_integration": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+    "bounded_run": "P2 and P3 complete; no prototype automatically adopted",
+    "next_user_visible_deliverable": "Complete M1 editor workflow on REVIUNG41 and Sofle with equivalent React actions",
+    "remaining_constraints": [
+      "Reconcile newer dev commits before production adoption; original dev remains5a472a94",
+      "Implement headless Rust application/session, browser-host and Dioxus presentation modules using accepted six specifications",
+      "Resolve documented CAD wide-revision limitation before claiming complete integer parity",
+      "Broader parity and cutover remain capability roadmap; do not generate whole-migration task backlog"
+    ],
+    "preserved": "All pre-existing checkouts/stashes and failed prototype outputs retained; no push/deploy/main merge.",
+    "models": "Luna medium/high requests honored; effective runtime Fast tier unverified"
+  }
 }

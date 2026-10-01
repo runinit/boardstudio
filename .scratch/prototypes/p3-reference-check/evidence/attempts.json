@@ -11,5 +11,19 @@
     "source_status": "P3 uncommitted working candidate; final source rerun required",
     "log": "reference2.log.gz",
     "results": "pre-review-results.json"
+  },
+  {
+    "attempt": "candidate9efd",
+    "exit": 0,
+    "source_status": "Source candidate 9efd6711 includes current integration dfbfcb16. Fresh P3 artifacts; input hashes unchanged across reference exchange.",
+    "log": "candidate9efd.log.gz",
+    "results": "candidate9efd-results.json"
+  },
+  {
+    "attempt": "integrated5f22",
+    "exit": 0,
+    "source_status": "Fresh coordinator replay in actual integration checkout at exact reviewed candidate5f22; all artifact input hashes stable.",
+    "log": "integration/reference.log.gz",
+    "results": "integration/reference-results.json"
   }
 ]

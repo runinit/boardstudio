@@ -1,0 +1,12 @@
+{
+  "integration_commit": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+  "command": "node browser/run.mjs",
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p3-durability",
+  "exit_code": 0,
+  "artifact_manifest": "asset-copy.json",
+  "reports": [
+    "browser-results.json",
+    "browser-storage-results.json"
+  ],
+  "note": "Fresh integration results saved here; original worker reports restored byte-for-byte to preserve their recorded hash manifest."
+}

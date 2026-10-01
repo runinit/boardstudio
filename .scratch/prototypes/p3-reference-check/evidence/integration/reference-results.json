@@ -1,0 +1,35 @@
+{
+  "integrationCommit": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+  "p3SourceCommit": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+  "sourceInputs": {
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/app/src/storage.ts": "2728c797b11e5fbd17fd1b1e28b874b9f8920d78f498145e883ed4c653bb8e63",
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core/pkg/boardstudio_core.js": "658957ae7674d3d53aac876394b139af2f7e852ea977d49af9e0e22cef566908",
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core/pkg/boardstudio_core_bg.wasm": "170a20bb7942d863af6357de1641f5778c2525ba2da876a925baf03426ed32a3",
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p3-durability/dist/root/pkg/p3_durability.js": "3e1af4261fcc5b072ecd078bf78ceb3f7455e41f06fe595c8e52e9206044c7a4",
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p3-durability/dist/root/pkg/p3_durability_bg.wasm": "757dddb3fd0b76add76a158f189be0c013302192b5d6355db6ca503a0a5b7c01",
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p3-durability/fixtures/reviung41-original.boardstudio": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f"
+  },
+  "scope": "Actual reference storage.ts, public archive WASM and P3 storage on an ephemeral origin/context; not React presentation or full M1.",
+  "cases": [
+    {
+      "projectId": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+      "revision": 4,
+      "parts": 85,
+      "assetHashes": [
+        "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+      ],
+      "rustArchiveBytes": 1397695,
+      "referenceArchiveBytes": 1397822,
+      "exactDocument": true,
+      "typedAssetBytes": true,
+      "activePreference": true,
+      "invalidArchiveRejectedWithoutDocumentChange": true
+    }
+  ],
+  "browser": "153.0.8010.52",
+  "origin": "http://127.0.0.1:46297",
+  "status": "passed"
+}

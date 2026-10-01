@@ -1,0 +1,99 @@
+{
+  "candidate": "5f22e2e11138d8c496a00457bb668ce0960d9a55",
+  "source_candidate": "9efd6711",
+  "from": "/home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability/dist",
+  "to": ".scratch/prototypes/p3-durability/dist",
+  "method": "Copy exact final worker build; every served output hash and byte count verified. Builds already passed on this exact executable source.",
+  "assets": [
+    {
+      "path": "root/.gitignore",
+      "bytes": 1,
+      "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+      "path": "root/app.js",
+      "bytes": 855,
+      "sha256": "e3bde8dbaf9f17dfc413defe47fc55607bf052d459c9026e115306610a2b9607"
+    },
+    {
+      "path": "root/cold.html",
+      "bytes": 167,
+      "sha256": "723bbeb2afefcc860c762b76490d8f50fcafdaf5e8fae90649398b2aca1e412f"
+    },
+    {
+      "path": "root/fixtures/reviung41-original.boardstudio",
+      "bytes": 1397611,
+      "sha256": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f"
+    },
+    {
+      "path": "root/index.html",
+      "bytes": 365,
+      "sha256": "f21c608e4d624ffa49ed38c8cadbe1cadf810da329b22af605a5c21760054335"
+    },
+    {
+      "path": "root/leave.html",
+      "bytes": 165,
+      "sha256": "8026c8cbce2cf1e9522fe7a10a976a96596cc31364d9d8581f1169b2861fd742"
+    },
+    {
+      "path": "root/p3_sw.js",
+      "bytes": 19847,
+      "sha256": "479e8f31f0aecb72a04f2ddf169a2fc26b60f76025263924f5ebc880e438c308"
+    },
+    {
+      "path": "root/p3_sw_v1_bg.wasm",
+      "bytes": 60828,
+      "sha256": "1e651bcadac9eeffd1f77a833e1d65c0ece93984b53acce3d8d7849833c8b669"
+    },
+    {
+      "path": "root/pkg/.gitignore",
+      "bytes": 1,
+      "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+      "path": "root/pkg/p3_durability.js",
+      "bytes": 25115,
+      "sha256": "3e1af4261fcc5b072ecd078bf78ceb3f7455e41f06fe595c8e52e9206044c7a4"
+    },
+    {
+      "path": "root/pkg/p3_durability_bg.wasm",
+      "bytes": 6135260,
+      "sha256": "757dddb3fd0b76add76a158f189be0c013302192b5d6355db6ca503a0a5b7c01"
+    },
+    {
+      "path": "root/sw-bootstrap.mjs",
+      "bytes": 81334,
+      "sha256": "1f4f5b3756f59d60e6205aa0cb68f7060a7dfdfc840a314c738cc67a9f150c7a"
+    },
+    {
+      "path": "root/version.txt",
+      "bytes": 12,
+      "sha256": "000c24f968e62e2dddbffeec1d3a9ac7894e4ae998290ef3ad41ae6d319f231c"
+    },
+    {
+      "path": "update/.gitignore",
+      "bytes": 1,
+      "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+    },
+    {
+      "path": "update/p3_sw.js",
+      "bytes": 19847,
+      "sha256": "479e8f31f0aecb72a04f2ddf169a2fc26b60f76025263924f5ebc880e438c308"
+    },
+    {
+      "path": "update/p3_sw_v2_bg.wasm",
+      "bytes": 60828,
+      "sha256": "e380cdbef59f7e4247f5ef9003108c5e5b6d2552b0127302af61ed15ae0222ac"
+    },
+    {
+      "path": "update/sw-bootstrap.mjs",
+      "bytes": 81334,
+      "sha256": "138f3f6f04662e96e0ef17f45c80bef15d0e09e1d8dfb5e31291bf25cf1bed7f"
+    },
+    {
+      "path": "update/version.txt",
+      "bytes": 12,
+      "sha256": "ece35e931fbf2b40d17dce3f36481d4243a84933bb983cd0fb1edc1e051c42e8"
+    }
+  ]
+}

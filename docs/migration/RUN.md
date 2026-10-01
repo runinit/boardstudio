@@ -732,3 +732,51 @@ P3 continues independently with copied data and isolated storage. No production
 session/web application, full M1 workflow, full-range CAD integer parity, or
 newer-dev provider reconciliation is claimed. Original checkouts/stashes remain
 preserved. Repair caps remain removed.
+
+
+### P3 acceptance and resumable handoff
+
+The approved P2/P3 task set is complete. P3 source `efa2bc4a` was merged with
+current integration base `dfbfcb16` at `9efd6711`, then validated with the approved
+boxed Rust contracts. Final evidence candidate `5f22e2e11138d8c496a00457bb668ce0960d9a55`
+was reviewed and fast-forwarded into `migration/boardstudio-m1-continuation`
+without conflicts or executable changes. Both independent Luna/high reviews
+have zero blocking findings; Standards retains one optional redundant test-helper
+parameter note. No different model/provider or permission escalation was used.
+
+Real IndexedDB evidence shows request success followed by transaction abort,
+rollback to revision 3, and retry of the same retained snapshot reaching revision 4
+with one engine commit and one Undo entry. All four assets and the copied document
+survive archive/reload. The coordinator's actual `app/src/storage.ts` exchange
+passes Rust archive → reference import/save/load/archive → Rust reopen, including
+byte hashes, Uint8Array representation, active preference and invalid-import
+preservation. This does not claim the complete saved-document corpus or UI parity.
+
+Rust service-worker policy runs through a generated synchronous initializer.
+Feature-gating page/archive dependencies out of the worker gives a 60,828-byte
+policy WASM and an 81,334-byte initializer. The browser proves root/subpath cache
+separation, ignoring unrelated cached responses, root-v1→v2 update with subpath
+preservation, cached offline navigation and explicit missing-asset failure. A
+fresh context with no worker/cache fails offline honestly. Hex-encoded scope keys
+fix a collision found during review. Earlier failed TLA and oversized-loader
+experiments remain preserved; no general browser-size threshold is inferred.
+Forced worker-process termination before cached reopen remains untested.
+
+[Accepted commands and integration evidence](../../.scratch/prototypes/p3-reference-check/evidence/acceptance.json)
+and [independent reviews](../../.scratch/prototypes/p3-reference-check/evidence/review-final.json)
+are the portable handoff. Native tests, fmt, strict native/page-WASM/worker-WASM
+Clippy and locked release builds pass on the exact reviewed source. The
+coordinator verified source/asset hashes and repeated the real browser matrix
+and reference compatibility checks in the resulting integration checkout.
+The original checkout remains `dev@5a472a94` with its unrelated `.scratch/` and
+two stashes; no push, deployment, main merge, worktree deletion or automatic
+prototype promotion occurred.
+
+Resume from the persistent continuation and [canonical task state](continuation-run.json),
+not the vanished `/tmp` checkout or historical blocked checkpoints. There are no
+remaining tasks in this bounded P2/P3 run. The next bounded production slice must
+reconcile newer encoder/VIK/module/provider changes from `dev`, then deliver the
+accepted complete M1 session/web workflow using REVIUNG41 and Sofle. Full-range
+CAD revision compatibility remains an explicit gate before complete integer
+parity is claimed. Full application parity and React retirement remain later
+capability milestones; detailed whole-migration tasks have not been generated.
