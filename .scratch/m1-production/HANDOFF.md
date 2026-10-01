@@ -1,6 +1,6 @@
 # M1 candidate handoff
 
-Branch: `codex/m1-production-20261001`. Runtime source: `2040e23b`; build correction: `fe2ada03`.
+Branch: `codex/m1-production-20261001`. Runtime decoder source: `5a0972a2`; build correction: `fe2ada03`; integration: `8f509433`.
 The [to-spec plan](PLAN.md), [specification](spec.md) and six local tickets
 define the implemented scope. The [canonical run state](../../docs/migration/m1-production-run.json)
 and [acceptance ledger](ACCEPTANCE.md) govern acceptance.
@@ -8,7 +8,7 @@ and [acceptance ledger](ACCEPTANCE.md) govern acceptance.
 ## Editable copied-project trial
 
 The complete candidate is being staged at
-`web/target/builds/m1-release-20261001-fe2ada03`. Use it only after its
+`web/target/builds/m1-release-20261001-8f509433`. Use it only after its
 `provenance.json` records all 18 commands exiting zero, both prefix asset maps,
 and the final source check. Build outputs and logs are retained locally; the
 portable release record will retain their identities.
@@ -19,7 +19,7 @@ completed build at root and subpath on the same owned local origin:
 
 ```sh
 node .scratch/m1-production/evidence/browser-storage/serve-release.mjs \
-  web/target/builds/m1-release-20261001-fe2ada03 0
+  web/target/builds/m1-release-20261001-8f509433 0
 ```
 
 Use the printed origin at `/` and `/boardstudio/`. Open **REVIUNG41 copy** or

@@ -1,0 +1,107 @@
+{
+  "source_commit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "decoder_sha256": "da218a07799c73bf5eed8582eb186b29e638e69db3eaf4d7a0006a3f060387d7",
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "web/Cargo.toml",
+        "--all-targets",
+        "--locked",
+        "--no-default-features",
+        "--features",
+        "page,cad-worker"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-01T23:09:47.678789+00:00",
+      "finished": "2026-10-01T23:09:48.156982+00:00",
+      "exit": 0,
+      "log": "01.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "web/Cargo.toml",
+        "--check"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-01T23:09:48.157250+00:00",
+      "finished": "2026-10-01T23:09:48.270477+00:00",
+      "exit": 0,
+      "log": "02.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "web/Cargo.toml",
+        "--locked",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--all-targets",
+        "--no-default-features",
+        "--features",
+        "page",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-01T23:09:48.270742+00:00",
+      "finished": "2026-10-01T23:09:49.150179+00:00",
+      "exit": 0,
+      "log": "03.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "web/Cargo.toml",
+        "--locked",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--all-targets",
+        "--no-default-features",
+        "--features",
+        "cad-worker",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-01T23:09:49.150491+00:00",
+      "finished": "2026-10-01T23:09:49.501984+00:00",
+      "exit": 0,
+      "log": "04.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "web/Cargo.toml",
+        "--locked",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--all-targets",
+        "--no-default-features",
+        "--features",
+        "page,cad-worker,test-harness",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-01T23:09:49.502293+00:00",
+      "finished": "2026-10-01T23:09:51.115179+00:00",
+      "exit": 0,
+      "log": "05.log"
+    }
+  ]
+}
