@@ -1,5 +1,5 @@
 use crate::core_protocol::encode_core_request;
-use boardstudio_core::model::{CoreReply, CoreRequest};
+use boardstudio_core::model::{ArtifactReply, ArtifactRequest, CoreReply, CoreRequest};
 use futures_channel::oneshot;
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use serde_json::Value;
@@ -26,6 +26,7 @@ pub struct ArchiveResult {
 
 enum WorkerResult {
     Core(Box<CoreReply>),
+    Artifact(Box<ArtifactReply>),
     Archive(ArchiveResult),
 }
 
@@ -130,7 +131,7 @@ impl CoreWorker {
             .map_err(|_| HostError("core worker reply caller was abandoned".into()))??;
         match response {
             WorkerResult::Core(reply) => Ok(*reply),
-            WorkerResult::Archive(_) => {
+            WorkerResult::Artifact(_) | WorkerResult::Archive(_) => {
                 Err(HostError("worker returned archive for core request".into()))
             }
         }
@@ -176,8 +177,41 @@ impl CoreWorker {
             .map_err(|_| HostError("archive worker reply caller was abandoned".into()))??;
         match response {
             WorkerResult::Archive(reply) => Ok(reply),
-            WorkerResult::Core(_) => Err(HostError(
+            WorkerResult::Core(_) | WorkerResult::Artifact(_) => Err(HostError(
                 "worker returned core reply for archive request".into(),
+            )),
+        }
+    }
+
+    pub async fn artifact(
+        &self,
+        request_id: &str,
+        executor_epoch: &str,
+        request: &ArtifactRequest,
+    ) -> Result<ArtifactReply, HostError> {
+        self.ready().await?;
+        let frame = serde_json::to_string(request)
+            .map_err(|error| HostError(format!("could not encode artifact request: {error}")))?;
+        let frame_id = serde_json::from_str::<Value>(&frame)
+            .ok()
+            .and_then(|value| value.get("id").and_then(Value::as_str).map(str::to_owned));
+        if frame_id.as_deref() != Some(request_id) {
+            return Err(HostError(
+                "artifact request id does not match worker request id".into(),
+            ));
+        }
+        let receiver = self.dispatch(request_id, executor_epoch, "artifact", |object| {
+            Reflect::set(object, &"frame".into(), &JsValue::from_str(&frame))
+                .map(|_| ())
+                .map_err(|error| HostError(js_error(error)))
+        })?;
+        let response = receiver
+            .await
+            .map_err(|_| HostError("artifact worker reply caller was abandoned".into()))??;
+        match response {
+            WorkerResult::Artifact(reply) => Ok(*reply),
+            WorkerResult::Core(_) | WorkerResult::Archive(_) => Err(HostError(
+                "worker returned a non-artifact reply for artifact request".into(),
             )),
         }
     }
@@ -330,6 +364,16 @@ fn decode_reply(data: JsValue, expected_id: &str) -> PendingResult {
             metadata: frame,
             buffers,
         }));
+    }
+    if kind.as_deref() == Some("artifact") {
+        let reply: ArtifactReply = serde_json::from_str(&frame)
+            .map_err(|error| HostError(format!("invalid artifact reply: {error}")))?;
+        let value: Value = serde_json::from_str(&frame)
+            .map_err(|error| HostError(format!("invalid artifact reply identity: {error}")))?;
+        if value.get("id").and_then(Value::as_str) != Some(expected_id) {
+            return Err(HostError("artifact reply id does not match request".into()));
+        }
+        return Ok(WorkerResult::Artifact(Box::new(reply)));
     }
     let reply: CoreReply = serde_json::from_str(&frame)
         .map_err(|error| HostError(format!("invalid core reply: {error}")))?;
