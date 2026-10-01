@@ -228,6 +228,7 @@ fn Editor() -> Element {
     let undo = runtime.clone();
     let redo = runtime.clone();
     let retry = runtime.clone();
+    let recover = runtime.clone();
     let export = runtime.clone();
     let navigate = runtime.clone();
     let keyboard = {
@@ -269,6 +270,9 @@ fn Editor() -> Element {
                 button { onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
                 button { onclick: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }
                 button { onclick: move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() }), disabled: !matches!(model.durability, Durability::Failed {..}), "Retry save" }
+                if model.lifecycle == boardstudio_application::Lifecycle::RecoveryRequired {
+                    button { onclick: move |_| recover.recover_saved(), "Reopen last saved version (discard pending changes)" }
+                }
                 button { onclick: move |_| { if let Some(scope) = export.scope() { export.submit(Event::StartExport { operation_id: export.operation(), scope }); } }, "Export archive" }
                 span { "Revision {document.revision} · {model.durability:?}" }
             }

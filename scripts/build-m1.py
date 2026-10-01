@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
@@ -36,9 +37,10 @@ def main():
     def run(name, command, cwd=REPO):
         print(f"{name}: {' '.join(map(str,command))}", flush=True)
         log = output / f"{name}.log"
+        started = datetime.now(timezone.utc).isoformat()
         with log.open("w") as stream:
             result = subprocess.run(list(map(str, command)), cwd=cwd, env=environment, stdout=stream, stderr=subprocess.STDOUT)
-        provenance["commands"].append({"argv": list(map(str, command)), "cwd": str(cwd), "exit": result.returncode, "log": str(log)})
+        provenance["commands"].append({"argv": list(map(str, command)), "cwd": str(cwd), "exit": result.returncode, "log": str(log), "started": started, "finished": datetime.now(timezone.utc).isoformat()})
         (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
         if result.returncode:
             print(log.read_text()[-10000:], file=sys.stderr)
@@ -47,6 +49,7 @@ def main():
     run("core", ["wasm-pack", "build", REPO / "core", "--target", "web", "--release", "--locked"])
     run("core-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"])
     run("renderer", ["wasm-pack", "build", REPO / "renderer", "--target", "web", "--out-dir", output / "renderer", "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"])
+    run("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"])
     run("fixtures", ["node", REPO / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"])
     for mode, prefix in [("root", "/"), ("subpath", "/boardstudio/")]:
         run(f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--cargo-args=--locked"], WEB)
@@ -57,6 +60,7 @@ def main():
         shutil.copytree(public, destination)
         assets = destination / "assets"
         shutil.copytree(WEB / "assets", assets, dirs_exist_ok=True)
+        shutil.copytree(REPO / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
         for name in ["core-worker", "renderer", "fixtures"]:
             shutil.copytree(output / name, assets / name, dirs_exist_ok=True)
         (assets / "core-worker/entry.js").write_text('import init, { start_core_worker } from "./m1_core_worker.js";\nawait init();\nstart_core_worker();\n')

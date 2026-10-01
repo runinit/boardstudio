@@ -266,7 +266,8 @@ impl Runtime {
                             .accepted
                             .as_ref()
                             .is_some_and(|s| s.token == snapshot.token);
-                    if !current || self.cancelled_exports.borrow_mut().remove(&operation_id) {
+                    let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
+                    if !current || cancelled {
                         return self.complete(Completion::ExportFailed {
                             operation_id,
                             reason: "Archive scope changed before delivery.".into(),
@@ -283,10 +284,13 @@ impl Runtime {
                         artifact_id,
                     })
                 }
-                Err(reason) => self.complete(Completion::ExportFailed {
-                    operation_id,
-                    reason,
-                }),
+                Err(reason) => {
+                    self.cancelled_exports.borrow_mut().remove(&operation_id);
+                    self.complete(Completion::ExportFailed {
+                        operation_id,
+                        reason,
+                    })
+                }
             },
             Effect::DeliverExport { artifact_id, .. } => {
                 if let Some(bytes) = self.artifacts.borrow_mut().remove(&artifact_id)
@@ -330,11 +334,14 @@ impl Runtime {
         spawn_local(async move {
             match fetch_bytes(&format!("assets/fixtures/{name}.boardstudio")).await {
                 Ok(bytes) => {
-                    if let Err(error) = this.import_archive_at(bytes, sequence).await {
+                    if let Err(error) = this.import_archive_at(bytes, sequence).await
+                        && this.open_sequence.get() == sequence
+                    {
                         this.report(error);
                     }
                 }
-                Err(error) => this.report(error),
+                Err(error) if this.open_sequence.get() == sequence => this.report(error),
+                Err(_) => {}
             }
         });
     }
@@ -412,6 +419,39 @@ impl Runtime {
                 }
                 Ok(Some(_)) => {}
                 Ok(None) => this.report("Saved keyboard is unavailable."),
+                Err(error) => this.report(error.to_string()),
+            }
+        });
+    }
+    pub fn recover_saved(self: &Rc<Self>) {
+        let Some(accepted) = self.model().accepted else {
+            self.report("No durable document exists to recover; reopen an explicit saved copy.");
+            return;
+        };
+        let this = self.clone();
+        spawn_local(async move {
+            let core = this.core.borrow().clone();
+            if let Err(error) = core.ready().await {
+                this.report(format!("Recovery executor unavailable: {error}"));
+                return;
+            }
+            match this.store.load_document(accepted.document.id.clone()).await {
+                Ok(Some(document))
+                    if this
+                        .model()
+                        .accepted
+                        .as_ref()
+                        .is_some_and(|s| s.token == accepted.token)
+                        && this.model().lifecycle == Lifecycle::RecoveryRequired =>
+                {
+                    this.submit(Event::RecoverWithDocument {
+                        operation_id: this.operation(),
+                        document,
+                    });
+                }
+                Ok(_) => {
+                    this.report("Durable recovery copy is unavailable or the session changed.")
+                }
                 Err(error) => this.report(error.to_string()),
             }
         });
