@@ -17,10 +17,10 @@
     },
     {
       "attempt": "inline-policy-only-wasm",
-      "wasmBytes": 53981,
-      "base64BootstrapBytes": 72206,
+      "wasmBytes": 60828,
+      "base64BootstrapBytes": 81334,
       "result": "synchronous initSync completes and Rust install/activate/fetch listeners run in Chromium",
-      "disposition": "measured before the injective scope-prefix hardening; the final merged build size is pending"
+      "disposition": "final merged candidate; excludes boardstudio_core and uses injective hex scope keys"
     }
   ],
   "scope": "These are observed outcomes in this Chromium build and harness, not a claimed browser-wide script-size limit."

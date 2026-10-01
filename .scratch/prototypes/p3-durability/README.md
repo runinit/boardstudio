@@ -8,7 +8,7 @@ The browser page imports that archive through the public Rust archive request, v
 
 The service-worker policy is Rust/WASM. The only generated JavaScript is a synchronous initializer: it decodes a build-produced base64 representation of the Rust service-worker WASM and calls `initSync`. The Rust `wasm_bindgen(start)` function attaches install, activate, and fetch listeners during the first synchronous module evaluation. Rust owns the asset manifest, cache names, Cache API reads and writes, update cleanup, request routing, network fallback, and failure behavior. Registration paths are hex-encoded byte-for-byte into their cache prefixes so distinct paths cannot collide; fetch matching consults that worker's exact named Cache rather than a global `CacheStorage.match` search.
 
-The P3 WASM build excludes the editor/archive module and `boardstudio_core`; native and page features keep the public archive code. The last pre-hardening measurement was a 53,981-byte service-worker WASM and a 72,206-byte generated initializer; exact candidate sizes are remeasured on the merged base. No new JavaScript runtime dependency or paid service is introduced. The test runner uses the app's existing Playwright development dependency and installed Chromium.
+The P3 WASM build excludes the editor/archive module and `boardstudio_core`; native and page features keep the public archive code. On the final merged build, the release service-worker WASM is 60,828 bytes and its generated initializer is 81,334 bytes. No new JavaScript runtime dependency or paid service is introduced. The test runner uses the app's existing Playwright development dependency and installed Chromium.
 
 ## Evidence
 

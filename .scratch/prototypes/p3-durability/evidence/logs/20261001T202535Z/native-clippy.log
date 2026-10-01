@@ -1,0 +1,5 @@
+command: cargo clippy --manifest-path Cargo.toml --locked --all-targets -- -D warnings
+    Checking boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/core)
+    Checking p3-durability-probe v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.15s
+exit=0
