@@ -12,6 +12,7 @@ const runId = process.env.BOARDSTUDIO_RUN_ID ?? new Date().toISOString().replace
 const runRoot = resolve(process.env.BOARDSTUDIO_PERF_OUTPUT ?? '.scratch/m1-production/evidence/performance/runs');
 const outputDir = resolve(runRoot, runId);
 const wrapperSha256 = createHash('sha256').update(await readFile(new URL(import.meta.url))).digest('hex');
+const shortRunId = createHash('sha256').update(runId).digest('hex').slice(0, 6);
 const thresholds = { 30: 33, 100: 50, 200: 100 };
 assert.equal(Number.isInteger(sessionCount) && sessionCount > 0, true, 'session count must be a positive integer');
 assert.ok(process.env.BOARDSTUDIO_CANDIDATE_URL, 'provide the exact fresh candidate release URL');
@@ -66,7 +67,7 @@ async function runVariant(sessionNumber, variant) {
       BOARDSTUDIO_RUN_ID: sessionRunId,
       BOARDSTUDIO_SESSION_NUMBER: String(sessionNumber),
       BOARDSTUDIO_POINTER_VARIANT: variant,
-      BOARDSTUDIO_BROWSER_SESSION_PREFIX: `ticket06-pointer-${runId}-${sessionNumber}-${variant}`,
+      BOARDSTUDIO_BROWSER_SESSION_PREFIX: `t06p-${shortRunId}-${sessionNumber}-${variant}`,
     },
   });
   const invocation = {

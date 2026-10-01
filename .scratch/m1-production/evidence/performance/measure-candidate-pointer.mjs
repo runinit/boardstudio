@@ -101,7 +101,8 @@ function browser(args, input) {
 }
 
 function startBrowserSession() {
-  const argv = ['agent-browser', 'session', 'id', '--scope', 'worktree', '--prefix', process.env.BOARDSTUDIO_BROWSER_SESSION_PREFIX ?? `ticket06-pointer-${runId}-${variant}`];
+  const shortRunId = createHash('sha256').update(runId).digest('hex').slice(0, 6);
+  const argv = ['agent-browser', 'session', 'id', '--scope', 'worktree', '--prefix', process.env.BOARDSTUDIO_BROWSER_SESSION_PREFIX ?? `t06p-${variant}-${shortRunId}`];
   const startedAt = new Date().toISOString();
   const result = spawnSync(argv[0], argv.slice(1), { cwd: root, encoding: 'utf8' });
   run.commands.push({ argv, cwd: root, startedAt, finishedAt: new Date().toISOString(), status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '', error: result.error?.message });
