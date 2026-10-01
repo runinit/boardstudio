@@ -894,3 +894,21 @@ Raw JavaScript worker/readback proof did not exercise this Rust decoder.
 The public UI failure is retained; a separate implementer is building the
 correct public-browser regression and repair. STEP acceptance and final
 release/performance remain open until the corrected page is verified.
+
+### STEP decoder repair integrated
+
+Public `CadWorker::request` browser regression was red on the old decoder and
+green after `5a0972a2`. Omitted body meshes now decode as empty; a supplied
+non-array returns an error through the request channel. Preview/Exact payload
+validation remains strict. The regression seam is compiled only with
+`test-harness`, which is excluded from production feature selections. Native
+web tests (12), fmt, strict affected WASM Clippy and the focused page build pass.
+
+Independent public UI verification downloads the same 10,334,256-byte Sofle STEP
+(SHA-256 `582f343c9a9eabfedab5a8f69c2dc078c5ef31c0ade008d9de989a8d53b15195`)
+as the independent worker/readback proof. The blob URL is revoked after about
+one second, with no retained anchor or browser errors. Standards and Spec
+reviews have no blocking findings. Independent merger integrates the exact
+candidate at `8f509433`; final complete build
+`m1-release-20261001-8f509433` is in progress before current-release offline,
+export-scope/resource and quiet-host performance verification.

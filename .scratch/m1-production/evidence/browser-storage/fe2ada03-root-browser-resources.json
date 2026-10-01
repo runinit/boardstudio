@@ -1,0 +1,48 @@
+{
+  "cacheKeys": [
+    "boardstudio-m1-offline-path-2f-m1-release-20261001-fe2ada03-root",
+    "boardstudio-m1-offline-path-2f626f61726473747564696f2f-m1-release-20261001-fe2ada03-subpath"
+  ],
+  "controller": "http://127.0.0.1:46658/service-worker.js",
+  "databases": [
+    {
+      "name": "boardstudio-m1-boardstudio",
+      "version": 1
+    },
+    {
+      "name": "boardstudio-m1-root",
+      "version": 1
+    }
+  ],
+  "navigation": [
+    {
+      "decodedBodySize": 531,
+      "domContentLoadedEventEnd": 11.700000002980232,
+      "encodedBodySize": 531,
+      "loadEventEnd": 13.099999994039536,
+      "transferSize": 0
+    }
+  ],
+  "resources": [
+    {
+      "decodedBodySize": 9373768,
+      "encodedBodySize": 9373768,
+      "path": "/assets/boardstudio-web_bg-dxhee9dab4c244d8136.wasm",
+      "transferSize": 0
+    },
+    {
+      "decodedBodySize": 0,
+      "encodedBodySize": 0,
+      "path": "/assets/core-worker/entry.js",
+      "transferSize": 0
+    },
+    {
+      "decodedBodySize": 16940,
+      "encodedBodySize": 16940,
+      "path": "/assets/core-worker/m1_core_worker.js",
+      "transferSize": 0
+    }
+  ],
+  "scope": "http://127.0.0.1:46658/",
+  "url": "http://127.0.0.1:46658/"
+}
