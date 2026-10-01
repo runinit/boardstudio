@@ -405,7 +405,7 @@ impl Runtime {
                     cancelled.set(true);
                 }
                 if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
-                    worker.cancel(&format!("case-{}", job_id.0));
+                    let _ = worker.cancel(&format!("case-{}", job_id.0));
                     worker.close();
                 }
                 vec![]
