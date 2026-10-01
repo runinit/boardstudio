@@ -96,6 +96,31 @@ test('exports module supports as fused annular case bosses with verified STEP bo
     `STEP must contain the annular boss around the preserved source drill (measured ${measuredBossVolume}, expected ${expectedBossVolume})`);
 });
 
+test('exports a board-module standoff as an annular STEP solid with the authored drill', async () => {
+  const outerRadius = 3;
+  const innerRadius = 1.4;
+  const circle = (radius) => Array.from({ length: 96 }, (_, index) => {
+    const angle = (index / 96) * Math.PI * 2;
+    return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+  });
+  const result = await rawCase({
+    revision: 1,
+    body: { id: 'module-standoff/module-1/mh1', name: 'PCB standoff', boardId: 'host', kind: 'plate', thickness: 3, clearance: 0 },
+    contours: [
+      { hole: false, points: circle(outerRadius) },
+      { hole: true, points: circle(innerRadius) },
+    ],
+  });
+  const model = await readStepModel(result.step);
+  const measured = await inspectStep(result.step);
+  assertBounds(model.bounds.min, [-outerRadius, -outerRadius, 0], 0.02);
+  assertBounds(model.bounds.max, [outerRadius, outerRadius, 3], 0.02);
+  assert.equal(measured.solidCount, 1);
+  const expectedVolume = Math.PI * (outerRadius ** 2 - innerRadius ** 2) * 3;
+  assert.ok(Math.abs(measured.volume - expectedVolume) < 0.06,
+    `STEP must preserve the authored annulus and bore (measured ${measured.volume}, expected ${expectedVolume})`);
+});
+
 test('clearance closes a narrow concave notch without invalid edges', async () => {
   const contour = [
     { x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 30 },

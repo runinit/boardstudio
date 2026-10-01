@@ -59,6 +59,56 @@ pub(crate) fn prepare_preview(
                 },
             });
         }
+        let board_attached = doc
+            .modules
+            .iter()
+            .find(|instance| instance.id == module.id)
+            .is_some_and(|instance| instance.attachment == ModuleAttachment::Board);
+        if board_attached {
+            for support in &module.mount_supports {
+                let circle = |diameter: f64, clockwise: bool| {
+                    (0..48)
+                        .map(|index| {
+                            let angle = std::f64::consts::TAU * index as f64 / 48.0;
+                            let direction = if clockwise { -1.0 } else { 1.0 };
+                            Vec2 {
+                                x: support.at.x + diameter / 2.0 * (direction * angle).cos(),
+                                y: support.at.y + diameter / 2.0 * (direction * angle).sin(),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                };
+                bodies.push(CaseIR {
+                    revision: doc.revision,
+                    contours: vec![
+                        Contour {
+                            points: circle(support.outer_diameter, false),
+                            hole: false,
+                        },
+                        Contour {
+                            points: circle(support.hole_diameter, true),
+                            hole: true,
+                        },
+                    ],
+                    body: CaseBody {
+                        id: format!("module-standoff/{}/{}", module.id, support.mount_id),
+                        name: format!("{} · PCB standoff", module.id),
+                        board_id: board_id.into(),
+                        kind: CaseKind::Plate,
+                        thickness: support.height,
+                        clearance: 0.0,
+                        z: Some(support.z + top_z),
+                        features: None,
+                        openings: None,
+                        material_id: None,
+                        wall_height: None,
+                        wall_thickness: None,
+                        mounts: None,
+                        gasket: None,
+                    },
+                });
+            }
+        }
         for (index, model) in module.models.iter().enumerate() {
             result.model_placements.push(ModuleModelPlacement {
                 id: format!("module-model/{}/{index}", module.id),

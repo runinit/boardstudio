@@ -26,6 +26,14 @@ describe('VIK app review project', () => {
     const request = async (input: CoreRequest) => JSON.parse(engine.request(JSON.stringify(input))) as CoreReply;
     try {
       const opened = await openModuleReviewDemo(request);
+      expect(opened.document.moduleDefinitions?.map(definition => [definition.id, definition.source.revision, definition.source.sha256]))
+        .toEqual(fixture.moduleDefinitions?.map(definition => [definition.id, definition.source.revision, definition.source.sha256]));
+      expect(opened.document.modules?.every(instance => instance.connection?.hostConnectorPartId && instance.connection.assignments && Object.keys(instance.connection.assignments).length === 0)).toBe(true);
+      expect(opened.document.modules?.every(instance => instance.mountSupports?.length === 2 && instance.mountSupports.every(support => support.outerDiameter === 6 && support.holeDiameter === 2.8 && support.height === 3 && support.z === (instance.facingFace === 'front' ? 0.8 : -3.8)))).toBe(true);
+      const mountedHostParts = opened.document.parts.filter(part => part.id.endsWith('/vik-host-connector'));
+      expect(mountedHostParts).toHaveLength(3);
+      expect(mountedHostParts.every(part => opened.document.boards.find(board => board.id === 'main-board')?.partIds.includes(part.id))).toBe(true);
+      expect(opened.scene.findings.some(finding => finding.message.includes('Module assembly occupancy remains unknown'))).toBe(true);
       expect(opened.document.modules).toHaveLength(3);
       expect(opened.document.modules?.map(instance => instance.hostFace)).toEqual(['front', 'back', 'front']);
       expect(opened.document.keymap?.layers.map(layer => layer.name)).toEqual(['Base', 'Navigation']);

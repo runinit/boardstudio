@@ -72,6 +72,7 @@ import { useWorkbenchTree } from './useWorkbenchTree';
 import { PITCH_MM, createPart, isTyping, localMatrixDelta, makeId, nudgeLargeStep, nudgeStep, pointFromEvent, snapDelta, unit } from './workbenchGeometry';
 import { ArrowIcon, BrandMark, CursorIcon, FitIcon, ModeIcon, PartGlyph, RedoIcon, ScopeIcon, UndoIcon } from './WorkbenchIcons';
 import { WorkbenchLayers, footprintLayers } from './WorkbenchLayers';
+import { ModulePcbOverlay } from './ModulePcbOverlay';
 import { WorkbenchTree } from './WorkbenchTree';
 import { Drag, ExportKind, Mode, Props, SceneHandlers, SelectionScope, StaggerDrag, SplayDrag, PanDrag } from './workbenchTypes';
 import { PanelIcon, WorkspacePanel, useCompactPanel, usePanelSettings } from './WorkspacePanel';
@@ -135,6 +136,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [showFootprints, setShowFootprints] = useState(false);
   const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<string>>(new Set());
   const toggleLayer = (layer: string) => setHiddenLayers((current) => { const next = new Set(current); if (next.has(layer)) next.delete(layer); else next.add(layer); return next; });
+  const [hiddenModuleLayers, setHiddenModuleLayers] = useState<ReadonlySet<string>>(new Set(['module-outlines', 'module-clearances', 'module-holes', 'module-standoffs', 'module-findings', 'module-fab-front', 'module-fab-back']));
+  const toggleModuleLayer = (layer: string) => setHiddenModuleLayers((current) => { const next = new Set(current); if (next.has(layer)) next.delete(layer); else next.add(layer); return next; });
   const [existingHalfOpen, setExistingHalfOpen] = useState(false);
   const [transformTool, setTransformTool] = useState<'stagger' | 'splay' | 'origin' | null>(null);
   const [originPicking, setOriginPicking] = useState(false);
@@ -172,6 +175,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
   const [hoveredPart, setHoveredPart] = useState<string | null>(null);
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryChoice, setLibraryChoice] = useState('');
+  const [selectedModulePlacementId, setSelectedModulePlacementId] = useState('');
   const [library3dOpen, setLibrary3dOpen] = useState(false);
   const [editingAssembly, setEditingAssembly] = useState<import('@boardstudio/v2-contracts').AssemblyDefinition | null>(null);
   const [assembly3d, setAssembly3d] = useState(false);
@@ -952,6 +956,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
   const [pendingFinding, setPendingFinding] = useState<SceneDelta['findings'][number] | null>(null);
   const findingMarkers = [...(scene.findingMarkers ?? []), ...(mechanicalAssembly?.revision === document.revision ? mechanicalAssembly.findingMarkers ?? [] : [])];
+  const boardModuleIds = new Set((document.modules ?? []).filter(instance => instance.hostBoardId === selectedBoardId).map(instance => instance.id));
+  const moduleFindingIds = new Set(scene.findings.filter(finding => finding.targetIds.some(id => boardModuleIds.has(id))).map(finding => finding.id));
   const showFinding = (finding: SceneDelta['findings'][number]) => {
     setFocusedFinding(finding);
     const materialMarker = findingMarkers.find(marker => marker.findingId === finding.id && finding.id.includes('/case-material/'));
@@ -1024,6 +1030,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
 
     if (mode === 'Library' && selectedModuleDefinition) return <ModuleInspector key={`${selectedModuleDefinition.id}/${selectedBoardId}`}
       document={document} definition={selectedModuleDefinition} boardId={selectedBoardId}
+      placementId={selectedModulePlacementId}
+      resolvedSupports={(scene.moduleScenes ?? []).find(module => module.id === selectedModulePlacementId)?.mountSupports ?? []}
       variants={moduleCatalogue.definitions.filter(definition=>selectedModuleDefinition.catalogueRow?definition.catalogueRow===selectedModuleDefinition.catalogueRow:definition.id===selectedModuleDefinition.id)}
       onSelect={id=>setLibraryChoice(`module:${id}`)} onEdit={emit} onPlacePart={beginPartPlacement}
     />;
@@ -1325,7 +1333,7 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             <defs><pattern id="wb-grid-small" width={outlineActive || outlineFeature ? outline.gridSpacing() : unit / 2} height={outlineActive || outlineFeature ? outline.gridSpacing() : unit / 2} patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r={outlineActive || outlineFeature ? viewBounds.width / Math.max(canvasSize.width, 1) * 0.7 : 0.12} fill="var(--wb-grid-large)" stroke="none" /></pattern></defs>
             <rect x={viewBounds.minX} y={-viewBounds.maxY} width={viewBounds.width} height={viewBounds.height} fill="url(#wb-grid-small)" />
             <g transform="scale(1,-1)" style={outlineActive || outlineFeature || pendingPart || originPicking ? { pointerEvents: 'none' } : undefined}>
-              {(mode === 'Design' || mode === 'PCB') && (scene.moduleScenes ?? []).filter(module=>document.modules?.some(instance=>instance.id===module.id&&instance.hostBoardId===selectedBoardId)).map(module=><g key={module.id} className="wb-mounted-module" role="button" tabIndex={0} aria-label={`Edit module ${document.moduleDefinitions?.find(definition=>definition.id===module.definitionId)?.name ?? module.id}`} onClick={event=>{event.stopPropagation();setLibraryChoice(`module:${module.definitionId}`);setLibraryAssembly(null);changeMode('Library');setRightOpen(true);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();setLibraryChoice(`module:${module.definitionId}`);setLibraryAssembly(null);changeMode('Library');setRightOpen(true);}}}>{module.board.map((volume,index)=><polygon key={index} points={volume.points.map(point=>`${point.x},${point.y}`).join(' ')}/>)}</g>)}
+              {mode === 'Design' && (scene.moduleScenes ?? []).filter(module=>document.modules?.some(instance=>instance.id===module.id&&instance.hostBoardId===selectedBoardId)).map(module=><g key={module.id} className="wb-mounted-module" role="button" tabIndex={0} aria-label={`Edit module ${document.moduleDefinitions?.find(definition=>definition.id===module.definitionId)?.name ?? module.id}`} onClick={event=>{event.stopPropagation();setSelectedModulePlacementId(module.id);setLibraryChoice(`module:${module.definitionId}`);setLibraryAssembly(null);changeMode('Library');setRightOpen(true);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();setSelectedModulePlacementId(module.id);setLibraryChoice(`module:${module.definitionId}`);setLibraryAssembly(null);changeMode('Library');setRightOpen(true);}}}>{module.board.map((volume,index)=><polygon key={index} points={volume.points.map(point=>`${point.x},${point.y}`).join(' ')}/>)}</g>)}
               {!hiddenLayers.has(mode === 'PCB' ? 'Edge.Cuts' : 'Board') && visibleContours.map((contour, index) => <polygon key={`contour-${index}`} points={contour.points.map((point) => `${point.x},${point.y}`).join(' ')} className={`wb-outline-shape ${contour.hole ? 'is-hole' : ''}`} />)}
               {mode === 'Design' && matrixGhost && <g transform={`translate(${matrixGhost.origin.x} ${matrixGhost.origin.y})`}>
                 {pairPreview && <><line className="wb-mirror-axis" x1="0" x2="0" y1="-16" y2={(matrixGhost.rows - 1) * matrixGhost.pitch.y + 16} /><MatrixGhost matrix={pairPreview.preview} projection={matrixGhostProjections.get(pairPreview.preview.id)} scope={null} ghost onSelect={() => undefined} onStagger={() => undefined} /></>}
@@ -1339,7 +1347,8 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
                 if (mode === 'Keymap' || mode === 'Keycaps') return null;
                 return <ScenePart key={part.id} part={part} definition={definition} active={selectedIds.has(part.id)} constrained={constrainedTargetIds.has(part.id)} handlers={sceneHandlers} hiddenLayers={hiddenLayers} keycap={definition?.kind==='encoder'||definition?.inputProfile?.rotary?undefined:keyEnvelopes.get(part.id) ?? (definition?.kind === 'switch' ? part.keycap ?? definition.keycap : undefined)} pcb={mode === 'PCB'} footprints={mode === 'PCB' || showFootprints} />;
               })}
-              {(mode === 'Design' || mode === 'PCB') && findingMarkers.filter(marker => marker.boardId === selectedBoardId && (marker.findingId === focusedFindingId || scene.findings.some(finding => finding.id === marker.findingId && finding.severity === 'error'))).map(marker => <g key={marker.findingId} className={`wb-outline-finding ${marker.findingId === focusedFindingId ? 'is-focused' : ''}`} data-finding-id={marker.findingId}>
+              {mode === 'PCB' && (scene.moduleScenes ?? []).filter(module=>document.modules?.some(instance=>instance.id===module.id&&instance.hostBoardId===selectedBoardId)).map(module=><ModulePcbOverlay key={module.id} module={module} hidden={hiddenModuleLayers} hostHidden={hiddenLayers} onSelect={()=>{setSelectedModulePlacementId(module.id);setLibraryChoice(`module:${module.definitionId}`);setLibraryAssembly(null);changeMode('Library');setRightOpen(true);}} />)}
+              {(mode === 'Design' || mode === 'PCB') && findingMarkers.filter(marker => marker.boardId === selectedBoardId && (marker.findingId === focusedFindingId || scene.findings.some(finding => finding.id === marker.findingId && finding.severity === 'error') && !(mode === 'PCB' && moduleFindingIds.has(marker.findingId) && hiddenModuleLayers.has('module-findings')))).map(marker => <g key={marker.findingId} className={`wb-outline-finding ${marker.findingId === focusedFindingId ? 'is-focused' : ''}`} data-finding-id={marker.findingId}>
                 {marker.contours.map((contour, index) => <polygon key={index} points={contour.points.map(point => `${point.x},${point.y}`).join(' ')} />)}
               </g>)}
               {outlineSettingsOpen && selectedBridge && <polygon className="wb-outline-highlight" data-outline-bridge={selectedBridge.id} points={selectedBridge.points.map(point => `${point.x},${point.y}`).join(' ')} />}
@@ -1365,7 +1374,10 @@ const Workbench = ({ document, scene, saveStatus, projectSession, onEdit, onUndo
             </g>
             {outline.overlay()}
           </svg>
-          {(mode === 'Design' || mode === 'PCB') && !assembly3d && <WorkbenchLayers layers={mode === 'PCB' ? [...pcbLayers, 'Edge.Cuts', 'Courtyards', 'Pads', 'Holes', 'References'] : ['Keys', 'Components', 'Keycaps', 'Footprints', 'Board']} hidden={mode === 'Design' ? new Set([...hiddenLayers, ...(!showFootprints ? ['Footprints'] : [])]) : hiddenLayers} onToggle={(layer) => layer === 'Footprints' ? setShowFootprints(!showFootprints) : toggleLayer(layer)} />}
+          {(mode === 'Design' || mode === 'PCB') && !assembly3d && <WorkbenchLayers layers={mode === 'PCB' ? [...pcbLayers, 'Edge.Cuts', 'Courtyards', 'Pads', 'Holes', 'References'] : ['Keys', 'Components', 'Keycaps', 'Footprints', 'Board']} moduleLayers={mode === 'PCB' ? [
+            {id:'module-footprints',label:'Footprints'}, {id:'module-outlines',label:'Board outlines'}, {id:'module-clearances',label:'Clearance & service'}, {id:'module-holes',label:'Mounting holes'}, {id:'module-standoffs',label:'Standoffs'},
+            {id:'module-silkscreen-front',label:'Front silkscreen'}, {id:'module-silkscreen-back',label:'Back silkscreen'}, {id:'module-fab-front',label:'Front fabrication'}, {id:'module-fab-back',label:'Back fabrication'}, {id:'module-findings',label:'Findings & clearances'},
+          ] : []} hidden={mode === 'Design' ? new Set([...hiddenLayers, ...(!showFootprints ? ['Footprints'] : [])]) : new Set([...hiddenLayers, ...hiddenModuleLayers])} onToggle={(layer) => layer.startsWith('module-') ? toggleModuleLayer(layer) : layer === 'Footprints' ? setShowFootprints(!showFootprints) : toggleLayer(layer)} />}
           {existingHalfOpen && <ExistingHalfSetup matrices={unpairedMatrices} axis={Math.max(0, ...selectionOutline(visibleParts, definitions).map((point) => point.x)) + 12} onCancel={() => setExistingHalfOpen(false)} onCreate={(matrices, axis) => { try { const next = mirrorExistingHalf(document, matrices, axis, makeId); emit({ kind: 'replace-document', document: next }, matrices.map((matrix) => matrix.id)); setExistingHalfOpen(false); setZoom(1); setPan({ x: 0, y: 0 }); return undefined; } catch (error) { return String(error instanceof Error ? error.message : error); } }} />}
           {pairSetup && mode === 'Design'  && <MirroredPairSetup presets={(Object.keys(matrixPresetDefinitions) as MatrixPresetId[]).map((id) => ({ id, name: assemblyName(id) }))} onPreview={(setup) => beginMatrixPlacement(setup.rows, setup.columns, setup.preset as MatrixPresetId, setup)} onCancel={() => { cancelPlacement(); (compactObjects && !leftOpen ? window.document.getElementById('wb-objects-toggle') : addPartRef.current)?.focus(); }} />}
           {mode === 'Library' && selectedModuleDefinition && !editingAssembly && <ModulePreview definition={selectedModuleDefinition}/>}

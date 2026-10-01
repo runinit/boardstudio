@@ -5,11 +5,11 @@ pub use crate::keymap::{
     KeymapMacro, MacroChange, MacroStep,
 };
 pub use crate::modules::{
-    EmbeddedCircuit,
-    ModuleAttachment, ModuleBoard, ModuleCircuit, ModuleCircuitRepair, ModuleConnection,
-    ModuleConstituent, ModuleDefinition, ModuleElectrical, ModuleInterface, ModuleModelCandidate,
-    ModuleModelPlacement, ModuleProtocol, ModuleResolution, ModuleSupport, ModuleVolume, MountedModule,
-    ResolvedModule, VikSignal,
+    EmbeddedCircuit, ModuleAttachment, ModuleBoard, ModuleCircuit, ModuleCircuitRepair,
+    ModuleConnection, ModuleConstituent, ModuleDefinition, ModuleElectrical, ModuleInterface,
+    ModuleModelCandidate, ModuleModelPlacement, ModuleProtocol, ModuleResolution, ModuleSupport,
+    ModuleSupportGeometry, ModuleVolume, MountedModule, ResolvedModule, ResolvedModuleFootprint,
+    ResolvedModulePad, VikSignal,
 };
 pub use boardstudio_contracts::{
     KeycapBoardSettings, KeycapConfiguration, KeycapKeySettings, KeycapMatrixSettings, KeycapMount,
@@ -1130,6 +1130,10 @@ pub enum EditOperation {
         instance: MountedModule,
         #[serde(default)]
         definition: Option<ModuleDefinition>,
+        /// Source-backed VIK host connector to place atomically with a new connection.
+        #[serde(default, rename = "hostConnectorDefinition")]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        host_connector_definition: Option<PartDefinition>,
     },
     RemoveMountedModule {
         id: String,

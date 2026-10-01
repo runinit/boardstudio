@@ -15,6 +15,13 @@ use crate::model::{
 };
 pub use crate::model::{ArtifactError, ArtifactErrorCode};
 
+/// Parse source-owned footprint graphics for module preview without widening the parser helpers.
+pub(crate) fn preview_footprint_surfaces(
+    source: &str,
+) -> Result<Vec<crate::model::PcbSurface>, ArtifactError> {
+    preview::footprint_surfaces(source)
+}
+
 /// Handle a stateless artifact operation without touching CoreEngine history or the document.
 pub fn request(json: &str) -> String {
     let reply = match serde_json::from_str::<ArtifactRequest>(json) {

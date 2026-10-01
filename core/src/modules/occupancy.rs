@@ -369,15 +369,241 @@ pub(crate) fn attach_case_supports(
     (findings, markers)
 }
 
+/// Adds designer-selected board-to-board standoffs and host PCB drill contours.
+/// The host annulus must remain in host material; partial daughter-board support
+/// is allowed with an explicit warning because the source mount can sit near an edge.
+pub(crate) fn attach_board_supports(
+    doc: &ProjectDoc,
+    board_id: &str,
+    modules: &[ResolvedModule],
+    pcb_reference: Option<&mut CaseIR>,
+    bodies: &mut Vec<CaseIR>,
+) -> (Vec<Finding>, Vec<FindingMarker>) {
+    let mut findings = Vec::new();
+    let mut markers = Vec::new();
+    let mut pcb_reference = pcb_reference;
+    let Some(pcb_reference) = pcb_reference.as_deref_mut() else {
+        return (findings, markers);
+    };
+    for module in modules {
+        let Some(instance) = active_instances(doc, board_id).find(|m| m.id == module.id) else {
+            continue;
+        };
+        if instance.attachment != ModuleAttachment::Board || module.mounts.is_empty() {
+            continue;
+        }
+        let supports = super::placement::resolved_mount_supports(instance, module);
+        let configured = supports
+            .iter()
+            .map(|support| support.mount_id.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        let missing = module
+            .mounts
+            .iter()
+            .filter(|mount| !configured.contains(mount.source_id.as_str()))
+            .collect::<Vec<_>>();
+        for mount in &missing {
+            let id = format!("module/{}/board-support/{}", module.id, mount.source_id);
+            findings.push(Finding {
+                id: id.clone(),
+                severity: Severity::Error,
+                scope: Scope::Pcb,
+                message: format!(
+                    "Module mount {} needs designer-defined PCB standoff and host drill dimensions before fabrication.",
+                    mount.source_id
+                ),
+                target_ids: vec![module.id.clone(), board_id.into()],
+            });
+            markers.push(FindingMarker {
+                finding_id: id,
+                board_id: board_id.into(),
+                contours: vec![Contour {
+                    points: circle(mount.at, mount.diameter, false),
+                    hole: false,
+                }],
+            });
+        }
+        if !missing.is_empty() {
+            continue;
+        }
+        let Some(host) = doc.boards.iter().find(|board| board.id == board_id) else {
+            continue;
+        };
+        let Some(module_board) = module_board_material(doc.revision, board_id, module) else {
+            continue;
+        };
+        for support in supports {
+            let module_contact_z = if instance.host_face == Side::Front {
+                module
+                    .board
+                    .iter()
+                    .map(|board| board.z)
+                    .fold(f64::INFINITY, f64::min)
+            } else {
+                module
+                    .board
+                    .iter()
+                    .map(|board| board.z + board.height)
+                    .fold(f64::NEG_INFINITY, f64::max)
+            };
+            let host_contact_z = if instance.host_face == Side::Front {
+                0.0
+            } else {
+                -host.thickness
+            };
+            let low = module_contact_z.min(host_contact_z);
+            let high = module_contact_z.max(host_contact_z);
+            let id = format!("module/{}/board-support/{}", module.id, support.mount_id);
+            if (support.z - low).abs() > 1e-6
+                || (support.z + support.height - high).abs() > 1e-6
+                || !support_contacts_body(pcb_reference, &support)
+            {
+                findings.push(Finding {
+                    id: id.clone(),
+                    severity: Severity::Error,
+                    scope: Scope::Case,
+                    message: "The selected PCB standoff must contact both PCB faces, and its full annulus and host drill must fit within host PCB material.".into(),
+                    target_ids: vec![module.id.clone(), board_id.into()],
+                });
+                markers.push(FindingMarker {
+                    finding_id: id,
+                    board_id: board_id.into(),
+                    contours: vec![Contour {
+                        points: circle(support.at, support.outer_diameter, false),
+                        hole: false,
+                    }],
+                });
+                continue;
+            }
+            let daughter_contact = support_contact_area(&module_board, &support);
+            let annulus_area = std::f64::consts::PI
+                * (support.outer_diameter.powi(2) - support.hole_diameter.powi(2))
+                / 4.0;
+            if daughter_contact <= annulus_area * 0.01 {
+                findings.push(Finding {
+                    id: id.clone(),
+                    severity: Severity::Error,
+                    scope: Scope::Case,
+                    message: "The selected PCB standoff has no meaningful contact with module PCB material.".into(),
+                    target_ids: vec![module.id.clone(), board_id.into()],
+                });
+                markers.push(FindingMarker {
+                    finding_id: id,
+                    board_id: board_id.into(),
+                    contours: vec![Contour {
+                        points: circle(support.at, support.outer_diameter, false),
+                        hole: false,
+                    }],
+                });
+                continue;
+            }
+            if daughter_contact < annulus_area * 0.999 {
+                findings.push(Finding {
+                    id: id.clone(),
+                    severity: Severity::Warning,
+                    scope: Scope::Pcb,
+                    message: format!(
+                        "The selected PCB standoff overhangs the module PCB; {:.0}% of its annulus contacts source-board material. Verify the fastening method and support during human review.",
+                        100.0 * daughter_contact / annulus_area
+                    ),
+                    target_ids: vec![module.id.clone(), board_id.into()],
+                });
+                markers.push(FindingMarker {
+                    finding_id: id,
+                    board_id: board_id.into(),
+                    contours: vec![Contour {
+                        points: circle(support.at, support.outer_diameter, false),
+                        hole: false,
+                    }],
+                });
+            }
+            pcb_reference.contours.push(Contour {
+                points: circle(support.at, support.hole_diameter, false),
+                hole: true,
+            });
+            bodies.push(CaseIR {
+                revision: doc.revision,
+                contours: vec![
+                    Contour {
+                        points: circle(support.at, support.outer_diameter, true),
+                        hole: false,
+                    },
+                    Contour {
+                        points: circle(support.at, support.hole_diameter, false),
+                        hole: true,
+                    },
+                ],
+                body: CaseBody {
+                    id: format!("module-standoff/{}/{}", module.id, support.mount_id),
+                    name: format!("{} · PCB standoff", module.id),
+                    board_id: board_id.into(),
+                    kind: CaseKind::Plate,
+                    thickness: support.height,
+                    clearance: 0.0,
+                    z: Some(support.z),
+                    features: None,
+                    openings: None,
+                    material_id: None,
+                    wall_height: None,
+                    wall_thickness: None,
+                    mounts: None,
+                    gasket: None,
+                },
+            });
+        }
+    }
+    (findings, markers)
+}
+
+fn module_board_material(revision: u64, board_id: &str, module: &ResolvedModule) -> Option<CaseIR> {
+    let first = module.board.first()?;
+    let mut contours = module
+        .board
+        .iter()
+        .map(|board| Contour {
+            points: board.points.clone(),
+            hole: false,
+        })
+        .collect::<Vec<_>>();
+    contours.extend(module.board_holes.clone());
+    Some(CaseIR {
+        revision,
+        contours,
+        body: CaseBody {
+            id: format!("module-board/{}", module.id),
+            name: "Module PCB material".into(),
+            board_id: board_id.into(),
+            kind: CaseKind::Plate,
+            thickness: first.height,
+            clearance: 0.0,
+            z: Some(first.z),
+            features: None,
+            openings: None,
+            material_id: None,
+            wall_height: None,
+            wall_thickness: None,
+            mounts: None,
+            gasket: None,
+        },
+    })
+}
+
 fn support_contacts_body(body: &CaseIR, support: &ResolvedModuleSupport) -> bool {
+    let annulus_area = std::f64::consts::PI
+        * (support.outer_diameter.powi(2) - support.hole_diameter.powi(2))
+        / 4.0;
+    support_contact_area(body, support) >= annulus_area * (1.0 - 1e-6)
+}
+
+fn support_contact_area(body: &CaseIR, support: &ResolvedModuleSupport) -> f64 {
     let Ok(prepared) = crate::case::prepare(&CaseAssemblyIR {
         revision: body.revision,
         bodies: vec![body.clone()],
     }) else {
-        return false;
+        return 0.0;
     };
     let Some(prepared) = prepared.bodies.first() else {
-        return false;
+        return 0.0;
     };
     let annulus = vec![
         Contour {
@@ -389,7 +615,8 @@ fn support_contacts_body(body: &CaseIR, support: &ResolvedModuleSupport) -> bool
             hole: true,
         },
     ];
-    prepared.regions.iter().any(|region| {
+    let mut contact_area = 0.0;
+    for region in &prepared.regions {
         let mut material = vec![Contour {
             points: region.outer.clone(),
             hole: false,
@@ -398,45 +625,16 @@ fn support_contacts_body(body: &CaseIR, support: &ResolvedModuleSupport) -> bool
             points: hole.clone(),
             hole: true,
         }));
-        let uncovered = difference_contours(&annulus, &material);
-        uncovered
-            .iter()
-            .all(|contour| polygon_area(&contour.points) <= 1e-8)
-    })
-}
-
-fn difference_contours(a: &[Contour], b: &[Contour]) -> Vec<Contour> {
-    let paths = |contours: &[Contour]| {
-        contours
+        let contact = intersect_contours(&annulus, &material);
+        contact_area += contact
             .iter()
             .map(|contour| {
-                contour
-                    .points
-                    .iter()
-                    .map(|point| [point.x, point.y])
-                    .collect::<Vec<_>>()
+                let area = polygon_area(&contour.points);
+                if contour.hole { -area } else { area }
             })
-            .collect::<Vec<_>>()
-    };
-    paths(a)
-        .overlay(&paths(b), OverlayRule::Difference, FillRule::EvenOdd)
-        .into_iter()
-        .flat_map(|shape| {
-            shape
-                .into_iter()
-                .enumerate()
-                .map(|(index, points)| Contour {
-                    points: points
-                        .into_iter()
-                        .map(|point| Vec2 {
-                            x: point[0],
-                            y: point[1],
-                        })
-                        .collect(),
-                    hole: index > 0,
-                })
-        })
-        .collect()
+            .sum::<f64>();
+    }
+    contact_area.max(0.0)
 }
 
 fn polygon_area(points: &[Vec2]) -> f64 {

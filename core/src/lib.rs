@@ -891,7 +891,8 @@ impl PreviewBackup {
 fn affects_outline(op: &EditOperation) -> bool {
     matches!(
         op,
-        EditOperation::MoveParts { .. }
+        EditOperation::SetMountedModule { host_connector_definition: Some(_), .. }
+            | EditOperation::MoveParts { .. }
             | EditOperation::SetOutline { .. }
             | EditOperation::CopyOutline { .. }
             | EditOperation::SelectOutline { .. }
@@ -917,7 +918,13 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
         EditOperation::SetMountedModule {
             instance,
             definition,
-        } => modules::set(doc, instance, definition.as_ref()),
+            host_connector_definition,
+        } => modules::set(
+            doc,
+            instance,
+            definition.as_ref(),
+            host_connector_definition.as_ref(),
+        ),
         EditOperation::RemoveMountedModule { id } => modules::remove(doc, id),
         EditOperation::EmbedModuleCircuit {
             id,

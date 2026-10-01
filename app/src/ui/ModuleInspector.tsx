@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
-import type { EditOperation, ModuleConnection, ModuleDefinition, ModuleSupport, MountedModule, PartDefinition, ProjectDoc, VikSignal } from '../../../contracts/src/index';
+import { useEffect, useState, type FormEvent } from 'react';
+import type { EditOperation, ModuleConnection, ModuleDefinition, ModuleSupport, ModuleSupportGeometry, MountedModule, PartDefinition, ProjectDoc, VikSignal } from '../../../contracts/src/index';
 import { DraftInput } from './InspectorControls';
 import { InspectorSection } from './InspectorSection';
 import { HardwareReadiness } from './HardwareReadiness';
 import { ModuleProfileEditor } from './ModuleProfileEditor';
 import { makeId } from './workbenchGeometry';
+import { loadVikHostConnectorDefinition } from '../modules/hostConnector';
 import './module-workspace.css';
 
 const signalNames: [VikSignal, string][] = [['sclk','SPI clock'],['miso','SPI MISO'],['cs','Chip select'],['gpio2','GPIO 2'],['mosi','SPI MOSI'],['gpio1','GPIO 1'],['v5','5V supply'],['rgb','RGB data'],['scl','I²C clock'],['sda','I²C data'],['gnd','Ground'],['v3v3','3.3V supply']];
 type Props = {
   document: ProjectDoc; definition: ModuleDefinition; variants: ModuleDefinition[];
-  boardId: string; onSelect: (id: string) => void;
+  boardId: string; placementId?: string; resolvedSupports?: ModuleSupportGeometry[]; onSelect: (id: string) => void;
   onEdit: (operation: EditOperation, targets: string[]) => unknown;
   onPlacePart: (definition: PartDefinition) => void;
 };
@@ -18,14 +19,14 @@ function initialPlacement(definition: ModuleDefinition, boardId: string): Mounte
   return {id:`module/${makeId()}`,definitionId:definition.id,hostBoardId:boardId,hostFace:'front',facingFace:'back',at:{x:0,y:0},rotation:0,gap:3,attachment:'board',detached:false,serviceClearance:0,mountSupports:[]};
 }
 
-export function ModuleInspector({ document, definition, variants, boardId, onSelect, onEdit, onPlacePart }: Props) {
+export function ModuleInspector({ document, definition, variants, boardId, placementId, resolvedSupports = [], onSelect, onEdit, onPlacePart }: Props) {
   const instances = (document.modules ?? []).filter(instance => instance.definitionId === definition.id);
-  const [selected, setSelected] = useState(() => instances[0]?.id ?? '');
-  const [draft, setDraft] = useState(() => instances[0] ?? initialPlacement(definition, boardId));
+  const [selected, setSelected] = useState(() => instances.find(instance => instance.id === placementId)?.id ?? instances[0]?.id ?? '');
+  const [draft, setDraft] = useState(() => instances.find(instance => instance.id === placementId) ?? instances[0] ?? initialPlacement(definition, boardId));
   const [joins, setJoins] = useState<Record<string,string>>({});
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
-  const [connectionEnabled, setConnectionEnabled] = useState(Boolean(draft.connection));
+  const [connectionEnabled, setConnectionEnabled] = useState(() => Boolean(draft.connection) || !instances.some(instance => instance.id === draft.id));
   const [supportDraft, setSupportDraft] = useState({mountId:'',outerDiameter:'',holeDiameter:'',z:'',height:''});
   const selectedInstance = instances.find(instance => instance.id === selected);
   const savedPlacement = JSON.stringify(selectedInstance ?? null);
@@ -36,16 +37,39 @@ export function ModuleInspector({ document, definition, variants, boardId, onSel
     setConnectionEnabled(Boolean(instance.connection));
     setError('');
   }, [savedPlacement]);
+  useEffect(() => {
+    if (!placementId || !instances.some(instance => instance.id === placementId)) return;
+    setSelected(placementId);
+    setSupportDraft({mountId:'',outerDiameter:'',holeDiameter:'',z:'',height:''});
+  }, [placementId, definition.id]);
   const chooseInstance = (id: string) => {
     const instance = instances.find(item => item.id === id);
     setSelected(id); setDraft(instance ? {...instance,mountSupports:instance.mountSupports ?? []} : initialPlacement(definition, boardId));
     setSupportDraft({mountId:'',outerDiameter:'',holeDiameter:'',z:'',height:''});
-    setConnectionEnabled(Boolean(instance?.connection)); setError('');
+    setConnectionEnabled(instance ? Boolean(instance.connection) : true); setError('');
+  };
+  const savePlacement = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextConnection = connectionEnabled ? {
+      ...connection,
+      hostConnectorPartId: connection.hostConnectorPartId || `${draft.id}/vik-host-connector`,
+      busId: connection.busId || `vik/${draft.id}`,
+    } : undefined;
+    const instance = {...draft,connection:nextConnection};
+    const hasHostPart = Boolean(nextConnection && document.parts.some(part => part.id === nextConnection.hostConnectorPartId));
+    try {
+      const hostConnectorDefinition = nextConnection && !hasHostPart ? await loadVikHostConnectorDefinition() : undefined;
+      if (await commit({kind:'set-mounted-module',instance,definition,hostConnectorDefinition},[instance.id])) {
+        setDraft(instance); setSelected(instance.id);
+      }
+    } catch (failure) {
+      setError(String(failure instanceof Error ? failure.message : failure));
+    }
   };
   const commit = async (operation: EditOperation, targets: string[]) => {
     setPending(true); setError('');
-    try { await onEdit(operation, targets); }
-    catch (failure) { setError(String(failure instanceof Error ? failure.message : failure)); }
+    try { await onEdit(operation, targets); return true; }
+    catch (failure) { setError(String(failure instanceof Error ? failure.message : failure)); return false; }
     finally { setPending(false); }
   };
   const connection: ModuleConnection = draft.connection ?? {hostConnectorPartId:'',modulePortId:definition.interfaces.find(port=>port.role==='module')?.id ?? '',busId:'',assignments:{},cableType:'type-a-12-0.5',railVoltages:{}};
@@ -68,14 +92,14 @@ export function ModuleInspector({ document, definition, variants, boardId, onSel
     <div className="wb-inspector-heading"><div><h2>{definition.name}</h2><small>VIK · {definition.family.replaceAll('-', ' ')}</small></div></div>
     {document.parameters.demo === 'vik-module-review' && <aside className="wb-module-review-note" role="note" aria-label="Review fixture assumptions">
       <strong>Review fixture · assumptions</strong>
-      <p>Module anchors and 3 mm face gaps are illustrative. Source outlines and board thicknesses come from the pinned snapshot; component, cable, support and actuator envelopes are incomplete. Inspect the above/below transforms and output findings in the app. These placements are not manufacturing-ready.</p>
+      <p>Module anchors and 3 mm face gaps are illustrative. Source outlines and board thicknesses come from the pinned snapshot. The visible 6 mm outer, 2.8 mm hole, 3 mm high standoffs are designer-selected examples, not vendor fastener dimensions. Component, cable and actuator envelopes remain incomplete; these placements are not manufacturing-ready.</p>
     </aside>}
     <label>Variant<select aria-label="Module variant" value={definition.id} onChange={event=>onSelect(event.target.value)}>{variants.map(variant=><option key={variant.id} value={variant.id}>{variant.variant}</option>)}</select></label>
     <HardwareReadiness source={definition.source} gates={definition.gates}/>
     <ModuleProfileEditor definition={definition} onSave={snapshot=>onEdit({kind:'set-module-definition',definition:snapshot},[snapshot.id])}/>
     <InspectorSection title="Mounted module" detail={`${instances.length} placed`} defaultOpen>
       <label>Placement<select aria-label="Module placement" value={selected} onChange={event=>chooseInstance(event.target.value)}><option value="">New placement</option>{instances.map(instance=><option key={instance.id} value={instance.id}>{document.boards.find(board=>board.id===instance.hostBoardId)?.name} · {instance.hostFace} · {instance.id.split('/').at(-1)}</option>)}</select></label>
-      <form onSubmit={event=>{event.preventDefault();const instance={...draft,connection:connectionEnabled?connection:undefined};void commit({kind:'set-mounted-module',instance,definition},[instance.id]);setSelected(instance.id);}}>
+      <form onSubmit={event=>{void savePlacement(event);}}>
         <label>Host board<select aria-label="Module host board" value={draft.hostBoardId} onChange={event=>setDraft({...draft,hostBoardId:event.target.value,hostInstanceId:undefined})}>{document.boards.map(board=><option key={board.id} value={board.id}>{board.name}</option>)}</select></label>
         <label>Physical instance<select aria-label="Module physical instance" value={draft.hostInstanceId ?? ''} onChange={event=>setDraft({...draft,hostInstanceId:event.target.value||undefined})}><option value="">Every instance of this board</option>{instancesForBoard.map(instance=><option key={instance.id} value={instance.id}>{instance.name}</option>)}</select></label>
         <div className="wb-module-fields"><label>Host face<select aria-label="Module host face" value={draft.hostFace} onChange={event=>setDraft({...draft,hostFace:event.target.value as MountedModule['hostFace']})}><option value="front">Above PCB</option><option value="back">Below PCB</option></select></label>
@@ -85,20 +109,21 @@ export function ModuleInspector({ document, definition, variants, boardId, onSel
           <label>Surface gap · mm<DraftInput ariaLabel="Module surface gap" type="number" min="0" step="0.1" value={draft.gap} onCommit={value=>setDraft({...draft,gap:Number(value)})}/></label></div>
         <label>Attachment<select aria-label="Module attachment" value={draft.attachment} onChange={event=>setDraft({...draft,attachment:event.target.value as MountedModule['attachment']})}><option value="board">Travels with PCB</option><option value="case">Fixed to case</option></select></label>
         <label>Extra service clearance · mm<DraftInput ariaLabel="Module service clearance" type="number" min="0" step="0.1" value={draft.serviceClearance} onCommit={value=>setDraft({...draft,serviceClearance:Number(value)})}/></label>
-        {draft.attachment==='case' && <InspectorSection title="Case support rings" detail={`${draft.mountSupports?.length ?? 0} specified`}>
-          <p className="wb-empty-note">Choose a source PCB hole and designer-selected ring dimensions. Z and height are module-midplane millimetres. The generator checks PCB and case contact; these values are not vendor specifications.</p>
+        <InspectorSection title={draft.attachment==='case' ? 'Case support rings' : 'Board standoffs'} detail={`${draft.mountSupports?.length ?? 0} specified`} defaultOpen>
+          <p className="wb-empty-note">Choose a source PCB hole and enter designer-selected ring dimensions. Z and height are module-midplane millimetres. The generator checks the selected PCB or case contact; these values are not vendor specifications.</p>
           {(draft.mountSupports ?? []).map((support,index)=><div className="wb-module-existing" key={`${support.mountId}/${index}`}><span>{support.mountId} · OD {support.outerDiameter} / ID {support.holeDiameter} · Z {support.z} · height {support.height} mm</span><button type="button" className="wb-inspector-link" onClick={()=>setDraft({...draft,mountSupports:(draft.mountSupports ?? []).filter((_,i)=>i!==index)})}>Remove</button></div>)}
+          {resolvedSupports.length > 0 && <div className="wb-module-support-preview" aria-label="Resolved support geometry"><strong>Resolved {draft.attachment==='case' ? 'case rings' : 'PCB standoffs'}</strong>{resolvedSupports.map((support,index)=><p key={`${support.mountId}/${index}`}>{support.mountId} · center {support.at.x.toFixed(2)}, {support.at.y.toFixed(2)} mm · OD {support.outerDiameter} / ID {support.holeDiameter} mm · Z {support.z.toFixed(2)} · height {support.height.toFixed(2)} mm</p>)}</div>}
           <label>Source mounting hole<select aria-label="Support source mounting hole" value={supportDraft.mountId} onChange={event=>setSupportDraft({...supportDraft,mountId:event.target.value})}><option value="">Choose module hole…</option>{definition.mounts.map(mount=><option key={mount.sourceId} value={mount.sourceId}>{mount.sourceId} · source drill {mount.diameter} mm</option>)}</select></label>
           <div className="wb-module-fields">{(['outerDiameter','holeDiameter','z','height'] as const).map(key=><label key={key}>{({outerDiameter:'Outer diameter',holeDiameter:'Hole diameter',z:'Z from midplane',height:'Ring height'} as const)[key]} · mm<DraftInput ariaLabel={`Support ${key}`} type="number" step="0.1" value={supportDraft[key]} onCommit={value=>setSupportDraft({...supportDraft,[key]:value})}/></label>)}</div>
-          <button type="button" onClick={addMountSupport} disabled={!definition.mounts.length}>Add specified ring</button>
+          <button type="button" onClick={addMountSupport} disabled={!definition.mounts.length}>Add specified {draft.attachment==='case'?'ring':'standoff'}</button>
           {!definition.mounts.length && <p className="wb-empty-note">This module snapshot has no source mounting holes for ring placement.</p>}
-        </InspectorSection>}
+        </InspectorSection>
         <label className="wb-module-check"><input type="checkbox" checked={draft.detached} onChange={event=>setDraft({...draft,detached:event.target.checked})}/>Detached from assembly</label>
         <InspectorSection title="VIK connection" detail={connectionEnabled?'Connected':'Unassigned'}>
           <label className="wb-module-check"><input type="checkbox" checked={connectionEnabled} onChange={event=>setConnectionEnabled(event.target.checked)}/>Assign host connection</label>
           {connectionEnabled && <>
             <label>Host connector<select aria-label="Module host connector" value={connection.hostConnectorPartId} onChange={event=>updateConnection({hostConnectorPartId:event.target.value})}><option value="">Select VIK host connector</option>{connectors.map(part=><option key={part.id} value={part.id}>{part.reference}</option>)}</select></label>
-            {!connectors.length && <p className="wb-empty-note">Place a VIK host connector on this board first. Splitter constituents include host footprints.</p>}
+            {!connectors.length && <p className="wb-empty-note">A source-backed horizontal VIK host connector will be added beside this module. You can move it independently after attachment.</p>}
             <label>Module port<select aria-label="Module input port" value={connection.modulePortId} onChange={event=>updateConnection({modulePortId:event.target.value})}>{definition.interfaces.filter(port=>port.role==='module').map(port=><option key={port.id} value={port.id}>{port.id}</option>)}</select></label>
             <label>Bus name<DraftInput ariaLabel="Module bus name" value={connection.busId} onCommit={value=>updateConnection({busId:value})}/></label>
             <p className="wb-empty-note">12 contacts · 0.5 mm pitch · Type A cable · 3.3V logic. Enter actual MCU terminals; shared buses are checked by their wiring.</p>

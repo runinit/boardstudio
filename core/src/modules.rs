@@ -3,6 +3,9 @@ use crate::model::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+#[path = "modules/host_connector.rs"]
+mod host_connector;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 pub enum ModuleCircuitRepair {
@@ -278,8 +281,75 @@ pub struct ResolvedModule {
     pub volumes: Vec<ModuleVolume>,
     pub openings: Vec<ModuleVolume>,
     pub mounts: Vec<MechanicalPcbHole>,
+    /// Designer-authored daughterboard supports resolved into host-board coordinates.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<ModuleSupportGeometry>>", optional)
+    )]
+    pub mount_supports: Vec<ModuleSupportGeometry>,
+    /// Source-owned daughterboard footprints for PCB preview only. These are never host parts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<ResolvedModuleFootprint>>", optional)
+    )]
+    pub footprints: Vec<ResolvedModuleFootprint>,
     pub models: Vec<PartModel>,
     pub gates: Vec<HardwareGate>,
+}
+
+/// Resolved designer-selected annular support around a source module mount.
+/// XY and Z use the host-top-zero mechanical frame; dimensions remain authored values.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct ModuleSupportGeometry {
+    pub mount_id: String,
+    pub at: Vec2,
+    pub outer_diameter: f64,
+    pub hole_diameter: f64,
+    pub z: f64,
+    pub height: f64,
+}
+
+/// Compact source-local footprint geometry carried by a mounted-module preview.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedModuleFootprint {
+    /// Unique preview identity; does not identify a host `Part`.
+    pub id: String,
+    pub source_part_id: String,
+    pub reference: String,
+    pub definition_id: String,
+    pub name: String,
+    /// Footprint origin and rotation composed into host-board XY.
+    pub pose: Pose2,
+    /// Resolved host-board side; pads and courtyard remain in footprint-local coordinates.
+    pub side: Side,
+    pub courtyard: Vec<Vec2>,
+    pub pads: Vec<ResolvedModulePad>,
+    /// Artwork geometry stays source-local; F/B layer names are remapped to the resolved host side.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "export-types", ts(as = "Option<Vec<PcbSurface>>", optional))]
+    pub surfaces: Vec<PcbSurface>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "export-types", ts(optional_fields))]
+pub struct ResolvedModulePad {
+    pub id: String,
+    pub number: String,
+    pub at: Vec2,
+    pub size: Vec2,
+    pub shape: PadShape,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drill: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f64>,
 }
 
 #[derive(Clone, Debug)]
@@ -333,8 +403,8 @@ mod placement;
 mod preview;
 pub(crate) use circuit::{embed, embedded_findings, remove_circuit};
 pub(crate) use electrical::{connection_findings, connection_locks, host_requirements};
-pub(crate) use occupancy::attach_case_supports;
 pub(crate) use occupancy::case_findings;
+pub(crate) use occupancy::{attach_board_supports, attach_case_supports};
 pub(crate) use placement::finding_markers;
 pub(crate) use placement::resolve;
 pub(crate) use placement::resolved_mount_supports;

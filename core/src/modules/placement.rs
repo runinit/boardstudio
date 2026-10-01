@@ -100,13 +100,10 @@ fn validate_mount_supports(
     if instance.mount_supports.is_empty() {
         return Ok(());
     }
-    if instance.attachment != ModuleAttachment::Case {
-        return Err("Printed module mount supports require case attachment".into());
-    }
     let thickness = definition
         .board
         .thickness
-        .ok_or("Module board thickness is required to place a case support")?;
+        .ok_or("Module board thickness is required to place a mount support")?;
     let mut seen = BTreeSet::new();
     for support in &instance.mount_supports {
         if support.mount_id.trim().is_empty()
@@ -139,14 +136,37 @@ fn validate_mount_supports(
             ));
         }
         let half = thickness / 2.0;
-        let end = support.z + support.height;
-        let extends_above = (support.z - half).abs() <= 1e-6 && end > half + 1e-6;
-        let extends_below = (end + half).abs() <= 1e-6 && support.z < -half - 1e-6;
-        if !extends_above && !extends_below {
-            return Err(format!(
-                "Module support {} must start at an exposed PCB face and extend away from the board",
-                support.mount_id
-            ));
+        match instance.attachment {
+            ModuleAttachment::Case => {
+                let end = support.z + support.height;
+                let extends_above = (support.z - half).abs() <= 1e-6 && end > half + 1e-6;
+                let extends_below = (end + half).abs() <= 1e-6 && support.z < -half - 1e-6;
+                if !extends_above && !extends_below {
+                    return Err(format!(
+                        "Case support {} must start at an exposed module PCB face and extend away from the board",
+                        support.mount_id
+                    ));
+                }
+            }
+            ModuleAttachment::Board => {
+                if !instance.gap.is_finite() || instance.gap <= 0.0 {
+                    return Err(
+                        "Board-attached standoffs require a positive module-to-host gap".into(),
+                    );
+                }
+                let (expected_z, expected_height) = match instance.facing_face {
+                    Side::Front => (half, instance.gap),
+                    Side::Back => (-half - instance.gap, instance.gap),
+                };
+                if (support.z - expected_z).abs() > 1e-6
+                    || (support.height - expected_height).abs() > 1e-6
+                {
+                    return Err(format!(
+                        "Board support {} must span the selected module-to-host gap from its facing PCB surface",
+                        support.mount_id
+                    ));
+                }
+            }
         }
     }
     Ok(())
@@ -233,6 +253,7 @@ pub(crate) fn set(
     doc: &mut ProjectDoc,
     instance: &MountedModule,
     definition: Option<&ModuleDefinition>,
+    host_connector_definition: Option<&PartDefinition>,
 ) -> Result<Vec<String>, String> {
     if instance.id.trim().is_empty()
         || instance.id.len() > 256
@@ -286,15 +307,31 @@ pub(crate) fn set(
         .ok_or("Module definition is missing")?;
     validate_definition(def)?;
     validate_mount_supports(instance, def)?;
+    let module_definition = def.clone();
+    let mut saved_instance = instance.clone();
+    if let Some(connector_definition) = host_connector_definition {
+        super::host_connector::add_for_mount(
+            doc,
+            &mut saved_instance,
+            &module_definition,
+            connector_definition,
+        )?;
+    }
     if let Some(existing) = doc.modules.iter_mut().find(|m| m.id == instance.id) {
-        *existing = instance.clone();
+        *existing = saved_instance.clone();
     } else {
         if doc.modules.len() >= 128 {
             return Err("Module instance limit exceeded".into());
         }
-        doc.modules.push(instance.clone());
+        doc.modules.push(saved_instance.clone());
     }
-    Ok(vec![instance.id.clone(), instance.host_board_id.clone()])
+    let mut affected = vec![instance.id.clone(), instance.host_board_id.clone()];
+    if let Some(connection) = saved_instance.connection {
+        if !connection.host_connector_part_id.is_empty() {
+            affected.push(connection.host_connector_part_id);
+        }
+    }
+    Ok(affected)
 }
 
 pub(crate) fn remove(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, String> {
@@ -313,6 +350,89 @@ fn xy(instance: &MountedModule, flipped: bool, p: Vec2) -> Vec2 {
     Vec2 {
         x: instance.at.x + x * cos - p.y * sin,
         y: instance.at.y + x * sin + p.y * cos,
+    }
+}
+
+fn resolved_footprints(
+    instance: &MountedModule,
+    def: &ModuleDefinition,
+    flipped: bool,
+) -> Vec<ResolvedModuleFootprint> {
+    let Some(circuit) = &def.circuit else {
+        return Vec::new();
+    };
+    circuit
+        .parts
+        .iter()
+        .filter_map(|part| {
+            let definition = circuit
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)?;
+            let local_rotation = if flipped {
+                -part.pose.rotation
+            } else {
+                part.pose.rotation
+            };
+            Some(ResolvedModuleFootprint {
+                id: format!("{}/footprint/{}", instance.id, part.id),
+                source_part_id: part.id.clone(),
+                reference: part.reference.clone(),
+                definition_id: definition.id.clone(),
+                name: definition.name.clone(),
+                pose: Pose2 {
+                    at: xy(instance, flipped, part.pose.at),
+                    rotation: instance.rotation + local_rotation,
+                },
+                side: if flipped {
+                    opposite_side(part.side.clone())
+                } else {
+                    part.side.clone()
+                },
+                courtyard: definition.courtyard.clone(),
+                pads: definition
+                    .pads
+                    .iter()
+                    .map(|pad| ResolvedModulePad {
+                        id: pad.id.clone(),
+                        number: pad.number.clone(),
+                        at: pad.at,
+                        size: pad.size,
+                        shape: pad.shape.clone(),
+                        drill: pad.drill,
+                        rotation: pad.rotation,
+                    })
+                    .collect(),
+                surfaces: definition
+                    .kicad_source
+                    .as_ref()
+                    .and_then(|source| {
+                        crate::artifact::preview_footprint_surfaces(&source.source).ok()
+                    })
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|mut surface| {
+                        if flipped {
+                            surface.layer = match surface.layer.as_str() {
+                                "F.SilkS" => "B.SilkS".into(),
+                                "B.SilkS" => "F.SilkS".into(),
+                                "F.Fab" => "B.Fab".into(),
+                                "B.Fab" => "F.Fab".into(),
+                                _ => surface.layer,
+                            };
+                        }
+                        surface
+                    })
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
+fn opposite_side(side: Side) -> Side {
+    match side {
+        Side::Front => Side::Back,
+        Side::Back => Side::Front,
     }
 }
 
@@ -468,6 +588,16 @@ pub(crate) fn resolve(doc: &ProjectDoc, board_id: &str) -> ModuleResolution {
                 Severity::Error,
                 Scope::Case,
             );
+            if instance.attachment == ModuleAttachment::Board {
+                issue(
+                    &mut result,
+                    instance,
+                    "host-drill",
+                    "The configured board standoff does not resolve to a safe host PCB drill.",
+                    Severity::Error,
+                    Scope::Pcb,
+                );
+            }
             continue;
         }
         let Some(thickness) = def.board.thickness else {
@@ -546,7 +676,7 @@ pub(crate) fn resolve(doc: &ProjectDoc, board_id: &str) -> ModuleResolution {
             geometry: volume(instance, flipped, top_zero_center, &v.geometry),
             ..v.clone()
         };
-        let resolved = ResolvedModule {
+        let mut resolved = ResolvedModule {
             id: instance.id.clone(),
             definition_id: def.id.clone(),
             at: instance.at,
@@ -565,9 +695,44 @@ pub(crate) fn resolve(doc: &ProjectDoc, board_id: &str) -> ModuleResolution {
                     ..mount.clone()
                 })
                 .collect(),
+            mount_supports: Vec::new(),
+            footprints: resolved_footprints(instance, def, flipped),
             models: def.models.clone(),
             gates: def.gates.clone(),
         };
+        resolved.mount_supports = resolved_mount_supports(instance, &resolved)
+            .into_iter()
+            .map(|support| ModuleSupportGeometry {
+                mount_id: support.mount_id,
+                at: support.at,
+                outer_diameter: support.outer_diameter,
+                hole_diameter: support.hole_diameter,
+                z: support.z,
+                height: support.height,
+            })
+            .collect();
+        if instance.attachment == ModuleAttachment::Board {
+            let configured = resolved
+                .mount_supports
+                .iter()
+                .map(|support| support.mount_id.as_str())
+                .collect::<BTreeSet<_>>();
+            for mount in &resolved.mounts {
+                if !configured.contains(mount.source_id.as_str()) {
+                    issue(
+                        &mut result,
+                        instance,
+                        &format!("host-drill/{}", mount.source_id),
+                        &format!(
+                            "Module mount {} needs designer-defined PCB standoff and host drill dimensions.",
+                            mount.source_id
+                        ),
+                        Severity::Error,
+                        Scope::Pcb,
+                    );
+                }
+            }
+        }
         for gate in &def.gates {
             let mechanical = gate.output == HardwareOutput::Mechanical;
             issue(

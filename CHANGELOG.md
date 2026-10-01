@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-10-01 (mounted-module PCB review)
+
+- Show source-owned module footprints and artwork in PCB mode with independent layers. Add nearby source-backed host VIK connectors without moving reviewed anchors or authored outlines, configurable host mounting drills, and annular board standoffs. Keep incomplete-support previews inspectable while fabrication stays blocked; retain unresolved source qualification gates.
+
 ## 2026-10-01 (encoder/VIK implementation progress)
 
 - Add mounted VIK placement, explicit circuit reuse, case supports and scoped rotary export. Import every researched catalog row with pinned provenance and 31 model-bound checks; retain unresolved assembly, driver and source gates. Prepare an editable mixed-module project for human app review; physical QA is deferred. Skip empty-module wiring and finding scans during ordinary edits.

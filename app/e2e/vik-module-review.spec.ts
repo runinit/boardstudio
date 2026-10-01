@@ -54,7 +54,6 @@ test('the app gallery opens a saved above/below review project with visible mode
   await page.getByRole('listbox', { name: 'VIK modules', exact: true }).getByRole('option', { name: /module to split one VIK/iu }).click();
   await page.getByLabel('Module placement', { exact: true }).selectOption('review/splitter-above');
   await page.getByLabel('Module attachment', { exact: true }).selectOption('case');
-  await page.getByText('Case support rings', { exact: false }).click();
   await expect(page.getByLabel('Support source mounting hole', { exact: true })).toContainText('source drill 2.2 mm');
   await expect(page.getByLabel('Support outerDiameter', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('Support holeDiameter', { exact: true })).toHaveValue('');
@@ -110,4 +109,60 @@ test('the app gallery opens a saved above/below review project with visible mode
   await expect(page.getByText('Preparing mounted modules…', { exact: true })).toHaveCount(0, { timeout: 60_000 });
   await expect(page.locator('.wb-assembly-error')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/vik-module-human-review-case.png' });
+});
+
+test('PCB view shows editable source-module overlays on independent visibility layers', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await page.getByRole('button', { name: 'Start VIK module review · above and below', exact: true }).click();
+  await expect.poll(async () => (await readWorkspaceDocument(page)).embeddedCircuits?.length).toBe(1);
+  await page.getByRole('tab', { name: 'PCB', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'PCB', exact: true })).toHaveAttribute('aria-selected', 'true');
+
+  const overlay = page.locator('.wb-module-pcb-overlay[data-module-id="review/splitter-above"]');
+  await expect(overlay.locator('.wb-module-source-footprint')).not.toHaveCount(0);
+  await expect(overlay.locator('.wb-module-board-outline')).toHaveCount(0);
+  await expect(overlay.locator('.wb-module-clearance')).toHaveCount(0);
+  await expect(overlay.locator('.wb-module-mount-hole')).toHaveCount(0);
+  await expect(overlay.locator('.wb-module-standoff')).toHaveCount(0);
+  await expect(overlay.locator('[data-source-layer$=".SilkS"]')).not.toHaveCount(0);
+
+  const before = await readWorkspaceDocument(page);
+  const hostConnectors = before.parts.filter(part => part.id.endsWith('/vik-host-connector'));
+  expect(hostConnectors).toHaveLength(3);
+  expect(hostConnectors.every(part => before.boards.find(board => board.id === 'main-board')?.partIds.includes(part.id))).toBe(true);
+  expect(before.modules?.every(module => hostConnectors.some(part => part.id === module.connection?.hostConnectorPartId))).toBe(true);
+  const renderedHostConnectors = page.getByRole('button', { name: /^J_VIK\d+, VIK horizontal host connector/u });
+  await expect(renderedHostConnectors).toHaveCount(3);
+  await expect(renderedHostConnectors.first()).toBeVisible();
+  const baselinePartIds = before.parts.map(part => part.id).sort();
+  const baselineNetIds = before.nets.map(net => net.id).sort();
+  await page.getByRole('button', { name: 'Layers', exact: true }).click();
+  for (const layer of ['Board outlines', 'Clearance & service', 'Mounting holes', 'Standoffs', 'Front fabrication', 'Back fabrication', 'Findings & clearances']) {
+    await expect(page.getByRole('button', { name: `Show ${layer}`, exact: true })).toHaveAttribute('aria-pressed', 'false');
+  }
+  await expect(page.getByRole('button', { name: 'Hide Footprints', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Hide Front silkscreen', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Hide Back silkscreen', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Show Board outlines', exact: true }).click();
+  await expect(overlay.locator('.wb-module-board-outline')).not.toHaveCount(0);
+  await page.getByRole('button', { name: 'Show Mounting holes', exact: true }).click();
+  await expect(overlay.locator('.wb-module-mount-hole')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Show Clearance & service', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Hide Clearance & service', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Show Standoffs', exact: true }).click();
+  await expect(overlay.locator('.wb-module-standoff')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Show Front fabrication', exact: true }).click();
+  await expect(overlay.locator('[data-source-layer$=".Fab"]')).not.toHaveCount(0);
+  const after = await readWorkspaceDocument(page);
+  expect(after.parts.map(part => part.id).sort()).toEqual(baselinePartIds);
+  expect(after.nets.map(net => net.id).sort()).toEqual(baselineNetIds);
+
+  await page.getByRole('button', { name: 'Layers', exact: true }).click();
+  // Source footprints can overlap within the same daughterboard (for example
+  // the host receptacle sits over the board's source courtyard); select the
+  // topmost visible footprint, which should resolve to the parent placement.
+  await overlay.locator('.wb-module-source-footprint').last().click();
+  await expect(page.getByLabel('Module placement', { exact: true })).toHaveValue('review/splitter-above');
+  await expect(page.getByLabel('Support source mounting hole', { exact: true })).toBeVisible();
 });

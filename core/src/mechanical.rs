@@ -2083,6 +2083,18 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     result.generation_blocked |= !support_findings.is_empty();
     result.diagnostics.extend(support_findings);
     result.finding_markers.extend(support_markers);
+    let (board_support_findings, board_support_markers) = crate::modules::attach_board_supports(
+        document,
+        &config.board_id,
+        &module_resolution.modules,
+        result.pcb_reference.as_mut(),
+        &mut result.case.bodies,
+    );
+    result.generation_blocked |= board_support_findings
+        .iter()
+        .any(|finding| matches!(&finding.severity, Severity::Error));
+    result.diagnostics.extend(board_support_findings);
+    result.finding_markers.extend(board_support_markers);
     // Functional access applies to every material layer it intersects, using the
     // same prepared module geometry as preview and exact output.
     for body in &mut result.case.bodies {

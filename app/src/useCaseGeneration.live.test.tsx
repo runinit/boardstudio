@@ -30,17 +30,26 @@ function harness() {
     return null;
   }
   const root = createRoot(document.createElement('div')); roots.push(root);
-  async function render(revision = project.revision, options: { mode?: string; session?: number; id?: string; blockedMechanical?: boolean } = {}) {
+  async function render(revision = project.revision, options: { mode?: string; session?: number; id?: string; blockedMechanical?: boolean; boardSupportOnly?: boolean; unrelatedBlocker?: boolean } = {}) {
     project = { ...project, revision, id: options.id ?? project.id, caseBodies: [{ id: 'tray', name: 'Tray', boardId: 'board', kind: 'tray', thickness: revision, clearance: 0.5, materialId: 'pla' }] };
     projectRef.current = project;
     if (committedScene.current.revision !== revision || options.session || options.id) committedScene.current = scene(revision);
     if (options.blockedMechanical) {
       project.mechanical = { boardId: 'board' } as ProjectDoc['mechanical'];
       committedScene.current = { ...committedScene.current, boardReadiness: [{ boardId: 'board', outline: false, case: false }] } as SceneDelta;
-      request.mockImplementation(async message => ({ id: message.id, kind: 'mechanical-resolved', assembly: {
-        revision, case: { revision, bodies: [] }, generationBlocked: true, diagnostics: [], stack: [],
-        gasketSupports: [], gasketTracks: [], generatedHardware: [], suggestedMounts: [], nominalPlateContours: [], plateContours: [],
-      } } as any));
+      request.mockImplementation(async message => message.kind === 'resolve-mechanical'
+        ? ({ id: message.id, kind: 'mechanical-resolved', assembly: {
+          revision, case: { revision, bodies: [] }, generationBlocked: true, diagnostics: [
+            ...(options.boardSupportOnly ? [{
+              id: 'module/review/splitter-above/board-support/PART0', scope: 'pcb', severity: 'error', targetIds: ['review/splitter-above', 'board'], message: 'Configure a host drill',
+            }] : []),
+            ...(options.unrelatedBlocker ? [{
+              id: 'mechanical:module/review/splitter-above/assembled-envelope', scope: 'case', severity: 'error', targetIds: ['review/splitter-above', 'board'], message: 'Geometry remains unqualified',
+            }] : []),
+          ], stack: [],
+          gasketSupports: [], gasketTracks: [], generatedHardware: [], suggestedMounts: [], nominalPlateContours: [], plateContours: [],
+        } } as any)
+        : ({ id: message.id, kind: 'case-prepared', ir: message.ir } as any));
     }
     activeMode = options.mode ?? activeMode; projectSession = options.session ?? projectSession;
     await act(async () => root.render(<Harness />));
@@ -149,4 +158,20 @@ test('resolves mechanical diagnostics without a valid outline and never submits 
   expect(h.value.generation.status).toBe('blocked');
   expect(h.value.visibleMechanicalAssembly?.generationBlocked).toBe(true);
   expect(h.preview).not.toHaveBeenCalled();
+});
+
+test('previews safe case solids when only unconfigured board mounting drills block fabrication', async () => {
+  const h = harness(); await h.render(1, { blockedMechanical: true, boardSupportOnly: true }); await settle();
+  expect(h.preview).toHaveBeenCalledOnce();
+  expect(h.value.visibleMechanicalAssembly?.generationBlocked).toBe(true);
+  expect(h.value.visibleCasePreview?.revision).toBe(1);
+  expect(h.value.generation.status).toBe('blocked');
+  expect(h.value.generation.status).not.toBe('ready');
+});
+
+test('keeps blocking CAD preview when another case geometry error accompanies a missing drill', async () => {
+  const h = harness(); await h.render(1, { blockedMechanical: true, boardSupportOnly: true, unrelatedBlocker: true }); await settle();
+  expect(h.preview).not.toHaveBeenCalled();
+  expect(h.value.visibleMechanicalAssembly?.generationBlocked).toBe(true);
+  expect(h.value.generation.status).toBe('blocked');
 });

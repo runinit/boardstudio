@@ -148,12 +148,14 @@ fn graphic(
     placement: &Pose2,
     out: &mut PcbPreview,
     edges: &mut Vec<Vec<Vec2>>,
+    allow_fabrication: bool,
 ) -> Result<(), ArtifactError> {
     let layer = child(n, "layer").map(|n| value(n, 1)).unwrap_or("");
     if !matches!(
         layer,
         "Edge.Cuts" | "F.SilkS" | "B.SilkS" | "F.Cu" | "B.Cu" | "F.Mask" | "B.Mask"
-    ) {
+    ) && !(allow_fabrication && matches!(layer, "F.Fab" | "B.Fab"))
+    {
         return Ok(());
     }
     let tag = head(n).unwrap_or("");
@@ -444,7 +446,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                             }
                         }
                         tag if tag.starts_with("fp_") || tag == "property" => {
-                            graphic(node, &fp, &mut out, &mut edges)?
+                            graphic(node, &fp, &mut out, &mut edges, false)?
                         }
                         _ => {}
                     }
@@ -481,7 +483,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                 }
             }
             tag if tag.starts_with("gr_") || tag == "segment" || tag == "arc" => {
-                graphic(n, &origin, &mut out, &mut edges)?
+                graphic(n, &origin, &mut out, &mut edges, false)?
             }
             _ => {}
         }
@@ -493,6 +495,48 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
     out.diagnostics.sort();
     out.diagnostics.dedup();
     Ok(out)
+}
+
+/// Project only source-local front/back silkscreen and fabrication artwork from a footprint.
+pub(super) fn footprint_surfaces(source: &str) -> Result<Vec<PcbSurface>, ArtifactError> {
+    if source.len() > 4 * 1024 * 1024 {
+        return Err(error("Footprint source exceeds the 4 MiB preview limit"));
+    }
+    let parsed = kiutils_sexpr::parse_one(source).map_err(|e| error(e.to_string()))?;
+    let root = parsed
+        .nodes
+        .first()
+        .ok_or_else(|| error("Empty footprint source"))?;
+    if !matches!(head(root), Some("footprint" | "module")) {
+        return Err(error("Expected a KiCad footprint source"));
+    }
+    let mut out = PcbPreview {
+        revision: 0,
+        thickness: 0.,
+        contours: Vec::new(),
+        surfaces: Vec::new(),
+        holes: Vec::new(),
+        models: Vec::new(),
+        diagnostics: Vec::new(),
+    };
+    let identity = Pose2 {
+        at: Vec2 { x: 0., y: 0. },
+        rotation: 0.,
+    };
+    let mut edges = Vec::new();
+    for node in items(root).unwrap_or(&[]).iter().skip(1) {
+        let tag = head(node).unwrap_or("");
+        if tag.starts_with("fp_") || tag == "property" {
+            graphic(node, &identity, &mut out, &mut edges, true)?;
+        }
+    }
+    out.surfaces.retain(|surface| {
+        matches!(
+            surface.layer.as_str(),
+            "F.SilkS" | "B.SilkS" | "F.Fab" | "B.Fab"
+        )
+    });
+    Ok(out.surfaces)
 }
 
 #[cfg(test)]
@@ -520,6 +564,27 @@ mod tests {
                 .any(|s| s.contains("no saved fill"))
         );
         assert!(result.surfaces.iter().any(|s| s.layer == "B.Mask"));
+    }
+    #[test]
+    fn footprint_projection_includes_fab_without_changing_board_preview_layers() {
+        let footprint = "(footprint \"resistor\" (layer \"B.Cu\") (at 0 0) (fp_line (start 0 0) (end 2 0) (stroke (width 0.1)) (layer \"B.SilkS\")) (fp_rect (start -1 -1) (end 1 1) (stroke (width 0.05)) (layer \"B.Fab\")))";
+        let surfaces = footprint_surfaces(footprint).unwrap();
+        assert!(surfaces.iter().any(|surface| surface.layer == "B.SilkS"));
+        assert!(surfaces.iter().any(|surface| surface.layer == "B.Fab"));
+
+        let board = board(&format!("(kicad_pcb {EDGE} {footprint})"), 0).unwrap();
+        assert!(
+            board
+                .surfaces
+                .iter()
+                .any(|surface| surface.layer == "B.SilkS")
+        );
+        assert!(
+            !board
+                .surfaces
+                .iter()
+                .any(|surface| surface.layer == "B.Fab")
+        );
     }
     #[test]
     fn rejects_open_edges_and_non_finite_values() {
