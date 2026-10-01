@@ -400,9 +400,10 @@ impl Runtime {
                 if let Some(cancelled) = self.cad_jobs.borrow_mut().remove(&job_id) {
                     cancelled.set(true);
                 }
-                if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
+                if let Some((_, worker)) = self.cad_worker.borrow().as_ref() {
+                    // Retain valid same-scope cache updates; the worker yields between bodies.
+                    // Scope replacement and close still terminate the departing worker.
                     let _ = worker.cancel(&format!("case-{}", job_id.0));
-                    worker.close();
                 }
                 vec![]
             }
