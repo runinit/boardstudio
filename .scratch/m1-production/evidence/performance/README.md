@@ -2,10 +2,11 @@
 
 Status: preparation only; no current M1 candidate measurement has been run.
 
-Candidate worktree: `codex/m1-ticket06-performance-20261001`, based on integration
-`b075b9e78c71a86f91f65f8a46ff11143673e644`. The release candidate is pending the
-maintained-source export cleanup and a fresh build. Do not use measurements from
-this integration snapshot as M1 release evidence.
+Evidence branch: `codex/m1-ticket06-performance-e4b019a1`, based on coordinator integration
+`e4b019a1`. Pointer archives were generated from the verified public Core package
+whose source commit is retained in each fixture manifest. A fresh final release URL
+is still pending. Do not use measurements from the 4cb diagnostic build as M1
+release evidence.
 
 ## Existing oracles to preserve
 
