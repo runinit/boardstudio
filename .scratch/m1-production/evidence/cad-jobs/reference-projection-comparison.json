@@ -1,0 +1,169 @@
+{
+  "testedAt": "2026-10-01T21:57:53.040Z",
+  "method": "Deep JSON equality of Rust captured_case_document/scene outputs and actual TypeScript effectiveCaseDocument/effectiveCaseScene results; object properties sorted and JSON undefined/-0 normalized.",
+  "comparisonCount": 9,
+  "cases": [
+    {
+      "fixture": "reviung41",
+      "boardId": "main",
+      "instanceId": null,
+      "flipped": null,
+      "documentSha256": "7da630b59b42f7f48363d9c55a28673e5a11b30cbb60a8a7594a0e123b661425",
+      "sceneSha256": "8ae0185e8222bfc8e0e72d6969d442a624c7351b8b003d6b0e694af4beaca5c0"
+    },
+    {
+      "fixture": "reviung41",
+      "boardId": "main",
+      "instanceId": "main",
+      "flipped": false,
+      "documentSha256": "1bb588542b23d752b70d22c846c883b0a54cdb96058967f5e2e4912d0e6f9213",
+      "sceneSha256": "8ae0185e8222bfc8e0e72d6969d442a624c7351b8b003d6b0e694af4beaca5c0"
+    },
+    {
+      "fixture": "reviung41",
+      "boardId": "main",
+      "instanceId": "main",
+      "flipped": true,
+      "documentSha256": "550062ddfd01559251566d734c005699f5909d6dfaa99c4eef74463919886f34",
+      "sceneSha256": "bca2fe28491f4daee37baf0b0c3a876faa183f23d9d7626d54c8bdb9e7a1495a"
+    },
+    {
+      "fixture": "sofle",
+      "boardId": "left",
+      "instanceId": null,
+      "flipped": null,
+      "documentSha256": "df86833495060eb9e13540932a7f14e5266188f34d05e12de1a1fcb9b1bfad84",
+      "sceneSha256": "51b42c764f42ea160753c5e06a18432b30928808214cd5e68e8931d28f5d6822"
+    },
+    {
+      "fixture": "sofle",
+      "boardId": "left",
+      "instanceId": "left",
+      "flipped": false,
+      "documentSha256": "f6b30d16f7539420c3dc81ef7dc5855318e04576246a80bf93bcd76b98b70b90",
+      "sceneSha256": "51b42c764f42ea160753c5e06a18432b30928808214cd5e68e8931d28f5d6822"
+    },
+    {
+      "fixture": "sofle",
+      "boardId": "left",
+      "instanceId": "left",
+      "flipped": true,
+      "documentSha256": "566245f08d26ebde915f08fbe3b45288e3f36e9f87a161a2d9b97eb6482e043d",
+      "sceneSha256": "ad9eed5e3b7549d9a46621bdda6af3300f4e79cbe12066e12ccfc912a23acad1"
+    },
+    {
+      "fixture": "sofle",
+      "boardId": "right",
+      "instanceId": null,
+      "flipped": null,
+      "documentSha256": "df86833495060eb9e13540932a7f14e5266188f34d05e12de1a1fcb9b1bfad84",
+      "sceneSha256": "51b42c764f42ea160753c5e06a18432b30928808214cd5e68e8931d28f5d6822"
+    },
+    {
+      "fixture": "sofle",
+      "boardId": "right",
+      "instanceId": "right",
+      "flipped": false,
+      "documentSha256": "0ae9df64d007730b47a26d196dafc097cff58c53a65c2f74ce5842cbe1f853c6",
+      "sceneSha256": "51b42c764f42ea160753c5e06a18432b30928808214cd5e68e8931d28f5d6822"
+    },
+    {
+      "fixture": "sofle",
+      "boardId": "right",
+      "instanceId": "right",
+      "flipped": true,
+      "documentSha256": "fbfbe476f4cfbbe7c07be69b827d1a012589f167c58046d7c9cb32bc07c937a9",
+      "sceneSha256": "2fadeb8931110a9275da5b7c138a90d867ecd7e92bed3e6a27f55749068456ad"
+    }
+  ],
+  "referenceSources": {
+    "hardwareInstances.ts": "3d79515245989616c3b542875c1afc5a40ca5f771a345abbbcca91b627208b83",
+    "mechanicalDefaults.ts": "172a27d212732975774f1ba0f84a0bfa2827e9730386abc2046002d4127709b2",
+    "mechanicalPresets.ts": "a380bbf390a0f9bbda3e534a6248b6b82389d483a766b18266b786188eb1e6a7"
+  },
+  "fixtureProvenanceSha256": "94e482939905866227daff02d0b7dbe7845666cf335b2dc9c7ccf23cdfdf2d70",
+  "fixtureProvenance": {
+    "schema": 1,
+    "source_commit": "cf3266f083a5c27667261ae4e98e25d396b357f2",
+    "source_hashes": {
+      "scripts/prepare-m1-fixtures.mjs": "0396a1a154dc824ffadb3b12449c1712cae4c6015d34197e7c56c49743974768",
+      "app/src/demos/sofle.ts": "4cafb598e281af7397a06152728d25ccdd7e7b8e11be3dc1233516f3ae325fa8",
+      "app/src/mechanicalPresets.ts": "a380bbf390a0f9bbda3e534a6248b6b82389d483a766b18266b786188eb1e6a7",
+      "app/src/storage.ts": "15664582c6770f0002d88a19be680fec5dd32ab003bd2250b3cadcb36216e282",
+      "app/src/bundledModels.ts": "9a61d03dc237e03f55b8799521e98ca3e4fbb2021a6846ba92d142a73e6079e8",
+      "core/Cargo.toml": "6c42ca750cd0490c8b6b5569dc4fb6f42d4625de22805293ca992d92049f5c7c",
+      "core/Cargo.lock": "c3521765a7fd687da7b289aafaf055af438a1556f6ef4641402f922d7a9b8ef1"
+    },
+    "core_wasm_sha256": "cbff8fa5fa3490dc87a6ed804b23e9601036b509517cdc3196d2f1285afb2e63",
+    "preparation": "Reference openSofleDemo v2 plus public set-mechanical gasket edit and reference packProject with embedded used models",
+    "fixtures": [
+      {
+        "name": "REVIUNG41",
+        "source": "docs/design/evidence/board-outlines/reviung41-original.boardstudio",
+        "source_sha256": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f",
+        "document_id": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+        "revision": 3,
+        "assets": [
+          {
+            "sha256": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+            "bytes": 1171446
+          },
+          {
+            "sha256": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+            "bytes": 2649877
+          },
+          {
+            "sha256": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+            "bytes": 2769044
+          },
+          {
+            "sha256": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+            "bytes": 149936
+          }
+        ]
+      },
+      {
+        "name": "Sofle v2 gasket",
+        "source": "app/src/demos/sofle.ts",
+        "document_id": "m1-sofle-v2-copy",
+        "revision": 3,
+        "archive_sha256": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899",
+        "assets": [
+          {
+            "sha256": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+            "bytes": 1171446
+          },
+          {
+            "sha256": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+            "bytes": 1121898
+          },
+          {
+            "sha256": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+            "bytes": 103328
+          },
+          {
+            "sha256": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+            "bytes": 2649877
+          },
+          {
+            "sha256": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+            "bytes": 2769044
+          },
+          {
+            "sha256": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+            "bytes": 149936
+          }
+        ]
+      }
+    ]
+  },
+  "initialMismatchesObservedAndFixed": [
+    "Selected instance projection omitted ProjectDoc.physicalInstanceId; the TypeScript helper sets it. Rust now sets the existing field.",
+    "Canonical (no instance) projection filtered document.mechanical by active board; the TypeScript helper preserves the document configuration. Rust now preserves it for exact parity."
+  ],
+  "rustImplementationSources": {
+    "cad_jobs.rs": "77e304d386911abe3e35bd676b00c3796d4527bff5c561116ac83b8b38ead1ad",
+    "cad_worker.rs": "c4559672cf00fc8683171cf9e486e8b195da9458ab12065934f85f658220ac52"
+  },
+  "candidateSourceCommit": "0b8a0450"
+}

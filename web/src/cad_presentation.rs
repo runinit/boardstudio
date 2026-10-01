@@ -1,6 +1,6 @@
 //! Canvas lifetime and case controls consume immutable session snapshots.
 use crate::runtime::{CadScene, Runtime};
-use boardstudio_application::{Event, GenerationStatus};
+use boardstudio_application::{Durability, Event, GenerationStatus, Lifecycle};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 use boardstudio_web::{
     cad_jobs::captured_case_document, case_settings, renderer_host::RendererHost,
@@ -47,9 +47,12 @@ pub fn CasePanel() -> Element {
                                     .map_err(|error| format!("{error:?}"))
                             })
                     });
-                let has_settings = effective
-                    .as_ref()
-                    .is_ok_and(|document| document.mechanical.is_some());
+                let has_settings = effective.as_ref().is_ok_and(|document| {
+                    document
+                        .mechanical
+                        .as_ref()
+                        .is_some_and(|config| config.board_id == model.active_board_id)
+                });
                 let settings = effective.and_then(|document| {
                     case_settings::initial_settings(&document, &model.active_board_id)
                 });
@@ -58,6 +61,13 @@ pub fn CasePanel() -> Element {
         },
     ));
     let (has_settings, settings) = settings_state();
+    let can_edit_settings = model.lifecycle == Lifecycle::Ready
+        && model.display_preview.is_none()
+        && model.gesture.is_none()
+        && model.durability
+            == Durability::Saved {
+                revision: snapshot.document.revision,
+            };
     let initialize = runtime.clone();
     let generate = runtime.clone();
     let cancel = runtime.clone();
@@ -85,11 +95,11 @@ pub fn CasePanel() -> Element {
         section { class: "m1-case-panel", "aria-label": "Case assembly",
             h2 { "Case assembly" }
             if !has_settings {
-                button { onclick: move |_| set_settings(&initialize, None), "Add case settings" }
+                button { disabled: !can_edit_settings, onclick: move |_| set_settings(&initialize, None), "Add case settings" }
             }
             if let Ok(config) = settings {
                 label { "Bottom thickness (mm)"
-                    input { r#type: "number", min: "0.1", step: "0.1", value: "{config.bottom_thickness}", onchange: move |event: FormEvent| {
+                    input { disabled: !can_edit_settings, r#type: "number", min: "0.1", step: "0.1", value: "{config.bottom_thickness}", onchange: move |event: FormEvent| {
                         if let Ok(value) = event.value().parse::<f64>() { set_settings(&update, Some(value)); }
                     } }
                 }
@@ -110,6 +120,19 @@ fn set_settings(runtime: &Rc<Runtime>, bottom: Option<f64>) {
     let Some(snapshot) = model.accepted else {
         return;
     };
+    if model.lifecycle != Lifecycle::Ready
+        || model.display_preview.is_some()
+        || model.gesture.is_some()
+        || model.durability
+            != (Durability::Saved {
+                revision: snapshot.document.revision,
+            })
+    {
+        runtime.report(
+            "Finish or cancel the position edit and wait for saving before changing case settings.",
+        );
+        return;
+    }
     let Some(scope) = runtime.scope() else {
         return;
     };
