@@ -2120,17 +2120,13 @@ pub enum AssemblyModelMode {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum PlateMethod {
     PcbFr4,
+    #[default]
     Printed,
     Cnc,
     CutSheet,
-}
-
-impl Default for PlateMethod {
-    fn default() -> Self {
-        Self::Printed
-    }
 }
 
 fn unset_mechanical_dimension() -> f64 {

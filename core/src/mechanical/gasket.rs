@@ -372,16 +372,16 @@ pub(super) fn generate(
                     }
                     previous = Some(candidate.clone());
                     candidates.push(candidate);
-                } else if let (Some(start), Some(end)) = (run.take(), previous.take()) {
-                    if distance(start.at, end.at) > 0.1 {
-                        tracks.push(MechanicalGasketTrack {
-                            region_id: id.clone(),
-                            start: start.at,
-                            end: end.at,
-                            start_anchor: start.anchor,
-                            end_anchor: end.anchor,
-                        });
-                    }
+                } else if let (Some(start), Some(end)) = (run.take(), previous.take())
+                    && distance(start.at, end.at) > 0.1
+                {
+                    tracks.push(MechanicalGasketTrack {
+                        region_id: id.clone(),
+                        start: start.at,
+                        end: end.at,
+                        start_anchor: start.anchor,
+                        end_anchor: end.anchor,
+                    });
                 }
             }
             travelled += length;
@@ -404,12 +404,12 @@ pub(super) fn generate(
         for slot in 0..SUPPORT_COUNT {
             let id = format!("{}:{slot}", region.id);
             let saved = settings.supports.iter().find(|a| a.id == id);
-            if let Some(saved) = saved {
-                if saved.outline_key != region.key || saved.region_id != region.id {
-                    return Err(format!(
-                        "Gasket {id} was moved manually and its outline changed. Reset its positions or restore the outline."
-                    ));
-                }
+            if let Some(saved) = saved
+                && (saved.outline_key != region.key || saved.region_id != region.id)
+            {
+                return Err(format!(
+                    "Gasket {id} was moved manually and its outline changed. Reset its positions or restore the outline."
+                ));
             }
             let ideal = saved.map_or((slot as f64 + 0.5) / SUPPORT_COUNT as f64, |a| a.anchor);
             let saved_candidate = saved.and_then(|saved| on_track(region, saved.anchor));

@@ -652,6 +652,48 @@ pub fn part_valid(part: &Part, doc: &ProjectDoc) -> bool {
         .any(|def| def.id == part.definition_id)
 }
 
+/// Mark only the vertices where finishing actually reduced the requested size.
+fn corner_markers_for(board_id: &str, locations: &[Vec2]) -> Vec<crate::model::FindingMarker> {
+    if locations.is_empty() {
+        return vec![];
+    }
+    let contours: Vec<_> = locations
+        .iter()
+        .map(|p| Contour {
+            hole: false,
+            points: vec![
+                Vec2 {
+                    x: p.x - 0.8,
+                    y: p.y - 0.8,
+                },
+                Vec2 {
+                    x: p.x + 0.8,
+                    y: p.y - 0.8,
+                },
+                Vec2 {
+                    x: p.x + 0.8,
+                    y: p.y + 0.8,
+                },
+                Vec2 {
+                    x: p.x - 0.8,
+                    y: p.y + 0.8,
+                },
+            ],
+        })
+        .collect();
+    [
+        "outline:corners:fitted".to_owned(),
+        format!("board:{board_id}:feature:outline:corners:fitted"),
+    ]
+    .into_iter()
+    .map(|finding_id| crate::model::FindingMarker {
+        finding_id,
+        board_id: board_id.to_owned(),
+        contours: contours.clone(),
+    })
+    .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -835,46 +877,4 @@ mod tests {
     fn compare_200() {
         compare(200);
     }
-}
-
-/// Mark only the vertices where finishing actually reduced the requested size.
-fn corner_markers_for(board_id: &str, locations: &[Vec2]) -> Vec<crate::model::FindingMarker> {
-    if locations.is_empty() {
-        return vec![];
-    }
-    let contours: Vec<_> = locations
-        .iter()
-        .map(|p| Contour {
-            hole: false,
-            points: vec![
-                Vec2 {
-                    x: p.x - 0.8,
-                    y: p.y - 0.8,
-                },
-                Vec2 {
-                    x: p.x + 0.8,
-                    y: p.y - 0.8,
-                },
-                Vec2 {
-                    x: p.x + 0.8,
-                    y: p.y + 0.8,
-                },
-                Vec2 {
-                    x: p.x - 0.8,
-                    y: p.y + 0.8,
-                },
-            ],
-        })
-        .collect();
-    [
-        "outline:corners:fitted".to_owned(),
-        format!("board:{board_id}:feature:outline:corners:fitted"),
-    ]
-    .into_iter()
-    .map(|finding_id| crate::model::FindingMarker {
-        finding_id,
-        board_id: board_id.to_owned(),
-        contours: contours.clone(),
-    })
-    .collect()
 }

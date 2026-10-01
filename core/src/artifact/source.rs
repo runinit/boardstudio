@@ -149,68 +149,65 @@ fn upgrade_legacy_arcs(source: &str) -> Result<String, ArtifactError> {
             return Ok(());
         };
         let head = sexpr::head(node).unwrap_or("");
-        if matches!(head, "fp_arc" | "gr_arc") {
-            if let (Some(center_node), Some(endpoint_node), Some(angle_node)) = (
+        if matches!(head, "fp_arc" | "gr_arc")
+            && let (Some(center_node), Some(endpoint_node), Some(angle_node)) = (
                 sexpr::child(node, "start"),
                 sexpr::child(node, "end"),
                 sexpr::child(node, "angle"),
-            ) {
-                let center = raw_point(center_node)?;
-                let endpoint = raw_point(endpoint_node)?;
-                let angle = sexpr::items(angle_node)
-                    .and_then(|parts| parts.get(1))
-                    .and_then(sexpr::atom)
-                    .ok_or_else(|| {
-                        ArtifactError::new(ArtifactErrorCode::ParseError, "Legacy arc needs angle")
-                    })?
-                    .parse::<f64>()
-                    .map_err(|_| {
-                        ArtifactError::new(
-                            ArtifactErrorCode::ParseError,
-                            "Invalid legacy arc angle",
-                        )
-                    })?;
-                if !angle.is_finite() {
-                    return Err(ArtifactError::new(
-                        ArtifactErrorCode::ParseError,
-                        "Invalid non-finite legacy arc angle",
-                    ));
-                }
-                let dx = endpoint.x - center.x;
-                let dy = endpoint.y - center.y;
-                let radius = dx.hypot(dy);
-                if radius <= 0.0 {
-                    return Err(ArtifactError::new(
-                        ArtifactErrorCode::ParseError,
-                        "Degenerate legacy arc",
-                    ));
-                }
-                let start_angle = dy.atan2(dx);
-                let sweep = angle.to_radians();
-                let at_angle = |fraction: f64| {
-                    let angle = start_angle + sweep * fraction;
-                    Vec2 {
-                        x: center.x + radius * angle.cos(),
-                        y: center.y + radius * angle.sin(),
-                    }
-                };
-                let start_span = sexpr::span(center_node);
-                let end_span = sexpr::span(endpoint_node);
-                edits.push((
-                    start_span,
-                    format!("(start {} {})", num(endpoint.x), num(endpoint.y)),
+            )
+        {
+            let center = raw_point(center_node)?;
+            let endpoint = raw_point(endpoint_node)?;
+            let angle = sexpr::items(angle_node)
+                .and_then(|parts| parts.get(1))
+                .and_then(sexpr::atom)
+                .ok_or_else(|| {
+                    ArtifactError::new(ArtifactErrorCode::ParseError, "Legacy arc needs angle")
+                })?
+                .parse::<f64>()
+                .map_err(|_| {
+                    ArtifactError::new(ArtifactErrorCode::ParseError, "Invalid legacy arc angle")
+                })?;
+            if !angle.is_finite() {
+                return Err(ArtifactError::new(
+                    ArtifactErrorCode::ParseError,
+                    "Invalid non-finite legacy arc angle",
                 ));
-                edits.push((
-                    Span {
-                        start: start_span.end,
-                        end: start_span.end,
-                    },
-                    format!(" (mid {} {})", num(at_angle(0.5).x), num(at_angle(0.5).y)),
-                ));
-                let end = at_angle(1.0);
-                edits.push((end_span, format!("(end {} {})", num(end.x), num(end.y))));
-                edits.push((sexpr::span(angle_node), String::new()));
             }
+            let dx = endpoint.x - center.x;
+            let dy = endpoint.y - center.y;
+            let radius = dx.hypot(dy);
+            if radius <= 0.0 {
+                return Err(ArtifactError::new(
+                    ArtifactErrorCode::ParseError,
+                    "Degenerate legacy arc",
+                ));
+            }
+            let start_angle = dy.atan2(dx);
+            let sweep = angle.to_radians();
+            let at_angle = |fraction: f64| {
+                let angle = start_angle + sweep * fraction;
+                Vec2 {
+                    x: center.x + radius * angle.cos(),
+                    y: center.y + radius * angle.sin(),
+                }
+            };
+            let start_span = sexpr::span(center_node);
+            let end_span = sexpr::span(endpoint_node);
+            edits.push((
+                start_span,
+                format!("(start {} {})", num(endpoint.x), num(endpoint.y)),
+            ));
+            edits.push((
+                Span {
+                    start: start_span.end,
+                    end: start_span.end,
+                },
+                format!(" (mid {} {})", num(at_angle(0.5).x), num(at_angle(0.5).y)),
+            ));
+            let end = at_angle(1.0);
+            edits.push((end_span, format!("(end {} {})", num(end.x), num(end.y))));
+            edits.push((sexpr::span(angle_node), String::new()));
         }
         for child in items.iter().skip(1) {
             visit(child, edits)?;
@@ -282,17 +279,16 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
     if let (Some(name), Some(source_name)) = (patch.footprint_name.as_deref(), children.get(1)) {
         edits.push((sexpr::span(source_name), sexpr::quote(name)));
     }
-    if let Some(placement) = patch.placement {
-        if !placement.at.x.is_finite()
+    if let Some(placement) = patch.placement
+        && (!placement.at.x.is_finite()
             || !placement.at.y.is_finite()
             || !placement.rotation.is_finite()
             || placement.at.x.abs() > 1_000_000.0
-            || placement.at.y.abs() > 1_000_000.0
-        {
-            return Err(SourceError(
-                "Footprint placement is outside the supported coordinate range".into(),
-            ));
-        }
+            || placement.at.y.abs() > 1_000_000.0)
+    {
+        return Err(SourceError(
+            "Footprint placement is outside the supported coordinate range".into(),
+        ));
     }
     let theta = patch
         .placement
@@ -363,12 +359,12 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
             .or_else(|| number_node.and_then(sexpr::atom).map(str::to_owned))
             .unwrap_or_default();
         let net = patch.pad_nets.get(&id).cloned();
-        if let Some(previous) = numbers.insert(number.clone(), net.clone()) {
-            if previous != net {
-                return Err(SourceError(format!(
-                    "Repeated logical pad number {number} has conflicting net assignments"
-                )));
-            }
+        if let Some(previous) = numbers.insert(number.clone(), net.clone())
+            && previous != net
+        {
+            return Err(SourceError(format!(
+                "Repeated logical pad number {number} has conflicting net assignments"
+            )));
         }
         if let Some(old_net) = sexpr::child(pad, "net") {
             if let Some((code, name)) = net {
@@ -531,14 +527,13 @@ fn reject_unknown_spatial(root: &Node) -> Result<(), SourceError> {
     ];
     fn visit(node: &Node, known: &[&str]) -> Result<(), SourceError> {
         if let Some(items) = sexpr::items(node) {
-            if let Some(head) = items.first().and_then(sexpr::atom) {
-                if !known.contains(&head)
-                    && (spatial_form(head) || contains_spatial_coordinates(node))
-                {
-                    return Err(SourceError(format!(
-                        "Cannot transform unsupported spatial form: {head}"
-                    )));
-                }
+            if let Some(head) = items.first().and_then(sexpr::atom)
+                && !known.contains(&head)
+                && (spatial_form(head) || contains_spatial_coordinates(node))
+            {
+                return Err(SourceError(format!(
+                    "Cannot transform unsupported spatial form: {head}"
+                )));
             }
             for child in items {
                 visit(child, known)?;
@@ -763,17 +758,16 @@ fn patch_backside_geometry(
                     _ => {}
                 }
             }
-            if matches!(name, "fp_arc" | "gr_arc") && source_back != target_back {
-                if let Some(angle) = sexpr::child(node, "angle") {
-                    if let Some(value) = sexpr::items(angle)
-                        .and_then(|parts| parts.get(1))
-                        .and_then(sexpr::atom)
-                        .and_then(|value| value.parse::<f64>().ok())
-                    {
-                        let parts = sexpr::items(angle).expect("angle has parsed items");
-                        edits.push((sexpr::span(&parts[1]), num(-value)));
-                    }
-                }
+            if matches!(name, "fp_arc" | "gr_arc")
+                && source_back != target_back
+                && let Some(angle) = sexpr::child(node, "angle")
+                && let Some(value) = sexpr::items(angle)
+                    .and_then(|parts| parts.get(1))
+                    .and_then(sexpr::atom)
+                    .and_then(|value| value.parse::<f64>().ok())
+            {
+                let parts = sexpr::items(angle).expect("angle has parsed items");
+                edits.push((sexpr::span(&parts[1]), num(-value)));
             }
         }
         for (index, child) in items.iter().enumerate().skip(1) {
@@ -822,34 +816,33 @@ fn patch_absolute_angles(
         if name == "model" {
             return;
         }
-        if matches!(name, "pad" | "fp_text" | "property") {
-            if let Some(at) = sexpr::child(node, "at") {
-                if let Some(parts) = sexpr::items(at) {
-                    let source_absolute = parts
-                        .get(3)
-                        .and_then(sexpr::atom)
-                        .and_then(|value| value.parse::<f64>().ok())
-                        .unwrap_or(0.0);
-                    let relative = source_absolute - source_rotation;
-                    let local = if source_back { -relative } else { relative };
-                    let absolute = if target_back {
-                        theta + 180.0 - local
-                    } else {
-                        theta + local
-                    };
-                    if let Some(angle) = parts.get(3) {
-                        edits.push((sexpr::span(angle), num(absolute)));
-                    } else if let Some(y) = parts.get(2) {
-                        let span = sexpr::span(y);
-                        edits.push((
-                            Span {
-                                start: span.end,
-                                end: span.end,
-                            },
-                            format!(" {}", num(absolute)),
-                        ));
-                    }
-                }
+        if matches!(name, "pad" | "fp_text" | "property")
+            && let Some(at) = sexpr::child(node, "at")
+            && let Some(parts) = sexpr::items(at)
+        {
+            let source_absolute = parts
+                .get(3)
+                .and_then(sexpr::atom)
+                .and_then(|value| value.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let relative = source_absolute - source_rotation;
+            let local = if source_back { -relative } else { relative };
+            let absolute = if target_back {
+                theta + 180.0 - local
+            } else {
+                theta + local
+            };
+            if let Some(angle) = parts.get(3) {
+                edits.push((sexpr::span(angle), num(absolute)));
+            } else if let Some(y) = parts.get(2) {
+                let span = sexpr::span(y);
+                edits.push((
+                    Span {
+                        start: span.end,
+                        end: span.end,
+                    },
+                    format!(" {}", num(absolute)),
+                ));
             }
         }
         for child in items {
@@ -895,12 +888,12 @@ fn remap_uuids(root: &Node, scope: &str, edits: &mut Vec<(Span, String)>) {
         if let Some(items) = sexpr::items(node) {
             let name = sexpr::head(node).unwrap_or("");
             let group = in_group || name == "group";
-            if matches!(name, "uuid" | "tstamp") || (group && name == "id") {
-                if let Some(value) = items.get(1).and_then(sexpr::atom) {
-                    let mapped = deterministic_uuid(&format!("{scope}:{}", value));
-                    mapping.insert(value.to_owned(), mapped.clone());
-                    edits.push((sexpr::span(&items[1]), sexpr::quote(&mapped)));
-                }
+            if (matches!(name, "uuid" | "tstamp") || (group && name == "id"))
+                && let Some(value) = items.get(1).and_then(sexpr::atom)
+            {
+                let mapped = deterministic_uuid(&format!("{scope}:{}", value));
+                mapping.insert(value.to_owned(), mapped.clone());
+                edits.push((sexpr::span(&items[1]), sexpr::quote(&mapped)));
             }
             let is_object = matches!(
                 name,
@@ -948,10 +941,10 @@ fn remap_uuids(root: &Node, scope: &str, edits: &mut Vec<(Span, String)>) {
         if let Some(items) = sexpr::items(node) {
             if sexpr::head(node) == Some("members") {
                 for child in items.iter().skip(1) {
-                    if let Some(old) = sexpr::atom(child) {
-                        if let Some(new) = mapping.get(old) {
-                            edits.push((sexpr::span(child), sexpr::quote(new)));
-                        }
+                    if let Some(old) = sexpr::atom(child)
+                        && let Some(new) = mapping.get(old)
+                    {
+                        edits.push((sexpr::span(child), sexpr::quote(new)));
                     }
                 }
             }

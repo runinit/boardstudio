@@ -53,11 +53,11 @@ pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     }
     let mut changed = vec![];
     for part in &mut doc.parts {
-        if let Some(next) = resolved.get(&part.id) {
-            if part.pose != *next {
-                part.pose = *next;
-                changed.push(part.id.clone());
-            }
+        if let Some(next) = resolved.get(&part.id)
+            && part.pose != *next
+        {
+            part.pose = *next;
+            changed.push(part.id.clone());
         }
     }
     Ok(changed)

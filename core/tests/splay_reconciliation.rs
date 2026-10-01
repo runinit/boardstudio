@@ -212,10 +212,10 @@ fn editing_the_mirrored_half_updates_both_projections() {
             world: Some(Vec2 { x: -7.0, y: -13.0 }),
         },
     );
-    if let CoreRequest::Edit { command, .. } = &mut request {
-        if let EditOperation::SetMatrixSplay { matrix_id, .. } = &mut command.operation {
-            *matrix_id = "right".into();
-        }
+    if let CoreRequest::Edit { command, .. } = &mut request
+        && let EditOperation::SetMatrixSplay { matrix_id, .. } = &mut command.operation
+    {
+        *matrix_id = "right".into();
     }
     let (committed, document) = scene(engine.handle(request));
     assert!(

@@ -48,6 +48,12 @@ fn bool_parameter(
 
 /// Resolve known peripheral roles populated on a board. Unknown sources are
 /// omitted so callers can present an explicit "needs reviewed profile" state.
+type PeripheralTerminals = (
+    &'static str,
+    Vec<(&'static str, &'static str)>,
+    Vec<(&'static str, &'static str)>,
+);
+
 pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirement> {
     let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
         return vec![];
@@ -65,11 +71,9 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
             if !source.starts_with("ceoloide/") && source != "infused-kim/nice_view" {
                 return None;
             }
-            let (kind, gpio_terminals, fixed_terminals): (
-                &str,
-                Vec<(&str, &str)>,
-                Vec<(&str, &str)>,
-            ) = if source.ends_with("/display_ssd1306") {
+            let (kind, gpio_terminals, fixed_terminals): PeripheralTerminals = if source
+                .ends_with("/display_ssd1306")
+            {
                 (
                     "display-i2c",
                     vec![("SDA", "i2c/SDA"), ("SCL", "i2c/SCL")],

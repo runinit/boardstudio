@@ -176,11 +176,18 @@ fn macro_expansion_respects_zmk_binding_limit_at_the_boundary() {
 
 #[test]
 fn encoder_push_without_switches_exports_a_real_direct_scanner() {
-    let mut request=serde_json::to_value(firmware_request(layered())).unwrap();
-    request["request"]["mode"]=json!("direct"); request["request"]["rows"]=json!([]);request["request"]["columns"]=json!([]);
-    request["request"]["auxiliary_pins"]=json!([{"terminal":"P19","gpio":"P0.02"}]);request["request"]["keys"]=json!([{"id":"k","row":1,"column":0}]);
-    let reply=CoreEngine::new().handle(serde_json::from_value(request).unwrap());
-    let CoreReply::FirmwareGenerated{package,..}=reply else{panic!("{reply:?}")};
-    let overlay=&package.files["config/boards/shields/boardstudio/boardstudio.overlay"];
-    assert!(overlay.contains("input-gpios = <&gpio0 2"));assert!(!overlay.contains("input-gpios = <>"));assert!(overlay.contains("RC(0, 0)"));
+    let mut request = serde_json::to_value(firmware_request(layered())).unwrap();
+    request["request"]["mode"] = json!("direct");
+    request["request"]["rows"] = json!([]);
+    request["request"]["columns"] = json!([]);
+    request["request"]["auxiliary_pins"] = json!([{"terminal":"P19","gpio":"P0.02"}]);
+    request["request"]["keys"] = json!([{"id":"k","row":1,"column":0}]);
+    let reply = CoreEngine::new().handle(serde_json::from_value(request).unwrap());
+    let CoreReply::FirmwareGenerated { package, .. } = reply else {
+        panic!("{reply:?}")
+    };
+    let overlay = &package.files["config/boards/shields/boardstudio/boardstudio.overlay"];
+    assert!(overlay.contains("input-gpios = <&gpio0 2"));
+    assert!(!overlay.contains("input-gpios = <>"));
+    assert!(overlay.contains("RC(0, 0)"));
 }

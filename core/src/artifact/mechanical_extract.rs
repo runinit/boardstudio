@@ -17,7 +17,7 @@ const CONTOUR_ENDPOINT_TOLERANCE_MM: f64 = 0.01;
 
 /// Explicit source mappings can select a stable source id, or every primitive
 /// of one kind on a selected layer for a custom import.
-
+///
 /// Extract exact footprint-local graphics and drill dimensions. Drill holes
 /// remain unclassified by default, including all NPTH holes.
 pub fn extract(

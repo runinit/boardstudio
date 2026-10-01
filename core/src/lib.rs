@@ -128,10 +128,10 @@ impl CoreEngine {
                 if document.format != "boardstudio/v2" {
                     return self.error(id, "Unsupported document format");
                 }
-                if let Some(map) = &document.keymap {
-                    if let Err(message) = keymap::validate(map) {
-                        return self.error(id, &message);
-                    }
+                if let Some(map) = &document.keymap
+                    && let Err(message) = keymap::validate(map)
+                {
+                    return self.error(id, &message);
                 }
                 if let Err(message) = script::apply_scripts(&mut document) {
                     return self.error(id, &message);
@@ -157,13 +157,15 @@ impl CoreEngine {
                 self.recompute();
                 self.scene(
                     id,
-                    "open",
-                    vec![],
-                    &self.document,
-                    &self.contours,
-                    &self.findings,
-                    &self.outline_cache,
-                    SceneKind::Committed,
+                    SceneInput {
+                        transaction: "open",
+                        changed: vec![],
+                        document: &self.document,
+                        contours: &self.contours,
+                        geom_findings: &self.findings,
+                        cache: &self.outline_cache,
+                        kind: SceneKind::Committed,
+                    },
                 )
             }
             CoreRequest::Edit { id, command } => self.edit(id, command),
@@ -200,13 +202,15 @@ impl CoreEngine {
             },
             CoreRequest::Snapshot { id } => self.scene(
                 id,
-                "snapshot",
-                vec![],
-                &self.document,
-                &self.contours,
-                &self.findings,
-                &self.outline_cache,
-                SceneKind::Committed,
+                SceneInput {
+                    transaction: "snapshot",
+                    changed: vec![],
+                    document: &self.document,
+                    contours: &self.contours,
+                    geom_findings: &self.findings,
+                    cache: &self.outline_cache,
+                    kind: SceneKind::Committed,
+                },
             ),
             CoreRequest::ProjectMatrices {
                 id,
@@ -310,13 +314,15 @@ impl CoreEngine {
                 self.document.revision += 1;
                 self.scene(
                     id,
-                    "review-remap",
-                    vec![],
-                    &self.document,
-                    &self.contours,
-                    &self.findings,
-                    &self.outline_cache,
-                    SceneKind::Committed,
+                    SceneInput {
+                        transaction: "review-remap",
+                        changed: vec![],
+                        document: &self.document,
+                        contours: &self.contours,
+                        geom_findings: &self.findings,
+                        cache: &self.outline_cache,
+                        kind: SceneKind::Committed,
+                    },
                 )
             }
             CoreRequest::ProtectElectricalHandoff {
@@ -369,13 +375,15 @@ impl CoreEngine {
                 });
                 self.scene(
                     id,
-                    "protect-handoff",
-                    vec![],
-                    &self.document,
-                    &self.contours,
-                    &self.findings,
-                    &self.outline_cache,
-                    SceneKind::Committed,
+                    SceneInput {
+                        transaction: "protect-handoff",
+                        changed: vec![],
+                        document: &self.document,
+                        contours: &self.contours,
+                        geom_findings: &self.findings,
+                        cache: &self.outline_cache,
+                        kind: SceneKind::Committed,
+                    },
                 )
             }
         }
@@ -400,10 +408,10 @@ impl CoreEngine {
             Ok(changed) => changed,
             Err(message) => return self.error(id, &message),
         };
-        if let Some(map) = &next.keymap {
-            if let Err(message) = keymap::validate(map) {
-                return self.error(id, &message);
-            }
+        if let Some(map) = &next.keymap
+            && let Err(message) = keymap::validate(map)
+        {
+            return self.error(id, &message);
         }
         let mut changed = changed;
         electrical::preserve_handoff(&self.document, &mut next);
@@ -446,13 +454,15 @@ impl CoreEngine {
         if command.phase == EditPhase::Preview {
             return self.scene(
                 id,
-                &command.transaction_id,
-                changed,
-                &next,
-                &contours,
-                &findings,
-                &cache,
-                SceneKind::Preview,
+                SceneInput {
+                    transaction: &command.transaction_id,
+                    changed,
+                    document: &next,
+                    contours: &contours,
+                    geom_findings: &findings,
+                    cache: &cache,
+                    kind: SceneKind::Preview,
+                },
             );
         }
         next.revision = self.document.revision + 1;
@@ -465,13 +475,15 @@ impl CoreEngine {
         self.outline_cache = cache;
         self.scene(
             id,
-            &command.transaction_id,
-            changed,
-            &self.document,
-            &self.contours,
-            &self.findings,
-            &self.outline_cache,
-            SceneKind::Committed,
+            SceneInput {
+                transaction: &command.transaction_id,
+                changed,
+                document: &self.document,
+                contours: &self.contours,
+                geom_findings: &self.findings,
+                cache: &self.outline_cache,
+                kind: SceneKind::Committed,
+            },
         )
     }
 
@@ -497,13 +509,15 @@ impl CoreEngine {
                 let (cache, contours, findings) = outlines(&self.document, previous, &changed);
                 self.scene(
                     id,
-                    &command.transaction_id,
-                    changed,
-                    &self.document,
-                    &contours,
-                    &findings,
-                    &cache,
-                    SceneKind::Preview,
+                    SceneInput {
+                        transaction: &command.transaction_id,
+                        changed,
+                        document: &self.document,
+                        contours: &contours,
+                        geom_findings: &findings,
+                        cache: &cache,
+                        kind: SceneKind::Preview,
+                    },
                 )
             }
         };
@@ -531,13 +545,15 @@ impl CoreEngine {
         };
         self.scene(
             id,
-            transaction,
-            changed,
-            &self.document,
-            &self.contours,
-            &self.findings,
-            &self.outline_cache,
-            SceneKind::Committed,
+            SceneInput {
+                transaction,
+                changed,
+                document: &self.document,
+                contours: &self.contours,
+                geom_findings: &self.findings,
+                cache: &self.outline_cache,
+                kind: SceneKind::Committed,
+            },
         )
     }
 
@@ -546,17 +562,16 @@ impl CoreEngine {
         outline_versions::refresh_recovery(&mut self.document, &self.outline_cache);
     }
 
-    fn scene(
-        &self,
-        id: String,
-        transaction: &str,
-        changed: Vec<String>,
-        doc: &ProjectDoc,
-        contours: &[Contour],
-        geom_findings: &[Finding],
-        cache: &OutlineCache,
-        kind: SceneKind,
-    ) -> CoreReply {
+    fn scene(&self, id: String, input: SceneInput<'_>) -> CoreReply {
+        let SceneInput {
+            transaction,
+            changed,
+            document: doc,
+            contours,
+            geom_findings,
+            cache,
+            kind,
+        } = input;
         let mut findings = geom_findings.to_vec();
         let definition_ids: BTreeSet<_> =
             doc.definitions.iter().map(|def| def.id.as_str()).collect();
@@ -767,14 +782,24 @@ enum SceneKind {
     Committed,
 }
 
+struct SceneInput<'a> {
+    transaction: &'a str,
+    changed: Vec<String>,
+    document: &'a ProjectDoc,
+    contours: &'a [Contour],
+    geom_findings: &'a [Finding],
+    cache: &'a OutlineCache,
+    kind: SceneKind,
+}
+
+type SavedPartPose = (
+    usize,
+    Pose2,
+    Option<std::collections::BTreeMap<String, serde_json::Value>>,
+);
+
 enum PreviewBackup {
-    Parts(
-        Vec<(
-            usize,
-            Pose2,
-            Option<std::collections::BTreeMap<String, serde_json::Value>>,
-        )>,
-    ),
+    Parts(Vec<SavedPartPose>),
     Matrix {
         definition_len: usize,
         parts: Vec<Part>,
@@ -989,21 +1014,21 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             }
             let mut attached = false;
             for feature in &mut doc.outline {
-                if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature {
-                    if board_outline.contains(id) {
-                        part_ids.push(part.id.clone());
-                        attached = true;
-                    }
+                if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature
+                    && board_outline.contains(id)
+                {
+                    part_ids.push(part.id.clone());
+                    attached = true;
                 }
             }
-            if !attached && doc.boards.is_empty() {
-                if let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = doc
+            if !attached
+                && doc.boards.is_empty()
+                && let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = doc
                     .outline
                     .iter_mut()
                     .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
-                {
-                    part_ids.push(part.id.clone());
-                }
+            {
+                part_ids.push(part.id.clone());
             }
             doc.parts.push(part.clone());
             Ok(vec![part.id.clone()])
@@ -1076,10 +1101,10 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             } else {
                 doc.nets.push(net.clone());
             }
-            if let Some(board) = doc.boards.first_mut() {
-                if !board.net_ids.contains(&net.id) {
-                    board.net_ids.push(net.id.clone());
-                }
+            if let Some(board) = doc.boards.first_mut()
+                && !board.net_ids.contains(&net.id)
+            {
+                board.net_ids.push(net.id.clone());
             }
             Ok(vec![net.id.clone()])
         }

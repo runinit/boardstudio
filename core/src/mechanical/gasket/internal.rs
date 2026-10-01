@@ -572,13 +572,12 @@ pub(super) fn generate(
             closures.push((format!("closure:{id}:{slot}"), candidate));
         }
     }
-    if let Some(saved) = config.closure_mounts.as_ref().filter(|m| !m.is_empty()) {
-        if saved
+    if let Some(saved) = config.closure_mounts.as_ref().filter(|m| !m.is_empty())
+        && saved
             .iter()
             .any(|m| !closures.iter().any(|(id, _)| *id == m.id))
-        {
-            return Err("An established closure references an unresolved case region; explicitly convert or reset closures.".into());
-        }
+    {
+        return Err("An established closure references an unresolved case region; explicitly convert or reset closures.".into());
     }
     for (index, (id, c)) in closures.iter().enumerate() {
         if closures[..index].iter().any(|(other_id, other)| {
@@ -983,11 +982,9 @@ pub(super) fn generate(
                     ),
                 )
             })
+            && let Some(support) = result.gasket_supports.iter_mut().find(|s| s.id == *id)
         {
-            if let Some(support) = result.gasket_supports.iter_mut().find(|s| s.id == *id) {
-                support.fit_error =
-                    Some("Gasket overlaps another support; shorten or move it.".into());
-            }
+            support.fit_error = Some("Gasket overlaps another support; shorten or move it.".into());
         }
     }
     for (index, ring) in rings.iter().enumerate() {

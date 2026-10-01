@@ -118,14 +118,14 @@ pub(super) fn validate(
                 if let CaseFeature::SupportPrism {
                     points, z, height, ..
                 } = feature
+                    && middle >= *z
+                    && middle < z + height
                 {
-                    if middle >= *z && middle < z + height {
-                        material = combine(
-                            &material,
-                            &[points.iter().map(|p| [p.x, p.y]).collect()],
-                            OverlayRule::Union,
-                        );
-                    }
+                    material = combine(
+                        &material,
+                        &[points.iter().map(|p| [p.x, p.y]).collect()],
+                        OverlayRule::Union,
+                    );
                 }
             }
             for opening in body.body.openings.iter().flatten() {

@@ -1,4 +1,4 @@
-use boardstudio_core::{model::*, CoreEngine};
+use boardstudio_core::{CoreEngine, model::*};
 use serde_json::json;
 
 fn doc() -> ProjectDoc {
@@ -51,10 +51,12 @@ fn unit_override_rotated_overlap_blank_and_validation() {
         .units = Some(Vec2 { x: 1.0, y: 2.0 });
     document.parts[1].pose.rotation = 20.0;
     let result = resolve(document.clone(), None);
-    assert!(result
-        .findings
-        .iter()
-        .any(|f| f.message.contains("clearance")));
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.message.contains("clearance"))
+    );
     document
         .keycaps
         .as_mut()
@@ -72,10 +74,12 @@ fn unit_override_rotated_overlap_blank_and_validation() {
         .get_mut("m")
         .unwrap()
         .wall_thickness = 0.1;
-    assert!(resolve(document, None)
-        .findings
-        .iter()
-        .all(|f| f.severity == Severity::Error));
+    assert!(
+        resolve(document, None)
+            .findings
+            .iter()
+            .all(|f| f.severity == Severity::Error)
+    );
 }
 #[test]
 fn case_walls_are_checked_over_full_travel_and_ignore_stale_cases() {
@@ -89,16 +93,20 @@ fn case_walls_are_checked_over_full_travel_and_ignore_stale_cases() {
         ]
     };
     let cases=PreparedCaseAssemblyIR{revision:document.revision,bodies:vec![PreparedCaseIR{revision:document.revision,body:serde_json::from_value(json!({"id":"wall","name":"Wall","boardId":"board","kind":"tray","outlineIds":[],"thickness":2,"clearance":0,"wallHeight":12,"z":0})).unwrap(),regions:vec![PreparedCaseRegion{outer:square(25.0),holes:vec![],cavities:vec![square(8.0)],gaskets:vec![],mounts:vec![]}]}]};
-    assert!(resolve(document.clone(), Some(cases.clone()))
-        .findings
-        .iter()
-        .any(|f| f.target_ids.contains(&"wall".into())));
+    assert!(
+        resolve(document.clone(), Some(cases.clone()))
+            .findings
+            .iter()
+            .any(|f| f.target_ids.contains(&"wall".into()))
+    );
     let mut stale = cases;
     stale.revision += 1;
-    assert!(resolve(document, Some(stale))
-        .findings
-        .iter()
-        .any(|finding| finding.id.ends_with("case-pending")));
+    assert!(
+        resolve(document, Some(stale))
+            .findings
+            .iter()
+            .any(|finding| finding.id.ends_with("case-pending"))
+    );
 }
 #[test]
 fn open_replace_undo_and_roundtrip_preserve_settings() {
@@ -191,8 +199,10 @@ fn support_solids_are_checked_even_when_the_case_shell_is_below_the_cap() {
         }],
     };
     let result = resolve(document, Some(cases));
-    assert!(result
-        .findings
-        .iter()
-        .any(|finding| finding.id.ends_with("feature/post")));
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|finding| finding.id.ends_with("feature/post"))
+    );
 }

@@ -373,27 +373,27 @@ pub(crate) fn validate(
             .iter()
             .find(|state| state.board_id == board.id)
             .is_none_or(|state| state.active_version_id.is_none());
-        if generated {
-            if let Some((gap_id, message)) = outline_versions::protection_problem(doc, &board.id) {
-                let regions = outline_versions::active_snapshot(doc, &board.id)
-                    .into_iter()
-                    .flat_map(|snapshot| &snapshot.protected_gaps)
-                    .filter(|gap| gap.id == gap_id)
-                    .map(|gap| Contour {
-                        points: gap.points.iter().map(|p| p.at).collect(),
-                        hole: false,
-                    })
-                    .collect();
-                report(
-                    format!("keep-gap:{gap_id}"),
-                    format!(
-                        "{message}. Last valid outline retained; remove Keep gap or restore its sources."
-                    ),
-                    None,
-                    regions,
-                    Severity::Error,
-                );
-            }
+        if generated
+            && let Some((gap_id, message)) = outline_versions::protection_problem(doc, &board.id)
+        {
+            let regions = outline_versions::active_snapshot(doc, &board.id)
+                .into_iter()
+                .flat_map(|snapshot| &snapshot.protected_gaps)
+                .filter(|gap| gap.id == gap_id)
+                .map(|gap| Contour {
+                    points: gap.points.iter().map(|p| p.at).collect(),
+                    hole: false,
+                })
+                .collect();
+            report(
+                format!("keep-gap:{gap_id}"),
+                format!(
+                    "{message}. Last valid outline retained; remove Keep gap or restore its sources."
+                ),
+                None,
+                regions,
+                Severity::Error,
+            );
         }
         let regions = resolved
             .contours
@@ -520,19 +520,18 @@ pub(crate) fn validate(
                     },
                 );
             }
-            if definition.kind == PartKind::Switch {
-                if let Some(size) = part.keycap.or(definition.keycap) {
-                    let keycap =
-                        world(part, &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0));
-                    if missing(&keycap, &material, 0.0) {
-                        report(
-                            format!("keycap:{}", part.id),
-                            format!("{}: keycap overhangs the outline", part.reference),
-                            Some(&part.id),
-                            vec![contour(keycap)],
-                            Severity::Warning,
-                        );
-                    }
+            if definition.kind == PartKind::Switch
+                && let Some(size) = part.keycap.or(definition.keycap)
+            {
+                let keycap = world(part, &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0));
+                if missing(&keycap, &material, 0.0) {
+                    report(
+                        format!("keycap:{}", part.id),
+                        format!("{}: keycap overhangs the outline", part.reference),
+                        Some(&part.id),
+                        vec![contour(keycap)],
+                        Severity::Warning,
+                    );
                 }
             }
         }
@@ -568,8 +567,7 @@ pub(crate) fn validate(
                     .contours
                     .iter()
                     .filter(|contour| contour.hole)
-                    .map(|hole| paths(std::slice::from_ref(hole)))
-                    .flatten()
+                    .flat_map(|hole| paths(std::slice::from_ref(hole)))
                     .collect();
                 let region =
                     outer_path.overlay(&local_holes, OverlayRule::Difference, FillRule::EvenOdd);

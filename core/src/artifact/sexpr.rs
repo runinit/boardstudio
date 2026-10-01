@@ -186,6 +186,6 @@ mod tests {
         )
         .unwrap();
         assert!(changed.contains(raw_unknown));
-        assert!(changed.contains("(property \"Value\" \"custom\\nvalue\")") == false);
+        assert!(!changed.contains("(property \"Value\" \"custom\\nvalue\")"));
     }
 }

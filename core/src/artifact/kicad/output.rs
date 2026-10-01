@@ -187,12 +187,12 @@ fn validate_net_refs(
                             } => sexpr::kicad_quoted(source_text, *span),
                             _ => node_atom(label_node).map(str::to_owned),
                         };
-                        if let Some(label) = label {
-                            if label != *name {
-                                return Err(validation(format!(
-                                    "Generated net reference {index} has mismatched name"
-                                )));
-                            }
+                        if let Some(label) = label
+                            && label != *name
+                        {
+                            return Err(validation(format!(
+                                "Generated net reference {index} has mismatched name"
+                            )));
                         }
                     }
                 }
@@ -425,8 +425,8 @@ fn finish_board(
             )?);
             continue;
         }
-        let compiled = compile::compile_authored(definition, part.side.clone())
-            .map_err(|message| validation(message))?;
+        let compiled =
+            compile::compile_authored(definition, part.side.clone()).map_err(validation)?;
         let geometry = &compiled.geometry;
         let mut pad_net_map = BTreeMap::new();
         for pad in &geometry.pads {

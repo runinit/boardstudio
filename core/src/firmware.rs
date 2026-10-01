@@ -195,14 +195,21 @@ fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
 pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     // An encoder-only board uses its push inputs as the primary direct scanner.
     fn normalize_push_only(half: &mut FirmwareRequest) {
-        if half.mode == FirmwareScanMode::Direct && half.direct_pins.is_empty() && !half.auxiliary_pins.is_empty() {
+        if half.mode == FirmwareScanMode::Direct
+            && half.direct_pins.is_empty()
+            && !half.auxiliary_pins.is_empty()
+        {
             half.direct_pins = std::mem::take(&mut half.auxiliary_pins);
-            for key in &mut half.keys { key.row = 0; }
+            for key in &mut half.keys {
+                key.row = 0;
+            }
         }
     }
     let mut normalized = request.clone();
     normalize_push_only(&mut normalized);
-    if let Some(half) = &mut normalized.peripheral { normalize_push_only(half); }
+    if let Some(half) = &mut normalized.peripheral {
+        normalize_push_only(half);
+    }
     let request = &normalized;
     validate_half(request)?;
     let transport = request.transport.as_ref().map(|mode| match mode {

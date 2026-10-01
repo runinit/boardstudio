@@ -277,7 +277,7 @@ fn rotated_and_concave_regions_keep_internal_features_within_the_wall_budget() {
         "../../cad/bench/fixtures/internal-gasket-v1/rectangle.json"
     ))
     .unwrap();
-    let concave = vec![
+    let concave = [
         (0., 0.),
         (180., 0.),
         (180., 100.),
@@ -572,7 +572,7 @@ fn automatic_gaskets_use_mixed_cut_lengths_and_support_four_sides() {
             3
         });
         let length = support["length"].as_f64().unwrap();
-        assert!(length >= 5. && length <= 80. && (length % 10. == 0. || length == 5.));
+        assert!((5. ..=80.).contains(&length) && (length % 10. == 0. || length == 5.));
         lengths.push(length as u32);
     }
     lengths.sort();

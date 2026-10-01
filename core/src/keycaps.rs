@@ -550,6 +550,48 @@ fn polygon_contains_envelope(poly: &[Vec2], shape: &[Vec2], clearance: f64) -> b
         && edge_distance(poly, shape) + 1e-7 >= clearance
 }
 
+fn round_boundary(at: Vec2, diameter: f64) -> Vec<Vec2> {
+    (0..32)
+        .map(|index| {
+            let angle = f64::from(index) * std::f64::consts::TAU / 32.0;
+            Vec2 {
+                x: at.x + diameter / 2.0 / (std::f64::consts::PI / 32.0).cos() * angle.cos(),
+                y: at.y + diameter / 2.0 / (std::f64::consts::PI / 32.0).cos() * angle.sin(),
+            }
+        })
+        .collect()
+}
+
+/// Shared scene markers use the same resolved envelopes as clearance validation.
+pub(crate) fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMarker> {
+    let mut markers = vec![];
+    for board in &doc.boards {
+        let resolution = resolve(doc, &board.id, None);
+        for finding in findings
+            .iter()
+            .filter(|finding| finding.id.starts_with("keycaps/"))
+        {
+            let contours: Vec<_> = resolution
+                .specs
+                .iter()
+                .filter(|spec| finding.target_ids.contains(&spec.id))
+                .map(|spec| Contour {
+                    points: envelope(spec),
+                    hole: false,
+                })
+                .collect();
+            if !contours.is_empty() {
+                markers.push(FindingMarker {
+                    finding_id: finding.id.clone(),
+                    board_id: board.id.clone(),
+                    contours,
+                });
+            }
+        }
+    }
+    markers
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -601,46 +643,4 @@ mod tests {
         assert_eq!(binding_legend("&kp A"), "A");
         assert_eq!(binding_legend("&none"), "");
     }
-}
-
-fn round_boundary(at: Vec2, diameter: f64) -> Vec<Vec2> {
-    (0..32)
-        .map(|index| {
-            let angle = f64::from(index) * std::f64::consts::TAU / 32.0;
-            Vec2 {
-                x: at.x + diameter / 2.0 / (std::f64::consts::PI / 32.0).cos() * angle.cos(),
-                y: at.y + diameter / 2.0 / (std::f64::consts::PI / 32.0).cos() * angle.sin(),
-            }
-        })
-        .collect()
-}
-
-/// Shared scene markers use the same resolved envelopes as clearance validation.
-pub(crate) fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMarker> {
-    let mut markers = vec![];
-    for board in &doc.boards {
-        let resolution = resolve(doc, &board.id, None);
-        for finding in findings
-            .iter()
-            .filter(|finding| finding.id.starts_with("keycaps/"))
-        {
-            let contours: Vec<_> = resolution
-                .specs
-                .iter()
-                .filter(|spec| finding.target_ids.contains(&spec.id))
-                .map(|spec| Contour {
-                    points: envelope(spec),
-                    hole: false,
-                })
-                .collect();
-            if !contours.is_empty() {
-                markers.push(FindingMarker {
-                    finding_id: finding.id.clone(),
-                    board_id: board.id.clone(),
-                    contours,
-                });
-            }
-        }
-    }
-    markers
 }

@@ -144,7 +144,7 @@ fn pins(definition: &PartDefinition, terminal: &str, part: &str) -> Vec<Pin> {
         })
         .collect()
 }
-fn terminal<'a>(definition: &'a PartDefinition, row: bool) -> &'a str {
+fn terminal(definition: &PartDefinition, row: bool) -> &str {
     definition
         .matrix_terminals
         .as_ref()
@@ -359,15 +359,14 @@ fn allocate_pins<'a>(
         {
             continue;
         }
-        if let Some(previous_pin) = previous.get(function) {
-            if let Some(pin) = capabilities
+        if let Some(previous_pin) = previous.get(function)
+            && let Some(pin) = capabilities
                 .iter()
                 .find(|pin| pin.terminal == previous_pin && !used.contains(pin.firmware_gpio))
                 .copied()
-            {
-                used.insert(pin.firmware_gpio);
-                allocated.insert(function.clone(), pin);
-            }
+        {
+            used.insert(pin.firmware_gpio);
+            allocated.insert(function.clone(), pin);
         }
     }
     for function in functions {
@@ -482,20 +481,19 @@ fn resolve_jumpers(
             }
             if let Some(config) = config {
                 for site in &recipe.sites {
-                    if let Some(state) = config.jumper_states.get(&site.id) {
-                        if (*state == crate::electrical_profiles::JumperState::Bridged)
+                    if let Some(state) = config.jumper_states.get(&site.id)
+                        && (*state == crate::electrical_profiles::JumperState::Bridged)
                             != site.close
-                        {
-                            diagnostic(
-                                diagnostics,
-                                "jumper-state-conflict",
-                                format!(
-                                    "{}: jumper {} disagrees with the selected population face",
-                                    part.reference, site.id
-                                ),
-                                Some(&part.id),
-                            );
-                        }
+                    {
+                        diagnostic(
+                            diagnostics,
+                            "jumper-state-conflict",
+                            format!(
+                                "{}: jumper {} disagrees with the selected population face",
+                                part.reference, site.id
+                            ),
+                            Some(&part.id),
+                        );
                     }
                 }
             }
@@ -629,15 +627,15 @@ fn construct_nets(input: NetConstruction<'_>) -> ConstructedNets {
                 &function,
                 pins(definition, terminal, &part.id),
             );
-            if let (Some(controller), Some(definition)) = (controller, controller_definition) {
-                if target != "BAT_P" {
-                    add_net(
-                        &mut result.nets,
-                        prefix,
-                        &function,
-                        pins(definition, target, &controller.id),
-                    );
-                }
+            if let (Some(controller), Some(definition)) = (controller, controller_definition)
+                && target != "BAT_P"
+            {
+                add_net(
+                    &mut result.nets,
+                    prefix,
+                    &function,
+                    pins(definition, target, &controller.id),
+                );
             }
         }
     }
@@ -718,28 +716,28 @@ fn construct_nets(input: NetConstruction<'_>) -> ConstructedNets {
             }
         } else {
             add_net(&mut result.nets, prefix, &column_function, switch_column);
-            if let Some((diode, definition)) = key.diode {
-                if let Some((anode, cathode)) = diode_terminals(definition) {
-                    let (row_terminal, link_terminal) = if diode_direction == "row2col" {
-                        (anode, cathode)
-                    } else {
-                        (cathode, anode)
-                    };
-                    add_net(
-                        &mut result.nets,
-                        prefix,
-                        &row_function,
-                        pins(definition, row_terminal, &diode.id),
-                    );
-                    let mut link = switch_row;
-                    link.extend(pins(definition, link_terminal, &diode.id));
-                    add_net(
-                        &mut result.nets,
-                        prefix,
-                        &format!("link/{}", key.part.id),
-                        link,
-                    );
-                }
+            if let Some((diode, definition)) = key.diode
+                && let Some((anode, cathode)) = diode_terminals(definition)
+            {
+                let (row_terminal, link_terminal) = if diode_direction == "row2col" {
+                    (anode, cathode)
+                } else {
+                    (cathode, anode)
+                };
+                add_net(
+                    &mut result.nets,
+                    prefix,
+                    &row_function,
+                    pins(definition, row_terminal, &diode.id),
+                );
+                let mut link = switch_row;
+                link.extend(pins(definition, link_terminal, &diode.id));
+                add_net(
+                    &mut result.nets,
+                    prefix,
+                    &format!("link/{}", key.part.id),
+                    link,
+                );
             }
             if let (Some(controller), Some(definition)) = (controller, controller_definition) {
                 if let Some(pin) = row_cap {
@@ -1143,17 +1141,17 @@ pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
             }
         }
         for (function, pin) in &allocated {
-            if plan.peripheral_pins.contains_key(function) {
-                if let Some(gpio) = gpio(pin.terminal) {
-                    plan.peripheral_pins.insert(function.clone(), gpio);
-                    plan.peripheral_terminals.insert(
-                        function.clone(),
-                        plan.module_aliases
-                            .get(pin.terminal)
-                            .cloned()
-                            .unwrap_or_else(|| pin.terminal.into()),
-                    );
-                }
+            if plan.peripheral_pins.contains_key(function)
+                && let Some(gpio) = gpio(pin.terminal)
+            {
+                plan.peripheral_pins.insert(function.clone(), gpio);
+                plan.peripheral_terminals.insert(
+                    function.clone(),
+                    plan.module_aliases
+                        .get(pin.terminal)
+                        .cloned()
+                        .unwrap_or_else(|| pin.terminal.into()),
+                );
             }
         }
     }

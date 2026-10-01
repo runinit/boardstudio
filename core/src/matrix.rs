@@ -457,10 +457,10 @@ pub(crate) fn project_matrix(
                     + column_rotation(matrix, column)
                     + cell.and_then(|item| item.rotation).unwrap_or(0.0),
             };
-            if mode == ProjectionMode::Actual {
-                if let Some(id) = member_id.as_deref().and_then(|id| by_id.get(id)) {
-                    pose = id.pose;
-                }
+            if mode == ProjectionMode::Actual
+                && let Some(id) = member_id.as_deref().and_then(|id| by_id.get(id))
+            {
+                pose = id.pose;
             }
             if !pose.at.x.is_finite() || !pose.at.y.is_finite() || !pose.rotation.is_finite() {
                 return Err("Matrix projection exceeds finite geometry".into());
@@ -491,6 +491,385 @@ pub fn mark_override(part: &mut Part) {
     part.properties
         .get_or_insert_with(BTreeMap::new)
         .insert(OVERRIDE.into(), json!(1));
+}
+
+// A matrix definition replacement keeps electrical identities by logical terminal,
+// rather than carrying old physical pad IDs into the new footprint.
+fn remap_member_pins(
+    doc: &mut ProjectDoc,
+    index: usize,
+    definition_id: &str,
+) -> Result<Vec<String>, String> {
+    let part = &doc.parts[index];
+    if part.definition_id == definition_id
+        || !doc
+            .nets
+            .iter()
+            .any(|net| net.pins.iter().any(|pin| pin.part_id == part.id))
+    {
+        return Ok(vec![]);
+    }
+    let before = doc
+        .definitions
+        .iter()
+        .find(|d| d.id == part.definition_id)
+        .ok_or("Previous matrix definition is missing")?;
+    let after = doc
+        .definitions
+        .iter()
+        .find(|d| d.id == definition_id)
+        .ok_or("Replacement matrix definition is missing")?;
+    let old_row = matrix_terminal_pad_ids(before, true);
+    let old_column = matrix_terminal_pad_ids(before, false);
+    let mut mapping = BTreeMap::new();
+    for pad in &before.pads {
+        let mut targets = if old_row.contains(&pad.id) {
+            matrix_terminal_pad_ids(after, true)
+        } else if old_column.contains(&pad.id) {
+            matrix_terminal_pad_ids(after, false)
+        } else {
+            vec![]
+        };
+        if targets.is_empty() {
+            for (name, pads) in &before.terminals {
+                if pads.contains(&pad.id) {
+                    targets.extend(after.terminals.get(name).into_iter().flatten().cloned());
+                }
+            }
+        }
+        if targets.is_empty() && !pad.number.is_empty() {
+            targets.extend(
+                after
+                    .pads
+                    .iter()
+                    .filter(|new| new.number == pad.number)
+                    .map(|new| new.id.clone()),
+            );
+        }
+        if targets.is_empty() && after.pads.iter().any(|new| new.id == pad.id) {
+            targets.push(pad.id.clone());
+        }
+        targets.sort();
+        targets.dedup();
+        mapping.insert(pad.id.clone(), targets);
+    }
+    let part_id = part.id.clone();
+    let mut assigned = BTreeMap::new();
+    let mut changed = vec![];
+    for net in &mut doc.nets {
+        if !net.pins.iter().any(|pin| pin.part_id == part_id) {
+            continue;
+        }
+        let mut pins = vec![];
+        for pin in &net.pins {
+            if pin.part_id != part_id {
+                pins.push(pin.clone());
+                continue;
+            }
+            let targets = mapping
+                .get(&pin.pad_id)
+                .filter(|targets| !targets.is_empty())
+                .ok_or_else(|| {
+                    format!(
+                        "Cannot map connected pad {}/{} to the replacement footprint",
+                        part_id, pin.pad_id
+                    )
+                })?;
+            for target in targets {
+                if assigned
+                    .insert(target.clone(), net.id.clone())
+                    .is_some_and(|previous| previous != net.id)
+                {
+                    return Err(format!(
+                        "Replacement would merge different nets on pad {part_id}/{target}"
+                    ));
+                }
+                let mapped = Pin {
+                    part_id: part_id.clone(),
+                    pad_id: target.clone(),
+                };
+                if !pins.contains(&mapped) {
+                    pins.push(mapped);
+                }
+            }
+        }
+        if pins != net.pins {
+            net.pins = pins;
+            changed.push(net.id.clone());
+        }
+    }
+    Ok(changed)
+}
+
+pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>, String> {
+    let previous = doc
+        .matrices
+        .iter()
+        .find(|item| item.id == incoming.id)
+        .cloned();
+    // Only a shrinking axis removes edits outside its former bounds.
+    let mut resized = incoming.clone();
+    if let Some(before) = &previous {
+        if resized.rows < before.rows {
+            if resized.row_offsets.len() <= before.rows as usize {
+                resized.row_offsets.truncate(resized.rows as usize);
+            }
+            resized
+                .cells
+                .retain(|cell| cell.row < resized.rows || cell.row >= before.rows);
+        }
+        if resized.columns < before.columns {
+            if resized.column_staggers.len() <= before.columns as usize {
+                resized.column_staggers.truncate(resized.columns as usize);
+            }
+            if resized.column_splays.len() <= before.columns as usize {
+                resized.column_splays.truncate(resized.columns as usize);
+            }
+            if resized.column_origins.len() <= before.columns as usize {
+                resized.column_origins.truncate(resized.columns as usize);
+            }
+            if resized.column_offsets.len() <= before.columns as usize {
+                resized.column_offsets.truncate(resized.columns as usize);
+            }
+            resized
+                .cells
+                .retain(|cell| cell.column < resized.columns || cell.column >= before.columns);
+        }
+    }
+    let incoming = &resized;
+    valid_matrix(incoming, doc)?;
+    let old_ids: BTreeSet<_> = previous
+        .as_ref()
+        .map(|item| item.part_ids.iter().cloned().collect())
+        .unwrap_or_default();
+    let target_id = incoming.board_id.as_ref().or_else(|| {
+        previous
+            .as_ref()
+            .and_then(|matrix| matrix.board_id.as_ref())
+    });
+    if let Some(id) = target_id
+        && !doc.boards.iter().any(|board| &board.id == id)
+    {
+        return Err(format!("Unknown board {id}"));
+    }
+    let board_index = target_id
+        .and_then(|id| doc.boards.iter().position(|board| &board.id == id))
+        .or_else(|| {
+            doc.boards
+                .iter()
+                .position(|board| board.part_ids.iter().any(|id| old_ids.contains(id)))
+        })
+        .unwrap_or(0);
+    let board_ids = doc
+        .boards
+        .get(board_index)
+        .map(|board| board.outline_ids.clone())
+        .unwrap_or_default();
+    let mut next = incoming.clone();
+    next.edge_gap = Some(incoming.edge_gap.unwrap_or(Vec2 {
+        x: DEFAULT_EDGE_GAP_MM,
+        y: DEFAULT_EDGE_GAP_MM,
+    }));
+    next.board_id = doc.boards.get(board_index).map(|board| board.id.clone());
+    next.part_ids.clear();
+    let mut changed = vec![incoming.id.clone()];
+    let cells: BTreeMap<_, _> = incoming
+        .cells
+        .iter()
+        .map(|cell| ((cell.row, cell.column), cell))
+        .collect();
+    let mut part_index: BTreeMap<String, usize> = doc
+        .parts
+        .iter()
+        .enumerate()
+        .map(|(index, part)| (part.id.clone(), index))
+        .collect();
+    let mut references: BTreeSet<String> = doc
+        .parts
+        .iter()
+        .map(|part| part.reference.clone())
+        .collect();
+    let mut next_reference: BTreeMap<&str, usize> = BTreeMap::new();
+    for row in 0..incoming.rows {
+        for column in 0..incoming.columns {
+            let cell = cells.get(&(row, column)).copied();
+            if cell.is_some_and(|cell| !cell.enabled) {
+                continue;
+            }
+            let id = member_id(&incoming.id, row, column);
+            let pose = Pose2 {
+                at: location(incoming, row, column, cell),
+                rotation: incoming.rotation.unwrap_or(0.0)
+                    + column_rotation(incoming, column)
+                    + cell.and_then(|cell| cell.rotation).unwrap_or(0.0),
+            };
+            let mut members = vec![(
+                id,
+                incoming.definition_id.clone(),
+                pose,
+                Side::Front,
+                cell.and_then(|cell| cell.variant.as_ref()),
+            )];
+            if let Some(cell) = cell {
+                members[0].1 = cell
+                    .definition_id
+                    .as_ref()
+                    .unwrap_or(&incoming.definition_id)
+                    .clone();
+                for assembly in &cell.assemblies {
+                    let id = format!("{}/{}", members[0].0, assembly.id);
+                    let rotation = pose.rotation.to_radians();
+                    let (sin, cos) = rotation.sin_cos();
+                    let at = Vec2 {
+                        x: pose.at.x + assembly.offset.x * cos - assembly.offset.y * sin,
+                        y: pose.at.y + assembly.offset.x * sin + assembly.offset.y * cos,
+                    };
+                    members.push((
+                        id,
+                        assembly.definition_id.clone(),
+                        Pose2 {
+                            at,
+                            rotation: pose.rotation + assembly.rotation.unwrap_or(0.0),
+                        },
+                        assembly.side.clone().unwrap_or(Side::Front),
+                        None,
+                    ));
+                }
+            }
+            for (id, definition_id, pose, side, variant) in members {
+                if !old_ids.contains(&id) && part_index.contains_key(&id) {
+                    return Err(format!("Matrix member ID {id} is already owned"));
+                }
+                if let Some(&index) = part_index.get(&id) {
+                    changed.extend(remap_member_pins(doc, index, &definition_id)?);
+                    let previous = doc
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == doc.parts[index].definition_id);
+                    let authored_keycap = previous
+                        .filter(|definition| {
+                            definition.envelope_source.as_ref().is_some_and(|source| {
+                                source.keycap == Some(crate::model::EnvelopeOrigin::Authored)
+                            })
+                        })
+                        .and_then(|definition| definition.keycap);
+                    let part = &mut doc.parts[index];
+                    if part.definition_id != definition_id && part.keycap.is_none() {
+                        part.keycap = authored_keycap;
+                    }
+                    let overridden = part
+                        .properties
+                        .as_ref()
+                        .is_some_and(|props| props.get(OVERRIDE) == Some(&json!(1)));
+                    if !overridden {
+                        part.pose = pose;
+                    }
+                    part.definition_id = definition_id;
+                    part.side = side;
+                    if let Some(variant) = variant {
+                        part.properties
+                            .get_or_insert_with(BTreeMap::new)
+                            .insert("variant".into(), json!(variant));
+                    } else if let Some(properties) = &mut part.properties {
+                        properties.remove("variant");
+                    }
+                } else {
+                    let prefix = "SW";
+                    let number = next_reference.entry(prefix).or_insert(1);
+                    let reference = loop {
+                        let candidate = format!("{prefix}{number}");
+                        *number += 1;
+                        if references.insert(candidate.clone()) {
+                            break candidate;
+                        }
+                    };
+                    let mut properties = BTreeMap::new();
+                    if let Some(variant) = variant {
+                        properties.insert("variant".into(), json!(variant));
+                    }
+                    part_index.insert(id.clone(), doc.parts.len());
+                    doc.parts.push(Part {
+                        id: id.clone(),
+                        definition_id,
+                        reference,
+                        pose,
+                        side,
+                        locked: None,
+                        keycap: None,
+                        outline: None,
+                        properties: (!properties.is_empty()).then_some(properties),
+                        generator_parameters: None,
+                    });
+                }
+                next.part_ids.push(id.clone());
+                changed.push(id);
+            }
+        }
+    }
+    let new_ids: BTreeSet<_> = next.part_ids.iter().cloned().collect();
+    let removed: Vec<_> = old_ids.difference(&new_ids).cloned().collect();
+    let removed_set: BTreeSet<_> = removed.iter().cloned().collect();
+    doc.parts.retain(|part| !removed_set.contains(&part.id));
+    for board in &mut doc.boards {
+        board.part_ids.retain(|id| !removed_set.contains(id));
+        if board.id != next.board_id.as_deref().unwrap_or("") {
+            board.part_ids.retain(|id| !old_ids.contains(id));
+        }
+    }
+    for net in &mut doc.nets {
+        net.pins.retain(|pin| !removed_set.contains(&pin.part_id));
+    }
+    doc.constraints.retain(|constraint| {
+        !removed_set.contains(constraint.source()) && !removed_set.contains(constraint.target())
+    });
+    for feature in &mut doc.outline {
+        if let OutlineFeature::PartEnvelope { part_ids, .. } = feature {
+            part_ids.retain(|id| !removed_set.contains(id));
+        }
+    }
+    if let Some(board) = doc.boards.get_mut(board_index) {
+        let mut present: BTreeSet<_> = board.part_ids.iter().cloned().collect();
+        for id in &next.part_ids {
+            if present.insert(id.clone()) {
+                board.part_ids.push(id.clone());
+            }
+        }
+    }
+    for feature in &mut doc.outline {
+        if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature {
+            if !board_ids.contains(id) {
+                part_ids.retain(|member| !old_ids.contains(member));
+            }
+            if board_ids.contains(id) || part_ids.iter().any(|id| old_ids.contains(id)) {
+                let mut present: BTreeSet<_> = part_ids.iter().cloned().collect();
+                for member in &next.part_ids {
+                    if present.insert(member.clone()) {
+                        part_ids.push(member.clone());
+                    }
+                }
+            }
+        }
+    }
+    if doc.boards.is_empty()
+        && let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = doc
+            .outline
+            .iter_mut()
+            .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
+    {
+        let mut present: BTreeSet<_> = part_ids.iter().cloned().collect();
+        for member in &next.part_ids {
+            if present.insert(member.clone()) {
+                part_ids.push(member.clone());
+            }
+        }
+    }
+    if let Some(current) = doc.matrices.iter_mut().find(|item| item.id == incoming.id) {
+        *current = next;
+    } else {
+        doc.matrices.push(next);
+    }
+    changed.extend(removed);
+    Ok(changed)
 }
 
 #[cfg(test)]
@@ -666,386 +1045,4 @@ mod projection_tests {
             - scene.columns[0].axis_x.y * scene.columns[0].axis_y.x;
         assert!((determinant + 1.0).abs() < 1e-9);
     }
-}
-
-// A matrix definition replacement keeps electrical identities by logical terminal,
-// rather than carrying old physical pad IDs into the new footprint.
-fn remap_member_pins(
-    doc: &mut ProjectDoc,
-    index: usize,
-    definition_id: &str,
-) -> Result<Vec<String>, String> {
-    let part = &doc.parts[index];
-    if part.definition_id == definition_id
-        || !doc
-            .nets
-            .iter()
-            .any(|net| net.pins.iter().any(|pin| pin.part_id == part.id))
-    {
-        return Ok(vec![]);
-    }
-    let before = doc
-        .definitions
-        .iter()
-        .find(|d| d.id == part.definition_id)
-        .ok_or("Previous matrix definition is missing")?;
-    let after = doc
-        .definitions
-        .iter()
-        .find(|d| d.id == definition_id)
-        .ok_or("Replacement matrix definition is missing")?;
-    let old_row = matrix_terminal_pad_ids(before, true);
-    let old_column = matrix_terminal_pad_ids(before, false);
-    let mut mapping = BTreeMap::new();
-    for pad in &before.pads {
-        let mut targets = if old_row.contains(&pad.id) {
-            matrix_terminal_pad_ids(after, true)
-        } else if old_column.contains(&pad.id) {
-            matrix_terminal_pad_ids(after, false)
-        } else {
-            vec![]
-        };
-        if targets.is_empty() {
-            for (name, pads) in &before.terminals {
-                if pads.contains(&pad.id) {
-                    targets.extend(after.terminals.get(name).into_iter().flatten().cloned());
-                }
-            }
-        }
-        if targets.is_empty() && !pad.number.is_empty() {
-            targets.extend(
-                after
-                    .pads
-                    .iter()
-                    .filter(|new| new.number == pad.number)
-                    .map(|new| new.id.clone()),
-            );
-        }
-        if targets.is_empty() && after.pads.iter().any(|new| new.id == pad.id) {
-            targets.push(pad.id.clone());
-        }
-        targets.sort();
-        targets.dedup();
-        mapping.insert(pad.id.clone(), targets);
-    }
-    let part_id = part.id.clone();
-    let mut assigned = BTreeMap::new();
-    let mut changed = vec![];
-    for net in &mut doc.nets {
-        if !net.pins.iter().any(|pin| pin.part_id == part_id) {
-            continue;
-        }
-        let mut pins = vec![];
-        for pin in &net.pins {
-            if pin.part_id != part_id {
-                pins.push(pin.clone());
-                continue;
-            }
-            let targets = mapping
-                .get(&pin.pad_id)
-                .filter(|targets| !targets.is_empty())
-                .ok_or_else(|| {
-                    format!(
-                        "Cannot map connected pad {}/{} to the replacement footprint",
-                        part_id, pin.pad_id
-                    )
-                })?;
-            for target in targets {
-                if assigned
-                    .insert(target.clone(), net.id.clone())
-                    .is_some_and(|previous| previous != net.id)
-                {
-                    return Err(format!(
-                        "Replacement would merge different nets on pad {part_id}/{target}"
-                    ));
-                }
-                let mapped = Pin {
-                    part_id: part_id.clone(),
-                    pad_id: target.clone(),
-                };
-                if !pins.contains(&mapped) {
-                    pins.push(mapped);
-                }
-            }
-        }
-        if pins != net.pins {
-            net.pins = pins;
-            changed.push(net.id.clone());
-        }
-    }
-    Ok(changed)
-}
-
-pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>, String> {
-    let previous = doc
-        .matrices
-        .iter()
-        .find(|item| item.id == incoming.id)
-        .cloned();
-    // Only a shrinking axis removes edits outside its former bounds.
-    let mut resized = incoming.clone();
-    if let Some(before) = &previous {
-        if resized.rows < before.rows {
-            if resized.row_offsets.len() <= before.rows as usize {
-                resized.row_offsets.truncate(resized.rows as usize);
-            }
-            resized
-                .cells
-                .retain(|cell| cell.row < resized.rows || cell.row >= before.rows);
-        }
-        if resized.columns < before.columns {
-            if resized.column_staggers.len() <= before.columns as usize {
-                resized.column_staggers.truncate(resized.columns as usize);
-            }
-            if resized.column_splays.len() <= before.columns as usize {
-                resized.column_splays.truncate(resized.columns as usize);
-            }
-            if resized.column_origins.len() <= before.columns as usize {
-                resized.column_origins.truncate(resized.columns as usize);
-            }
-            if resized.column_offsets.len() <= before.columns as usize {
-                resized.column_offsets.truncate(resized.columns as usize);
-            }
-            resized
-                .cells
-                .retain(|cell| cell.column < resized.columns || cell.column >= before.columns);
-        }
-    }
-    let incoming = &resized;
-    valid_matrix(incoming, doc)?;
-    let old_ids: BTreeSet<_> = previous
-        .as_ref()
-        .map(|item| item.part_ids.iter().cloned().collect())
-        .unwrap_or_default();
-    let target_id = incoming.board_id.as_ref().or_else(|| {
-        previous
-            .as_ref()
-            .and_then(|matrix| matrix.board_id.as_ref())
-    });
-    if let Some(id) = target_id {
-        if !doc.boards.iter().any(|board| &board.id == id) {
-            return Err(format!("Unknown board {id}"));
-        }
-    }
-    let board_index = target_id
-        .and_then(|id| doc.boards.iter().position(|board| &board.id == id))
-        .or_else(|| {
-            doc.boards
-                .iter()
-                .position(|board| board.part_ids.iter().any(|id| old_ids.contains(id)))
-        })
-        .unwrap_or(0);
-    let board_ids = doc
-        .boards
-        .get(board_index)
-        .map(|board| board.outline_ids.clone())
-        .unwrap_or_default();
-    let mut next = incoming.clone();
-    next.edge_gap = Some(incoming.edge_gap.unwrap_or(Vec2 {
-        x: DEFAULT_EDGE_GAP_MM,
-        y: DEFAULT_EDGE_GAP_MM,
-    }));
-    next.board_id = doc.boards.get(board_index).map(|board| board.id.clone());
-    next.part_ids.clear();
-    let mut changed = vec![incoming.id.clone()];
-    let cells: BTreeMap<_, _> = incoming
-        .cells
-        .iter()
-        .map(|cell| ((cell.row, cell.column), cell))
-        .collect();
-    let mut part_index: BTreeMap<String, usize> = doc
-        .parts
-        .iter()
-        .enumerate()
-        .map(|(index, part)| (part.id.clone(), index))
-        .collect();
-    let mut references: BTreeSet<String> = doc
-        .parts
-        .iter()
-        .map(|part| part.reference.clone())
-        .collect();
-    let mut next_reference: BTreeMap<&str, usize> = BTreeMap::new();
-    for row in 0..incoming.rows {
-        for column in 0..incoming.columns {
-            let cell = cells.get(&(row, column)).copied();
-            if cell.is_some_and(|cell| !cell.enabled) {
-                continue;
-            }
-            let id = member_id(&incoming.id, row, column);
-            let pose = Pose2 {
-                at: location(incoming, row, column, cell),
-                rotation: incoming.rotation.unwrap_or(0.0)
-                    + column_rotation(incoming, column)
-                    + cell.and_then(|cell| cell.rotation).unwrap_or(0.0),
-            };
-            let mut members = vec![(
-                id,
-                incoming.definition_id.clone(),
-                pose,
-                Side::Front,
-                cell.and_then(|cell| cell.variant.as_ref()),
-            )];
-            if let Some(cell) = cell {
-                members[0].1 = cell
-                    .definition_id
-                    .as_ref()
-                    .unwrap_or(&incoming.definition_id)
-                    .clone();
-                for assembly in &cell.assemblies {
-                    let id = format!("{}/{}", members[0].0, assembly.id);
-                    let rotation = pose.rotation.to_radians();
-                    let (sin, cos) = rotation.sin_cos();
-                    let at = Vec2 {
-                        x: pose.at.x + assembly.offset.x * cos - assembly.offset.y * sin,
-                        y: pose.at.y + assembly.offset.x * sin + assembly.offset.y * cos,
-                    };
-                    members.push((
-                        id,
-                        assembly.definition_id.clone(),
-                        Pose2 {
-                            at,
-                            rotation: pose.rotation + assembly.rotation.unwrap_or(0.0),
-                        },
-                        assembly.side.clone().unwrap_or(Side::Front),
-                        None,
-                    ));
-                }
-            }
-            for (id, definition_id, pose, side, variant) in members {
-                if !old_ids.contains(&id) && part_index.contains_key(&id) {
-                    return Err(format!("Matrix member ID {id} is already owned"));
-                }
-                if let Some(&index) = part_index.get(&id) {
-                    changed.extend(remap_member_pins(doc, index, &definition_id)?);
-                    let previous = doc
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == doc.parts[index].definition_id);
-                    let authored_keycap = previous
-                        .filter(|definition| {
-                            definition.envelope_source.as_ref().is_some_and(|source| {
-                                source.keycap == Some(crate::model::EnvelopeOrigin::Authored)
-                            })
-                        })
-                        .and_then(|definition| definition.keycap);
-                    let part = &mut doc.parts[index];
-                    if part.definition_id != definition_id && part.keycap.is_none() {
-                        part.keycap = authored_keycap;
-                    }
-                    let overridden = part
-                        .properties
-                        .as_ref()
-                        .is_some_and(|props| props.get(OVERRIDE) == Some(&json!(1)));
-                    if !overridden {
-                        part.pose = pose;
-                    }
-                    part.definition_id = definition_id;
-                    part.side = side;
-                    if let Some(variant) = variant {
-                        part.properties
-                            .get_or_insert_with(BTreeMap::new)
-                            .insert("variant".into(), json!(variant));
-                    } else if let Some(properties) = &mut part.properties {
-                        properties.remove("variant");
-                    }
-                } else {
-                    let prefix = match definition_id.as_str() {
-                        _ => "SW",
-                    };
-                    let number = next_reference.entry(prefix).or_insert(1);
-                    let reference = loop {
-                        let candidate = format!("{prefix}{number}");
-                        *number += 1;
-                        if references.insert(candidate.clone()) {
-                            break candidate;
-                        }
-                    };
-                    let mut properties = BTreeMap::new();
-                    if let Some(variant) = variant {
-                        properties.insert("variant".into(), json!(variant));
-                    }
-                    part_index.insert(id.clone(), doc.parts.len());
-                    doc.parts.push(Part {
-                        id: id.clone(),
-                        definition_id,
-                        reference,
-                        pose,
-                        side,
-                        locked: None,
-                        keycap: None,
-                        outline: None,
-                        properties: (!properties.is_empty()).then_some(properties),
-                        generator_parameters: None,
-                    });
-                }
-                next.part_ids.push(id.clone());
-                changed.push(id);
-            }
-        }
-    }
-    let new_ids: BTreeSet<_> = next.part_ids.iter().cloned().collect();
-    let removed: Vec<_> = old_ids.difference(&new_ids).cloned().collect();
-    let removed_set: BTreeSet<_> = removed.iter().cloned().collect();
-    doc.parts.retain(|part| !removed_set.contains(&part.id));
-    for board in &mut doc.boards {
-        board.part_ids.retain(|id| !removed_set.contains(id));
-        if board.id != next.board_id.as_deref().unwrap_or("") {
-            board.part_ids.retain(|id| !old_ids.contains(id));
-        }
-    }
-    for net in &mut doc.nets {
-        net.pins.retain(|pin| !removed_set.contains(&pin.part_id));
-    }
-    doc.constraints.retain(|constraint| {
-        !removed_set.contains(constraint.source()) && !removed_set.contains(constraint.target())
-    });
-    for feature in &mut doc.outline {
-        if let OutlineFeature::PartEnvelope { part_ids, .. } = feature {
-            part_ids.retain(|id| !removed_set.contains(id));
-        }
-    }
-    if let Some(board) = doc.boards.get_mut(board_index) {
-        let mut present: BTreeSet<_> = board.part_ids.iter().cloned().collect();
-        for id in &next.part_ids {
-            if present.insert(id.clone()) {
-                board.part_ids.push(id.clone());
-            }
-        }
-    }
-    for feature in &mut doc.outline {
-        if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature {
-            if !board_ids.contains(id) {
-                part_ids.retain(|member| !old_ids.contains(member));
-            }
-            if board_ids.contains(id) || part_ids.iter().any(|id| old_ids.contains(id)) {
-                let mut present: BTreeSet<_> = part_ids.iter().cloned().collect();
-                for member in &next.part_ids {
-                    if present.insert(member.clone()) {
-                        part_ids.push(member.clone());
-                    }
-                }
-            }
-        }
-    }
-    if doc.boards.is_empty() {
-        if let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = doc
-            .outline
-            .iter_mut()
-            .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
-        {
-            let mut present: BTreeSet<_> = part_ids.iter().cloned().collect();
-            for member in &next.part_ids {
-                if present.insert(member.clone()) {
-                    part_ids.push(member.clone());
-                }
-            }
-        }
-    }
-    if let Some(current) = doc.matrices.iter_mut().find(|item| item.id == incoming.id) {
-        *current = next;
-    } else {
-        doc.matrices.push(next);
-    }
-    changed.extend(removed);
-    Ok(changed)
 }

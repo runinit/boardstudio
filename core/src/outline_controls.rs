@@ -152,14 +152,13 @@ pub(crate) fn detach_removed(before: &[Part], after: &mut ProjectDoc) {
                     .iter_mut()
                     .flat_map(|connection| &mut connection.points)
                 {
-                    if point.part_id.as_deref().is_some_and(removed) {
-                        if let Some(part) = before
+                    if point.part_id.as_deref().is_some_and(removed)
+                        && let Some(part) = before
                             .iter()
                             .find(|part| Some(&part.id) == point.part_id.as_ref())
-                        {
-                            point.at = world(point.at, part);
-                            point.part_id = None;
-                        }
+                    {
+                        point.at = world(point.at, part);
+                        point.part_id = None;
                     }
                 }
             }

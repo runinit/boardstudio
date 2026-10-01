@@ -406,15 +406,14 @@ fn resolve_profiles(
             .profiles
             .iter()
             .any(|profile| profile.definition_id == part.definition_id)
-        {
-            if let Ok(mut profile) = builtin_profile(
+            && let Ok(mut profile) = builtin_profile(
                 part.definition_id.clone(),
                 profile_source_for_family(family),
                 switch_mounting_datum(family) - effective_config.plate_thickness,
-            ) {
-                profile.switch_family = Some(family);
-                effective_config.profiles.push(profile);
-            }
+            )
+        {
+            profile.switch_family = Some(family);
+            effective_config.profiles.push(profile);
         }
         if let Some(profile) = effective_config
             .profiles
@@ -1315,7 +1314,7 @@ fn construct_bodies(
             continue;
         }
         bodies.push(CaseIR {
-            revision: revision,
+            revision,
             contours: body_contours,
             body: CaseBody {
                 features: None,
@@ -1387,42 +1386,44 @@ fn construct_bodies(
             },
         });
     }
-    if sheet_bottom && config.middle_frame.unwrap_or(false) && !config.integrated_plate_frame {
-        if let Some(bottom) = bodies.iter().find(|body| body.body.id == "bottom") {
-            let mut frame = bottom.clone();
-            frame.body.id = "middle-frame".into();
-            frame.body.name = "Middle frame".into();
-            frame.body.kind = CaseKind::Tray;
-            frame.body.wall_height = Some(config.plate_to_pcb - bottom_z - config.bottom_thickness);
-            frame.contours = frame_outer;
-            if let Ok(prepared) = crate::case::prepare(&CaseAssemblyIR {
-                revision: revision,
-                bodies: vec![frame.clone()],
-            }) {
-                let mut rings = Vec::new();
-                for region in &prepared.bodies[0].regions {
-                    rings.push(Contour {
-                        hole: false,
-                        points: region.outer.clone(),
-                    });
-                    rings.extend(region.cavities.iter().map(|points| Contour {
-                        hole: true,
-                        points: points.clone(),
-                    }));
-                }
-                frame.contours = rings;
-                frame.body.kind = CaseKind::Plate;
-                frame.body.z = Some(bottom_z + config.bottom_thickness);
-                frame.body.thickness = config.plate_to_pcb - bottom_z - config.bottom_thickness;
-                frame.body.wall_height = None;
-                frame.body.gasket = None;
-                stack.push(MechanicalStackLayer {
-                    id: "middle-frame".into(),
-                    z: frame.body.z.unwrap(),
-                    thickness: frame.body.thickness,
+    if sheet_bottom
+        && config.middle_frame.unwrap_or(false)
+        && !config.integrated_plate_frame
+        && let Some(bottom) = bodies.iter().find(|body| body.body.id == "bottom")
+    {
+        let mut frame = bottom.clone();
+        frame.body.id = "middle-frame".into();
+        frame.body.name = "Middle frame".into();
+        frame.body.kind = CaseKind::Tray;
+        frame.body.wall_height = Some(config.plate_to_pcb - bottom_z - config.bottom_thickness);
+        frame.contours = frame_outer;
+        if let Ok(prepared) = crate::case::prepare(&CaseAssemblyIR {
+            revision,
+            bodies: vec![frame.clone()],
+        }) {
+            let mut rings = Vec::new();
+            for region in &prepared.bodies[0].regions {
+                rings.push(Contour {
+                    hole: false,
+                    points: region.outer.clone(),
                 });
-                bodies.push(frame);
+                rings.extend(region.cavities.iter().map(|points| Contour {
+                    hole: true,
+                    points: points.clone(),
+                }));
             }
+            frame.contours = rings;
+            frame.body.kind = CaseKind::Plate;
+            frame.body.z = Some(bottom_z + config.bottom_thickness);
+            frame.body.thickness = config.plate_to_pcb - bottom_z - config.bottom_thickness;
+            frame.body.wall_height = None;
+            frame.body.gasket = None;
+            stack.push(MechanicalStackLayer {
+                id: "middle-frame".into(),
+                z: frame.body.z.unwrap(),
+                thickness: frame.body.thickness,
+            });
+            bodies.push(frame);
         }
     }
     if sheet_bottom {
@@ -1451,7 +1452,7 @@ fn construct_bodies(
             };
             let id = format!("spacer:{}", support.id);
             bodies.push(CaseIR {
-                revision: revision,
+                revision,
                 contours: vec![ring(diameter, false), ring(support.hole_diameter, true)],
                 body: CaseBody {
                     features: None,
@@ -1487,17 +1488,18 @@ fn finalize_assembly(
     component_volumes: &[(String, CaseOpening)],
 ) {
     crate::mechanical_checks::apply_allowance(config, result);
-    if config.mount == MechanicalMount::Gasket && !result.generation_blocked {
-        if let Err(message) = gasket::generate(document, config, result, component_volumes) {
-            result.generation_blocked = true;
-            result.diagnostics.push(Finding {
-                id: "mechanical:gasket-layout".into(),
-                severity: Severity::Error,
-                scope: Scope::Case,
-                message,
-                target_ids: vec!["plate".into()],
-            });
-        }
+    if config.mount == MechanicalMount::Gasket
+        && !result.generation_blocked
+        && let Err(message) = gasket::generate(document, config, result, component_volumes)
+    {
+        result.generation_blocked = true;
+        result.diagnostics.push(Finding {
+            id: "mechanical:gasket-layout".into(),
+            severity: Severity::Error,
+            scope: Scope::Case,
+            message,
+            target_ids: vec!["plate".into()],
+        });
     }
     if let Err(message) = crate::case::prepare(&result.case) {
         result.generation_blocked = true;
@@ -2071,6 +2073,144 @@ fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
     };
     contours.iter().any(|c| !c.hole && contains(c))
         && !contours.iter().any(|c| c.hole && contains(c))
+}
+
+/// Reviewed library fit geometry with a manufacturer-sourced switch datum.
+pub fn builtin_profile(
+    definition_id: String,
+    source: MechanicalBuiltinProfile,
+    plate_to_pcb: f64,
+) -> Result<MechanicalPartProfile, String> {
+    use crate::artifact::mechanical_extract::{
+        MechanicalPurpose, PurposeMapping, extract, pcb_mounting_holes, plate_cutout_contours,
+        profile_source,
+    };
+    if !plate_to_pcb.is_finite() || plate_to_pcb <= 0.0 {
+        return Err("Profile engagement must be positive finite millimetres".into());
+    }
+    let (name, source_text, family, square_cutout) = match source {
+        MechanicalBuiltinProfile::MxSwitch => (
+            "SW_MX_1u",
+            None,
+            Some(MechanicalSwitchFamily::Mx),
+            Some((14.0, 1.5, Vec2 { x: 1.4, y: 1.6 })),
+        ),
+        MechanicalBuiltinProfile::ChocV1Switch => (
+            "Kailh PG1350 Choc v1",
+            None,
+            Some(MechanicalSwitchFamily::ChocV1),
+            Some((14.0, 1.3, Vec2 { x: 1.2, y: 1.4 })),
+        ),
+        MechanicalBuiltinProfile::ChocV2Switch => (
+            "Kailh PG1353 Choc v2",
+            None,
+            Some(MechanicalSwitchFamily::ChocV2),
+            Some((14.0, 1.5, Vec2 { x: 1.4, y: 1.6 })),
+        ),
+        MechanicalBuiltinProfile::MxStab2u => (
+            "STAB_MX_2u",
+            Some(include_str!(
+                "../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod"
+            )),
+            None,
+            None,
+        ),
+        MechanicalBuiltinProfile::MxStab625u => (
+            "STAB_MX_6.25u",
+            Some(include_str!(
+                "../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod"
+            )),
+            None,
+            None,
+        ),
+    };
+    let is_library_geometry = source_text.is_some();
+    let mut source_geometry = None;
+    let mut pcb_holes = None;
+    let cutouts = if let Some(source_text) = source_text {
+        let raw = extract(source_text, &[]).map_err(|e| format!("{e:?}"))?;
+        let mappings: Vec<_> = raw
+            .primitives
+            .iter()
+            .filter_map(|primitive| {
+                let purpose = if primitive.layer.as_deref() == Some("Eco2.User") {
+                    MechanicalPurpose::PlateCutout
+                } else if matches!(
+                    &primitive.geometry,
+                    MechanicalShape::Drill {
+                        plated: Some(false),
+                        ..
+                    }
+                ) {
+                    MechanicalPurpose::ElectricalPcbMountingHole
+                } else {
+                    return None;
+                };
+                Some(PurposeMapping {
+                    source_id: Some(primitive.id.clone()),
+                    kind: None,
+                    layer: None,
+                    purpose,
+                })
+            })
+            .collect();
+        let geometry = extract(source_text, &mappings).map_err(|e| format!("{e:?}"))?;
+        source_geometry =
+            Some(profile_source(source_text, &mappings).map_err(|e| format!("{e:?}"))?);
+        pcb_holes = Some(pcb_mounting_holes(&geometry).map_err(|e| format!("{e:?}"))?);
+        plate_cutout_contours(&geometry, 0.005).map_err(|e| format!("{e:?}"))?
+    } else if let Some((width, _, _)) = square_cutout {
+        let half = width / 2.0;
+        vec![vec![
+            Vec2 { x: -half, y: -half },
+            Vec2 { x: half, y: -half },
+            Vec2 { x: half, y: half },
+            Vec2 { x: -half, y: half },
+        ]]
+    } else {
+        Vec::new()
+    };
+    if cutouts.is_empty() {
+        return Err("Bundled profile has no mapped plate contours".into());
+    }
+    let supported_thickness = if let Some((_, _, range)) = square_cutout {
+        Some(range)
+    } else if family == Some(MechanicalSwitchFamily::Mx) {
+        Some(Vec2 { x: 1.4, y: 1.6 })
+    } else {
+        None
+    };
+    let manufacturer_source = match family {
+        Some(MechanicalSwitchFamily::Mx) => {
+            "Cherry MX datasheet: https://datasheet.octopart.com/MX1A-11NW-Cherry-datasheet-34676.pdf; 5.0 mm nominal mounting datum; 1.5 mm nominal plate"
+        }
+        Some(MechanicalSwitchFamily::ChocV1) => {
+            "Kailh PG1350 drawing CPG135001D01-16: https://m.kailhswitch.com/Content/upload/pdf/202215927/CPG135001D01-16.pdf?rnd=121; 3.5 mm mounting datum; 1.3 mm nominal plate"
+        }
+        Some(MechanicalSwitchFamily::ChocV2) => {
+            "Kailh PG1353 drawing CPG135301D03: https://www.kailhswitch.com/Content/upload/pdf/202015927/PG135301D03.pdf; 5.0 mm mounting datum; 1.5 mm nominal plate"
+        }
+        None => "",
+    };
+    Ok(MechanicalPartProfile {
+        source_geometry,
+        pcb_holes,
+        clearance_volumes: None,
+        openings: None,
+        clearances: None,
+        switch_family: family,
+        definition_id,
+        source: if is_library_geometry {
+            format!(
+                "marbastlib@6b0a9a73f579e377816d60b58eac2b3252de7868:footprints/marbastlib-mx.pretty/{name}.kicad_mod:CERN-OHL-P-2.0:Eco2.User; chord deviation <=0.005mm; {manufacturer_source}; PCB-mount stabilizers only"
+            )
+        } else {
+            format!("{manufacturer_source}; Board Studio standard 14 x 14 mm plate opening")
+        },
+        cutouts,
+        plate_to_pcb,
+        supported_thickness,
+    })
 }
 
 #[cfg(test)]
@@ -3177,7 +3317,7 @@ mod tests {
             ],
         };
         let expanded = expanded_outline(&[outer, hole.clone()], 2.0, 1).unwrap();
-        assert!(expanded.iter().any(|c| *c == hole));
+        assert!(expanded.contains(&hole));
         assert!(
             expanded
                 .iter()
@@ -3254,142 +3394,4 @@ mod tests {
                 .any(|d| d.id == "mechanical:gasket-rigid-frame")
         );
     }
-}
-
-/// Reviewed library fit geometry with a manufacturer-sourced switch datum.
-pub fn builtin_profile(
-    definition_id: String,
-    source: MechanicalBuiltinProfile,
-    plate_to_pcb: f64,
-) -> Result<MechanicalPartProfile, String> {
-    use crate::artifact::mechanical_extract::{
-        MechanicalPurpose, PurposeMapping, extract, pcb_mounting_holes, plate_cutout_contours,
-        profile_source,
-    };
-    if !plate_to_pcb.is_finite() || plate_to_pcb <= 0.0 {
-        return Err("Profile engagement must be positive finite millimetres".into());
-    }
-    let (name, source_text, family, square_cutout) = match source {
-        MechanicalBuiltinProfile::MxSwitch => (
-            "SW_MX_1u",
-            None,
-            Some(MechanicalSwitchFamily::Mx),
-            Some((14.0, 1.5, Vec2 { x: 1.4, y: 1.6 })),
-        ),
-        MechanicalBuiltinProfile::ChocV1Switch => (
-            "Kailh PG1350 Choc v1",
-            None,
-            Some(MechanicalSwitchFamily::ChocV1),
-            Some((14.0, 1.3, Vec2 { x: 1.2, y: 1.4 })),
-        ),
-        MechanicalBuiltinProfile::ChocV2Switch => (
-            "Kailh PG1353 Choc v2",
-            None,
-            Some(MechanicalSwitchFamily::ChocV2),
-            Some((14.0, 1.5, Vec2 { x: 1.4, y: 1.6 })),
-        ),
-        MechanicalBuiltinProfile::MxStab2u => (
-            "STAB_MX_2u",
-            Some(include_str!(
-                "../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod"
-            )),
-            None,
-            None,
-        ),
-        MechanicalBuiltinProfile::MxStab625u => (
-            "STAB_MX_6.25u",
-            Some(include_str!(
-                "../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod"
-            )),
-            None,
-            None,
-        ),
-    };
-    let is_library_geometry = source_text.is_some();
-    let mut source_geometry = None;
-    let mut pcb_holes = None;
-    let cutouts = if let Some(source_text) = source_text {
-        let raw = extract(source_text, &[]).map_err(|e| format!("{e:?}"))?;
-        let mappings: Vec<_> = raw
-            .primitives
-            .iter()
-            .filter_map(|primitive| {
-                let purpose = if primitive.layer.as_deref() == Some("Eco2.User") {
-                    MechanicalPurpose::PlateCutout
-                } else if matches!(
-                    &primitive.geometry,
-                    MechanicalShape::Drill {
-                        plated: Some(false),
-                        ..
-                    }
-                ) {
-                    MechanicalPurpose::ElectricalPcbMountingHole
-                } else {
-                    return None;
-                };
-                Some(PurposeMapping {
-                    source_id: Some(primitive.id.clone()),
-                    kind: None,
-                    layer: None,
-                    purpose,
-                })
-            })
-            .collect();
-        let geometry = extract(source_text, &mappings).map_err(|e| format!("{e:?}"))?;
-        source_geometry =
-            Some(profile_source(source_text, &mappings).map_err(|e| format!("{e:?}"))?);
-        pcb_holes = Some(pcb_mounting_holes(&geometry).map_err(|e| format!("{e:?}"))?);
-        plate_cutout_contours(&geometry, 0.005).map_err(|e| format!("{e:?}"))?
-    } else if let Some((width, _, _)) = square_cutout {
-        let half = width / 2.0;
-        vec![vec![
-            Vec2 { x: -half, y: -half },
-            Vec2 { x: half, y: -half },
-            Vec2 { x: half, y: half },
-            Vec2 { x: -half, y: half },
-        ]]
-    } else {
-        Vec::new()
-    };
-    if cutouts.is_empty() {
-        return Err("Bundled profile has no mapped plate contours".into());
-    }
-    let supported_thickness = if let Some((_, _, range)) = square_cutout {
-        Some(range)
-    } else if family == Some(MechanicalSwitchFamily::Mx) {
-        Some(Vec2 { x: 1.4, y: 1.6 })
-    } else {
-        None
-    };
-    let manufacturer_source = match family {
-        Some(MechanicalSwitchFamily::Mx) => {
-            "Cherry MX datasheet: https://datasheet.octopart.com/MX1A-11NW-Cherry-datasheet-34676.pdf; 5.0 mm nominal mounting datum; 1.5 mm nominal plate"
-        }
-        Some(MechanicalSwitchFamily::ChocV1) => {
-            "Kailh PG1350 drawing CPG135001D01-16: https://m.kailhswitch.com/Content/upload/pdf/202215927/CPG135001D01-16.pdf?rnd=121; 3.5 mm mounting datum; 1.3 mm nominal plate"
-        }
-        Some(MechanicalSwitchFamily::ChocV2) => {
-            "Kailh PG1353 drawing CPG135301D03: https://www.kailhswitch.com/Content/upload/pdf/202015927/PG135301D03.pdf; 5.0 mm mounting datum; 1.5 mm nominal plate"
-        }
-        None => "",
-    };
-    Ok(MechanicalPartProfile {
-        source_geometry,
-        pcb_holes,
-        clearance_volumes: None,
-        openings: None,
-        clearances: None,
-        switch_family: family,
-        definition_id,
-        source: if is_library_geometry {
-            format!(
-                "marbastlib@6b0a9a73f579e377816d60b58eac2b3252de7868:footprints/marbastlib-mx.pretty/{name}.kicad_mod:CERN-OHL-P-2.0:Eco2.User; chord deviation <=0.005mm; {manufacturer_source}; PCB-mount stabilizers only"
-            )
-        } else {
-            format!("{manufacturer_source}; Board Studio standard 14 x 14 mm plate opening")
-        },
-        cutouts,
-        plate_to_pcb,
-        supported_thickness,
-    })
 }

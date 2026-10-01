@@ -175,9 +175,7 @@ fn pad_form(
     } else {
         "smd"
     };
-    let layers = if pad.plated == Some(false) {
-        "\"*.Cu\" \"*.Mask\""
-    } else if through {
+    let layers = if pad.plated == Some(false) || through {
         "\"*.Cu\" \"*.Mask\""
     } else if pad
         .side
@@ -463,17 +461,13 @@ fn net_by_id<'a>(nets: &'a [Net], id: &str) -> Option<&'a Net> {
     nets.iter().find(|net| net.id == id)
 }
 
-fn board_and_maps<'a>(
-    doc: &'a ProjectDoc,
-    board_id: &str,
-) -> Result<
-    (
-        &'a Board,
-        HashMap<&'a str, &'a Part>,
-        HashMap<&'a str, &'a PartDefinition>,
-    ),
-    ArtifactError,
-> {
+type BoardMaps<'a> = (
+    &'a Board,
+    HashMap<&'a str, &'a Part>,
+    HashMap<&'a str, &'a PartDefinition>,
+);
+
+fn board_and_maps<'a>(doc: &'a ProjectDoc, board_id: &str) -> Result<BoardMaps<'a>, ArtifactError> {
     let board = doc
         .boards
         .iter()

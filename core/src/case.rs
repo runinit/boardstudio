@@ -247,20 +247,19 @@ fn validate_body(ir: &CaseIR) -> Result<(), String> {
                 "Case body '{id}' wall height and thickness must be positive"
             ));
         }
-        if let Some(gasket) = &body.gasket {
-            if !gasket.inset.is_finite()
+        if let Some(gasket) = &body.gasket
+            && (!gasket.inset.is_finite()
                 || !gasket.width.is_finite()
                 || !gasket.depth.is_finite()
                 || gasket.inset < 0.0
                 || gasket.width <= 0.0
                 || gasket.depth <= 0.0
                 || gasket.inset + gasket.width >= thickness
-                || gasket.depth >= height
-            {
-                return Err(format!(
-                    "Case body '{id}' gasket groove must fit within the wall rim"
-                ));
-            }
+                || gasket.depth >= height)
+        {
+            return Err(format!(
+                "Case body '{id}' gasket groove must fit within the wall rim"
+            ));
         }
     }
     let mut feature_ids = std::collections::HashSet::new();

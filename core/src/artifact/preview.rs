@@ -427,7 +427,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                                     id: format!("{}:{}", reference, out.models.len()),
                                     reference: reference.clone(),
                                     path: value(node, 1).into(),
-                                    pose: fp.clone(),
+                                    pose: fp,
                                     side: side.clone(),
                                     offset: xyz(node, "offset", 0.)?,
                                     rotation: xyz(node, "rotate", 0.)?,

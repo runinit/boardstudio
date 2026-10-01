@@ -43,7 +43,7 @@ pub fn prepare_export(request: PrepareExportRequest) -> Result<ExportPlan, Artif
                     )?;
                 } else {
                     let compiled = compile::compile_authored(definition, part.side.clone())
-                        .map_err(|message| validation(message))?;
+                        .map_err(validation)?;
                     assert_geometry(&compiled.geometry)?;
                 }
             }
@@ -81,8 +81,8 @@ pub fn prepare_export(request: PrepareExportRequest) -> Result<ExportPlan, Artif
                         &definition.id,
                     )?;
                 } else {
-                    let compiled = compile::compile_authored(definition, Side::Front)
-                        .map_err(|message| validation(message))?;
+                    let compiled =
+                        compile::compile_authored(definition, Side::Front).map_err(validation)?;
                     assert_geometry(&compiled.geometry)?;
                 }
             }

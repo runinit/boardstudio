@@ -517,47 +517,6 @@ fn contour_distance(a: &[Vec2], b: &[Vec2]) -> f64 {
     min
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn square(x: f64, y: f64, size: f64) -> Vec<Vec2> {
-        vec![
-            Vec2 { x, y },
-            Vec2 { x: x + size, y },
-            Vec2 {
-                x: x + size,
-                y: y + size,
-            },
-            Vec2 { x, y: y + size },
-        ]
-    }
-    #[test]
-    fn detects_crossings_and_remaining_web() {
-        assert_eq!(
-            contour_distance(&square(0.0, 0.0, 2.0), &square(1.0, 1.0, 2.0)),
-            0.0
-        );
-        assert!(
-            (contour_distance(&square(0.0, 0.0, 2.0), &square(2.4, 0.0, 2.0)) - 0.4).abs()
-                < EPSILON
-        );
-    }
-    #[test]
-    fn sharp_rectangles_are_distinct_from_tessellated_round_openings() {
-        assert!(sharp_corner(&square(0.0, 0.0, 2.0)));
-        let round: Vec<_> = (0..64)
-            .map(|i| {
-                let t = i as f64 * std::f64::consts::TAU / 64.0;
-                Vec2 {
-                    x: t.cos(),
-                    y: t.sin(),
-                }
-            })
-            .collect();
-        assert!(!sharp_corner(&round));
-    }
-}
-
 pub(crate) fn check_specifications(
     config: &MechanicalConfiguration,
     assembly: &crate::model::CaseAssemblyIR,
@@ -621,4 +580,45 @@ pub(crate) fn check_specifications(
         }
     }
     findings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn square(x: f64, y: f64, size: f64) -> Vec<Vec2> {
+        vec![
+            Vec2 { x, y },
+            Vec2 { x: x + size, y },
+            Vec2 {
+                x: x + size,
+                y: y + size,
+            },
+            Vec2 { x, y: y + size },
+        ]
+    }
+    #[test]
+    fn detects_crossings_and_remaining_web() {
+        assert_eq!(
+            contour_distance(&square(0.0, 0.0, 2.0), &square(1.0, 1.0, 2.0)),
+            0.0
+        );
+        assert!(
+            (contour_distance(&square(0.0, 0.0, 2.0), &square(2.4, 0.0, 2.0)) - 0.4).abs()
+                < EPSILON
+        );
+    }
+    #[test]
+    fn sharp_rectangles_are_distinct_from_tessellated_round_openings() {
+        assert!(sharp_corner(&square(0.0, 0.0, 2.0)));
+        let round: Vec<_> = (0..64)
+            .map(|i| {
+                let t = i as f64 * std::f64::consts::TAU / 64.0;
+                Vec2 {
+                    x: t.cos(),
+                    y: t.sin(),
+                }
+            })
+            .collect();
+        assert!(!sharp_corner(&round));
+    }
 }

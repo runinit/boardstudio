@@ -235,13 +235,13 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
             .map(|cell| ((cell.row, cell.column), cell))
             .collect();
         for cell in &mut reflected_matrix.cells {
-            if let Some(canonical) = canonical_cells.get(&(cell.row, cell.column)) {
-                if cell.assemblies_local != Some(true) {
-                    cell.definition_id = canonical.definition_id.clone();
-                    cell.variant = canonical.variant.clone();
-                    cell.assemblies = canonical.assemblies.clone();
-                    cell.assemblies_local = canonical.assemblies_local;
-                }
+            if let Some(canonical) = canonical_cells.get(&(cell.row, cell.column))
+                && cell.assemblies_local != Some(true)
+            {
+                cell.definition_id = canonical.definition_id.clone();
+                cell.variant = canonical.variant.clone();
+                cell.assemblies = canonical.assemblies.clone();
+                cell.assemblies_local = canonical.assemblies_local;
             }
         }
     }
@@ -252,10 +252,10 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
         .find(|matrix| matrix.id == target_id)
         .ok_or("Linked matrix is missing")?;
     for (cell, id) in matrix::cell_members(target) {
-        if let Some(size) = sizes.get(&cell) {
-            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == id) {
-                part.keycap = Some(*size);
-            }
+        if let Some(size) = sizes.get(&cell)
+            && let Some(part) = doc.parts.iter_mut().find(|part| part.id == id)
+        {
+            part.keycap = Some(*size);
         }
     }
     if source_is_target {
@@ -521,10 +521,11 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
             }
             sync_component_nets(doc, &source_id, &target_id);
             for feature in &mut doc.outline {
-                if let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature {
-                    if part_ids.contains(&source_id) && !part_ids.contains(&target_id) {
-                        part_ids.push(target_id.clone());
-                    }
+                if let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature
+                    && part_ids.contains(&source_id)
+                    && !part_ids.contains(&target_id)
+                {
+                    part_ids.push(target_id.clone());
                 }
             }
             changed.extend([source_id, target_id]);

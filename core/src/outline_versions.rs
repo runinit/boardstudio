@@ -182,12 +182,11 @@ fn generated_snapshot(
             .enumerate()
             .map(|(index, contour)| {
                 let id = format!("{prefix}:contour:{index}");
-                if contour.hole {
-                    if let Some(feature) =
+                if contour.hole
+                    && let Some(feature) =
                         geometry::retained_cutout(doc, cache, board, &contour, id.clone())
-                    {
-                        return feature;
-                    }
+                {
+                    return feature;
                 }
                 OutlineFeature::Polygon {
                     anchor_part_id: None,
@@ -219,10 +218,9 @@ pub(crate) fn refresh_recovery(doc: &mut ProjectDoc, cache: &geometry::OutlineCa
             cache,
             &board,
             &format!("board:{}:generated:last-valid", board.id),
-        ) {
-            if let Ok(state) = state_mut(doc, &board.id) {
-                state.generated_last_valid = Some(snapshot);
-            }
+        ) && let Ok(state) = state_mut(doc, &board.id)
+        {
+            state.generated_last_valid = Some(snapshot);
         }
     }
 }
@@ -290,10 +288,10 @@ pub(crate) fn apply(
             version_id,
         } => {
             let state = state_mut(doc, board_id)?;
-            if let Some(id) = version_id {
-                if !state.versions.iter().any(|version| &version.id == id) {
-                    return Err(format!("Unknown outline version {id}"));
-                }
+            if let Some(id) = version_id
+                && !state.versions.iter().any(|version| &version.id == id)
+            {
+                return Err(format!("Unknown outline version {id}"));
             }
             state.active_version_id = version_id.clone();
             board_id
