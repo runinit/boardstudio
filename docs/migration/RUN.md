@@ -479,8 +479,9 @@ requests only those four source files, preserving renderer behavior/API/pins and
 the strict formatter gate. The current two-attempt run is exhausted after documentation/evidence repairs.
 Proposed **P2-r1-R1** needs explicit approval of this four-file addition plus an
 explicitly renewed two-attempt limit, with no automatic reset or third repair.
-After that bounded approval, apply the exact patch in the task-owned worktree,
-run all affected renderer checks, then resume the
+After that bounded approval, create a new task-owned worktree from the exact
+recorded integration revision, preserve this exhausted P2 worktree, apply the
+patch there, run all affected renderer checks, then resume the
 original P2 TDD/build/browser/lifecycle/paired-resource/review/integration gates.
 Native/WASM tests/lints/builds, reference frontend, actual Chromium/P2 painting,
 gesture/history, resize/DPR, focus/a11y, resource cleanup and paired acceptance
