@@ -424,13 +424,17 @@ impl Renderer {
                 positions: object
                     .edges
                     .positions
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .map(|p| [p[0], p[1], p[2]])
                     .collect(),
                 normals: object
                     .edges
                     .normals
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .map(|p| [p[0], p[1], p[2]])
                     .collect(),
                 indices: (0..object.edges.positions.len() as u32 / 3).collect(),
@@ -473,13 +477,17 @@ impl Renderer {
                 positions: object
                     .edges
                     .positions
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .map(|p| [p[0], p[1], p[2]])
                     .collect(),
                 normals: object
                     .edges
                     .normals
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .map(|p| [p[0], p[1], p[2]])
                     .collect(),
                 indices: (0..object.edges.positions.len() as u32 / 3).collect(),
@@ -1010,7 +1018,9 @@ impl Renderer {
         let fingerprint = mesh_fingerprint(&item);
         let triangles = item
             .indices
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|t| {
                 [
                     item.positions[t[0] as usize],
@@ -1518,53 +1528,53 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 0.03,
             )?;
         }
-        if let Some(battery) = input.battery {
-            if !hidden("battery") {
-                let offset = if input.view == "exploded" {
-                    explode_offset(stack_index(&input.mechanical_stack, "battery"))
-                } else {
-                    0.0
-                };
-                let center_z = input
-                    .mechanical_stack
-                    .iter()
-                    .find(|layer| layer.id == "battery")
-                    .map_or(battery.size.z / 2.0, |layer| {
-                        layer.z + layer.thickness / 2.0
-                    })
-                    + offset;
-                let mut box_geometry = box_data([battery.size.x, battery.size.y, battery.size.z]);
-                translate_data(
-                    &mut box_geometry,
-                    Mat4::from_translation(Vec3::new(battery.at.x, battery.at.y, center_z)),
-                );
-                push_data(
-                    &mut output,
-                    "battery",
-                    box_geometry,
-                    [0.76, 0.43, 0.24, 1.0],
-                    0.7,
-                    0.02,
-                );
-                let cable = stroke_mesh(
-                    &[
-                        [battery.at.x, battery.at.y],
-                        [battery.cable_exit.x, battery.cable_exit.y],
-                    ],
-                    0.45,
-                    center_z,
-                    [0.0, 0.0, 1.0],
-                )
-                .map_err(|error| JsValue::from_str(&error))?;
-                push_data(
-                    &mut output,
-                    "battery",
-                    cable,
-                    [0.81, 0.25, 0.22, 1.0],
-                    0.72,
-                    0.0,
-                );
-            }
+        if let Some(battery) = input.battery
+            && !hidden("battery")
+        {
+            let offset = if input.view == "exploded" {
+                explode_offset(stack_index(&input.mechanical_stack, "battery"))
+            } else {
+                0.0
+            };
+            let center_z = input
+                .mechanical_stack
+                .iter()
+                .find(|layer| layer.id == "battery")
+                .map_or(battery.size.z / 2.0, |layer| {
+                    layer.z + layer.thickness / 2.0
+                })
+                + offset;
+            let mut box_geometry = box_data([battery.size.x, battery.size.y, battery.size.z]);
+            translate_data(
+                &mut box_geometry,
+                Mat4::from_translation(Vec3::new(battery.at.x, battery.at.y, center_z)),
+            );
+            push_data(
+                &mut output,
+                "battery",
+                box_geometry,
+                [0.76, 0.43, 0.24, 1.0],
+                0.7,
+                0.02,
+            );
+            let cable = stroke_mesh(
+                &[
+                    [battery.at.x, battery.at.y],
+                    [battery.cable_exit.x, battery.cable_exit.y],
+                ],
+                0.45,
+                center_z,
+                [0.0, 0.0, 1.0],
+            )
+            .map_err(|error| JsValue::from_str(&error))?;
+            push_data(
+                &mut output,
+                "battery",
+                cable,
+                [0.81, 0.25, 0.22, 1.0],
+                0.72,
+                0.0,
+            );
         }
         output.section_x = Some(center_x);
     }
@@ -1572,10 +1582,10 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
         if object.id.starts_with("keycap:") || object.id.starts_with("keycap-legend:") {
             object.groups.extend(["Keycaps".into(), "Models".into()]);
         }
-        if object.id == "pcb" || object.id == "pcb-selection" {
-            if !object.groups.iter().any(|g| g == "PCB") {
-                object.groups.push("PCB".into());
-            }
+        if (object.id == "pcb" || object.id == "pcb-selection")
+            && !object.groups.iter().any(|g| g == "PCB")
+        {
+            object.groups.push("PCB".into());
         }
         let layer = if object.groups.iter().any(|g| g == "Models") || object.id.starts_with("pcb") {
             "pcb"
@@ -1615,10 +1625,10 @@ fn push_mesh(
     metallic: f32,
 ) -> Result<(), JsValue> {
     let mut data = MeshData::default();
-    if mesh.positions.len() % 3 != 0 {
+    if !mesh.positions.len().is_multiple_of(3) {
         return Err(JsValue::from_str("Mesh position buffer is incomplete"));
     }
-    for chunk in mesh.positions.chunks_exact(3) {
+    for chunk in mesh.positions.as_chunks::<3>().0.iter() {
         let transformed = transform * Vec4::new(chunk[0], chunk[1], chunk[2], 1.0);
         data.positions
             .push([transformed.x, transformed.y, transformed.z]);
@@ -1628,13 +1638,13 @@ fn push_mesh(
             .invert()
             .unwrap_or_else(Mat4::identity)
             .transpose();
-        for normal in mesh.normals.chunks_exact(3) {
+        for normal in mesh.normals.as_chunks::<3>().0.iter() {
             let value = normal_matrix * Vec4::new(normal[0], normal[1], normal[2], 0.0);
             let value = value.truncate().normalize();
             data.normals.push([value.x, value.y, value.z]);
         }
     } else {
-        for tri in data.positions.chunks_exact(3) {
+        for tri in data.positions.as_chunks::<3>().0.iter() {
             let normal = (Vec3::new(
                 tri[1][0] - tri[0][0],
                 tri[1][1] - tri[0][1],
@@ -1650,7 +1660,7 @@ fn push_mesh(
                 .extend_from_slice(&[[normal.x, normal.y, normal.z]; 3]);
         }
     }
-    if mesh.positions.len() % 9 != 0 {
+    if !mesh.positions.len().is_multiple_of(9) {
         return Err(JsValue::from_str(
             "Mesh position buffer must contain complete triangles",
         ));
@@ -1664,7 +1674,9 @@ fn push_mesh(
         }
         data.colors = Some(
             colors
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|value| [value[0], value[1], value[2]])
                 .collect(),
         );
@@ -1869,7 +1881,7 @@ fn text_mesh(
             }
         }
     }
-    for triangle in mesh.indices.chunks_exact_mut(3) {
+    for triangle in mesh.indices.as_chunks_mut::<3>().0.iter_mut() {
         let a = mesh.positions[triangle[0] as usize];
         let b = mesh.positions[triangle[1] as usize];
         let c = mesh.positions[triangle[2] as usize];
@@ -2135,21 +2147,20 @@ fn batch_surfaces(objects: &mut Vec<SceneObject>) {
             .groups
             .iter()
             .any(|g| matches!(g.as_str(), "Copper" | "Mask" | "Silkscreen"))
-        {
-            if let Some(target) = result.iter_mut().find(|o| {
+            && let Some(target) = result.iter_mut().find(|o| {
                 o.groups == item.groups
                     && o.color == item.color
                     && o.colors.is_none()
                     && item.colors.is_none()
-            }) {
-                let offset = target.positions.len() as u32;
-                target.positions.extend(item.positions);
-                target.normals.extend(item.normals);
-                target
-                    .indices
-                    .extend(item.indices.iter().map(|i| i + offset));
-                continue;
-            }
+            })
+        {
+            let offset = target.positions.len() as u32;
+            target.positions.extend(item.positions);
+            target.normals.extend(item.normals);
+            target
+                .indices
+                .extend(item.indices.iter().map(|i| i + offset));
+            continue;
         }
         result.push(item);
     }

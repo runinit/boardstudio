@@ -68,7 +68,7 @@ fn tokenize(source: &str) -> Vec<String> {
             '{' | '}' | '[' | ']' | ',' => result.push(character.to_string()),
             '"' => {
                 let mut value = String::from("\"");
-                while let Some(next) = chars.next() {
+                for next in chars.by_ref() {
                     value.push(next);
                     if next == '"' && !value.ends_with("\\\"") {
                         break;
@@ -145,10 +145,10 @@ fn node_at<'a>(tokens: &'a [String], start: usize) -> Option<Node<'a>> {
 fn find_definitions<'a>(tokens: &'a [String]) -> HashMap<&'a str, Node<'a>> {
     let mut definitions = HashMap::new();
     for start in 0..tokens.len() {
-        if tokens[start] == "DEF" {
-            if let (Some(name), Some(node)) = (tokens.get(start + 1), node_at(tokens, start)) {
-                definitions.insert(name.as_str(), node);
-            }
+        if tokens[start] == "DEF"
+            && let (Some(name), Some(node)) = (tokens.get(start + 1), node_at(tokens, start))
+        {
+            definitions.insert(name.as_str(), node);
         }
     }
     definitions
@@ -207,7 +207,7 @@ fn scalar(tokens: &[String], node: Node<'_>, key: &str, defaults: &[f32]) -> Vec
         .collect()
 }
 
-fn list_values<'a>(tokens: &'a [String], start: usize) -> Vec<&'a str> {
+fn list_values(tokens: &[String], start: usize) -> Vec<&str> {
     if tokens.get(start).is_none_or(|token| token != "[") {
         return Vec::new();
     }
@@ -357,7 +357,9 @@ fn append_geometry<'a>(
                 .map(|index| list_values(tokens, index))
                 .unwrap_or_default();
             let points = point_values
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .filter_map(|chunk| {
                     Some([
                         chunk[0].parse().ok()?,
@@ -376,7 +378,9 @@ fn append_geometry<'a>(
                 })
                 .unwrap_or_default();
             let colors = color_values
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .filter_map(|chunk| {
                     Some([
                         chunk[0].parse().ok()?,

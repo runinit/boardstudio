@@ -99,7 +99,7 @@ impl SurfaceClipper {
             return Ok(());
         }
         let mut result = MeshData::default();
-        for triangle in mesh.indices.chunks_exact(3) {
+        for triangle in mesh.indices.as_chunks::<3>().0.iter() {
             let positions = triangle
                 .iter()
                 .map(|i| mesh.positions[*i as usize])
@@ -293,7 +293,7 @@ pub(crate) fn board_mesh(
     append_layer(&mut mesh, &buffers, thickness, [0.0, 0.0, 1.0]);
     append_layer(&mut mesh, &buffers, 0.0, [0.0, 0.0, -1.0]);
     for contour in contours.iter().filter(|contour| contour.points.len() >= 2) {
-        let orientation = winding(&contour.points);
+        let orientation = winding(contour.points);
         for index in 0..contour.points.len() {
             let a = contour.points[index];
             let b = contour.points[(index + 1) % contour.points.len()];
@@ -391,7 +391,7 @@ fn append_layer(
     );
     mesh.normals
         .extend(std::iter::repeat_n(normal, buffers.vertices.len()));
-    for triangle in buffers.indices.chunks_exact(3) {
+    for triangle in buffers.indices.as_chunks::<3>().0.iter() {
         let a = buffers.vertices[triangle[0] as usize];
         let b = buffers.vertices[triangle[1] as usize];
         let c = buffers.vertices[triangle[2] as usize];
@@ -485,7 +485,7 @@ mod tests {
         )
         .unwrap();
 
-        for triangle in mesh.indices.chunks_exact(3) {
+        for triangle in mesh.indices.as_chunks::<3>().0.iter() {
             assert!(
                 triangle_dot_normal(
                     &mesh,
@@ -553,7 +553,7 @@ mod tests {
         let polygon = [[0.0, 0.0], [5.0, 0.0], [5.0, 4.0], [0.0, 4.0]];
         let mesh = surface_mesh(&polygon, -0.001, [0.0, 0.0, -1.0]).unwrap();
 
-        for triangle in mesh.indices.chunks_exact(3) {
+        for triangle in mesh.indices.as_chunks::<3>().0.iter() {
             assert!(
                 triangle_dot_normal(
                     &mesh,
@@ -594,7 +594,7 @@ mod tests {
             &[],
         );
         assert!(!crosses_notch.indices.is_empty());
-        assert!(crosses_notch.indices.chunks_exact(3).all(|t| {
+        assert!(crosses_notch.indices.as_chunks::<3>().0.iter().all(|t| {
             let p = t
                 .iter()
                 .map(|i| crosses_notch.positions[*i as usize])
@@ -619,7 +619,7 @@ mod tests {
             &[drill],
         );
         assert!(!crosses_drill.indices.is_empty());
-        assert!(crosses_drill.indices.chunks_exact(3).all(|t| {
+        assert!(crosses_drill.indices.as_chunks::<3>().0.iter().all(|t| {
             let p = t
                 .iter()
                 .map(|i| crosses_drill.positions[*i as usize])
@@ -674,9 +674,9 @@ pub(crate) fn feature_edges(mesh: &MeshData) -> Vec<[[f32; 3]; 2]> {
     use std::collections::BTreeMap;
     type Key = [i64; 3];
     let key = |p: [f32; 3]| p.map(|v| (v as f64 * 10000.0).round() as i64);
-    let mut edges: BTreeMap<(Key, Key), ([f32; 3], [f32; 3], [f32; 3], bool, usize)> =
-        BTreeMap::new();
-    for triangle in mesh.indices.chunks_exact(3) {
+    type EdgeValue = ([f32; 3], [f32; 3], [f32; 3], bool, usize);
+    let mut edges: BTreeMap<(Key, Key), EdgeValue> = BTreeMap::new();
+    for triangle in mesh.indices.as_chunks::<3>().0.iter() {
         let p = [
             mesh.positions[triangle[0] as usize],
             mesh.positions[triangle[1] as usize],

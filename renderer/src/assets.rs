@@ -41,7 +41,7 @@ pub(crate) fn append_geometry(
     let colors = triangles.colors.as_deref();
     let indices = triangles.indices.to_u32();
     let count = indices.as_ref().map_or(positions.len(), Vec::len);
-    if count % 3 != 0 {
+    if !count.is_multiple_of(3) {
         return Err("Model has incomplete triangles".to_owned());
     }
 
@@ -53,7 +53,7 @@ pub(crate) fn append_geometry(
         return Err("Model exceeds preview triangle limits".to_owned());
     }
     if needs_colors && result.colors.is_none() {
-        result.colors = Some(vec![0.72, 0.75, 0.78].repeat(result.positions.len() / 3));
+        result.colors = Some([0.72, 0.75, 0.78].repeat(result.positions.len() / 3));
     }
 
     for triangle in 0..triangle_count {
@@ -180,7 +180,7 @@ fn transform_normal(transform: Mat4, normal: [f32; 3]) -> [f32; 3] {
 
 impl ModelMesh {
     pub(crate) fn finish(mut self, format: &str) -> Result<Self, String> {
-        if self.positions.is_empty() || self.positions.len() % 9 != 0 {
+        if self.positions.is_empty() || !self.positions.len().is_multiple_of(9) {
             return Err(format!("{format} model has no finite triangles"));
         }
         if self

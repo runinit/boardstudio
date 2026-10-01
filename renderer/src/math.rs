@@ -49,6 +49,7 @@ pub fn pcb_model_transform(
 }
 
 /// The local handle mesh is retained while its physical frame moves.
+#[cfg(any(test, target_arch = "wasm32"))]
 pub(crate) fn handle_pose(at: [f32; 3], tangent: [f32; 2], normal: [f32; 2]) -> Mat4 {
     Mat4::from_cols(
         Vec4::new(tangent[0], tangent[1], 0., 0.),
