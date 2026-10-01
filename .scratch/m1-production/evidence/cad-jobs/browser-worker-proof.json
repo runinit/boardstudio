@@ -1,0 +1,98 @@
+{
+  "candidateSourceCommit": "0b8a0450",
+  "integratedSourceHeadAtFreeze": "050e9282",
+  "browserSession": "m1-cad-proof-01c467",
+  "servedUrl": "http://127.0.0.1:4389/",
+  "method": "Used the agent-browser Chromium session against an isolated proof page. A current Rust CoreWorker opened each staged fixture; captured Rust document/scene projections were compared in a separate 9-case actual TypeScript oracle run, then CoreRequest ResolveMechanical/PrepareCase and the dedicated Rust CAD worker drove CAD operations against the staged verified Cadrum WASM provider.",
+  "providerFixtureProvenance": {
+    "sourceCommit": "cf3266f083a5c27667261ae4e98e25d396b357f2",
+    "provenanceSha256": "94e482939905866227daff02d0b7dbe7845666cf335b2dc9c7ccf23cdfdf2d70",
+    "reviung41": {
+      "documentId": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+      "revision": 3,
+      "fixtureSha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae"
+    },
+    "sofle": {
+      "documentId": "m1-sofle-v2-copy",
+      "revision": 3,
+      "fixtureSha256": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4"
+    }
+  },
+  "artifactSha256": {
+    "cadWorkerWasm": "73d05175ea79b598646b19b1c3e0cb3fedc8e86f12a1fa645d8c9b0db189029d",
+    "cadWorkerJs": "7c5527fe8dda18ed527d6a3f2622c8080fcfe33537ce8cde7b5da1b511a2a6a7",
+    "coreWorkerWasm": "9ffd23257f627a6b834f7c908993ee5a38398acc0a6339872d08cd2e894078db",
+    "coreWorkerJs": "fc95ba2c7ddf5b69935d6b4f5b9465e3a270ebd5fe5685d51e69bab16bf29896",
+    "providerCadJs": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+    "providerCadWasm": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+    "providerSnippet": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932"
+  },
+  "boundary": {
+    "badModuleInitialization": "init-failed",
+    "freshWorkerAfterInitializationFailure": "ready",
+    "maxSafeIntegerRevision": 9007199254740991,
+    "maxSafeIntegerOutcome": "completed",
+    "wideRevision": "9007199254740993",
+    "wideRevisionOutcome": "failed",
+    "wideRevisionError": "CAD revision is outside the exact JavaScript integer range"
+  },
+  "fixtures": [
+    {
+      "fixture": "reviung41",
+      "boardId": "main",
+      "instanceId": "main",
+      "flipped": false,
+      "revision": 3,
+      "bodies": 58,
+      "previewVertices": 63330,
+      "exactVertices": 63330,
+      "independentStepSha256": "da066e11e2bdc2751fe40b36a1774536b2d10b136c1e03c43718253244c93d98",
+      "stepBytes": 18654708,
+      "readbackVertices": 63330,
+      "exactAndIndependentStepBytesMatch": true
+    },
+    {
+      "fixture": "reviung41",
+      "boardId": "main",
+      "instanceId": "main",
+      "flipped": true,
+      "revision": 3,
+      "bodies": 58,
+      "previewVertices": 61860,
+      "exactVertices": 61860,
+      "independentStepSha256": "def906bb08109e420151322bfea97337780a0bfc1b2642b657abf5de70f40a40",
+      "stepBytes": 18147173,
+      "readbackVertices": 61860,
+      "exactAndIndependentStepBytesMatch": true
+    },
+    {
+      "fixture": "sofle",
+      "boardId": "left",
+      "instanceId": null,
+      "flipped": null,
+      "revision": 3,
+      "bodies": 18,
+      "previewVertices": 34752,
+      "exactVertices": 34752,
+      "independentStepSha256": "582f343c9a9eabfedab5a8f69c2dc078c5ef31c0ade008d9de989a8d53b15195",
+      "stepBytes": 10334256,
+      "readbackVertices": 34752,
+      "exactAndIndependentStepBytesMatch": true
+    }
+  ],
+  "cancellation": {
+    "requestId": "cancel-preview",
+    "outcome": "cancelled",
+    "error": "CAD job cancelled"
+  },
+  "nativeStaleGuards": {
+    "cadReplyOperationIdentityAndPayloadGuard": "passed in web library tests",
+    "synchronouslyCancelledExportMembershipGuard": "passed in application durable-session test",
+    "pageIntegratedLiveStaleDisplayAndDownloadGuard": "pending final page acceptance"
+  },
+  "notes": [
+    "Independent STEP used a separate CAD worker with a fresh cache and public export_cached_assembly(stepOnly=true); its bytes matched Exact bytes on every fixture/instance case tested.",
+    "The static worker harness exercises actual worker initialization, request, cancellation, revision boundaries, preview, exact generation, STEP export, and STEP readback. Session-level stale operation fencing remains separately covered by native tests; end-to-end stale display/download behavior is gated on final page acceptance.",
+    "The CAD worker package was built before the later page-client-only CadWorker::is_closed method; the dedicated worker behavior is unchanged, and the maintained final build will rebuild every asset from the frozen integrated source."
+  ]
+}
