@@ -1,0 +1,56 @@
+{
+  "build_id": "m1-release-20261001-8f509433",
+  "source_commit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "step": {
+    "path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-8f509433/qa-reviung41.step",
+    "bytes": 13662781,
+    "sha256": "f946d69c2ad39abd3f799ca996067d7f89dba7cc361a9516251c9e32307722f4"
+  },
+  "public_read_step_model": {
+    "bounds": {
+      "min": [
+        -1.5260001,
+        -90.8790001,
+        -6.6000001
+      ],
+      "max": [
+        288.45000010000007,
+        17.0900001,
+        5.0000001
+      ]
+    },
+    "meshBounds": {
+      "min": [
+        -1.5260000228881836,
+        -90.87899780273438,
+        -6.599999904632568
+      ],
+      "max": [
+        288.45001220703125,
+        17.09000015258789,
+        5
+      ]
+    },
+    "vertexCount": 41736,
+    "meshVolumeMm3": 217359.0776248333
+  },
+  "independent_step_parser": {
+    "volumeMm3": 217359.08077987254,
+    "solidCount": 5,
+    "bounds": {
+      "min": [
+        -1.526,
+        -90.879,
+        -6.6
+      ],
+      "max": [
+        288.45000000000005,
+        17.09,
+        5
+      ]
+    }
+  },
+  "mesh_vs_brep_volume_delta_mm3": -0.0031550392450299114,
+  "accepted_input_parity": "Not established. Historical accepted oracle represents a different configured/flipped 58-body input; final default UI STEP has 5 solids and 217359.08 mm3 BRep volume. Raw comparison is not a regression verdict.",
+  "same_input_limit": "No same-input React/reference preparation and STEP export was captured in this turn."
+}
