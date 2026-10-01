@@ -189,9 +189,14 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
                 || result.bodies.iter().any(|body| {
                     body.id.is_empty() || !valid_mesh_parts(&body.positions, &body.normals)
                 })
-                || !result.bounds.as_ref().is_some_and(valid_bounds)
+                || result
+                    .bounds
+                    .as_ref()
+                    .is_some_and(|bounds| !valid_bounds(bounds))
             {
-                return Err(bad("exact assembly mesh, bodies, or bounds are invalid"));
+                return Err(bad(
+                    "exact assembly mesh, bodies, or supplied bounds are invalid",
+                ));
             }
         }
         CadOperation::ExportStep => {
@@ -896,6 +901,72 @@ mod tests {
         reply.result.as_mut().unwrap().step = b"not STEP".to_vec();
         assert!(matches!(
             validate_reply(&request, reply, &identity),
+            Err(CadJobError::Failed(_))
+        ));
+    }
+
+    #[test]
+    fn exact_accepts_public_case_payload_without_optional_bounds() {
+        let identity = CadSnapshotIdentity {
+            token: 9,
+            session_epoch: 4,
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+            revision: 7,
+        };
+        let request = CadRequest {
+            request_id: "exact-request".into(),
+            job_id: "exact-job".into(),
+            identity: identity.clone(),
+            operation: CadOperation::Exact,
+            prepared: None,
+            input_bytes: vec![],
+        };
+        // The public provider's case-result payload contains revision, STEP,
+        // mesh, and bodies; unlike its STEP import payload, it omits bounds.
+        let reply = CadReply {
+            request_id: request.request_id.clone(),
+            job_id: request.job_id.clone(),
+            identity: identity.clone(),
+            operation: CadOperation::Exact,
+            outcome: CadReplyOutcome::Completed,
+            result: Some(CadResult {
+                revision: 7,
+                step: b"ISO-10303-21;\nEND-ISO-10303-21;".to_vec(),
+                mesh: Some(CadMesh {
+                    positions: vec![0.0, 0.0, 0.0],
+                    normals: vec![0.0, 0.0, 1.0],
+                }),
+                bodies: vec![CadBodyMesh {
+                    id: "case-body".into(),
+                    name: "Case body".into(),
+                    positions: vec![0.0, 0.0, 0.0],
+                    normals: vec![0.0, 0.0, 1.0],
+                }],
+                bounds: None,
+            }),
+            error: None,
+        };
+
+        assert!(validate_reply(&request, reply.clone(), &identity).is_ok());
+
+        let mut malformed_bounds = reply.clone();
+        malformed_bounds.result.as_mut().unwrap().bounds = Some(CadBounds {
+            min: [2.0, 0.0, 0.0],
+            max: [1.0, 0.0, 0.0],
+        });
+        assert!(matches!(
+            validate_reply(&request, malformed_bounds, &identity),
+            Err(CadJobError::Failed(_))
+        ));
+
+        let mut read_request = request;
+        read_request.operation = CadOperation::ReadStep;
+        let mut read_reply = reply;
+        read_reply.operation = CadOperation::ReadStep;
+        assert!(matches!(
+            validate_reply(&read_request, read_reply, &identity),
             Err(CadJobError::Failed(_))
         ));
     }
