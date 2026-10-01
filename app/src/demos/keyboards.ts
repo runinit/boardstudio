@@ -5,9 +5,11 @@ import measurements from './keyboard-layouts.json';
 import { openSofleDemo, sofleDemos, type SofleVariant } from './sofle';
 
 type KeyboardDemoId = keyof typeof measurements;
-export type DemoId = SofleVariant | KeyboardDemoId;
+export const moduleReviewDemoId = 'vik-module-review' as const;
+export const moduleReviewDemoName = 'VIK module review · above and below';
+export type DemoId = SofleVariant | KeyboardDemoId | typeof moduleReviewDemoId;
 export const keyboardDemos = Object.entries(measurements).map(([id, layout]) => ({ id: id as KeyboardDemoId, name: layout.name }));
-export const demos = [...sofleDemos, ...keyboardDemos];
+export const demos = [...sofleDemos, ...keyboardDemos, { id: moduleReviewDemoId, name: moduleReviewDemoName }];
 
 /** Editable library-based adaptations: measured keys, physical clusters and generated outlines. */
 export function keyboardProject(id: KeyboardDemoId): ProjectDoc {
@@ -64,6 +66,10 @@ export function keyboardProject(id: KeyboardDemoId): ProjectDoc {
 
 export async function openKeyboardDemo(id: DemoId, request: (input: CoreRequest) => Promise<CoreReply>): Promise<Extract<CoreReply, { kind: 'scene' }>> {
   if (id === 'v2' || id === 'rgb' || id === 'choc') return openSofleDemo(id, request);
+  if (id === moduleReviewDemoId) {
+    const { openModuleReviewDemo } = await import('./moduleReview');
+    return openModuleReviewDemo(request);
+  }
   let opened = await request({ id: crypto.randomUUID(), kind: 'open', document: keyboardProject(id) });
   if (opened.kind !== 'scene') throw new Error(opened.kind === 'error' ? opened.message : 'Could not open demo');
   for (const board of opened.document.boards) {

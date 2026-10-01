@@ -393,6 +393,12 @@
         "footprintSurfaceVolumes": true
       },
       "terminals": {
+        "1": [
+          "1"
+        ],
+        "2": [
+          "2"
+        ],
         "A": [
           "A"
         ],
@@ -401,12 +407,6 @@
         ],
         "C": [
           "C"
-        ],
-        "1": [
-          "1"
-        ],
-        "2": [
-          "2"
         ]
       },
       "inputProfile": {
@@ -583,6 +583,12 @@
         "footprintSurfaceVolumes": true
       },
       "terminals": {
+        "1": [
+          "1"
+        ],
+        "2": [
+          "2"
+        ],
         "A": [
           "A"
         ],
@@ -591,12 +597,6 @@
         ],
         "C": [
           "C"
-        ],
-        "1": [
-          "1"
-        ],
-        "2": [
-          "2"
         ]
       },
       "inputProfile": {
@@ -686,18 +686,13 @@
         "gates": [
           {
             "output": "footprint",
-            "code": "select-edge-cut-versus-drill-alternative",
-            "message": "Select edge cut versus drill alternative. Required for footprint qualification."
-          },
-          {
-            "output": "footprint",
             "code": "confirm-helper-placement-and-closed-contour-machining",
-            "message": "Confirm helper placement and closed contour machining. Required for footprint qualification."
+            "message": "Confirm helper placement and closed contour machining. The routed source geometry is open and must be integrated into a reviewed closed board contour. Required for footprint qualification."
           },
           {
             "output": "footprint",
             "code": "fabricator-minimum-slot-radius-and-web-width",
-            "message": "Fabricator minimum slot radius and web width. Required for footprint qualification."
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
           }
         ],
         "footprintSurfaceVolumes": true
@@ -725,18 +720,13 @@
         "gates": [
           {
             "output": "footprint",
-            "code": "select-edge-cut-versus-drill-alternative",
-            "message": "Select edge cut versus drill alternative. Required for footprint qualification."
-          },
-          {
-            "output": "footprint",
-            "code": "confirm-helper-placement-and-closed-contour-machining",
-            "message": "Confirm helper placement and closed contour machining. Required for footprint qualification."
+            "code": "confirm-helper-placement-assumption",
+            "message": "Confirm this independently placed helper’s pose relative to the encoder. The pinned source defines the helper-local origin but publishes no companion transform. Required for footprint qualification."
           },
           {
             "output": "footprint",
             "code": "fabricator-minimum-slot-radius-and-web-width",
-            "message": "Fabricator minimum slot radius and web width. Required for footprint qualification."
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
           }
         ],
         "footprintSurfaceVolumes": true
@@ -764,18 +754,13 @@
         "gates": [
           {
             "output": "footprint",
-            "code": "select-edge-cut-versus-drill-alternative",
-            "message": "Select edge cut versus drill alternative. Required for footprint qualification."
-          },
-          {
-            "output": "footprint",
             "code": "confirm-helper-placement-and-closed-contour-machining",
-            "message": "Confirm helper placement and closed contour machining. Required for footprint qualification."
+            "message": "Confirm helper placement and closed contour machining. The routed source geometry is open and must be integrated into a reviewed closed board contour. Required for footprint qualification."
           },
           {
             "output": "footprint",
             "code": "fabricator-minimum-slot-radius-and-web-width",
-            "message": "Fabricator minimum slot radius and web width. Required for footprint qualification."
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
           }
         ],
         "footprintSurfaceVolumes": true
@@ -803,18 +788,13 @@
         "gates": [
           {
             "output": "footprint",
-            "code": "select-edge-cut-versus-drill-alternative",
-            "message": "Select edge cut versus drill alternative. Required for footprint qualification."
-          },
-          {
-            "output": "footprint",
-            "code": "confirm-helper-placement-and-closed-contour-machining",
-            "message": "Confirm helper placement and closed contour machining. Required for footprint qualification."
+            "code": "confirm-helper-placement-assumption",
+            "message": "Confirm this independently placed helper’s pose relative to the encoder. The pinned source defines the helper-local origin but publishes no companion transform. Required for footprint qualification."
           },
           {
             "output": "footprint",
             "code": "fabricator-minimum-slot-radius-and-web-width",
-            "message": "Fabricator minimum slot radius and web width. Required for footprint qualification."
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
           }
         ],
         "footprintSurfaceVolumes": true

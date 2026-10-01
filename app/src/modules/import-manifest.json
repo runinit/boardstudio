@@ -1,0 +1,968 @@
+{
+  "formatVersion": 1,
+  "entries": [
+    {
+      "row": "haptic",
+      "name": "Pimoroni Haptic Feedback",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/haptic/haptic.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/haptic/haptic.kicad_pcb",
+      "sha256": "e73b2d573064d23ad56647b60c492c972cd014876d0df4d888a2080e57d4f838",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/haptic/haptic",
+      "electrical": {
+        "protocol": "i2c",
+        "requiredSignals": [
+          "gnd",
+          "v5",
+          "scl",
+          "sda"
+        ],
+        "logicVoltage": 3.3,
+        "i2cAddress": 90,
+        "pullupOhms": 4700
+      },
+      "notice": "Select the purchased Pimoroni Haptic Buzz driver and actuator population. Qualify its power, I2C pullup/logic voltage, body dimensions and current; the adapter source does not include the purchased board internals.",
+      "purchasedReferences": [
+        "J2"
+      ]
+    },
+    {
+      "row": "haptic-drv2605l",
+      "name": "Haptic Feedback using DRV2605L controller",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb",
+      "sha256": "a00cc6dadd021241d3460e5173bd9af0750f5948a4986297afa07e18bd8f15e2",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/haptic-drv2605l/haptic-drv2605l",
+      "electrical": {
+        "protocol": "i2c",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "scl",
+          "sda"
+        ],
+        "logicVoltage": 3.3,
+        "i2cAddress": 90,
+        "pullupOhms": 4700
+      },
+      "notice": "Source pullup jumper connects to an unpowered VCC net. Use the explicitly repaired +3V3 circuit variant; actuator selection remains separate."
+    },
+    {
+      "row": "per56-cirque-leds",
+      "name": "Scroll ring, cirque trackpad, RGB LEDs",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/per56-cirque-leds/scroll-wheel-trackpad.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/per56-cirque-leds/scroll-wheel-trackpad.kicad_pcb",
+      "sha256": "8aeacea9b801562bf888f63e383e9e2102dcd2cad1d82c37ee56b6cc19806c3b",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/per56-cirque-leds/scroll-wheel-trackpad",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "rgb",
+          "v5",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "per56-pmw3360-leds",
+      "name": "Scroll ring, trackball, RGB LEDs",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/per56-pmw3360-leds/scroll-wheel-trackball.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/per56-pmw3360-leds/scroll-wheel-trackball.kicad_pcb",
+      "sha256": "8b53d52f4dca9c5319738ce8a125dc5457d2e7be35f59d67b74cfa15c33c578e",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/per56-pmw3360-leds/scroll-wheel-trackball",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "rgb",
+          "v5",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "per56-pmw3360-cirque-leds (Kiwano)",
+      "name": "Scroll ring, cirque or trackball, RGB LEDs",
+      "status": "Complete",
+      "repository": "https://github.com/Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "sourcePath": "PCB/Kiwano.kicad_pcb",
+      "file": "sources/Ariamelon-Kiwano/PCB/Kiwano.kicad_pcb",
+      "sha256": "788cec3270cc48fa6b0d437fc0fec38509e11e16818294094e3b822a0f94359e",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "PCB/Kiwano",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "scl",
+          "sda",
+          "rgb",
+          "v5",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "pmw3360",
+      "name": "Trackball",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/pmw3360/pmw3360.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/pmw3360/pmw3360.kicad_pcb",
+      "sha256": "e56f672c16a5ed929af35d58fe607025d32892b356ec63968003aeab5eafb1c3",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/pmw3360/pmw3360",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "ssd1351 (Crenshaw)",
+      "name": "Color display",
+      "status": "Complete",
+      "repository": "https://github.com/Ariamelon/Crenshaw",
+      "revision": "c9a6a5b56f88a089719862b32b200b1d82380aed",
+      "sourcePath": "PCB/Crenshaw.kicad_pcb",
+      "file": "sources/Ariamelon-Crenshaw/PCB/Crenshaw.kicad_pcb",
+      "sha256": "b7b9ffc8ba0b9b1bc1f1288ef07943ced21814d6a4b9784cbe68d68b0e8abd02",
+      "license": "CERN-OHL-S-2.0",
+      "family": "display",
+      "variant": "PCB/Crenshaw",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "weact-st7735",
+      "name": "WeAct ST7735 1.8\" color display adapter",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/weact-st7735/weact-st7735.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/weact-st7735/weact-st7735.kicad_pcb",
+      "sha256": "b51ca5d1c4146fe4612bc642811f2663b128b5c394e01979b5d43a6bcc0f54a1",
+      "license": "CERN-OHL-S-2.0",
+      "family": "display",
+      "variant": "pcb/weact-st7735/weact-st7735",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "gc9a01",
+      "name": "gc9a01 round display breakout adapter",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/gc9a01/gc9a01.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/gc9a01/gc9a01.kicad_pcb",
+      "sha256": "acd2a77dfcd3af48a67f4cc8048cb7a7151eb7e68dd97d05be7726b402a6f9c4",
+      "license": "CERN-OHL-S-2.0",
+      "family": "display",
+      "variant": "pcb/gc9a01/gc9a01",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "waveshare-22224",
+      "name": "waveshare 22224 1.47\" display adapter",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/waveshare-22224/waveshare-22224.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/waveshare-22224/waveshare-22224.kicad_pcb",
+      "sha256": "f2facc0d24c5f5e6a6d40661bf22ab462d6b8bfd31388ddca6988b9f90ece21c",
+      "license": "CERN-OHL-S-2.0",
+      "family": "display",
+      "variant": "pcb/waveshare-22224/waveshare-22224",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "azoteq-tps",
+      "name": "Azoteq Proxsense TPS43 and TPS65",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/azoteq-tps/vertical-fpc/azoteq-tps.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/azoteq-tps/vertical-fpc/azoteq-tps.kicad_pcb",
+      "sha256": "dbb135c52ed4dd1ab3af6f02703c3c447bae702668ebe0176cdfd1ceceaf43b8",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/azoteq-tps/vertical-fpc/azoteq-tps",
+      "electrical": {
+        "protocol": "i2c",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "scl",
+          "sda"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "azoteq-tps",
+      "name": "Azoteq Proxsense TPS43 and TPS65",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/azoteq-tps/horizontal-fpc/azoteq-tps.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/azoteq-tps/horizontal-fpc/azoteq-tps.kicad_pcb",
+      "sha256": "42fddaddb301de14cc9a5c44e3eaad1dee0824108f25da2250fc6aaaadad1887",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/azoteq-tps/horizontal-fpc/azoteq-tps",
+      "electrical": {
+        "protocol": "i2c",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "scl",
+          "sda"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "trackpoint",
+      "name": "Trackpoint 2 piece adapter",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/trackpoint-2-piece/trackpoint_2_piece.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/trackpoint-2-piece/trackpoint_2_piece.kicad_pcb",
+      "sha256": "511610dde40b95391fa45ef9a440a374a9fb4a269e2ffa76ea343bc077e31d92",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/trackpoint-2-piece/trackpoint_2_piece",
+      "electrical": {
+        "protocol": "gpio",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "ec11-evqwgd001",
+      "name": "EC11 and EVQWDG001 with RGB leds",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/ec11-evqwgd001/ec11-evqwgd001.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/ec11-evqwgd001/ec11-evqwgd001.kicad_pcb",
+      "sha256": "2b22c0f0b2b99206ac25029b8acd05c75146d9246cb8e3d9ceec5deacae4e033",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/ec11-evqwgd001/ec11-evqwgd001",
+      "electrical": {
+        "protocol": "gpio",
+        "rotaryProfile": {
+          "a": "gpio1",
+          "b": "gpio2",
+          "common": "gnd",
+          "driver": "ec11"
+        },
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "rgb",
+          "v5",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      },
+      "notice": "The carrier exposes rotary channels and RGB; its EC11 switch is not wired to VIK."
+    },
+    {
+      "row": "joysticks",
+      "name": "adafruit 2765, sparkfun 9032, joycon",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/joysticks/joysticks.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/joysticks/joysticks.kicad_pcb",
+      "sha256": "7d29ba3623956469ea669064268762fbb935f12cb20d2682277a51afc0b69e00",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/joysticks/joysticks",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      },
+      "notice": "Joystick X/Y require reviewed ADC-capable assignments; the carrier omits click wiring."
+    },
+    {
+      "row": "vik-playground",
+      "name": "module for prototyping and testing VIK",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/vik-playground/vik-playground.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/vik-playground/vik-playground.kicad_pcb",
+      "sha256": "89169a1404c15a2bc3a8eadb9463d286e1b19f7e71b37b3544ff1e895f00ee91",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/vik-playground/vik-playground",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "scl",
+          "sda",
+          "rgb",
+          "v5",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "vik-universal",
+      "name": "for connecting any through hole board w/VIK",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/vik-universal/jumper-input-output-matrix/vik-universal.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/vik-universal/jumper-input-output-matrix/vik-universal.kicad_pcb",
+      "sha256": "fc70c001bcb7746259addd3d841ba44e5260dc22971bc0bd698c6aeff82678e2",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/vik-universal/jumper-input-output-matrix/vik-universal",
+      "electrical": {
+        "protocol": "gpio",
+        "requiredSignals": [
+          "gnd",
+          "v3v3"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "vik-universal",
+      "name": "for connecting any through hole board w/VIK",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/vik-universal/handwire/vik-universal.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/vik-universal/handwire/vik-universal.kicad_pcb",
+      "sha256": "08879db41902a19d26b7ba6e2f2c1bf48ce69e924efa96d65d9c5d6ca6f6a8b5",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/vik-universal/handwire/vik-universal",
+      "electrical": {
+        "protocol": "gpio",
+        "requiredSignals": [
+          "gnd",
+          "v3v3"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "vik-universal",
+      "name": "for connecting any through hole board w/VIK",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/vik-universal/breadboard/vik-universal.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/vik-universal/breadboard/vik-universal.kicad_pcb",
+      "sha256": "9ebeac505d2693ac4a082ca516b313cb7c04ead4e4683caab4b2163662c2ae6a",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/vik-universal/breadboard/vik-universal",
+      "electrical": {
+        "protocol": "gpio",
+        "requiredSignals": [
+          "gnd",
+          "v3v3"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "ili9341v",
+      "name": "Display with capacitive touch and SD card",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/ili9341v/ili9341v.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/ili9341v/ili9341v.kicad_pcb",
+      "sha256": "45515559adfc8df5174de21097f04070da5e311a5fed9d6a717b22aaf1ba1b30",
+      "license": "CERN-OHL-S-2.0",
+      "family": "display",
+      "variant": "pcb/ili9341v/ili9341v",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "scl",
+          "sda",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "nice!view",
+      "name": "nice!view display",
+      "status": "Untested",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/niceview/vertical-fpc/niceview.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/niceview/vertical-fpc/niceview.kicad_pcb",
+      "sha256": "f152d45b48f16a3ecddfa9e279e8fa3a8a11c67bae4541a1246922e11286818d",
+      "license": "CERN-OHL-S-2.0",
+      "family": "display",
+      "variant": "pcb/niceview/vertical-fpc/niceview",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "nice!view",
+      "name": "nice!view display",
+      "status": "Untested",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/niceview/horizontal-fpc/niceview.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/niceview/horizontal-fpc/niceview.kicad_pcb",
+      "sha256": "106482c7bbb55aeb868b6951df7608bb4a75c89f4759397d40120565cbc2efee",
+      "license": "CERN-OHL-S-2.0",
+      "family": "display",
+      "variant": "pcb/niceview/horizontal-fpc/niceview",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "vik-display-adapter",
+      "name": "various display adapters in different sizes",
+      "status": "Complete",
+      "repository": "https://github.com/zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "sourcePath": "pcb/2inch-0.8mm/pcb.kicad_pcb",
+      "file": "sources/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/pcb.kicad_pcb",
+      "sha256": "a36d1c666d1c90f18b08efd1c7546fa01526f958b2ba7dd2b8e51ff65f9d3258",
+      "license": "MIT",
+      "family": "display",
+      "variant": "pcb/2inch-0.8mm/pcb",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "vik-display-adapter",
+      "name": "various display adapters in different sizes",
+      "status": "Complete",
+      "repository": "https://github.com/zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "sourcePath": "pcb/1.47inch/pcb.kicad_pcb",
+      "file": "sources/zzeneg-vik-display-adapter/pcb/1.47inch/pcb.kicad_pcb",
+      "sha256": "ca9c4b36d42798ba4ae2b927c1a7958a9caf9aecc85182f0fe62885af33b9de9",
+      "license": "MIT",
+      "family": "display",
+      "variant": "pcb/1.47inch/pcb",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "vik-display-adapter",
+      "name": "various display adapters in different sizes",
+      "status": "Complete",
+      "repository": "https://github.com/zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "sourcePath": "pcb/1.28inch-round/pcb.kicad_pcb",
+      "file": "sources/zzeneg-vik-display-adapter/pcb/1.28inch-round/pcb.kicad_pcb",
+      "sha256": "94a7161c20c692713d771115fca79727a162663443ddfaaba9a329b37cd932dc",
+      "license": "MIT",
+      "family": "display",
+      "variant": "pcb/1.28inch-round/pcb",
+      "electrical": {
+        "protocol": "spi",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "shift-register-spi-breakout-pcb",
+      "name": "dual shift register breakout for extended key matrix",
+      "status": "Untested",
+      "repository": "https://github.com/christrotter/shift-register-spi-breakout-pcb",
+      "revision": "543dd90f1a7e95949d31d4c137593244efef5a07",
+      "sourcePath": "shift-register-breakout-pcb.kicad_pcb",
+      "file": "sources/christrotter-shift-register-spi-breakout-pcb/shift-register-breakout-pcb.kicad_pcb",
+      "sha256": "86b9f7fbc6f7cea4f07a95448169f4eb4724c7f55063051ffad08039f988b31d",
+      "license": "MIT",
+      "family": "feedback-expansion",
+      "variant": "shift-register-breakout-pcb",
+      "electrical": {
+        "protocol": "matrix-expansion",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "pmw3610",
+      "name": "Trackball (for wireless boards)",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/pmw3610/pmw3610.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/pmw3610/pmw3610.kicad_pcb",
+      "sha256": "54567a3f1f398e04a6f800b9741f0bcddeec837b34ff66679a7cfdf2cb06ce15",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/pmw3610/pmw3610",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "scl",
+          "sda"
+        ],
+        "logicVoltage": 3.3
+      },
+      "notice": "Nonstandard VIK signal use: dedicated serial interface and repurposed contacts require an isolated, reviewed connection."
+    },
+    {
+      "row": "pmw3610-xs",
+      "name": "Trackball (for wireless boards)",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/pmw3610-xs/pmw3610.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/pmw3610-xs/pmw3610.kicad_pcb",
+      "sha256": "77a6fbf53db692edd94dfe39c1dd198bca7aa5817a54fb4151d7c9f1b59c0041",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/pmw3610-xs/pmw3610",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "scl",
+          "sda"
+        ],
+        "logicVoltage": 3.3
+      },
+      "notice": "Nonstandard VIK signal use: dedicated serial interface and repurposed contacts require an isolated, reviewed connection."
+    },
+    {
+      "row": "pmw3610-xxs",
+      "name": "Trackball (for wireless boards)",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/pmw3610-xxs/pmw3610_xxs.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/pmw3610-xxs/pmw3610_xxs.kicad_pcb",
+      "sha256": "dd6ec374e30628cb7bdba72e445efa81040865da27a17164da2bb8b25cf16b02",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/pmw3610-xxs/pmw3610_xxs",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "scl",
+          "sda"
+        ],
+        "logicVoltage": 3.3
+      },
+      "notice": "Nonstandard VIK signal use: dedicated serial interface and repurposed contacts require an isolated, reviewed connection."
+    },
+    {
+      "row": "vikropad",
+      "name": "Macropad (18 key) with 2x 5 way switches",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/vikropad/vikropad.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/vikropad/vikropad.kicad_pcb",
+      "sha256": "b7741c3cf7a0b06a903eff1afced70eea90f996bc070a5d379e55f379bc65516",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "pcb/vikropad/vikropad",
+      "electrical": {
+        "protocol": "matrix-expansion",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "rgb",
+          "v5",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "solenoid-1",
+      "name": "Solenoid module using 3.3v or 5v and 1 gpio",
+      "status": "Complete",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/solenoid/solenoid.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/solenoid/solenoid.kicad_pcb",
+      "sha256": "d50f9ce89af7e46152bba350488d88a16359c27276b98b3e5da119f2854086fa",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/solenoid/solenoid",
+      "electrical": {
+        "protocol": "gpio",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "gpio1"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "solenoid-2",
+      "name": "Solenoid module using 5v and 1 gpio",
+      "status": "Complete",
+      "repository": "https://github.com/Aleblazer/VIK-Solenoid",
+      "revision": "d7a5e9d05de2f1877ba2a3fa74e905bc225ac258",
+      "sourcePath": "VIK-Solenoid.kicad_pcb",
+      "file": "sources/Aleblazer-VIK-Solenoid/VIK-Solenoid.kicad_pcb",
+      "sha256": "efb550da1c6d65bef2e9bbc0c84ea03704e661ca3ff2d293a0c52bd606c64271",
+      "license": "MIT",
+      "family": "feedback-expansion",
+      "variant": "VIK-Solenoid",
+      "electrical": {
+        "protocol": "gpio",
+        "requiredSignals": [
+          "gnd",
+          "v5",
+          "gpio1"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "solenoid-2",
+      "name": "Solenoid module using 5v and 1 gpio",
+      "status": "Complete",
+      "repository": "https://github.com/Aleblazer/VIK-Solenoid",
+      "revision": "a24b30561da429d7bb482f4678e5e80d4e85b775",
+      "sourcePath": "VIK-Solenoid.kicad_pcb",
+      "file": "sources/Aleblazer-VIK-Solenoid/ExtraSmallVIK/VIK-Solenoid.kicad_pcb",
+      "sha256": "c0e852c50987932006d43fe1293541281a47d80d9914670d4aff0a3a34908aa4",
+      "license": "MIT",
+      "family": "feedback-expansion",
+      "variant": "ExtraSmallVIK",
+      "electrical": {
+        "protocol": "gpio",
+        "requiredSignals": [
+          "gnd",
+          "v5",
+          "gpio1"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "peacock trackpad",
+      "name": "Large trackpad module",
+      "status": "Complete",
+      "repository": "https://github.com/george-norton/peacock",
+      "revision": "d2849eaa70a10b4fd1a533099be7f069278b452f",
+      "sourcePath": "trackpad.kicad_pcb",
+      "file": "sources/george-norton-peacock/trackpad.kicad_pcb",
+      "sha256": "11dd920bc3f701603fbd84f3c1b7e6402d07bc7621848e15ac2a87056b10600f",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "trackpad",
+      "electrical": {
+        "protocol": "i2c",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "scl",
+          "sda",
+          "gpio1"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "procyon trackpad",
+      "name": "multi touch trackpad module",
+      "status": "Complete",
+      "repository": "https://github.com/george-norton/procyon",
+      "revision": "e8b1f11eca1972b752f30954d19f3f3b32b4b85e",
+      "sourcePath": "57x80/procyon_57x80.kicad_pcb",
+      "file": "sources/george-norton-procyon/57x80/procyon_57x80.kicad_pcb",
+      "sha256": "48eafdd789ed55979b982ab52bf9ed9fe509c109fef7e1716b481b8d896076ca",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "57x80/procyon_57x80",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "scl",
+          "sda",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "procyon trackpad",
+      "name": "multi touch trackpad module",
+      "status": "Complete",
+      "repository": "https://github.com/george-norton/procyon",
+      "revision": "e8b1f11eca1972b752f30954d19f3f3b32b4b85e",
+      "sourcePath": "42x50/procyon_42x50.kicad_pcb",
+      "file": "sources/george-norton-procyon/42x50/procyon_42x50.kicad_pcb",
+      "sha256": "f6b3e8466a6050df0a14812d92a47932f2250cc4b105322cf542de417697aff8",
+      "license": "CERN-OHL-S-2.0",
+      "family": "pointing-input",
+      "variant": "42x50/procyon_42x50",
+      "electrical": {
+        "protocol": "nonstandard",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "sclk",
+          "mosi",
+          "miso",
+          "cs",
+          "scl",
+          "sda",
+          "gpio1",
+          "gpio2"
+        ],
+        "logicVoltage": 3.3
+      }
+    },
+    {
+      "row": "vik-splitter",
+      "name": "module to split one vik in connector to two vik outs",
+      "status": "Untested",
+      "repository": "https://github.com/sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "sourcePath": "pcb/vik-splitter/vik-splitter.kicad_pcb",
+      "file": "sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb",
+      "sha256": "5f0ae2b03b296d7edae170a11d44920095c89d02eaff6819ad0470d2627b9a26",
+      "license": "CERN-OHL-S-2.0",
+      "family": "feedback-expansion",
+      "variant": "pcb/vik-splitter/vik-splitter",
+      "electrical": {
+        "protocol": "pass-through",
+        "requiredSignals": [
+          "gnd",
+          "v3v3",
+          "v5"
+        ],
+        "logicVoltage": 3.3
+      },
+      "notice": "Untested upstream. Source BOM disagrees with placed FPC footprints; outputs share CS and GPIO. Complete assembly and cable access remain unqualified."
+    }
+  ]
+}

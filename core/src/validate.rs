@@ -15,6 +15,8 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
     let mut findings = crate::hardware::nominal_fit(doc).0;
     for board in &doc.boards {
         findings.extend(crate::keycaps::resolve(doc, &board.id, None).findings);
+        findings.extend(crate::modules::resolve(doc, &board.id).findings);
+        findings.extend(crate::modules::embedded_findings(doc, &board.id));
     }
     for part in &doc.parts {
         let Some(def) = doc.definitions.iter().find(|d| d.id == part.definition_id) else {

@@ -66,17 +66,29 @@ cannot be reused to bypass fabrication qualification. Case generation retains
 mechanical blockers. ZMK handoff carries a compact selected-part qualification
 snapshot and blocks unresolved firmware facts.
 
-Remaining source and digital evidence:
+Remaining source facts and digital configuration:
 
 - Orderable encoder identity, source-backed contact mapping on both sides, and
   resolution of the ordinary #2 versus reversible A/C pad ambiguity. Physical
   continuity testing is deferred.
 - Selected tactile identity and toleranced package fit, especially the unknown
   2-pin package; named 4-pin drawings alone do not identify purchased hardware.
-- Back-side model/hole datum and PCB thickness fit, modeled solder-mask/tool access,
-  assembled travel, plate openings, and documented tolerance allowances. Physical
-  production variability is deferred.
-- Closed required mounting contours and digital DRC/slot/web checks against the selected fabrication rules.
+- The source #1 model's nominal back transform is now checked against the
+  reversible footprint hole locations and board thickness. Back-side contact
+  continuity, modeled solder-mask/tool access, assembled travel, plate openings,
+  and toleranced fit remain separate source/configuration gaps. Production
+  variability is deferred.
+- The drilled helper's eight published NPTH slots now have a rotated public
+  export/preview check. Its public footprint gate records the unresolved
+  helper-to-encoder pose assumption and selected-fabricator slot rules; it does
+  not report a closed-contour blocker. The routed helper remains gated because
+  its pinned Edge.Cuts geometry is open; BoardStudio does not invent a closing boundary.
+  The pinned `PCB_Sample/THQWGD001C.kicad_pcb` (SHA-256
+  `5f2bfd4a7b142eeee038d3cefcc4815ac8e229007ab0ef9b6f4153485b0d1de7`) contains
+  one closed board-perimeter loop made from 14 Edge.Cuts primitives, no `SlitC`
+  helper placement and no independent route contour, so it cannot establish that
+  helper's location or closure.
+  Minimum slot/web rules still need an explicit selected-fabricator profile.
 - Wheel-specific assembly datum, press/rotation swept bounds, and service bounds.
 - Encoder pulses, detents, direction, and documented driver configuration; physical firmware validation is deferred.
 
@@ -97,16 +109,30 @@ recorded assumptions; it does not certify manufactured hardware.
 | Model bounds | Import each pinned STEP, verify finite mesh and tight extrema against independent source measurements; check conservative bounds contain the mesh | Inspect all three variants for missing bodies, unexpected scale or floating geometry |
 | Assembly datum | Compare transformed lead/hole positions, PCB surface and thickness on front/back; preserve the source datum | Check leads, holes, wheel axis and PCB crossing from top, bottom and side views |
 | Fit | Check nominal overlaps at MX and Choc pitches, rotated/back-side placements and a clear control; report precisely located intersections | Select findings and confirm the highlighted region matches the interference |
-| Mounting and exports | Verify required cuts form closed machinable contours, masks/pads and portable model transforms survive export; compare exported geometry with preview | Inspect the mounting cuts and plate/case openings; confirm the chosen orientation |
+| Mounting and exports | Verify drilled slot holes, masks/pads and portable model transforms survive export; compare exported geometry with preview; keep any open routed contour gated unless source-backed integration closes it; run DRC with selected fabrication rules | Inspect the mounting cuts and plate/case openings; confirm the chosen orientation and any paired-helper placement assumption |
 | Editing | Verify standalone placement, matrix replacement, bindings, Undo/Redo and saved reload | Perform placement/replacement and reopen the saved board |
 | Electrical and firmware | Preserve published pad roles and repeated pads; test matrix/direct-press planning and explicit configuration errors | Review selected press scan mode and rotary configuration; identify assumptions requiring confirmation |
 
-The existing seven public Rust tests, three real STEP-import tests and four THQ
-browser workflows provide a starting evidence set. They do not yet satisfy every
-row: alternative assemblies, datum/contact ambiguities, swept/service geometry
-and closed mounting cuts still need source-backed digital work. A human cannot
-resolve an absent dimension or electrical contact map merely by approving a
-rendering.
+Ten public Rust tests cover output gates, source contact preservation,
+front/back exported hole and model placement, MX/Choc nominal fit at 0/90 degrees,
+back-side fit, drill-helper slot geometry through rotated export and preview, and
+separate nominal preview. A regression asserts that only the routed helper gets
+the open-contour gate while the drilled helper gets a reviewable pose assumption.
+Nine real STEP-import tests compare pinned bounds,
+geometric lead-tip positions against the imported source hole centers, and front
+and back transformed extents against the independent FreeCAD oracle. Five THQ
+browser workflows cover variant discovery, replacement, standalone placement,
+pitch/rotation finding behavior and precise highlight navigation. These checks
+validate the digital geometry and transforms; they do not certify physical
+continuity, motion or manufacturing tolerances.
+
+The drill helper is still an independently placed library footprint; an
+automatic companion-placement action is not implemented. The pinned source does
+not state its transform relative to an encoder. Any future “add matching drilled
+helper” action must show shared-origin placement as a user-reviewable
+configuration assumption. The routed helper cannot be made closed by endpoint
+snapping: the source contains a deliberate opening, not a small numeric endpoint
+gap.
 
 For each review, record the commit, saved project, variant, PCB thickness,
 orientation, pitch, screenshots and a pass/fail result for each applicable row.

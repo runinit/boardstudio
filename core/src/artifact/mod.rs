@@ -2,6 +2,7 @@ pub mod compile;
 pub mod kicad;
 pub mod mechanical_extract;
 mod mechanical_plate;
+mod module_import;
 pub mod outline;
 mod preview;
 mod sexpr;
@@ -49,6 +50,27 @@ pub fn request(json: &str) -> String {
 
 fn handle(request: ArtifactRequest) -> ArtifactReply {
     match request {
+        ArtifactRequest::ImportModuleBoard {
+            id,
+            definition_id,
+            name,
+            source,
+            provenance,
+            family,
+            variant,
+            repair,
+        } => match module_import::import(
+            &source,
+            &definition_id,
+            &name,
+            provenance,
+            family,
+            variant,
+            repair,
+        ) {
+            Ok(result) => ArtifactReply::ImportModuleBoard { id, result },
+            Err(error) => ArtifactReply::Error { id, error },
+        },
         ArtifactRequest::ExportMechanicalPlate {
             id,
             document,

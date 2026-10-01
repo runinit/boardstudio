@@ -71,6 +71,30 @@ test('THQ nominal fit finding highlights the actual overlapping bounds',async ({
   expect(Math.max(...xs)-Math.min(...xs)).toBeCloseTo(0.369158001,3);
 });
 
+test('THQ fit findings follow MX and Choc pitches after rotation and back mounting',async ({page}) => {
+  const scenarios=[
+    {label:'Choc 0°',side:'front',rotation:0,at:{x:18,y:0},finding:true},
+    {label:'MX 0°',side:'front',rotation:0,at:{x:19.05,y:0},finding:true},
+    {label:'MX 90° horizontal clear',side:'front',rotation:90,at:{x:19.05,y:0},finding:false},
+    {label:'MX 90° vertical',side:'front',rotation:90,at:{x:0,y:19.05},finding:true},
+    {label:'MX 90° back vertical',side:'back',rotation:90,at:{x:0,y:19.05},finding:true},
+  ] as const;
+  for(const [index,scenario] of scenarios.entries()) {
+    const document=demoProject();document.id=`thq-fit-${index}`;
+    document.definitions=structuredClone(thqDefinitions).filter(part=>part.id==='thqwgd001:c-4pin-reversible');
+    document.parts=['a','b'].map((id,partIndex)=>({id,reference:`ENC${partIndex+1}`,definitionId:document.definitions[0].id,side:scenario.side,pose:{at:partIndex===0?{x:0,y:0}:scenario.at,rotation:scenario.rotation}}));
+    document.matrices=[];document.nets=[];document.caseBodies=[];
+    document.boards[0].partIds=['a','b'];document.boards[0].netIds=[];
+    document.outline=[{id:'edge',kind:'rect',center:{x:scenario.at.x/2,y:scenario.at.y/2},size:{x:80,y:80},radius:0,rotation:0,operation:'add'}];
+    document.boards[0].outlineIds=['edge'];
+    await openWorkspaceDocument(page,document);
+    await page.getByRole('button',{name:/^Layout findings:/}).click();
+    const fits=page.locator('.wb-findings li').filter({hasText:'nominal occupied model bounds overlap'});
+    if(scenario.finding) await expect(fits,scenario.label).toHaveCount(1);
+    else await expect(fits,scenario.label).toHaveCount(0);
+  }
+});
+
 test('THQ C standalone placement keeps its press outside the matrix through reload',async ({page}) => {
   await openKeymapFixture(page);
   const before=await readWorkspaceDocument(page);

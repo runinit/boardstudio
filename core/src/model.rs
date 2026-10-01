@@ -1,8 +1,15 @@
-pub use crate::hardware::{HardwareGate, HardwareOutput, HardwareProfile, HardwareSource};
+pub use crate::hardware::{HardwareGate, HardwareOutput, HardwareProfile, HardwareSource, VikRole};
 pub use crate::inputs::{EncoderDriver, InputProfile, PressContacts, PressScanMode, RotaryProfile};
 pub use crate::keymap::{
     EncoderBinding, EncoderDirection, KeyBinding, KeymapChange, KeymapConfiguration, KeymapLayer,
     KeymapMacro, MacroChange, MacroStep,
+};
+pub use crate::modules::{
+    EmbeddedCircuit,
+    ModuleAttachment, ModuleBoard, ModuleCircuit, ModuleCircuitRepair, ModuleConnection,
+    ModuleConstituent, ModuleDefinition, ModuleElectrical, ModuleInterface, ModuleModelCandidate,
+    ModuleModelPlacement, ModuleProtocol, ModuleResolution, ModuleSupport, ModuleVolume, MountedModule,
+    ResolvedModule, VikSignal,
 };
 pub use boardstudio_contracts::{
     KeycapBoardSettings, KeycapConfiguration, KeycapKeySettings, KeycapMatrixSettings, KeycapMount,
@@ -897,6 +904,40 @@ pub struct LayoutMirrorLink {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct ProjectDoc {
+    /// View-only physical context used by Rust assembly preparation; canonical edits omit it.
+    #[serde(
+        rename = "physicalInstanceId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub physical_instance_id: Option<String>,
+    #[serde(
+        rename = "moduleDefinitions",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<ModuleDefinition>>", optional)
+    )]
+    pub module_definitions: Vec<ModuleDefinition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<MountedModule>>", optional)
+    )]
+    pub modules: Vec<MountedModule>,
+    #[serde(
+        rename = "embeddedCircuits",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<EmbeddedCircuit>>", optional)
+    )]
+    pub embedded_circuits: Vec<EmbeddedCircuit>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keymap: Option<KeymapConfiguration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -957,6 +998,10 @@ pub struct ProjectDoc {
 impl ProjectDoc {
     pub fn empty(id: &str, name: &str) -> Self {
         Self {
+            module_definitions: vec![],
+            physical_instance_id: None,
+            modules: vec![],
+            embedded_circuits: vec![],
             keymap: None,
             keycaps: None,
             hardware: None,
@@ -1078,6 +1123,30 @@ pub enum MatrixSplayChange {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum EditOperation {
+    SetModuleDefinition {
+        definition: ModuleDefinition,
+    },
+    SetMountedModule {
+        instance: MountedModule,
+        #[serde(default)]
+        definition: Option<ModuleDefinition>,
+    },
+    RemoveMountedModule {
+        id: String,
+    },
+    EmbedModuleCircuit {
+        id: String,
+        definition: ModuleDefinition,
+        #[serde(rename = "hostBoardId")]
+        host_board_id: String,
+        pose: Pose2,
+        side: Side,
+        #[serde(default)]
+        joins: BTreeMap<String, String>,
+    },
+    RemoveEmbeddedCircuit {
+        id: String,
+    },
     SetInputScanMode {
         #[serde(rename = "partId")]
         part_id: String,
@@ -1347,6 +1416,16 @@ pub struct BoardReadiness {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[cfg_attr(feature = "export-types", ts(optional_fields))]
 pub struct SceneDelta {
+    #[serde(
+        rename = "moduleScenes",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<ResolvedModule>>", optional)
+    )]
+    pub module_scenes: Vec<ResolvedModule>,
     pub revision: u64,
     #[serde(rename = "transactionId")]
     pub transaction_id: String,
@@ -1424,6 +1503,20 @@ pub struct MatrixColumnBasis {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CoreRequest {
+    #[serde(rename = "resolve-modules")]
+    ResolveModules {
+        id: String,
+        document: ProjectDoc,
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(
+            default,
+            rename = "previewTopZ",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        preview_top_z: Option<f64>,
+    },
     #[serde(rename = "resolve-keycaps")]
     ResolveKeycaps {
         id: String,
@@ -1520,6 +1613,11 @@ pub enum CoreRequest {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CoreReply {
+    #[serde(rename = "modules-resolved")]
+    ModulesResolved {
+        id: String,
+        result: ModuleResolution,
+    },
     #[serde(rename = "keycaps-resolved")]
     KeycapsResolved {
         id: String,
@@ -1835,6 +1933,19 @@ pub struct OutlineExportRequest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 #[serde(rename_all_fields = "camelCase")]
 pub enum ArtifactRequest {
+    ImportModuleBoard {
+        id: String,
+        #[serde(rename = "definitionId")]
+        definition_id: String,
+        name: String,
+        source: String,
+        provenance: HardwareSource,
+        family: String,
+        variant: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "export-types", ts(optional))]
+        repair: Option<ModuleCircuitRepair>,
+    },
     ExportMechanicalPlate {
         id: String,
         document: ProjectDoc,
@@ -1887,6 +1998,10 @@ pub enum ArtifactRequest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 #[serde(rename_all_fields = "camelCase")]
 pub enum ArtifactReply {
+    ImportModuleBoard {
+        id: String,
+        result: ModuleDefinition,
+    },
     ExportMechanicalPlate {
         id: String,
         result: ExportArtifact,
@@ -2360,6 +2475,18 @@ pub struct MechanicalStackLayer {
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalAssembly {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<FindingMarker>>", optional)
+    )]
+    pub finding_markers: Vec<FindingMarker>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(
+        feature = "export-types",
+        ts(as = "Option<Vec<ResolvedModule>>", optional)
+    )]
+    pub modules: Vec<ResolvedModule>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[cfg_attr(
         feature = "export-types",

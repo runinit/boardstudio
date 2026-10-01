@@ -72,8 +72,14 @@ export function createKeymapWorkspace({ document, scene, boardId, parts, definit
     return legacy.startsWith('&kp ') ? { kind: 'key-press', keycode: legacy.slice(4) } : { kind: legacy === '&trans' ? 'transparent' : 'none' };
   };
 
+  const moduleEncoders = (document.modules ?? []).filter(module => module.hostBoardId === boardId && !module.detached).flatMap(module => {
+    const definition = (document.moduleDefinitions ?? []).find(item => item.id === module.definitionId);
+    if (definition?.catalogueRow !== 'ec11-evqwgd001' || !definition.electrical.rotaryProfile) return [];
+    return [{ id: module.id, name: definition.name, pushKeyId: null }];
+  });
+  const visibleEncoders = [...encoders, ...moduleEncoders.filter(module => !encoders.some(encoder => encoder.id === module.id))];
   return {
-    panel: () => <KeymapPanel view={readView()} map={map} layer={layer} selectedKeyId={selectedKeyId} onSelect={selectKey} onLayer={onLayer} bindingFor={bindingFor} encoders={encoders}
+    panel: () => <KeymapPanel view={readView()} map={map} layer={layer} selectedKeyId={selectedKeyId} onSelect={selectKey} onLayer={onLayer} bindingFor={bindingFor} encoders={visibleEncoders}
       onChange={change => emit({ kind: 'edit-keymap', change }, [boardId])} onExport={() => exportFile('firmware', boardId)} />,
     keycapsPanel: () => <KeycapPanel view={readView()} selectedKeyId={selectedKeyId} onSelect={selectKey} onEdit={edit}
       onExportKeycaps={() => exportFile('keycaps-step', boardId)}

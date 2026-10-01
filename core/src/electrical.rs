@@ -795,7 +795,23 @@ fn construct_nets(input: NetConstruction<'_>) -> ConstructedNets {
     result
 }
 
-pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
+pub fn resolve(mut request: ElectricalPlanRequest) -> ElectricalPlan {
+    if let Some(instance_id) = request.instance_id.as_ref() {
+        request.document.physical_instance_id = request
+            .document
+            .hardware
+            .as_ref()
+            .and_then(|hardware| {
+                hardware.instances.iter().find(|instance| {
+                    &instance.id == instance_id
+                        && request
+                            .board_id
+                            .as_ref()
+                            .is_none_or(|board| &instance.board_id == board)
+                })
+            })
+            .map(|instance| instance.id.clone());
+    }
     let doc = &request.document;
     let board = request
         .board_id
@@ -988,8 +1004,22 @@ pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
         .map(|config| config.locks.clone())
         .unwrap_or_default();
     locks.extend(request.locks.clone());
+    locks.extend(crate::modules::connection_locks(doc, &board.id));
     let baseline = config.and_then(|config| config.protected_handoff.as_ref());
     plan.peripherals = crate::electrical_peripherals::describe(doc, &board.id);
+    for finding in crate::modules::connection_findings(doc, &board.id) {
+        plan.diagnostics.push(ElectricalDiagnostic {
+            code: finding.id,
+            severity: if finding.severity == Severity::Error {
+                "error"
+            } else {
+                "warning"
+            }
+            .into(),
+            message: finding.message,
+            key_id: finding.target_ids.first().cloned(),
+        });
+    }
     let rgb_parts = plan
         .peripherals
         .iter()
@@ -1034,6 +1064,10 @@ pub fn resolve(request: ElectricalPlanRequest) -> ElectricalPlan {
                 .peripherals
                 .iter()
                 .any(|peripheral| peripheral.part_id == part.id)
+            || doc
+                .embedded_circuits
+                .iter()
+                .any(|circuit| circuit.part_ids.contains(&part.id))
             || definition.pads.iter().all(|pad| {
                 (pad.plated == Some(false) && pad.drill.is_some()) || pad.number.is_empty()
             })

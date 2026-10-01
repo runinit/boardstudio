@@ -52,6 +52,30 @@ describe('v2 project archive', () => {
     }
   });
 
+  it('carries mounted-module snapshots, connections and used model bytes', async () => {
+    const source = catalogue().find(item => item.generator?.source === 'infused-kim/switch_reset')!;
+    const modelId = modelAssetIds(source)[0];
+    const project = demoProject();
+    project.moduleDefinitions = [{
+      id:'portable-module',name:'Portable module',family:'expansion',variant:'review fixture',
+      source:{repository:'https://github.com/sadekbaroudi/vik',revision:'cd5d16e4cd9137a229fc673412a89d75f4e64553',path:'pcb/vik-splitter',license:'CERN-OHL-S-2.0'},
+      board:{contours:[],thickness:1.6},mounts:[],volumes:[],openings:[],interfaces:[],constituents:[],gates:[],
+      electrical:{protocol:'pass-through',requiredSignals:[],logicVoltage:3.3},
+      models:[{assetId:modelId,offset:{x:2,y:3,z:4},rotation:{x:0,y:0,z:45},scale:{x:1,y:1,z:1}}],
+    }];
+    project.modules=[{id:'portable-placement',definitionId:'portable-module',hostBoardId:project.boards[0].id,hostFace:'back',facingFace:'front',at:{x:10,y:20},rotation:30,gap:4,attachment:'case',detached:false,serviceClearance:1,
+      connection:{hostConnectorPartId:'host',modulePortId:'input',busId:'shared-i2c',assignments:{scl:'P0',sda:'P1'},cableType:'type-a-12-0.5',railVoltages:{v3v3:3.3}}}];
+    const bytes=strToU8('module model bytes');
+    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,arrayBuffer:async()=>bytes.buffer})));
+    const archive=await packProject(project,{},archiveTransport);
+    const restored=await unpackProject(archive,archiveTransport);
+    expect(restored.moduleDefinitions).toEqual(project.moduleDefinitions);
+    expect(restored.modules).toEqual(project.modules);
+    const asset=restored.assets.find(item=>item.id===modelId);
+    expect(asset,'Mounted models must travel with the project').toBeDefined();
+    expect(await loadAsset(asset!.sha256)).toEqual(bytes);
+  });
+
   it('rejects non-v2 documents', async () => {
     const archive = zipSync({
       'project.json': strToU8(JSON.stringify({ format: 'ergogen/v1', parts: [], boards: [] })),

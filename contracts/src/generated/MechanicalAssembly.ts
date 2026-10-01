@@ -3,11 +3,13 @@ import type { CaseAssemblyIR } from "./CaseAssemblyIR";
 import type { CaseIR } from "./CaseIR";
 import type { Contour } from "./Contour";
 import type { Finding } from "./Finding";
+import type { FindingMarker } from "./FindingMarker";
 import type { MechanicalGasketSupport } from "./MechanicalGasketSupport";
 import type { MechanicalGasketTrack } from "./MechanicalGasketTrack";
 import type { MechanicalHardwareSpecification } from "./MechanicalHardwareSpecification";
 import type { MechanicalMaterialSpecification } from "./MechanicalMaterialSpecification";
 import type { MechanicalStackLayer } from "./MechanicalStackLayer";
 import type { Mount } from "./Mount";
+import type { ResolvedModule } from "./ResolvedModule";
 
-export type MechanicalAssembly = { generatedMaterials?: Array<MechanicalMaterialSpecification>, gasketSupports: Array<MechanicalGasketSupport>, gasketTracks: Array<MechanicalGasketTrack>, generatedHardware: Array<MechanicalHardwareSpecification>, pcbReference?: CaseIR, suggestedMounts: Array<Mount>, nominalPlateContours: Array<Contour>, revision: number, plateContours: Array<Contour>, case: CaseAssemblyIR, stack: Array<MechanicalStackLayer>, diagnostics: Array<Finding>, generationBlocked: boolean, };
+export type MechanicalAssembly = { findingMarkers?: Array<FindingMarker>, modules?: Array<ResolvedModule>, generatedMaterials?: Array<MechanicalMaterialSpecification>, gasketSupports: Array<MechanicalGasketSupport>, gasketTracks: Array<MechanicalGasketTrack>, generatedHardware: Array<MechanicalHardwareSpecification>, pcbReference?: CaseIR, suggestedMounts: Array<Mount>, nominalPlateContours: Array<Contour>, revision: number, plateContours: Array<Contour>, case: CaseAssemblyIR, stack: Array<MechanicalStackLayer>, diagnostics: Array<Finding>, generationBlocked: boolean, };

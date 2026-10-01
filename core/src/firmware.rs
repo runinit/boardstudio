@@ -36,6 +36,59 @@ pub struct FirmwareKey {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FirmwareModuleQualification {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub host_instance_id: Option<String>,
+    pub protocol: crate::model::ModuleProtocol,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub catalogue_row: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub source: Option<crate::model::HardwareSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub rotary_profile: Option<crate::model::RotaryProfile>,
+    #[serde(default)]
+    pub gates: Vec<crate::model::HardwareGate>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FirmwarePhysicalInstance {
+    pub id: String,
+    pub board_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FirmwareModuleFinding {
+    pub id: String,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FirmwareHardware {
+    pub board_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub physical_instance_id: Option<String>,
+    pub modules: Vec<FirmwareModuleQualification>,
+    pub physical_instances: Vec<FirmwarePhysicalInstance>,
+    pub module_findings: Vec<FirmwareModuleFinding>,
+    pub embedded_circuit_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "export-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FirmwarePartQualification {
     pub part_id: String,
     pub name: String,
@@ -57,6 +110,9 @@ pub struct FirmwareRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "export-types", ts(optional))]
     pub qualification: Option<FirmwareQualification>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub hardware: Option<FirmwareHardware>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[cfg_attr(
         feature = "export-types",
@@ -127,6 +183,97 @@ fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
         }
     }
 
+    if let Some(hardware) = &request.hardware {
+        if hardware.board_id.trim().is_empty() {
+            return Err("Firmware host board is missing".into());
+        }
+        if let Some(id) = &hardware.physical_instance_id {
+            if !hardware
+                .physical_instances
+                .iter()
+                .any(|instance| &instance.id == id && instance.board_id == hardware.board_id)
+            {
+                return Err(
+                    "The selected physical host instance is missing or belongs to another board"
+                        .into(),
+                );
+            }
+        } else if hardware
+            .modules
+            .iter()
+            .any(|module| module.host_instance_id.is_some())
+        {
+            return Err("Select a physical host instance before exporting modules attached to a specific keyboard half".into());
+        }
+        if let Some(finding) = hardware.module_findings.first() {
+            return Err(format!("{}: {}", finding.id, finding.message));
+        }
+        let mut module_ids = std::collections::BTreeSet::new();
+        for module in hardware.modules.iter().filter(|module| {
+            module
+                .host_instance_id
+                .as_ref()
+                .is_none_or(|host| hardware.physical_instance_id.as_ref() == Some(host))
+        }) {
+            if module.id.trim().is_empty() || !module_ids.insert(&module.id) {
+                return Err("Firmware module snapshot has a missing or duplicate identity".into());
+            }
+            let source_rotary = module.catalogue_row.as_deref() == Some("ec11-evqwgd001")
+                && module.source.as_ref().is_some_and(|source| {
+                    source.repository == "https://github.com/sadekbaroudi/vik"
+                        && source.revision == "cd5d16e4cd9137a229fc673412a89d75f4e64553"
+                        && source.path == "pcb/ec11-evqwgd001/ec11-evqwgd001.kicad_pcb"
+                        && source.sha256.as_deref()
+                            == Some(
+                                "2b22c0f0b2b99206ac25029b8acd05c75146d9246cb8e3d9ceec5deacae4e033",
+                            )
+                })
+                && module.protocol == crate::model::ModuleProtocol::Gpio
+                && module.rotary_profile.as_ref().is_some_and(|profile| {
+                    profile.driver == Some(crate::model::EncoderDriver::Ec11)
+                        && profile.steps.is_some_and(|steps| steps > 0)
+                        && profile
+                            .triggers_per_rotation
+                            .is_some_and(|triggers| triggers > 0)
+                        && profile.a == "gpio1"
+                        && profile.b == "gpio2"
+                        && profile.common == "gnd"
+                });
+            let matching_rotary_encoders = module.rotary_profile.as_ref().map_or(0, |profile| {
+                request
+                    .encoders
+                    .iter()
+                    .filter(|encoder| encoder.id == module.id && &encoder.profile == profile)
+                    .count()
+            });
+            if source_rotary
+                && (!request.encoder_ids.contains(&module.id) || matching_rotary_encoders != 1)
+            {
+                return Err(format!(
+                    "{} requires one matching configured rotary encoder in the sensor order",
+                    module.name
+                ));
+            }
+            let rotary_only = source_rotary
+                && request.encoder_ids.contains(&module.id)
+                && matching_rotary_encoders == 1;
+            if let Some(gate) = module.gates.iter().find(|gate| {
+                gate.output == crate::model::HardwareOutput::Firmware
+                    && !(rotary_only && gate.code == "module-driver")
+            }) {
+                return Err(format!("{}: {}", module.name, gate.message));
+            }
+            if module.protocol != crate::model::ModuleProtocol::PassThrough && !rotary_only {
+                return Err(format!(
+                    "{}: local ZMK driver support is not qualified for this module; source export cannot claim it is operational.",
+                    module.name
+                ));
+            }
+        }
+        if !hardware.embedded_circuit_ids.is_empty() {
+            return Err("Embedded module circuits require a qualified local firmware driver before functional ZMK export".into());
+        }
+    }
     let controller = profile(&request.controller_profile).ok_or_else(|| {
         format!(
             "unsupported controller profile: {}",
@@ -233,6 +380,57 @@ fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
     Ok(())
 }
 
+/// Firmware qualification can be satisfied by explicit, supported encoder
+/// configuration. This only clears the three configuration gates for the
+/// matching encoder; electrical contact mapping and unrelated hardware gates
+/// remain untouched.
+fn clear_configured_thq_encoder_gates(request: &mut FirmwareRequest) -> bool {
+    let Some(qualification) = request.qualification.as_mut() else {
+        return false;
+    };
+    let mut cleared = false;
+    for part in &mut qualification.parts {
+        let is_pinned_thq_source = part.source.repository
+            == "https://github.com/Taro-Hayashi/THQWGD001"
+            && part.source.revision == "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15"
+            && part
+                .source
+                .path
+                .starts_with("KiCad/footprints/THQWGD001.pretty/");
+        let configured = is_pinned_thq_source
+            && request.encoders.iter().any(|encoder| {
+                let profile = &encoder.profile;
+                encoder.id == part.part_id
+                    && profile.driver == Some(crate::model::EncoderDriver::Ec11)
+                    && profile.steps.is_some_and(|value| value > 0)
+                    && profile.triggers_per_rotation.is_some_and(|value| value > 0)
+                    && !profile.a.trim().is_empty()
+                    && !profile.b.trim().is_empty()
+                    && !profile.common.trim().is_empty()
+                    && profile.a != profile.b
+                    && profile.a != profile.common
+                    && profile.b != profile.common
+                    && !encoder.a_gpio.trim().is_empty()
+                    && !encoder.b_gpio.trim().is_empty()
+                    && encoder.a_gpio != encoder.b_gpio
+            });
+        if configured {
+            let before = part.gates.len();
+            part.gates.retain(|gate| {
+                gate.output != crate::model::HardwareOutput::Firmware
+                    || !matches!(
+                        gate.code.as_str(),
+                        "encoder-pulses-per-rotation"
+                            | "detents-and-quadrature-direction"
+                            | "driver-and-config-hardware-validation"
+                    )
+            });
+            cleared |= part.gates.len() != before;
+        }
+    }
+    cleared
+}
+
 pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     // An encoder-only board uses its push inputs as the primary direct scanner.
     fn normalize_push_only(half: &mut FirmwareRequest) {
@@ -248,6 +446,27 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     }
     let mut normalized = request.clone();
     encoders::prepare(&mut normalized)?;
+    let used_designer_encoder_configuration = clear_configured_thq_encoder_gates(&mut normalized);
+    if let Some(map) = &normalized.keymap {
+        let known = normalized
+            .encoder_ids
+            .iter()
+            .chain(
+                normalized
+                    .peripheral
+                    .iter()
+                    .flat_map(|half| half.encoder_ids.iter()),
+            )
+            .collect::<std::collections::BTreeSet<_>>();
+        if let Some(id) = map
+            .layers
+            .iter()
+            .flat_map(|layer| layer.sensors.keys())
+            .find(|id| !known.contains(id))
+        {
+            return Err(format!("Keymap references unknown rotary sensor {id}"));
+        }
+    }
     normalize_push_only(&mut normalized);
     if let Some(half) = &mut normalized.peripheral {
         normalize_push_only(half);
@@ -397,10 +616,42 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
             }
         }
     }
-    Ok(FirmwarePackage {
-        files,
-        warnings: Vec::new(),
-    })
+    let mut warnings = Vec::new();
+    if used_designer_encoder_configuration {
+        warnings.push("THQ rotary timing and the EC11 driver are designer-supplied digital configuration. Physical detents, quadrature direction, continuity, and operation remain unverified.".into());
+    }
+    if request.hardware.as_ref().is_some_and(|hardware| {
+        hardware.modules.iter().any(|module| {
+            module
+                .host_instance_id
+                .as_ref()
+                .is_none_or(|host| hardware.physical_instance_id.as_ref() == Some(host))
+                && module.catalogue_row.as_deref() == Some("ec11-evqwgd001")
+                && module.source.as_ref().is_some_and(|source| {
+                    source.repository == "https://github.com/sadekbaroudi/vik"
+                        && source.revision == "cd5d16e4cd9137a229fc673412a89d75f4e64553"
+                        && source.path == "pcb/ec11-evqwgd001/ec11-evqwgd001.kicad_pcb"
+                        && source.sha256.as_deref()
+                            == Some(
+                                "2b22c0f0b2b99206ac25029b8acd05c75146d9246cb8e3d9ceec5deacae4e033",
+                            )
+                })
+                && module.protocol == crate::model::ModuleProtocol::Gpio
+                && module.rotary_profile.as_ref().is_some_and(|profile| {
+                    profile.driver == Some(crate::model::EncoderDriver::Ec11)
+                        && profile.steps.is_some_and(|steps| steps > 0)
+                        && profile
+                            .triggers_per_rotation
+                            .is_some_and(|triggers| triggers > 0)
+                        && profile.a == "gpio1"
+                        && profile.b == "gpio2"
+                        && profile.common == "gnd"
+                })
+        })
+    }) {
+        warnings.push("VIK EC11 carrier firmware support exports rotation only. Its unconnected click contact and onboard SK6812 LEDs are not configured.".into());
+    }
+    Ok(FirmwarePackage { files, warnings })
 }
 
 fn overlay(
@@ -648,6 +899,7 @@ mod tests {
     fn request() -> FirmwareRequest {
         FirmwareRequest {
             qualification: None,
+            hardware: None,
             encoders: vec![],
             keymap: None,
             encoder_ids: vec![],

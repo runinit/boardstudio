@@ -2,9 +2,11 @@
 import type { Contour } from "./Contour";
 import type { FinishExportRequest } from "./FinishExportRequest";
 import type { FootprintCompileJob } from "./FootprintCompileJob";
+import type { HardwareSource } from "./HardwareSource";
 import type { MechanicalPurposeMapping } from "./MechanicalPurposeMapping";
+import type { ModuleCircuitRepair } from "./ModuleCircuitRepair";
 import type { OutlineExportRequest } from "./OutlineExportRequest";
 import type { PrepareExportRequest } from "./PrepareExportRequest";
 import type { ProjectDoc } from "./ProjectDoc";
 
-export type ArtifactRequest = { "kind": "export-mechanical-plate", id: string, document: ProjectDoc, contours: Array<Contour>, } | { "kind": "extract-mechanical", id: string, source: string, mappings: Array<MechanicalPurposeMapping>, maxDeviationMm: number, } | { "kind": "preview-board", id: string, source: string, revision: number, } | { "kind": "compile-footprints", id: string, jobs: Array<FootprintCompileJob>, } | { "kind": "import-footprint", id: string, definitionId: string, source: string, } | { "kind": "prepare-preview", id: string, request: PrepareExportRequest, } | { "kind": "finish-preview", id: string, request: FinishExportRequest, } | { "kind": "prepare-export", id: string, request: PrepareExportRequest, } | { "kind": "finish-export", id: string, request: FinishExportRequest, } | { "kind": "export-outline", id: string, request: OutlineExportRequest, };
+export type ArtifactRequest = { "kind": "import-module-board", id: string, definitionId: string, name: string, source: string, provenance: HardwareSource, family: string, variant: string, repair?: ModuleCircuitRepair, } | { "kind": "export-mechanical-plate", id: string, document: ProjectDoc, contours: Array<Contour>, } | { "kind": "extract-mechanical", id: string, source: string, mappings: Array<MechanicalPurposeMapping>, maxDeviationMm: number, } | { "kind": "preview-board", id: string, source: string, revision: number, } | { "kind": "compile-footprints", id: string, jobs: Array<FootprintCompileJob>, } | { "kind": "import-footprint", id: string, definitionId: string, source: string, } | { "kind": "prepare-preview", id: string, request: PrepareExportRequest, } | { "kind": "finish-preview", id: string, request: FinishExportRequest, } | { "kind": "prepare-export", id: string, request: PrepareExportRequest, } | { "kind": "finish-export", id: string, request: FinishExportRequest, } | { "kind": "export-outline", id: string, request: OutlineExportRequest, };

@@ -1509,15 +1509,28 @@ fn finalize_assembly(
             });
         }
     }
-    if let Err(message) = crate::case::prepare(&result.case) {
-        result.generation_blocked = true;
-        result.diagnostics.push(Finding {
-            id: "mechanical:case-preparation".into(),
-            severity: Severity::Error,
-            scope: Scope::Case,
-            message,
-            target_ids: vec![],
-        });
+    match crate::case::prepare(&result.case) {
+        Ok(prepared) => {
+            let (findings, markers) = crate::modules::case_findings(
+                document,
+                &config.board_id,
+                &result.modules,
+                &prepared,
+            );
+            result.generation_blocked |= !findings.is_empty();
+            result.diagnostics.extend(findings);
+            result.finding_markers.extend(markers);
+        }
+        Err(message) => {
+            result.generation_blocked = true;
+            result.diagnostics.push(Finding {
+                id: "mechanical:case-preparation".into(),
+                severity: Severity::Error,
+                scope: Scope::Case,
+                message,
+                target_ids: vec![],
+            });
+        }
     }
     if config.internal_gasket.is_none() || config.mount != MechanicalMount::Gasket {
         let mut mounting_contours = result.plate_contours.clone();
@@ -1579,6 +1592,8 @@ fn finalize_assembly(
 
 pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembly {
     let mut result = MechanicalAssembly {
+        finding_markers: vec![],
+        modules: vec![],
         generated_materials: vec![],
         gasket_supports: vec![],
         gasket_tracks: vec![],
@@ -1790,8 +1805,8 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     }
     let PartGeometry {
         pcb_reference_contours,
-        component_volumes,
-        profile_openings,
+        mut component_volumes,
+        mut profile_openings,
         plate_foam_clearances,
         bottom_foam_clearances,
     } = collect_part_geometry(
@@ -1802,6 +1817,18 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         &mut result.plate_contours,
         &mut issue,
     );
+    let module_resolution = crate::modules::resolve(document, &config.board_id);
+    for finding in crate::modules::embedded_findings(document, &config.board_id)
+        .iter()
+        .filter(|finding| finding.scope == Scope::Case)
+    {
+        issue(
+            &finding.id,
+            finding.severity.clone(),
+            &finding.message,
+            finding.target_ids.clone(),
+        );
+    }
     for part in document
         .parts
         .iter()
@@ -1827,6 +1854,59 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             }
         }
     }
+    let mut module_floor = f64::INFINITY;
+    for finding in module_resolution
+        .findings
+        .iter()
+        .filter(|f| f.scope == Scope::Case)
+    {
+        issue(
+            &finding.id,
+            finding.severity.clone(),
+            &finding.message,
+            finding.target_ids.clone(),
+        );
+    }
+    for module in &module_resolution.modules {
+        let Some(instance) = document.modules.iter().find(|m| m.id == module.id) else {
+            continue;
+        };
+        let travel = if instance.attachment == ModuleAttachment::Board
+            && config.mount == MechanicalMount::Gasket
+        {
+            config.gasket_travel.unwrap_or(0.0)
+        } else {
+            0.0
+        };
+        for support in crate::modules::resolved_mount_supports(instance, module) {
+            module_floor = module_floor.min(support.z);
+        }
+        for volume in module
+            .board
+            .iter()
+            .chain(module.volumes.iter().map(|v| &v.geometry))
+        {
+            let mut swept = volume.clone();
+            swept.z -= travel + instance.service_clearance;
+            swept.height += 2.0 * (travel + instance.service_clearance);
+            module_floor = module_floor.min(swept.z);
+            component_volumes.push((module.id.clone(), swept));
+        }
+        profile_openings.extend(module.openings.iter().map(|v| v.geometry.clone()));
+        if module
+            .volumes
+            .iter()
+            .chain(&module.openings)
+            .any(|v| !v.qualified)
+        {
+            issue(
+                &format!("module/{}/unqualified-volume", module.id),
+                Severity::Error,
+                "Module occupancy or access geometry requires qualification before exact case output.",
+                vec![module.id.clone()],
+            );
+        }
+    }
     let Some(BatterySpace {
         height: battery_height,
         bottom_foam_contours,
@@ -1840,7 +1920,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     } else {
         bottom_foam_z - battery_height
     };
-    let bottom_z = bottom_foam_z.min(battery_z) - config.bottom_thickness;
+    let bottom_z = bottom_foam_z.min(battery_z).min(module_floor) - config.bottom_thickness;
     result.stack.extend(build_stack(
         config,
         pcb_bottom,
@@ -1994,6 +2074,26 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
         &mut issue,
     );
     result.case.bodies = constructed.bodies;
+    let (support_findings, support_markers) = crate::modules::attach_case_supports(
+        document,
+        &config.board_id,
+        &module_resolution.modules,
+        &mut result.case.bodies,
+    );
+    result.generation_blocked |= !support_findings.is_empty();
+    result.diagnostics.extend(support_findings);
+    result.finding_markers.extend(support_markers);
+    // Functional access applies to every material layer it intersects, using the
+    // same prepared module geometry as preview and exact output.
+    for body in &mut result.case.bodies {
+        for opening in module_resolution.modules.iter().flat_map(|m| &m.openings) {
+            let list = body.body.openings.get_or_insert_with(Vec::new);
+            if !list.contains(&opening.geometry) {
+                list.push(opening.geometry.clone());
+            }
+        }
+    }
+    result.modules = module_resolution.modules;
     result.stack.extend(constructed.stack);
     finalize_assembly(document, config, &mut result, &component_volumes);
     result

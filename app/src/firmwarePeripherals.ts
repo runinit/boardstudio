@@ -30,7 +30,7 @@ export function peripheralFirmware(plan: ElectricalPlan, sensorIds = plan.periph
     else if (peripheral.kind === 'display-spi') { overlays.push(niceViewOverlay(plan, peripheral)); config.push('CONFIG_ZMK_DISPLAY=y', 'CONFIG_SPI=y', 'CONFIG_LS0XX=y', 'CONFIG_LVGL=y'); }
     else if (peripheral.kind === 'encoder') { overlays.push(encoderOverlay(plan, peripheral)); config.push('CONFIG_EC11=y', 'CONFIG_EC11_TRIGGER_GLOBAL_THREAD=y'); }
     else if (peripheral.kind === 'rgb') { if (peripheral === plan.peripherals.find(item => item.kind === 'rgb')) overlays.push(rgbOverlay(plan, peripheral)); config.push('CONFIG_ZMK_RGB_UNDERGLOW=y', 'CONFIG_SPI=y', 'CONFIG_WS2812_STRIP=y'); }
-    else if (!['split', 'power-switch', 'reset', 'battery', 'press'].includes(peripheral.kind)) throw new Error(`No source-verified firmware profile for ${peripheral.kind}`);
+    else if (!['split', 'power-switch', 'reset', 'battery', 'press', 'vik'].includes(peripheral.kind)) throw new Error(`No source-verified firmware profile for ${peripheral.kind}`);
   }
   const encoders = plan.peripherals.filter(item => item.kind === 'encoder');
   for (const id of sensorIds.filter(id => !encoders.some(item => item.partId === id))) overlays.push(`/ { ${encoderLabel(id)}: ${encoderLabel(id)} { compatible = "alps,ec11"; status = "disabled"; }; };`);

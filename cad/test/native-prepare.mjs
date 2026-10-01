@@ -25,3 +25,10 @@ export function resolveMechanical(document, contours) {
   if (reply.assembly.diagnostics.some(finding => finding.severity === 'error')) throw new Error(JSON.stringify(reply.assembly.diagnostics));
   return reply.assembly;
 }
+
+export function resolveModules(document, boardId) {
+  const output = execFileSync(driver, { input: `${JSON.stringify({ id: 'module-cad-test', kind: 'resolve-modules', document, boardId, previewTopZ: 0 })}\n`, encoding: 'utf8' });
+  const reply = JSON.parse(output);
+  if (reply.kind !== 'modules-resolved') throw new Error(reply.message ?? `Module resolution failed: ${reply.kind}`);
+  return reply.result;
+}

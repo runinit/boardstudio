@@ -58,7 +58,7 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
     let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
         return vec![];
     };
-    let result: Vec<_> = document
+    let mut result: Vec<_> = document
         .parts
         .iter()
         .filter(|part| board.part_ids.contains(&part.id))
@@ -208,6 +208,7 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
             })
         })
         .collect();
+    result.extend(crate::modules::host_requirements(document, board_id));
     result
 }
 
