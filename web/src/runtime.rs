@@ -460,6 +460,15 @@ impl Runtime {
             .generate_current(job_id, &scope, &snapshot, &cancelled)
             .await;
         self.cad_jobs.borrow_mut().remove(&job_id);
+        let current_job = matches!(self.model().generation,
+            boardstudio_application::GenerationStatus::Preparing { job_id: active }
+            | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+        if result.is_err()
+            && current_job
+            && let Some((_, worker)) = self.cad_worker.borrow_mut().take()
+        {
+            worker.close();
+        }
         match result {
             Ok(()) => self.complete(Completion::GenerationFinished {
                 job_id,
