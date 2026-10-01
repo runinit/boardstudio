@@ -1,0 +1,1 @@
+At79783b5f parity finding remains192vs96 with no control experiment; blocked/unaccepted. Stale in-progress/pending-evidence fields corrected and runtime routing snapshots historical. Reviewed evidence candidate6ed33becfb188b79c2e15d070c9e10dcf5e855b2 pinned. No new material metadata contradiction.

@@ -1,0 +1,14 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    ".scratch/prototypes/p1-cad/Cargo.toml",
+    "--lib",
+    "cancellation_control_retains_target_identity"
+  ],
+  "exit_code": 101,
+  "log": "red-cancel.log.gz",
+  "raw_sha256": "498306c281d080c0a8e614dfd868b753169868c280d5ee02930484e0b7b1af1e"
+}

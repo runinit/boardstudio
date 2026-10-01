@@ -161,8 +161,18 @@ automatic production promotion, cutover or removal of the React reference.
 
 Historical original P1-CORE run stopped at compatibility failure with two
 exhausted repair attempts. Its renewed P1-U64 run later passed and was accepted.
-The current P1-CAD continuation and failed gate are recorded in RUN/TODO; this
+The original P1-CAD continuation and failed gate are recorded in RUN/TODO; this
 paragraph preserves the earlier command correction, not current task status. The command
 above places wasm-pack-owned options before Cargo EXTRA_OPTIONS, matching the
 observed CLI semantics. This documentation correction changes no task scope or
 dependency. Reviewed failure and resumable state: [RUN](../docs/migration/RUN.md).
+
+Current bounded follow-up: **P1-CAD-F1-r1**, explicitly approved by the user's
+“do it” after the two-finding repair proposal. It preserves the old blocked run,
+documents the existing experimental boundary and corrects the reference harness
+only after independent cache-order controls prove contamination. The exact
+task set, ownership and two-attempt limit are in
+[task-start](../.scratch/prototypes/p1-cad/evidence/findings-repair/task-start.json)
+and [bounded plan](../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md).
+Existing P1 acceptance/review/integration gates still apply; P2/P3 and automatic
+production promotion remain excluded.

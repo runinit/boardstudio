@@ -1,0 +1,11 @@
+{
+  "command": [
+    "node",
+    ".scratch/prototypes/p1-cad/evidence/findings-repair/minimal-red.mjs"
+  ],
+  "exit_code": 1,
+  "log": "minimal-red.log.gz",
+  "raw_sha256": "be92b6d4504b4ba518ba78d9b531f7eb7f914ec2ade09cd38e13d27b5d5a08f2",
+  "expected_red": "96 !== 192",
+  "minimization": "Actual public reference export then preview plus frozen real-browser preview vertices; STEP/libcascade/oracle output loops removed without losing exact mismatch."
+}

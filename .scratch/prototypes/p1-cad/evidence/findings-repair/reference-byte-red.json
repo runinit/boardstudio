@@ -1,0 +1,12 @@
+{
+  "command": [
+    "node",
+    "--input-type=module",
+    "-e",
+    "import {readFileSync} from \"node:fs\"; import {gunzipSync} from \"node:zlib\"; import {createHash} from \"node:crypto\"; import assert from \"node:assert/strict\"; const value=JSON.parse(gunzipSync(readFileSync(\".scratch/prototypes/p1-cad/evidence/findings-repair/cache-order-controls.json.gz\"))).export[0].mesh; assert.equal(createHash(\"sha256\").update(Buffer.from(new Float32Array(value.normals).buffer)).digest(\"hex\"),value.normalHash,\"JSON numeric reference must retain original Float32 normal bytes\");"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001",
+  "exit_code": 1,
+  "log": "reference-byte-red.log.gz",
+  "raw_sha256": "f6f7f0bfa5cf103e36b1a07d0ac039f67f2a087f3aad0c70e9a345c7e2bb5122"
+}

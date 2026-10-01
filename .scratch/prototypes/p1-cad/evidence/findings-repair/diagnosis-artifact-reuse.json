@@ -1,0 +1,22 @@
+{
+  "source_commit": "3b2008408b50d282b0d752caedb7b6ff41bbb4b7",
+  "provider_sources_identical": {
+    "cad/wasm/Cargo.toml": "a46077590e1cf5b9230b0805050bdf06eab185903808736a97f43420ab3fc195",
+    "cad/wasm/Cargo.lock": "d4f31c882069d7ee7a0235739739e0756229d89a685a5df995271370ee4244e5",
+    "cad/wasm/src/lib.rs": "23e2799e2a0ebe9d88d246efdcc1ab627e41597ee8085fdbd720ff9e53d0b919",
+    "cad/wasm/src/model.rs": "5cc81fa9ea81e68d48230e1e4ab524b905422768bf078d2427186fd5057930f1",
+    "cad/wasm/src/model/construction/cache.rs": "cb1b11c3357b11bbbefeabe7f3d98a4944f0bd5fa96b760fa16dca4df57c02b4",
+    "cad/wasm/src/model/construction/planar_mesh.rs": "d5cd12a4e1f2ebaac52ba221d9a693f2476228aa3f8df103a35e32640e2e99cd",
+    "cad/src/index.ts": "53f9b048f3257746c7847d047baad9d328f6ab94aa1b7a8b296efcf2b1507d2b",
+    "cad/src/preview.ts": "53643206b0b28e3ace82a042e5609c4b588d3a3ab7cd5090865e7dbb306bb11b",
+    "core/examples/prepare_case.rs": "38e8f4bbf6f3c24d93d2d9289cd27288f571a41fd9b621945716d27a837a36e7",
+    "core/Cargo.toml": "6c42ca750cd0490c8b6b5569dc4fb6f42d4625de22805293ca992d92049f5c7c",
+    "core/Cargo.lock": "c3521765a7fd687da7b289aafaf055af438a1556f6ef4641402f922d7a9b8ef1"
+  },
+  "artifacts": {
+    "core/target/debug/examples/prepare_case": "d3f0dab7032d073b05891d01f8f597201d9319c9e2f26dd56721f6223ab2d366",
+    "cad/wasm/pkg/boardstudio_cadrum_wasm.js": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+    "cad/wasm/pkg/boardstudio_cadrum_wasm_bg.wasm": "b1dd83cbb0cd886b92790f98a6b746a455e98382e9655acea9a3215aa4de5694"
+  },
+  "purpose": "Verified unchanged source+hash provenance for initial RED/control diagnosis only. Final fresh provider native/release/full CAD/browser gates still required."
+}

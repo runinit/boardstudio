@@ -7,4 +7,6 @@ This bounded migration uses local Markdown. Canonical task status is root
 Historical Wayfinder decision tickets remain under `.scratch/dioxus-browser-trial/`.
 No remote issue publication or tracker change is authorized by this mapping.
 
-P1-CAD P1-r1 current blocked continuation is recorded in the [run ledger](../migration/RUN.md#p1-cad-blocked-reference-comparison) and [preserved task/review record](../../.scratch/migration-specs-validation/p1-cad-blocked-review.json). Its prototype source/evidence stays on the recorded task branch/worktree; no failed code is promoted.
+The original P1-CAD P1-r1 blocked continuation is recorded in the [run ledger](../migration/RUN.md#p1-cad-blocked-reference-comparison) and [preserved task/review record](../../.scratch/migration-specs-validation/p1-cad-blocked-review.json). Its failed worktree remains intact.
+
+Current P1-CAD-F1-r1: [bounded findings repair](../../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md), [exact authority](../../.scratch/prototypes/p1-cad/evidence/findings-repair/task-start.json), and [current ledger](../migration/RUN.md#p1-cad-f1-bounded-findings-repair). Only the coordinator updates local status; no remote issue operation or automatic production adoption follows.

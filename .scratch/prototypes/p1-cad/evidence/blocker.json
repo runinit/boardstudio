@@ -1,0 +1,52 @@
+{
+  "task": "P1-CAD",
+  "status": "blocked, unaccepted",
+  "repair_attempts": 2,
+  "repair_limit": 2,
+  "failed_gate": "node evidence/check-step.mjs: preview vertex count equality",
+  "observed": {
+    "isolatedPreviewVertices": 192,
+    "referencePreviewAfterExportVertices": 96,
+    "bothBrowserMeshVolumes": 720,
+    "browserBounds": {
+      "min": [
+        -0.5,
+        -0.5,
+        0
+      ],
+      "max": [
+        20.5,
+        20.5,
+        2
+      ]
+    }
+  },
+  "source_diagnosis": "Existing cached_region can choose planar_mesh::plate_mesh; export_cached_assembly misses use mesh_data then populate PREVIEW_CACHE, and preview_body returns that warm entry. Oracle invokes reference export before preview in one runtime; prototype intentionally owns separate preview/export runtimes. This source supports a cache-state-dependent triangulation/harness comparison explanation, not a demonstrated geometry regression. No control experiment or passing reference gate is claimed.",
+  "source_pointers": [
+    "cad/wasm/src/model/construction/cache.rs:146",
+    "cad/wasm/src/model/construction/cache.rs:241",
+    "cad/wasm/src/model/construction/cache.rs:267",
+    ".scratch/prototypes/p1-cad/evidence/check-step.mjs:17"
+  ],
+  "preserved_contracts": "Same generated public CAD package, final-mesh key/tolerances, input revision7; no provider or test changes. Strict reference comparison remains failing and unchanged.",
+  "next_bounded_question": "Compare equivalent cold and warm cache lifetimes independently for preview/export; determine whether the reference gate or adapter requires correction without relaxing geometry/cache contracts. A renewed bounded repair must explicitly address the exhausted attempt limit.",
+  "remaining_limits": [
+    "Full-u64 CAD JS Number ABI unproven above safe integer range; existing provider casts revision to f64",
+    "Only copied holed-plate fixture; no full workflow/platform/performance/undo-redo parity"
+  ],
+  "integration": "Canonical status/evidence only integrated and reviewed at03da0f1d; failed prototype not integrated.",
+  "verified_final_checks": "Final native/build/fmt/strict native+WASM host/worker Clippy and CAD typecheck exit0; pnpm --dir cad test exit0 (native23 pass/4 pre-existing ignored, JS49 pass/0skip); locked release worker/root/subpath hosts and both actual Chromium checks exit0 on latest source.",
+  "review_status": "Both axes reviewed source f0fe6e2f, evidence6ed33bec, corrected handoff79783b5f, and actual status integration03da0f1d. Remains blocked/unaccepted; final administrative execution/closure evidence changes no source or assertion.",
+  "review_findings": {
+    "standards": {
+      "count": 1,
+      "issue": "CONSTRAINTS.md requires prototype browser boundaries in architecture documentation as well as slice README; architecture entry missing, deferred with blocked task"
+    },
+    "spec": {
+      "count": 1,
+      "issue": "Reference/cached-uncached equivalence gate remains failed, without control experiment"
+    },
+    "administrative_followup": "6ed review found stale source-review/candidate/closure fields; update status to completed recorded reviews and explicitly identify historical routing snapshot. No implementation repair."
+  },
+  "next_eligible_tasks": []
+}

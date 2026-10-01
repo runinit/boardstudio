@@ -1,0 +1,68 @@
+[
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--all-targets"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "final-native-tests.log.gz",
+    "raw_sha256": "b4b59122e1b0413a19fb3aa6bed0b149cafe2c0f76b39e33f04650aa8848dd10"
+  },
+  {
+    "command": [
+      "cargo",
+      "build",
+      "--locked"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "final-native-build.log.gz",
+    "raw_sha256": "68f6f33c123d8cd6576c054c3cf7f12d96a77346da2cc6e08bbac4330493e537"
+  },
+  {
+    "command": [
+      "cargo",
+      "fmt",
+      "--check"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "final-fmt.log.gz",
+    "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "final-native-clippy.log.gz",
+    "raw_sha256": "56af16766685942873ee1164847e5907da19029550ee8c830d23e9ca727b783c"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--all-targets",
+      "--target",
+      "wasm32-unknown-unknown",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 101,
+    "log": "final-host-clippy.log.gz",
+    "raw_sha256": "42f9aab6e9108f9b2455718f866ec69e48eabc231ab872aa56007407fe503e1d"
+  }
+]

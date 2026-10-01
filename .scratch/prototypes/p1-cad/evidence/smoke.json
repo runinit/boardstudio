@@ -1,0 +1,18 @@
+{
+  "id": "01a0f7b0-608c-7912-977f-8c2f4bfca86e",
+  "agent_path": "/root/cad_preflight_smoke",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "archived": 0,
+  "rollout_path": "/home/chris/.codex/sessions/2026/10/01/rollout-2026-10-01T09-38-46-01a0f7b0-608c-7912-977f-8c2f4bfca86e.jsonl",
+  "requested_model": "gpt-6-luna",
+  "requested_effort": "medium",
+  "observable_turn_context": [
+    {
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2"
+    }
+  ],
+  "result": "Read-only verified integration HEAD/clean status, actual public CAD APIs/build path/prerequisites; no writes/spawning/builds."
+}

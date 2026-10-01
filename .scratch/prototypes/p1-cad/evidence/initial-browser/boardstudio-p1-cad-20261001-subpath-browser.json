@@ -1,0 +1,55 @@
+{
+  "status": "passed",
+  "url": "http://127.0.0.1:40949/boardstudio/",
+  "report": {
+    "cache": "full then empty delta; obsolete reply cached before display rejection",
+    "cad_js_url": "/boardstudio/worker/cad/boardstudio_cadrum_wasm.js",
+    "cad_wasm_url": "/boardstudio/worker/cad/boardstudio_cadrum_wasm_bg.wasm",
+    "cancellation": "active and queued settled; completed cache unchanged",
+    "close": "settled",
+    "crash": "settled",
+    "export": {
+      "max": [
+        20.5,
+        20.5,
+        2
+      ],
+      "min": [
+        -0.5,
+        -0.5,
+        0
+      ],
+      "vertices": 96,
+      "volume": 720
+    },
+    "export_transfer_bytes": 31318,
+    "failure_retry": "passed",
+    "init_failure": "settled",
+    "prefix": "/boardstudio/",
+    "preview": {
+      "max": [
+        20.5,
+        20.5,
+        2
+      ],
+      "min": [
+        -0.5,
+        -0.5,
+        0
+      ],
+      "vertices": 192,
+      "volume": 720
+    },
+    "preview_transfer_bytes": 4608,
+    "rejected": 0,
+    "revision": 7,
+    "sender_step_bytes_after_transfer": 0,
+    "status": "passed",
+    "worker_url": "/boardstudio/worker/worker-entry.js"
+  },
+  "step": {
+    "path": "boardstudio-p1-cad-20261001-subpath.step",
+    "bytes": 29014,
+    "sha256": "00e2510f18b05251299729271a39c1074b9d55138bae36c22677b3396462d024"
+  }
+}

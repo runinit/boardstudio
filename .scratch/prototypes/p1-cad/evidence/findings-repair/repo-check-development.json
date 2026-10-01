@@ -1,0 +1,10 @@
+{
+  "command": [
+    "node",
+    "/tmp/boardstudio-migration-specs-review-20261001/scripts/repo-check.mjs",
+    "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001"
+  ],
+  "exit_code": 0,
+  "log": "repo-check-development.log.gz",
+  "raw_sha256": "b382d5badff9d016d9d2b47a3292ce4c1dcf907fe450478720f111d7c82dcc17"
+}

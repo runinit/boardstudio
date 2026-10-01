@@ -1,0 +1,25 @@
+{
+  "codex_version": "0.159.3",
+  "strict_doctor": "exit0, config.load ok; standalone root model from config is not effective routing proof; retained existing coordinator session",
+  "agent_config": {
+    "max_concurrent_threads_per_session": 3,
+    "default_subagent_model": "gpt-6-luna",
+    "default_subagent_reasoning_effort": "high"
+  },
+  "active_permissions": "danger-full-access/never; no broadening",
+  "tools": {
+    "cargo": "/usr/bin/cargo",
+    "rustc": "/usr/bin/rustc",
+    "wasm-pack": "/home/chris/.cargo/bin/wasm-pack",
+    "dx": "/home/chris/.local/bin/dx",
+    "node": "/usr/bin/node",
+    "pnpm": "/usr/bin/pnpm",
+    "podman": "/usr/bin/podman",
+    "chromium": "/usr/bin/chromium",
+    "agent-browser": "/home/chris/.local/npm/bin/agent-browser"
+  },
+  "container_image": "boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33-bindgen-0.2.129, local image exists exit0",
+  "node_dependencies": "Fresh task-owned frozen install required; previous spec-review deps are read-only checker input",
+  "codegraph": "Not indexed in task/integration checkouts; targeted searches used",
+  "worktrees": "worktree /home/chris/01_Projects/ts-boardstudio2/.scratch/git/dioxus-context-baseline.git\nbare\n\nworktree /home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001\nHEAD c1605a1c6018a77ac7636143bc0dda3fc8d86498\nbranch refs/heads/prototype/boardstudio-p1-cad\n\nworktree /home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001\nHEAD cce8e78bc107cadb39a8457f0ed17e3e57035181\nbranch refs/heads/prototype/boardstudio-p1-u64\n\nworktree /home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline\nHEAD 96dd51d3e790c28f5554a8c9888a147c8814e2a7\nbranch refs/heads/docs/dioxus-context-baseline\n\nworktree /tmp/boardstudio-migration-m1-20261001\nHEAD c1605a1c6018a77ac7636143bc0dda3fc8d86498\nbranch refs/heads/migration/boardstudio-m1\n\nworktree /tmp/boardstudio-migration-specs-review-20261001\nHEAD 47d6dbce5af2285d1f886ef63d2d4c7b1de57925\nbranch refs/heads/docs/boardstudio-migration-specs-review\n\nworktree /tmp/boardstudio-p1-core-20261001\nHEAD 6519a8c2215b68855cd1bc097001199ffd4b10e3\nbranch refs/heads/prototype/boardstudio-p1-core\n\n"
+}

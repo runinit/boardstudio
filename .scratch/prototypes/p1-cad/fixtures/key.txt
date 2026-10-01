@@ -1,0 +1,1 @@
+final-mesh:v1:0.1:0.5:{"body":{"boardId":"board","kind":"plate","thickness":2,"clearance":0.5},"regions":[{"outer":[{"x":-0.5,"y":20.5},{"x":-0.5,"y":-0.5},{"x":20.5,"y":-0.5},{"x":20.5,"y":20.5}],"holes":[[{"x":5.5,"y":5.5},{"x":5.5,"y":14.5},{"x":14.5,"y":14.5},{"x":14.5,"y":5.5}]],"cavities":[],"gaskets":[],"mounts":[]}]}

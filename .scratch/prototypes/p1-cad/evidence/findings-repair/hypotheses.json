@@ -1,0 +1,23 @@
+{
+  "ranked_hypotheses": [
+    {
+      "rank": 1,
+      "cause": "shared reference export warms preview cache",
+      "prediction": "cold preview192,coldexport96,preview\u2192export192,export\u2192preview96; fresh matching browser states agree",
+      "test": "cache-order-controls.mjs"
+    },
+    {
+      "rank": 2,
+      "cause": "Rust transport/input mutation",
+      "prediction": "fresh public preview still differs from real browser192 or geometry/key differs",
+      "test": "cold control plus existing exact native prep/bodyKey and new matching-state gate"
+    },
+    {
+      "rank": 3,
+      "cause": "artifact/tessellation version mismatch",
+      "prediction": "reference CAD wasm hash differs from staged actual browser CAD wasm",
+      "test": "artifact-hypothesis.json"
+    }
+  ],
+  "constraints": "No source/kernel/visibility/algorithm/pin changes; source-supported prediction requires runnable controls."
+}

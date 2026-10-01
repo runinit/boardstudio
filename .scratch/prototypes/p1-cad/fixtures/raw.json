@@ -1,0 +1,1 @@
+{"revision":7,"bodies":[{"revision":7,"body":{"id":"case","name":"plate","boardId":"board","kind":"plate","thickness":2,"clearance":0.5},"contours":[{"hole":false,"points":[{"x":0,"y":0},{"x":20,"y":0},{"x":20,"y":20},{"x":0,"y":20}]},{"hole":true,"points":[{"x":5,"y":5},{"x":15,"y":5},{"x":15,"y":15},{"x":5,"y":15}]}]}]}

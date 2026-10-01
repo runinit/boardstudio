@@ -1,0 +1,36 @@
+[
+  {
+    "command": [
+      "codex",
+      "--version"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001",
+    "exit_code": 0,
+    "log": "preflight-0.log.gz",
+    "raw_sha256": "da4d955cd9c193a96d80544a5a98d1e6baf53eb35e995d45c175a9c7dbac792a"
+  },
+  {
+    "command": [
+      "codex",
+      "--strict-config",
+      "doctor",
+      "--json"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001",
+    "exit_code": 0,
+    "log": "preflight-1.log.gz",
+    "raw_sha256": "864a9b88d7440561d41e9c1aca18a1e16d9e61bf570d66190533b22d4f940f8e"
+  },
+  {
+    "command": [
+      "pnpm",
+      "install",
+      "--frozen-lockfile",
+      "--ignore-scripts"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001",
+    "exit_code": 0,
+    "log": "preflight-2.log.gz",
+    "raw_sha256": "e85042e43b03d2478da2df819ea5ec172601ec8b28e934a68e90e65586dd4b55"
+  }
+]

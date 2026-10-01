@@ -1,0 +1,98 @@
+[
+  {
+    "command": [
+      "wasm-pack",
+      "build",
+      "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad",
+      "--target",
+      "web",
+      "--release",
+      "--out-dir",
+      "worker-pkg",
+      "--locked",
+      "--no-default-features",
+      "--features",
+      "worker"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001",
+    "exit_code": 0,
+    "log": "release-worker-release.log.gz",
+    "raw_sha256": "f50eaf143eca47408f414bf3aba2d348a544a1b8d60d67a3bf1ef6902fcdbd05"
+  },
+  {
+    "command": [
+      "dx",
+      "build",
+      "--web",
+      "--release",
+      "--base-path",
+      "/",
+      "--cargo-args=--locked"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "release-root-host-release.log.gz",
+    "raw_sha256": "ecd103fafba85150c85b367818fe1cf5ed9d46599ff613b1de18b3773a8f17a8"
+  },
+  {
+    "command": [
+      "python3",
+      "build.py",
+      "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad/target/dx/boardstudio-p1-cad/release/web/public",
+      "/"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "release-root-stage.log.gz",
+    "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "command": [
+      "python3",
+      "evidence/verify-browser.py",
+      "/"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "release-root-browser.log.gz",
+    "raw_sha256": "57006f1a1a826354d37229411c9c73f8a2dfb3863acf324293467bd023151594"
+  },
+  {
+    "command": [
+      "dx",
+      "build",
+      "--web",
+      "--release",
+      "--base-path",
+      "/boardstudio/",
+      "--cargo-args=--locked"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "release-subpath-host-release.log.gz",
+    "raw_sha256": "be33a20a683d67b52eac086424c4521c3cb8da456010b7229f012e4f84889dd4"
+  },
+  {
+    "command": [
+      "python3",
+      "build.py",
+      "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad/target/dx/boardstudio-p1-cad/release/web/public",
+      "/boardstudio/"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "release-subpath-stage.log.gz",
+    "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "command": [
+      "python3",
+      "evidence/verify-browser.py",
+      "/boardstudio/"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad",
+    "exit_code": 0,
+    "log": "release-subpath-browser.log.gz",
+    "raw_sha256": "c7e1fb2ef053c4b70d948e758a849c056817bf5583df3768233a6d13845f7758"
+  }
+]

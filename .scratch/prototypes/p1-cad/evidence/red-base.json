@@ -1,0 +1,13 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--lib",
+    "wrong_base_delta_keeps_cache_and_caller_unchanged"
+  ],
+  "exit_code": 101,
+  "log": "red-base.log.gz",
+  "expected": "wrong-base delta accepted by current transport ledger; assertion is_err fails",
+  "raw_sha256": "e6d2b8ec68eaa284336f607e98d712307c6e59afdfa4fb6349b9c9fe93a05351"
+}

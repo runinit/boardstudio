@@ -1,0 +1,115 @@
+{
+  "status": "passed",
+  "summary": {
+    "preview": [
+      {
+        "operation": "preview",
+        "vertices": 192,
+        "volume": 720,
+        "min": [
+          -0.5,
+          -0.5,
+          0
+        ],
+        "max": [
+          20.5,
+          20.5,
+          2
+        ],
+        "positionHash": "40b474c241b0f40181ef383961458ae4f4846c8ce147bd96bfd3f390b5023bd8",
+        "normalHash": "2709f94f360785068758eb355f9da848150fefff266ebbb30682f6b1cf64415a"
+      }
+    ],
+    "export": [
+      {
+        "operation": "export",
+        "vertices": 96,
+        "volume": 720,
+        "min": [
+          -0.5,
+          -0.5,
+          0
+        ],
+        "max": [
+          20.5,
+          20.5,
+          2
+        ],
+        "positionHash": "7435a90ca4e29165a67090f173d128a15e8743be52a882924a2c28cd6cafd06c",
+        "normalHash": "ba2cffba68ded8705e53f5d61209009f66aef807fa46d126c017c9afac654160"
+      }
+    ],
+    "preview,export": [
+      {
+        "operation": "preview",
+        "vertices": 192,
+        "volume": 720,
+        "min": [
+          -0.5,
+          -0.5,
+          0
+        ],
+        "max": [
+          20.5,
+          20.5,
+          2
+        ],
+        "positionHash": "40b474c241b0f40181ef383961458ae4f4846c8ce147bd96bfd3f390b5023bd8",
+        "normalHash": "2709f94f360785068758eb355f9da848150fefff266ebbb30682f6b1cf64415a"
+      },
+      {
+        "operation": "export",
+        "vertices": 192,
+        "volume": 720,
+        "min": [
+          -0.5,
+          -0.5,
+          0
+        ],
+        "max": [
+          20.5,
+          20.5,
+          2
+        ],
+        "positionHash": "40b474c241b0f40181ef383961458ae4f4846c8ce147bd96bfd3f390b5023bd8",
+        "normalHash": "2709f94f360785068758eb355f9da848150fefff266ebbb30682f6b1cf64415a"
+      }
+    ],
+    "export,preview": [
+      {
+        "operation": "export",
+        "vertices": 96,
+        "volume": 720,
+        "min": [
+          -0.5,
+          -0.5,
+          0
+        ],
+        "max": [
+          20.5,
+          20.5,
+          2
+        ],
+        "positionHash": "7435a90ca4e29165a67090f173d128a15e8743be52a882924a2c28cd6cafd06c",
+        "normalHash": "ba2cffba68ded8705e53f5d61209009f66aef807fa46d126c017c9afac654160"
+      },
+      {
+        "operation": "preview",
+        "vertices": 96,
+        "volume": 720,
+        "min": [
+          -0.5,
+          -0.5,
+          0
+        ],
+        "max": [
+          20.5,
+          20.5,
+          2
+        ],
+        "positionHash": "7435a90ca4e29165a67090f173d128a15e8743be52a882924a2c28cd6cafd06c",
+        "normalHash": "ba2cffba68ded8705e53f5d61209009f66aef807fa46d126c017c9afac654160"
+      }
+    ]
+  }
+}

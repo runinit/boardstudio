@@ -28,7 +28,8 @@ unauthorized model/provider switch or automatic prototype promotion is allowed.
 | --- | --- | --- |
 | DOC-1 | Complete and technically validate the six mapped M1 specs; preserve accepted inputs | Complete: reviewed and integrated `47d6dbce`; documentation checks only |
 | TOOL-1 | Install official Dioxus CLI **0.7.10** selected by ADR 0003; verify official digest and `dx --version`; add a command link only if absent | Complete: official archive digest and `dioxus 0.7.10 (57d6794)` verified, exit 0 |
-| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; current P1-CAD continuation blocked/unaccepted; [handoff](#p1-cad-blocked-reference-comparison) |
+| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; original P1-CAD blocked run preserved; renewed P1-CAD-F1 verification passed, exact review/integration pending |
+| P1-CAD-F1 | Explicit “do it” approval of [P1-CAD-F1-r1](../../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md): two serial reviewed findings | Verification passed; fresh review/integration required; [current handoff](#p1-cad-f1-bounded-findings-repair) |
 | P1-U64 | Explicit renewed defect-only [P1-U64-r1 authority](../../.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json) | Complete; exact source `cce8e78b` reviewed, integrated and validated; [handoff](#p1-u64-accepted-source-and-resumable-handoff) |
 
 TOOL-1 may write only its project-owned tool directory under
@@ -345,3 +346,66 @@ confirmation. The preserved source/evidence branch HEAD is
 records follow the reviewed source and handoff. This final audit adds execution
 facts without accepting or changing the implementation candidate.
 [Exact integration/check/closure record](../../.scratch/migration-specs-validation/p1-cad-status-integration.json).
+
+
+## P1-CAD-F1 bounded findings repair
+
+The user's **“do it”** explicitly approves the preceding two-finding repair
+proposal: documentation correction and a conditional reference-harness defect
+correction through diagnosis, TDD and fresh two-axis review. Exact scope is
+**P1-CAD-F1-r1**, based on `90d857156fae5f8279840763b10d8571090b8724`;
+[task authority](../../.scratch/prototypes/p1-cad/evidence/findings-repair/task-start.json)
+and [bounded plan](../../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md)
+record the existing specs/ADR, ownership, public seams and required gates before
+implementation. Coordinator-owned worktree:
+`/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001`,
+branch `prototype/boardstudio-p1-cad-findings`. The original failed worktree and
+immutable source `3b2008408b50d282b0d752caedb7b6ff41bbb4b7` remain unchanged.
+Its two exhausted attempts are historical; this newly scoped run permits two
+diagnosed repairs and has used one (reference signed-zero byte encoding). No implementation writes are delegated.
+
+Current preflight verifies actual checkout/status, permissions, tool versions,
+frozen dependencies, configuration and source/provider identity. A fresh read-only
+smoke requests Luna/medium; independent Codex DB/turn-context metadata confirms
+that route, and supported archival is independently confirmed. Configuration's
+pre-existing rollout/DB warning is retained. No framework/API/pin change requires
+new framework research; the existing version-matched official source evidence
+is reused. Protected inputs and original failed worktree are checked unchanged.
+
+The original 192-versus96 assertion and a smaller equivalent assertion both fail
+for the expected reason. Four independent public CAD facade processes establish:
+preview cold192; export cold96; preview→export both192; export→preview both96.
+Matching paths have exact position/normal byte hashes, the same body ID/revision,
+finite unit normals, literal volume720 and expected bounds. Identical source and
+WASM artifacts rule out artifact drift. This proves shared-reference cache-order
+contamination: the browser used independent preview/export modules, while the
+reference exported before previewing in one module.
+
+The corrected oracle uses separate reference processes and keeps exact vertex
+assertions; it additionally requires complete mesh position/normal byte equality
+with actual browser results at matching lifetimes. A missing-byte-evidence RED
+precedes Rust report instrumentation; only prototype reporting changes. Existing
+provider/kernel, schema, pins, worker lifecycle and geometry tolerances are
+unchanged. Independent libcascade reopening also compares cold export and both
+shared cache orders for one solid, volume720 and bounds. Original failed scripts
+and logs remain historical evidence, not passing gates. Architecture documentation
+now records the experimental worker/CAD boundary, owners, errors/cancellation,
+cleanup, measured copies/costs and named retirement criteria.
+
+**Verification passed; acceptance remains pending exact review/integration.**
+Three native protocol/cache tests, native build, fmt, strict native/WASM host/worker
+Clippy and CAD typecheck pass. Fresh provider builds pass23 native CAD tests with
+four existing ignored benchmarks and all49 JavaScript regressions with zero skipped.
+Fresh worker and both Dioxus releases pass actual Chromium lifecycle/transfer gates
+at root and subpath. Complete preview/export position and normal bytes match
+independent reference lifetimes; cold export and both cache orders pass independent
+STEP one-solid,720mm³-volume and bounds comparisons. Repair1 preserves signed
+zero in reference byte transport; its expected RED and original typed-byte hash
+GREEN are retained. No CAD provider behavior or tolerance changes.
+[Final verification records](../../.scratch/prototypes/p1-cad/evidence/findings-repair/verification-summary.json)
+link commands, exit statuses, compressed logs and source/served artifact identities.
+Exact Standards/Spec review and actual integration validation must finish before
+P1-CAD is checked complete.
+P2/P3, full-M1, CAD revisions above JS Number's safe range, performance and
+production adoption remain unproved and outside this run. No push/deployment/
+main merge or protected-worktree mutation is authorized.

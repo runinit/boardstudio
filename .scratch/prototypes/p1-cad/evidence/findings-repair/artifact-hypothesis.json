@@ -1,0 +1,10 @@
+{
+  "status": "falsified",
+  "wasm_sha256": "b1dd83cbb0cd886b92790f98a6b746a455e98382e9655acea9a3215aa4de5694",
+  "reference_and_both_prior_actual_browser_artifacts_byte_identical": true,
+  "entire_provider_tree_identities_unchanged": {
+    "cad": "d90103c6bcdb4cd3b4a8ab1a31c6f4a0aaeb4695",
+    "core": "dfa667787e3760a0c050e35489abd744b419dd28",
+    "contracts": "aaed1a6300375dfcfe2ab5606aca69b1423b2e39"
+  }
+}

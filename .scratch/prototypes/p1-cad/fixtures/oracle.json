@@ -1,0 +1,17 @@
+{
+  "source": "cad/test/case.test.mjs:53 exports a holed plate as a readable STEP and mesh",
+  "prep": "CoreEngine public prepare-case via core/examples/prepare_case.rs",
+  "volume": 720,
+  "min": [
+    -0.5,
+    -0.5,
+    0
+  ],
+  "max": [
+    20.5,
+    20.5,
+    2
+  ],
+  "geometryTolerance": 0.1,
+  "revision": 7
+}

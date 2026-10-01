@@ -1,0 +1,10 @@
+{
+  "command": [
+    "node",
+    "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad/evidence/check-step.mjs"
+  ],
+  "exit_code": 1,
+  "log": "original-red.log.gz",
+  "raw_sha256": "17a680acb7f67e24b280b32b084d71a46d304045956df9c7d504aa9b09faf23a",
+  "expected_red": "192 !== 96"
+}

@@ -1,0 +1,11 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--lib"
+  ],
+  "exit_code": 0,
+  "log": "green-cache.log.gz",
+  "raw_sha256": "6b6fb0a04016bb79a899aa128f4a20538b380bffd8d0fc1955733acbda9d2bc5"
+}

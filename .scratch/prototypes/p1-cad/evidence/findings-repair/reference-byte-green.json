@@ -1,0 +1,12 @@
+{
+  "command": [
+    "node",
+    "--input-type=module",
+    "-e",
+    "import {readFileSync} from \"node:fs\"; import {gunzipSync} from \"node:zlib\"; import {createHash} from \"node:crypto\"; import assert from \"node:assert/strict\"; const controls=JSON.parse(gunzipSync(readFileSync(\".scratch/prototypes/p1-cad/evidence/findings-repair/cache-order-controls.json.gz\"))); for (const outputs of Object.values(controls)) for(const {mesh} of outputs) for(const [field,key] of [[\"positions\",\"positionHash\"],[\"normals\",\"normalHash\"]]) assert.equal(createHash(\"sha256\").update(Buffer.from(mesh[field+\"Hex\"],\"hex\")).digest(\"hex\"),mesh[key]); console.log(\"All 12 original typed-array hashes retained across reference process transport\");"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001",
+  "exit_code": 0,
+  "log": "reference-byte-green.log.gz",
+  "raw_sha256": "8a3cbdf70148ef5eba92b96d020bdf23ff2eaf8a1a40734880f66d8269b5de06"
+}
