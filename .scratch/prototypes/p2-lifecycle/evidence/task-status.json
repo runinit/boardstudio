@@ -18,9 +18,9 @@
   "unperformed": [
     "Prototype source/TDD/native tests",
     "Core/renderer Clippy/tests/WASM builds",
-    "Dioxus release/browser/paired frame/cleanup/a11y/resource assertions",
-    "Complete mount/downcast/teardown API verification"
+    "Dioxus release/browser/paired frame/cleanup/a11y/resource assertions"
   ],
   "preserved": "Providers/protected work unchanged; no reset/stash/clean, no baseline/test/gate weakening or automatic prototype promotion",
-  "initial_preflight_repair_attempts": 0
+  "initial_preflight_repair_attempts": 0,
+  "api_verification": "Complete at source level: api-verification.json/API.md; compile/runtime remain unperformed"
 }
