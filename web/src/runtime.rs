@@ -529,7 +529,7 @@ impl Runtime {
         guard()?;
         let previous = self.cad_worker.borrow_mut().take();
         let worker = match previous {
-            Some((worker_scope, worker)) if worker_scope == *scope => worker,
+            Some((worker_scope, worker)) if worker_scope == *scope && !worker.is_closed() => worker,
             Some((_, worker)) => {
                 worker.close();
                 Rc::new(

@@ -52,5 +52,6 @@ assets is useful for repairs but is not final release evidence.
 The current canvas shows exact case bodies and a nominal PCB contour reference.
 M1 permits embedded part definitions without executing generator authoring/PCB
 export (ADR 0003); this does not assert populated PCB preview or generator parity.
-Case settings on a physical instance require its own supported document update
-policy; the current UI directs setting edits to the canonical board.
+Physical-instance case settings use the reference shared-construction policy and
+the existing undoable document replacement command. Setting controls wait for
+durable edits and position previews to finish before constructing that update.
