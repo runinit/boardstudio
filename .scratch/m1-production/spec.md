@@ -60,7 +60,7 @@ Deliver an isolated static Dioxus editor with Rust session and browser policy. R
 
 ## Testing Decisions
 
-- Agreed proposed seams: public Rust session events/effects/read models with a real CoreEngine; actual Dioxus/browser interactions on REVIUNG41 and Sofle paired with the React reference. Use existing provider archive/STEP/geometry interfaces as oracles. User seam feedback is pending; documentation and provider reconnaissance can continue meanwhile.
+- Seams inherited from the approved six module specifications: public Rust session events/effects/read models with a real CoreEngine; actual Dioxus/browser interactions on REVIUNG41 and Sofle paired with the React reference. Use existing provider archive/STEP/geometry interfaces as oracles. Optional user feedback may add acceptance boundaries; it does not reopen the already approved public session and real-browser seams.
 - Characterize observable reference behavior first. Red-green tests cover each delivered session behavior rather than private functions or mirrored implementation calculations.
 - Native session cases cover durable ordering, abort/retry, one-step history, final sample/cancellation, reopen at equal ID/revision, stale completions, executor failures and close.
 - Real Chromium checks cover workers, IndexedDB abort/retry, byte hashes and Uint8Array storage, reference archive exchange, root/subpath release assets, cached/cold offline, invalid import and service-worker update separation.

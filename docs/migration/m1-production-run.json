@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "planned; provider reconciliation eligible",
+  "status": "in progress: provider reconciliation and independent headless session development",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -10,11 +10,11 @@
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "tasks": {
     "01": {
-      "status": "ready",
+      "status": "in-progress",
       "blocked_by": []
     },
     "02": {
-      "status": "blocked-by-dependencies",
+      "status": "independent headless development; browser adoption blocked by 01",
       "blocked_by": [
         "01"
       ]
