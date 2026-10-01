@@ -229,6 +229,44 @@ pub fn revision_supported_by_cad_boundary(revision: u64) -> bool {
     revision <= MAX_CAD_REVISION
 }
 
+/// Return consumer-owned geometry for the selected physical board instance.
+/// The accepted snapshot remains immutable; callers use this scene alongside
+/// the corresponding `PreparedCadSnapshot` for preview rendering.
+#[cfg(feature = "page")]
+pub fn captured_case_scene(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<SceneDelta, CadJobError> {
+    captured_case_inputs(snapshot, scope).map(|(_, scene)| scene)
+}
+
+/// Return the consumer-owned document projection for a selected physical
+/// board instance, including effective shared mechanical defaults and flip
+/// transforms. The accepted snapshot is never mutated.
+#[cfg(feature = "page")]
+pub fn captured_case_document(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<ProjectDoc, CadJobError> {
+    captured_case_inputs(snapshot, scope).map(|(document, _)| document)
+}
+
+#[cfg(feature = "page")]
+fn captured_case_inputs(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<(ProjectDoc, SceneDelta), CadJobError> {
+    if scope.session_epoch != snapshot.session_epoch
+        || scope.document_id != snapshot.document.id
+        || snapshot.scene.revision != snapshot.document.revision
+    {
+        return Err(CadJobError::Stale(
+            "case scene scope or accepted revision changed".into(),
+        ));
+    }
+    effective_case_inputs(&snapshot.document, &snapshot.scene, scope)
+}
+
 /// Resolve mechanical policy and prepare case regions using the public core protocol.
 /// The CAD package uses JavaScript numbers for revision fields, so unsupported
 /// wide identities fail before crossing that boundary.
@@ -957,6 +995,14 @@ mod tests {
             board_id: "board-a".into(),
             instance_id: Some("instance-a".into()),
         };
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(9),
+            session_epoch: scope.session_epoch,
+            document: std::sync::Arc::new(document.clone()),
+            scene: std::sync::Arc::new(scene.clone()),
+        };
+        let captured_document = captured_case_document(&snapshot, &scope).unwrap();
+        let captured_scene = captured_case_scene(&snapshot, &scope).unwrap();
         let (effective, scene) = effective_case_inputs(&document, &scene, &scope).unwrap();
         assert_eq!(effective.parts[0].pose.at.x, -3.0);
         assert_eq!(effective.parts[0].pose.rotation, -27.0);
@@ -964,6 +1010,8 @@ mod tests {
         assert_eq!(effective.parts[1], document.parts[1]);
         assert_eq!(scene.transforms[0].pose.at.x, -3.0);
         assert_eq!(scene.transforms[1].pose.at.x, 8.0);
+        assert_eq!(captured_document, effective);
+        assert_eq!(captured_scene, scene);
     }
 
     #[test]

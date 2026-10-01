@@ -1,9 +1,10 @@
 //! Dedicated host for the existing, separately built Cadrum WASM package.
 use crate::cad_jobs::{
-    CadOperation, CadReply, CadReplyOutcome, CadRequest, CadResult, CadSnapshotIdentity,
+    CadBodyMesh, CadMesh, CadOperation, CadReply, CadReplyOutcome, CadRequest, CadResult,
+    CadSnapshotIdentity,
 };
 use futures_channel::oneshot;
-use js_sys::{Array, Function, Object, Promise, Reflect, Uint8Array};
+use js_sys::{Array, Float32Array, Function, Object, Promise, Reflect, Uint8Array};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -294,7 +295,7 @@ fn receive(state: &Rc<RefCell<ClientState>>, data: JsValue) {
                 .map(|pending| pending.sender);
             if let Some(sender) = sender {
                 let result = if wire.outcome == CadReplyOutcome::Completed {
-                    serde_wasm_bindgen::from_value::<CadResult>(
+                    decode_result(
                         Reflect::get(&data, &"result".into()).unwrap_or(JsValue::UNDEFINED),
                     )
                     .map(Some)
@@ -318,6 +319,78 @@ fn receive(state: &Rc<RefCell<ClientState>>, data: JsValue) {
             state,
             CadWorkerError("CAD worker sent an unknown frame kind".into()),
         ),
+    }
+}
+
+fn decode_result(value: JsValue) -> Result<CadResult, String> {
+    let revision = Reflect::get(&value, &"revision".into())
+        .map_err(|error| js_message(error))?
+        .as_f64()
+        .ok_or_else(|| "CAD result omitted revision".to_string())? as u64;
+    let step = read_u8_buffer(Reflect::get(&value, &"step".into()).map_err(js_message)?)?;
+    let mesh_value = Reflect::get(&value, &"mesh".into()).map_err(js_message)?;
+    let mesh = if mesh_value.is_null() || mesh_value.is_undefined() {
+        None
+    } else {
+        Some(decode_mesh(mesh_value)?)
+    };
+    let body_values = Array::from(&Reflect::get(&value, &"bodies".into()).map_err(js_message)?);
+    let mut bodies = Vec::with_capacity(body_values.length() as usize);
+    for body in body_values.iter() {
+        bodies.push(CadBodyMesh {
+            id: string_field(&body, "id")?,
+            name: string_field(&body, "name")?,
+            positions: read_f32_buffer(
+                Reflect::get(&body, &"positions".into()).map_err(js_message)?,
+            )?,
+            normals: read_f32_buffer(Reflect::get(&body, &"normals".into()).map_err(js_message)?)?,
+        });
+    }
+    let bounds_value = Reflect::get(&value, &"bounds".into()).map_err(js_message)?;
+    let bounds = if bounds_value.is_null() || bounds_value.is_undefined() {
+        None
+    } else {
+        Some(serde_wasm_bindgen::from_value(bounds_value).map_err(|error| error.to_string())?)
+    };
+    Ok(CadResult {
+        revision,
+        step,
+        mesh,
+        bodies,
+        bounds,
+    })
+}
+
+fn decode_mesh(value: JsValue) -> Result<CadMesh, String> {
+    Ok(CadMesh {
+        positions: read_f32_buffer(Reflect::get(&value, &"positions".into()).map_err(js_message)?)?,
+        normals: read_f32_buffer(Reflect::get(&value, &"normals".into()).map_err(js_message)?)?,
+    })
+}
+
+fn string_field(value: &JsValue, name: &str) -> Result<String, String> {
+    Reflect::get(value, &name.into())
+        .map_err(js_message)?
+        .as_string()
+        .ok_or_else(|| format!("CAD result omitted {name}"))
+}
+
+fn read_f32_buffer(value: JsValue) -> Result<Vec<f32>, String> {
+    if value.is_instance_of::<Float32Array>() {
+        Ok(value.unchecked_into::<Float32Array>().to_vec())
+    } else {
+        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
+    }
+}
+
+fn read_u8_buffer(value: JsValue) -> Result<Vec<u8>, String> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(Vec::new());
+    }
+    if value.is_instance_of::<Uint8Array>() {
+        Ok(value.unchecked_into::<Uint8Array>().to_vec())
+    } else {
+        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
     }
 }
 
@@ -610,16 +683,21 @@ async fn run_request(
         .map_err(|error| (request.clone(), error, false))?,
         CadOperation::ExportStep => {
             let prepared = prepared_value().map_err(|error| (request.clone(), error, false))?;
-            let built = invoke("build_assembly", &[prepared])
-                .map_err(|error| (request.clone(), error, false))?;
-            let result = Object::new();
-            for field in ["revision", "step"] {
-                let value = Reflect::get(&built, &field.into())
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                Reflect::set(&result, &field.into(), &value)
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
+            Reflect::set(&prepared, &"stepOnly".into(), &JsValue::TRUE)
+                .map_err(|error| (request.clone(), js_message(error), false))?;
+            let bodies = Array::from(
+                &Reflect::get(&prepared, &"bodies".into())
+                    .map_err(|error| (request.clone(), js_message(error), false))?,
+            );
+            // This worker owns a fresh module/cache. Empty keys intentionally
+            // miss preview meshes while the provider rebuilds exact solids
+            // from the same prepared regions without allocating triangulations.
+            let keys = Array::new_with_length(bodies.length());
+            for index in 0..bodies.length() {
+                keys.set(index, JsValue::from_str("m1-independent-step-cache-miss"));
             }
-            result.into()
+            invoke("export_cached_assembly", &[prepared, keys.into()])
+                .map_err(|error| (request.clone(), error, false))?
         }
         CadOperation::ReadStep => {
             if bytes.is_empty() || bytes.len() > MAX_STEP_BYTES {
