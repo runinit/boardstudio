@@ -116,7 +116,7 @@ For each isolated package after its manifest exists, set `P1_PACKAGE` and
 cargo test --manifest-path "$P1_PACKAGE/Cargo.toml" --locked
 cargo fmt --manifest-path "$P1_PACKAGE/Cargo.toml" --check
 cargo clippy --manifest-path "$P1_PACKAGE/Cargo.toml" --locked --all-targets -- -D warnings
-wasm-pack build "$P1_PACKAGE" --target web --release --locked --features worker --out-dir worker-pkg
+wasm-pack build "$P1_PACKAGE" --target web --release --out-dir worker-pkg --locked --no-default-features --features worker
 ```
 
 From that package directory:
@@ -158,3 +158,9 @@ set remains, leaving a resumable handoff and verified versus unfinished results.
 
 The probes remain isolated even if successful. Their verdict authorizes no
 automatic production promotion, cutover or removal of the React reference.
+
+Current run stopped at P1-CORE compatibility failure. Its two diagnosed repair
+attempts are exhausted; P1-CAD is dependency-blocked and unstarted. The command
+above places wasm-pack-owned options before Cargo EXTRA_OPTIONS, matching the
+observed CLI semantics. This documentation correction changes no task scope or
+dependency. Reviewed failure and resumable state: [RUN](../docs/migration/RUN.md).

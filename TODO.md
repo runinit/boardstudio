@@ -12,8 +12,8 @@
 Plan/spec/advance approval: [P1-r1](tasks/plan.md) and [run ledger](docs/migration/RUN.md).
 These are isolated integration probes; production adoption is not implicit.
 
-- [ ] P1-CORE: Prove pinned release host and real core-worker packaging at root/subpath, typed provider request handling, scoped lifecycle/caller settlement and owned-buffer transfer. Depends on DOC-1 and completed TOOL-1; meaningful native transport tests, fmt/Clippy, release builds, actual Chromium assertions and exact-candidate review are required.
-- [ ] P1-CAD: Prove existing CAD package initialization and one copied prepared-case generation/STEP in a Rust-managed worker at root/subpath, with cache/stale/cancel/failure/close and ownership evidence. Depends on accepted P1-CORE; native/prerequisite and relevant CAD regressions, fresh builds, actual Chromium output/lifecycle assertions and exact-candidate review are required. At most two diagnosed repair attempts per failed task; preserve blockers and worktrees.
+- [ ] P1-CORE — **blocked, unaccepted**: valid-u64 serialization fails in reviewed candidate `3f25e9d9`; two repairs exhausted. Failed prototype and evidence preserved on its owned branch, with no integration. Prove pinned release host and real core-worker packaging at root/subpath, typed provider request handling, scoped lifecycle/caller settlement and owned-buffer transfer. Depends on DOC-1 and completed TOOL-1; meaningful native transport tests, fmt/Clippy, release builds, actual Chromium assertions and exact-candidate review are required.
+- [ ] P1-CAD — **dependency-blocked, not started**: P1-CORE is unaccepted. Prove existing CAD package initialization and one copied prepared-case generation/STEP in a Rust-managed worker at root/subpath, with cache/stale/cancel/failure/close and ownership evidence. Depends on accepted P1-CORE; native/prerequisite and relevant CAD regressions, fresh builds, actual Chromium output/lifecycle assertions and exact-candidate review are required. At most two diagnosed repair attempts per failed task; preserve blockers and worktrees.
 
 ## Prior request history
 

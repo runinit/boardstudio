@@ -28,7 +28,7 @@ unauthorized model/provider switch or automatic prototype promotion is allowed.
 | --- | --- | --- |
 | DOC-1 | Complete and technically validate the six mapped M1 specs; preserve accepted inputs | Complete: reviewed and integrated `47d6dbce`; documentation checks only |
 | TOOL-1 | Install official Dioxus CLI **0.7.10** selected by ADR 0003; verify official digest and `dx --version`; add a command link only if absent | Complete: official archive digest and `dioxus 0.7.10 (57d6794)` verified, exit 0 |
-| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | Authorized in advance; P1-CORE eligible after reviewed DOC-1 integration |
+| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE blocked/unaccepted; P1-CAD dependency-blocked and not started; no safe remaining task |
 
 TOOL-1 may write only its project-owned tool directory under
 `/home/chris/.local/share/boardstudio/tools/dioxus-cli/0.7.10`, an absent
@@ -105,3 +105,63 @@ is used because all three existing child threads are retained and native closure
 is unavailable; the non-authoring reviewer remains available for exact-candidate
 review. A new task-owned worktree is created and checked before any prototype
 edit. P1-CAD depends on accepted P1-CORE; P2/P3 remain outside this task set.
+
+## P1-CORE stopped: preserved-provider compatibility failure
+
+Exact authority: P1-r1 and six module specs at reviewed `47d6dbce`, with the
+recorded advance approval. Task base `e9950d17ed9d1a067df4660783740edd26343b19`;
+owned worktree `/tmp/boardstudio-p1-core-20261001`, branch
+`prototype/boardstudio-p1-core`. Coordinator authored only the prototype subtree
+and the plan command correction; no provider/source/visibility change.
+Protocol increment `cb76481e`; full candidate and exact reviewed revision
+`3f25e9d9a6679d551acd6e9439e2f19ca844e0ee`; preserved failure-evidence branch
+HEAD `6519a8c2215b68855cd1bc097001199ffd4b10e3`. **No prototype integration**.
+The migration branch retains the accepted documentation/spec revision; it adds
+only this status/evidence and the verified command-order correction.
+
+Verified results: the unchanged provider native suite passes; four new native
+protocol tests had RED/GREEN evidence and pass; the standalone native build,
+format, native and WASM worker/host strict Clippy pass. Fresh release worker and
+CLI host builds succeed. Root and `/boardstudio/` Chromium probes pass for the
+revision-0 fixture: Open/Snapshot, invalid/stale replies, owned-buffer detachment
+and close/crash/init caller settlement. Page error inspection is empty. These
+checks prove only the tested transport/package path. They do not prove full
+provider-field compatibility, M1 application parity, canvas, storage or CAD.
+
+Blocking gate: native Open/Snapshot preserves valid revision `9007199254740993`
+exactly. The pinned default serde-wasm-bindgen serializer rejects that u64.
+Candidate request and reply serialization both use that default. A bounded real
+Chromium reproduction posts that valid revision to the unchanged worker and
+observes `9007199254740993 can't be represented as a JavaScript number`. The
+provider compatibility assertion exits 1. The diagnostic harness exits 0 because
+it observed the expected regression; that is a diagnosis, never a passing
+compatibility gate. The independent Luna/high reviewer confirmed the critical
+blocker and inspected the runtime addendum. Runtime routing is independently
+confirmed again by Codex state DB/turn context, with no model/provider switch.
+
+Two diagnosed repairs were used: wasm-pack argument ordering (pack-owned flags
+precede Cargo extra options), then a host nested conditional rejected by strict
+WASM Clippy. Affected release builds and both prefix browser checks were rerun
+after the host repair. No third repair was attempted. P1-CORE remains unchecked
+and unaccepted; P1-CAD has no task worktree, implementation or build. Read-only
+inventory verified its existing public exports/build path and Podman capability;
+that is not CAD acceptance. No safe task remains in this authorized graph.
+
+[Blocked review, commits, commands and ownership](../../.scratch/migration-specs-validation/p1-core-blocked-review.json),
+[compatibility diagnosis](../../.scratch/migration-specs-validation/p1-core-large-integer-compatibility.json),
+[Chromium reproduction](../../.scratch/migration-specs-validation/p1-core-large-integer-runtime.json)
+and [failed gate](../../.scratch/migration-specs-validation/p1-core-large-integer-contract-failure.log)
+are retained here. Complete source/build/native/browser logs and generated
+artifact hashes remain in the preserved prototype worktree and its local branch.
+No failed worktree or uncommitted work was deleted; protected inputs are untouched.
+All three completed child threads remain retained because supported archive
+failed and no close-thread operation is exposed; their results are preserved.
+
+Resume from the current integration branch and retained failed candidate, with
+this blocker resolved in a separately bounded continuation. Preserve full u64
+and arbitrary-JSON value meaning across both request and reply paths; add a
+meaningful native/WASM regression oracle for those values, rerun affected locked
+builds and both deployment prefixes, and review the exact new candidate. The
+exhausted repair budget must be addressed explicitly before another repair run.
+Do not adopt the prototype, infer CAD readiness or remove the React fallback.
+P2/P3, archived failed checks and five missing historical reports remain open.
