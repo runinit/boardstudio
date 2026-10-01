@@ -6,10 +6,29 @@ pub struct Point {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum GestureEffect {
-    Preview { id: String, at: Point },
-    Commit { id: String, at: Point },
-    Cancel { id: String },
-    Release { pointer_id: i32 },
+    Preview {
+        id: String,
+        at: Point,
+        base_revision: u64,
+        transaction_id: String,
+        origin: Point,
+    },
+    Commit {
+        id: String,
+        at: Point,
+        base_revision: u64,
+        transaction_id: String,
+        origin: Point,
+    },
+    Cancel {
+        id: String,
+        base_revision: u64,
+        transaction_id: String,
+        origin: Point,
+    },
+    Release {
+        pointer_id: i32,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -17,6 +36,9 @@ struct ActiveGesture {
     pointer_id: i32,
     id: String,
     start: Point,
+    base_revision: u64,
+    transaction_id: String,
+    origin: Point,
 }
 
 #[derive(Default)]
@@ -26,6 +48,25 @@ pub struct GestureCoordinator {
 
 impl GestureCoordinator {
     pub fn pointer_down(&mut self, pointer_id: i32, id: &str, at: Point) -> Vec<GestureEffect> {
+        self.pointer_down_with_base(
+            pointer_id,
+            id,
+            at,
+            0,
+            String::new(),
+            Point { x: 0.0, y: 0.0 },
+        )
+    }
+
+    pub fn pointer_down_with_base(
+        &mut self,
+        pointer_id: i32,
+        id: &str,
+        at: Point,
+        base_revision: u64,
+        transaction_id: String,
+        origin: Point,
+    ) -> Vec<GestureEffect> {
         if self.active.is_some() || id.is_empty() {
             return Vec::new();
         }
@@ -33,6 +74,9 @@ impl GestureCoordinator {
             pointer_id,
             id: id.to_owned(),
             start: at,
+            base_revision,
+            transaction_id,
+            origin,
         });
         Vec::new()
     }
@@ -51,6 +95,9 @@ impl GestureCoordinator {
                 x: at.x - active.start.x,
                 y: at.y - active.start.y,
             },
+            base_revision: active.base_revision,
+            transaction_id: active.transaction_id.clone(),
+            origin: active.origin,
         }]
     }
 
@@ -61,16 +108,22 @@ impl GestureCoordinator {
         let Some(active) = self.active.take() else {
             return Vec::new();
         };
-        vec![
-            GestureEffect::Commit {
+        let delta = Point {
+            x: at.x - active.start.x,
+            y: at.y - active.start.y,
+        };
+        let mut effects = Vec::with_capacity(2);
+        if delta.x != 0.0 || delta.y != 0.0 {
+            effects.push(GestureEffect::Commit {
                 id: active.id,
-                at: Point {
-                    x: at.x - active.start.x,
-                    y: at.y - active.start.y,
-                },
-            },
-            GestureEffect::Release { pointer_id },
-        ]
+                at: delta,
+                base_revision: active.base_revision,
+                transaction_id: active.transaction_id,
+                origin: active.origin,
+            });
+        }
+        effects.push(GestureEffect::Release { pointer_id });
+        effects
     }
 
     pub fn pointer_cancel(&mut self, pointer_id: i32) -> Vec<GestureEffect> {
@@ -96,7 +149,12 @@ impl GestureCoordinator {
         }
         let active = self.active.take().expect("active gesture was checked");
         vec![
-            GestureEffect::Cancel { id: active.id },
+            GestureEffect::Cancel {
+                id: active.id,
+                base_revision: active.base_revision,
+                transaction_id: active.transaction_id,
+                origin: active.origin,
+            },
             GestureEffect::Release {
                 pointer_id: active.pointer_id,
             },

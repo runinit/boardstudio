@@ -45,9 +45,27 @@ fn escape_cancels_and_releases_the_captured_pointer() {
     let mut gesture = GestureCoordinator::default();
     gesture.pointer_down(12, "switch-2", Point { x: 1.0, y: 2.0 });
     assert!(
-        matches!(gesture.escape().as_slice(), [GestureEffect::Cancel { id }, GestureEffect::Release { pointer_id: 12 }] if id == "switch-2")
+        matches!(gesture.escape().as_slice(), [GestureEffect::Cancel { id, .. }, GestureEffect::Release { pointer_id: 12 }] if id == "switch-2")
     );
     assert!(!gesture.is_active_for(12));
+}
+
+#[test]
+fn drag_commit_keeps_pointerdown_revision_transaction_and_origin() {
+    let mut gesture = GestureCoordinator::default();
+    gesture.pointer_down_with_base(
+        44,
+        "switch-captured",
+        Point { x: 10.0, y: 12.0 },
+        71,
+        "stable-transaction".into(),
+        Point { x: 4.5, y: -8.0 },
+    );
+    assert!(matches!(
+        gesture.pointer_up(44, Point { x: 25.0, y: 32.0 }).as_slice(),
+        [GestureEffect::Commit { id, at: Point { x: 15.0, y: 20.0 }, base_revision: 71, transaction_id, origin: Point { x: 4.5, y: -8.0 } }, GestureEffect::Release { pointer_id: 44 }]
+            if id == "switch-captured" && transaction_id == "stable-transaction"
+    ));
 }
 
 #[test]
@@ -62,4 +80,14 @@ fn move_then_pointerup_emits_one_commit_using_the_up_sample() {
         matches!(up.as_slice(), [GestureEffect::Commit { at: Point { x, y }, .. }, GestureEffect::Release { pointer_id: 2 }] if *x == 13.0 && *y == 12.0)
     );
     assert!(gesture.pointer_up(2, Point { x: 99.0, y: 99.0 }).is_empty());
+}
+
+#[test]
+fn stationary_pointerup_releases_without_committing_a_click_as_a_drag() {
+    let mut gesture = GestureCoordinator::default();
+    gesture.pointer_down(3, "switch-4", Point { x: 5.0, y: 7.0 });
+    assert_eq!(
+        gesture.pointer_up(3, Point { x: 5.0, y: 7.0 }),
+        vec![GestureEffect::Release { pointer_id: 3 }]
+    );
 }
