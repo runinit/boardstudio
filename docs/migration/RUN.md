@@ -26,9 +26,9 @@ unauthorized model/provider switch or automatic prototype promotion is allowed.
 
 | Task | Exact scope / authority | Status |
 | --- | --- | --- |
-| DOC-1 | Complete and technically validate the six mapped M1 specs; preserve accepted inputs | In progress |
+| DOC-1 | Complete and technically validate the six mapped M1 specs; preserve accepted inputs | Complete: reviewed and integrated `47d6dbce`; documentation checks only |
 | TOOL-1 | Install official Dioxus CLI **0.7.10** selected by ADR 0003; verify official digest and `dx --version`; add a command link only if absent | Complete: official archive digest and `dioxus 0.7.10 (57d6794)` verified, exit 0 |
-| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | Authorized in advance; blocked on DOC-1 technical validation, not approval |
+| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | Authorized in advance; P1-CORE eligible after reviewed DOC-1 integration |
 
 TOOL-1 may write only its project-owned tool directory under
 `/home/chris/.local/share/boardstudio/tools/dioxus-cli/0.7.10`, an absent
@@ -79,3 +79,29 @@ Official archive SHA-256 is
 `4363e4ed2a3f1eb7f4d38d2d59aed59ce43271c44c16b425e92c89a64761fbe7`;
 the command link resolves to the project-owned versioned installation. No PATH
 or configuration change, source build or existing-binary overwrite was needed.
+
+## DOC-1 accepted revision and next task
+
+Exact candidate/review/integration: `47d6dbce5af2285d1f886ef63d2d4c7b1de57925`,
+reviewed by the fresh Luna/high reviewer against `38bbe42f`. The stale approval
+sentence was corrected and re-reviewed. Repository check passes (553 authored,
+369 reachable); whitespace and 145 local-link checks pass. Two diagnosed
+checker repairs were used: provision fresh-worktree dependencies with frozen
+lockfile, then relocate copied historical links to their original read-only
+inputs. No checker or quality requirement was weakened.
+
+Dedicated integration worktree: `/tmp/boardstudio-migration-m1-20261001`, branch
+`migration/boardstudio-m1`. Fast-forward integration preserves the exact candidate.
+The integrated repository check and whitespace check exit 0. See the
+[review/integration record](../../.scratch/migration-specs-validation/doc-review-integration.json).
+The five other specs and the editor-session spec are technically reviewed;
+their runtime acceptance criteria remain unexecuted.
+
+Next eligible task: **P1-CORE**, plan **P1-r1**, the six specs and ADR at the exact
+reviewed commit above. Authority is the recorded advance approval plus local
+commit/integration authorization. Prototype-only path ownership is
+`.scratch/prototypes/p1-core/`; no production adoption. Coordinator implementation
+is used because all three existing child threads are retained and native closure
+is unavailable; the non-authoring reviewer remains available for exact-candidate
+review. A new task-owned worktree is created and checked before any prototype
+edit. P1-CAD depends on accepted P1-CORE; P2/P3 remain outside this task set.

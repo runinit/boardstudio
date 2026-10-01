@@ -1,0 +1,33 @@
+{
+  "task": "DOC-1",
+  "source_base": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+  "base": "38bbe42f",
+  "candidate": "47d6dbce5af2285d1f886ef63d2d4c7b1de57925",
+  "reviewed": "47d6dbce5af2285d1f886ef63d2d4c7b1de57925",
+  "review_agent": "/root/spec_review",
+  "requested_model": "gpt-6-luna",
+  "requested_effort": "high",
+  "findings": "Initial stale approval sentence fixed; re-review reports no blockers. Environment-specific historical source links are recorded as a portability limit.",
+  "integration": "47d6dbce5af2285d1f886ef63d2d4c7b1de57925",
+  "checks": [
+    {
+      "command": [
+        "node",
+        "/tmp/boardstudio-migration-specs-review-20261001/scripts/repo-check.mjs",
+        "/tmp/boardstudio-migration-m1-20261001"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/boardstudio-migration-m1-20261001/.scratch/migration-specs-validation/integration-repo-check.log"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/boardstudio-migration-m1-20261001/.scratch/migration-specs-validation/integration-whitespace.log"
+    }
+  ],
+  "runtime_acceptance": "not established"
+}

@@ -4,7 +4,7 @@
 
 ## Current request
 
-- [ ] DOC-1: Complete and technically validate all six M1 module specifications, continuing the accepted map/ADR; preserve protected worktrees and exact inputs, record preflight/advance approval and retain all runtime limitations. Evidence: [run ledger](docs/migration/RUN.md).
+- [x] DOC-1: Complete and technically validate all six M1 module specifications, continuing the accepted map/ADR; preserve protected worktrees and exact inputs, record preflight/advance approval and retain all runtime limitations. Evidence: [run ledger](docs/migration/RUN.md).
 - [x] TOOL-1: Install official pinned Dioxus CLI 0.7.10 following the user's explicit installation request; verify official archive SHA-256 and `dx --version`, without PATH/config changes or overwriting an existing executable. [Install evidence](.scratch/migration-specs-validation/tool-install.json); independent command/help verification exits 0.
 
 ## Authorized bounded task set: P1-r1
