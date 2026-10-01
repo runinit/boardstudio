@@ -1,0 +1,19 @@
+{
+  "task": "P2-LIFECYCLE",
+  "revision": "P2-r1-R1",
+  "status": "Approved; smoke passes; formatter prerequisite and executable implementation next",
+  "base": "689f8962f77e04b1150a9541128fec7aca28addc",
+  "worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001",
+  "branch": "prototype/boardstudio-p2-lifecycle-r1",
+  "implementation_repairs": 0,
+  "administrative_repairs": 1,
+  "limit_each": 2,
+  "candidate": null,
+  "reviewed": null,
+  "integration": null,
+  "next_eligible_tasks": [
+    "One serial P2 task"
+  ],
+  "approval": "task-start.json",
+  "unperformed": "All executable P2 tests/build/browser/review/integration gates"
+}
