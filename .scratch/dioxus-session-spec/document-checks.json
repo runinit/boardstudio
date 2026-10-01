@@ -1,0 +1,30 @@
+{
+  "local_links_checked": 92,
+  "preserved_files_checked": 1130,
+  "changed_existing_files": [
+    "CAPABILITY-MAP.md",
+    "PLAN.md",
+    "TODO.md",
+    "docs/adr/0003-rust-application-ownership.md"
+  ],
+  "unexpected_changes": [],
+  "missing_preserved_files": [],
+  "head": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+  "criterion_ids": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7",
+    "S8"
+  ],
+  "errors": [
+    "PLAN.md: missing target app/performance-results/phase2-scene-live/summary.json",
+    "PLAN.md: missing target cad/bench/results/phase2-scene-final/comparison.json",
+    "PLAN.md: missing target app/performance-results/live-generation-five-sessions-2026-09-27.json",
+    "PLAN.md: missing target cad/bench/results/generation-long-soak-2026-09-27/memory-trend.json",
+    "PLAN.md: missing target app/performance-results/live-preview-perf-final-2026-09-27.json"
+  ]
+}

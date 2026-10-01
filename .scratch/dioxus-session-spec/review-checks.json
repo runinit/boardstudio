@@ -1,0 +1,57 @@
+{
+  "recorded_at": "2026-10-01T05:20:48.397078+00:00",
+  "head": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+  "task_scope": "Record Phase 0 approval; propose only editor-session Phase 1 specification",
+  "repository_check": {
+    "exit_code": 0,
+    "authored_modules": 553,
+    "production_reachable": 369,
+    "run": "node scripts/repo-check.mjs"
+  },
+  "capability_spec_adr_local_links": {
+    "count": 39,
+    "errors": []
+  },
+  "full_tracking_link_inventory": {
+    "exit_code": 1,
+    "valid_local_links": 94,
+    "inherited_missing_targets": [
+      {
+        "source": "PLAN.md",
+        "target": "app/performance-results/phase2-scene-live/summary.json"
+      },
+      {
+        "source": "PLAN.md",
+        "target": "cad/bench/results/phase2-scene-final/comparison.json"
+      },
+      {
+        "source": "PLAN.md",
+        "target": "app/performance-results/live-generation-five-sessions-2026-09-27.json"
+      },
+      {
+        "source": "PLAN.md",
+        "target": "cad/bench/results/generation-long-soak-2026-09-27/memory-trend.json"
+      },
+      {
+        "source": "PLAN.md",
+        "target": "app/performance-results/live-preview-perf-final-2026-09-27.json"
+      }
+    ]
+  },
+  "preservation": {
+    "existing_files_checked": 1130,
+    "changed_existing_files": [
+      "CAPABILITY-MAP.md",
+      "CHANGELOG.md",
+      "PLAN.md",
+      "TODO.md",
+      "docs/adr/0003-rust-application-ownership.md"
+    ],
+    "unexpected_changes": []
+  },
+  "new_artifact": "SPEC-editor-session.md",
+  "production_code_or_dependency_changes": false,
+  "runtime_probes_executed": false,
+  "pending": "Human Phase 1 review; P1-P3, packaging/runtime/parity and inherited baseline gates remain unresolved",
+  "task_errors": []
+}

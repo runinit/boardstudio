@@ -1,5 +1,126 @@
 # Generation and edit performance plan
 
+## Current session: editor-session specification
+
+The user approved the [capability map](CAPABILITY-MAP.md) and
+[ADR 0003](docs/adr/0003-rust-application-ownership.md) on 2026-10-01. Record
+that Phase 0 decision without treating runtime probes or trial tickets as
+complete. Retain the accepted Wayfinder inputs and assessment baseline.
+
+Run spec-driven-development Phase 1 for only `editor-session`, bounded to the
+representative layout/case milestone. Existing public engine and service
+contracts are its providers; they do not need replacement specifications to
+describe this consumer. Specify command and gesture ordering, accepted versus
+preview state, durable-save recovery, job scope and export coordination in
+[SPEC-editor-session.md](SPEC-editor-session.md). Keep CAD, scene semantics,
+host adapters and Dioxus implementation with their approved owners.
+
+Assume a headless Rust session whose transitions produce host effects, using
+existing request/reply types. Surface any new interface or behavior choices
+as specification proposals. Reuse the exact-version official-source evidence;
+dependency resolution still does not establish packaging or runtime behavior.
+
+This session writes documentation only. Do not create an application crate,
+implement migration code, generate a migration backlog, activate gates,
+change dependencies/visibility or promote prototype code. Track one scoped
+specification deliverable, validate its sources and links, and stop for review
+of this module's specification before implementation planning or tasks.
+
+The bounded specification is prepared for Phase 1 review. Repository and
+whitespace checks pass; the [documentation record](.scratch/dioxus-session-spec/scoped-document-checks.json)
+validates the capability/spec/ADR links and retains the five inherited missing
+performance reports in the full PLAN inventory. Production sources, constraints
+and accepted Wayfinder artifacts remain unchanged. No prototype or application
+implementation was added; integration probes and trial acceptance remain open.
+
+## Completed scope review: architecture boundaries
+
+Use spec-driven-development Phase 0 to propose a small capability map for
+document/engine, editor session and interactions, rendering, host integration,
+generators/CAD/export and Dioxus presentation. These are ownership boundaries;
+justify packaging separately rather than assigning a crate to every row.
+Reuse the accepted [Wayfinder decisions](.scratch/dioxus-browser-trial/map.md)
+and [context assessment](docs/dioxus-context-baseline.md), including their
+recorded failures and unverified integration questions.
+
+Present the map and proposed resolutions of the first milestone's blocking
+decisions before detailed rationale: full-Rust scope, platforms, state owners,
+execution/transport, preview/cancellation, scenes, persistence/export,
+remaining dependencies and transition. Apply API/interface design, versioned
+official-source verification and the existing ADR convention. Give each
+change its observed problem, alternatives, preserved/changed contracts and
+validation evidence. Scope uncertain integration prototypes explicitly and
+isolate any later execution; prototype results never authorize production use.
+
+One throwaway dependency-resolution probe is in scope now: Dioxus/CLI candidate
+0.7.10 with existing core and pinned browser bindings, in a standalone scratch
+package. It contains no application implementation; its lockfile and verdict
+stay isolated. Runtime worker/CAD/canvas/offline probes remain proposed charters
+for review, not completed evidence.
+
+Keep this session to a review proposal in [CAPABILITY-MAP.md](CAPABILITY-MAP.md)
+and [proposed ADR 0003](docs/adr/0003-rust-application-ownership.md). Do not write
+module specifications, implement migration code, generate a migration backlog,
+activate gates, change dependencies/visibility or rewrite accepted decisions.
+Track only this scope-review deliverable in TODO; leave trials and cutover
+pending. Stop for human review of boundaries and blocking decisions, as required
+by spec-driven-development's scope gate and the user's instruction.
+
+The map and ADR were prepared, with official 0.7.10 source verification
+and an isolated dependency-resolution verdict. Online resolution passes with
+the existing binding pins and required mounted feature; offline resolution
+fails against the incomplete cache. The user approved the architecture scope
+on 2026-10-01. Runtime prototypes and trial acceptance remain pending; the next
+bounded specification is the current session above. No accepted Wayfinder
+ticket or production gate is marked complete by scope approval.
+
+## Current session: migration constraint proposal
+
+Update the existing [CONSTRAINTS.md](CONSTRAINTS.md), using the installed Addy
+constraint-driven-development skill and the
+[context assessment](docs/dioxus-context-baseline.md). The migration permits
+architectural redesign of the full application, including existing Rust
+internals, while preserving validated capabilities and accepted contracts.
+Keep the Wayfinder decisions and the completed assessment as linked evidence.
+
+Require each task to identify whether it preserves behavior, intentionally
+changes behavior, or corrects a defect. Define characterization and approval
+requirements, preserve the quality floor and protected work, and make temporary
+adapters accountable for retirement. Map native, WASM/browser, boundary,
+interaction, persistence/export and resource checks to existing executable
+commands, separating development, completion and integration tiers. Reuse
+measured budgets; record missing measurements and missing checks explicitly.
+
+This session produces a proposed contract for review. Do not install or activate
+new gates, change production code or dependencies, repair baseline failures,
+update measurement baselines, or merge, push or deploy. Present the proposal
+before any later gate activation; no architecture implementation is authorized.
+
+The [proposal](CONSTRAINTS.md) is prepared and verified; [TODO.md](TODO.md) and
+[CHANGELOG.md](CHANGELOG.md) record completion. Additional gate activation and
+unresolved measurement/ownership decisions remain future work.
+
+## Completed assessment: Rust architecture reconciliation
+
+Assess the committed `dev` baseline `96dd51d3e790c28f5554a8c9888a147c8814e2a7`
+on branch `docs/dioxus-context-baseline` in the new isolated worktree. Use the
+installed Addy Osmani agent-skills package, starting with context-engineering,
+for the full-Rust/Dioxus architecture effort. Preserve the
+[Wayfinder map](.scratch/dioxus-browser-trial/map.md), tickets and research
+unchanged as evidence; the user's current skill choice governs this effort.
+Reuse [CONSTRAINTS.md](CONSTRAINTS.md). Record current ownership, reusable
+decisions, validation provenance and the next recommended decision in
+[the context baseline](docs/dioxus-context-baseline.md).
+
+This session permits documentation and baseline checks only. Do not implement
+the migration, change production code or dependencies, commit or rewrite Git
+history, repair unrelated failures, update test/performance baselines, or
+reset, clean, delete or recreate existing worktrees. Keep diagnostics from the
+dirty source checkout separate from this committed baseline. Stop after
+reporting risks and the next decision; the existing
+[architecture/acceptance ticket](.scratch/dioxus-browser-trial/issues/03-trial-architecture-acceptance.md)
+remains unresolved.
+
 ## Immediate feature: keymap workspace and located findings
 
 Separate physical Keycaps settings from the Keymap workflow. Rebuild Keymap

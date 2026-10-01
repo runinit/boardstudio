@@ -1,0 +1,2539 @@
+{
+  "recorded_utc": "2026-10-01T03:16:15.121737+00:00",
+  "scope": "Context reconciliation and baseline assessment only; no migration implementation or commits.",
+  "isolation": {
+    "source_repository": "/home/chris/01_Projects/ts-boardstudio2",
+    "source_dev_commit": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+    "worktree": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+    "branch": "docs/dioxus-context-baseline",
+    "git_metadata": "/home/chris/01_Projects/ts-boardstudio2/.scratch/git/dioxus-context-baseline.git",
+    "base_commit": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+    "initial_worktree_status": "clean",
+    "preserved_artifacts": [
+      {
+        "path": ".scratch/dioxus-browser-trial/issues/01-dioxus-browser-platform.md",
+        "sha256": "60389d200fa572c62a30e6b8542a943b9fdf9618829b7a5e77b4c19ec8f0170c"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/issues/02-rust-engine-browser-integration.md",
+        "sha256": "6ce75966c77bcb3fc52de88576f6364a6202199a8e672ab846079ea00c671cf6"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/issues/03-trial-architecture-acceptance.md",
+        "sha256": "5a958881875c9128c439cfd5aeaae235d9240eb193dcc0bab8302217e88f4a6a"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/issues/04-layout-trial.md",
+        "sha256": "cda81af04b8df300578e5336e575f750578dcdc103af77819aa39a50890718db"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/issues/05-case-trial.md",
+        "sha256": "9df9388ab7e7f30f12ea99873d4e7d21372d211f4a326fcd05f5b40f1bcb41eb"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/issues/06-staged-migration-route.md",
+        "sha256": "8f1563fbc9c5bc3ad01895852d391a7aec8ee106fb43199b19580202bf67548e"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/map.md",
+        "sha256": "0e6e37b3584b677702d1cbc43f7343936d337bf9a8907cb67863eca0645987ef"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/research/browser-platform.bundle",
+        "sha256": "ea93bf14d2370ad8d4bc55cb1dadabcd660171a0c5503b26b27f1a6defc91d3d"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/research/browser-platform.md",
+        "sha256": "d4b63980b4d603fe9c9cdbfb307366b3f8e247261572ff38f59d2c887608c000"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/research/rust-integration.bundle",
+        "sha256": "a7560aa91bd4773d2fafad26b39e265c267e3119597f093483790e5b1b794e76"
+      },
+      {
+        "path": ".scratch/dioxus-browser-trial/research/rust-integration.md",
+        "sha256": "fedf09bd76706f24297bd394a7d785b2d1d2eef3b4812147a924ca493410f843"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/issues/01-thqwgd001-hardware.md",
+        "sha256": "bb1e537be1389bdcd6a998643506723f34482cebeb145ffaa28279e070c27f11"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/issues/02-vik-catalog-hardware.md",
+        "sha256": "07b0d3d00b18923686f4dddcccc186969bf998c197825ee6bd8e0dba56b9b743"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/issues/03-module-domain-assets.md",
+        "sha256": "bb49222c88715deb5bc77c8164bd8c6ac13eb89c2d6abf207b68c4c8d585e24f"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/issues/04-input-electrical-identity.md",
+        "sha256": "f2df06708979d3aa291c36461caaa7b9a758027d63d4ac695fbae1c88d727e0c"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/issues/05-module-stack-case.md",
+        "sha256": "fcddbfe2abff476c5ad28d7c24541af528c07518965fde0a2db49a2d7a443ad3"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/issues/06-workflows-acceptance.md",
+        "sha256": "657092827a299356774911c348099b2be57124e22f5a8982860d097d9d9cadd4"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/map.md",
+        "sha256": "a0084d313137de5ba6fd146efe7e39d83939e4f73b1fd78f651df2bbb12bed13"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/research/current-architecture.md",
+        "sha256": "4a11c95693f573cfe88265f0312421a83737ef88a7489a6edc7dbe7beae2136b"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/research/thqwgd001.md",
+        "sha256": "edef4d081ddee6473a35ae3ceab59c8d3c0cbc4ca2ee6c3c3fbc79141f2a7505"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/research/vik-catalog.md",
+        "sha256": "73616dfce77ceb5b46b7d21357fc6f11b4c2839914d17eb5110b258af8e3e82c"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules/spec.md",
+        "sha256": "93c4767977a682d1c58d6df71612db1f3689055de8ad19fffc8af38b49eed0f2"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/README.md",
+        "sha256": "d926571c0ca75256de8194a39d10ed978aa9cdccc8fcf1bb21df98b0c6e9941e"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/01-encoder-matrix-inputs.md",
+        "sha256": "04d367c33c7e906c91b2f126b097080ccfb75504684978dc483cdcd223111b56"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/02-thqwgd001-library.md",
+        "sha256": "c47f3e6f8a58a38b365b8290033a0a00f8dcba2c184bfa6c16647a1179366daf"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/03-first-mounted-vik-module.md",
+        "sha256": "b6993b6ab53586087c11f4622973ade004267cad5b0a8231d11402ecb8becfd7"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/04-direct-pcb-circuit-reuse.md",
+        "sha256": "b1f4d680e7727ee189cf5133adc16ecb8d0c1d82e5ad304e6578fa7279e33fdd"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/05-vik-pointing-input-modules.md",
+        "sha256": "38b3856765c5e114c747a9a3f9d548c0786363e2d81b49c1e85f0454d155853e"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/06-vik-display-modules.md",
+        "sha256": "1c7a300fc42578d28319364d9286d667067c248374483f80c1d0f7867f4e55e8"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/07-vik-feedback-expansion-modules.md",
+        "sha256": "36e6e573451ff4a794e6e4c0427089e2d45fa171b26db120ba234fd46fdff3b2"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft-issues/08-mixed-project-exports.md",
+        "sha256": "ff23d414af67be7336d60a13ea0116cb0b74003231d3bd97daf6819113971b1d"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/draft.md",
+        "sha256": "d1b0d32417aa6ccd673505d509904076af4d6f539776aac8db32efa2677fb119"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/01-encoder-matrix-inputs.md",
+        "sha256": "b74e4eca8f405dff3a8358d566a9e2e09fd997a2cc103d37cd99aa37ed42ff34"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/02-thqwgd001-library.md",
+        "sha256": "fbac30f13f06f7c527db2eb3a7eb9b0dbb8cedade451e09f719e8e96b400eed4"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/03-first-mounted-vik-module.md",
+        "sha256": "084fe22087e2bbe50051dfd0fcbe49ecf1132631cd58ecb8d66d912e6a092622"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/04-direct-pcb-circuit-reuse.md",
+        "sha256": "00d368aba17e27a2ccc5ec2c2f1ff0d9f2c9b401cebd30b0f3e1d1ff7f0346cc"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/05-vik-pointing-input-modules.md",
+        "sha256": "66494dac8764fc92d9b4302c997eddfad6993a3e2e9432ecdb36ca180913fe2c"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/06-vik-display-modules.md",
+        "sha256": "f1d961225a8f4760b47f5300287b0301b623944ad63a5d0bdd7ec98fbcd0105a"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/07-vik-feedback-expansion-modules.md",
+        "sha256": "19e4098775da49df85f0e728f42534047efd13f3ff03e1c0b394d0e7e9532946"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/issues/08-mixed-project-exports.md",
+        "sha256": "af78ed69a2b189b8132f3195e3ddfcf1497b7019ba4d5663106dbff1e26b6088"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/build-vik-model-ledger.py",
+        "sha256": "293cf78ab721b99a0d2f9bd61013a5a6541d44b5059494d53e8146cd02e712fa"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/connector-clearance/atom-closed-approximate-clearance.step",
+        "sha256": "1d5f321e37bc8e02da13354ef55dc7b0ba9bdd4a60bed08be4e4f08cd297483b"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/connector-clearance/atom-open_ref-approximate-clearance.step",
+        "sha256": "2c8f2cf95793f6261b93ebdc6d67daeb041f87b48a011b46010cd574d4c8c73b"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/encoder-asset-ledger.json",
+        "sha256": "a0eb8bf41300d6fc12213133933881dc95f65b2f64d3e062b1404de0a1b9b526"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/encoder-asset-qualification.md",
+        "sha256": "c1577ed9db90feb42d5bcc275cd0c6e37a4352587b32e9054f21f28093319d35"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/encoder-transform-oracle.json",
+        "sha256": "1dd15f66f15eb371827ca9e2cb886df8a0a1d6da6a9e212df28b499c0e2651c4"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/encoder-transform-oracle.md",
+        "sha256": "4effdf108ec043cfeb2fb4f0f1ca180e0b37361e4e90797d4a2b4e4d342fcbe5"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/measure-vik-connector.py",
+        "sha256": "f82f6c55367ad4ebe1287fc1b6718cda7be6dea7d13ae0dcfae327f2ef3cdaf6"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/vik-asset-qualification.md",
+        "sha256": "55b8c33a2858e9b43abff85d44d36a33d5ba1328a8236d9648731000c4f07fef"
+      },
+      {
+        "path": ".scratch/encoder-vik-modules-implementation/research/vik-model-ledger.json",
+        "sha256": "5ba2e70cdb976b9f27e3168cbf951ad021549f996c27d95341b1508a0deb308f"
+      }
+    ],
+    "read_only_source_git": true,
+    "metadata_note": "Independent bare metadata with a full object copy; original registrations untouched. /tmp lacked room for the object copy."
+  },
+  "source_state": {
+    "captured_utc": "2026-10-01T02:54:00.835581+00:00",
+    "root": "/home/chris/01_Projects/ts-boardstudio2",
+    "branch": "dev",
+    "head": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+    "dirty_status": [
+      " M CHANGELOG.md",
+      " M PLAN.md",
+      " M README.md",
+      " M TODO.md",
+      " M app/e2e/electrical-handoff.spec.ts",
+      " M app/e2e/finding-locations.spec.ts",
+      " M app/e2e/keymap-fixture.ts",
+      " M app/e2e/live-case-preview.spec.ts",
+      " M app/e2e/live-mount-preview.spec.ts",
+      " M app/e2e/live-preview-performance.spec.ts",
+      " M app/e2e/live-soak-performance.spec.ts",
+      " M app/e2e/manual-generation.spec.ts",
+      " M app/e2e/mechanical-assembly.spec.ts",
+      " M app/e2e/setup-workflow.spec.ts",
+      " M app/e2e/workbench.spec.ts",
+      " M app/src/CaseClient.test.ts",
+      " M app/src/CoreClient.test.ts",
+      " M app/src/ExportClient.test.ts",
+      " M app/src/firmwareHandoff.ts",
+      " M app/src/firmwarePeripherals.ts",
+      " M app/src/hardwareInstances.ts",
+      " M app/src/main.tsx",
+      " M app/src/parts/import-manifest.json",
+      " M app/src/parts/imported-parts.json",
+      " M app/src/renderClient.test.ts",
+      " D app/src/storage.test.ts",
+      " M app/src/storageReset.test.ts",
+      " M app/src/test/nativeArchive.ts",
+      " M app/src/ui/KeymapPanel.tsx",
+      " M app/src/ui/MatrixInspector.tsx",
+      " M app/src/ui/PartsInspectorPanel.tsx",
+      " M app/src/ui/createKeymapWorkspace.tsx",
+      " M app/src/ui/createWorkbenchPlacementActions.ts",
+      " M app/src/ui/usePcbWorkspace.tsx",
+      " M app/src/ui/workbenchGeometry.ts",
+      " M app/src/ui/workbenchTypes.ts",
+      " M contracts/src/generated/CoreReply.ts",
+      " M contracts/src/generated/CoreRequest.ts",
+      " M contracts/src/generated/EditOperation.ts",
+      " M contracts/src/generated/FirmwareRequest.ts",
+      " M contracts/src/generated/PartDefinition.ts",
+      " M contracts/src/generated/PeripheralRequirement.ts",
+      " M contracts/src/generated/ProjectDoc.ts",
+      " M contracts/src/generated/index.ts",
+      " M core/examples/dump_firmware.rs",
+      " M core/examples/export_contracts.rs",
+      " M core/src/artifact/compile.rs",
+      " M core/src/artifact/kicad.rs",
+      " M core/src/artifact/kicad/output/tests.rs",
+      " M core/src/artifact/mod.rs",
+      " M core/src/artifact/source.rs",
+      " M core/src/electrical.rs",
+      " M core/src/electrical_jumpers.rs",
+      " M core/src/electrical_peripherals.rs",
+      " M core/src/firmware.rs",
+      " M core/src/geometry.rs",
+      " M core/src/keymap.rs",
+      " M core/src/lib.rs",
+      " M core/src/matrix.rs",
+      " M core/src/mechanical.rs",
+      " M core/src/model.rs",
+      " M core/src/validate.rs",
+      " M core/tests/core.rs",
+      " M core/tests/electrical_wiring.rs",
+      " M core/tests/finding_locations.rs",
+      " M core/tests/firmware_local_build.rs",
+      " M core/tests/matrix_performance.rs",
+      " M core/tests/outline_repairs.rs",
+      " M core/tests/outline_versions.rs",
+      " M core/tests/outlines.rs",
+      " M core/tests/performance.rs",
+      " M core/tests/splay_reconciliation.rs",
+      " M ergogen/src/index.ts",
+      " M scripts/import-kicad-parts.mjs",
+      "?? .pnpm-store/",
+      "?? .scratch/",
+      "?? CONSTRAINTS.md",
+      "?? app/e2e/encoder-matrix.spec.ts",
+      "?? app/e2e/workspace-storage.ts",
+      "?? app/src/modules/",
+      "?? app/src/parts/sources/thqwgd001/",
+      "?? app/src/storageArchive.test.ts",
+      "?? app/src/storageProjects.test.ts",
+      "?? app/src/test/storage.ts",
+      "?? app/src/test/workers.ts",
+      "?? app/src/ui/InputProfileEditor.tsx",
+      "?? app/src/ui/inputCapabilities.ts",
+      "?? contracts/src/generated/EmbeddedCircuit.ts",
+      "?? contracts/src/generated/EncoderDriver.ts",
+      "?? contracts/src/generated/FirmwareEncoder.ts",
+      "?? contracts/src/generated/HardwareGate.ts",
+      "?? contracts/src/generated/HardwareOutput.ts",
+      "?? contracts/src/generated/HardwareProfile.ts",
+      "?? contracts/src/generated/HardwareSource.ts",
+      "?? contracts/src/generated/InputProfile.ts",
+      "?? contracts/src/generated/ModuleAttachment.ts",
+      "?? contracts/src/generated/ModuleBoard.ts",
+      "?? contracts/src/generated/ModuleCircuit.ts",
+      "?? contracts/src/generated/ModuleConnection.ts",
+      "?? contracts/src/generated/ModuleConstituent.ts",
+      "?? contracts/src/generated/ModuleDefinition.ts",
+      "?? contracts/src/generated/ModuleElectrical.ts",
+      "?? contracts/src/generated/ModuleInterface.ts",
+      "?? contracts/src/generated/ModuleProtocol.ts",
+      "?? contracts/src/generated/ModuleResolution.ts",
+      "?? contracts/src/generated/ModuleVolume.ts",
+      "?? contracts/src/generated/MountedModule.ts",
+      "?? contracts/src/generated/PressContacts.ts",
+      "?? contracts/src/generated/PressScanMode.ts",
+      "?? contracts/src/generated/ResolvedModule.ts",
+      "?? contracts/src/generated/RotaryProfile.ts",
+      "?? contracts/src/generated/VikRole.ts",
+      "?? contracts/src/generated/VikSignal.ts",
+      "?? core/src/artifact/module_import.rs",
+      "?? core/src/firmware/",
+      "?? core/src/inputs.rs",
+      "?? core/src/modules.rs",
+      "?? core/src/modules/",
+      "?? core/tests/encoder_inputs.rs",
+      "?? core/tests/engine/",
+      "?? core/tests/mounted_modules.rs",
+      "?? core/tests/support/",
+      "?? docs/testing.md",
+      "?? ergogen/library/vendor/thqwgd001/",
+      "?? scripts/import-vik-modules.mjs"
+    ],
+    "worktrees": [
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2",
+        "HEAD": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+        "branch": "refs/heads/dev",
+        "directory_present": true,
+        "status": [
+          " M CHANGELOG.md",
+          " M PLAN.md",
+          " M README.md",
+          " M TODO.md",
+          " M app/e2e/electrical-handoff.spec.ts",
+          " M app/e2e/finding-locations.spec.ts",
+          " M app/e2e/keymap-fixture.ts",
+          " M app/e2e/live-case-preview.spec.ts",
+          " M app/e2e/live-mount-preview.spec.ts",
+          " M app/e2e/live-preview-performance.spec.ts",
+          " M app/e2e/live-soak-performance.spec.ts",
+          " M app/e2e/manual-generation.spec.ts",
+          " M app/e2e/mechanical-assembly.spec.ts",
+          " M app/e2e/setup-workflow.spec.ts",
+          " M app/e2e/workbench.spec.ts",
+          " M app/src/CaseClient.test.ts",
+          " M app/src/CoreClient.test.ts",
+          " M app/src/ExportClient.test.ts",
+          " M app/src/firmwareHandoff.ts",
+          " M app/src/firmwarePeripherals.ts",
+          " M app/src/hardwareInstances.ts",
+          " M app/src/main.tsx",
+          " M app/src/parts/import-manifest.json",
+          " M app/src/parts/imported-parts.json",
+          " M app/src/renderClient.test.ts",
+          " D app/src/storage.test.ts",
+          " M app/src/storageReset.test.ts",
+          " M app/src/test/nativeArchive.ts",
+          " M app/src/ui/KeymapPanel.tsx",
+          " M app/src/ui/MatrixInspector.tsx",
+          " M app/src/ui/PartsInspectorPanel.tsx",
+          " M app/src/ui/createKeymapWorkspace.tsx",
+          " M app/src/ui/createWorkbenchPlacementActions.ts",
+          " M app/src/ui/usePcbWorkspace.tsx",
+          " M app/src/ui/workbenchGeometry.ts",
+          " M app/src/ui/workbenchTypes.ts",
+          " M contracts/src/generated/CoreReply.ts",
+          " M contracts/src/generated/CoreRequest.ts",
+          " M contracts/src/generated/EditOperation.ts",
+          " M contracts/src/generated/FirmwareRequest.ts",
+          " M contracts/src/generated/PartDefinition.ts",
+          " M contracts/src/generated/PeripheralRequirement.ts",
+          " M contracts/src/generated/ProjectDoc.ts",
+          " M contracts/src/generated/index.ts",
+          " M core/examples/dump_firmware.rs",
+          " M core/examples/export_contracts.rs",
+          " M core/src/artifact/compile.rs",
+          " M core/src/artifact/kicad.rs",
+          " M core/src/artifact/kicad/output/tests.rs",
+          " M core/src/artifact/mod.rs",
+          " M core/src/artifact/source.rs",
+          " M core/src/electrical.rs",
+          " M core/src/electrical_jumpers.rs",
+          " M core/src/electrical_peripherals.rs",
+          " M core/src/firmware.rs",
+          " M core/src/geometry.rs",
+          " M core/src/keymap.rs",
+          " M core/src/lib.rs",
+          " M core/src/matrix.rs",
+          " M core/src/mechanical.rs",
+          " M core/src/model.rs",
+          " M core/src/validate.rs",
+          " M core/tests/core.rs",
+          " M core/tests/electrical_wiring.rs",
+          " M core/tests/finding_locations.rs",
+          " M core/tests/firmware_local_build.rs",
+          " M core/tests/matrix_performance.rs",
+          " M core/tests/outline_repairs.rs",
+          " M core/tests/outline_versions.rs",
+          " M core/tests/outlines.rs",
+          " M core/tests/performance.rs",
+          " M core/tests/splay_reconciliation.rs",
+          " M ergogen/src/index.ts",
+          " M scripts/import-kicad-parts.mjs",
+          "?? .pnpm-store/",
+          "?? .scratch/",
+          "?? CONSTRAINTS.md",
+          "?? app/e2e/encoder-matrix.spec.ts",
+          "?? app/e2e/workspace-storage.ts",
+          "?? app/src/modules/",
+          "?? app/src/parts/sources/thqwgd001/",
+          "?? app/src/storageArchive.test.ts",
+          "?? app/src/storageProjects.test.ts",
+          "?? app/src/test/storage.ts",
+          "?? app/src/test/workers.ts",
+          "?? app/src/ui/InputProfileEditor.tsx",
+          "?? app/src/ui/inputCapabilities.ts",
+          "?? contracts/src/generated/EmbeddedCircuit.ts",
+          "?? contracts/src/generated/EncoderDriver.ts",
+          "?? contracts/src/generated/FirmwareEncoder.ts",
+          "?? contracts/src/generated/HardwareGate.ts",
+          "?? contracts/src/generated/HardwareOutput.ts",
+          "?? contracts/src/generated/HardwareProfile.ts",
+          "?? contracts/src/generated/HardwareSource.ts",
+          "?? contracts/src/generated/InputProfile.ts",
+          "?? contracts/src/generated/ModuleAttachment.ts",
+          "?? contracts/src/generated/ModuleBoard.ts",
+          "?? contracts/src/generated/ModuleCircuit.ts",
+          "?? contracts/src/generated/ModuleConnection.ts",
+          "?? contracts/src/generated/ModuleConstituent.ts",
+          "?? contracts/src/generated/ModuleDefinition.ts",
+          "?? contracts/src/generated/ModuleElectrical.ts",
+          "?? contracts/src/generated/ModuleInterface.ts",
+          "?? contracts/src/generated/ModuleProtocol.ts",
+          "?? contracts/src/generated/ModuleResolution.ts",
+          "?? contracts/src/generated/ModuleVolume.ts",
+          "?? contracts/src/generated/MountedModule.ts",
+          "?? contracts/src/generated/PressContacts.ts",
+          "?? contracts/src/generated/PressScanMode.ts",
+          "?? contracts/src/generated/ResolvedModule.ts",
+          "?? contracts/src/generated/RotaryProfile.ts",
+          "?? contracts/src/generated/VikRole.ts",
+          "?? contracts/src/generated/VikSignal.ts",
+          "?? core/src/artifact/module_import.rs",
+          "?? core/src/firmware/",
+          "?? core/src/inputs.rs",
+          "?? core/src/modules.rs",
+          "?? core/src/modules/",
+          "?? core/tests/encoder_inputs.rs",
+          "?? core/tests/engine/",
+          "?? core/tests/mounted_modules.rs",
+          "?? core/tests/support/",
+          "?? docs/testing.md",
+          "?? ergogen/library/vendor/thqwgd001/",
+          "?? scripts/import-vik-modules.mjs"
+        ]
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/3e8a/ts-boardstudio2",
+        "HEAD": "0ca5e3f1f71c376135286345f9974066ed8cac45",
+        "branch": "refs/heads/codex/cadrum-cad-backend",
+        "directory_present": true,
+        "status": [
+          " M app/e2e/manual-generation.spec.ts",
+          " M app/e2e/parts-catalog.spec.ts",
+          " M app/e2e/performance.spec.ts",
+          " M app/scripts/run-performance.mjs",
+          " M app/src/CaseClient.test.ts",
+          " M app/src/CaseClient.ts",
+          " M app/src/case.worker.ts",
+          " M app/src/casePreviewContext.test.ts",
+          " M app/src/casePreviewContext.ts",
+          " M app/src/main.tsx",
+          " M app/src/prepareCase.test.ts",
+          " M app/src/prepareCase.ts",
+          " M app/src/renderClient.test.ts",
+          " M app/src/renderClient.ts",
+          " M app/src/ui/workbenchTypes.ts",
+          " M app/src/useCaseGeneration.ts",
+          " M app/vite.config.ts",
+          " M cad/src/index.ts",
+          " M cad/tsconfig.json",
+          " M cad/wasm/Cargo.lock",
+          " M cad/wasm/Cargo.toml",
+          " M cad/wasm/src/model.rs",
+          " M cad/wasm/src/model/construction.rs",
+          " M cad/wasm/src/model/construction/cache.rs",
+          " M package.json",
+          " M scripts/repo-check.mjs",
+          "?? CHANGELOG.md",
+          "?? PLAN.md",
+          "?? TODO.md",
+          "?? app/bench-cad.html",
+          "?? app/e2e/cad-benchmark.spec.ts",
+          "?? app/e2e/cad-followup-performance.spec.ts",
+          "?? app/e2e/cad-interleaving-performance.spec.ts",
+          "?? app/scripts/run-cad-benchmark.mjs",
+          "?? app/src/bench-cad.ts",
+          "?? app/src/cadPerformance.test.ts",
+          "?? app/src/cadPerformance.ts",
+          "?? app/src/case.worker.test.ts",
+          "?? app/src/createProjectExporter.test.ts",
+          "?? app/src/ui/AssemblyViewer.test.tsx",
+          "?? cad/bench/",
+          "?? cad/src/kernel.ts",
+          "?? cad/src/metrics.ts",
+          "?? cad/src/preview.ts",
+          "?? cad/src/step.ts",
+          "?? cad/test/benchmark-comparison.test.mjs",
+          "?? cad/test/fixtures.test.mjs",
+          "?? cad/test/metrics.test.mjs",
+          "?? cad/test/preview-adapter.test.mjs",
+          "?? cad/test/step-only.test.mjs",
+          "?? cad/wasm/src/model/construction/equivalence.rs",
+          "?? cad/wasm/src/model/metrics.rs",
+          "?? docs/cad-performance-baseline.md",
+          "?? docs/cad-performance-booleans.md",
+          "?? docs/cad-performance-decisions.md",
+          "?? docs/cad-performance-followup.md",
+          "?? docs/cad-performance-mesh.md",
+          "?? docs/cad-performance-metrics.md",
+          "?? docs/cad-performance-plan.md",
+          "?? docs/cad-performance-recommendations.md",
+          "?? docs/cad-performance-results.md",
+          "?? docs/cad-performance-review.md",
+          "?? docs/cad-performance-stages.md",
+          "?? docs/cad-performance-verification.md"
+        ]
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/boardstudio-electrical-refactor",
+        "HEAD": "fd2b1fd6e1407b7429ddc78c5a0d220d4d42500e",
+        "branch": "refs/heads/codex/electrical-resolver-refactor",
+        "directory_present": true,
+        "status": []
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/boardstudio-mechanical-refactor",
+        "HEAD": "ac88ad21d10cf5f3c0ecaa6f8226ac531ccb1e8c",
+        "branch": "refs/heads/codex/mechanical-resolver-refactor",
+        "directory_present": true,
+        "status": [
+          " M core/src/artifact/compile.rs",
+          " M core/src/artifact/kicad.rs",
+          " M core/src/artifact/kicad/planning.rs",
+          " M core/src/artifact/mod.rs",
+          " M core/src/artifact/preview.rs",
+          " M core/src/electrical.rs",
+          " M core/src/matrix.rs",
+          " M core/src/matrix/splay.rs",
+          " M core/src/validate.rs",
+          " M core/tests/contracts.rs",
+          " M core/tests/core.rs",
+          " M core/tests/electrical_wiring.rs",
+          " M core/tests/matrix_performance.rs",
+          " M core/tests/outlines.rs"
+        ]
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/boardstudio-outline-wip/ts-boardstudio2",
+        "HEAD": "6abf3eb951b1e9d8fc82ee96b0476730729c8a69",
+        "branch": "refs/heads/codex/outline-mechanical-wip",
+        "directory_present": true,
+        "status": [
+          " M CONTEXT.md",
+          " M app/e2e/electrical-handoff.spec.ts",
+          " M app/e2e/outline-editing.spec.ts",
+          " M app/e2e/outline.spec.ts",
+          " M app/src/createProjectExporter.ts",
+          " M app/src/exportMechanicalAssembly.test.ts",
+          " M app/src/exportMechanicalAssembly.ts",
+          " M app/src/ui/OutlineControlOverlay.tsx",
+          " M app/src/ui/OutlineDraftPreview.tsx",
+          " M app/src/ui/OutlineFeatureEditor.tsx",
+          " M app/src/ui/OutlineInspector.tsx",
+          " M app/src/ui/OutlineTools.tsx",
+          " M app/src/ui/Workbench.tsx",
+          " M app/src/ui/WorkbenchTree.tsx",
+          " M app/src/ui/caseReadiness.test.ts",
+          " M app/src/ui/caseReadiness.ts",
+          " M app/src/ui/findings.ts",
+          " M app/src/ui/outline-editor.css",
+          " M app/src/ui/outlineEditing.ts",
+          " M app/src/ui/useWorkbenchTree.ts",
+          " M app/src/ui/workbenchGeometry.ts",
+          " M contracts/src/generated/EditOperation.ts",
+          " M contracts/src/generated/OutlineSettings.ts",
+          " M contracts/src/generated/PartOutline.ts",
+          " M contracts/src/generated/ProjectDoc.ts",
+          " M contracts/src/generated/SceneDelta.ts",
+          " M contracts/src/generated/index.ts",
+          " M core/examples/export_contracts.rs",
+          " M core/src/artifact/compile.rs",
+          " M core/src/artifact/kicad.rs",
+          " M core/src/artifact/kicad/planning.rs",
+          " M core/src/artifact/mod.rs",
+          " M core/src/artifact/preview.rs",
+          " M core/src/case.rs",
+          " M core/src/electrical.rs",
+          " M core/src/geometry.rs",
+          " M core/src/lib.rs",
+          " M core/src/matrix.rs",
+          " M core/src/matrix/splay.rs",
+          " M core/src/mechanical.rs",
+          " M core/src/mechanical/gasket/internal.rs",
+          " M core/src/mechanical/gasket/internal/placement.rs",
+          " M core/src/mechanical_checks.rs",
+          " M core/src/model.rs",
+          " M core/src/outline.rs",
+          " M core/src/outline_controls.rs",
+          " M core/src/validate.rs",
+          " M core/tests/contracts.rs",
+          " M core/tests/core.rs",
+          " M core/tests/electrical_wiring.rs",
+          " M core/tests/gasket_features.rs",
+          " M core/tests/matrix_performance.rs",
+          " M core/tests/mechanical_workflow.rs",
+          " M core/tests/outlines.rs",
+          "?? app/e2e/outline-snapping.spec.ts",
+          "?? app/e2e/outline-versions.spec.ts",
+          "?? app/src/ui/OutlineSnapGuides.tsx",
+          "?? app/src/ui/boardOutlines.ts",
+          "?? app/src/ui/outlineSnapping.test.ts",
+          "?? app/src/ui/outlineSnapping.ts",
+          "?? contracts/src/generated/BoardOutline.ts",
+          "?? contracts/src/generated/BoardOutlineScene.ts",
+          "?? contracts/src/generated/FindingMarker.ts",
+          "?? contracts/src/generated/OutlineBridge.ts",
+          "?? contracts/src/generated/OutlineContourEdit.ts",
+          "?? contracts/src/generated/OutlineGap.ts",
+          "?? contracts/src/generated/OutlineProvenance.ts",
+          "?? contracts/src/generated/OutlineRepairSettings.ts",
+          "?? contracts/src/generated/OutlineSnapshot.ts",
+          "?? contracts/src/generated/OutlineVersion.ts",
+          "?? contracts/src/generated/ProtectedOutlineGap.ts",
+          "?? core/src/outline_cleanup.rs",
+          "?? core/src/outline_validation.rs",
+          "?? core/src/outline_versions.rs",
+          "?? core/tests/fixtures/reviung41-outline-original.json",
+          "?? core/tests/outline_clearance.rs",
+          "?? core/tests/outline_repairs.rs",
+          "?? core/tests/outline_versions.rs",
+          "?? docs/adr/",
+          "?? docs/design/assets/",
+          "?? docs/design/board-outline-plan.md",
+          "?? docs/design/evidence/"
+        ]
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/boardstudio-performance/ts-boardstudio2",
+        "HEAD": "6abf3eb951b1e9d8fc82ee96b0476730729c8a69",
+        "branch": "refs/heads/codex/performance-lab",
+        "directory_present": true,
+        "status": [
+          "?? docs/architecture-overhaul-performance-f7090d32.json",
+          "?? docs/cad-performance-plan.md",
+          "?? docs/live-case-preview-architecture.md",
+          "?? docs/live-case-preview-evidence.json"
+        ]
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/boardstudio-ui-integration",
+        "HEAD": "30d2eb25e5a7210291e1cc26e96002b6b2f79304",
+        "branch": "refs/heads/codex/integrate-ui-simplification",
+        "directory_present": true,
+        "status": []
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/boardstudio-v2/ts-boardstudio2",
+        "HEAD": "c69a129ce334dca7eee56c2528820fb55bf3c325",
+        "detached": true,
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/f357/ts-boardstudio2",
+        "HEAD": "49f88a36776a95a5288edb2366803fc61771ab05",
+        "detached": true,
+        "directory_present": true,
+        "status": [
+          " M CHANGELOG.md",
+          " M TODO.md",
+          " M app/e2e-pages/deployment.spec.ts",
+          " M app/e2e/cad-loading.spec.ts",
+          " M app/e2e/case-generation-polish.spec.ts",
+          " M app/e2e/case-preparation.spec.ts",
+          " M app/e2e/electrical-handoff.spec.ts",
+          " M app/e2e/live-mount-preview.spec.ts",
+          " M app/e2e/parts-catalog.spec.ts",
+          " M app/e2e/workbench.spec.ts",
+          " M cad/experiments/gasket/README.md",
+          " M docs/generation-optimization-status.md",
+          " M docs/generation-performance.md",
+          "?? .memsearch/",
+          "?? CONTEXT.md",
+          "?? app/performance-results/phase3-tabbed-interaction.json",
+          "?? app/performance-results/phase3-tabbed-live-confirmed/",
+          "?? app/performance-results/phase3-tabbed-live/",
+          "?? app/performance-results/phase3-tabbed-ui-soak.json",
+          "?? app/scripts/diagnose-cad-builds.mjs",
+          "?? app/scripts/diagnose-cad-counts.mjs",
+          "?? app/scripts/diagnose-live-cad.mjs",
+          "?? app/scripts/diagnose-prepared-cad.mjs",
+          "?? cad/bench/fixtures/live-tabbed-plates-regression.json",
+          "?? cad/bench/results/phase3-execution/",
+          "?? cad/bench/results/phase3-tabbed-confirmed/",
+          "?? cad/bench/results/phase3-tabbed-final/",
+          "?? cad/experiments/gasket/audit-build.py",
+          "?? cad/experiments/gasket/planning.rs",
+          "?? cad/experiments/gasket/prepare-counts.py",
+          "?? cad/experiments/gasket/prepare-production.py",
+          "?? cad/experiments/gasket/prepare-reuse.py",
+          "?? cad/experiments/gasket/reuse.rs",
+          "?? cad/experiments/gasket/tabbed-plate.patch",
+          "?? docs/gasket-case-compact-sections.png",
+          "?? docs/gasket-case-redesign.md",
+          "?? docs/gasket-case-sections.svg",
+          "?? docs/gasket-hardware-hzyuegou-m16.png",
+          "?? docs/gasket-hardware-hzyuegou-m2.png",
+          "?? docs/gasket-hardware-presets-research.md",
+          "?? docs/gasket-hardware-wafer-hex-dimensions.png",
+          "?? docs/gasket-hardware-wafer-hex-m2.png",
+          "?? docs/generation-optimization-execution.md"
+        ]
+      },
+      {
+        "worktree": "/home/chris/.codex/worktrees/gasket-case-redesign/ts-boardstudio2",
+        "HEAD": "6abf3eb951b1e9d8fc82ee96b0476730729c8a69",
+        "branch": "refs/heads/codex/gasket-case-redesign",
+        "directory_present": true,
+        "status": []
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/ergogen-pcb-parity-wave1",
+        "HEAD": "8b5b214b14e6d5cadb85d7c636841fe5c9d26839",
+        "branch": "refs/heads/ulw/ergogen-pcb-parity-wave1",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/native-yaml-first-release",
+        "HEAD": "552e2ecf59e369a348aed37529924e28cb84cb70",
+        "branch": "refs/heads/codex/native-yaml-first-release",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/reconcile-splay-core",
+        "HEAD": "ec48a5b0b46847ac747bddf09b2ad6eed9534b57",
+        "branch": "refs/heads/codex/reconcile-splay-core",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/rust-archive-browser",
+        "HEAD": "7703d273d46e6716149928b38d97466e9abe60ef",
+        "branch": "refs/heads/codex/rust-archive-browser",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/rust-archive-core",
+        "HEAD": "7703d273d46e6716149928b38d97466e9abe60ef",
+        "branch": "refs/heads/codex/rust-archive-core",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/rust-matrix-archives",
+        "HEAD": "b7b7c3df377baa97c148accd982c730204ee564a",
+        "branch": "refs/heads/codex/rust-matrix-archives",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/rust-matrix-browser",
+        "HEAD": "7703d273d46e6716149928b38d97466e9abe60ef",
+        "branch": "refs/heads/codex/rust-matrix-browser",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/rust-matrix-core",
+        "HEAD": "7703d273d46e6716149928b38d97466e9abe60ef",
+        "branch": "refs/heads/codex/rust-matrix-core",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/home/chris/01_Projects/ts-boardstudio2-wt/rust-zip-preflight",
+        "HEAD": "7703d273d46e6716149928b38d97466e9abe60ef",
+        "branch": "refs/heads/codex/rust-zip-preflight",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/tmp/boardstudio-cleanup-gate.LYwnI1",
+        "HEAD": "bc406fe94329315b0e9caa3dd710a12f734ed7a7",
+        "detached": true,
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/tmp/boardstudio-outline-integration",
+        "HEAD": "d11497f04411528720745eeb0d9a462342e81cd7",
+        "branch": "refs/heads/codex/outline-recovery-integration",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/tmp/boardstudio-outline-recovery",
+        "HEAD": "6abf3eb951b1e9d8fc82ee96b0476730729c8a69",
+        "branch": "refs/heads/codex/outline-recovery-snapshot",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/tmp/boardstudio-research-dioxus-integration-20260930",
+        "HEAD": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+        "branch": "refs/heads/research/dioxus-integration-20260930",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/tmp/boardstudio-research-dioxus-web-20260930",
+        "HEAD": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+        "branch": "refs/heads/research/dioxus-web-20260930",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/tmp/boardstudio-research-thqwgd001-20260930",
+        "HEAD": "6a5b5afa312414432c05a885bd469527fb7b7c90",
+        "branch": "refs/heads/research/thqwgd001-20260930",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      },
+      {
+        "worktree": "/tmp/boardstudio-research-vik-20260930",
+        "HEAD": "9708105821883899b896115d85489800f0277764",
+        "branch": "refs/heads/research/vik-catalog-20260930",
+        "prunable": "gitdir file points to non-existent location",
+        "directory_present": false
+      }
+    ],
+    "references": [
+      {
+        "name": "dev",
+        "commit": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "main",
+        "commit": "fd991be3a9960dfc25c8b0986fef4a133c253213",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "origin/dev",
+        "commit": "30d2eb25e5a7210291e1cc26e96002b6b2f79304",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "origin/main",
+        "commit": "fd991be3a9960dfc25c8b0986fef4a133c253213",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "codex/rearchitecture",
+        "commit": "f7b6291c139fd4139386b5d548e0503af88d8ab7",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "codex/backend",
+        "commit": "fd991be3a9960dfc25c8b0986fef4a133c253213",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "codex/rust-matrix-core",
+        "commit": "7703d273d46e6716149928b38d97466e9abe60ef",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "codex/rust-archive-core",
+        "commit": "7703d273d46e6716149928b38d97466e9abe60ef",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "codex/rust-matrix-archives",
+        "commit": "b7b7c3df377baa97c148accd982c730204ee564a",
+        "ancestor_of_dev": true
+      },
+      {
+        "name": "codex/outline-recovery-preserved",
+        "commit": "698706c2fa6a13388280ffcbdd0240ce4cb91279",
+        "ancestor_of_dev": false
+      }
+    ],
+    "remote_freshness": "Local dev was requested; remote-tracking refs were not fetched or treated as latest remote state."
+  },
+  "environment": {
+    "captured_utc": "2026-10-01T02:59:05.434542+00:00",
+    "os": "Linux-7.2.8-1-cachyos-x86_64-with-glibc2.44",
+    "commands": [
+      {
+        "command": [
+          "node",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "v26.10.0",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "pnpm",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "12.6.0",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "cargo",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "rustc",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "cargo",
+          "fmt",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "rustfmt 1.9.0-stable (88d9e12ae1 2026-08-18)",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "cargo",
+          "clippy",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "clippy 0.1.98 (88d9e12ae1 2026-08-18)",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "wasm-pack",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "wasm-pack 0.15.0",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "chromium",
+          "--version"
+        ],
+        "exit_code": 0,
+        "stdout": "Chromium 153.0.8010.52 Arch Linux",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "kicad-cli",
+          "version"
+        ],
+        "exit_code": 0,
+        "stdout": "10.0.6",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "rustup",
+          "target",
+          "list",
+          "--installed"
+        ],
+        "exit_code": 0,
+        "stdout": "wasm32-unknown-unknown\nx86_64-unknown-linux-gnu",
+        "stderr": ""
+      }
+    ],
+    "installed_dioxus_app": false,
+    "source_dev_was_not_fetched": true
+  },
+  "installed_skills": {
+    "package": "addyosmani/agent-skills",
+    "installed_version": "0.6.11",
+    "skill_root": "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/skills",
+    "skills": [
+      "api-and-interface-design",
+      "browser-testing-with-devtools",
+      "ci-cd-and-automation",
+      "code-review-and-quality",
+      "code-simplification",
+      "constraint-driven-development",
+      "context-engineering",
+      "debugging-and-error-recovery",
+      "deprecation-and-migration",
+      "documentation-and-adrs",
+      "doubt-driven-development",
+      "frontend-ui-engineering",
+      "git-workflow-and-versioning",
+      "idea-refine",
+      "incremental-implementation",
+      "interview-me",
+      "observability-and-instrumentation",
+      "performance-optimization",
+      "planning-and-task-breakdown",
+      "security-and-hardening",
+      "shipping-and-launch",
+      "source-driven-development",
+      "spec-driven-development",
+      "test-driven-development",
+      "using-agent-skills"
+    ],
+    "referenced_local_paths": [
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/references/accessibility-checklist.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/references/definition-of-done.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/references/observability-checklist.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/references/orchestration-patterns.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/references/performance-checklist.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/references/security-checklist.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/references/testing-patterns.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/skills/constraint-driven-development/references/floor-guard.md",
+      "/home/chris/.codex/plugins/cache/agent-skills/agent-skills/0.6.11/skills/security-and-hardening/references/hardening-patterns.md"
+    ],
+    "missing_references": []
+  },
+  "architecture_source_reuse": [
+    {
+      "path": "app/src/useProjectSession.ts",
+      "source_sha256": "0714e9c4f77526b3d3e593cc11a214899b3ed70b82586a952ad33f10a341bed6",
+      "worktree_sha256": "0714e9c4f77526b3d3e593cc11a214899b3ed70b82586a952ad33f10a341bed6",
+      "identical": true
+    },
+    {
+      "path": "app/src/CoreClient.ts",
+      "source_sha256": "d68d40acc76a3294e95955e7b92155824d026a3fa28110a3a4abd156f7027a15",
+      "worktree_sha256": "d68d40acc76a3294e95955e7b92155824d026a3fa28110a3a4abd156f7027a15",
+      "identical": true
+    },
+    {
+      "path": "app/src/CaseClient.ts",
+      "source_sha256": "b7ab7e789224799748a0dc22c63ba0d5a45fb5efbd2404b02fe0b245d33e8e11",
+      "worktree_sha256": "b7ab7e789224799748a0dc22c63ba0d5a45fb5efbd2404b02fe0b245d33e8e11",
+      "identical": true
+    },
+    {
+      "path": "app/src/useCaseGeneration.ts",
+      "source_sha256": "4ae5c361e119e8c20bf5834a0fc7ed16a6e2580f9d79b544e90c34705067ae5d",
+      "worktree_sha256": "4ae5c361e119e8c20bf5834a0fc7ed16a6e2580f9d79b544e90c34705067ae5d",
+      "identical": true
+    },
+    {
+      "path": "app/src/case.worker.ts",
+      "source_sha256": "c6e96b1f876dcb105977a40f4afc569d6691b7cb7097c07b05266808dbb6a84c",
+      "worktree_sha256": "c6e96b1f876dcb105977a40f4afc569d6691b7cb7097c07b05266808dbb6a84c",
+      "identical": true
+    },
+    {
+      "path": "app/src/renderClient.ts",
+      "source_sha256": "1e6ebb99b4b3e7ca34570dd6dd39d094e514bc7a56100f52cfac6ef5639216bf",
+      "worktree_sha256": "1e6ebb99b4b3e7ca34570dd6dd39d094e514bc7a56100f52cfac6ef5639216bf",
+      "identical": true
+    },
+    {
+      "path": "app/src/scene.worker.ts",
+      "source_sha256": "a08926633b227ce371033e3a0cdc11b05a8c7ac05bf58e18aa1dc0bceabeab4c",
+      "worktree_sha256": "a08926633b227ce371033e3a0cdc11b05a8c7ac05bf58e18aa1dc0bceabeab4c",
+      "identical": true
+    },
+    {
+      "path": "app/src/export.worker.ts",
+      "source_sha256": "33c772430d5ee5cc4f083ae9d767013eaa7fc88404a004302d4b6ff29f409a60",
+      "worktree_sha256": "33c772430d5ee5cc4f083ae9d767013eaa7fc88404a004302d4b6ff29f409a60",
+      "identical": true
+    },
+    {
+      "path": "app/src/storage.ts",
+      "source_sha256": "2728c797b11e5fbd17fd1b1e28b874b9f8920d78f498145e883ed4c653bb8e63",
+      "worktree_sha256": "2728c797b11e5fbd17fd1b1e28b874b9f8920d78f498145e883ed4c653bb8e63",
+      "identical": true
+    },
+    {
+      "path": "app/src/ui/Workbench.tsx",
+      "source_sha256": "03ff776312a9c91f80c1fecc64c5fcbd695ac6d6f06326327fd17c511e362541",
+      "worktree_sha256": "03ff776312a9c91f80c1fecc64c5fcbd695ac6d6f06326327fd17c511e362541",
+      "identical": true
+    },
+    {
+      "path": "cad/src/index.ts",
+      "source_sha256": "53f9b048f3257746c7847d047baad9d328f6ab94aa1b7a8b296efcf2b1507d2b",
+      "worktree_sha256": "53f9b048f3257746c7847d047baad9d328f6ab94aa1b7a8b296efcf2b1507d2b",
+      "identical": true
+    },
+    {
+      "path": "cad/wasm/src/lib.rs",
+      "source_sha256": "23e2799e2a0ebe9d88d246efdcc1ab627e41597ee8085fdbd720ff9e53d0b919",
+      "worktree_sha256": "23e2799e2a0ebe9d88d246efdcc1ab627e41597ee8085fdbd720ff9e53d0b919",
+      "identical": true
+    },
+    {
+      "path": "renderer/src/wasm.rs",
+      "source_sha256": "e25ef71cd67bd7f51b6dc1de888d5cee6586b57f322edd56e172ed3d5166eaae",
+      "worktree_sha256": "e25ef71cd67bd7f51b6dc1de888d5cee6586b57f322edd56e172ed3d5166eaae",
+      "identical": true
+    },
+    {
+      "path": "kicad/src/ergogen.ts",
+      "source_sha256": "fd3dcfe3555f2a2bcaeef7cb6f05ebff2997741aa55d75d2271449d445825605",
+      "worktree_sha256": "fd3dcfe3555f2a2bcaeef7cb6f05ebff2997741aa55d75d2271449d445825605",
+      "identical": true
+    }
+  ],
+  "validation_inputs": {
+    "installed_dependency_links": [
+      "node_modules",
+      "app/node_modules",
+      "cad/node_modules",
+      "kicad/node_modules"
+    ],
+    "workspace_packages_resolve_inside_new_worktree": true,
+    "dependency_installation": false,
+    "preexisting_generated_build_inputs": [
+      {
+        "path": "core/pkg/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "core/pkg/README.md",
+        "sha256": "91c0d282a50cbe152f6d40e771f2fb3513fa74746a5997568f56fe183b726200"
+      },
+      {
+        "path": "core/pkg/boardstudio_core.d.ts",
+        "sha256": "081ab2e71f8e00c397fac9188ce589298a48c7b7d352d9a661aaf602372b95a1"
+      },
+      {
+        "path": "core/pkg/boardstudio_core.js",
+        "sha256": "658957ae7674d3d53aac876394b139af2f7e852ea977d49af9e0e22cef566908"
+      },
+      {
+        "path": "core/pkg/boardstudio_core_bg.wasm",
+        "sha256": "fa5962da7719af3b7485efb4db0d4c5f550073a1b6171df8a9d520346b8cb79d"
+      },
+      {
+        "path": "core/pkg/boardstudio_core_bg.wasm.d.ts",
+        "sha256": "d2987eb33ed755444dfb439139491c3d240f8c4786769882e0e8c2847d048c1b"
+      },
+      {
+        "path": "renderer/pkg/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "renderer/pkg/boardstudio_renderer_wasm.d.ts",
+        "sha256": "dedc95f6a8dbd4840ce610d5bdc77eb3f65cc9a9ce57a69580240753f25b09c1"
+      },
+      {
+        "path": "renderer/pkg/boardstudio_renderer_wasm.js",
+        "sha256": "300f62476f2d16e78c6fea4b0e099ec38e792a1ce1b8c4d4a5a206622783ec58"
+      },
+      {
+        "path": "renderer/pkg/boardstudio_renderer_wasm_bg.wasm",
+        "sha256": "e96a913a87019aef6ed85bcf7f66abc052974706738c760a77b3ef772f87c2cb"
+      },
+      {
+        "path": "renderer/pkg/boardstudio_renderer_wasm_bg.wasm.d.ts",
+        "sha256": "fd6d34c0e52938f1ae2fef4b01bed1c227c4fa73e96edc9b6888b05b310a4083"
+      },
+      {
+        "path": "cad/wasm/pkg/.gitignore",
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "cad/wasm/pkg/boardstudio_cadrum_wasm.d.ts",
+        "sha256": "346d955d96c4677239fb0340869964e87eb39159776aad175e56d26f9ecfd3e9"
+      },
+      {
+        "path": "cad/wasm/pkg/boardstudio_cadrum_wasm.js",
+        "sha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e"
+      },
+      {
+        "path": "cad/wasm/pkg/boardstudio_cadrum_wasm_bg.wasm",
+        "sha256": "b1dd83cbb0cd886b92790f98a6b746a455e98382e9655acea9a3215aa4de5694"
+      },
+      {
+        "path": "cad/wasm/pkg/boardstudio_cadrum_wasm_bg.wasm.d.ts",
+        "sha256": "4adbcf95ca8e87d962c85990152bd687d10b8855a1349a3aaf86f242832e761d"
+      },
+      {
+        "path": "cad/wasm/pkg/package.json",
+        "sha256": "2d2b66395f1ff1286017423fde8fcdb07c82ee7a25f79cf88b44756d5e74d359"
+      },
+      {
+        "path": "cad/wasm/pkg/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js",
+        "sha256": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932"
+      }
+    ],
+    "generated_inputs_are_not_fresh_build_evidence": true,
+    "unchanged_build_caches_reused": [
+      "renderer/target",
+      "cad/wasm/target"
+    ],
+    "cached_native_occt": "/home/chris/01_Projects/ts-boardstudio2/cad/.cache/cadrum/native/occt-8_0_1_rev2-x86_64_unknown_linux_gnu"
+  },
+  "checks": [
+    {
+      "name": "app-build-direct",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/app",
+      "started_utc": "2026-10-01T02:58:38.072833+00:00",
+      "finished_utc": "2026-10-01T02:58:38.916815+00:00",
+      "duration_seconds": 0.752,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/app-build-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "app-service-worker-direct",
+      "command": [
+        "node",
+        "scripts/write-sw.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/app",
+      "started_utc": "2026-10-01T03:03:16.558898+00:00",
+      "finished_utc": "2026-10-01T03:03:16.805103+00:00",
+      "duration_seconds": 0.15,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/app-service-worker-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "app-tests-direct",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/app",
+      "started_utc": "2026-10-01T02:58:14.655172+00:00",
+      "finished_utc": "2026-10-01T02:58:38.045606+00:00",
+      "duration_seconds": 23.298,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/app-tests-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "app-typecheck-direct",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/app",
+      "started_utc": "2026-10-01T02:58:34.691324+00:00",
+      "finished_utc": "2026-10-01T02:58:35.342697+00:00",
+      "duration_seconds": 0.556,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/app-typecheck-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "app-typecheck",
+      "command": [
+        "pnpm",
+        "--dir",
+        "app",
+        "exec",
+        "tsc",
+        "--noEmit"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:13.334315+00:00",
+      "finished_utc": "2026-10-01T02:56:24.255481+00:00",
+      "duration_seconds": 70.795,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/app-typecheck.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "browser-runtime-direct",
+      "command": [
+        "env",
+        "BOARDSTUDIO_CHROMIUM=/usr/bin/chromium",
+        "node",
+        "node_modules/@playwright/test/cli.js",
+        "test"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/app",
+      "started_utc": "2026-10-01T03:03:16.833425+00:00",
+      "finished_utc": "2026-10-01T03:03:17.833666+00:00",
+      "duration_seconds": 0.909,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/browser-runtime-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "browser-startup-diagnostic",
+      "command": [
+        "env",
+        "BOARDSTUDIO_CHROMIUM=/usr/bin/chromium",
+        "BOARDSTUDIO_TEST_PORT=4386",
+        "DEBUG=pw:webserver",
+        "node",
+        "node_modules/@playwright/test/cli.js",
+        "test"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/app",
+      "started_utc": "2026-10-01T03:07:23.345453+00:00",
+      "finished_utc": "2026-10-01T03:07:24.140657+00:00",
+      "duration_seconds": 0.703,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/browser-startup-diagnostic.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "cad-fixture-driver",
+      "command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "core/Cargo.toml",
+        "--target-dir",
+        "core/target",
+        "--example",
+        "prepare_case",
+        "--locked"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:59:04.250321+00:00",
+      "finished_utc": "2026-10-01T02:59:04.854620+00:00",
+      "duration_seconds": 0.507,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/cad-fixture-driver.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "cad-native-tests-after-setup",
+      "command": [
+        "env",
+        "OCCT_ROOT=/home/chris/01_Projects/ts-boardstudio2/cad/.cache/cadrum/native/occt-8_0_1_rev2-x86_64_unknown_linux_gnu",
+        "CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/cad/wasm/target",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "cad/wasm/Cargo.toml",
+        "--locked"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:59:04.886974+00:00",
+      "finished_utc": "2026-10-01T02:59:17.971906+00:00",
+      "duration_seconds": 12.984,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/cad-native-tests-after-setup.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "cad-native-tests",
+      "command": [
+        "env",
+        "OCCT_ROOT=/home/chris/01_Projects/ts-boardstudio2/cad/.cache/cadrum/native/occt-8_0_1_rev2-x86_64_unknown_linux_gnu",
+        "CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/cad/wasm/target",
+        "cargo",
+        "test",
+        "--manifest-path",
+        "cad/wasm/Cargo.toml",
+        "--locked"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:26.748720+00:00",
+      "finished_utc": "2026-10-01T02:55:44.963309+00:00",
+      "duration_seconds": 18.116,
+      "exit_code": 101,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/cad-native-tests.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "cad-typecheck-direct",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/cad",
+      "started_utc": "2026-10-01T02:58:35.373275+00:00",
+      "finished_utc": "2026-10-01T02:58:35.670787+00:00",
+      "duration_seconds": 0.204,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/cad-typecheck-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "clippy-cad",
+      "command": [
+        "env",
+        "OCCT_ROOT=/home/chris/01_Projects/ts-boardstudio2/cad/.cache/cadrum/native/occt-8_0_1_rev2-x86_64_unknown_linux_gnu",
+        "CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/cad/wasm/target",
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "cad/wasm/Cargo.toml",
+        "--locked",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:44.997460+00:00",
+      "finished_utc": "2026-10-01T02:55:46.297230+00:00",
+      "duration_seconds": 1.205,
+      "exit_code": 101,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/clippy-cad.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "clippy-contracts",
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "contracts/rust/Cargo.toml",
+        "--locked",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:26.414959+00:00",
+      "finished_utc": "2026-10-01T02:55:26.711850+00:00",
+      "duration_seconds": 0.202,
+      "exit_code": 101,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/clippy-contracts.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "clippy-core",
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "core/Cargo.toml",
+        "--locked",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:11.551153+00:00",
+      "finished_utc": "2026-10-01T02:55:31.637172+00:00",
+      "duration_seconds": 19.989,
+      "exit_code": 101,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/clippy-core.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "clippy-renderer",
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "renderer/Cargo.toml",
+        "--locked",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:09.888724+00:00",
+      "finished_utc": "2026-10-01T02:55:13.499400+00:00",
+      "duration_seconds": 3.518,
+      "exit_code": 101,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/clippy-renderer.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "contracts-freshness-direct",
+      "command": [
+        "node",
+        "contracts/scripts/contracts.mjs",
+        "check"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:58:14.506770+00:00",
+      "finished_utc": "2026-10-01T02:58:34.656807+00:00",
+      "duration_seconds": 20.048,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/contracts-freshness-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "contracts-freshness",
+      "command": [
+        "pnpm",
+        "run",
+        "check:contracts"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:54:00.923477+00:00",
+      "finished_utc": "2026-10-01T02:55:11.517170+00:00",
+      "duration_seconds": 70.498,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/contracts-freshness.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "contracts-runtime-direct",
+      "command": [
+        "node",
+        "contracts/test/runtime-import.test.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:58:14.235425+00:00",
+      "finished_utc": "2026-10-01T02:58:14.478577+00:00",
+      "duration_seconds": 0.151,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/contracts-runtime-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "contracts-runtime",
+      "command": [
+        "pnpm",
+        "run",
+        "test:contracts"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:54:02.404921+00:00",
+      "finished_utc": "2026-10-01T02:55:13.248482+00:00",
+      "duration_seconds": 70.752,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/contracts-runtime.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "core-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "core/Cargo.toml",
+        "--locked"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:31.672552+00:00",
+      "finished_utc": "2026-10-01T02:56:12.352752+00:00",
+      "duration_seconds": 40.583,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/core-tests.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "core-wasm-compile",
+      "command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "core/Cargo.toml",
+        "--locked",
+        "--release",
+        "--target",
+        "wasm32-unknown-unknown"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:56:12.385247+00:00",
+      "finished_utc": "2026-10-01T02:57:01.548815+00:00",
+      "duration_seconds": 49.049,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/core-wasm-compile.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "core-wasm-package",
+      "command": [
+        "wasm-pack",
+        "build",
+        "core",
+        "--target",
+        "web",
+        "--out-dir",
+        "pkg",
+        "--mode",
+        "no-install",
+        "--locked"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T03:03:17.722493+00:00",
+      "finished_utc": "2026-10-01T03:03:18.118963+00:00",
+      "duration_seconds": 0.301,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/core-wasm-package.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "ergogen-catalog-freshness",
+      "command": [
+        "node",
+        "scripts/generate.mjs",
+        "--check"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/ergogen",
+      "started_utc": "2026-10-01T03:07:22.565212+00:00",
+      "finished_utc": "2026-10-01T03:07:22.805315+00:00",
+      "duration_seconds": 0.148,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/ergogen-catalog-freshness.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "ergogen-catalog-tests",
+      "command": [
+        "node",
+        "scripts/catalogue.test.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/ergogen",
+      "started_utc": "2026-10-01T03:07:22.835070+00:00",
+      "finished_utc": "2026-10-01T03:07:23.079927+00:00",
+      "duration_seconds": 0.152,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/ergogen-catalog-tests.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "ergogen-integrity-diagnostic",
+      "command": [
+        "node",
+        "scripts/verify.test.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/ergogen",
+      "started_utc": "2026-10-01T02:59:18.001580+00:00",
+      "finished_utc": "2026-10-01T02:59:18.299396+00:00",
+      "duration_seconds": 0.202,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/ergogen-integrity-diagnostic.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "ergogen-integrity-main",
+      "command": [
+        "node",
+        "scripts/verify.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/ergogen",
+      "started_utc": "2026-10-01T03:07:22.190619+00:00",
+      "finished_utc": "2026-10-01T03:07:22.537668+00:00",
+      "duration_seconds": 0.252,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/ergogen-integrity-main.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "ergogen-runtime-tests",
+      "command": [
+        "node",
+        "--experimental-strip-types",
+        "scripts/runtime.test.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/ergogen",
+      "started_utc": "2026-10-01T03:07:23.107248+00:00",
+      "finished_utc": "2026-10-01T03:07:23.446164+00:00",
+      "duration_seconds": 0.249,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/ergogen-runtime-tests.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "ergogen-tests-direct",
+      "command": [
+        "node",
+        "--test",
+        "scripts/verify.test.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/ergogen",
+      "started_utc": "2026-10-01T02:58:14.325765+00:00",
+      "finished_utc": "2026-10-01T02:58:14.626802+00:00",
+      "duration_seconds": 0.208,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/ergogen-tests-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "ergogen-tests",
+      "command": [
+        "pnpm",
+        "--dir",
+        "ergogen",
+        "test"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:08.721368+00:00",
+      "finished_utc": "2026-10-01T02:56:19.335570+00:00",
+      "duration_seconds": 70.523,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/ergogen-tests.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "fmt-cad",
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "cad/wasm/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:54:02.072399+00:00",
+      "finished_utc": "2026-10-01T02:54:02.373965+00:00",
+      "duration_seconds": 0.207,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/fmt-cad.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "fmt-contracts",
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "contracts/rust/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:54:01.796066+00:00",
+      "finished_utc": "2026-10-01T02:54:02.039505+00:00",
+      "duration_seconds": 0.15,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/fmt-contracts.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "fmt-core",
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "core/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:54:00.770728+00:00",
+      "finished_utc": "2026-10-01T02:54:01.418878+00:00",
+      "duration_seconds": 0.555,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/fmt-core.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "fmt-renderer",
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "renderer/Cargo.toml",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:54:01.455513+00:00",
+      "finished_utc": "2026-10-01T02:54:01.765092+00:00",
+      "duration_seconds": 0.203,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/fmt-renderer.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "renderer-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "renderer/Cargo.toml",
+        "--locked"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:13.569657+00:00",
+      "finished_utc": "2026-10-01T02:55:19.575612+00:00",
+      "duration_seconds": 5.874,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/renderer-tests.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "renderer-wasm-compile",
+      "command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "renderer/Cargo.toml",
+        "--locked",
+        "--release",
+        "--target",
+        "wasm32-unknown-unknown"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:55:19.609976+00:00",
+      "finished_utc": "2026-10-01T02:55:26.380684+00:00",
+      "duration_seconds": 6.673,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/renderer-wasm-compile.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "renderer-wasm-package",
+      "command": [
+        "wasm-pack",
+        "build",
+        "renderer",
+        "--target",
+        "web",
+        "--out-dir",
+        "pkg",
+        "--out-name",
+        "boardstudio_renderer_wasm",
+        "--release",
+        "--mode",
+        "no-install",
+        "--locked"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T03:03:18.147010+00:00",
+      "finished_utc": "2026-10-01T03:03:18.641344+00:00",
+      "duration_seconds": 0.402,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/renderer-wasm-package.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "repo-direct",
+      "command": [
+        "node",
+        "scripts/repo-check.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:58:13.608989+00:00",
+      "finished_utc": "2026-10-01T02:58:14.207304+00:00",
+      "duration_seconds": 0.502,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/repo-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "repo-fixtures-direct",
+      "command": [
+        "node",
+        "--test",
+        "scripts/repo-check.test.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:58:13.175082+00:00",
+      "finished_utc": "2026-10-01T02:58:13.573211+00:00",
+      "duration_seconds": 0.301,
+      "exit_code": 0,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/repo-fixtures-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "repo",
+      "command": [
+        "pnpm",
+        "run",
+        "check:repo"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:52:49.969256+00:00",
+      "finished_utc": "2026-10-01T02:54:00.741296+00:00",
+      "duration_seconds": 70.674,
+      "exit_code": 1,
+      "timed_out": false,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/repo.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    },
+    {
+      "name": "rust-boundary-parity-direct",
+      "command": [
+        "node",
+        "app/scripts/check-rust-boundaries.mjs"
+      ],
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline",
+      "started_utc": "2026-10-01T02:58:38.950364+00:00",
+      "finished_utc": "2026-10-01T03:01:39.136246+00:00",
+      "duration_seconds": 180.094,
+      "exit_code": 124,
+      "timed_out": true,
+      "head_start": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "head_end": "96dd51d3e790c28f5554a8c9888a147c8814e2a7",
+      "tracked_source_digest_start": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_source_digest_end": "7dbf211f7947aaab0a19f3e7c64b8fb739386fd7f5e91e19308bc57969a343b5",
+      "tracked_paths_changed_during_check": [],
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/rust-boundary-parity-direct.log",
+      "environment_overrides": {
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+        "NO_COLOR": "1",
+        "NODE_OPTIONS": "--no-experimental-webstorage"
+      }
+    }
+  ],
+  "native_test_totals": {
+    "core-tests": {
+      "passed": 334,
+      "failed": 0,
+      "ignored": 6
+    },
+    "renderer-tests": {
+      "passed": 26,
+      "failed": 0,
+      "ignored": 0
+    },
+    "cad-native-tests-after-setup": {
+      "passed": 23,
+      "failed": 0,
+      "ignored": 4
+    }
+  },
+  "research_bundle_verification": {
+    "browser_platform": {
+      "verified": true,
+      "commit": "b1eb69c18213278899c5c394f7244454296bf588"
+    },
+    "rust_integration": {
+      "verified": true,
+      "commit": "8e9ce913ae0fa4b15a7f9092565f757a2c95868a"
+    }
+  },
+  "official_sources_checked": [
+    "https://docs.rs/dioxus/0.7.10/dioxus/",
+    "https://github.com/DioxusLabs/dioxus/releases/tag/v0.7.10"
+  ],
+  "earlier_dirty_checkout_logs": {
+    "path": "/tmp/boardstudio-context-baseline-qpbh2paz",
+    "available": false,
+    "baseline_status": "Historical diagnostic summaries only; excluded from the committed baseline."
+  },
+  "not_completed": [
+    "Composite root check/build/test/performance gates",
+    "CAD WASM/container and combined package gate",
+    "KiCad Node package gate",
+    "Development-server and Pages browser gates",
+    "Behavioral parity result after boundary-run timeout",
+    "Dioxus build/runtime: no app or CLI",
+    "Visual/a11y/responsive parity gate",
+    "Comparable performance sessions and memory soak"
+  ],
+  "task_tracking_move": {
+    "source_documents_preserved_at": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/source-documents",
+    "only_own_assessment_PLAN_TODO_insertions_removed_from_source": true
+  },
+  "raw_logs_directory": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930",
+  "interrupted_pnpm_wrapper_commands": [
+    {
+      "name": "cad-typecheck",
+      "command": [
+        "pnpm",
+        "--dir",
+        "cad",
+        "exec",
+        "tsc",
+        "--noEmit",
+        "-p",
+        "tsconfig.json"
+      ],
+      "session_exit_code": 130,
+      "reason": "Stopped wrapper after it attempted automatic dependency installation; no test result. Direct equivalent subsequently passed.",
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/cad-typecheck.log"
+    },
+    {
+      "name": "app-tests",
+      "command": [
+        "pnpm",
+        "--dir",
+        "app",
+        "test"
+      ],
+      "session_exit_code": 130,
+      "reason": "Stopped wrapper after it attempted automatic dependency installation; no test result. Direct Vitest run is recorded separately.",
+      "log": "/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/app-tests.log"
+    }
+  ],
+  "inherited_plan_measurement_references": [
+    {
+      "path": "app/performance-results/phase2-scene-live/summary.json",
+      "present_in_assessment_worktree": false,
+      "present_in_original_checkout": false,
+      "source_sha256": null,
+      "classification": "Inherited PLAN link to ignored historical measurement; no baseline repair or update."
+    },
+    {
+      "path": "cad/bench/results/phase2-scene-final/comparison.json",
+      "present_in_assessment_worktree": false,
+      "present_in_original_checkout": false,
+      "source_sha256": null,
+      "classification": "Inherited PLAN link to ignored historical measurement; no baseline repair or update."
+    },
+    {
+      "path": "app/performance-results/live-generation-five-sessions-2026-09-27.json",
+      "present_in_assessment_worktree": false,
+      "present_in_original_checkout": false,
+      "source_sha256": null,
+      "classification": "Inherited PLAN link to ignored historical measurement; no baseline repair or update."
+    },
+    {
+      "path": "cad/bench/results/generation-long-soak-2026-09-27/memory-trend.json",
+      "present_in_assessment_worktree": false,
+      "present_in_original_checkout": false,
+      "source_sha256": null,
+      "classification": "Inherited PLAN link to ignored historical measurement; no baseline repair or update."
+    },
+    {
+      "path": "app/performance-results/live-preview-perf-final-2026-09-27.json",
+      "present_in_assessment_worktree": false,
+      "present_in_original_checkout": false,
+      "source_sha256": null,
+      "classification": "Inherited PLAN link to ignored historical measurement; no baseline repair or update."
+    }
+  ],
+  "final_documentation_verification": {
+    "verified_utc": "2026-10-01T03:21:40.049014+00:00",
+    "unchanged_base_blobs_verified_including_symlink_text": 1111,
+    "tracked_production_matches_base": true,
+    "changed_tracked_files": [
+      "CHANGELOG.md",
+      "PLAN.md",
+      "TODO.md"
+    ],
+    "constraints_preserved": true,
+    "copied_evidence_verified": 50,
+    "local_links_checked": 287,
+    "new_or_copied_missing_links": [],
+    "inherited_missing_PLAN_measurement_links": [
+      {
+        "file": "PLAN.md",
+        "target": "app/performance-results/phase2-scene-live/summary.json"
+      },
+      {
+        "file": "PLAN.md",
+        "target": "cad/bench/results/phase2-scene-final/comparison.json"
+      },
+      {
+        "file": "PLAN.md",
+        "target": "app/performance-results/live-generation-five-sessions-2026-09-27.json"
+      },
+      {
+        "file": "PLAN.md",
+        "target": "cad/bench/results/generation-long-soak-2026-09-27/memory-trend.json"
+      },
+      {
+        "file": "PLAN.md",
+        "target": "app/performance-results/live-preview-perf-final-2026-09-27.json"
+      }
+    ],
+    "source_dev_unchanged": true
+  }
+}
