@@ -18,7 +18,7 @@ use std::{
 };
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{Element as DomElement, HtmlCanvasElement, SvgElement};
+use web_sys::{Element as DomElement, FocusOptions, HtmlCanvasElement, SvgElement};
 
 const FIXTURE: &str = include_str!("../../fixtures/reviung41.json");
 const TARGET: &str = "matrix/main-right-keys/r0c0";
@@ -392,7 +392,9 @@ fn EditorPanel(
                 status.set(format!("Pointer capture failed: {error:?}"));
                 return;
             }
-            if let Err(error) = svg.focus() {
+            let focus_options = FocusOptions::new();
+            focus_options.set_prevent_scroll(true);
+            if let Err(error) = svg.focus_with_options(&focus_options) {
                 let release_error = svg.release_pointer_capture(pointer.pointer_id()).err();
                 gesture.borrow_mut().pointer_cancel(pointer.pointer_id());
                 status.set(format!(
