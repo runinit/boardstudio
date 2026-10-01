@@ -8,8 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const fixtureDir = resolve(process.env.BOARDSTUDIO_FIXTURE_DIR ?? '.scratch/m1-production/evidence/performance/fixtures');
+const variant = process.env.BOARDSTUDIO_POINTER_VARIANT ?? 'candidate';
 const candidateUrl = process.env.BOARDSTUDIO_CANDIDATE_URL;
-const releaseRecordPath = process.env.BOARDSTUDIO_RELEASE_RECORD;
+const referenceUrl = process.env.BOARDSTUDIO_REFERENCE_URL;
+const releaseRecordPath = variant === 'reference' ? process.env.BOARDSTUDIO_REFERENCE_RECORD : process.env.BOARDSTUDIO_RELEASE_RECORD;
+const releaseUrl = variant === 'reference' ? referenceUrl : candidateUrl;
 const runRoot = resolve(process.env.BOARDSTUDIO_PERF_OUTPUT ?? '.scratch/m1-production/evidence/performance/runs');
 const runId = process.env.BOARDSTUDIO_RUN_ID ?? new Date().toISOString().replaceAll(':', '-');
 const runDir = resolve(runRoot, runId);
@@ -18,12 +21,23 @@ const warmups = 10;
 const measured = 100;
 const movePixels = 50;
 
-if (!candidateUrl || !releaseRecordPath) {
-  throw new Error('Set BOARDSTUDIO_CANDIDATE_URL and BOARDSTUDIO_RELEASE_RECORD for the exact fresh candidate; this script does not build or guess a release.');
+if (!['candidate', 'reference'].includes(variant) || !releaseUrl || !releaseRecordPath || (variant === 'reference' && !candidateUrl)) {
+  throw new Error('Set the exact candidate or reference URL and matching release record; this script does not build or guess a release.');
 }
 const releaseRecord = JSON.parse(await readFile(releaseRecordPath, 'utf8'));
-assert.ok(releaseRecord.sourceCommit, 'release record must identify the candidate source commit');
+assert.ok(releaseRecord.sourceCommit || (variant === 'reference' && releaseRecord.distTreeSha256), 'release record must identify the built source or exact prebuilt reference distribution');
 assert.ok(releaseRecord.assetHashes, 'release record must contain final built asset hashes');
+const releaseRecordSha256 = createHash('sha256').update(await readFile(releaseRecordPath)).digest('hex');
+if (variant === 'candidate') {
+  assert.equal(releaseRecord.candidateUrl, candidateUrl, 'candidate URL must match the immutable release record');
+  assert.ok(releaseRecord.quietHostSignal, 'coordinator quiet-host signal must be recorded before timing');
+}
+const assetRoot = variant === 'candidate' ? releaseRecord.sitePath : releaseRecord.distributionPath;
+assert.ok(assetRoot, 'release record must identify the local immutable asset tree');
+for (const [assetPath, expectedHash] of Object.entries(releaseRecord.assetHashes)) {
+  const actualHash = createHash('sha256').update(await readFile(resolve(assetRoot, assetPath))).digest('hex');
+  assert.equal(actualHash, expectedHash, `release asset ${assetPath} must match its pinned SHA-256`);
+}
 const fixtureManifest = JSON.parse(await readFile(resolve(fixtureDir, 'manifest.json'), 'utf8'));
 assert.equal(fixtureManifest.fixtures.length, 3, 'pointer archives must be generated and validated before browser runs');
 
@@ -33,12 +47,15 @@ let session;
 const run = {
   runId,
   sessionNumber: Number(process.env.BOARDSTUDIO_SESSION_NUMBER ?? 1),
+  variant,
   sessionId: null,
   driverSha256: createHash('sha256').update(await readFile(new URL(import.meta.url))).digest('hex'),
   fixtureGeneratorSha256: fixtureManifest.generatorSha256,
-  sourceCommit: releaseRecord.sourceCommit,
+  sourceCommit: releaseRecord.sourceCommit ?? null,
+  releaseRecordPath,
+  releaseRecordSha256,
   releaseRecord,
-  candidateUrl,
+  releaseUrl,
   fixtureManifest,
   tool: 'agent-browser CLI; visible UI import and native browser mouse input',
   node: process.version,
@@ -84,7 +101,7 @@ function browser(args, input) {
 }
 
 function startBrowserSession() {
-  const argv = ['agent-browser', 'session', 'id', '--scope', 'worktree', '--prefix', process.env.BOARDSTUDIO_BROWSER_SESSION_PREFIX ?? `ticket06-pointer-${runId}`];
+  const argv = ['agent-browser', 'session', 'id', '--scope', 'worktree', '--prefix', process.env.BOARDSTUDIO_BROWSER_SESSION_PREFIX ?? `ticket06-pointer-${runId}-${variant}`];
   const startedAt = new Date().toISOString();
   const result = spawnSync(argv[0], argv.slice(1), { cwd: root, encoding: 'utf8' });
   run.commands.push({ argv, cwd: root, startedAt, finishedAt: new Date().toISOString(), status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '', error: result.error?.message });
@@ -106,7 +123,7 @@ const percentile = (samples, fraction) => {
 
 try {
   startBrowserSession();
-  browser(['open', candidateUrl]);
+  browser(['open', releaseUrl]);
   browser(['set', 'viewport', '1280', '720']);
   const environment = evalPage(`(() => {
     const canvas = document.createElement('canvas');
@@ -130,33 +147,43 @@ try {
     const archiveBytes = await readFile(archive);
     assert.equal(createHash('sha256').update(archiveBytes).digest('hex'), fixture.archiveSha256, `${keys}-key archive hash must match the generation manifest`);
 
-    browser(['open', candidateUrl]);
-    browser(['upload', 'input[type="file"][accept=".boardstudio"]', archive]);
-    const ready = evalPage(`(() => Boolean(document.querySelector('section.m1-editor svg.m1-canvas')))()`);
-    if (!ready) {
-      browser(['wait', 'section.m1-editor svg.m1-canvas']);
+    browser(['open', releaseUrl]);
+    if (variant === 'reference') {
+      if (evalPage('Boolean(document.querySelector(".wb-project-trigger"))')) browser(['click', '.wb-project-trigger']);
+      browser(['click', '.wb-open-project']);
+      browser(['upload', 'input[type="file"].wb-project-file-input', archive]);
+      browser(['wait', '--fn', `document.querySelectorAll('.wb-scene-part').length === ${keys * 3}`]);
+    } else {
+      browser(['upload', 'input[type="file"][accept=".boardstudio"]', archive]);
+      const ready = evalPage(`(() => Boolean(document.querySelector('section.m1-editor svg.m1-canvas')))()`);
+      if (!ready) {
+        browser(['wait', 'section.m1-editor svg.m1-canvas']);
+      }
     }
 
     const targetCoordinates = evalPage(`(() => {
       const keyCount = ${keys};
       const columns = keyCount === 30 ? 5 : keyCount === 100 ? 10 : 20;
-      const rows = keyCount / columns;
-      const row = Math.floor(rows / 2);
-      const column = Math.floor(columns / 2);
+      const index = Math.floor(keyCount / 2) - 1;
+      const row = Math.floor(index / columns);
+      const column = index % columns;
       const id = 'key-' + row + '-' + column;
-      const target = document.querySelector('[data-part-id="' + id + '"]');
+      const reference = 'SW' + (index + 1);
+      const selector = ${JSON.stringify(variant)} === 'candidate' ? '[data-part-id="' + id + '"]' : '.wb-scene-part[aria-label^="' + reference + ',"]';
+      const target = document.querySelector(selector);
       if (!target) throw new Error('Imported project has no target part ' + id);
       const rect = target.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
-      const hit = document.elementFromPoint(x, y)?.closest('[data-part-id]');
+      const hit = document.elementFromPoint(x, y)?.closest(${JSON.stringify(variant === 'candidate' ? '[data-part-id]' : '.wb-scene-part')});
       if (hit !== target) throw new Error('Target part is obscured or not hit-testable: ' + id);
-      return { id, x, y, transform: target.getAttribute('transform'), partCount: document.querySelectorAll('[data-part-id]').length };
+      const partCount = document.querySelectorAll(${JSON.stringify(variant === 'candidate' ? '[data-part-id]' : '.wb-scene-part')}).length;
+      return { id, reference, selector, x, y, transform: target.getAttribute('transform'), partCount };
     })()`);
     assert.equal(targetCoordinates.partCount, keys * 3, `${keys}-key archive must render all expected parts`);
 
     evalPage(`(() => {
-      const target = document.querySelector('[data-part-id="${targetCoordinates.id}"]');
+      const target = document.querySelector(${JSON.stringify(targetCoordinates.selector)});
       const observer = { target, previous: target.getAttribute('transform'), armed: false,
         pending: null, results: [], missed: 0 };
       document.addEventListener('pointermove', (event) => {
@@ -214,9 +241,11 @@ try {
       transform: window.__ticket06PointerObservation.target.getAttribute('transform') }))()`);
     const result = {
       sessionNumber: run.sessionNumber,
+      variant,
       keys,
       partCount: targetCoordinates.partCount,
       targetPartId: targetCoordinates.id,
+      targetReference: targetCoordinates.reference,
       warmups,
       measuredSamples: samples.length,
       samples,
@@ -227,7 +256,7 @@ try {
       missedInputMarkers: observerSummary.missed,
       thresholdMs: thresholds[keys],
       withinExistingAbsoluteLimit: percentile(samples.map((sample) => sample.latencyMs), 0.95) <= thresholds[keys],
-      observerEndpoint: 'first requestAnimationFrame opportunity after MutationObserver confirms the target SVG transform changed; not physical display presentation',
+      observerEndpoint: 'same variant-neutral endpoint: first requestAnimationFrame opportunity after MutationObserver confirms the imported target part SVG transform changed; not physical display presentation',
       inputEndpoint: 'native browser pointermove event received in capture phase; latency starts at performance.now() in that listener, and event.timeStamp is retained',
     };
     assert.equal(result.measuredSamples, measured);
@@ -254,7 +283,7 @@ try {
     }
   }
   run.finishedAt = new Date().toISOString();
-  run.sourceCommit = releaseRecord.sourceCommit;
+  run.sourceCommit = releaseRecord.sourceCommit ?? null;
   await writeFile(resolve(runDir, 'run.json'), `${JSON.stringify(run, null, 2)}\n`);
 }
 

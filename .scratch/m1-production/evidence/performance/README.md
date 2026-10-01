@@ -1,9 +1,9 @@
 # Ticket 06 performance candidate protocol
 
-Status: preparation only; no current M1 candidate measurement has been run.
+Status: candidate and paired-reference harnesses prepared; no current M1 candidate measurement has been run.
 
-Evidence branch: `codex/m1-ticket06-performance-e4b019a1`, based on coordinator integration
-`e4b019a1`. Pointer archives were generated from the verified public Core package
+Evidence branch: `codex/m1-reference-pointer-adapter-20261001`, based on final-release
+integration `8f509433`. Pointer archives were generated from the verified public Core package
 whose source commit is retained in each fixture manifest. A fresh final release URL
 is still pending. Do not use measurements from the 4cb diagnostic build as M1
 release evidence.
@@ -129,6 +129,43 @@ frame timestamp and target part identifier. Retain raw samples before
 calculating p50/p95. The observation must show that the target stays in view
 and is not occluded. This endpoint is a paint opportunity, not physical display
 presentation.
+
+## Fresh paired pointer observations
+
+The same driver has an optional public-UI adapter for the unchanged React
+reference distribution in `app/dist`. The reference app imports each archive
+through its visible **Open project…** control and observes the actual rendered
+`.wb-scene-part` target. The candidate uses its actual `.boardstudio` file input
+and rendered part. Both adapters select the same `SWn`/generated-key mapping,
+use native browser mouse movements, and measure from capture-phase `pointermove`
+receipt through the target SVG transform mutation and the next rAF opportunity.
+The endpoint is a common browser-observed paint opportunity; it does not claim
+physical display presentation. Existing benchmark globals and hidden hooks are
+not called.
+
+`record-reference-dist.mjs` pins every byte in the prebuilt `app/dist` tree by
+SHA-256. Its record currently covers 143 files with tree hash
+`5a3d371f115c5bd325f35e7efacf3a3ffde74587de538611b3ef2f7f940dabbd`.
+`release-8f509433.json` records the final candidate build's 47 root-route asset
+hashes and source/build provenance; the coordinator URL and quiet-host signal
+are still pending. Once provided, run the paired form with
+`BOARDSTUDIO_REFERENCE_URL`, `BOARDSTUDIO_REFERENCE_RECORD`,
+`BOARDSTUDIO_CANDIDATE_URL`, and `BOARDSTUDIO_RELEASE_RECORD` set. The runner
+alternates candidate/reference order by fresh session and retains every raw
+sample and failed attempt. It marks observations eligible only when archive
+bytes, target identity, browser/renderer, CPU, OS, viewport/DPR, and sample
+counts match in all five sessions for all three sizes. A paired p95 delta is an
+observation only: no relative threshold is defined or introduced. The frozen
+33/50/100 ms absolute candidate caps stay unchanged.
+
+The reference adapter's feasibility was established by source inspection:
+`ProjectStart` and `Workbench` expose `.wb-open-project`, and the real archive
+input runs `onImport`; `CanvasObjects` renders `.wb-scene-part` with its own
+`transform` and native pointer handlers. The reference and candidate use the
+same imported archive bytes and browser-level endpoint, unlike the historical
+workbench worker-to-layout comparator, whose endpoints cannot be aligned with
+this interaction. No measurement is eligible until final release QA completes
+and the coordinator confirms the host is quiet.
 
 Compare candidate sessions only when the exact reference can be replayed under
 the same browser, host, archive bytes, viewport, DPR, warmup/sample schedule and
