@@ -191,3 +191,59 @@ fn encoder_push_without_switches_exports_a_real_direct_scanner() {
     assert!(!overlay.contains("input-gpios = <>"));
     assert!(overlay.contains("RC(0, 0)"));
 }
+
+fn configured_vik_rotary_request() -> serde_json::Value {
+    let mut map = layered();
+    map["layers"][0]["sensors"] = json!({"module/left-encoder":{"clockwise":{"kind":"key-press","keycode":"C_VOL_UP"},"counterclockwise":{"kind":"key-press","keycode":"C_VOL_DN"}}});
+    let mut value = serde_json::to_value(firmware_request(map)).unwrap();
+    value["request"]["encoder_ids"] = json!(["module/left-encoder"]);
+    value["request"]["encoders"] = json!([{"id":"module/left-encoder","profile":{"a":"gpio1","b":"gpio2","common":"gnd","steps":24,"triggersPerRotation":4,"driver":"ec11"},"aGpio":"P0.02","bGpio":"P1.15"}]);
+    value["request"]["hardware"] = json!({"boardId":"board","modules":[{"id":"module/left-encoder","name":"EC11 VIK","protocol":"gpio","catalogueRow":"ec11-evqwgd001","source":{"repository":"https://github.com/sadekbaroudi/vik","revision":"cd5d16e4cd9137a229fc673412a89d75f4e64553","path":"pcb/ec11-evqwgd001/ec11-evqwgd001.kicad_pcb","license":"CERN-OHL-S-2.0","sha256":"2b22c0f0b2b99206ac25029b8acd05c75146d9246cb8e3d9ceec5deacae4e033"},"rotaryProfile":{"a":"gpio1","b":"gpio2","common":"gnd","steps":24,"triggersPerRotation":4,"driver":"ec11"},"gates":[{"output":"firmware","code":"module-driver","message":"Local driver requires qualification"}]}],"physicalInstances":[],"moduleFindings":[],"embeddedCircuitIds":[]});
+    value
+}
+
+#[test]
+fn public_firmware_export_binds_a_configured_vik_rotary_module_by_its_mount_id() {
+    let reply =
+        CoreEngine::new().handle(serde_json::from_value(configured_vik_rotary_request()).unwrap());
+    let CoreReply::FirmwareGenerated { package, .. } = reply else {
+        panic!("{reply:?}")
+    };
+    let overlay = &package.files["config/boards/shields/boardstudio/boardstudio.overlay"];
+    let keymap = &package.files["config/boards/shields/boardstudio/boardstudio.keymap"];
+    assert!(overlay.contains("compatible = \"alps,ec11\""), "{overlay}");
+    assert!(overlay.contains("steps = <24>"), "{overlay}");
+    assert!(keymap.contains("&kp C_VOL_UP"), "{keymap}");
+    assert!(keymap.contains("&kp C_VOL_DN"), "{keymap}");
+    assert!(
+        package
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("rotation only"))
+    );
+}
+
+#[test]
+fn source_qualified_vik_module_cannot_export_without_matching_encoder_node() {
+    let mut value = configured_vik_rotary_request();
+    value["request"]["encoders"] = json!([]);
+    let reply = CoreEngine::new().handle(serde_json::from_value(value).unwrap());
+    let CoreReply::Error { message, .. } = reply else {
+        panic!("A module with no generated encoder node was exported: {reply:?}")
+    };
+    assert!(
+        message.contains("matching configured rotary encoder"),
+        "{message}"
+    );
+
+    let mut value = configured_vik_rotary_request();
+    value["request"]["encoders"][0]["profile"]["steps"] = json!(12);
+    let reply = CoreEngine::new().handle(serde_json::from_value(value).unwrap());
+    let CoreReply::Error { message, .. } = reply else {
+        panic!("A module with a mismatched encoder profile was exported: {reply:?}")
+    };
+    assert!(
+        message.contains("matching configured rotary encoder"),
+        "{message}"
+    );
+}

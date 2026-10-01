@@ -121,6 +121,26 @@ impl RendererHost {
         schedule_frame(&self.inner).map_err(js_error)
     }
 
+    pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
+        self.camera("orbit", &[delta_x.into(), delta_y.into()])
+    }
+    pub fn zoom(&self, factor: f64) -> Result<(), String> {
+        self.camera("zoom", &[factor.into()])
+    }
+    pub fn view(&self, preset: &str) -> Result<(), String> {
+        self.camera("view", &[preset.into()])
+    }
+    pub fn fit(&self) -> Result<(), String> {
+        self.camera("fit", &[])
+    }
+    fn camera(&self, method: &str, arguments: &[JsValue]) -> Result<(), String> {
+        if self.inner.disposed.get() || self.inner.context_lost.get() {
+            return Err("3D view is unavailable; reopen the preview.".into());
+        }
+        call_method(&self.inner.renderer, method, arguments).map_err(js_error)?;
+        schedule_frame(&self.inner).map_err(js_error)
+    }
+
     pub fn dispose(&self) -> Result<(), String> {
         dispose(&self.inner)
     }

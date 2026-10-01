@@ -24,3 +24,14 @@ provider fmt/strict Clippy, prototype accessibility and short-viewport focus-scr
 drag failures block acceptance.
 The r2 release runs locally while bounded independent verification finishes;
 both renewed repair budgets are exhausted and P2 stays unchecked.
+
+## Current production M1 run
+
+The historical checkpoints above are retained for provenance. P2/P3 feasibility
+is accepted at continuation `cd1efb34`; the current remaining M1 task set is
+[the production plan](../../.scratch/m1-production/PLAN.md),
+[specification](../../.scratch/m1-production/spec.md), six local tickets under
+`.scratch/m1-production/issues/`, and
+[canonical state](../migration/m1-production-run.json).
+Root TODO and RUN govern closure after integrated verification; partial native
+or probe evidence never closes the complete production workflow.

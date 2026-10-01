@@ -26,6 +26,8 @@ fn definition(
         })
         .collect();
     PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
         id: id.into(),
         name: id.into(),
         kind,
@@ -463,6 +465,56 @@ fn apply_materializes_switch_diode_and_controller_pins_and_preserves_manual_net(
     );
     assert!(doc.nets.iter().any(|n| n.id.contains("link/matrix/m/r0c0")
         && n.pins.iter().any(|p| p.part_id.ends_with("/diode"))));
+}
+
+#[test]
+fn surface_mount_contacts_are_electrical_without_plated_drills() {
+    let mut doc = wired_document();
+    for definition in &mut doc.definitions {
+        for pad in &mut definition.pads {
+            pad.drill = None;
+            pad.plated = Some(false);
+        }
+    }
+    let switch = doc
+        .parts
+        .iter()
+        .find(|part| {
+            doc.definitions
+                .iter()
+                .any(|def| def.id == part.definition_id && def.kind == PartKind::Switch)
+        })
+        .unwrap();
+    let definition = doc
+        .definitions
+        .iter()
+        .find(|def| def.id == switch.definition_id)
+        .unwrap();
+    let expected: Vec<_> = definition
+        .pads
+        .iter()
+        .map(|pad| Pin {
+            part_id: switch.id.clone(),
+            pad_id: pad.id.clone(),
+        })
+        .collect();
+    let plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
+        instance_id: None,
+        document: doc.clone(),
+        mode: ElectricalMode::Matrix,
+        locks: BTreeMap::new(),
+        controller_profile: Some("ceoloide/mcu_nice_nano".into()),
+        board_id: Some("board-a".into()),
+        controller_part_id: Some("mcu-left".into()),
+    });
+    for pin in expected {
+        assert!(
+            plan.nets.iter().any(|net| net.pins.contains(&pin)),
+            "Surface-mount contact {pin:?} disappeared from wiring"
+        );
+    }
+    boardstudio_core::electrical::materialize(&mut doc, &plan)
+        .expect("Surface-mount wiring must materialize");
 }
 
 #[test]

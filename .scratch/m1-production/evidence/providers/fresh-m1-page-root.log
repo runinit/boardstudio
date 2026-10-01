@@ -1,0 +1,206 @@
+  0.00s  INFO Building project...
+  0.79s  INFO Compiled [  1/208]: cfg_if
+  0.82s  INFO Compiled [  2/208]: pin_project_lite
+  0.83s  INFO Compiled [  3/208]: unicode_ident
+  0.83s  INFO Compiled [  4/208]: futures_sink
+  0.84s  INFO Compiled [  5/208]: unicode_ident
+  0.88s  INFO Compiled [  6/208]: futures_core
+  0.91s  INFO Compiled [  7/208]: futures_task
+  0.92s  INFO Compiled [  8/208]: futures_io
+  0.92s  INFO Compiled [  9/208]: build-script-build
+  0.93s  INFO Compiled [ 10/208]: build-script-build
+  0.94s  INFO Compiled [ 12/208]: slab
+  0.96s  INFO Compiled [ 15/208]: build-script-build
+  0.97s  INFO Compiled [ 16/208]: scopeguard
+  0.97s  INFO Compiled [ 17/208]: build-script-build
+  1.00s  INFO Compiled [ 19/208]: build-script-build
+  1.00s  INFO Compiled [ 20/208]: build-script-build
+  1.01s  INFO Compiled [ 22/208]: unicode_xid
+  1.01s  INFO Compiled [ 23/208]: build-script-build
+  1.01s  INFO Compiled [ 24/208]: version_check
+  1.03s  INFO Compiled [ 26/208]: bumpalo
+  1.06s  INFO Compiled [ 28/208]: build-script-build
+  1.06s  INFO Compiled [ 29/208]: smallvec
+  1.10s  INFO Compiled [ 31/208]: rustc_hash
+  1.11s  INFO Compiled [ 33/208]: build-script-build
+  1.11s  INFO Compiled [ 34/208]: build-script-build
+  1.14s  INFO Compiled [ 36/208]: konst_macro_rules
+  1.15s  INFO Compiled [ 37/208]: wasm_bindgen_shared
+  1.16s  INFO Compiled [ 38/208]: longest_increasing_subsequence
+  1.20s  INFO Compiled [ 40/208]: build-script-build
+  1.22s  INFO Compiled [ 41/208]: lock_api
+  1.23s  INFO Compiled [ 42/208]: futures_channel
+  1.23s  INFO Compiled [ 43/208]: dioxus_core_types
+  1.29s  INFO Compiled [ 45/208]: autocfg
+  1.30s  INFO Compiled [ 46/208]: ident_case
+  1.31s  INFO Compiled [ 47/208]: build-script-build
+  1.32s  INFO Compiled [ 48/208]: parking_lot_core
+  1.35s  INFO Compiled [ 50/208]: lazy_js_bundle
+  1.35s  INFO Compiled [ 51/208]: fnv
+  1.37s  INFO Compiled [ 52/208]: build-script-build
+  1.39s  INFO Compiled [ 54/208]: build-script-build
+  1.43s  INFO Compiled [ 55/208]: build-script-build
+  1.43s  INFO Compiled [ 56/208]: build-script-build
+  1.44s  INFO Compiled [ 58/208]: build-script-build
+  1.45s  INFO Compiled [ 59/208]: rustversion
+  1.47s  INFO Compiled [ 62/208]: memchr
+  1.47s  INFO Compiled [ 64/208]: crunchy
+  1.49s  INFO Compiled [ 65/208]: build-script-build
+  1.54s  INFO Compiled [ 67/208]: konst
+  1.56s  INFO Compiled [ 68/208]: wasm_bindgen_shared
+  1.56s  INFO Compiled [ 69/208]: portable_atomic
+  1.57s  INFO Compiled [ 70/208]: cfg_if
+  1.59s  INFO Compiled [ 71/208]: build-script-build
+  1.63s  INFO Compiled [ 73/208]: unicode_segmentation
+  1.65s  INFO Compiled [ 74/208]: itoa
+  1.65s  INFO Compiled [ 75/208]: build-script-build
+  1.67s  INFO Compiled [ 77/208]: zmij
+  1.67s  INFO Compiled [ 78/208]: once_cell
+  1.68s  INFO Compiled [ 79/208]: bitflags
+  1.72s  INFO Compiled [ 80/208]: tiny_keccak
+  1.73s  INFO Compiled [ 81/208]: once_cell
+  1.77s  INFO Compiled [ 82/208]: build-script-build
+  1.78s  INFO Compiled [ 83/208]: build-script-build
+  1.86s  INFO Compiled [ 85/208]: anyhow
+  1.87s  INFO Compiled [ 86/208]: quote
+  1.87s  INFO Compiled [ 88/208]: build-script-build
+  1.88s  INFO Compiled [ 89/208]: proc_macro2
+  1.88s  INFO Compiled [ 90/208]: convert_case
+  1.89s  INFO Compiled [ 92/208]: build-script-build
+  1.91s  INFO Compiled [ 94/208]: build-script-build
+  1.96s  INFO Compiled [ 96/208]: rustc_hash
+  1.97s  INFO Compiled [ 97/208]: build-script-build
+  1.98s  INFO Compiled [ 98/208]: build-script-build
+  2.00s  INFO Compiled [ 99/208]: equivalent
+  2.01s  INFO Compiled [100/208]: static_assertions
+  2.03s  INFO Compiled [101/208]: parking_lot
+  2.22s  INFO Compiled [104/208]: smartstring
+  2.23s  INFO Compiled [105/208]: sledgehammer_utils
+  2.26s  INFO Compiled [106/208]: num_traits
+  2.35s  INFO Compiled [107/208]: build-script-build
+  2.36s  INFO Compiled [108/208]: crc32fast
+  2.42s  INFO Compiled [109/208]: typenum
+  2.45s  INFO Compiled [110/208]: libc
+  2.47s  INFO Compiled [111/208]: hashbrown
+  2.52s  INFO Compiled [112/208]: i_key_sort
+  2.52s  INFO Compiled [113/208]: const_format_proc_macros
+  2.57s  INFO Compiled [114/208]: getrandom
+  2.59s  INFO Compiled [115/208]: tracing_core
+  2.62s  INFO Compiled [116/208]: thin_vec
+  2.74s  INFO Compiled [117/208]: keyboard_types
+  2.75s  INFO Compiled [119/208]: bytes
+  2.78s  INFO Compiled [120/208]: const_random_macro
+  2.79s  INFO Compiled [121/208]: i_tree
+  2.81s  INFO Compiled [122/208]: send_wrapper
+  2.81s  INFO Compiled [123/208]: const_random
+  2.82s  INFO Compiled [124/208]: dioxus_config_macros
+  2.89s  INFO Compiled [125/208]: dioxus_config_macro
+  2.90s  INFO Compiled [126/208]: hybrid_array
+  2.92s  INFO Compiled [127/208]: euclid
+  2.93s  INFO Compiled [128/208]: i_float
+  2.93s  INFO Compiled [129/208]: const_format
+  2.99s  INFO Compiled [130/208]: block_buffer
+  2.99s  INFO Compiled [131/208]: libm
+  3.09s  INFO Compiled [132/208]: indexmap
+  3.13s  INFO Compiled [133/208]: i_shape
+  3.45s  INFO Compiled [134/208]: serde_core
+  3.49s  INFO Compiled [135/208]: flate2
+  3.50s  INFO Compiled [136/208]: zlib_rs
+  3.55s  INFO Compiled [137/208]: digest
+  3.63s  INFO Compiled [138/208]: typed_path
+  4.00s  INFO Compiled [139/208]: crypto_common
+  4.10s  INFO Compiled [140/208]: zip
+  4.10s  INFO Compiled [141/208]: i_overlay
+  4.22s  INFO Compiled [142/208]: sha2
+  4.40s  INFO Compiled [143/208]: serde_json
+  4.63s  INFO Compiled [144/208]: proc_macro2_diagnostics
+  4.82s  INFO Compiled [145/208]: syn
+  4.94s  INFO Compiled [146/208]: zerocopy
+  4.95s  INFO Compiled [147/208]: syn
+  5.06s  INFO Compiled [148/208]: dioxus_html_internal_macro
+  5.07s  INFO Compiled [149/208]: warnings_macro
+  5.08s  INFO Compiled [150/208]: ahash
+  5.27s  INFO Compiled [151/208]: dioxus_stores_macro
+  5.39s  INFO Compiled [152/208]: async_trait
+  5.41s  INFO Compiled [153/208]: futures_macro
+  5.48s  INFO Compiled [154/208]: dioxus_rsx
+  5.52s  INFO Compiled [155/208]: pin_project_internal
+  5.56s  INFO Compiled [156/208]: pin_project
+  5.59s  INFO Compiled [157/208]: tracing_attributes
+  5.65s  INFO Compiled [158/208]: rhai_codegen
+  5.67s  INFO Compiled [159/208]: sledgehammer_bindgen_macro
+  5.73s  INFO Compiled [160/208]: thiserror_impl
+  5.77s  INFO Compiled [161/208]: warnings
+  5.77s  INFO Compiled [162/208]: thiserror
+  5.80s  INFO Compiled [163/208]: tracing
+  5.91s  INFO Compiled [164/208]: kiutils_sexpr
+  5.98s  INFO Compiled [165/208]: generational_box
+  6.13s  INFO Compiled [166/208]: darling_core
+  6.27s  INFO Compiled [167/208]: dioxus_core_macro
+  6.29s  INFO Compiled [168/208]: darling_macro
+  6.32s  INFO Compiled [169/208]: darling
+  6.66s  INFO Compiled [170/208]: serde_derive
+  6.76s  INFO Compiled [171/208]: enumset_derive
+  6.94s  INFO Compiled [172/208]: enumset
+  6.98s  INFO Compiled [173/208]: serde
+  6.99s  INFO Compiled [174/208]: subsecond_types
+  7.10s  INFO Compiled [175/208]: boardstudio_contracts
+  7.25s  INFO Compiled [176/208]: wasm_bindgen_macro_support
+  7.27s  INFO Compiled [177/208]: slotmap
+  7.29s  INFO Compiled [178/208]: futures_util
+  7.37s  INFO Compiled [179/208]: wasm_bindgen_macro
+  8.12s  INFO Compiled [180/208]: sledgehammer_bindgen
+  8.18s  INFO Compiled [181/208]: getrandom
+  8.18s  INFO Compiled [182/208]: wasm_bindgen
+  8.19s  INFO Compiled [183/208]: dioxus_cli_config
+ 13.72s  INFO Compiled [184/208]: wasm_bindgen_futures
+ 13.83s  INFO Compiled [185/208]: web_time
+ 13.86s  INFO Compiled [186/208]: gloo_timers
+ 14.00s  INFO Compiled [187/208]: serde_wasm_bindgen
+ 14.24s  INFO Compiled [188/208]: js_sys
+ 23.23s  INFO Compiled [189/208]: rhai
+ 24.14s  INFO Compiled [190/208]: subsecond
+ 24.35s  INFO Compiled [191/208]: web_sys
+ 24.54s  INFO Compiled [192/208]: dioxus_interpreter_js
+ 24.90s  INFO Compiled [193/208]: wasm_streams
+ 25.29s  INFO Compiled [194/208]: dioxus_devtools_types
+ 25.30s  INFO Compiled [195/208]: dioxus_history
+ 25.64s  INFO Compiled [196/208]: dioxus_signals
+ 25.66s  INFO Compiled [197/208]: dioxus_core
+ 25.81s  INFO Compiled [198/208]: dioxus_devtools
+ 25.88s  INFO Compiled [199/208]: dioxus_hooks
+ 25.96s  INFO Compiled [200/208]: dioxus_stores
+ 26.68s  INFO Compiled [201/208]: dioxus_html
+ 26.90s  INFO Compiled [202/208]: dioxus_document
+ 27.12s  INFO Compiled [203/208]: dioxus
+ 27.28s  INFO Compiled [204/208]: dioxus_web
+ 44.37s  INFO Compiled [205/208]: boardstudio_core
+ 44.52s  INFO  [1m[91merror[E0004][0m[1m: non-exhaustive patterns: `&boardstudio_core::model::CoreReply::ModulesResolved { .. }` not covered[0m
+    [1m[94m--> [0m/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/application/src/session.rs:1805:11
+     [1m[94m|[0m
+[1m[94m1805[0m [1m[94m|[0m     match reply {
+     [1m[94m|[0m           [1m[91m^^^^^[0m [1m[91mpattern `&boardstudio_core::model::CoreReply::ModulesResolved { .. }` not covered[0m
+     [1m[94m|[0m
+[1m[92mnote[0m: `boardstudio_core::model::CoreReply` defined here
+    [1m[94m--> [0m/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/model.rs:1619:1
+     [1m[94m|[0m
+[1m[94m1619[0m [1m[94m|[0m pub enum CoreReply {
+     [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^^[0m
+[1m[94m1620[0m [1m[94m|[0m     #[serde(rename = "modules-resolved")]
+[1m[94m1621[0m [1m[94m|[0m     ModulesResolved {
+     [1m[94m|[0m     [1m[94m---------------[0m [1m[94mnot covered[0m
+     [1m[94m= [0m[1mnote[0m: the matched value is of type `&boardstudio_core::model::CoreReply`
+[1m[96mhelp[0m: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+     [1m[94m|[0m
+[1m[94m1817[0m [92m~ [0m        | CoreReply::CasePrepared { id, .. } => id.clone()[92m,[0m
+[1m[94m1818[0m [92m~         &boardstudio_core::model::CoreReply::ModulesResolved { .. } => todo!()[0m,
+     [1m[94m|[0m
+
+
+ 44.53s  INFO  [1mFor more information about this error, try `rustc --explain E0004`.[0m
+
+ 44.53s  WARN error: could not compile `boardstudio-application` (lib) due to 1 previous error 
+ 44.53s  WARN Caused by: 
+ 44.53s  WARN   process didn't exit successfully: `/home/chris/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc --crate-name boardstudio_application --edition=2024 /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/application/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C opt-level=s -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=31f6fb6070f7e2f7 -C extra-filename=-b5b435be4b900395 --out-dir /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/web/target/wasm32-unknown-unknown/wasm-release/deps --target wasm32-unknown-unknown -L dependency=/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/web/target/wasm32-unknown-unknown/wasm-release/deps -L dependency=/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/web/target/wasm-release/deps --extern boardstudio_core=/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/web/target/wasm32-unknown-unknown/wasm-release/deps/libboardstudio_core.rlib --cfg 'getrandom_backend="wasm_js"'` (exit status: 1) 
+
+[31mERROR[0m [33mdx build[0m: cargo build finished with errors for target: boardstudio-web [wasm32-unknown-unknown]

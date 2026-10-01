@@ -9,6 +9,7 @@ import type { SwitchOrientation, AssemblyConstruction } from './assemblyPresets'
 import { createPart, makeId, PITCH_MM, snapDelta } from './workbenchGeometry';
 import type { PlacementState } from './placementState';
 import type { SelectionScope } from './workbenchTypes';
+import { matrixInputAvailable } from './inputCapabilities';
 
 type WorkbenchPlacementControllerInputs = {
   document: ProjectDoc; selectedBoard?: { id: string; outlineIds: string[] }; selectedBoardId: string;
@@ -50,7 +51,7 @@ export function createWorkbenchPlacementActions(input: WorkbenchPlacementControl
       const matrix = input.matrixMap.get(scope.matrixId);
       if (matrix) {
         const current = input.matrixCellOverrides.get(matrix.id)?.get(`${scope.row}:${scope.column}`);
-        const changes = definition.kind === 'switch' ? { enabled: true, definitionId: definition.id } : { enabled: true, assemblies: [...(current?.assemblies ?? []), { id: `library-${definition.id}-${(current?.assemblies?.length ?? 0) + 1}`, definitionId: definition.id, offset: { x: 0, y: 0 } }] };
+        const changes = definition.kind === 'switch' || matrixInputAvailable(definition) ? { enabled: true, definitionId: definition.id } : { enabled: true, assemblies: [...(current?.assemblies ?? []), { id: `library-${definition.id}-${(current?.assemblies?.length ?? 0) + 1}`, definitionId: definition.id, offset: { x: 0, y: 0 } }] };
         input.setCell(matrix, scope.row, scope.column, changes, input.definitions.has(definition.id) ? undefined : [definition]);
         input.setScope({ kind: 'key', matrixId: scope.matrixId, row: scope.row, column: scope.column });
         input.setMode('Design');

@@ -11,15 +11,17 @@ export type LoadedModel = { id: string; mesh: ModelMesh };
 export type AssemblyBody = { id: string; name: string; color?: string; mesh: ModelMesh };
 export type AssemblyPreviewInput = {
   document: ProjectDoc; boardId: string; contours: Contour[]; preparedCase?: PreparedCaseAssemblyIR; session?: number; instanceId?: string;
+  pcbTopZ?: number;
 };
 export type AssemblyPreviewSnapshot = {
   board?: PcbPreview; reference?: BoardReference; models: LoadedModel[]; messages: string[];
   pending: boolean; error: string; keycaps: AssemblyBody[]; keycapResolution?: KeycapResolution;
   keycapsPending: boolean; keycapError: string;
+  moduleBodies: AssemblyBody[]; modulesPending: boolean; moduleError: string;
 };
 type Dependencies = {
   core: () => Pick<CoreClient, 'request' | 'close'>;
-  cad: () => Pick<CaseClient, 'keycaps' | 'requestModel' | 'close'>;
+  cad: () => Pick<CaseClient, 'keycaps' | 'requestModel' | 'close'> & Partial<Pick<CaseClient, 'preview'>>;
   exporter: () => Pick<ExportClient, 'preview' | 'artifact' | 'close'>;
   loadAsset: typeof loadAsset;
   modelBytes: typeof bundledModelBytes;
@@ -27,6 +29,7 @@ type Dependencies = {
 const initial = (): AssemblyPreviewSnapshot => ({
   board: undefined, reference: undefined, keycapResolution: undefined,
   models: [], messages: [], pending: true, error: '', keycaps: [], keycapsPending: false, keycapError: '',
+  moduleBodies: [], modulesPending: false, moduleError: '',
 });
 
 /** Owns preview worker lifetimes, asset reuse, and acceptance of asynchronous results. */
@@ -42,6 +45,9 @@ export class AssemblyPreview {
   private scope = '';
   private pcbKey = '';
   private keycapKey = '';
+  private moduleKey = '';
+  private moduleSequence = 0;
+  private moduleAbort?: AbortController;
   private pcbSequence = 0;
   private keycapSequence = 0;
   private keycapAbort?: AbortController;
@@ -67,10 +73,11 @@ export class AssemblyPreview {
     const scope = JSON.stringify([document.id, boardId, input.session, input.instanceId]);
     if (scope !== this.scope) {
       this.scope = scope;
-      this.pcbSequence++; this.keycapSequence++;
+      this.pcbSequence++; this.keycapSequence++; this.moduleSequence++;
       this.keycapAbort?.abort();
+      this.moduleAbort?.abort();
       this.cache.clear();
-      this.pcbKey = ''; this.keycapKey = '';
+      this.pcbKey = ''; this.keycapKey = ''; this.moduleKey = '';
       this.publish(initial());
     }
     const reference = document.boardReferences?.find(item => item.boardId === boardId && item.enabled);
@@ -98,10 +105,16 @@ export class AssemblyPreview {
       this.keycapAbort = abort;
       void this.prepareKeycaps(input, abort, ++this.keycapSequence);
     }
+    const moduleKey=JSON.stringify({scope,modules:document.modules,definitions:document.moduleDefinitions,hardware:document.hardware,physicalInstanceId:document.physicalInstanceId,thickness:document.boards.find(board=>board.id===boardId)?.thickness,assets:document.assets,pcbTopZ:input.pcbTopZ});
+    if(moduleKey!==this.moduleKey) {
+      this.moduleKey=moduleKey;this.moduleAbort?.abort();
+      const abort=new AbortController();this.moduleAbort=abort;
+      void this.prepareModules(input,abort,++this.moduleSequence);
+    }
   }
 
   retry(): void {
-    this.pcbKey = ''; this.keycapKey = '';
+    this.pcbKey = ''; this.keycapKey = ''; this.moduleKey = '';
     if (this.input) this.update(this.input);
   }
 
@@ -109,6 +122,7 @@ export class AssemblyPreview {
     if (this.closed) return;
     this.closed = true;
     this.keycapAbort?.abort();
+    this.moduleAbort?.abort();
     this.listeners.clear();
     this.core?.close(); this.cad?.close(); this.exporter?.close();
     this.cache.clear();
@@ -150,6 +164,63 @@ export class AssemblyPreview {
     }
   }
 
+  private async prepareModules(input:AssemblyPreviewInput,abort:AbortController,sequence:number):Promise<void> {
+    const current=()=>!this.closed&&sequence===this.moduleSequence&&!abort.signal.aborted;
+    const {document,boardId}=input;
+    const active=document.modules?.some(instance=>instance.hostBoardId===boardId&&!instance.detached);
+    this.publish({moduleBodies:[],moduleError:'',modulesPending:Boolean(active)});
+    if(!active)return;
+    try {
+      this.core??=this.dependencies.core();
+      const reply=await this.core.request({id:crypto.randomUUID(),kind:'resolve-modules',document,boardId,previewTopZ:input.pcbTopZ??0});
+      if(!current())return;
+      if(reply.kind!=='modules-resolved')throw new Error(reply.kind==='error'?reply.message:'Expected resolved module assembly');
+      if(reply.result.revision!==document.revision)return;
+      const bodies:AssemblyBody[]=[];
+      if(reply.result.preview) {
+        this.cad??=this.dependencies.cad();
+        if(!this.cad.preview)throw new Error('Module CAD preview is unavailable');
+        const result=await this.cad.preview(reply.result.preview,()=>{},abort.signal);
+        if(!current()||result.revision!==document.revision)return;
+        bodies.push(...(result.bodies??[]).map(body=>({id:body.id,name:body.name,color:'#487d67',mesh:{positions:body.positions,normals:body.normals}})));
+      }
+      for(const placement of reply.result.modelPlacements??[]) {
+        if(!current())return;
+        const asset=document.assets.find(asset=>asset.id===placement.assetId);
+        const bundled=bundledModel(placement.assetId);
+        if(!asset&&!bundled)throw new Error(`Module model is missing: ${placement.assetId}`);
+        const name=asset?.name??bundled!.filename;
+        const task = this.convertModel(asset, placement.assetId, name);
+        const mesh=await task;
+        if(current())bodies.push({id:placement.id,name,color:'#8f9b9e',mesh:transformedMesh(mesh,placement.matrix)});
+      }
+      if(current())this.publish({moduleBodies:bodies});
+    }catch(cause){if(current())this.publish({moduleError:String(cause instanceof Error?cause.message:cause)});}
+    finally{if(current())this.publish({modulesPending:false});}
+  }
+
+  private convertModel(asset: ProjectDoc['assets'][number] | undefined, id: string, name: string): Promise<ModelMesh> {
+    const key = asset?.sha256 ?? id;
+    const existing = this.cache.get(key);
+    if (existing) return existing;
+    const scope = this.scope;
+    const task = (asset ? this.dependencies.loadAsset(asset.sha256) : this.dependencies.modelBytes(id)).then(async bytes => {
+      if (this.closed || scope !== this.scope) throw new Error('Model preview superseded');
+      if (!bytes) throw new Error('Saved model bytes are missing');
+      if (/\.(step|stp)$/iu.test(name)) {
+        this.cad ??= this.dependencies.cad();
+        return (await this.cad.requestModel(bytes)).mesh;
+      }
+      return readMeshModel(bytes, name);
+    }).catch(cause => {
+      if (this.cache.get(key) === task) this.cache.delete(key);
+      throw cause;
+    });
+    this.cache.set(key, task);
+    if (this.cache.size > 80) this.cache.delete(this.cache.keys().next().value!);
+    return task;
+  }
+
   private async prepareBoard(input: AssemblyPreviewInput, reference: BoardReference | undefined, paths: [string, string][], generatedReferences: Set<string>, sequence: number): Promise<void> {
     const current = () => !this.closed && sequence === this.pcbSequence;
     const { document, boardId, contours } = input;
@@ -180,22 +251,8 @@ export class AssemblyPreview {
           if (current()) this.publish({ messages: [...this.snapshot.messages, `${model.reference}: missing model ${model.path}. Attach the model in the inspector.`] });
           return;
         }
-        const name = asset?.name ?? bundled!.filename, key = asset?.sha256 ?? id!;
-        let task = this.cache.get(key);
-        const scope = this.scope;
-        if (!task) {
-          task = (asset ? this.dependencies.loadAsset(asset.sha256) : this.dependencies.modelBytes(id!)).then(async bytes => {
-            if (this.closed || this.scope !== scope) throw new Error('Model preview superseded');
-            if (!bytes) throw new Error('Saved model bytes are missing');
-            if (/\.(step|stp)$/i.test(name)) {
-              this.cad ??= this.dependencies.cad();
-              return (await this.cad.requestModel(bytes)).mesh;
-            }
-            return readMeshModel(bytes, name);
-          }).catch(cause => { if (this.cache.get(key) === task) this.cache.delete(key); throw cause; });
-          this.cache.set(key, task);
-          if (this.cache.size > 80) this.cache.delete(this.cache.keys().next().value!);
-        }
+        const name = asset?.name ?? bundled!.filename;
+        const task = this.convertModel(asset, id!, name);
         try {
           const mesh = await task;
           if (current()) loaded.push({ id: model.id, mesh });
@@ -208,4 +265,18 @@ export class AssemblyPreview {
       if (current()) this.publish({ error: String(cause instanceof Error ? cause.message : cause), pending: false });
     }
   }
+}
+
+/** Apply the Rust-supplied affine matrix; pose and board-side rules remain in the core. */
+function transformedMesh(mesh:ModelMesh,m:number[]):ModelMesh {
+  const positions=new Float32Array(mesh.positions.length),normals=new Float32Array(mesh.normals.length);
+  const lengths=[0,4,8].map(index=>m[index]**2+m[index+1]**2+m[index+2]**2);
+  for(let i=0;i<positions.length;i+=3) {
+    const x=mesh.positions[i],y=mesh.positions[i+1],z=mesh.positions[i+2];
+    positions[i]=m[0]*x+m[4]*y+m[8]*z+m[12];positions[i+1]=m[1]*x+m[5]*y+m[9]*z+m[13];positions[i+2]=m[2]*x+m[6]*y+m[10]*z+m[14];
+    const nx=mesh.normals[i]/lengths[0],ny=mesh.normals[i+1]/lengths[1],nz=mesh.normals[i+2]/lengths[2];
+    const a=m[0]*nx+m[4]*ny+m[8]*nz,b=m[1]*nx+m[5]*ny+m[9]*nz,c=m[2]*nx+m[6]*ny+m[10]*nz,length=Math.hypot(a,b,c)||1;
+    normals[i]=a/length;normals[i+1]=b/length;normals[i+2]=c/length;
+  }
+  return {...mesh,positions,normals};
 }

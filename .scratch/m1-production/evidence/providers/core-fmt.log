@@ -1,0 +1,474 @@
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/examples/export_contracts.rs:4:
+ use boardstudio_core::electrical_profiles::JumperState;
+ use boardstudio_core::firmware::{
+     FirmwareHardware, FirmwareKey, FirmwareModuleFinding, FirmwareModuleQualification,
+-    FirmwarePackage, FirmwarePartQualification, FirmwarePhysicalInstance,
+-    FirmwareQualification, FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
++    FirmwarePackage, FirmwarePartQualification, FirmwarePhysicalInstance, FirmwareQualification,
++    FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
+ };
+ use boardstudio_core::model::*;
+ use std::{env, fs, path::PathBuf};
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/artifact/module_import.rs:317:
+             }
+         }
+         compiled.definition.terminals = terminal_map;
+-        let value_role_name = value
+-            .to_ascii_lowercase()
+-            .replace(['_', ' '], "-");
++        let value_role_name = value.to_ascii_lowercase().replace(['_', ' '], "-");
+         compiled.definition.name = format!(
+             "{value} · {}",
+             fp_name.split(':').next_back().unwrap_or(&fp_name)
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/lib.rs:1:
+-mod hardware;
+ pub mod archive;
+ pub mod artifact;
+ mod case;
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/lib.rs:9:
+ pub mod electrical_profiles;
+ pub mod firmware;
+ mod geometry;
++mod hardware;
+ mod inputs;
+ mod keycaps;
+ mod keymap;
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/lib.rs:918:
+ fn affects_outline(op: &EditOperation) -> bool {
+     matches!(
+         op,
+-        EditOperation::SetMountedModule { host_connector_definition: Some(_), .. }
+-            | EditOperation::MoveParts { .. }
++        EditOperation::SetMountedModule {
++            host_connector_definition: Some(_),
++            ..
++        } | EditOperation::MoveParts { .. }
+             | EditOperation::SetOutline { .. }
+             | EditOperation::CopyOutline { .. }
+             | EditOperation::SelectOutline { .. }
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/matrix.rs:177:
+             .filter_map(|cell| cell.definition_id.as_ref()),
+     ) {
+         if let Some(def) = doc.definitions.iter().find(|def| &def.id == id)
+-            && (def.input_profile.is_some() || crate::inputs::profile(def).rotary.is_some()) {
+-                crate::inputs::validate_matrix_input(def)
+-                    .map_err(|error| format!("{}: {error}", def.name))?;
+-            }
++            && (def.input_profile.is_some() || crate::inputs::profile(def).rotary.is_some())
++        {
++            crate::inputs::validate_matrix_input(def)
++                .map_err(|error| format!("{}: {error}", def.name))?;
++        }
+     }
+     if matrix.cells.len() > (matrix.rows * matrix.columns) as usize {
+         return Err("Matrix cells exceed dimensions".into());
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/electrical.rs:70:
+         .and_then(|g| crate::electrical_profiles::profile(&g.source));
+     let wire = |terminal: &String| {
+         if let (Some(controller), Some(definition)) = (controller, controller_def)
+-            && let Some(pads) = definition.terminals.get(terminal) {
+-                if let Some(net) = doc.nets.iter().find(|net| {
+-                    board.is_some_and(|board| board.net_ids.contains(&net.id))
+-                        && net
+-                            .pins
+-                            .iter()
+-                            .any(|pin| pin.part_id == controller.id && pads.contains(&pin.pad_id))
+-                }) {
+-                    return net.id.clone();
+-                }
+-                if let Some(pad) = pads.first() {
+-                    return format!("controller/{}/{pad}", controller.id);
+-                }
++            && let Some(pads) = definition.terminals.get(terminal)
++        {
++            if let Some(net) = doc.nets.iter().find(|net| {
++                board.is_some_and(|board| board.net_ids.contains(&net.id))
++                    && net
++                        .pins
++                        .iter()
++                        .any(|pin| pin.part_id == controller.id && pads.contains(&pin.pad_id))
++            }) {
++                return net.id.clone();
+             }
++            if let Some(pad) = pads.first() {
++                return format!("controller/{}/{pad}", controller.id);
++            }
++        }
+         format!("terminal/{terminal}")
+     };
+     let mut findings = Vec::new();
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/electrical.rs:245:
+             );
+         }
+         if def.electrical.protocol == ModuleProtocol::I2c
+-            && let Some(resistance) = def.electrical.pullup_ohms {
+-                if !resistance.is_finite() || resistance <= 0.0 {
+-                    report(
+-                        "pullup-profile",
+-                        "I²C pull-up resistance must be a finite positive value.".into(),
+-                        Severity::Error,
+-                    );
+-                } else if !def.gates.iter().any(|gate| gate.code == "pullup-supply")
+-                    && connection
+-                        .rail_voltages
+-                        .get(&VikSignal::V3v3)
+-                        .is_some_and(|voltage| voltage.is_finite() && (*voltage - 3.3).abs() < 0.01)
+-                    && let (Some(scl), Some(sda)) = (
+-                        connection.assignments.get(&VikSignal::Scl),
+-                        connection.assignments.get(&VikSignal::Sda),
+-                    ) {
+-                        pullups
+-                            .entry((wire(scl), wire(sda)))
+-                            .or_default()
+-                            .push((instance.id.clone(), resistance));
+-                    }
++            && let Some(resistance) = def.electrical.pullup_ohms
++        {
++            if !resistance.is_finite() || resistance <= 0.0 {
++                report(
++                    "pullup-profile",
++                    "I²C pull-up resistance must be a finite positive value.".into(),
++                    Severity::Error,
++                );
++            } else if !def.gates.iter().any(|gate| gate.code == "pullup-supply")
++                && connection
++                    .rail_voltages
++                    .get(&VikSignal::V3v3)
++                    .is_some_and(|voltage| voltage.is_finite() && (*voltage - 3.3).abs() < 0.01)
++                && let (Some(scl), Some(sda)) = (
++                    connection.assignments.get(&VikSignal::Scl),
++                    connection.assignments.get(&VikSignal::Sda),
++                )
++            {
++                pullups
++                    .entry((wire(scl), wire(sda)))
++                    .or_default()
++                    .push((instance.id.clone(), resistance));
+             }
++        }
+         let mut used = BTreeSet::new();
+         for signal in &def.electrical.required_signals {
+             let Some(terminal) = connection.assignments.get(signal).filter(|s| !s.is_empty())
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/electrical.rs:348:
+                 && let Some((owner, _, _)) = private.insert(
+                     wire(terminal),
+                     (instance.id.clone(), *signal, def.electrical.protocol),
+-                ) {
+-                    private_findings.push(finding(
++                )
++            {
++                private_findings.push(finding(
+                         &instance.id,
+                         "shared-private-contact",
+                         format!(
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/electrical.rs:358:
+                         vec![owner, instance.id.clone(), board_id.into()],
+                         Severity::Error,
+                     ));
+-                }
++            }
+         }
+         if let Some(address) = def.electrical.i2c_address
+             && let (Some(scl), Some(sda)) = (
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/electrical.rs:365:
+                 connection.assignments.get(&VikSignal::Scl),
+                 connection.assignments.get(&VikSignal::Sda),
+             )
+-                && let Some(owner) =
+-                    addresses.insert((wire(scl), wire(sda), address), instance.id.clone())
+-                {
+-                    findings.push(finding(&instance.id,"i2c-address",format!("{owner} and {} share I2C address 0x{address:02X} on {scl}/{sda}. Use separate buses or explicit isolation.",instance.id),vec![owner,instance.id.clone(),board_id.into()],Severity::Error));
+-                }
++            && let Some(owner) =
++                addresses.insert((wire(scl), wire(sda), address), instance.id.clone())
++        {
++            findings.push(finding(&instance.id,"i2c-address",format!("{owner} and {} share I2C address 0x{address:02X} on {scl}/{sda}. Use separate buses or explicit isolation.",instance.id),vec![owner,instance.id.clone(),board_id.into()],Severity::Error));
++        }
+         let current = currents
+             .entry(connection.host_connector_part_id.clone())
+             .or_insert((0.0, connection.supply_current_ma, vec![]));
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/electrical.rs:497:
+             def.electrical.i2c_address,
+             instance.ports.get("scl"),
+             instance.ports.get("sda"),
+-        )
+-            && let Some(owner) =
+-                addresses.insert((scl.clone(), sda.clone(), address), instance.id.clone())
++        ) && let Some(owner) =
++            addresses.insert((scl.clone(), sda.clone(), address), instance.id.clone())
++        {
++            findings.push(finding(&instance.id,"i2c-address",format!("Devices {owner} and {} share fixed address 0x{address:02X}; use separate buses or isolation.",instance.id),vec![owner,instance.id.clone(),board_id.into()],Severity::Error));
++        }
++        if def.electrical.protocol == ModuleProtocol::I2c
++            && let Some(resistance) = def.electrical.pullup_ohms
++        {
++            if !resistance.is_finite() || resistance <= 0.0 {
++                findings.push(finding(
++                    &instance.id,
++                    "pullup-profile",
++                    "I²C pull-up resistance must be a finite positive value.".into(),
++                    vec![instance.id.clone(), board_id.into()],
++                    Severity::Error,
++                ));
++            } else if !def.gates.iter().any(|gate| gate.code == "pullup-supply")
++                && embedded_ports_confirmed
++                && def.electrical.required_signals.contains(&VikSignal::V3v3)
++                && let (Some(scl), Some(sda)) =
++                    (instance.ports.get("scl"), instance.ports.get("sda"))
+             {
+-                findings.push(finding(&instance.id,"i2c-address",format!("Devices {owner} and {} share fixed address 0x{address:02X}; use separate buses or isolation.",instance.id),vec![owner,instance.id.clone(),board_id.into()],Severity::Error));
++                pullups
++                    .entry((scl.clone(), sda.clone()))
++                    .or_default()
++                    .push((instance.id.clone(), resistance));
+             }
+-        if def.electrical.protocol == ModuleProtocol::I2c
+-            && let Some(resistance) = def.electrical.pullup_ohms {
+-                if !resistance.is_finite() || resistance <= 0.0 {
+-                    findings.push(finding(
+-                        &instance.id,
+-                        "pullup-profile",
+-                        "I²C pull-up resistance must be a finite positive value.".into(),
+-                        vec![instance.id.clone(), board_id.into()],
+-                        Severity::Error,
+-                    ));
+-                } else if !def.gates.iter().any(|gate| gate.code == "pullup-supply")
+-                    && embedded_ports_confirmed
+-                    && def.electrical.required_signals.contains(&VikSignal::V3v3)
+-                    && let (Some(scl), Some(sda)) =
+-                        (instance.ports.get("scl"), instance.ports.get("sda"))
+-                    {
+-                        pullups
+-                            .entry((scl.clone(), sda.clone()))
+-                            .or_default()
+-                            .push((instance.id.clone(), resistance));
+-                    }
+-            }
++        }
+     }
+     for ((scl, sda), devices) in pullups {
+         if devices.len() < 2 {
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/host_connector.rs:39:
+         .definitions
+         .iter()
+         .find(|definition| definition.id == connector_definition.id)
+-        && existing != connector_definition {
+-            return Err(
+-                "The VIK host connector definition identity conflicts with a project definition"
+-                    .into(),
+-            );
+-        }
++        && existing != connector_definition
++    {
++        return Err(
++            "The VIK host connector definition identity conflicts with a project definition".into(),
++        );
++    }
+ 
+     let pose = nearby_pose(doc, instance, module_definition, connector_definition)?;
+     let reference = next_reference(doc, &instance.host_board_id);
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/host_connector.rs:79:
+     for outline in &mut doc.outline {
+         if outline_ids.iter().any(|id| id == outline.id())
+             && let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = outline
+-                && !part_ids.contains(&part_id) {
+-                    part_ids.push(part_id.clone());
+-                }
++            && !part_ids.contains(&part_id)
++        {
++            part_ids.push(part_id.clone());
++        }
+     }
+     doc.parts.push(part);
+     instance
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/host_connector.rs:257:
+             .module_definitions
+             .iter()
+             .find(|definition| definition.id == other.definition_id)
+-            && let Some(bounds) = module_world_bounds(other, definition) {
+-                blockers.push(bounds);
+-            }
++            && let Some(bounds) = module_world_bounds(other, definition)
++        {
++            blockers.push(bounds);
++        }
+     }
+     let gap = 1.5;
+     let outline_features = board_outline_features(doc, &instance.host_board_id);
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/host_connector.rs:319:
+             .active_version_id
+             .as_ref()
+             .and_then(|id| state.versions.iter().find(|version| &version.id == id))
+-        {
+-            return version.geometry.features.clone();
+-        }
++    {
++        return version.geometry.features.clone();
++    }
+     let Some(board) = doc.boards.iter().find(|board| board.id == board_id) else {
+         return Vec::new();
+     };
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/placement.rs:280:
+             h.instances
+                 .iter()
+                 .any(|i| &i.id == id && i.board_id == board.id)
+-        }) {
+-            return Err(
+-                "The module host assembly instance is missing or belongs to another PCB".into(),
+-            );
+-        }
++        })
++    {
++        return Err(
++            "The module host assembly instance is missing or belongs to another PCB".into(),
++        );
++    }
+     if let Some(def) = definition {
+         if def.id != instance.definition_id {
+             return Err("Module placement and definition identities differ".into());
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/modules/placement.rs:326:
+     }
+     let mut affected = vec![instance.id.clone(), instance.host_board_id.clone()];
+     if let Some(connection) = saved_instance.connection
+-        && !connection.host_connector_part_id.is_empty() {
+-            affected.push(connection.host_connector_part_id);
+-        }
++        && !connection.host_connector_part_id.is_empty()
++    {
++        affected.push(connection.host_connector_part_id);
++    }
+     Ok(affected)
+ }
+ 
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/validate.rs:338:
+             {
+                 let terminal = (pin.part_id.as_str(), pad.number.as_str());
+                 if let Some(previous) = terminal_nets.insert(terminal, &net.id)
+-                    && previous != net.id {
+-                        findings.push(error(
+-                            Scope::Pcb,
+-                            format!("terminal:{}:{}:multiple-nets", pin.part_id, pad.number),
+-                            "Repeated physical pads of one logical contact must use the same net",
+-                            vec![previous.into(), net.id.clone(), pin.part_id.clone()],
+-                        ));
+-                    }
+-            }
+-            if let Some(previous) = pad_nets.insert(key, &net.id)
+-                && previous != net.id {
++                    && previous != net.id
++                {
+                     findings.push(error(
+                         Scope::Pcb,
+-                        format!("pad:{}:{}:multiple-nets", pin.part_id, pin.pad_id),
+-                        "Pad is assigned to multiple nets",
++                        format!("terminal:{}:{}:multiple-nets", pin.part_id, pad.number),
++                        "Repeated physical pads of one logical contact must use the same net",
+                         vec![previous.into(), net.id.clone(), pin.part_id.clone()],
+                     ));
+                 }
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/src/validate.rs:359:
++            }
++            if let Some(previous) = pad_nets.insert(key, &net.id)
++                && previous != net.id
++            {
++                findings.push(error(
++                    Scope::Pcb,
++                    format!("pad:{}:{}:multiple-nets", pin.part_id, pin.pad_id),
++                    "Pad is assigned to multiple nets",
++                    vec![previous.into(), net.id.clone(), pin.part_id.clone()],
++                ));
++            }
+         }
+     }
+     for body in &doc.case_bodies {
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/tests/module_host_connector.rs:1:
++use boardstudio_core::CoreEngine;
+ use boardstudio_core::model::{
+     ExportTarget, FinishExportRequest, PrepareExportRequest, ProjectDoc,
+ };
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/tests/module_host_connector.rs:4:
+-use boardstudio_core::CoreEngine;
+-use serde_json::{json, Value};
++use serde_json::{Value, json};
+ use std::collections::BTreeMap;
+ 
+ const LIBRARY: &str = include_str!("../../app/src/modules/imported-modules.json");
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/tests/module_host_connector.rs:173:
+             .count(),
+         12
+     );
+-    assert!(added["document"]["modules"][0]["connection"]["assignments"]
+-        .as_object()
+-        .unwrap()
+-        .is_empty());
++    assert!(
++        added["document"]["modules"][0]["connection"]["assignments"]
++            .as_object()
++            .unwrap()
++            .is_empty()
++    );
+     let pcb = export_host_board(&added["document"], &added["scene"]);
+     let footprint = exported_footprint(&pcb, "J_VIK1");
+     assert!(footprint.contains("(layer \"F.Cu\")"));
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/tests/module_host_connector.rs:212:
+ 
+     let undo = request(&mut engine, json!({"id":"undo","kind":"undo"}));
+     assert_eq!(undo["kind"], "scene", "{undo}");
+-    assert!(undo["document"]
+-        .get("modules")
+-        .is_none_or(|items| items.as_array().unwrap().is_empty()));
+-    assert!(undo["document"]
+-        .get("parts")
+-        .is_none_or(|items| items.as_array().unwrap().is_empty()));
+-    assert!(undo["document"]["boards"][0]["partIds"]
+-        .as_array()
+-        .unwrap()
+-        .is_empty());
++    assert!(
++        undo["document"]
++            .get("modules")
++            .is_none_or(|items| items.as_array().unwrap().is_empty())
++    );
++    assert!(
++        undo["document"]
++            .get("parts")
++            .is_none_or(|items| items.as_array().unwrap().is_empty())
++    );
++    assert!(
++        undo["document"]["boards"][0]["partIds"]
++            .as_array()
++            .unwrap()
++            .is_empty()
++    );
+ }
+ 
+ #[test]
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/tests/module_host_connector.rs:301:
+         "operation":{"kind":"set-mounted-module","instance":instance,"definition":definition.clone(),"hostConnectorDefinition":host_connector()}}}),
+     );
+     assert_eq!(rejected["kind"], "error", "{rejected}");
+-    assert!(rejected["message"]
+-        .as_str()
+-        .unwrap()
+-        .contains("No clear nearby host-PCB position"));
++    assert!(
++        rejected["message"]
++            .as_str()
++            .unwrap()
++            .contains("No clear nearby host-PCB position")
++    );
+     instance["connection"] = Value::Null;
+     instance.as_object_mut().unwrap().remove("connection");
+     let no_connector = request(
+Diff in /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core/tests/mounted_modules.rs:606:
+         "An invalid physical context cannot hide unqualified module functions"
+     );
+     assert!(invalid["message"].as_str().unwrap().contains("physical"));
+-    payload["request"]["hardware"].as_object_mut().unwrap().remove("physicalInstanceId");
++    payload["request"]["hardware"]
++        .as_object_mut()
++        .unwrap()
++        .remove("physicalInstanceId");
+     let unscoped = request(&mut engine, payload);
+     assert_eq!(unscoped["kind"], "error");
+     assert!(unscoped["message"].as_str().unwrap().contains("physical"));

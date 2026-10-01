@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
@@ -33,12 +34,13 @@ def main():
     provenance = {"source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
                   "sources": sources(), "commands": [], "scope": "Development candidate; acceptance is recorded separately."}
 
-    def run(name, command, cwd=REPO):
+    def run(name, command, cwd=REPO, extra_env=None):
         print(f"{name}: {' '.join(map(str,command))}", flush=True)
         log = output / f"{name}.log"
+        started = datetime.now(timezone.utc).isoformat()
         with log.open("w") as stream:
-            result = subprocess.run(list(map(str, command)), cwd=cwd, env=environment, stdout=stream, stderr=subprocess.STDOUT)
-        provenance["commands"].append({"argv": list(map(str, command)), "cwd": str(cwd), "exit": result.returncode, "log": str(log)})
+            result = subprocess.run(list(map(str, command)), cwd=cwd, env=dict(environment, **(extra_env or {})), stdout=stream, stderr=subprocess.STDOUT)
+        provenance["commands"].append({"argv": list(map(str, command)), "cwd": str(cwd), "exit": result.returncode, "log": str(log), "environment": extra_env or {}, "started": started, "finished": datetime.now(timezone.utc).isoformat()})
         (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
         if result.returncode:
             print(log.read_text()[-10000:], file=sys.stderr)
@@ -47,9 +49,10 @@ def main():
     run("core", ["wasm-pack", "build", REPO / "core", "--target", "web", "--release", "--locked"])
     run("core-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"])
     run("renderer", ["wasm-pack", "build", REPO / "renderer", "--target", "web", "--out-dir", output / "renderer", "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"])
+    run("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"])
     run("fixtures", ["node", REPO / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"])
     for mode, prefix in [("root", "/"), ("subpath", "/boardstudio/")]:
-        run(f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--cargo-args=--locked"], WEB)
+        run(f"page-{mode}", ["dx", "build", "--web", "--release", "--base-path", prefix, "--no-default-features", "--features", "page", "--cargo-args=--locked"], WEB)
         public = WEB / "target/dx/boardstudio-web/release/web/public"
         destination = output / f"site-{mode}"
         if mode == "subpath":
@@ -57,9 +60,15 @@ def main():
         shutil.copytree(public, destination)
         assets = destination / "assets"
         shutil.copytree(WEB / "assets", assets, dirs_exist_ok=True)
+        shutil.copytree(REPO / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
         for name in ["core-worker", "renderer", "fixtures"]:
             shutil.copytree(output / name, assets / name, dirs_exist_ok=True)
         (assets / "core-worker/entry.js").write_text('import init, { start_core_worker } from "./m1_core_worker.js";\nawait init();\nstart_core_worker();\n')
+        manifest = output / f"offline-manifest-{mode}.json"
+        required = sorted({str(path.relative_to(destination)) for path in destination.rglob("*") if path.is_file()} | {"service-worker.js", "boardstudio_offline_worker.js"})
+        manifest.write_text(json.dumps({"version": f"{build_id}-{mode}", "assets": required}, indent=2)+"\n")
+        run(f"offline-worker-{mode}", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "boardstudio_offline_worker", "--out-dir", output / f"offline-{mode}", "--release", "--locked", "--no-default-features", "--features", "service-worker"], extra_env={"BOARDSTUDIO_OFFLINE_MANIFEST": str(manifest)})
+        run(f"embed-offline-{mode}", ["node", REPO / "scripts/web/embed-worker-wasm.mjs", output / f"offline-{mode}", manifest, destination / "service-worker.js"])
         provenance[mode] = {"prefix": prefix, "site": str(destination), "assets": {
             str(path.relative_to(destination)): digest(path) for path in sorted(destination.rglob("*")) if path.is_file()}}
     if sources() != provenance["sources"]:

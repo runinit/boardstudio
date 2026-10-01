@@ -1,0 +1,47 @@
+$ cargo build --manifest-path ../core/Cargo.toml --locked --example artifact_request && node --experimental-strip-types --test test/*.test.ts
+    Blocking waiting for file lock on build directory
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 27.62s
+✔ exports placed front and back Ergogen switches with instance nets and multiple models (682.122041ms)
+✔ exports document pad-net assignments for Ergogen terminal groups (22.716159ms)
+✔ exports placed Ergogen zone, reversible text, and front/back route as KiCad board objects (763.077815ms)
+✔ upgrades legacy vendor footprint arcs for KiCad 10 (570.909199ms)
+✔ KiCad 10 parses default board output from every bundled generator (16499.726078ms)
+✔ standalone export batches all Ergogen generators and reports skipped board utilities (63.112855ms)
+✔ exports a deterministic board with flipped Y coordinates and net pads (21.558051ms)
+✔ compiled geometry is immutable and ignores net labels (14.087775ms)
+✔ exports front and back copper traces and vias (3441.586565ms)
+✔ rejects stale revisions and conflicting net assignments (18.492453ms)
+✔ requires relative model paths and emits standalone footprints (24.903224ms)
+✔ footprint filename matches the serialized KiCad name (17.236119ms)
+✔ standalone footprint rejects invalid courtyard and pad geometry (16.409394ms)
+✔ standalone footprints retain repeated logical numbers with unique physical pad identities (29.467632ms)
+✔ imports supported external footprint pads and courtyard (18.140731ms)
+✔ native source import preserves rotated pads and external model references (22.067749ms)
+✔ imports shuffled courtyard lines by connected endpoints (22.940572ms)
+✔ native import preserves disconnected and curved courtyard source with diagnostics (22.519879ms)
+✔ rejects a truncated footprint without hanging (4.801354ms)
+✔ native import preserves pad features beyond the static preview projection (28.915904ms)
+✔ KiCad 10 parses the exported board (3317.063459ms)
+✔ KiCad reports unrouted nets independently of serializer validity (2504.097374ms)
+✔ KiCad reports copper clearance independently of unrouted nets (2496.81191ms)
+✔ KiCad 10 plots the standalone footprint (1145.219806ms)
+✔ projects generated ceoloide/switch_mx on front with models and copper (86.493053ms)
+✔ projects generated ceoloide/switch_mx on back with models and copper (92.023488ms)
+✔ projects generated ceoloide/switch_choc_v1_v2 on front with models and copper (160.721319ms)
+✔ projects generated ceoloide/switch_choc_v1_v2 on back with models and copper (99.381392ms)
+✔ projects generated ceoloide/diode_tht_sod123 on front with models and copper (72.336517ms)
+✔ projects generated ceoloide/diode_tht_sod123 on back with models and copper (69.796279ms)
+✔ native source import projects asymmetric pads and retains exact KiCad source (7.369155ms)
+✔ native board export preserves untouched source spans and KiCad 10 parses and plots both sides (2397.835555ms)
+✔ imported source without a pad angle preserves the absolute angle on both board sides (2527.507121ms)
+✔ legacy KiCad arc preserves sweep geometry in a KiCad 10 board export (1459.236599ms)
+✔ native source export rejects repeated pad numbers assigned to different nets (9.553735ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19371.871005

@@ -2,7 +2,9 @@ mod output;
 mod planning;
 
 pub use output::finish_export;
+pub(super) use output::finish_preview;
 pub use planning::prepare_export;
+pub(super) use planning::prepare_preview;
 
 use super::{ArtifactError, ArtifactErrorCode, sexpr};
 use crate::artifact::{compile, source};
@@ -131,14 +133,11 @@ fn point_valid(point: Vec2) -> bool {
 
 fn assert_geometry(geometry: &FootprintGeometry) -> Result<(), ArtifactError> {
     unique_ids(geometry.pads.iter().map(|pad| pad.id.as_str()), "pad")?;
-    let mut numbers = HashSet::new();
     for pad in &geometry.pads {
-        if (!pad.number.trim().is_empty() && !numbers.insert(pad.number.as_str()))
-            || (pad.number.trim().is_empty() && pad.plated != Some(false))
-        {
+        if pad.number.trim().is_empty() && pad.plated != Some(false) {
             return Err(validation(format!(
-                "Duplicate or empty pad number: {}",
-                pad.number
+                "Empty electrical pad number: {}",
+                pad.id
             )));
         }
         if !point_valid(pad.at)
@@ -508,6 +507,7 @@ fn net_lookup(
 ) -> Result<(Vec<ReservedNet>, HashMap<String, String>), ArtifactError> {
     let mut nets = Vec::new();
     let mut pin_map = HashMap::new();
+    let mut logical_terminals = HashMap::new();
     for (index, net_id) in board.net_ids.iter().enumerate() {
         let net = net_by_id(&doc.nets, net_id)
             .ok_or_else(|| validation(format!("Board references missing net {net_id}")))?;
@@ -524,6 +524,29 @@ fn net_lookup(
                 )));
             }
             let key = format!("{}\0{}", pin.part_id, pin.pad_id);
+            if let Some(pad) = doc
+                .parts
+                .iter()
+                .find(|part| part.id == pin.part_id)
+                .and_then(|part| {
+                    doc.definitions
+                        .iter()
+                        .find(|definition| definition.id == part.definition_id)
+                })
+                .and_then(|definition| definition.pads.iter().find(|pad| pad.id == pin.pad_id))
+                .filter(|pad| !pad.number.is_empty())
+            {
+                let terminal = format!("{}\0{}", pin.part_id, pad.number);
+                if logical_terminals
+                    .insert(terminal, net.id.clone())
+                    .is_some_and(|old| old != net.id)
+                {
+                    return Err(validation(format!(
+                        "Repeated logical pad number {} has conflicting net assignments on {} (different nets)",
+                        pad.number, pin.part_id
+                    )));
+                }
+            }
             if pin_map
                 .insert(key.clone(), net.id.clone())
                 .is_some_and(|old| old != net.id)

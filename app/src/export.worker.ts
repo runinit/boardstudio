@@ -102,7 +102,7 @@ function runErgogenJobs(plan: ExportPlan, paths: ReadonlyMap<string, string>): E
 function prepareRequest(request: ExportRequest, target: ExportTarget): ArtifactReply {
   return artifact({
     id: request.id,
-    kind: 'prepare-export',
+    kind: request.kind === 'pcb-preview' ? 'prepare-preview' : 'prepare-export',
     request: {
       snapshotToken: crypto.randomUUID(),
       expectedRevision: request.document.revision,
@@ -127,7 +127,7 @@ function finishRequest(request: ExportRequest, plan: ExportPlan, paths: Readonly
   }
   return artifact({
     id: request.id,
-    kind: 'finish-export',
+    kind: request.kind === 'pcb-preview' ? 'finish-preview' : 'finish-export',
     request: { plan, results: runErgogenJobs(plan, paths) },
   });
 }
@@ -190,12 +190,15 @@ function build(request: ExportRequest): ExportReply | ArtifactReply {
   const board = request.document.boards.find((entry) => entry.id === request.boardId);
   if (!board || !request.contours) throw new Error('Select a resolved board before export');
   const prepared = prepareRequest(request, { kind: 'board', boardId: board.id });
-  if (prepared.kind !== 'prepare-export') throw new Error('Expected Rust export preparation');
+  if (prepared.kind !== 'prepare-export' && prepared.kind !== 'prepare-preview') throw new Error('Expected Rust export preparation');
   const exported = finishRequest(request, prepared.result, paths);
+  if (request.kind === 'pcb-preview') {
+    if (exported.kind !== 'preview-board') throw new Error('Expected Rust board preview');
+    return exported;
+  }
   if (exported.kind !== 'finish-export') throw new Error('Expected Rust board export');
   const boardFile = exported.result.files[0];
   if (!boardFile) throw new Error('Rust returned no board file');
-  if (request.kind === 'pcb-preview') return artifact({ id: request.id, kind: 'preview-board', source: boardFile.content, revision: request.document.revision });
   if (paths.size === 0) return { id: request.id, kind: 'file', filename: boardFile.filename, bytes: textBytes(boardFile.content), mediaType: 'text/plain' };
   files[boardFile.filename] = textBytes(boardFile.content);
   const packed = archive({ id: request.id, kind: 'archive', request: { kind: 'pack-files', entries: Object.keys(files).map((path, bufferIndex) => ({ path, bufferIndex })) }, buffers: Object.values(files) });

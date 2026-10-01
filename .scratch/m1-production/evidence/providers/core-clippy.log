@@ -1,0 +1,41 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+    Checking boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/core)
+error: large size difference between variants
+    --> src/model.rs:2004:1
+     |
+2004 | /   pub enum ArtifactReply {
+2005 | |       ImportModuleBoard {
+2006 | |           id: String,
+2007 | |           result: Box<ModuleDefinition>,
+...    |
+2013 | | /     ExtractMechanical {
+2014 | | |         id: String,
+2015 | | |         result: MechanicalExtraction,
+2016 | | |     },
+     | | |_____- the second-largest variant contains at least 240 bytes
+...    |
+2029 | | /     PreparePreview {
+2030 | | |         id: String,
+2031 | | |         result: ExportPlan,
+2032 | | |     },
+     | | |_____- the largest variant contains at least 2640 bytes
+...    |
+2048 | |       },
+2049 | |   }
+     | |___^ the entire enum is at least 2640 bytes
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#large_enum_variant
+     = note: `-D clippy::large-enum-variant` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::large_enum_variant)]`
+help: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum
+     |
+2031 -         result: ExportPlan,
+2031 +         result: Box<ExportPlan>,
+     |
+
+error: could not compile `boardstudio_core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio_core` (lib test) due to 1 previous error

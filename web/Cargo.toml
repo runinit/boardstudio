@@ -18,6 +18,7 @@ required-features = ["page"]
 default = ["page", "core-worker"]
 page = ["dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json", "dep:sha2"]
 core-worker = ["dep:boardstudio_core", "dep:serde_json"]
+cad-worker = ["dep:boardstudio_core"]
 service-worker = []
 test-harness = []
 
@@ -47,3 +48,7 @@ web-sys = { version = "=0.3.106", features = [
 
 [build-dependencies]
 serde_json = "1"
+
+[[example]]
+name = "case-settings"
+required-features = ["page"]

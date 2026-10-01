@@ -1,7 +1,7 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use boardstudio_application::{
-    Completion, Effect, Event, Lifecycle, OperationId, ReadModel, SaveResult, Session,
-    TerminalOutcome,
+    Completion, Effect, Event, Lifecycle, OperationId, ReadModel, SaveResult, Scope, Session,
+    SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{ArchiveReply, ProjectDoc};
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -17,6 +17,12 @@ use web_sys::{Blob, HtmlAnchorElement, SvgElement, Url};
 
 type Notifier = Rc<dyn Fn()>;
 type Frame = (i32, Closure<dyn FnMut(f64)>);
+struct Artifact {
+    bytes: Vec<u8>,
+    filename: String,
+    scope: Scope,
+    token: SnapshotToken,
+}
 
 pub struct Runtime {
     session: RefCell<Session>,
@@ -24,7 +30,7 @@ pub struct Runtime {
     pub store: BrowserStore,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
-    artifacts: RefCell<BTreeMap<String, Vec<u8>>>,
+    artifacts: RefCell<BTreeMap<String, Artifact>>,
     cancelled_exports: RefCell<BTreeSet<OperationId>>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
@@ -266,16 +272,23 @@ impl Runtime {
                             .accepted
                             .as_ref()
                             .is_some_and(|s| s.token == snapshot.token);
-                    if !current || self.cancelled_exports.borrow_mut().remove(&operation_id) {
+                    let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
+                    if !current || cancelled {
                         return self.complete(Completion::ExportFailed {
                             operation_id,
                             reason: "Archive scope changed before delivery.".into(),
                         });
                     }
                     let artifact_id = format!("archive-{}", operation_id.0);
-                    self.artifacts
-                        .borrow_mut()
-                        .insert(artifact_id.clone(), bytes);
+                    self.artifacts.borrow_mut().insert(
+                        artifact_id.clone(),
+                        Artifact {
+                            bytes,
+                            filename: "keyboard.boardstudio".into(),
+                            scope: scope.clone(),
+                            token: snapshot.token,
+                        },
+                    );
                     self.complete(Completion::ExportFinished {
                         operation_id,
                         token: snapshot.token,
@@ -283,14 +296,27 @@ impl Runtime {
                         artifact_id,
                     })
                 }
-                Err(reason) => self.complete(Completion::ExportFailed {
-                    operation_id,
-                    reason,
-                }),
+                Err(reason) => {
+                    self.cancelled_exports.borrow_mut().remove(&operation_id);
+                    self.complete(Completion::ExportFailed {
+                        operation_id,
+                        reason,
+                    })
+                }
             },
-            Effect::DeliverExport { artifact_id, .. } => {
-                if let Some(bytes) = self.artifacts.borrow_mut().remove(&artifact_id)
-                    && let Err(error) = deliver(&bytes, "keyboard.boardstudio")
+            Effect::DeliverExport {
+                artifact_id, token, ..
+            } => {
+                let artifact = self.artifacts.borrow_mut().remove(&artifact_id);
+                if let Some(artifact) = artifact
+                    && token == artifact.token
+                    && self.scope() == Some(artifact.scope)
+                    && self
+                        .model()
+                        .accepted
+                        .as_ref()
+                        .is_some_and(|s| s.token == token)
+                    && let Err(error) = deliver(&artifact.bytes, &artifact.filename)
                 {
                     self.report(error);
                 }
@@ -330,11 +356,14 @@ impl Runtime {
         spawn_local(async move {
             match fetch_bytes(&format!("assets/fixtures/{name}.boardstudio")).await {
                 Ok(bytes) => {
-                    if let Err(error) = this.import_archive_at(bytes, sequence).await {
+                    if let Err(error) = this.import_archive_at(bytes, sequence).await
+                        && this.open_sequence.get() == sequence
+                    {
                         this.report(error);
                     }
                 }
-                Err(error) => this.report(error),
+                Err(error) if this.open_sequence.get() == sequence => this.report(error),
+                Err(_) => {}
             }
         });
     }
@@ -412,6 +441,39 @@ impl Runtime {
                 }
                 Ok(Some(_)) => {}
                 Ok(None) => this.report("Saved keyboard is unavailable."),
+                Err(error) => this.report(error.to_string()),
+            }
+        });
+    }
+    pub fn recover_saved(self: &Rc<Self>) {
+        let Some(accepted) = self.model().accepted else {
+            self.report("No durable document exists to recover; reopen an explicit saved copy.");
+            return;
+        };
+        let this = self.clone();
+        spawn_local(async move {
+            let core = this.core.borrow().clone();
+            if let Err(error) = core.ready().await {
+                this.report(format!("Recovery executor unavailable: {error}"));
+                return;
+            }
+            match this.store.load_document(accepted.document.id.clone()).await {
+                Ok(Some(document))
+                    if this
+                        .model()
+                        .accepted
+                        .as_ref()
+                        .is_some_and(|s| s.token == accepted.token)
+                        && this.model().lifecycle == Lifecycle::RecoveryRequired =>
+                {
+                    this.submit(Event::RecoverWithDocument {
+                        operation_id: this.operation(),
+                        document,
+                    });
+                }
+                Ok(_) => {
+                    this.report("Durable recovery copy is unavailable or the session changed.")
+                }
                 Err(error) => this.report(error.to_string()),
             }
         });

@@ -47,6 +47,12 @@ try {
   run(temporary);
   const declarationFiles = await filesUnder(temporary);
   const generatedTypes = declarationFiles.filter((name) => name.endsWith('.ts') && name !== 'index.ts');
+  for (const name of generatedTypes) {
+    const filename = path.join(temporary, name);
+    const content = await readFile(filename, 'utf8');
+    const normalized = content.replace(/[ \t]+$/gm, '');
+    if (normalized !== content) await writeFile(filename, normalized);
+  }
   await mkdir(path.join(temporary, 'serde_json'), { recursive: true });
   const jsonValue = 'export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };\n';
   await writeFile(path.join(temporary, 'serde_json/JsonValue.ts'), jsonValue);

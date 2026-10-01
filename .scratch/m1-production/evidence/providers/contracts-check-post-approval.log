@@ -1,0 +1,1 @@
+$ node contracts/scripts/contracts.mjs check

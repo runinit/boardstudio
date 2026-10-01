@@ -52,9 +52,13 @@ const parts = manifest.entries.map(entry => {
     }
     definition.matrixTerminals = entry.matrixTerminals;
   }
+  if (entry.inputProfile) definition.inputProfile = entry.inputProfile;
+  if (entry.hardwareProfile) definition.hardwareProfile = entry.hardwareProfile;
+  if (entry.models) definition.models = entry.models;
   if (entry.mechanical) {
     const extracted = artifact({ kind: 'extract-mechanical', source, mappings: entry.mechanical.mappings, maxDeviationMm: 0.02 });
     definition.mechanicalProfile = { definitionId: entry.id, source: `${entry.repository}/blob/${entry.revision}/${entry.sourcePath}`, cutouts: extracted.plateCutouts, pcbHoles: extracted.pcbHoles, clearances: extracted.clearanceEnvelopes, sourceGeometry: extracted.sourceGeometry, plateToPcb: entry.mechanical.plateToPcb, ...(entry.mechanical.switchFamily ? { switchFamily: entry.mechanical.switchFamily } : {}) };
+    if (entry.mechanical.clearanceVolumes) definition.mechanicalProfile.clearanceVolumes = entry.mechanical.clearanceVolumes;
   }
   return { definition, diagnostics: imported.diagnostics, provenance: { repository: entry.repository, revision: entry.revision, sourcePath: entry.sourcePath, sha256: entry.sha256, license: entry.license, licenseFile: entry.licenseFile } };
 });

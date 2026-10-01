@@ -1,5 +1,21 @@
 import { navigateWorkspace } from './workspace-navigation';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
+
+const thqNames = [
+  'THQWGD001 · rotation only · reversible',
+  'THQWGD001C · 2-pin tactile · reversible',
+  'THQWGD001C · 4-pin tactile · reversible',
+  'THQWGD001 mounting cuts · routed slots',
+  'THQWGD001 mounting cuts · drilled slots',
+  'THQWGD001C mounting cuts · routed slots',
+  'THQWGD001C mounting cuts · drilled slots',
+];
+
+async function expectCanonicalLibrary(library: Locator) {
+  await expect(library.getByRole('option').filter({ hasNotText: /^THQWGD001/ })).toHaveCount(38);
+  await expect(library.getByRole('option').filter({ hasText: /^THQWGD001/ })).toHaveCount(7);
+  for (const name of thqNames) await expect(library.getByRole('option', { name, exact: true })).toHaveCount(1);
+}
 
 const retired = ['mx-switch', 'mx-hotswap', 'choc-switch', 'choc-hotswap', 'rgb-led', 'matrix-diode', 'ergogen:infused-kim/choc', 'ergogen:infused-kim/diode'];
 
@@ -11,7 +27,7 @@ test('the Parts catalog shows preferred key parts and uses the canonical starter
   for (const name of ['MX switch', 'Choc V1 / V2 switch', 'Gateron KS27 / KS33 switch', 'Matrix diode (SOD-123 / THT)', 'SK6812 MINI-E']) {
     await expect(library.getByRole('option', { name, exact: true })).toHaveCount(1);
   }
-  await expect(library.getByRole('option')).toHaveCount(38);
+  await expectCanonicalLibrary(library);
   for (const source of ['builtin:mx-switch', 'builtin:choc-hotswap', 'infused-kim/choc', 'infused-kim/diode', 'infused-kim/nice_nano_pretty']) {
     await expect(library.locator(`[title="${source}"]`)).toHaveCount(0);
   }
@@ -55,16 +71,16 @@ test('placing, undoing, and reloading an assembly never adds duplicate catalog p
   await page.getByRole('button', { name: 'Ghost key, row 1, column 1', exact: true }).click();
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
   await parts.click();
-  await expect(library.getByRole('option')).toHaveCount(38);
+  await expectCanonicalLibrary(library);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await expect(library.getByRole('option')).toHaveCount(38);
+  await expectCanonicalLibrary(library);
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
   await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
   await expect(page.getByLabel('Saved locally', { exact: true })).toBeVisible();
   await page.reload();
   await parts.click();
-  await expect(library.getByRole('option')).toHaveCount(38);
+  await expectCanonicalLibrary(library);
   await navigateWorkspace(page, 'Layout');
   await expect(page.locator('.wb-scene-part')).toHaveCount(18);
 });

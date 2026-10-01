@@ -1,0 +1,14 @@
+$ node --test scripts/verify.test.mjs && node scripts/verify.mjs && node scripts/generate.mjs --check && node scripts/catalogue.test.mjs && node --experimental-strip-types scripts/runtime.test.mjs
+✔ library integrity rejects changed, missing and unlisted source files (246.594211ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 332.605315
+Verified 229 bundled Ergogen files
+Verified generated catalogue for 36 modules
+Verified 36 generated Ergogen generators and side variants
+Rendered 36 Ergogen generators in front and back poses

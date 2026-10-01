@@ -45,6 +45,17 @@
       "url": "https://github.com/infused-kim/kb_ergogen_fp",
       "commit": "bb80a207d8a6fa7b9245caad2c2d97e2adc2f612",
       "license": "CC BY-NC-SA-4.0"
+    },
+    "thqwgd001": {
+      "url": "https://github.com/Taro-Hayashi/THQWGD001",
+      "commit": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "license": "vendor/thqwgd001/ATTRIBUTION.md"
+    },
+    "vik": {
+      "url": "https://github.com/sadekbaroudi/vik",
+      "commit": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "license": "vendor/vik/ATTRIBUTION.md",
+      "assetProvenance": "../../app/src/modules/asset-ledger.json"
     }
   },
   "footprints": {
@@ -146,7 +157,41 @@
     "vendor/tsuki/3d_models/nrf52840.step": "c841576b727e83402939f7efa75149a68e9a9bd1f71e0315ca37b3bbc1a084b5",
     "vendor/gdek/3d_models/KS33.stp": "e721521543b7d473ca94ea4f72c0cd729670993e7370bc6d66ff6a953b239267",
     "vendor/koktoh/3d_models/Choc_V2_Red.step": "0542ee277eeb6988412e0780ae86b23d96fdd118f8242e0bf3224cff7dd7acc4",
-    "vendor/koktoh/3d_models/Choc_V2_Red.wrl": "99c84a3b99fe565ba7de2cced7b6a3b235cb48a0460b5e44ffad0745c78d0972"
+    "vendor/koktoh/3d_models/Choc_V2_Red.wrl": "99c84a3b99fe565ba7de2cced7b6a3b235cb48a0460b5e44ffad0745c78d0972",
+    "vendor/thqwgd001/3d_models/THQWGD001-rotation.stp": "6ae146dcff8704aed80e95e8aa4693df567c55ea88027825a98bfcae4b0b92eb",
+    "vendor/thqwgd001/3d_models/THQWGD001C-2pin.stp": "6cc61fd27e32e4f6fc202b96f26ac1f0e6edb6afce58e36d09a91eac5eeeb71d",
+    "vendor/thqwgd001/3d_models/THQWGD001C-4pin.stp": "9ad6b52629349e8ef9a28b6bdc07f5f8f787266d24b025770e9d46c71be1c7c0",
+    "vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step": "38e264f27210f9c9e7d4b6ed3effd575e67ebecfe91daee67b169116f1a7fee0",
+    "vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step": "b589af7f61b80dfa9fe4cc09064fd67cfa3985e1e7502fc49431fd0f1c806124",
+    "vendor/vik/3d_models/Ariamelon-Crenshaw/Showcase/Crenshaw.step": "57bd00e8cce9a613dab6c6a772c38b9c9e8c5788a193726bfaf21259ceac1a93",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Base.step": "fada074dcbd6002573bda3313fae8666b042e4292fa6953b07628b52ae8a6721",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Full.step": "d843af89bf42dbc1f4d9b0c8252491bba4fd268d5412896ca1610b42a26dea4d",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Low Profile.step": "889acf479c910201a19f966a2db8eddc78979bcebd98e5d6a467baeddce5ea0f",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Ribbed.step": "205a94ad1adea33c51896170fdd76c41a6a8d38bd7e9aeab30a6734874aedf06",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Full.step": "c6c84c0464d7ed92994a9b97ace17692be3afde6a70e40231861365bb4e1b44f",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step": "5a6f14a61005b0c85fb9e5f2df0e0a49a64871804f6f29e6545a7472d5d11c60",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step": "7614dacb07ca9d5d2fa471746017330f93e24b8c59cf611c451a6f3306d00efb",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackpad Mount.step": "09dd7624a3b8f556880c3894bb12f8ca051a44a232fd46b3bb00b028b9c3a6b5",
+    "vendor/vik/3d_models/Ariamelon-Kiwano/Showcase/Kiwano.step": "6adc2dadd69b0590ad4fd0a9ff59bc8c3609469e4c9625fbada0c0a7a39830af",
+    "vendor/vik/3d_models/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step": "71d197b0a0a5e5c2114a6882c8a0b0d81c1f9353b5cc8f4b6ef0ffd2e98b5220",
+    "vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step": "95b5702b6464b91c4446705559665ba4e0b847c9d7aeb77d464d734a51b05035",
+    "vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.stl": "46bdc99a714938207f714da97c5838ce1bced94f398853ca4105ac032f7e5a98",
+    "vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.step": "c5df05cf81a1e4bea1a56c28bef94984beca2ddea3c3a7280071bc9961110bda",
+    "vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.stl": "3d72509f7268e5042e5c8ce8626469585a1e8037cb1f62a386fe39ed22f5a9b1",
+    "vendor/vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step": "a839e845381d485f82997385e07715415e6ea647b6e190e9e01b9c39e2d8b594",
+    "vendor/vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step": "92d5f88b10b371ba4108d663f09a9d0fb31789aae59e9bb7ec81fec9286e5b82",
+    "vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl": "a6ad53e0943830cd0814f3468c373bb2fce8fa397a09d45d5c68d7f6792fdd44",
+    "vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl": "359b2ec13d4ee6a5252b5e8ebaaa162254e840dcf0c5d85922a0d6e28a3a3602",
+    "vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step": "045808b51863d22a8c3a064827d0401d28fb83f1f6d8d47121bc98dbf3567c9e",
+    "vendor/vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step": "0f450b7b32e31b0c188f87140341ca117b43cfe91d33a3f6ddc8616040500555",
+    "vendor/vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp": "3643ce1269eb16f894533d5697def5b2dbf9b1498cef612a6e7a72dd61b0f238",
+    "vendor/vik/3d_models/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step": "de569b8afc8a919c433d6c22fecb17380da130e3aec72f2c3803eaeefed03933",
+    "vendor/vik/3d_models/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step": "90cba788b98b336ba2cf8133927b3e1763978315b8313fa449749294bd6a1fec",
+    "vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step": "b68c3659671fb169c1ec18036daa4237a87e3bafae6d029490608920ba9b4537",
+    "vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step": "1f45d3e24c83607de7ae1f9a3b122d2afdc454ba5817a6f581ac890dc67ba262",
+    "vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step": "be573eeba862f4cfe074e9294ba07a546392cbb4e9f635e72c5ee43af43fd605",
+    "vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp": "870642aebf11045ae2e0022be59ee3efb064d72bfad1ae808fa961941ca9c37f",
+    "vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step": "012db17efd7bfbd10b17d9fd304e4d36b960a413b7a3e3cc66eba1832dd02e20"
   },
   "mappings": {
     "candidates": {
@@ -163,7 +208,9 @@
       "infused-kim/nice_nano_pretty": [
         "vendor/infused-kim/3d_models/Nice_Nano_V2.step"
       ],
-      "infused-kim/nice_view": ["vendor/infused-kim/3d_models/Nice_View.step"],
+      "infused-kim/nice_view": [
+        "vendor/infused-kim/3d_models/Nice_View.step"
+      ],
       "infused-kim/smd_0805": [
         "vendor/infused-kim/3d_models/SMD_0805_Capacitor.step",
         "vendor/infused-kim/3d_models/SMD_0805_Resistor.step"

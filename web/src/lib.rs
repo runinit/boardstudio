@@ -17,3 +17,6 @@ mod persistence_contract;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub mod renderer_host;
+
+#[cfg(feature = "page")]
+pub mod case_settings;
