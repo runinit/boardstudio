@@ -14,6 +14,12 @@
     "session": "m1storage-final-7dd31abc1fc4",
     "originStorageWasIsolated": true
   },
+  "archiveInput": {
+    "path": "web/target/builds/browser-storage-20261001/inputs/reviung41-rust-export.boardstudio",
+    "sha256": "6213f934dd2c36ff97b49cf82999fb23ff99a7e368e396a3338c2d396d8c77fc",
+    "bytes": 6846459,
+    "regeneration": "Serve the immutable root candidate for source 5bc93a45, open the REVIUNG41 copy, select main-right-keys-SW1, set X to 150 mm and apply, click Undo once, then Export archive. The resulting document is revision 5 with the original X=147.285 mm."
+  },
   "scopedStorage": {
     "database": "boardstudio-m1-root",
     "version": 1,
@@ -44,7 +50,7 @@
       "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
       "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
     ],
-    "exportedArchive": { "sha256": "6213f934dd2c36ff97b49cf82999fb23ff99a7e368e396a3338c2d396d8c77fc", "bytes": 6846459 }
+    "exportedArchive": { "path": "web/target/builds/browser-storage-20261001/inputs/reviung41-rust-export.boardstudio", "sha256": "6213f934dd2c36ff97b49cf82999fb23ff99a7e368e396a3338c2d396d8c77fc", "bytes": 6846459 }
   },
   "sofle": {
     "name": "Sofle v2",
@@ -65,7 +71,7 @@
   },
   "reactReferenceStorage": {
     "status": "passed",
-    "evidence": "m1-reference-roundtrip-20261001-c.json",
+    "evidence": "m1-reference-roundtrip-20261001-d.json",
     "checks": [
       "Rust archive imported and saved through actual app/src/storage.ts",
       "Document object deep-equal and active preference preserved",

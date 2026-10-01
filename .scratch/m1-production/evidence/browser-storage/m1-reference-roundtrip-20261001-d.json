@@ -1,15 +1,15 @@
 {
-  "integrationCommit": "ed036a77a0a37a51085c3e901df0c9f8c67cf351",
+  "integrationCommit": "a4659af81a94dff5d89af36c2374dc9695dd6b76",
   "sourceHashes": {
     "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/app/src/storage.ts": "15664582c6770f0002d88a19be680fec5dd32ab003bd2250b3cadcb36216e282",
     "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core/pkg/boardstudio_core.js": "658957ae7674d3d53aac876394b139af2f7e852ea977d49af9e0e22cef566908",
     "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core/pkg/boardstudio_core_bg.wasm": "170a20bb7942d863af6357de1641f5778c2525ba2da876a925baf03426ed32a3",
     "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/browser-storage/reference.ts": "58444aacfde526162dbf833882f060300974a8403314a2687cf773a5629444e3",
-    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/browser-storage/reference-roundtrip.mjs": "44009c93d016c7d31f9e55de633f0068b332ff330fca79e05ab1966e31ba10f8",
-    "/tmp/m1-reviung-export.boardstudio": "6213f934dd2c36ff97b49cf82999fb23ff99a7e368e396a3338c2d396d8c77fc"
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/browser-storage/reference-roundtrip.mjs": "105967798d0cc27d4f8a778ccce4039e64a82804cd0602737191097852727bfa",
+    "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/browser-storage-20261001/inputs/reviung41-rust-export.boardstudio": "6213f934dd2c36ff97b49cf82999fb23ff99a7e368e396a3338c2d396d8c77fc"
   },
   "rustArchiveSha256": "6213f934dd2c36ff97b49cf82999fb23ff99a7e368e396a3338c2d396d8c77fc",
-  "isolatedDatabase": "boardstudio-m1-reference-test-m1-reference-roundtrip-20261001-c",
+  "isolatedDatabase": "boardstudio-m1-reference-test-m1-reference-roundtrip-20261001-d",
   "productionDatabaseProtectedByOpenAlias": true,
   "browser": "153.0.8010.52",
   "cases": [
@@ -57,10 +57,10 @@
       "activePreference": true,
       "invalidArchiveRejectedWithoutDocumentChange": true,
       "aliasedDatabase": [
-        "boardstudio-m1-reference-test-m1-reference-roundtrip-20261001-c"
+        "boardstudio-m1-reference-test-m1-reference-roundtrip-20261001-d"
       ]
     }
   ],
-  "origin": "http://127.0.0.1:43903",
+  "origin": "http://127.0.0.1:45599",
   "status": "passed"
 }

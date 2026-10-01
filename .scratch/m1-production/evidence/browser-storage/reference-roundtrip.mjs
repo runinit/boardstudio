@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../../..');
-const archivePath = path.resolve(process.argv[2] ?? '/tmp/m1-reviung-export.boardstudio');
+const archivePath = path.resolve(process.argv[2] ?? path.join(repo, 'web/target/builds/browser-storage-20261001/inputs/reviung41-rust-export.boardstudio'));
 const attempt = process.argv[3] ?? 'm1-reference-roundtrip-20261001';
 assert.match(attempt, /^[a-zA-Z0-9-]+$/);
 const output = path.join(os.tmpdir(), `boardstudio-m1-reference-${attempt}`);
