@@ -794,3 +794,14 @@ payloads. Ticket 01 may implement these `Box<T>` Rust API changes while preservi
 JSON, saved files and generated TypeScript. This bounded approval extends the
 earlier enum-boxing decision; affected native/WASM lint, tests and contract
 checks remain required before integration.
+
+### Production composition checkpoint
+
+Headless session implementation `f2494e57` is integrated at `3f405fcd` with eight
+public native tests, fmt and strict Clippy passing. Browser host `303f27e0` is
+integrated via reviewed merge candidate `e13a5fb3` at `4a9ca209`. Candidate
+presentation/runtime now compiles and passes strict page WASM Clippy at
+`6e740a79`; this is source verification only. Real integrated browser durable
+recovery, archive, offline, CAD/renderer, STEP, presentation and performance
+gates remain open. CAD/STEP worker and offline policy development proceed
+independently; their acceptance still follows the task graph.

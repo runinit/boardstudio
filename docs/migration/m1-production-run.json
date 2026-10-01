@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "in progress: provider reconciliation and independent headless session development",
+  "status": "in progress: providers verified in candidate; headless session and browser host integrated; page compiles; CAD/STEP and offline development underway",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -14,25 +14,25 @@
       "blocked_by": []
     },
     "02": {
-      "status": "independent headless development; browser adoption blocked by 01",
+      "status": "headless and host integrated; page WASM check/strict lint pass; production browser verification pending providers",
       "blocked_by": [
         "01"
       ]
     },
     "03": {
-      "status": "blocked-by-dependencies",
+      "status": "independent offline-policy development; integrated archive/browser verification awaits 02",
       "blocked_by": [
         "02"
       ]
     },
     "04": {
-      "status": "blocked-by-dependencies",
+      "status": "independent CAD worker development; integrated exact-case verification awaits 02",
       "blocked_by": [
         "02"
       ]
     },
     "05": {
-      "status": "blocked-by-dependencies",
+      "status": "shared CAD/STEP worker development; STEP acceptance awaits 04",
       "blocked_by": [
         "04"
       ]
@@ -46,5 +46,16 @@
     }
   },
   "cutover": false,
-  "repair_limit": null
+  "repair_limit": null,
+  "boxing_approval": {
+    "date": "2026-10-01",
+    "answer": "Approve transparent boxing",
+    "payloads": [
+      "ArtifactReply::PreparePreview.result",
+      "ArtifactReply::ImportModuleBoard.result",
+      "EditOperation::SetMountedModule.instance",
+      "EditOperation::SetMountedModule.definition",
+      "EditOperation::SetMountedModule.host_connector_definition"
+    ]
+  }
 }
