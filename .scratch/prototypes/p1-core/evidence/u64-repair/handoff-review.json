@@ -1,0 +1,15 @@
+{
+  "metadata_candidate": "4da1f6af77e4582c4c8660812e31bdcd5c9336ec",
+  "source_candidate": "cce8e78bc107cadb39a8457f0ed17e3e57035181",
+  "reviewer": "/root/u64_handoff_review",
+  "requested_model": "gpt-6-luna",
+  "requested_effort": "high",
+  "first_findings": [
+    "Opening Current task set row still labels P1-CORE blocked while accepted section says complete.",
+    "Unlabelled development pending-review statement reads as current, contradicting accepted handoff."
+  ],
+  "verified_otherwise": "Actual admin diff only evidence/TODO/RUN; all eight source hashes match, integration passes, runtime/native evidence agrees, failures/ignored tests/closure preserved.",
+  "correction": "Update current table to accepted source/P1-CAD eligible and label pending-development checkpoints historical. Canonical bookkeeping only; no additional P1-U64 source repair, test change or scope change.",
+  "repeated_review": "pending on exact new metadata commit",
+  "technical_task_state": "Reviewed/integrated/validated source cce8e78b unchanged; two code/evidence repair attempts retained."
+}

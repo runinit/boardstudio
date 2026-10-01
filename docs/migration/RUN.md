@@ -1,7 +1,7 @@
 # BoardStudio milestone continuation
 
-Run base: `96dd51d3e790c28f5554a8c9888a147c8814e2a7`.
-Coordinator worktree: `/tmp/boardstudio-migration-specs-review-20261001`.
+Initial specification-run base: `96dd51d3e790c28f5554a8c9888a147c8814e2a7`.
+Initial coordinator worktree: `/tmp/boardstudio-migration-specs-review-20261001`.
 Branch: `docs/boardstudio-migration-specs-review` (existing protected worktrees
 are read-only inputs). Accepted scope: [map](../../CAPABILITY-MAP.md) and
 [ADR 0003](../adr/0003-rust-application-ownership.md).
@@ -28,7 +28,8 @@ unauthorized model/provider switch or automatic prototype promotion is allowed.
 | --- | --- | --- |
 | DOC-1 | Complete and technically validate the six mapped M1 specs; preserve accepted inputs | Complete: reviewed and integrated `47d6dbce`; documentation checks only |
 | TOOL-1 | Install official Dioxus CLI **0.7.10** selected by ADR 0003; verify official digest and `dx --version`; add a command link only if absent | Complete: official archive digest and `dioxus 0.7.10 (57d6794)` verified, exit 0 |
-| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE blocked/unaccepted; P1-CAD dependency-blocked and not started; no safe remaining task |
+| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; P1-CAD next eligible, unstarted and outside this defect-only run |
+| P1-U64 | Explicit renewed defect-only [P1-U64-r1 authority](../../.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json) | Complete; exact source `cce8e78b` reviewed, integrated and validated; [handoff](#p1-u64-accepted-source-and-resumable-handoff) |
 
 TOOL-1 may write only its project-owned tool directory under
 `/home/chris/.local/share/boardstudio/tools/dioxus-cli/0.7.10`, an absent
@@ -194,15 +195,20 @@ adoption is part of this user request. The Matt router uses diagnosing-bugs,
 TDD and two-axis code review. Existing local Markdown tracking is mapped for
 the skills; no repository-wide agent configuration or external tracker changes.
 
+### Historical development checkpoints
+
+The following records describe checkpoints before acceptance; the accepted
+source and current completion are recorded in the next subsection.
+
 P1-U64 development evidence: the strengthened public host/worker regression failed
 with the default codec on `i64::MIN` before the revision cases completed
 ([RED](../../.scratch/prototypes/p1-core/evidence/u64-repair/red-command.json)).
 Rust serde_json opaque text frames replace the four host/worker conversion calls;
 engine/provider source, typed envelopes, manifests, lockfile, versions and buffer
 transfer are unchanged. Fresh locked worker and Dioxus root/subpath release
-builds and both Chromium assertions now pass. The original P1-CORE failure
-records remain historical. The current candidate is not accepted until exact
-Standards/Spec review and integration validation; canonical completion stays open.
+builds and both Chromium assertions passed at that checkpoint. The original
+P1-CORE failure records remain historical. Candidate 55ae had not yet completed
+exact Standards/Spec review or integration validation, so completion stayed open.
 
 Candidate `55ae024a` was invalidated before integration: an extra isolated
 finite-f64 characterization found default serde_json parsing can change the
@@ -222,7 +228,8 @@ the original lifecycle/transfer assertions plus integer extrema and the new
 f64 counterexamples/normal/subnormal/max values. The isolated finite-f64 probe
 checks 9,999 values with no bit changes. Exact source/artifact hashes and raw/
 gzip byte sizes are retained; performance and production adoption remain open.
-Final source is awaiting repeated exact-candidate review and integration validation.
+At that checkpoint, the repaired source was awaiting repeated exact-candidate
+review and integration validation; both later passed as recorded below.
 
 ### P1-U64 accepted source and resumable handoff
 
