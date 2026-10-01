@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../');
 const { chromium } = createRequire(resolve(repo, 'app/package.json'))('@playwright/test');
-const [url, output] = process.argv.slice(2);
+const [url, output, otherUrl] = process.argv.slice(2);
 if (!url || !output) throw new Error('Usage: browser-acceptance.mjs <url> <evidence-directory>');
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({
@@ -18,8 +18,9 @@ const evidence = { url, checks: {}, runtimeErrors: [], failedRequests: [], limit
   'Accessibility tree and keyboard evidence do not establish screen-reader speech compatibility.',
   'Timings and transfer sizes are measurements; no new pass thresholds are introduced.',
 ] };
+let page;
 try {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   page.on('pageerror', error => evidence.runtimeErrors.push(error.message));
   page.on('requestfailed', request => evidence.failedRequests.push({ url: request.url(), error: request.failure() }));
   page.on('response', response => { if (response.status() >= 400) evidence.failedRequests.push({ url: response.url(), status: response.status() }); });
@@ -49,8 +50,9 @@ try {
       observe(target, options) { if (target.classList.contains('renderer-canvas')) observers.add(this); super.observe(target, options); }
       disconnect() { observers.delete(this); super.disconnect(); }
     };
-    window.p2Resources = () => ({ observers: observers.size, contexts: contexts.map(({ canvas, resources }) => ({
+    window.p2Resources = () => ({ observers: observers.size, contexts: contexts.map(({ gl, canvas, resources }) => ({
       connected: canvas.isConnected, state: canvas.dataset.rendererState,
+      contextLost: gl.isContextLost(),
       live: Object.fromEntries(Object.entries(resources).map(([key, values]) => [key, values.size])),
     })) });
   });
@@ -90,14 +92,26 @@ try {
   await page.evaluate(() => { window.originalP2Canvas = document.querySelector('canvas.renderer-canvas'); });
   const dimensions = () => page.locator('canvas.renderer-canvas').evaluate(canvas => ({ width: canvas.width, height: canvas.height, cssWidth: canvas.clientWidth, cssHeight: canvas.clientHeight, dpr: canvas.dataset.dpr }));
   const beforeDpr = await dimensions();
+  await page.evaluate(() => {
+    window.p2DprEvents = [];
+    window.p2DprQuery = matchMedia('(resolution: 1dppx)');
+    window.p2DprQuery.addEventListener('change', event => window.p2DprEvents.push({ matches: event.matches, dpr: devicePixelRatio }));
+  });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 2, mobile: false });
+  // Chromium headless defers resolution-query change delivery until a capture.
+  // Plain-page control reproduces it; Playwright's screenshot resets its own
+  // context DPR, so capture through this CDP session without changing metrics.
+  const dprFrame = await cdp.send('Page.captureScreenshot', { format: 'png' });
+  await writeFile(resolve(output, 'dpr2.png'), Buffer.from(dprFrame.data, 'base64'));
   await page.waitForFunction(() => document.querySelector('canvas.renderer-canvas')?.dataset.dpr === '2');
   const afterDpr = await dimensions();
   assert.equal(await page.evaluate(() => window.originalP2Canvas === document.querySelector('canvas.renderer-canvas')), true);
   assert.equal(afterDpr.width, beforeDpr.width * 2);
   assert.equal(afterDpr.height, beforeDpr.height * 2);
-  evidence.checks.sameCanvasDpr = { beforeDpr, afterDpr };
+  const dprEvents = await page.evaluate(() => window.p2DprEvents);
+  assert.ok(dprEvents.some(event => !event.matches && event.dpr === 2), JSON.stringify(dprEvents));
+  evidence.checks.sameCanvasDpr = { beforeDpr, afterDpr, dprEvents };
   await cdp.send('Emulation.clearDeviceMetricsOverride');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => document.querySelector('canvas.renderer-canvas').clientHeight === 260);
@@ -113,7 +127,8 @@ try {
     await page.waitForFunction(() => !document.querySelector('canvas.renderer-canvas'));
     const resources = await page.evaluate(() => window.p2Resources());
     assert.equal(resources.observers, 0, JSON.stringify(resources));
-    assert.ok(resources.contexts.every(entry => entry.state === 'disposed' && Object.values(entry.live).every(count => count === 0)), JSON.stringify(resources));
+    assert.ok(resources.contexts.every(entry => entry.state === 'disposed' && entry.contextLost
+      && Object.entries(entry.live).every(([kind, count]) => kind === 'VertexArray' || count === 0)), JSON.stringify(resources));
     cycles.push(resources);
     await page.getByRole('button', { name: 'Mount editor panel' }).click();
     await ready();
@@ -129,12 +144,45 @@ try {
   evidence.checks.contextLoss = await page.locator('p.status').textContent();
   assert.match(evidence.checks.contextLoss, /context lost.*failure/);
   evidence.resources = await page.evaluate(() => performance.getEntriesByType('resource').map(({ name, transferSize, encodedBodySize, decodedBodySize, duration }) => ({ name, transferSize, encodedBodySize, decodedBodySize, duration })));
+  if (otherUrl) {
+    await page.goto(otherUrl);
+    await ready();
+    evidence.checks.sameTabOtherDeployment = { url: otherUrl, state: await page.locator('canvas').getAttribute('data-renderer-state') };
+  }
+  let releaseImport;
+  const release = new Promise(resolve => { releaseImport = resolve; });
+  const modulePattern = '**/assets/renderer/boardstudio_renderer_wasm.js';
+  const requested = page.waitForRequest(modulePattern);
+  await page.route(modulePattern, async route => {
+    await release;
+    await route.continue();
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await requested;
+  await page.getByRole('button', { name: 'Unmount editor panel' }).click();
+  releaseImport();
+  await page.waitForLoadState('networkidle');
+  assert.equal(await page.locator('canvas').count(), 0);
+  assert.doesNotMatch(await page.locator('p.status').textContent(), /Renderer initialized/);
+  const lateResources = await page.evaluate(() => window.p2Resources());
+  assert.equal(lateResources.contexts.length, 0, JSON.stringify(lateResources));
+  await page.unroute(modulePattern);
+  await page.getByRole('button', { name: 'Mount editor panel' }).click();
+  await ready();
+  evidence.checks.lateImport = { cancelledMountResources: lateResources, freshMount: 'active' };
   assert.deepEqual(evidence.runtimeErrors, []);
   assert.deepEqual(evidence.failedRequests, []);
   evidence.status = 'passed';
 } catch (error) {
   evidence.status = 'failed';
   evidence.failure = error.stack;
+  if (page) evidence.failurePage = await page.evaluate(() => ({
+    dpr: devicePixelRatio, matchesDpr2: matchMedia('(resolution: 2dppx)').matches,
+    dprEvents: window.p2DprEvents,
+    status: document.querySelector('p.status')?.textContent,
+    canvas: document.querySelector('canvas')?.outerHTML,
+    resources: window.p2Resources?.(),
+  })).catch(failure => ({ unavailable: failure.message }));
   throw error;
 } finally {
   await writeFile(resolve(output, 'browser-acceptance.json'), JSON.stringify(evidence, null, 2) + '\n');

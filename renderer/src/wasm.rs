@@ -786,6 +786,9 @@ impl Renderer {
     pub fn dispose(&mut self) {
         self.objects.clear();
         self.handles.clear();
+        // Cached Programs hold cloned Contexts. Empty the cache to break that
+        // ownership cycle before the renderer's final Context is dropped.
+        self.context.programs.write().unwrap().clear();
     }
 }
 
