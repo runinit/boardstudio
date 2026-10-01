@@ -166,7 +166,7 @@ fn Editor() -> Element {
                                 let selected = model.selected_part_ids.contains(&part.id);
                                 let id = part.id.clone();
                                 let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone();
-                                rsx! { g { key: "{part.id}", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.angle})", "data-part-id": "{part.id}",
+                                rsx! { g { key: "{part.id}", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation})", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
