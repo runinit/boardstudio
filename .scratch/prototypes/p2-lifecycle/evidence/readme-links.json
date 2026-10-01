@@ -9,5 +9,5 @@
     "evidence/scope-extension.json",
     "evidence/repair-attempts.json"
   ],
-  "result": "All seven targets exist as tracked candidate files"
+  "result": "All listed targets exist as tracked candidate files"
 }
