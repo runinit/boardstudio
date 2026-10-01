@@ -1,0 +1,177 @@
+{
+  "acceptanceEligible": false,
+  "capturedAt": "2026-10-01T22:31:26.713Z",
+  "coldPrime": {
+    "bodyCount": 1,
+    "elapsedMs": 81.20000000298023,
+    "index": 1,
+    "outcome": "completed",
+    "positionFloatCount": 540
+  },
+  "comparator": "none; worker request-to-reply endpoint only",
+  "fixture": {
+    "inputBodyCount": 2,
+    "path": "cad/bench/fixtures/gasketed-pair.json",
+    "preparedBodyCount": 1,
+    "preparedBodyId": "gasket-tray",
+    "revision": 1
+  },
+  "identity": {
+    "boardId": "bench",
+    "documentId": "m1-cad-preview-diagnostic",
+    "instanceId": "gasket-tray",
+    "revision": 1,
+    "sessionEpoch": 1,
+    "token": 1
+  },
+  "kind": "diagnostic-public-cad-worker-warm-preview",
+  "samples": [
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 2,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 3,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.3999999910593033,
+      "index": 4,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 5,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.9000000059604645,
+      "index": 6,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 7,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 8,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 9,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.29999999701976776,
+      "index": 10,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 11,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 12,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.5999999940395355,
+      "index": 13,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 14,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 15,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.19999998807907104,
+      "index": 16,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 17,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.29999999701976776,
+      "index": 18,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 19,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 20,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.29999999701976776,
+      "index": 21,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    }
+  ],
+  "summary": {
+    "count": 20,
+    "maxMs": 0.9000000059604645,
+    "medianMs": 0.29999999701976776,
+    "minMs": 0.19999998807907104,
+    "p95Ms": 0.5999999940395355
+  }
+}

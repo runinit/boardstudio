@@ -1,0 +1,23 @@
+{
+  "source": "app/src/bench-workbench.tsx referenceFixture shape, copied for test-input creation",
+  "generatorSha256": "2f63310d345b4df97bc6bde5fe8f8b2edb4066c6b4a09957adf9af0a6c50a650",
+  "coreModuleSha256": "658957ae7674d3d53aac876394b139af2f7e852ea977d49af9e0e22cef566908",
+  "coreWasmSha256": "bc3a091122da2ebcb4eb55d3f0967d2b1943611105068f287c2fc6f0e17aa186",
+  "sourceCommit": "99362d8f1c689b90e22e362490405d57c77c19b4",
+  "argv": [
+    "/usr/bin/node",
+    "/home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001/.scratch/m1-production/evidence/performance/generate-pointer-archives.mjs"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001",
+  "node": "v26.10.0",
+  "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics",
+  "startedAt": "2026-10-01T22:25:43.719Z",
+  "generatedAt": "2026-10-01T22:25:43.719Z",
+  "fixtures": [],
+  "failure": {
+    "at": "2026-10-01T22:25:43.751Z",
+    "message": "ReferenceError: opened is not defined\n    at file:///home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001/.scratch/m1-production/evidence/performance/generate-pointer-archives.mjs:162:22"
+  },
+  "finishedAt": "2026-10-01T22:25:43.751Z",
+  "exitStatus": 1
+}

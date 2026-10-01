@@ -1,0 +1,47 @@
+<!doctype html><meta charset="utf-8"><title>M1 diagnostic worker preview</title><pre id="status">Loading public fixture and workers…</pre><script type="module">
+const status = document.querySelector('#status');
+const fixture = await (await fetch('/__diag/fixture')).json();
+const waitMessage = (worker, predicate, timeout = 30000) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error('worker message timeout')), timeout);
+  const listener = event => { if (predicate(event.data)) { clearTimeout(timer); worker.removeEventListener('message', listener); resolve(event.data); } };
+  worker.addEventListener('message', listener);
+});
+const core = new Worker('/assets/core-worker/entry.js', { type: 'module' });
+await waitMessage(core, message => message === 'boardstudio-core-ready');
+const prepId = 'cad-preview-diagnostic-prepare';
+core.postMessage({ kind: 'core', request_id: prepId, executor_epoch: 'cad-preview-diagnostic', frame: JSON.stringify({ id: prepId, kind: 'prepare-case', ir: fixture }) });
+const preparedFrame = await waitMessage(core, message => message.kind === 'core' && message.request_id === prepId);
+const preparedReply = JSON.parse(preparedFrame.frame);
+if (preparedReply.kind !== 'case-prepared') throw new Error(`core preparation failed: ${JSON.stringify(preparedReply)}`);
+const prepared = { revision: preparedReply.ir.revision, bodies: [preparedReply.ir.bodies[0]] };
+const cad = new Worker('/assets/cad-worker/entry.js', { type: 'module' });
+await waitMessage(cad, message => message.kind === 'ready' || message.kind === 'init-failed').then(message => {
+  if (message.kind === 'init-failed') throw new Error(message.frame);
+});
+const identity = { token: 1, sessionEpoch: 1, documentId: 'm1-cad-preview-diagnostic', boardId: 'bench', instanceId: 'gasket-tray', revision: prepared.revision };
+let serial = 0;
+const request = async () => {
+  const requestId = `cad-preview-diagnostic-${++serial}`;
+  const frame = JSON.stringify({ requestId, jobId: requestId, identity, operation: 'preview', prepared });
+  const start = performance.now();
+  cad.postMessage({ kind: 'request', frame });
+  const message = await waitMessage(cad, value => value.kind === 'reply' && JSON.parse(value.frame).requestId === requestId);
+  const elapsedMs = performance.now() - start;
+  const wire = JSON.parse(message.frame);
+  if (wire.outcome !== 'completed') throw new Error(`preview failed: ${wire.error}`);
+  const result = message.result;
+  if (!result?.bodies?.length || result.bodies[0].id !== prepared.bodies[0].body.id) throw new Error('preview returned malformed mesh payload');
+  return { index: serial, elapsedMs, outcome: wire.outcome, bodyCount: result.bodies.length, positionFloatCount: result.bodies[0].positions.length };
+};
+const coldPrime = await request();
+const samples = [];
+for (let index = 0; index < 20; index++) samples.push(await request());
+core.terminate(); cad.terminate();
+const sorted = samples.map(row => row.elapsedMs).sort((a,b) => a-b);
+const summary = { acceptanceEligible: false, kind: 'diagnostic-public-cad-worker-warm-preview', comparator: 'none; worker request-to-reply endpoint only', coldPrime, samples,
+  summary: { count: samples.length, minMs: sorted[0], medianMs: sorted[Math.floor(sorted.length/2)], p95Ms: sorted[Math.ceil(sorted.length*.95)-1], maxMs: sorted.at(-1) },
+  fixture: { path: 'cad/bench/fixtures/gasketed-pair.json', revision: fixture.revision, inputBodyCount: fixture.bodies.length, preparedBodyId: prepared.bodies[0].body.id, preparedBodyCount: prepared.bodies.length },
+  identity, capturedAt: new Date().toISOString() };
+window.diagnosticResult = summary;
+status.textContent = JSON.stringify(summary, null, 2);
+</script>

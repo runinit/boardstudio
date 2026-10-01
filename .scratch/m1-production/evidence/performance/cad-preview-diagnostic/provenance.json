@@ -1,0 +1,204 @@
+{
+  "acceptanceEligible": false,
+  "capturedAt": "2026-10-01T22:31:26.713Z",
+  "coldPrime": {
+    "bodyCount": 1,
+    "elapsedMs": 81.20000000298023,
+    "index": 1,
+    "outcome": "completed",
+    "positionFloatCount": 540
+  },
+  "comparator": "none; worker request-to-reply endpoint only",
+  "fixture": {
+    "inputBodyCount": 2,
+    "path": "cad/bench/fixtures/gasketed-pair.json",
+    "preparedBodyCount": 1,
+    "preparedBodyId": "gasket-tray",
+    "revision": 1
+  },
+  "identity": {
+    "boardId": "bench",
+    "documentId": "m1-cad-preview-diagnostic",
+    "instanceId": "gasket-tray",
+    "revision": 1,
+    "sessionEpoch": 1,
+    "token": 1
+  },
+  "kind": "diagnostic-public-cad-worker-warm-preview",
+  "samples": [
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 2,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 3,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.3999999910593033,
+      "index": 4,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 5,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.9000000059604645,
+      "index": 6,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 7,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 8,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 9,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.29999999701976776,
+      "index": 10,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 11,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 12,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.5999999940395355,
+      "index": 13,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 14,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 15,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.19999998807907104,
+      "index": 16,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 17,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.29999999701976776,
+      "index": 18,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.20000000298023224,
+      "index": 19,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.4000000059604645,
+      "index": 20,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    },
+    {
+      "bodyCount": 1,
+      "elapsedMs": 0.29999999701976776,
+      "index": 21,
+      "outcome": "completed",
+      "positionFloatCount": 540
+    }
+  ],
+  "summary": {
+    "count": 20,
+    "maxMs": 0.9000000059604645,
+    "medianMs": 0.29999999701976776,
+    "minMs": 0.19999998807907104,
+    "p95Ms": 0.5999999940395355
+  },
+  "build": {
+    "id": "m1-release-20261001-4cb24113",
+    "sourceCommit": "4cb24113d945be2ffda1274ccd67e93b65ff8d50",
+    "siteRoot": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-4cb24113/site-root",
+    "acceptanceEligible": false
+  },
+  "sha256": {
+    "fixture": "d63eccf442122c18235b63e8a0e3f80278539249bb679a1cba8319943b2ca324",
+    "workerEntry": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5",
+    "cadWorkerWasm": "5ea8e5f142be5948ec2eda45f37364dcc61c49cdfe62325f94b760ed79ff868a",
+    "coreWorkerEntry": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd",
+    "coreWorkerWasm": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42"
+  },
+  "sourceSha256": {
+    "cadWorkerRust": "1bc3ca528fdae44560209e213157469644da588c8033770983a67089616ad69b",
+    "cadJobsRust": "77e304d386911abe3e35bd676b00c3796d4527bff5c561116ac83b8b38ead1ad",
+    "coreCaseRust": "0e01c7bbc856371e204ddb680f6642f17b209f50c156a0dfedb69b36cee26d62",
+    "coreWorkerRust": "bceb4638af61f224f27c325dba586eee100f8815213d1305e1136b09afa10575",
+    "fixture": "d63eccf442122c18235b63e8a0e3f80278539249bb679a1cba8319943b2ca324"
+  },
+  "tooling": {
+    "agentBrowser": "0.38.1",
+    "browserUserAgent": "Chromium through agent-browser",
+    "endpoint": "same-origin release workers; browser performance.now around public postMessage to reply event",
+    "controlledHost": "shared local host; diagnostic is not a quiet-host acceptance run"
+  },
+  "note": "A public core-worker prepare-case response generated the prepared IR from the frozen assembly fixture. One body and one identity were reused across the prime and 20 warm CAD worker requests. Timing includes browser-to-worker messaging and reply delivery, excludes CAD page rendering/paint and CLI process wait. No comparator is available at this endpoint. Do not compare this diagnostic directly to the frozen CAD cache-hit paintedMs threshold."
+}
