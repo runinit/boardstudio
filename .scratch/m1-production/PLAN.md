@@ -4,7 +4,7 @@ Authority: user request 2026-10-01; [specification](spec.md). All six tasks are 
 
 Graph: 01 → 02 → {03,04}; 04 → 05; {03,05} → 06.
 
-The provider reconciliation is the required prefactor. Remaining tickets deliver complete user paths, including application, host, UI and verification. Work only the eligible frontier. Preserve accepted feasibility evidence but rebuild assets from the reconciled source. No automatic scratch-code promotion.
+The provider reconciliation is the required prefactor. Remaining tickets deliver complete user paths, including application, host, UI and verification. Work only the eligible frontier for acceptance/integration. Independent reversible development of the headless session portion of 02 may proceed beside 01 because it consumes the unchanged public Core contracts; its production adoption and final verification still require reconciled providers. Merge the current integration into the worker before acceptance. Preserve accepted feasibility evidence but rebuild assets from the reconciled source. No automatic scratch-code promotion.
 
 ## Documentation deliverables
 
