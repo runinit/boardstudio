@@ -474,17 +474,17 @@ fn call_method(receiver: &JsValue, name: &str, arguments: &[JsValue]) -> Result<
 }
 
 fn resource_url(path: &str) -> Result<String, String> {
-    let path_name = window()
-        .map_err(js_error)?
-        .location()
-        .pathname()
-        .map_err(js_error)?;
+    let location = window().map_err(js_error)?.location();
+    let path_name = location.pathname().map_err(js_error)?;
+    let origin = location.origin().map_err(js_error)?;
     let prefix = if path_name.starts_with("/boardstudio/") || path_name == "/boardstudio" {
         "/boardstudio/"
     } else {
         "/"
     };
-    Ok(format!("{prefix}{path}"))
+    // Dynamic Function imports can retain an earlier document's referrer base
+    // after navigation. Pin both origin and prefix to the current host page.
+    Ok(format!("{origin}{prefix}{path}"))
 }
 
 fn window() -> Result<Window, JsValue> {
@@ -494,6 +494,11 @@ fn window() -> Result<Window, JsValue> {
 fn js_error(error: JsValue) -> String {
     error
         .as_string()
+        .or_else(|| {
+            Reflect::get(&error, &JsValue::from_str("message"))
+                .ok()
+                .and_then(|value| value.as_string())
+        })
         .or_else(|| {
             js_sys::JSON::stringify(&error)
                 .ok()
