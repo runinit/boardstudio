@@ -8,6 +8,33 @@ at the repository root.
 Before adding, importing or changing library components, footprints, modules or
 3D models, follow the [component onboarding guide](hardware/component-onboarding.md).
 
+## Isolated M1 Rust candidate
+
+The maintained `application/` crate owns session events, accepted snapshots,
+ordered edits/history, save identities, recovery and interaction/job/export
+settlement. The separate `web/` package composes Dioxus presentation with
+Rust-owned browser effects: core/artifact/archive workers, atomic IndexedDB,
+CAD generation and independent STEP workers, renderer canvas lifetimes, file
+URLs and scoped Rust service-worker policy. Generated JavaScript initializes
+WASM modules; policy lives in Rust. The original React app remains the working
+reference while candidate acceptance is unfinished.
+
+Browser data is isolated in `boardstudio-m1-root` and
+`boardstudio-m1-boardstudio`, including separate active preferences and caches.
+CAD inputs capture accepted token/session/document/board/instance/revision;
+completion and delivery reject replaced scopes. CAD's JavaScript revision
+boundary rejects values above 9,007,199,254,740,991 rather than rounding them.
+CAD meshes cross workers as transferred typed buffers, then are owned by the
+page; the renderer receives typed mesh buffers. Export has an independent CAD
+memory and never uses rendered meshes as manufacturing authority.
+
+The [host inventory](../.scratch/m1-production/HOST-BOUNDARIES.md) records
+ownership, cancellation, cleanup, crossing costs and retirement conditions.
+The [build guide](../.scratch/m1-production/BUILD.md) describes uniquely staged
+root/subpath candidates and provenance.
+[Current M1 state](migration/m1-production-run.json) records remaining gates;
+this section describes implementation, not completed migration acceptance.
+
 ## App ownership
 
 The app entrypoint composes controllers and the workbench. Controllers receive
