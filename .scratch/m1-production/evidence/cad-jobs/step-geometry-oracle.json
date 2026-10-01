@@ -1,0 +1,63 @@
+{
+  "candidateSourceCommit": "0b8a0450",
+  "integratedSourceHeadAtFreeze": "050e9282",
+  "browserSession": "m1-cad-proof-01c467",
+  "servedUrl": "http://127.0.0.1:4389/",
+  "fixture": {
+    "name": "reviung41",
+    "documentId": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+    "fixtureSha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae",
+    "boardId": "main",
+    "instanceId": "main",
+    "flipped": true,
+    "revision": 3
+  },
+  "providerCadSourceCommit": "cf3266f083a5c27667261ae4e98e25d396b357f2",
+  "providerCadJsSha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+  "providerCadWasmSha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+  "preparedToMesh": {
+    "preparedBodies": 58,
+    "previewBodies": 58,
+    "exactBodies": 58,
+    "preparedPreviewExactIdsAndNamesMatch": true,
+    "previewVertices": 61860,
+    "exactVertices": 61860,
+    "bodyVolumeMethod": "For each body's decoded Float32 positions, compute absolute signed tetrahedral mesh volume; compare Preview and Exact outputs by the prepared body id.",
+    "maximumPerBodyPreviewExactRelativeVolumeDelta": 2.2291539840674887e-15,
+    "sumOfExactBodyVolumesMm3": 284846.3201776872,
+    "exactMeshBoundsMm": {
+      "min": [-296.3500061035156, -98.77899932861328, -6.75],
+      "max": [9.440999984741211, 25.0049991607666, 11.449999809265137]
+    }
+  },
+  "independentStepReadback": {
+    "freshWorkerWithEmptyCache": true,
+    "exportUsesPublicStepOnlyPath": true,
+    "exactAndIndependentStepBytesMatch": true,
+    "stepSha256": "def906bb08109e420151322bfea97337780a0bfc1b2642b657abf5de70f40a40",
+    "stepBytes": 18147173,
+    "readbackVertices": 61860,
+    "readbackVolumeMm3": 284846.3201793419,
+    "relativeVolumeDeltaFromExact": 5.8165499881038385e-12,
+    "readbackMeshBoundsMm": {
+      "min": [-296.35000010000005, -98.77900009999999, -6.7500001],
+      "max": [9.441000100000004, 25.0050001, 11.450000099999999]
+    },
+    "maximumExactToReadbackBoundsDeltaMm": 0.000006003515579777741
+  },
+  "materialEvidence": {
+    "preparedMaterialIds": "All 58 values were null.",
+    "rendererPaletteRule": "Renderer source applies foam/gasket color first, then plate color, otherwise theme default, using body id text.",
+    "bodyIdPaletteCounts": {
+      "foamOrGasket": 54,
+      "plate": 1,
+      "default": 3
+    },
+    "limit": "This verifies prepared body identity and the existing renderer's source-derived ID palette classification. CAD results do not return material ids, so it does not establish a provider-owned material mapping or pixel-level color result."
+  },
+  "methodNotes": [
+    "The proof used the agent-browser Chromium worker harness and actual staged provider CAD WASM. Bounds and signed mesh volumes were computed from decoded mesh positions for Exact and STEP readback, not inferred from vertex counts.",
+    "The separate worker had an empty cache. Its public STEP-only export bytes exactly matched Exact output, and ReadStep geometry matched Exact bounds and volume within the measured deltas above.",
+    "The session failure-registration fix is independent of this worker proof. Root rebuilds the integrated release from its final source; this supplemental browser evidence records the frozen CAD source and provider artifact hashes already present in browser-worker-proof.json."
+  ]
+}
