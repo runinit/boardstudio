@@ -81,6 +81,7 @@ def main() -> int:
         "build_id": build_id,
         "base_path": "/" if mode == "root" else "/boardstudio/",
         "dioxus_public": str(public),
+        "index_sha256": sha256(public / "index.html"),
         "staged_site": str(destination),
         "dioxus_assets": {
             str(path.relative_to(public)): sha256(path)
