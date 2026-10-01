@@ -1,0 +1,156 @@
+$ tsc --noEmit && vite build && node scripts/write-sw.mjs
+vite v8.3.1 building client environment for production...
+transforming...
+[plugin rolldown:vite-resolve] Module "node:fs/promises" has been externalized for browser compatibility, imported by "/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/cad/src/kernel.ts". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "node:fs/promises" has been externalized for browser compatibility, imported by "/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/cad/src/kernel.ts". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 301 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/assets/__vite-browser-external-5wcixUzy.js                                     0.11 kB
+dist/assets/scene.worker-BQSjon90.js                                                0.63 kB
+dist/bench.html                                                                     0.66 kB │ gzip:     0.31 kB
+dist/bench-cad.html                                                                 0.75 kB │ gzip:     0.33 kB
+dist/bench-workbench.html                                                           1.22 kB │ gzip:     0.42 kB
+dist/index.html                                                                     2.51 kB │ gzip:     0.83 kB
+dist/assets/core.worker-BZ_yq6Se.js                                                 4.45 kB
+dist/assets/case.worker-AeD0sckJ.js                                                 6.78 kB
+dist/assets/boardstudio_cadrum_wasm-C0w4x1Vj.js                                    12.46 kB
+dist/assets/boardstudio_renderer_wasm-D3pxPneX.js                                  24.57 kB
+dist/assets/ili9341-4inch-housing-DueXkFWo.step                                    33.74 kB
+dist/assets/SMD_0805_Capacitor-DV6DL8be.step                                       36.22 kB
+dist/assets/ili9341-4inch-cover-DziFtQLu.step                                      39.31 kB
+dist/assets/SMD_0805_Resistor-Dxi4z_KY.step                                        42.51 kB
+dist/assets/vikropad-choc-glp-bottom-xivik-bOvwsapw.stl                            43.88 kB
+dist/assets/Nice_View-B_2q7JTm.step                                                79.43 kB
+dist/assets/source-code-pro-upright-BjWn63N-.woff2                                 90.12 kB
+dist/assets/PJ-320A-CdFXLOqX.step                                                 103.32 kB
+dist/assets/PinSocket_1x05_P2.54mm_Vertical-B5oMIoFv.step                         110.19 kB
+dist/assets/Panasonic_EVQPUJ_EVQPUA-B7_Oywl7.step                                 119.37 kB
+dist/assets/Panasonic_EVQPUL_EVQPUC-DXta-Vhn.step                                 123.40 kB
+dist/assets/Trackpad Mount-B6m54BhI.step                                          132.69 kB
+dist/assets/pers60-cirque-leds-pcb-CLUfpy6U.step                                  133.69 kB
+dist/assets/vikropad-choc-glp-body-B0ilr3gJ.stl                                   135.38 kB
+dist/assets/Trackball Mount Semi-m8amrtm2.step                                    137.51 kB
+dist/assets/Diode_1N4148W-BSOI8vgt.step                                           149.93 kB
+dist/assets/PinHeader_2.54mm_1x-4-CUlLz56J.step                                   153.23 kB
+dist/assets/nrf52840-BZ735ksq.step                                                156.97 kB
+dist/assets/source-sans-3-upright-BsWL4Kly.woff2                                  170.18 kB
+dist/assets/PinSocket_2.54mm_5mm_1x-4-O8GpXwQE.step                               175.69 kB
+dist/assets/JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal-D0D3jl6B.step                 186.39 kB
+dist/assets/PinHeader_2.54mm_1x-5-LIhZO6io.step                                   191.06 kB
+dist/assets/Trackball Mount Low Profile-C_0QC4Eo.step                             191.21 kB
+dist/assets/vik-connector-horizontal-mini-CBW944Si.step                           200.56 kB
+dist/assets/Trackball Mount Full-ByChtt96.step                                    204.85 kB
+dist/assets/Knob Base-DWG6ABtR.step                                               214.02 kB
+dist/assets/PinSocket_2.54mm_5mm_1x-5-C4Tw3UJd.step                               215.93 kB
+dist/assets/SK6812MINI-E v1-BG5vIu6c.step                                         242.76 kB
+dist/assets/Molex_Ezmate_Pico_Cable_2pin-B3HrGq7G.step                            244.89 kB
+dist/assets/Molex_Ezmate_Pico_Socket_2pin-Cc33izkQ.step                           244.93 kB
+dist/assets/PinSocket_1x12_P2.54mm_Vertical-CzAevaLE.step                         250.29 kB
+dist/assets/export.worker-CD2396TT.js                                             286.88 kB
+dist/assets/SW_Hotswap_Kailh_Choc_V1.stp-DUV7CGvj.stl                             292.48 kB
+dist/assets/Switch_Power-BVXnMbph.step                                            305.00 kB
+dist/assets/SW_Kailh_Choc_V1.stp-BP1l5wBS.stl                                     310.33 kB
+dist/assets/LCD_lcd_ips-DoC5PYzO.stp                                              322.95 kB
+dist/assets/Molex_Ezmate_Pico_Socket_5pin-vEKf6jhQ.step                           361.77 kB
+dist/assets/Choc_V1_Keycap_MBK_Red_1u-QrNoAb0a.step                               370.29 kB
+dist/assets/Choc_V1_Keycap_MBK_White_1u-CmrINv2H.step                             402.85 kB
+dist/assets/Choc_V1_Keycap_MBK_Black_1u-CLO2CdbT.step                             402.94 kB
+dist/assets/Switch_Reset-Bt-TR_X3.step                                            430.22 kB
+dist/assets/Molex_Ezmate_Pico_Cable_5pin-DrM1q2FD.step                            469.03 kB
+dist/assets/2inch-0.8mm-CyP_GTYY.step                                             642.60 kB
+dist/assets/SW_Hotswap_Kailh_MX.stp-7VEAaqWV.stl                                  690.98 kB
+dist/assets/peacock-low-case-v5-L9svc_rU.step                                     822.71 kB
+dist/assets/PinSocket_2x12_W15.24mm_Vertical-BJDlTv_4.step                        829.46 kB
+dist/assets/Knob Ribbed-D8g51mfX.step                                             833.93 kB
+dist/assets/FH12-12S-0.5SH-JMMjFFxU.step                                          834.03 kB
+dist/assets/peacock-low-case-v5-5deg-tilt-C4L9nQMY.step                           842.77 kB
+dist/assets/boardstudio_renderer_wasm_bg-CDHMXehD.wasm                            858.57 kB │ gzip:   337.08 kB
+dist/assets/PinHeader_2.54mm_2x-12-C8TT1kCR.step                                  912.22 kB
+dist/assets/TP_Extension_Red_T460S_h10.5_md0.0_pcb1.6-nWWJdZhC.step               945.61 kB
+dist/assets/TP_Extension_Red_T460S_h10.5_md0.5_pcb1.6-D0J2E-S7.step               945.67 kB
+dist/assets/TP_Extension_Red_T460S_h10.5_md1.0_pcb1.6-B_Ulcv6j.step               945.69 kB
+dist/assets/TP_Extension_Red_T460S_h10.5_md2.0_pcb1.6-Bcrb_-4V.step               945.73 kB
+dist/assets/PinSocket_2.54mm_5mm_2x-12-DYzDZMgs.step                            1,022.78 kB
+dist/assets/peacock-low-case-v5-5deg-tilt-DIgDqnfa.stl                          1,083.78 kB
+dist/assets/TP_Cap_Red_T460S-jeNU9NWW.step                                      1,101.69 kB
+dist/assets/OLED-Module-with-Pins-BqvBcvMq.step                                 1,121.89 kB
+dist/assets/Choc_V1_Hotswap-Cz2XWNXl.step                                       1,123.33 kB
+dist/assets/Nice_Nano_V2-CPVMLP6a.step                                          1,171.44 kB
+dist/assets/TP_Cap_Green_T430-lBFcHW68.step                                     1,187.77 kB
+dist/assets/GC9A01-klBqOpab.step                                                1,215.03 kB
+dist/assets/vik-connector-horizontal-Bmn7MxPu.stp                               1,297.81 kB
+dist/assets/Choc_V1_Switch-BelM5FFp.step                                        1,326.15 kB
+dist/assets/KS33-CvPgg89W.stp                                                   1,354.65 kB
+dist/assets/Choc_V2_Red-BXZnXqff.step                                           1,642.98 kB
+dist/assets/TP_Red_T460S_screw_mount_z_offset_-2.0_pcb__0.0-B6iwUoWc.step       1,647.42 kB
+dist/assets/TP_Red_T460S_screw_mount_z_offset__0.0_pcb_-2.0-BXnVyGho.step       1,650.44 kB
+dist/assets/TP_Red_T460S_platform_z_offset__0.0_pcb_offset_-2.0-B-QqO7aX.step   1,650.86 kB
+dist/assets/FH12-30S-0.5SH-01K0uP8b.step                                        1,734.88 kB
+dist/assets/Knob Full-D0cwILa-.step                                             1,978.75 kB
+dist/assets/Knob Low Profile-CE_XVGVP.step                                      2,027.85 kB
+dist/assets/THQWGD001C-2pin-X92v3193.stp                                        2,109.48 kB
+dist/assets/THQWGD001C-4pin-D-XAYbw9.stp                                        2,160.42 kB
+dist/assets/peacock-low-case-v5-CU0cjlDC.stl                                    2,185.08 kB
+dist/assets/THQWGD001-rotation-oAQI_lVg.stp                                     2,249.95 kB
+dist/assets/SW_Hotswap_Kailh_MX-Dz7yUFb3.stp                                    2,649.87 kB
+dist/assets/SW_Cherry_MX_PCB-BTchuKm4.stp                                       2,769.04 kB
+dist/assets/SW_Cherry_MX_PCB.stp-BpbonkF0.stl                                   2,794.58 kB
+dist/assets/Choc_V2_Red-DPeGccYY.wrl                                            2,855.52 kB
+dist/assets/1.47inch-B1i9rs6W.step                                              4,756.14 kB
+dist/assets/vikropad-choc-glp-xivik-CeMoVCQh.step                               5,408.04 kB
+dist/assets/Crenshaw-BF5VNM8Z.step                                              5,412.80 kB
+dist/assets/1.28inch-round-By2ayjtQ.step                                        5,518.97 kB
+dist/assets/boardstudio_core_bg-Djuiyqf_.wasm                                   5,824.47 kB │ gzip: 1,995.51 kB
+dist/assets/vik-playground-B6SCXbLZ.step                                        6,317.31 kB
+dist/assets/matrix-inator-rev2-BIuoADib.step                                    8,103.68 kB
+dist/assets/Kiwano-fiS6jeNF.step                                               11,107.77 kB
+dist/assets/boardstudio_cadrum_wasm_bg-Zi6SCt0c.wasm                           14,518.66 kB │ gzip: 5,072.23 kB
+dist/assets/TP_Keycap_MBK_Black_stagger_2.375_small-Bri_6s4y.step              21,315.65 kB
+dist/assets/TP_Keycap_MBK_Black_stagger_2.375_large-DvTD5kfF.step              21,847.44 kB
+dist/assets/main-lCS5As1o.css                                                       2.41 kB │ gzip:     0.79 kB
+dist/assets/CanvasLayers-CsdRsyON.css                                               3.82 kB │ gzip:     1.22 kB
+dist/assets/AssemblyViewer-Cumuqn5L.css                                             8.54 kB │ gzip:     1.89 kB
+dist/assets/Workbench-CY_zLo-_.css                                                162.21 kB │ gzip:    26.53 kB
+dist/assets/BoardReferencePanel-DgxhaEwp.js                                         0.08 kB │ gzip:     0.08 kB
+dist/assets/imported-modules-q6xc49f1.js                                            0.11 kB │ gzip:     0.11 kB
+dist/assets/src-C1Ecu6uT.js                                                         0.27 kB │ gzip:     0.20 kB
+dist/assets/prepareCase-CxlyYaE0.js                                                 0.57 kB │ gzip:     0.37 kB
+dist/assets/modulepreload-polyfill-P2Xu9kJm.js                                      0.67 kB │ gzip:     0.38 kB
+dist/assets/preload-helper-uBIymjUX.js                                              1.23 kB │ gzip:     0.68 kB
+dist/assets/demo-Ccl42utx.js                                                        1.49 kB │ gzip:     0.76 kB
+dist/assets/CoreClient-DAQyOJ-_.js                                                  1.53 kB │ gzip:     0.65 kB
+dist/assets/bench-BDLpawAl.js                                                       2.00 kB │ gzip:     1.04 kB
+dist/assets/ExportClient-Bn0rm93W.js                                                2.55 kB │ gzip:     0.88 kB
+dist/assets/cadBench-CQW4mcsZ.js                                                    3.62 kB │ gzip:     1.60 kB
+dist/assets/sampleAssembly-BiD767Ck.js                                              4.61 kB │ gzip:     2.05 kB
+dist/assets/BoardReferencePanel-BZRW8yX6.js                                         5.39 kB │ gzip:     2.12 kB
+dist/assets/CaseClient-Co3k0IHw.js                                                  6.17 kB │ gzip:     2.10 kB
+dist/assets/renderClient-tzTm5DBH.js                                                6.97 kB │ gzip:     2.80 kB
+dist/assets/moduleReview-JurB4mPp.js                                                7.21 kB │ gzip:     2.53 kB
+dist/assets/CanvasLayers--Itn3X1r.js                                                8.30 kB │ gzip:     3.23 kB
+dist/assets/AssemblyEditor-CQ2hw8Fs.js                                              8.34 kB │ gzip:     3.05 kB
+dist/assets/workbenchBench-DvSR78n5.js                                              9.14 kB │ gzip:     3.22 kB
+dist/assets/boardstudio_renderer_wasm-BPdoulul.js                                  24.57 kB │ gzip:     6.86 kB
+dist/assets/AssemblyViewer-DPYlNCRi.js                                             25.90 kB │ gzip:     9.21 kB
+dist/assets/jsx-runtime-BguMC-xa.js                                                28.95 kB │ gzip:     8.17 kB
+dist/assets/main-SUlP2pp1.js                                                       74.77 kB │ gzip:    24.02 kB
+dist/assets/hostConnector-Cjul-5sD.js                                             242.75 kB │ gzip:    40.11 kB
+dist/assets/src-COpmSzR1.js                                                       280.98 kB │ gzip:    36.71 kB
+dist/assets/Workbench-2gQCscgv.js                                                 689.79 kB │ gzip:   197.61 kB
+dist/assets/imported-modules-BH7hCXoH.js                                       18,666.30 kB │ gzip: 2,995.35 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.87s
+[33m[PLUGIN_TIMINGS] [0mJavaScript callbacks ran for 1.0s of this 5.9s build (18%).
+4 callbacks are listed without a time. Their calls overlapped, so the time inside one call includes work from other calls. To find their cost, profile the build with `node --cpu-prof`:
+  - plugin vite:asset load (88 calls)
+  - plugin vite:build-html transform (4 calls)
+  - plugin vite:worker-import-meta-url transform (4 calls)
+  … and 1 more
+See https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.
+

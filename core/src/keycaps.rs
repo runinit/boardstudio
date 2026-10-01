@@ -118,11 +118,7 @@ pub(crate) fn resolve(
         .and_then(|h| h.boards.iter().find(|b| b.board_id == board_id))
         .map(|b| &b.key_bindings);
     for part in doc.parts.iter().filter(|p| board.part_ids.contains(&p.id)) {
-        let Some(def) = doc
-            .definitions
-            .iter()
-            .find(|d| d.id == part.definition_id && d.kind == PartKind::Switch)
-        else {
+        let Some(def) = doc.definitions.iter().find(|d| d.id == part.definition_id) else {
             continue;
         };
         let matrix = doc.matrices.iter().find(|m| m.part_ids.contains(&part.id));
@@ -134,6 +130,9 @@ pub(crate) fn resolve(
         let Some(profile) = key.profile.or(settings.profile) else {
             continue;
         };
+        if def.kind != PartKind::Switch && matrix.is_none() && !config.keys.contains_key(&part.id) {
+            continue;
+        }
         let family = def
             .mechanical_profile
             .as_ref()
@@ -151,6 +150,15 @@ pub(crate) fn resolve(
                 MechanicalSwitchFamily::Mx => KeycapMount::Mx,
             })
             .or_else(|| catalog_mount(part, def));
+        if def.kind != PartKind::Switch && inferred.is_none() {
+            result.findings.push(finding(
+                format!("keycaps/{}/unsupported-input", part.id),
+                format!("{}: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.", part.reference),
+                vec![part.id.clone()],
+                Severity::Warning,
+            ));
+            continue;
+        }
         let Some(mount) = key.mount.or(settings.mount).or(inferred) else {
             result.findings.push(finding(
                 format!("keycaps/{}/socket", part.id),

@@ -1,0 +1,35 @@
+$ vitest run
+
+ RUN  v5.0.2 /home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/app
+
+ ❯ src/storage.test.ts (15 tests | 1 failed) 6735ms
+   ❯ v2 project archive (7)
+     × round trips the document without old format conversion 5429ms
+(node:368028) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/storage.test.ts > v2 project archive > round trips the document without old format conversion
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/storage.test.ts:13:3
+     11|
+     12| describe('v2 project archive', () => {
+     13|   it('round trips the document without old format conversion', async (…
+       |   ^
+     14|     const project = demoProject();
+     15|     const archive = await packProject(project, { embedUsedModels: fals…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 84 passed (85)
+      Tests  1 failed | 495 passed (496)
+   Start at  17:02:58
+   Duration  17.35s (tests 65%, transform 16%, import 12%, environment 7%)
+
+    Isolate  85 workers spawned · ~285ms startup each (spawn + environment, per file)
+             at least ~1.33s faster with isolate: false — reuses workers across files instead of one per file
+
+[ELIFECYCLE] Test failed. See above for more details.

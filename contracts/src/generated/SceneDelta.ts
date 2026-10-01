@@ -7,6 +7,7 @@ import type { Finding } from "./Finding";
 import type { FindingMarker } from "./FindingMarker";
 import type { MatrixScene } from "./MatrixScene";
 import type { Readiness } from "./Readiness";
+import type { ResolvedModule } from "./ResolvedModule";
 import type { Transform } from "./Transform";
 
-export type SceneDelta = { revision: number, transactionId: string, changedIds: Array<string>, transforms: Array<Transform>, matrixScenes: Array<MatrixScene>, contours: Array<Contour>, boardContours: Array<BoardContours>, boardReadiness: Array<BoardReadiness>, boardOutlineScenes?: Array<BoardOutlineScene>, findingMarkers?: Array<FindingMarker>, findings: Array<Finding>, readiness: Readiness, };
+export type SceneDelta = { moduleScenes?: Array<ResolvedModule>, revision: number, transactionId: string, changedIds: Array<string>, transforms: Array<Transform>, matrixScenes: Array<MatrixScene>, contours: Array<Contour>, boardContours: Array<BoardContours>, boardReadiness: Array<BoardReadiness>, boardOutlineScenes?: Array<BoardOutlineScene>, findingMarkers?: Array<FindingMarker>, findings: Array<Finding>, readiness: Readiness, };

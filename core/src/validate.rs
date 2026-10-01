@@ -1,4 +1,4 @@
-use crate::model::{CaseKind, Finding, MountKind, ProjectDoc, Scope, Severity};
+use crate::model::{CaseKind, Finding, HardwareOutput, MountKind, ProjectDoc, Scope, Severity};
 use std::collections::{BTreeMap, BTreeSet};
 
 fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Finding {
@@ -12,9 +12,38 @@ fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Findi
 }
 
 pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
-    let mut findings = vec![];
+    let mut findings = crate::hardware::nominal_fit(doc).0;
     for board in &doc.boards {
         findings.extend(crate::keycaps::resolve(doc, &board.id, None).findings);
+        findings.extend(crate::modules::resolve(doc, &board.id).findings);
+        findings.extend(crate::modules::embedded_findings(doc, &board.id));
+    }
+    for part in &doc.parts {
+        let Some(def) = doc.definitions.iter().find(|d| d.id == part.definition_id) else {
+            continue;
+        };
+        if crate::inputs::profile(def).rotary.is_some() && crate::inputs::matrix_member(doc, part) {
+            findings.push(Finding{id:format!("input/{}/assembly-fit",part.id),scope:Scope::Layout,severity:Severity::Warning,
+                message:"The encoder retains this key's bindings and companion parts. Review companion clearance and its own knob or wheel envelope; the former keycap is not a qualified encoder assembly.".into(),target_ids:vec![part.id.clone()]});
+        }
+        for gate in def.hardware_profile.iter().flat_map(|p| &p.gates) {
+            let (scope, severity) = match gate.output {
+                HardwareOutput::Footprint | HardwareOutput::Electrical => {
+                    (Scope::Pcb, Severity::Error)
+                }
+                HardwareOutput::Mechanical => (Scope::Case, Severity::Error),
+                HardwareOutput::Model | HardwareOutput::Firmware => {
+                    (Scope::Layout, Severity::Warning)
+                }
+            };
+            findings.push(Finding {
+                id: format!("hardware/{}/{}", part.id, gate.code),
+                scope,
+                severity,
+                message: gate.message.clone(),
+                target_ids: vec![part.id.clone()],
+            });
+        }
     }
     let parts_by_id: BTreeMap<_, _> = doc
         .parts
@@ -278,6 +307,7 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
         }
     }
     let mut pad_nets: BTreeMap<(&str, &str), &str> = BTreeMap::new();
+    let mut terminal_nets: BTreeMap<(&str, &str), &str> = BTreeMap::new();
     for net in &doc.nets {
         for pin in &net.pins {
             let Some(part) = parts_by_id.get(pin.part_id.as_str()) else {
@@ -301,6 +331,23 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
                 ));
             }
             let key = (pin.part_id.as_str(), pin.pad_id.as_str());
+            if let Some(pad) = def
+                .pads
+                .iter()
+                .find(|pad| pad.id == pin.pad_id && !pad.number.is_empty())
+            {
+                let terminal = (pin.part_id.as_str(), pad.number.as_str());
+                if let Some(previous) = terminal_nets.insert(terminal, &net.id)
+                    && previous != net.id
+                {
+                    findings.push(error(
+                        Scope::Pcb,
+                        format!("terminal:{}:{}:multiple-nets", pin.part_id, pad.number),
+                        "Repeated physical pads of one logical contact must use the same net",
+                        vec![previous.into(), net.id.clone(), pin.part_id.clone()],
+                    ));
+                }
+            }
             if let Some(previous) = pad_nets.insert(key, &net.id)
                 && previous != net.id
             {

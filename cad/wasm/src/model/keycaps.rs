@@ -214,7 +214,9 @@ fn placed_mesh(mesh: &MeshData, s: &Spec) -> MeshData {
     let sign = if s.side == Side::Back { -1.0 } else { 1.0 };
     let convert = |input: &[f32], normal: bool| {
         input
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .flat_map(|p| {
                 let x = f64::from(p[0]);
                 let y = f64::from(p[1]) * sign;

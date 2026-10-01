@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { demos, keyboardProject } from './keyboards';
 import { sofleProject } from './sofle';
 import { keyboardPreview } from './keyboardPreviews';
+import { demoProject } from '../demo';
 
 describe('demo layout previews', () => {
   it.each(demos)('$name matches the keyboard that opens', ({ id }) => {
-    const document = id === 'v2' || id === 'rgb' || id === 'choc' ? sofleProject(id) : keyboardProject(id);
+    const document = id === 'v2' || id === 'rgb' || id === 'choc' ? sofleProject(id) : id === 'vik-module-review' ? demoProject() : keyboardProject(id);
     const definitions = new Map(document.definitions.map(definition => [definition.id, definition]));
     const actual = document.parts.filter(part => definitions.get(part.definitionId)?.kind === 'switch').map(part => {
       const size = part.keycap ?? definitions.get(part.definitionId)!.keycap!;

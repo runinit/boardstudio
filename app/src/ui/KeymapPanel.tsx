@@ -8,7 +8,7 @@ import './keymap.css';
 export function KeymapPanel({ view, map, layer, selectedKeyId, onLayer, onSelect, bindingFor, onChange, onExport, encoders }: {
   view: KeymapView; map: KeymapConfiguration; layer: KeymapLayer; selectedKeyId?: string;
   onLayer: (id: string) => void; onSelect: (id: string) => void; bindingFor: (id: string) => KeyBinding;
-  onChange: (change: KeymapChange) => void; onExport: () => void; encoders: { id: string; name: string }[];
+  onChange: (change: KeymapChange) => void; onExport: () => void; encoders: { id: string; name: string; pushKeyId?: string | null }[];
 }) {
   const [query, setQuery] = useState('');
   const [section, setSection] = useState<'keys' | 'macros' | 'encoders'>('keys');
@@ -38,7 +38,8 @@ export function KeymapPanel({ view, map, layer, selectedKeyId, onLayer, onSelect
       {!encoders.length && <p className="wb-empty-note">Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here.</p>}
       {encoders.map(encoder => {
         const value = layer.sensors[encoder.id] ?? { clockwise: { kind: 'none' as const }, counterclockwise: { kind: 'none' as const } };
-        return <div key={encoder.id}><h3>{encoder.name}</h3>{(['clockwise', 'counterclockwise'] as const).map(direction => <details key={direction} open><summary>{direction === 'clockwise' ? 'Clockwise' : 'Counterclockwise'}</summary><KeyBindingEditor label={`${encoder.name} ${direction}`} value={value[direction]} map={map} onChange={binding => onChange({ kind: 'encoder', layerId: layer.id, encoderId: encoder.id, direction, binding })} /></details>)}<details><summary>Push button</summary><KeyBindingEditor label={`${encoder.name} push`} value={bindingFor(`${encoder.id}/push`)} map={map} onChange={binding => onChange({ kind: 'binding', layerId: layer.id, keyId: `${encoder.id}/push`, binding })} /></details></div>;
+        const pushKeyId = encoder.pushKeyId ?? `${encoder.id}/push`;
+        return <div key={encoder.id}><h3>{encoder.name}</h3>{(['clockwise', 'counterclockwise'] as const).map(direction => <details key={direction} open><summary>{direction === 'clockwise' ? 'Clockwise' : 'Counterclockwise'}</summary><KeyBindingEditor label={`${encoder.name} ${direction}`} value={value[direction]} map={map} onChange={binding => onChange({ kind: 'encoder', layerId: layer.id, encoderId: encoder.id, direction, binding })} /></details>)}{encoder.pushKeyId !== null && <details><summary>Push button</summary><KeyBindingEditor label={`${encoder.name} push`} value={bindingFor(pushKeyId)} map={map} onChange={binding => onChange({ kind: 'binding', layerId: layer.id, keyId: pushKeyId, binding })} /></details>}</div>;
       })}
     </InspectorSection>}
     <button className="wb-primary" disabled={!view.keys.length && !encoders.length} onClick={onExport}>Export ZMK source</button>

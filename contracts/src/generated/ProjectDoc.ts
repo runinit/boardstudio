@@ -6,6 +6,7 @@ import type { BoardOutline } from "./BoardOutline";
 import type { BoardReference } from "./BoardReference";
 import type { CaseBody } from "./CaseBody";
 import type { Constraint } from "./Constraint";
+import type { EmbeddedCircuit } from "./EmbeddedCircuit";
 import type { HardwareConfiguration } from "./HardwareConfiguration";
 import type { KeycapConfiguration } from "./KeycapConfiguration";
 import type { KeymapConfiguration } from "./KeymapConfiguration";
@@ -13,6 +14,8 @@ import type { Layout } from "./Layout";
 import type { Material } from "./Material";
 import type { Matrix } from "./Matrix";
 import type { MechanicalConfiguration } from "./MechanicalConfiguration";
+import type { ModuleDefinition } from "./ModuleDefinition";
+import type { MountedModule } from "./MountedModule";
 import type { Net } from "./Net";
 import type { OutlineFeature } from "./OutlineFeature";
 import type { Part } from "./Part";
@@ -20,4 +23,8 @@ import type { PartDefinition } from "./PartDefinition";
 import type { Script } from "./Script";
 import type { JsonValue } from "./serde_json/JsonValue";
 
-export type ProjectDoc = { keymap?: KeymapConfiguration, keycaps?: KeycapConfiguration, hardware?: HardwareConfiguration, mechanical?: MechanicalConfiguration, boardReferences?: Array<BoardReference>, assemblies?: Array<AssemblyDefinition>, format: "boardstudio/v2", id: string, name: string, revision: number, parameters: { [key in string]: JsonValue }, definitions: Array<PartDefinition>, parts: Array<Part>, matrices: Array<Matrix>, layouts?: Array<Layout>, nets: Array<Net>, outline: Array<OutlineFeature>, boardOutlines?: Array<BoardOutline>, boards: Array<Board>, caseBodies: Array<CaseBody>, materials: Array<Material>, assets: Array<Asset>, scripts: Array<Script>, constraints: Array<Constraint>, };
+export type ProjectDoc = {
+/**
+ * View-only physical context used by Rust assembly preparation; canonical edits omit it.
+ */
+physicalInstanceId?: string, moduleDefinitions?: Array<ModuleDefinition>, modules?: Array<MountedModule>, embeddedCircuits?: Array<EmbeddedCircuit>, keymap?: KeymapConfiguration, keycaps?: KeycapConfiguration, hardware?: HardwareConfiguration, mechanical?: MechanicalConfiguration, boardReferences?: Array<BoardReference>, assemblies?: Array<AssemblyDefinition>, format: "boardstudio/v2", id: string, name: string, revision: number, parameters: { [key in string]: JsonValue }, definitions: Array<PartDefinition>, parts: Array<Part>, matrices: Array<Matrix>, layouts?: Array<Layout>, nets: Array<Net>, outline: Array<OutlineFeature>, boardOutlines?: Array<BoardOutline>, boards: Array<Board>, caseBodies: Array<CaseBody>, materials: Array<Material>, assets: Array<Asset>, scripts: Array<Script>, constraints: Array<Constraint>, };

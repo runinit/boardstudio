@@ -159,9 +159,7 @@ fn prepared_support_cannot_protrude_or_be_silently_ignored() {
                     {"x":x,"y":2},{"x":x+3.,"y":2},{"x":x+3.,"y":4},{"x":x,"y":4}],"z":1,"height":2}]},
             "regions":[{"outer":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":10},{"x":0,"y":10}]}]
         })).unwrap();
-        let error = build_body(&ir)
-            .err()
-            .expect("outside support must be rejected");
+        let error = build_body(&ir).expect_err("outside support must be rejected");
         assert!(error.contains("outside"), "{error}");
     }
 }

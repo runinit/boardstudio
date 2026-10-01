@@ -1,0 +1,1337 @@
+{
+  "formatVersion": 1,
+  "sourceRevision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+  "units": "mm",
+  "pose": {
+    "at": [
+      11.0,
+      13.0
+    ],
+    "yawDegrees": 37.0,
+    "boardThickness": 1.6,
+    "boardBottomZ": 0,
+    "boardTopZ": 1.6
+  },
+  "convention": {
+    "front": "T(11,13,1.6)*Rz(37deg)",
+    "back": "T(11,13,0)*Rz(37deg)*Ry(180deg); Ry180=diag(-1,+1,-1)",
+    "matrixRowMajorFront": [
+      [
+        0.7986355100472928,
+        -0.6018150231520483,
+        0,
+        11
+      ],
+      [
+        0.6018150231520483,
+        0.7986355100472928,
+        0,
+        13
+      ],
+      [
+        0,
+        0,
+        1,
+        1.6
+      ],
+      [
+        0,
+        0,
+        0,
+        1
+      ]
+    ],
+    "matrixRowMajorBack": [
+      [
+        -0.7986355100472928,
+        -0.6018150231520483,
+        0,
+        11
+      ],
+      [
+        -0.6018150231520483,
+        0.7986355100472928,
+        0,
+        13
+      ],
+      [
+        0,
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1
+      ]
+    ],
+    "footprintConversion": "source screen XY (x,y) becomes local Cartesian (x,-y); STEP points remain native Cartesian",
+    "exportFrontRoot": "(at 11 -13 37), F.Cu root",
+    "exportBackRoot": "(at 11 -13 -143), B.Cu root; source child screen Y mirrored",
+    "exportParityIdentity": "Rz(theta-180)*diag(1,-1,-1) = Rz(theta)*diag(-1,1,-1)",
+    "modelBoundsDistinction": "Exact bounds from transformed actual STEP solids; conservative bounds from transformed raw AABB corners are intentionally larger and suitable for conservative occupancy."
+  },
+  "reproduction": "FreeCAD Part.Shape.read pinned STEP; identity model transform; copy shape, for back rotate global Y 180deg, rotate global Z 37deg, translate (11,13,0 or 1.6), optimalBoundingBox. Lead tip face bounds are selected when planar horizontal z<-3 and XY size 0.15x0.4 or 0.4x0.15. Face indices are pinned-import topology identifiers, not electrical labels. Numeric point oracle calculated independently with sin/cos doubles; no renderer function reused.",
+  "recommendedToleranceMm": 1e-05,
+  "gates": [
+    "No terminal identity or continuity inferred from STEP geometry",
+    "No pulse/detent or firmware qualification",
+    "No swept motion/service/physical manufacturing qualification",
+    "Corrected non-C identity is nominal alignment adaptation; original reversible source rotates 90deg",
+    "Source arbitrary nonidentity model transforms require separate oracle; this oracle covers imported identity transforms"
+  ],
+  "models": [
+    {
+      "id": "THQWGD001 [Reversible]",
+      "modelSource": {
+        "path": "KiCad/3dmodels/THQWGD001.3dshapes/THQWGD001 #1.stp",
+        "sha256": "6ae146dcff8704aed80e95e8aa4693df567c55ea88027825a98bfcae4b0b92eb"
+      },
+      "footprintSource": {
+        "path": "KiCad/footprints/THQWGD001.pretty/THQWGD001 [Reversible].kicad_mod",
+        "sha256": "b8e6b2d19c1a2e8fd741582e45ed27aaf6f8a79ac2c76605a8ec8172845c9eae"
+      },
+      "modelLocalTransform": {
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "nativeExactBounds": {
+        "min": [
+          -9.216318757,
+          -8.812124801663625,
+          -3.5
+        ],
+        "max": [
+          9.166318857,
+          9.183731752105535,
+          20.372216784663628
+        ]
+      },
+      "pads": [
+        {
+          "sourcePadIndex": 0,
+          "number": "",
+          "sourceScreenXY": [
+            7.0,
+            -5.0
+          ],
+          "cartesianLocalPoint": [
+            7.0,
+            5.0,
+            0
+          ],
+          "frontWorldPoint": [
+            13.581373454570807,
+            21.205882712300802,
+            1.6
+          ],
+          "backWorldPoint": [
+            2.400476313908708,
+            12.780472388172125,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 1,
+          "number": "",
+          "sourceScreenXY": [
+            7.0,
+            5.0
+          ],
+          "cartesianLocalPoint": [
+            7.0,
+            -5.0,
+            0
+          ],
+          "frontWorldPoint": [
+            19.59952368609129,
+            13.219527611827875,
+            1.6
+          ],
+          "backWorldPoint": [
+            8.418626545429191,
+            4.794117287699198,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 2,
+          "number": "A",
+          "sourceScreenXY": [
+            -7.8,
+            2.5
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            -2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            6.275180579511237,
+            6.309254044295793,
+            1.6
+          ],
+          "backWorldPoint": [
+            18.733894536249004,
+            15.697568405467743,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 3,
+          "number": "A",
+          "sourceScreenXY": [
+            -4.9,
+            2.5
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            -2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            8.591223558648386,
+            8.054517611436731,
+            1.6
+          ],
+          "backWorldPoint": [
+            16.417851557111856,
+            13.952304838326805,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 4,
+          "number": "B",
+          "sourceScreenXY": [
+            -7.8,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            4.770643021631116,
+            8.305842819414025,
+            1.6
+          ],
+          "backWorldPoint": [
+            17.229356978368884,
+            17.694157180585975,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 5,
+          "number": "B",
+          "sourceScreenXY": [
+            -4.9,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            7.086686000768265,
+            10.051106386554963,
+            1.6
+          ],
+          "backWorldPoint": [
+            14.913313999231736,
+            15.948893613445037,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 6,
+          "number": "C",
+          "sourceScreenXY": [
+            -7.8,
+            -2.5
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            3.2661054637509954,
+            10.302431594532257,
+            1.6
+          ],
+          "backWorldPoint": [
+            15.724819420488764,
+            19.69074595570421,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 7,
+          "number": "C",
+          "sourceScreenXY": [
+            -4.9,
+            -2.5
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            5.582148442888144,
+            12.047695161673195,
+            1.6
+          ],
+          "backWorldPoint": [
+            13.408776441351616,
+            17.94548238856327,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 8,
+          "number": "MP",
+          "sourceScreenXY": [
+            -6.4,
+            -4.8
+          ],
+          "cartesianLocalPoint": [
+            -6.4,
+            4.8,
+            0
+          ],
+          "frontWorldPoint": [
+            3.000020624567494,
+            12.981834300053896,
+            1.6
+          ],
+          "backWorldPoint": [
+            13.222555153172845,
+            20.685066596400112,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 9,
+          "number": "MP",
+          "sourceScreenXY": [
+            -6.4,
+            4.8
+          ],
+          "cartesianLocalPoint": [
+            -6.4,
+            -4.8,
+            0
+          ],
+          "frontWorldPoint": [
+            8.777444846827157,
+            5.314933403599886,
+            1.6
+          ],
+          "backWorldPoint": [
+            18.999979375432506,
+            13.018165699946103,
+            0
+          ]
+        }
+      ],
+      "leadFacePoints": [
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 8,
+          "faceIndex": 34,
+          "nativeModelPoint": [
+            -5.006031589,
+            0.15914525699999998,
+            -3.5
+          ],
+          "frontWorldPoint": [
+            6.906229402080132,
+            10.114394036861883,
+            -1.9
+          ],
+          "backWorldPoint": [
+            14.902218584867882,
+            16.13980407012972,
+            3.5
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 8,
+          "faceIndex": 39,
+          "nativeModelPoint": [
+            -5.006031589,
+            -2.340854743,
+            -3.5
+          ],
+          "frontWorldPoint": [
+            8.410766959960252,
+            8.117805261743651,
+            -1.9
+          ],
+          "backWorldPoint": [
+            16.406756142748,
+            14.14321529501149,
+            3.5
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 8,
+          "faceIndex": 44,
+          "nativeModelPoint": [
+            -5.006031589,
+            2.659145257,
+            -3.5
+          ],
+          "frontWorldPoint": [
+            5.401691844200011,
+            12.110982811980115,
+            -1.9
+          ],
+          "backWorldPoint": [
+            13.39768102698776,
+            18.136392845247954,
+            3.5
+          ]
+        }
+      ],
+      "placements": {
+        "front": {
+          "exactTransformedSolidBounds": {
+            "min": [
+              0.10796791803552824,
+              2.740933592955899,
+              -1.9
+            ],
+            "max": [
+              21.703951756231838,
+              23.630412990526178,
+              21.97221678466363
+            ]
+          },
+          "conservativeTransformedSourceAabb": {
+            "min": [
+              -1.8873871682707195,
+              0.4158051283023596,
+              -1.9
+            ],
+            "max": [
+              23.623816827148246,
+              25.850882687124834,
+              21.97221678466363
+            ]
+          }
+        },
+        "back": {
+          "exactTransformedSolidBounds": {
+            "min": [
+              0.07244941785999376,
+              2.6664053348337347,
+              -20.372216784663628
+            ],
+            "max": [
+              21.68384017600443,
+              23.535346397751656,
+              3.5000000000000004
+            ]
+          },
+          "conservativeTransformedSourceAabb": {
+            "min": [
+              -1.8474554726319061,
+              0.44589581927845945,
+              -20.372216784663628
+            ],
+            "max": [
+              23.66374852278706,
+              25.880973378100933,
+              3.5
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "THQWGD001C [2pin] [Reversible]",
+      "modelSource": {
+        "path": "KiCad/3dmodels/THQWGD001.3dshapes/THQWGD001C [2pin] #1.stp",
+        "sha256": "6cc61fd27e32e4f6fc202b96f26ac1f0e6edb6afce58e36d09a91eac5eeeb71d"
+      },
+      "footprintSource": {
+        "path": "KiCad/footprints/THQWGD001.pretty/THQWGD001C [2pin] [Reversible].kicad_mod",
+        "sha256": "8968592eb16178eb07cf7d5aa3c0035a37f382f39bd8806fadf7823ce2c3f86c"
+      },
+      "modelLocalTransform": {
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "nativeExactBounds": {
+        "min": [
+          -9.064170501,
+          -8.952765449643723,
+          -3.461776741
+        ],
+        "max": [
+          9.554079635,
+          9.042790449643723,
+          20.066001208643726
+        ]
+      },
+      "pads": [
+        {
+          "sourcePadIndex": 8,
+          "number": "",
+          "sourceScreenXY": [
+            7.0,
+            -5.0
+          ],
+          "cartesianLocalPoint": [
+            7.0,
+            5.0,
+            0
+          ],
+          "frontWorldPoint": [
+            13.581373454570807,
+            21.205882712300802,
+            1.6
+          ],
+          "backWorldPoint": [
+            2.400476313908708,
+            12.780472388172125,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 9,
+          "number": "",
+          "sourceScreenXY": [
+            7.0,
+            5.0
+          ],
+          "cartesianLocalPoint": [
+            7.0,
+            -5.0,
+            0
+          ],
+          "frontWorldPoint": [
+            19.59952368609129,
+            13.219527611827875,
+            1.6
+          ],
+          "backWorldPoint": [
+            8.418626545429191,
+            4.794117287699198,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 10,
+          "number": "1",
+          "sourceScreenXY": [
+            4.0,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            4.0,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            14.194542040189171,
+            15.407260092608194,
+            1.6
+          ],
+          "backWorldPoint": [
+            7.805457959810829,
+            10.592739907391806,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 11,
+          "number": "2",
+          "sourceScreenXY": [
+            9.0,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            9.0,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            18.187719590425637,
+            18.416335208368434,
+            1.6
+          ],
+          "backWorldPoint": [
+            3.812280409574365,
+            7.583664791631565,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 12,
+          "number": "A",
+          "sourceScreenXY": [
+            -7.8,
+            2.5
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            -2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            6.275180579511237,
+            6.309254044295793,
+            1.6
+          ],
+          "backWorldPoint": [
+            18.733894536249004,
+            15.697568405467743,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 13,
+          "number": "A",
+          "sourceScreenXY": [
+            -4.9,
+            2.5
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            -2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            8.591223558648386,
+            8.054517611436731,
+            1.6
+          ],
+          "backWorldPoint": [
+            16.417851557111856,
+            13.952304838326805,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 14,
+          "number": "B",
+          "sourceScreenXY": [
+            -7.8,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            4.770643021631116,
+            8.305842819414025,
+            1.6
+          ],
+          "backWorldPoint": [
+            17.229356978368884,
+            17.694157180585975,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 15,
+          "number": "B",
+          "sourceScreenXY": [
+            -4.9,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            7.086686000768265,
+            10.051106386554963,
+            1.6
+          ],
+          "backWorldPoint": [
+            14.913313999231736,
+            15.948893613445037,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 16,
+          "number": "C",
+          "sourceScreenXY": [
+            -7.8,
+            -2.5
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            3.2661054637509954,
+            10.302431594532257,
+            1.6
+          ],
+          "backWorldPoint": [
+            15.724819420488764,
+            19.69074595570421,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 17,
+          "number": "C",
+          "sourceScreenXY": [
+            -4.9,
+            -2.5
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            5.582148442888144,
+            12.047695161673195,
+            1.6
+          ],
+          "backWorldPoint": [
+            13.408776441351616,
+            17.94548238856327,
+            0
+          ]
+        }
+      ],
+      "leadFacePoints": [
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 9,
+          "faceIndex": 41,
+          "nativeModelPoint": [
+            -4.862645027,
+            0.032179039000000006,
+            -3.461776741
+          ],
+          "frontWorldPoint": [
+            7.097153179582127,
+            10.099286493720399,
+            -1.861776741
+          ],
+          "backWorldPoint": [
+            14.864115162216281,
+            15.952112152728795,
+            3.461776741
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 9,
+          "faceIndex": 46,
+          "nativeModelPoint": [
+            -4.862645027,
+            -2.467820961,
+            -3.461776741
+          ],
+          "frontWorldPoint": [
+            8.601690737462249,
+            8.102697718602167,
+            -1.861776741
+          ],
+          "backWorldPoint": [
+            16.368652720096403,
+            13.955523377610563,
+            3.461776741
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 9,
+          "faceIndex": 51,
+          "nativeModelPoint": [
+            -4.862645027,
+            2.532179039,
+            -3.461776741
+          ],
+          "frontWorldPoint": [
+            5.592615621702007,
+            12.09587526883863,
+            -1.861776741
+          ],
+          "backWorldPoint": [
+            13.359577604336161,
+            17.948700927847028,
+            3.461776741
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 10,
+          "faceIndex": 17,
+          "nativeModelPoint": [
+            4.064079635,
+            0.0,
+            -3.461065249
+          ],
+          "frontWorldPoint": [
+            14.24571831217104,
+            15.445824179629293,
+            -1.8610652489999997
+          ],
+          "backWorldPoint": [
+            7.75428168782896,
+            10.554175820370707,
+            3.461065249
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 10,
+          "faceIndex": 22,
+          "nativeModelPoint": [
+            9.044079635,
+            0.0,
+            -3.461065249
+          ],
+          "frontWorldPoint": [
+            18.22292315220656,
+            18.442862994926493,
+            -1.8610652489999997
+          ],
+          "backWorldPoint": [
+            3.7770768477934418,
+            7.557137005073507,
+            3.461065249
+          ]
+        }
+      ],
+      "placements": {
+        "front": {
+          "exactTransformedSolidBounds": {
+            "min": [
+              -0.14524281806897993,
+              2.2249557959993225,
+              -1.861776741
+            ],
+            "max": [
+              21.864448918218883,
+              23.575066877027005,
+              21.666001208643728
+            ]
+          },
+          "conservativeTransformedSourceAabb": {
+            "min": [
+              -1.681055575033219,
+              0.39504961887657686,
+              -1.861776741
+            ],
+            "max": [
+              24.018136008682873,
+              25.971682219736046,
+              21.666001208643728
+            ]
+          }
+        },
+        "back": {
+          "exactTransformedSolidBounds": {
+            "min": [
+              0.08141250363147218,
+              2.4968701043509554,
+              -20.066001208643726
+            ],
+            "max": [
+              22.11513702203235,
+              23.829588829711085,
+              3.4617767410000004
+            ]
+          },
+          "conservativeTransformedSourceAabb": {
+            "min": [
+              -2.0723144061421372,
+              0.10021494205596593,
+              -20.066001208643726
+            ],
+            "max": [
+              23.626877177573956,
+              25.676847542915432,
+              3.461776741
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "THQWGD001C [4pin] [Reversible]",
+      "modelSource": {
+        "path": "KiCad/3dmodels/THQWGD001.3dshapes/THQWGD001C [4pin] #1.stp",
+        "sha256": "9ad6b52629349e8ef9a28b6bdc07f5f8f787266d24b025770e9d46c71be1c7c0"
+      },
+      "footprintSource": {
+        "path": "KiCad/footprints/THQWGD001.pretty/THQWGD001C [4pin] [Reversible].kicad_mod",
+        "sha256": "eaa7eccad4b5467dbaa4e36298f4e39b1c90a496ec98eb6d5db310623ea4b4e5"
+      },
+      "modelLocalTransform": {
+        "offset": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "nativeExactBounds": {
+        "min": [
+          -9.064170501,
+          -8.952765449643723,
+          -3.461776741
+        ],
+        "max": [
+          10.3549875,
+          9.042790449643723,
+          20.066001208643726
+        ]
+      },
+      "pads": [
+        {
+          "sourcePadIndex": 8,
+          "number": "",
+          "sourceScreenXY": [
+            7.0,
+            -5.0
+          ],
+          "cartesianLocalPoint": [
+            7.0,
+            5.0,
+            0
+          ],
+          "frontWorldPoint": [
+            13.581373454570807,
+            21.205882712300802,
+            1.6
+          ],
+          "backWorldPoint": [
+            2.400476313908708,
+            12.780472388172125,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 9,
+          "number": "",
+          "sourceScreenXY": [
+            7.0,
+            5.0
+          ],
+          "cartesianLocalPoint": [
+            7.0,
+            -5.0,
+            0
+          ],
+          "frontWorldPoint": [
+            19.59952368609129,
+            13.219527611827875,
+            1.6
+          ],
+          "backWorldPoint": [
+            8.418626545429191,
+            4.794117287699198,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 10,
+          "number": "1",
+          "sourceScreenXY": [
+            3.25,
+            -2.25
+          ],
+          "cartesianLocalPoint": [
+            3.25,
+            2.25,
+            0
+          ],
+          "frontWorldPoint": [
+            12.241481605561592,
+            16.752828722850566,
+            1.6
+          ],
+          "backWorldPoint": [
+            7.05035079025419,
+            12.841031072362252,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 11,
+          "number": "1",
+          "sourceScreenXY": [
+            9.75,
+            -2.25
+          ],
+          "cartesianLocalPoint": [
+            9.75,
+            2.25,
+            0
+          ],
+          "frontWorldPoint": [
+            17.432612420868995,
+            20.66462637333888,
+            1.6
+          ],
+          "backWorldPoint": [
+            1.8592199749467866,
+            8.929233421873938,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 12,
+          "number": "2",
+          "sourceScreenXY": [
+            3.25,
+            2.25
+          ],
+          "cartesianLocalPoint": [
+            3.25,
+            -2.25,
+            0
+          ],
+          "frontWorldPoint": [
+            14.949649209745811,
+            13.158968927637748,
+            1.6
+          ],
+          "backWorldPoint": [
+            9.758518394438408,
+            9.247171277149434,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 13,
+          "number": "2",
+          "sourceScreenXY": [
+            9.75,
+            2.25
+          ],
+          "cartesianLocalPoint": [
+            9.75,
+            -2.25,
+            0
+          ],
+          "frontWorldPoint": [
+            20.140780025053214,
+            17.070766578126065,
+            1.6
+          ],
+          "backWorldPoint": [
+            4.567387579131004,
+            5.33537362666112,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 14,
+          "number": "A",
+          "sourceScreenXY": [
+            -7.8,
+            2.5
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            -2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            6.275180579511237,
+            6.309254044295793,
+            1.6
+          ],
+          "backWorldPoint": [
+            18.733894536249004,
+            15.697568405467743,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 15,
+          "number": "A",
+          "sourceScreenXY": [
+            -4.9,
+            2.5
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            -2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            8.591223558648386,
+            8.054517611436731,
+            1.6
+          ],
+          "backWorldPoint": [
+            16.417851557111856,
+            13.952304838326805,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 16,
+          "number": "B",
+          "sourceScreenXY": [
+            -7.8,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            4.770643021631116,
+            8.305842819414025,
+            1.6
+          ],
+          "backWorldPoint": [
+            17.229356978368884,
+            17.694157180585975,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 17,
+          "number": "B",
+          "sourceScreenXY": [
+            -4.9,
+            0.0
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            -0.0,
+            0
+          ],
+          "frontWorldPoint": [
+            7.086686000768265,
+            10.051106386554963,
+            1.6
+          ],
+          "backWorldPoint": [
+            14.913313999231736,
+            15.948893613445037,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 18,
+          "number": "C",
+          "sourceScreenXY": [
+            -7.8,
+            -2.5
+          ],
+          "cartesianLocalPoint": [
+            -7.8,
+            2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            3.2661054637509954,
+            10.302431594532257,
+            1.6
+          ],
+          "backWorldPoint": [
+            15.724819420488764,
+            19.69074595570421,
+            0
+          ]
+        },
+        {
+          "sourcePadIndex": 19,
+          "number": "C",
+          "sourceScreenXY": [
+            -4.9,
+            -2.5
+          ],
+          "cartesianLocalPoint": [
+            -4.9,
+            2.5,
+            0
+          ],
+          "frontWorldPoint": [
+            5.582148442888144,
+            12.047695161673195,
+            1.6
+          ],
+          "backWorldPoint": [
+            13.408776441351616,
+            17.94548238856327,
+            0
+          ]
+        }
+      ],
+      "leadFacePoints": [
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 9,
+          "faceIndex": 41,
+          "nativeModelPoint": [
+            -4.862645027,
+            0.032179039000000006,
+            -3.461776741
+          ],
+          "frontWorldPoint": [
+            7.097153179582127,
+            10.099286493720399,
+            -1.861776741
+          ],
+          "backWorldPoint": [
+            14.864115162216281,
+            15.952112152728795,
+            3.461776741
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 9,
+          "faceIndex": 46,
+          "nativeModelPoint": [
+            -4.862645027,
+            -2.467820961,
+            -3.461776741
+          ],
+          "frontWorldPoint": [
+            8.601690737462249,
+            8.102697718602167,
+            -1.861776741
+          ],
+          "backWorldPoint": [
+            16.368652720096403,
+            13.955523377610563,
+            3.461776741
+          ]
+        },
+        {
+          "description": "geometrically identified flat lead-tip face, electrical identity unverified",
+          "solidIndex": 9,
+          "faceIndex": 51,
+          "nativeModelPoint": [
+            -4.862645027,
+            2.532179039,
+            -3.461776741
+          ],
+          "frontWorldPoint": [
+            5.592615621702007,
+            12.09587526883863,
+            -1.861776741
+          ],
+          "backWorldPoint": [
+            13.359577604336161,
+            17.948700927847028,
+            3.461776741
+          ]
+        }
+      ],
+      "placements": {
+        "front": {
+          "exactTransformedSolidBounds": {
+            "min": [
+              -0.14524281806897993,
+              2.2249557959993225,
+              -1.861776741
+            ],
+            "max": [
+              21.864448918218883,
+              23.575066877027005,
+              21.666001208643728
+            ]
+          },
+          "conservativeTransformedSourceAabb": {
+            "min": [
+              -1.681055575033219,
+              0.39504961887657686,
+              -1.861776741
+            ],
+            "max": [
+              24.657769469948036,
+              26.453680605053677,
+              21.666001208643728
+            ]
+          }
+        },
+        "back": {
+          "exactTransformedSolidBounds": {
+            "min": [
+              0.08141250363147218,
+              2.4968701043509554,
+              -20.066001208643726
+            ],
+            "max": [
+              22.11513702203235,
+              23.829588829711085,
+              3.4617767410000004
+            ]
+          },
+          "conservativeTransformedSourceAabb": {
+            "min": [
+              -2.711947867407301,
+              -0.381783443261666,
+              -20.066001208643726
+            ],
+            "max": [
+              23.626877177573956,
+              25.676847542915432,
+              3.461776741
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

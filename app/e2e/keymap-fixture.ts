@@ -1,8 +1,8 @@
-import type { ProjectDoc } from '@boardstudio/v2-contracts';
-import { expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { catalogue, normalizeDefinition } from '@boardstudio/v2-ergogen';
 import { demoProject } from '../src/demo';
 import { navigateWorkspace } from './workspace-navigation';
+import { openWorkspaceDocument } from './workspace-storage';
 export async function openKeymapFixture(page: Page, withEncoder = false) {
   const doc = demoProject(); doc.id = 'keycaps-browser'; doc.name = 'Keycap keyboard';
   const source = catalogue().find(definition => definition.generator?.source === 'ceoloide/mcu_nice_nano')!;
@@ -18,16 +18,5 @@ export async function openKeymapFixture(page: Page, withEncoder = false) {
     doc.boards[0].partIds.push('encoder');
   }
   await openWorkspaceDocument(page, doc);
-  await page.reload(); await navigateWorkspace(page, 'Keycaps');
-}
-
-export async function openWorkspaceDocument(page: Page, doc: ProjectDoc) {
-  await page.goto('/');
-  await expect(page.locator('.wb-root')).toBeVisible();
-  await page.evaluate(async document => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('boardstudio-v2', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
-    await new Promise<void>((resolve, reject) => { const transaction = db.transaction('projects', 'readwrite'); transaction.objectStore('projects').put(document); transaction.oncomplete = () => resolve(); transaction.onerror = () => reject(transaction.error); });
-    db.close(); localStorage.setItem('boardstudio-v2-active-project', document.id);
-  }, doc);
-  await page.reload();
+  await navigateWorkspace(page, 'Keycaps');
 }

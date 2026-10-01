@@ -44,6 +44,8 @@ fn ergogen_document() -> ProjectDoc {
     document.definitions = ["d1", "d2"]
         .into_iter()
         .map(|id| PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
             mechanical_profile: None,
             id: id.into(),
             name: format!("Part {id}"),
@@ -117,6 +119,8 @@ fn placed_native_document(side: Side) -> ProjectDoc {
 
 fn asymmetric_definition() -> PartDefinition {
     PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
         mechanical_profile: None,
         id: "asym".into(),
         name: "Asymmetric".into(),

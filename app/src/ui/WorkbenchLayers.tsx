@@ -11,14 +11,16 @@ export function footprintLayers(definition: PartDefinition, side: Part['side']):
     ...definition.pads.filter((pad) => pad.plated !== false).flatMap((pad) => pad.drill ? ['F.Cu', 'B.Cu'] : [boardLayer(pad.side === 'back' ? 'B.Cu' : 'F.Cu', side)]),
   ])].sort();
 }
-export function WorkbenchLayers({ layers, hidden, onToggle }: { layers: string[]; hidden: ReadonlySet<string>; onToggle: (layer: string) => void }) {
+export function WorkbenchLayers({ layers, hidden, onToggle, moduleLayers = [] }: { layers: string[]; hidden: ReadonlySet<string>; onToggle: (layer: string) => void; moduleLayers?: { id: string; label: string }[] }) {
   const label = (layer: string) => layer === 'F.Cu' ? 'Front copper' : layer === 'B.Cu' ? 'Back copper' : layer === 'Edge.Cuts' ? 'Board outline' : layer;
   const groups = layers.includes('Edge.Cuts') ? [
     { title: 'Copper', layers: layers.filter((layer) => layer.endsWith('.Cu')) },
     { title: 'Technical', layers: layers.filter((layer) => layer.includes('.') && !layer.endsWith('.Cu') && layer !== 'Edge.Cuts') },
     { title: 'Objects', layers: layers.filter((layer) => !layer.includes('.') || layer === 'Edge.Cuts') },
   ] : [{ title: '', layers }];
-  return <CanvasLayers groups={groups.map(group => ({ title: group.title, layers: group.layers.map(layer => ({ id: layer, label: label(layer), accessibilityLabel: layer })) }))} hidden={hidden} onToggle={onToggle} />;
+  const canvasGroups = groups.map(group => ({ title: group.title, layers: group.layers.map(layer => ({ id: layer, label: label(layer), accessibilityLabel: layer })) }));
+  if (moduleLayers.length) canvasGroups.push({ title: 'Mounted modules', layers: moduleLayers.map(layer => ({ id: layer.id, label: layer.label, accessibilityLabel: layer.label })) });
+  return <CanvasLayers groups={canvasGroups} hidden={hidden} onToggle={onToggle} />;
 }
 
 export function SceneFootprint({ definition, part, hidden }: { definition: PartDefinition; part: Part; hidden: ReadonlySet<string> }) {

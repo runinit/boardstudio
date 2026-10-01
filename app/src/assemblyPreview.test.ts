@@ -16,6 +16,25 @@ const caps = (revision: number, id: string): CaseResult => ({ revision, step: ne
 ] });
 
 describe('assembly preview ownership', () => {
+  it('evicts older module conversions after eighty retained models', async () => {
+    const mesh = { positions: new Float32Array([1,2,3]), normals: new Float32Array([0,0,1]) };
+    const cad = { keycaps: vi.fn(), requestModel: vi.fn().mockResolvedValue({mesh}), close: vi.fn() };
+    const loadAsset = vi.fn().mockResolvedValue(new Uint8Array([1]));
+    const document: ProjectDoc = {...input().document, assets: Array.from({length:81}, (_,i)=>({id:`asset-${i}`,name:'module.step',sha256:`hash-${i}`,mediaType:'model/step'})), modules:[{id:'module',definitionId:'source',hostBoardId:'board',hostFace:'front',facingFace:'back',at:{x:0,y:0},rotation:0,gap:3,attachment:'board',serviceClearance:0,detached:false}]};
+    let ids = document.assets.map(asset=>asset.id);
+    const core = {request: vi.fn().mockImplementation(({document}:{document:ProjectDoc})=>Promise.resolve({id:'modules',kind:'modules-resolved',result:{revision:document.revision,modules:[],findings:[],markers:[],modelPlacements:ids.map(assetId=>({id:assetId,assetId,matrix:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]}))}})),close:vi.fn()};
+    const owner = new AssemblyPreview({core:()=>core,cad:()=>cad,loadAsset,exporter:()=>({preview:vi.fn().mockResolvedValue(pcb()),artifact:vi.fn(),close:vi.fn()})});
+    let state!: AssemblyPreviewSnapshot;
+    owner.subscribe(value=>{state=value;});
+    owner.update({...input(),document});
+    await vi.waitFor(()=>expect(state.moduleBodies).toHaveLength(81));
+    ids = ['asset-0'];
+    owner.retry();
+    await vi.waitFor(()=>expect(state.moduleBodies).toHaveLength(1));
+    expect(loadAsset).toHaveBeenCalledTimes(82);
+    owner.close();
+  });
+
   it('rejects replies from another project with the same board and revision', async () => {
     const first = deferred<PcbPreview>(), second = deferred<PcbPreview>();
     const exporter = { preview: vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise), artifact: vi.fn(), close: vi.fn() };

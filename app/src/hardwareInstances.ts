@@ -21,10 +21,10 @@ export function effectiveCaseDocument(document: ProjectDoc, instance?: PhysicalB
       gasketLayout: common.gasketLayout ? { ...common.gasketLayout, supports: instance.mechanical?.gasketLayout?.supports ?? [] } : mechanical.gasketLayout };
   }
   if (mechanical) mechanical = mechanicalDefaults(document, mechanical, instance.flipped);
-  if (!instance.flipped) return { ...document, mechanical };
+  if (!instance.flipped) return { ...document, physicalInstanceId: instance.id, mechanical };
   const selected = new Set(board?.partIds);
   return {
-    ...document, mechanical,
+    ...document, physicalInstanceId: instance.id, mechanical,
     parts: document.parts.map(part => selected.has(part.id) ? {
       ...part,
       pose: { at: reflect(part.pose.at), rotation: -part.pose.rotation },
@@ -86,5 +86,6 @@ export function mechanicalFingerprint(document: ProjectDoc, scene: SceneDelta, b
     contours: scene.boardContours.find(entry => entry.boardId === boardId)?.contours,
     transforms: scene.transforms.filter(transform => board?.partIds.includes(transform.id)),
     bodies: effective.caseBodies.filter(body => body.boardId === boardId),
+    modules: effective.modules, moduleDefinitions: effective.moduleDefinitions,
   });
 }

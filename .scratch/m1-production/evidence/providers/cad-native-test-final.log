@@ -1,0 +1,43 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling boardstudio-cadrum-wasm v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/cad/wasm)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.45s
+     Running unittests src/lib.rs (cad/wasm/target/debug/deps/boardstudio_cadrum_wasm-57fbedddf38f6000)
+
+running 27 tests
+test model::construction::equivalence::benchmark_construction_strategies ... ignored, Run explicitly on a quiet host with CAD_BENCH_INPUT pointing to prepared fixture JSON
+test model::construction::equivalence::benchmark_import_stages ... ignored, diagnostic native import profile; run explicitly with CAD_BENCH_STEP
+test model::construction::equivalence::benchmark_opening_groups ... ignored, Prepared live fixture construction experiment; run on a quiet host
+test model::construction::equivalence::benchmark_opening_stages ... ignored, diagnostic native opening profile; run explicitly on a quiet host
+test model::construction::equivalence::opening_remainder_falls_back_for_unsupported_or_uncovered_profiles ... ok
+test model::construction::gasket_features::countersunk_seat_removes_a_conical_frustum_not_a_counterbore ... ok
+test model::construction::cache::tests::changing_one_region_does_not_retessellate_the_unchanged_region ... ok
+test model::construction::planar_mesh::tests::exact_plate_mesh_falls_back_for_modified_or_invalid_geometry ... ok
+test model::construction::planar_mesh::tests::exact_plate_mesh_bounds_work_and_rejects_hole_contact_or_overlap ... ok
+test model::construction::gasket_features::prepared_support_cannot_protrude_or_be_silently_ignored ... ok
+test model::construction::cache::tests::builds_and_roundtrips_a_holed_plate ... ok
+test model::construction::cache::tests::preview_ownership_survives_region_eviction_and_releases_with_assembly ... ok
+test model::construction::gasket_features::wall_support_is_fused_and_insert_seat_retains_roof ... ok
+test model::construction::cache::tests::regions_without_applicable_openings_do_not_retain_upstream_copies ... ok
+test model::keycaps::tests::rejects_invalid_and_unsupported_glyphs ... ok
+test model::construction::cache::tests::reads_transformed_multi_solid_component_step_in_millimeters ... ok
+test model::construction::equivalence::touching_and_overlapping_mount_cutters_match_sequential_cuts ... ok
+test model::construction::equivalence::unusual_gasket_profiles_keep_sequential_semantics ... ok
+test model::construction::cache::tests::region_cache_limits_retained_topology_during_long_edits ... ok
+test model::construction::cache::tests::upstream_stage_reuses_exact_solids_without_opening_mutation_and_evicts ... ok
+test model::keycaps::tests::hollow_socket_and_letter_are_exact_solids ... ok
+test model::construction::equivalence::opening_remainders_preserve_partial_depth_and_winding ... ok
+test model::keycaps::tests::all_profiles_mounts_tilt_and_back_placement ... ok
+test model::construction::planar_mesh::tests::exact_plate_mesh_is_watertight_and_matches_kernel_material ... ok
+test model::construction::gasket_features::resolved_internal_case_is_connected_and_preserves_wall_material ... ok
+test model::construction::equivalence::overlapping_opening_profiles_preserve_exact_material_and_export ... ok
+test model::construction::equivalence::construction_preserves_edge_cases_and_step_material ... ok
+
+test result: ok. 23 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 37.32s
+
+   Doc-tests boardstudio_cadrum_wasm
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

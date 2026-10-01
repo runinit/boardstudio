@@ -533,7 +533,7 @@ mod tests {
         assert!((model.max[2] - 1.2).abs() < 0.01);
         assert!(model.mesh.positions.len() > 10_000);
         assert_eq!(model.mesh.positions.len(), model.mesh.normals.len());
-        for normal in model.mesh.normals.chunks_exact(3) {
+        for normal in model.mesh.normals.as_chunks::<3>().0 {
             let length = normal
                 .iter()
                 .map(|value| f64::from(*value).powi(2))

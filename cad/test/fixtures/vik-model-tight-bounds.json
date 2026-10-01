@@ -1,0 +1,393 @@
+{
+  "measurement": "FreeCAD Part.Shape.optimalBoundingBox in source millimetres; independent of CAD mesh importer",
+  "freecadVersion": [
+    "1",
+    "1",
+    "4",
+    "45040 (Git)",
+    "/srcdest/freecad",
+    "2026/09/28 13:46:34",
+    "makepkg",
+    "4fd3bf320d9566a27e60069fc8387448aaa3a094"
+  ],
+  "models": [
+    {
+      "assetId": "ergogen:model:vik/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step",
+      "sha256": "de569b8afc8a919c433d6c22fecb17380da130e3aec72f2c3803eaeefed03933",
+      "min": [
+        142.24,
+        -152.4,
+        0.0
+      ],
+      "max": [
+        207.01,
+        -88.89999999999999,
+        1.6000000000000003
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/Showcase/Kiwano.step",
+      "sha256": "6adc2dadd69b0590ad4fd0a9ff59bc8c3609469e4c9625fbada0c0a7a39830af",
+      "min": [
+        -31.49488400000001,
+        -31.494883,
+        -3.0120469430413768
+      ],
+      "max": [
+        31.494885,
+        31.494889,
+        11.950000100002184
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackpad Mount.step",
+      "sha256": "09dd7624a3b8f556880c3894bb12f8ca051a44a232fd46b3bb00b028b9c3a6b5",
+      "min": [
+        -23.469660277469877,
+        -48.15191111419229,
+        4.076425038384508
+      ],
+      "max": [
+        23.530339722552302,
+        -1.1472507368083562,
+        27.38802877540262
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step",
+      "sha256": "7614dacb07ca9d5d2fa471746017330f93e24b8c59cf611c451a6f3306d00efb",
+      "min": [
+        -22.500000100000005,
+        -22.50000010000001,
+        7.90499944998494
+      ],
+      "max": [
+        22.500000099999998,
+        22.5000001,
+        29.10161556490561
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step",
+      "sha256": "5a6f14a61005b0c85fb9e5f2df0e0a49a64871804f6f29e6545a7472d5d11c60",
+      "min": [
+        -21.568492702841297,
+        -23.069287355716487,
+        7.77999954998494
+      ],
+      "max": [
+        21.568492124041896,
+        16.678500099999997,
+        28.94908710877198
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Full.step",
+      "sha256": "c6c84c0464d7ed92994a9b97ace17692be3afde6a70e40231861365bb4e1b44f",
+      "min": [
+        -23.500000000000004,
+        -23.500000100000005,
+        7.90499944998494
+      ],
+      "max": [
+        23.500000099999998,
+        23.500000099999998,
+        32.3416288291058
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Ribbed.step",
+      "sha256": "205a94ad1adea33c51896170fdd76c41a6a8d38bd7e9aeab30a6734874aedf06",
+      "min": [
+        -35.00000000000004,
+        -35.00000010000007,
+        13.538324494897697
+      ],
+      "max": [
+        35.0,
+        35.0,
+        35.06954851066166
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Low Profile.step",
+      "sha256": "889acf479c910201a19f966a2db8eddc78979bcebd98e5d6a467baeddce5ea0f",
+      "min": [
+        -34.5,
+        -34.50000010000001,
+        13.538324494897697
+      ],
+      "max": [
+        34.5,
+        34.500000099999994,
+        29.632469802398102
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Full.step",
+      "sha256": "d843af89bf42dbc1f4d9b0c8252491bba4fd268d5412896ca1610b42a26dea4d",
+      "min": [
+        -34.5,
+        -34.50000010000001,
+        13.538324494897697
+      ],
+      "max": [
+        34.5,
+        34.500000099999994,
+        30.690431686648804
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Kiwano/3DP/Knob Base.step",
+      "sha256": "fada074dcbd6002573bda3313fae8666b042e4292fa6953b07628b52ae8a6721",
+      "min": [
+        -30.9857353850565,
+        -30.9857353850565,
+        11.636319536666068
+      ],
+      "max": [
+        30.9857353850565,
+        30.9857352850565,
+        17.129999818666104
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Crenshaw/Showcase/Crenshaw.step",
+      "sha256": "57bd00e8cce9a613dab6c6a772c38b9c9e8c5788a193726bfaf21259ceac1a93",
+      "min": [
+        32.74999999999999,
+        -58.50000000000001,
+        -1.6000001000000004
+      ],
+      "max": [
+        77.25000000000001,
+        -21.499999999999993,
+        1.6000000000000003
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step",
+      "sha256": "b589af7f61b80dfa9fe4cc09064fd67cfa3985e1e7502fc49431fd0f1c806124",
+      "min": [
+        -9.549999999999997,
+        -4.400000000000003,
+        -0.049999999999999295
+      ],
+      "max": [
+        9.549999999999997,
+        1.999999999999961,
+        2.0500000000000056
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step",
+      "sha256": "38e264f27210f9c9e7d4b6ed3effd575e67ebecfe91daee67b169116f1a7fee0",
+      "min": [
+        -5.050000000000011,
+        -4.400000000000012,
+        -0.049999999999999295
+      ],
+      "max": [
+        5.050000000000011,
+        1.999999999999961,
+        2.050000000000102
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step",
+      "sha256": "90cba788b98b336ba2cf8133927b3e1763978315b8313fa449749294bd6a1fec",
+      "min": [
+        142.24,
+        -154.4,
+        -7.0500000000000025
+      ],
+      "max": [
+        241.24,
+        -88.9,
+        3.0500000000000367
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step",
+      "sha256": "012db17efd7bfbd10b17d9fd304e4d36b960a413b7a3e3cc66eba1832dd02e20",
+      "min": [
+        -11.0,
+        -34.0,
+        -1.6500000000000001
+      ],
+      "max": [
+        11.0,
+        -1.0,
+        1.6000000000000003
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp",
+      "sha256": "870642aebf11045ae2e0022be59ee3efb064d72bfad1ae808fa961941ca9c37f",
+      "min": [
+        -8.881784197001252e-16,
+        0.0,
+        -2.4000000999999997
+      ],
+      "max": [
+        38.98000010212247,
+        19.39,
+        1.46
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step",
+      "sha256": "be573eeba862f4cfe074e9294ba07a546392cbb4e9f635e72c5ee43af43fd605",
+      "min": [
+        -11.0,
+        -38.88000010212274,
+        -2.160000000000169
+      ],
+      "max": [
+        11.0,
+        1.0,
+        3.0100000000000064
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step",
+      "sha256": "1f45d3e24c83607de7ae1f9a3b122d2afdc454ba5817a6f581ac890dc67ba262",
+      "min": [
+        -17.750000099999998,
+        -1.1500000000000008,
+        -17.750000099999998
+      ],
+      "max": [
+        17.750000099999998,
+        1.6199999999999999,
+        20.6419868578081
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step",
+      "sha256": "b68c3659671fb169c1ec18036daa4237a87e3bafae6d029490608920ba9b4537",
+      "min": [
+        -18.0,
+        -37.541986857808,
+        -2.160000000000169
+      ],
+      "max": [
+        18.0,
+        2.220789000000005,
+        2.5700000000000003
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step",
+      "sha256": "71d197b0a0a5e5c2114a6882c8a0b0d81c1f9353b5cc8f4b6ef0ffd2e98b5220",
+      "min": [
+        -748.438315718447,
+        -90.0,
+        -1.7500000000002642
+      ],
+      "max": [
+        145.0,
+        779.3707154,
+        10.19000000000022
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/george-norton-peacock/case/peacock-low-case-v5.step",
+      "sha256": "c5df05cf81a1e4bea1a56c28bef94984beca2ddea3c3a7280071bc9961110bda",
+      "min": [
+        -128.08640000000003,
+        -14.115000000000013,
+        -5.100000004632571
+      ],
+      "max": [
+        50.91360010000031,
+        146.0529441,
+        7.950000000000001
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step",
+      "sha256": "95b5702b6464b91c4446705559665ba4e0b847c9d7aeb77d464d734a51b05035",
+      "min": [
+        -128.08640000000003,
+        -14.115000000000014,
+        -5.100000004632571
+      ],
+      "max": [
+        50.91360010000031,
+        146.0529441,
+        20.727976874586634
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp",
+      "sha256": "3643ce1269eb16f894533d5697def5b2dbf9b1498cef612a6e7a72dd61b0f238",
+      "min": [
+        -2.4000000000000004,
+        -5.800000000000001,
+        -6.994405055138486e-15
+      ],
+      "max": [
+        7.9,
+        0.050000000000000294,
+        2.11
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step",
+      "sha256": "0f450b7b32e31b0c188f87140341ca117b43cfe91d33a3f6ddc8616040500555",
+      "min": [
+        -3.885,
+        -1.95,
+        0.0
+      ],
+      "max": [
+        3.885,
+        1.85,
+        1.0
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step",
+      "sha256": "92d5f88b10b371ba4108d663f09a9d0fb31789aae59e9bb7ec81fec9286e5b82",
+      "min": [
+        -56.2,
+        -32.87,
+        -6.0
+      ],
+      "max": [
+        56.2,
+        32.87,
+        4.0
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step",
+      "sha256": "a839e845381d485f82997385e07715415e6ea647b6e190e9e01b9c39e2d8b594",
+      "min": [
+        -55.0,
+        -31.67,
+        1.6
+      ],
+      "max": [
+        55.0,
+        31.67,
+        8.0
+      ]
+    },
+    {
+      "assetId": "ergogen:model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step",
+      "sha256": "045808b51863d22a8c3a064827d0401d28fb83f1f6d8d47121bc98dbf3567c9e",
+      "min": [
+        -4.975000000000003,
+        -4.9862,
+        -10.120000000000008
+      ],
+      "max": [
+        99.02500000000006,
+        99.5138,
+        8.000000000000014
+      ]
+    }
+  ]
+}

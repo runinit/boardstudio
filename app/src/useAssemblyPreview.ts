@@ -8,6 +8,7 @@ export function useAssemblyPreview(input: AssemblyPreviewInput) {
   const owner = useRef<AssemblyPreview | undefined>(undefined);
   const [snapshot, setSnapshot] = useState<AssemblyPreviewSnapshot>({
     models: [], messages: [], pending: true, error: '', keycaps: [], keycapsPending: false, keycapError: '',
+    moduleBodies: [],modulesPending:false,moduleError:'',
   });
   useEffect(() => {
     const preview = new AssemblyPreview();
@@ -16,7 +17,7 @@ export function useAssemblyPreview(input: AssemblyPreviewInput) {
     preview.update(latest.current);
     return () => { unsubscribe(); preview.close(); owner.current = undefined; };
   }, []);
-  useEffect(() => { owner.current?.update(input); }, [input.document, input.boardId, input.contours, input.preparedCase, input.session, input.instanceId]);
+  useEffect(() => { owner.current?.update(input); }, [input.document, input.boardId, input.contours, input.preparedCase, input.session, input.instanceId,input.pcbTopZ]);
   const retry = useCallback(() => owner.current?.retry(), []);
   return { ...snapshot, retry };
 }

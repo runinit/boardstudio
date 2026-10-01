@@ -14,6 +14,21 @@ const SWITCH_ROW_PAD: &str = "one";
 const SWITCH_COLUMN_PAD: &str = "two";
 
 fn matrix_terminal_pad_ids(definition: &crate::model::PartDefinition, row: bool) -> Vec<String> {
+    if let Some(press) = definition
+        .input_profile
+        .as_ref()
+        .and_then(|p| p.press.as_ref())
+    {
+        let role = if row { &press.row } else { &press.column };
+        return definition.terminals.get(role).cloned().unwrap_or_else(|| {
+            definition
+                .pads
+                .iter()
+                .filter(|p| &p.id == role || &p.number == role)
+                .map(|p| p.id.clone())
+                .collect()
+        });
+    }
     let ids = if let Some(terminals) = &definition.matrix_terminals {
         let name = if row {
             &terminals.row
@@ -152,6 +167,21 @@ pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), Stri
         .any(|def| def.id == matrix.definition_id)
     {
         return Err(format!("Unknown definition {}", matrix.definition_id));
+    }
+    // Keep legacy definitions compatible; explicitly described inputs must be suitable keys.
+    for id in std::iter::once(&matrix.definition_id).chain(
+        matrix
+            .cells
+            .iter()
+            .filter(|cell| cell.enabled)
+            .filter_map(|cell| cell.definition_id.as_ref()),
+    ) {
+        if let Some(def) = doc.definitions.iter().find(|def| &def.id == id)
+            && (def.input_profile.is_some() || crate::inputs::profile(def).rotary.is_some())
+        {
+            crate::inputs::validate_matrix_input(def)
+                .map_err(|error| format!("{}: {error}", def.name))?;
+        }
     }
     if matrix.cells.len() > (matrix.rows * matrix.columns) as usize {
         return Err("Matrix cells exceed dimensions".into());

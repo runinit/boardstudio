@@ -9,6 +9,8 @@ const KEY_PITCH_MM: f64 = 19.05;
 fn fixture(keys: usize) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("bench", "Benchmark");
     doc.definitions.push(PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
         mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),

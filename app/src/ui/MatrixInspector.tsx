@@ -21,6 +21,7 @@ import { resizeMatrix } from './matrixResize';
 import { partCatalogLabel, partChoices } from './partsCatalog';
 import { makeId, withCell } from './workbenchGeometry';
 import { SelectionScope } from './workbenchTypes';
+import { matrixInputAvailable } from './inputCapabilities';
 
 type NumberRule = Parameters<typeof CaseNumber>[0]['validation'];
 
@@ -77,8 +78,7 @@ export const CellInspector = ({ matrix, scope, definitions, onChange, projection
     </div>
     <button className="wb-secondary" onClick={() => update({ offset: { x: 0, y: 0 }, rotation: 0 })}>Reset local transform</button>
     <label className="wb-script-select-label">Key Assembly<select aria-label="Key Assembly" value={cell.definitionId ?? matrix.definitionId} onChange={(event) => update({ definitionId: event.target.value, variant: event.target.value })}>
-      {partChoices(definitions, cell.definitionId ?? matrix.definitionId).filter((definition) => (definition.matrixTerminals && definition.terminals?.[definition.matrixTerminals.row]?.length && definition.terminals?.[definition.matrixTerminals.column]?.length)
-        || (!definition.matrixTerminals && definition.pads.some((pad) => pad.id === 'one') && definition.pads.some((pad) => pad.id === 'two'))).map((definition) => <option key={definition.id} value={definition.id}>{partCatalogLabel(definition)}</option>)}
+      {partChoices(definitions, cell.definitionId ?? matrix.definitionId).filter(matrixInputAvailable).map((definition) => <option key={definition.id} value={definition.id}>{partCatalogLabel(definition)}</option>)}
     </select></label>
     <h3 className="wb-subtitle">Attached components</h3>
     {isMirrorTarget && (cell.assembliesLocal
@@ -159,7 +159,7 @@ export const MatrixEditor = ({ document, catalog, onEdit, scope, onDuplicateDesi
         </div>
         {presetError && <p role="alert">{presetError}</p>}
         <label className="wb-script-select-label">Switch footprint<select aria-label="Matrix part definition" value={matrix.definitionId} onChange={(event) => { const definition = catalog.find(item => item.id === event.target.value); if (definition) commit({ ...matrix, definitionId: definition.id }, [definition]); }}>
-          {partChoices(catalog, matrix.definitionId).filter((definition) => definition.kind === 'switch' || definition.id === matrix.definitionId).map((definition) => <option key={definition.id} value={definition.id}>{partCatalogLabel(definition)}</option>)}
+          {partChoices(catalog, matrix.definitionId).filter((definition) => matrixInputAvailable(definition) || definition.id === matrix.definitionId).map((definition) => <option key={definition.id} value={definition.id}>{partCatalogLabel(definition)}</option>)}
         </select></label>
         <label className="wb-script-select-label">Diode direction<select aria-label="Diode direction" value={matrix.diodeDirection ?? 'row2col'} onChange={(event) => update({ diodeDirection: event.target.value as Matrix['diodeDirection'] })}>
           <option value="row2col">Rows to columns</option><option value="col2row">Columns to rows</option>
