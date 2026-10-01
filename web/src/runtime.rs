@@ -1,7 +1,7 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use boardstudio_application::{
-    Completion, Effect, Event, Lifecycle, OperationId, ReadModel, SaveResult, Session,
-    TerminalOutcome,
+    Completion, Effect, Event, Lifecycle, OperationId, ReadModel, SaveResult, Scope, Session,
+    SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{ArchiveReply, ProjectDoc};
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -17,6 +17,12 @@ use web_sys::{Blob, HtmlAnchorElement, SvgElement, Url};
 
 type Notifier = Rc<dyn Fn()>;
 type Frame = (i32, Closure<dyn FnMut(f64)>);
+struct Artifact {
+    bytes: Vec<u8>,
+    filename: String,
+    scope: Scope,
+    token: SnapshotToken,
+}
 
 pub struct Runtime {
     session: RefCell<Session>,
@@ -24,7 +30,7 @@ pub struct Runtime {
     pub store: BrowserStore,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
-    artifacts: RefCell<BTreeMap<String, Vec<u8>>>,
+    artifacts: RefCell<BTreeMap<String, Artifact>>,
     cancelled_exports: RefCell<BTreeSet<OperationId>>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
@@ -274,9 +280,15 @@ impl Runtime {
                         });
                     }
                     let artifact_id = format!("archive-{}", operation_id.0);
-                    self.artifacts
-                        .borrow_mut()
-                        .insert(artifact_id.clone(), bytes);
+                    self.artifacts.borrow_mut().insert(
+                        artifact_id.clone(),
+                        Artifact {
+                            bytes,
+                            filename: "keyboard.boardstudio".into(),
+                            scope: scope.clone(),
+                            token: snapshot.token,
+                        },
+                    );
                     self.complete(Completion::ExportFinished {
                         operation_id,
                         token: snapshot.token,
@@ -292,9 +304,19 @@ impl Runtime {
                     })
                 }
             },
-            Effect::DeliverExport { artifact_id, .. } => {
-                if let Some(bytes) = self.artifacts.borrow_mut().remove(&artifact_id)
-                    && let Err(error) = deliver(&bytes, "keyboard.boardstudio")
+            Effect::DeliverExport {
+                artifact_id, token, ..
+            } => {
+                let artifact = self.artifacts.borrow_mut().remove(&artifact_id);
+                if let Some(artifact) = artifact
+                    && token == artifact.token
+                    && self.scope() == Some(artifact.scope)
+                    && self
+                        .model()
+                        .accepted
+                        .as_ref()
+                        .is_some_and(|s| s.token == token)
+                    && let Err(error) = deliver(&artifact.bytes, &artifact.filename)
                 {
                     self.report(error);
                 }
