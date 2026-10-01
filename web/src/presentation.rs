@@ -52,6 +52,7 @@ pub fn App() -> Element {
     });
     let _ = version();
     use_context_provider(|| runtime.clone());
+    use_context_provider(|| version);
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
         main { class: "m1-workbench",
@@ -66,6 +67,7 @@ pub fn App() -> Element {
 #[component]
 fn Library() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let _ = use_context::<Signal<u64>>()();
     let mut saved = use_signal(Vec::<(String, String)>::new);
     use_effect({
         let runtime = runtime.clone();
@@ -113,6 +115,7 @@ fn Library() -> Element {
 #[component]
 fn Editor() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
@@ -271,7 +274,7 @@ fn Editor() -> Element {
             }
             div { class: "m1-editor-body",
                 svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "none", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components or use position controls", onmounted: mount,
-                    onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer, onkeydown: keyboard,
+                    onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard,
                     g { transform: "scale(1,-1)",
                         for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
                             polygon { points: polygon_points(&contour.points), class: "m1-outline" }
@@ -318,6 +321,7 @@ fn Editor() -> Element {
 #[component]
 fn Inspector() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
     let selected = model
         .accepted
