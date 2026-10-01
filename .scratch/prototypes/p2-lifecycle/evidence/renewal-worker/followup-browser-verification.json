@@ -1,0 +1,85 @@
+{
+  "task": "P2 short-viewport drag and document-language follow-up",
+  "base": "57bd6eceed3bce9ad9b854121e93d8adc22f7bf8",
+  "code_commits": [
+    "ae3b293f950af46636b27043048a478083157b82",
+    "2cae5bfae1df521fbc66343cd0bcc276215a00ca"
+  ],
+  "integration_worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-r2-integration",
+  "build": {
+    "command": "TMPDIR=target/renewal-worker/tmp-dx-r2 dx build --web --release --base-path / --cargo-args=\"--locked\"",
+    "exit": 0,
+    "staging": "target/renewal-worker/site-root-followup-r2-20261001",
+    "staging_record": ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/staging-root-followup-r2-20261001.json"
+  },
+  "browser": {
+    "command": ".scratch/prototypes/p2-lifecycle/wasm/tests/focus-scroll-regression.sh http://127.0.0.1:4403/",
+    "exit": 0,
+    "runner": "Playwright 1.63.0 from the existing app dev dependency, Chromium",
+    "evidence": {
+      "url": "http://127.0.0.1:4403/",
+      "viewport": [
+        1280,
+        577
+      ],
+      "initial": {
+        "scrollY": 0,
+        "svgRect": {
+          "left": 39,
+          "top": 273.125,
+          "width": 680.796875,
+          "height": 442.515625
+        },
+        "lang": "en",
+        "targetHit": true,
+        "transform": "translate(519.8244267835937 248.40467708047873) rotate(-10)"
+      },
+      "afterDown": {
+        "scrollY": 0,
+        "svgTop": 273.125,
+        "focused": true
+      },
+      "final": {
+        "scrollY": 0,
+        "svgTop": 273.125,
+        "targetRect": {
+          "left": 387.6168212890625,
+          "top": 445.02972412109375,
+          "right": 457.937255859375,
+          "bottom": 487.8634033203125
+        },
+        "transform": "translate(564.007048285803 283.77882674034265) rotate(-10)",
+        "focused": true
+      },
+      "runtimeErrors": []
+    }
+  },
+  "result": "At 1280x577 the exact pointer focus no longer scrolls the page or changes the SVG frame; the drag commits through the public CoreEngine, leaves the SVG focused, and keeps the target on the board. Document lang is en. No browser runtime errors or failed requests.",
+  "other_checks": [
+    {
+      "command": "cargo test --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --locked",
+      "exit": 0,
+      "result": "7 tests passed"
+    },
+    {
+      "command": "cargo fmt --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml -- --check",
+      "exit": 0
+    },
+    {
+      "command": "cargo check --locked --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --target wasm32-unknown-unknown",
+      "exit": 0
+    },
+    {
+      "command": "node --check .scratch/prototypes/p2-lifecycle/wasm/tests/focus-scroll-regression.mjs",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "limitations": [
+    "Full axe raw audit, contrast, and screen-reader checks not run.",
+    "Provider core/renderer strict Clippy and core fmt baseline issues remain."
+  ]
+}
