@@ -155,7 +155,9 @@ try {
 
     browser(['open', releaseUrl]);
     if (variant === 'reference') {
+      browser(['wait', '--fn', 'Boolean(document.querySelector(".wb-project-trigger") || document.querySelector(".wb-open-project"))']);
       if (evalPage('Boolean(document.querySelector(".wb-project-trigger"))')) browser(['click', '.wb-project-trigger']);
+      browser(['wait', '--fn', 'Boolean(document.querySelector(".wb-open-project"))']);
       browser(['click', '.wb-open-project']);
       browser(['upload', 'input[type="file"].wb-project-file-input', archive]);
       browser(['wait', '--fn', `document.querySelectorAll('.wb-scene-part').length === ${keys * 3}`]);

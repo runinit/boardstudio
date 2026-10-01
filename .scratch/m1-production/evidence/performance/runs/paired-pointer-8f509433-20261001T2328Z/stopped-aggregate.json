@@ -1,0 +1,338 @@
+{
+  "runId": "paired-pointer-8f509433-20261001T2328Z",
+  "status": "stopped-incomplete-ineligible",
+  "candidateCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "candidateReleaseRecordSha256": "3557465a9bef7c30fbc4c4c89f4a56ecee5394c59232c6668edb1e703d7062a3",
+  "candidateReleaseUrl": "http://127.0.0.1:46880/",
+  "referenceReleaseRecordSha256": "5ddce1f643eb899fefc3c26d4a3114e55ea90bc522e12716a61871eadc1c3df7",
+  "referenceUrl": "http://127.0.0.1:46881/",
+  "fixtureManifest": {
+    "source": "app/src/bench-workbench.tsx referenceFixture shape, copied for test-input creation",
+    "generatorSha256": "7e5f0bb58fb1e5ad2d83a2d02d534d068afa7e5ebeb720df4d7bd8c1573577ad",
+    "referenceFixtureSourceSha256": "1bb63d0014163ef8d1135a2f9b2bc3a769b880e36527b4d74cce9cf6809d852d",
+    "contractsSourceSha256": "8af74ac344c0d27cdf910a36a2880d35fc401a00a61af0b820679a3e306ee095",
+    "coreModuleSha256": "658957ae7674d3d53aac876394b139af2f7e852ea977d49af9e0e22cef566908",
+    "coreWasmSha256": "bc3a091122da2ebcb4eb55d3f0967d2b1943611105068f287c2fc6f0e17aa186",
+    "sourceCommit": "99362d8f1c689b90e22e362490405d57c77c19b4",
+    "argv": [
+      "/usr/bin/node",
+      "/home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001/.scratch/m1-production/evidence/performance/generate-pointer-archives.mjs"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001",
+    "node": "v26.10.0",
+    "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics",
+    "startedAt": "2026-10-01T22:26:34.492Z",
+    "generatedAt": "2026-10-01T22:26:34.492Z",
+    "fixtures": [
+      {
+        "keys": 30,
+        "parts": 90,
+        "projectId": "workbench-bench-30",
+        "archive": "pointer-30-keys.boardstudio",
+        "archiveBytes": 3432,
+        "archiveSha256": "c54f1aaa0204e990cb8b115e955e0cd111289dbf93507ee30433b83566bec51e",
+        "projectJsonSha256": "13f8820b120a9b893b1dceab7c31572d5f33efb26bae26a78e66a00334a93b79",
+        "coreOpenReply": "scene",
+        "archivePackReply": "packed",
+        "archiveUnpackReply": "unpacked"
+      },
+      {
+        "keys": 100,
+        "parts": 300,
+        "projectId": "workbench-bench-100",
+        "archive": "pointer-100-keys.boardstudio",
+        "archiveBytes": 9100,
+        "archiveSha256": "0cfed20ab2389232208291010f00cb1ff5c1191655e07c53d52a8d27f3f3af20",
+        "projectJsonSha256": "d32654340afacd441e3ab106f321ae0995183608956c588b5adeecbb818907a7",
+        "coreOpenReply": "scene",
+        "archivePackReply": "packed",
+        "archiveUnpackReply": "unpacked"
+      },
+      {
+        "keys": 200,
+        "parts": 600,
+        "projectId": "workbench-bench-200",
+        "archive": "pointer-200-keys.boardstudio",
+        "archiveBytes": 16976,
+        "archiveSha256": "430676540fdde1fa840b2e25714cb12a1b2c1d564f81f5b476267e33b36b4a1a",
+        "projectJsonSha256": "e9ae391fb54af0374255502af5d8efd5fdb878cb5f984fc3072e55aa9336c5eb",
+        "coreOpenReply": "scene",
+        "archivePackReply": "packed",
+        "archiveUnpackReply": "unpacked"
+      }
+    ],
+    "finishedAt": "2026-10-01T22:26:34.560Z",
+    "exitStatus": 0,
+    "stdoutSummary": "Generated and publicly validated 3 pointer archives in /home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001/.scratch/m1-production/evidence/performance/fixtures/2026-10-01T22-26-34-484Z-574830-bc3a091122da",
+    "stderrSummary": ""
+  },
+  "driverSha256": "e0fca0dab79c24161c7f098aef4b8e166bec2916ee6e2d1ddc3b5fd4a8f427ea",
+  "wrapperSha256": "a6ca47a55d05d3bc5be93b2abcfe1a5000c257fb0bf85b12ddb569614a86dd6a",
+  "schedule": {
+    "sessionsRequested": 5,
+    "completeCandidateSessions": 2,
+    "completeReferenceSessions": 0,
+    "warmupsPerSizePerSession": 10,
+    "measuredSamplesPerSizePerSession": 100,
+    "sizes": [
+      30,
+      100,
+      200
+    ]
+  },
+  "candidateSessions": [
+    {
+      "sessionNumber": 1,
+      "verdict": "absolute-budget-fail",
+      "environment": {
+        "browserUserAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+        "gpuRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "deviceScaleFactor": 1
+        },
+        "node": "v26.10.0",
+        "os": {
+          "platform": "linux",
+          "release": "7.2.8-1-cachyos",
+          "arch": "x64"
+        },
+        "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics"
+      },
+      "scenarios": [
+        {
+          "keys": 30,
+          "samples": 100,
+          "p50Ms": 15.5,
+          "p95Ms": 22.90000000596092,
+          "capMs": 33,
+          "withinCap": true,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-1-candidate/pointer-30.json"
+        },
+        {
+          "keys": 100,
+          "samples": 100,
+          "p50Ms": 103.90000000596046,
+          "p95Ms": 135.29999999701977,
+          "capMs": 50,
+          "withinCap": false,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-1-candidate/pointer-100.json"
+        },
+        {
+          "keys": 200,
+          "samples": 100,
+          "p50Ms": 458.20000000298023,
+          "p95Ms": 495.80000001192093,
+          "capMs": 100,
+          "withinCap": false,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-1-candidate/pointer-200.json"
+        }
+      ]
+    },
+    {
+      "sessionNumber": 2,
+      "verdict": "absolute-budget-fail",
+      "environment": {
+        "browserUserAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+        "gpuRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "deviceScaleFactor": 1
+        },
+        "node": "v26.10.0",
+        "os": {
+          "platform": "linux",
+          "release": "7.2.8-1-cachyos",
+          "arch": "x64"
+        },
+        "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics"
+      },
+      "scenarios": [
+        {
+          "keys": 30,
+          "samples": 100,
+          "p50Ms": 15.400000005960464,
+          "p95Ms": 23.09999999403908,
+          "capMs": 33,
+          "withinCap": true,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-2-candidate/pointer-30.json"
+        },
+        {
+          "keys": 100,
+          "samples": 100,
+          "p50Ms": 100.59999999403954,
+          "p95Ms": 134.40000000596046,
+          "capMs": 50,
+          "withinCap": false,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-2-candidate/pointer-100.json"
+        },
+        {
+          "keys": 200,
+          "samples": 100,
+          "p50Ms": 463.20000000298023,
+          "p95Ms": 500.6000000089407,
+          "capMs": 100,
+          "withinCap": false,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-2-candidate/pointer-200.json"
+        }
+      ]
+    }
+  ],
+  "referenceSessions": [
+    {
+      "sessionNumber": 1,
+      "verdict": "failed-run-retained",
+      "environment": {
+        "browserUserAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+        "gpuRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "deviceScaleFactor": 1
+        },
+        "node": "v26.10.0",
+        "os": {
+          "platform": "linux",
+          "release": "7.2.8-1-cachyos",
+          "arch": "x64"
+        },
+        "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics"
+      },
+      "completedScenarios": [
+        {
+          "keys": 30,
+          "samples": 100,
+          "p50Ms": 14.5,
+          "p95Ms": 21.700000002980232,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-1-reference/pointer-30.json"
+        }
+      ],
+      "failure": "Error: agent-browser click .wb-open-project failed (1): {\"success\":false,\"data\":null,\"error\":\"Element not found: .wb-open-project. Verify the selector, role, or name is correct and the element exists in the DOM.\"}"
+    },
+    {
+      "sessionNumber": 2,
+      "verdict": "failed-run-retained",
+      "environment": {
+        "browserUserAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+        "gpuRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "deviceScaleFactor": 1
+        },
+        "node": "v26.10.0",
+        "os": {
+          "platform": "linux",
+          "release": "7.2.8-1-cachyos",
+          "arch": "x64"
+        },
+        "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics"
+      },
+      "completedScenarios": [
+        {
+          "keys": 30,
+          "samples": 100,
+          "p50Ms": 13.099999994040445,
+          "p95Ms": 20.299999997020677,
+          "changedTransforms": 100,
+          "changedFrames": 110,
+          "missedInputMarkers": 0,
+          "file": "session-2-reference/pointer-30.json"
+        }
+      ],
+      "failure": "Error: agent-browser click .wb-open-project failed (1): {\"success\":false,\"data\":null,\"error\":\"Element not found: .wb-open-project. Verify the selector, role, or name is correct and the element exists in the DOM.\"}"
+    }
+  ],
+  "partialCandidateSession": {
+    "runId": "paired-pointer-8f509433-20261001T2328Z",
+    "variant": "candidate",
+    "sessionNumber": 3,
+    "status": "interrupted-partial-session-ineligible",
+    "reason": "Wrapper stopped after the reference adapter was found to fail after its 30-key case; only the 30-key scenario completed here. Preserve it as partial raw evidence; no full run.json was written.",
+    "browserSessionId": "t06p-a66658-3-candidate-7dd31abc1fc4",
+    "completedScenario": {
+      "file": "pointer-30.json",
+      "sha256": "657da7919131429c583420f2621c507ee122d48f56d9c7a7fdf4025e53bb3ef2",
+      "measuredSamples": 100,
+      "p95Ms": 22.299999997019768,
+      "thresholdMs": 33
+    },
+    "recordedAt": "2026-10-01T23:31:53.000Z"
+  },
+  "partialMatched30KeyObservations": [
+    {
+      "session": 1,
+      "keys": 30,
+      "candidateP95Ms": 22.90000000596092,
+      "referenceP95Ms": 21.700000002980232,
+      "referenceMinusCandidateP95Ms": -1.200000002980687,
+      "relativePassFail": null,
+      "identity": {
+        "sameArchiveBytes": true,
+        "sameTarget": true,
+        "sameBrowser": true
+      }
+    },
+    {
+      "session": 2,
+      "keys": 30,
+      "candidateP95Ms": 23.09999999403908,
+      "referenceP95Ms": 20.299999997020677,
+      "referenceMinusCandidateP95Ms": -2.7999999970184035,
+      "relativePassFail": null,
+      "identity": {
+        "sameArchiveBytes": true,
+        "sameTarget": true,
+        "sameBrowser": true
+      }
+    }
+  ],
+  "pairedComparatorEligible": false,
+  "eligibilityReason": "Only 30-key reference scenarios completed in two sessions; every 100-key reference attempt failed at the open-project click following immediate navigation, 200-key references were never run, and fewer than five complete matched sessions exist. 30-key deltas are descriptive partial observations only.",
+  "absoluteCaps": {
+    "30": 33,
+    "100": 50,
+    "200": 100
+  },
+  "failedHarnessAttempts": [
+    {
+      "path": "../paired-pointer-8f509433-20261001T2321Z/summary.json",
+      "reason": "agent-browser session name exceeded the socket path limit; no page opened."
+    },
+    {
+      "path": "../paired-pointer-8f509433-20261001T2322Z/summary.json",
+      "reason": "batch command arrays were passed in the wrong CLI form; no valid samples were captured."
+    },
+    {
+      "path": "../paired-pointer-8f509433-20261001T2325Z/summary.json",
+      "reason": "batch command succeeded, but driver initially rejected valid batch JSON-array responses before collecting samples."
+    }
+  ],
+  "stopReason": "Root requested stopping repeated reference failures after session 2 while diagnosing the public import navigation race; no production code or budgets changed.",
+  "recordedAt": "2026-10-01T23:35:52.117Z",
+  "wrapperPath": ".scratch/m1-production/evidence/performance/run-candidate-pointer-sessions.mjs",
+  "runDriverSha256": "e0fca0dab79c24161c7f098aef4b8e166bec2916ee6e2d1ddc3b5fd4a8f427ea"
+}

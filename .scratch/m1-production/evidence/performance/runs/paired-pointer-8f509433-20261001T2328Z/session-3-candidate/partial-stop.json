@@ -1,0 +1,16 @@
+{
+  "runId": "paired-pointer-8f509433-20261001T2328Z",
+  "variant": "candidate",
+  "sessionNumber": 3,
+  "status": "interrupted-partial-session-ineligible",
+  "reason": "Wrapper stopped after the reference adapter was found to fail after its 30-key case; only the 30-key scenario completed here. Preserve it as partial raw evidence; no full run.json was written.",
+  "browserSessionId": "t06p-a66658-3-candidate-7dd31abc1fc4",
+  "completedScenario": {
+    "file": "pointer-30.json",
+    "sha256": "657da7919131429c583420f2621c507ee122d48f56d9c7a7fdf4025e53bb3ef2",
+    "measuredSamples": 100,
+    "p95Ms": 22.299999997019768,
+    "thresholdMs": 33
+  },
+  "recordedAt": "2026-10-01T23:31:53.000Z"
+}
