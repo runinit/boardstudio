@@ -57,7 +57,7 @@ receive this model-bound comparison.
 Back-side volumes use the host PCB surface and thickness. This coordinate
 convention is not independent proof of an assembled back-side contact map.
 
-## Output gates and remaining qualification
+## Output gates and remaining evidence
 
 The inspector exposes blockers per output. Public PCB/footprint export checks
 footprint and electrical blockers during preparation **and completion**. Nominal
@@ -66,19 +66,56 @@ cannot be reused to bypass fabrication qualification. Case generation retains
 mechanical blockers. ZMK handoff carries a compact selected-part qualification
 snapshot and blocks unresolved firmware facts.
 
-Still required before qualification:
+Remaining source and digital evidence:
 
-- Orderable encoder identity, physical contact continuity on both sides, and
-  resolution of the ordinary #2 versus reversible A/C pad ambiguity.
+- Orderable encoder identity, source-backed contact mapping on both sides, and
+  resolution of the ordinary #2 versus reversible A/C pad ambiguity. Physical
+  continuity testing is deferred.
 - Selected tactile identity and toleranced package fit, especially the unknown
   2-pin package; named 4-pin drawings alone do not identify purchased hardware.
-- Back-side model/hole datum and PCB thickness fit, solder-mask/tool access,
-  assembled travel, plate openings, and production tolerance stack.
-- Closed required mounting contours and fabricator DRC/slot/web validation.
+- Back-side model/hole datum and PCB thickness fit, modeled solder-mask/tool access,
+  assembled travel, plate openings, and documented tolerance allowances. Physical
+  production variability is deferred.
+- Closed required mounting contours and digital DRC/slot/web checks against the selected fabrication rules.
 - Wheel-specific assembly datum, press/rotation swept bounds, and service bounds.
-- Encoder pulses, detents, direction, and hardware-tested driver configuration.
+- Encoder pulses, detents, direction, and documented driver configuration; physical firmware validation is deferred.
 
 The creator's [integration article](https://note.com/taro_hayashi/n/nf608af2136d1)
 documents A/B rotary outputs, C common, and separate press contacts 1/2. Repeated
 physical pad IDs retain the published logical numbers and masks. No presumed
 mirrored electrical mapping or numerical encoder timing is supplied.
+
+## Digital acceptance and human review
+
+The agreed acceptance path is automated checks plus human review in BoardStudio.
+Physical hardware testing is unavailable and is not a completion requirement for
+this implementation. Acceptance certifies the supported digital design and its
+recorded assumptions; it does not certify manufactured hardware.
+
+| Area | Automated evidence required | Human review in the app |
+| --- | --- | --- |
+| Model bounds | Import each pinned STEP, verify finite mesh and tight extrema against independent source measurements; check conservative bounds contain the mesh | Inspect all three variants for missing bodies, unexpected scale or floating geometry |
+| Assembly datum | Compare transformed lead/hole positions, PCB surface and thickness on front/back; preserve the source datum | Check leads, holes, wheel axis and PCB crossing from top, bottom and side views |
+| Fit | Check nominal overlaps at MX and Choc pitches, rotated/back-side placements and a clear control; report precisely located intersections | Select findings and confirm the highlighted region matches the interference |
+| Mounting and exports | Verify required cuts form closed machinable contours, masks/pads and portable model transforms survive export; compare exported geometry with preview | Inspect the mounting cuts and plate/case openings; confirm the chosen orientation |
+| Editing | Verify standalone placement, matrix replacement, bindings, Undo/Redo and saved reload | Perform placement/replacement and reopen the saved board |
+| Electrical and firmware | Preserve published pad roles and repeated pads; test matrix/direct-press planning and explicit configuration errors | Review selected press scan mode and rotary configuration; identify assumptions requiring confirmation |
+
+The existing seven public Rust tests, three real STEP-import tests and four THQ
+browser workflows provide a starting evidence set. They do not yet satisfy every
+row: alternative assemblies, datum/contact ambiguities, swept/service geometry
+and closed mounting cuts still need source-backed digital work. A human cannot
+resolve an absent dimension or electrical contact map merely by approving a
+rendering.
+
+For each review, record the commit, saved project, variant, PCB thickness,
+orientation, pitch, screenshots and a pass/fail result for each applicable row.
+Keep failures as reproducible saved projects. Human review remains **pending**
+until the user records it; automated browser interaction is not human sign-off.
+
+Use three outcomes for unknowns: resolve from pinned source evidence, expose an
+explicit user-supplied configuration, or retain the affected output blocker.
+Do not erase every blocker to enable review: nominal preview already supports
+inspection separately from fabrication. Physical continuity, production
+variability and device operation remain deferred hardware assumptions, not a
+request to obtain hardware before continuing development.
