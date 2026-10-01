@@ -1,6 +1,6 @@
 # Remaining M1 production workflow
 
-**Status:** ready-for-agent. **Category:** behavior-preserving vertical migration, with the accepted save-failure recovery behavior from ADR 0003.
+**Status:** implemented candidate; acceptance in progress. **Category:** behavior-preserving vertical migration, with the accepted save-failure recovery behavior from ADR 0003.
 **Authority:** user request of 2026-10-01 to plan the remaining M1 documentation with to-spec and then implement. Existing six module specifications, capability map, constraints and accepted P1/P2/P3 evidence remain authoritative. This specification bounds M1 only.
 
 ## Problem Statement

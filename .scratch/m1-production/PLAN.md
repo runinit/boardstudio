@@ -14,6 +14,7 @@ The provider reconciliation is the required prefactor. Remaining tickets deliver
 - Host boundary inventory records worker/storage/renderer/file/service-worker contracts, generated glue, ownership/copies and retirement criteria.
 - Build/run documentation records exact toolchain, locked commands, fixture preparation, isolated databases, root/subpath stages and asset hashes.
 - Compatibility/evidence records retain native and browser command outputs, archive and STEP oracles, visual/a11y/performance/resource limits and failed gates.
+- [User-test handoff](HANDOFF.md) provides the editable copied-project launch procedure and remaining acceptance limits.
 - Canonical RUN/TODO/current-run state and architecture point to the accepted implementation and remaining blockers. Historical P1/P2/P3 records remain unchanged.
 
 ## Integration and verification
