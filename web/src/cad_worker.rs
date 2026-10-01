@@ -324,7 +324,7 @@ fn receive(state: &Rc<RefCell<ClientState>>, data: JsValue) {
 
 fn decode_result(value: JsValue) -> Result<CadResult, String> {
     let revision = Reflect::get(&value, &"revision".into())
-        .map_err(|error| js_message(error))?
+        .map_err(js_message)?
         .as_f64()
         .ok_or_else(|| "CAD result omitted revision".to_string())? as u64;
     let step = read_u8_buffer(Reflect::get(&value, &"step".into()).map_err(js_message)?)?;
