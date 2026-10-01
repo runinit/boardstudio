@@ -13,14 +13,26 @@ core.postMessage({ kind: 'core', request_id: prepId, executor_epoch: 'cad-previe
 const preparedFrame = await waitMessage(core, message => message.kind === 'core' && message.request_id === prepId);
 const preparedReply = JSON.parse(preparedFrame.frame);
 if (preparedReply.kind !== 'case-prepared') throw new Error(`core preparation failed: ${JSON.stringify(preparedReply)}`);
-const prepared = { revision: preparedReply.ir.revision, bodies: [preparedReply.ir.bodies[0]] };
+const actual = preparedReply.ir;
+const cloneBatch = count => ({ revision: actual.revision, bodies: Array.from({ length: count }, (_, index) => {
+  const body = structuredClone(actual.bodies[0]);
+  body.body.id = `gasket-tray-diagnostic-${index + 1}`;
+  body.body.name = body.body.id;
+  body.revision = actual.revision;
+  return body;
+}) });
+const scenarios = [
+  { name: 'actual-two-body-fixture', prepared: structuredClone(actual), bodyCount: actual.bodies.length },
+  { name: 'synthetic-18-cached-bodies', prepared: cloneBatch(18), bodyCount: 18 },
+  { name: 'synthetic-58-cached-bodies', prepared: cloneBatch(58), bodyCount: 58 },
+];
 const cad = new Worker('/assets/cad-worker/entry.js', { type: 'module' });
 await waitMessage(cad, message => message.kind === 'ready' || message.kind === 'init-failed').then(message => {
   if (message.kind === 'init-failed') throw new Error(message.frame);
 });
-const identity = { token: 1, sessionEpoch: 1, documentId: 'm1-cad-preview-diagnostic', boardId: 'bench', instanceId: 'gasket-tray', revision: prepared.revision };
+const identity = { token: 1, sessionEpoch: 1, documentId: 'm1-cad-preview-diagnostic', boardId: 'bench', instanceId: 'gasket-tray', revision: actual.revision };
 let serial = 0;
-const request = async () => {
+const request = async prepared => {
   const requestId = `cad-preview-diagnostic-${++serial}`;
   const frame = JSON.stringify({ requestId, jobId: requestId, identity, operation: 'preview', prepared });
   const start = performance.now();
@@ -30,18 +42,22 @@ const request = async () => {
   const wire = JSON.parse(message.frame);
   if (wire.outcome !== 'completed') throw new Error(`preview failed: ${wire.error}`);
   const result = message.result;
-  if (!result?.bodies?.length || result.bodies[0].id !== prepared.bodies[0].body.id) throw new Error('preview returned malformed mesh payload');
-  return { index: serial, elapsedMs, outcome: wire.outcome, bodyCount: result.bodies.length, positionFloatCount: result.bodies[0].positions.length };
+  if (result?.bodies?.length !== prepared.bodies.length || result.bodies.some((body, index) => body.id !== prepared.bodies[index].body.id)) throw new Error('preview returned missing, malformed, or out-of-order body payload');
+  return { index: serial, elapsedMs, outcome: wire.outcome, bodyCount: result.bodies.length, positionFloatCountTotal: result.bodies.reduce((sum, body) => sum + body.positions.length, 0) };
 };
-const coldPrime = await request();
-const samples = [];
-for (let index = 0; index < 20; index++) samples.push(await request());
+const summaries = [];
+for (const scenario of scenarios) {
+  const prime = await request(scenario.prepared);
+  const samples = [];
+  for (let index = 0; index < 20; index++) samples.push(await request(scenario.prepared));
+  const sorted = samples.map(row => row.elapsedMs).sort((a,b) => a-b);
+  summaries.push({ name: scenario.name, bodyCount: scenario.bodyCount, prime, samples,
+    summary: { count: samples.length, minMs: sorted[0], medianMs: sorted[Math.floor(samples.length/2)], p95Ms: sorted[Math.ceil(samples.length*.95)-1], maxMs: sorted.at(-1) } });
+}
 core.terminate(); cad.terminate();
-const sorted = samples.map(row => row.elapsedMs).sort((a,b) => a-b);
-const summary = { acceptanceEligible: false, kind: 'diagnostic-public-cad-worker-warm-preview', comparator: 'none; worker request-to-reply endpoint only', coldPrime, samples,
-  summary: { count: samples.length, minMs: sorted[0], medianMs: sorted[Math.floor(sorted.length/2)], p95Ms: sorted[Math.ceil(sorted.length*.95)-1], maxMs: sorted.at(-1) },
-  fixture: { path: 'cad/bench/fixtures/gasketed-pair.json', revision: fixture.revision, inputBodyCount: fixture.bodies.length, preparedBodyId: prepared.bodies[0].body.id, preparedBodyCount: prepared.bodies.length },
-  identity, capturedAt: new Date().toISOString() };
-window.diagnosticResult = summary;
-status.textContent = JSON.stringify(summary, null, 2);
+const result = { acceptanceEligible: false, hostCompetingBuild: true, kind: 'diagnostic-public-cad-worker-warm-preview-batches', comparator: 'none; worker request-to-reply endpoint only', scenarios: summaries,
+  fixture: { path: 'cad/bench/fixtures/gasketed-pair.json', revision: fixture.revision, actualInputBodyCount: fixture.bodies.length, actualPreparedBodyIds: actual.bodies.map(body => body.body.id), syntheticBodiesAreClonesOf: actual.bodies[0].body.id, syntheticGeometryStable: true },
+  identity, capturedAt: new Date().toISOString(), limitation: 'Diagnostic only during a competing focused page build. This endpoint is not paintedMs and cannot establish or compare frozen CAD paint budgets.' };
+window.diagnosticBatchResult = result;
+status.textContent = JSON.stringify(result, null, 2);
 </script>

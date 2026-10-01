@@ -198,7 +198,53 @@
     "agentBrowser": "0.38.1",
     "browserUserAgent": "Chromium through agent-browser",
     "endpoint": "same-origin release workers; browser performance.now around public postMessage to reply event",
-    "controlledHost": "shared local host; diagnostic is not a quiet-host acceptance run"
+    "controlledHost": "shared local host; diagnostic is not a quiet-host acceptance run",
+    "hostState": "The parent reported its focused page build was starting/running during these samples; mark build-competed and diagnostic only."
   },
-  "note": "A public core-worker prepare-case response generated the prepared IR from the frozen assembly fixture. One body and one identity were reused across the prime and 20 warm CAD worker requests. Timing includes browser-to-worker messaging and reply delivery, excludes CAD page rendering/paint and CLI process wait. No comparator is available at this endpoint. Do not compare this diagnostic directly to the frozen CAD cache-hit paintedMs threshold."
+  "note": "A public core-worker prepare-case response generated the prepared IR from the frozen assembly fixture. One body and one identity were reused across the prime and 20 warm CAD worker requests. Timing includes browser-to-worker messaging and reply delivery, excludes CAD page rendering/paint and CLI process wait. No comparator is available at this endpoint. Do not compare this diagnostic directly to the frozen CAD cache-hit paintedMs threshold. A follow-up batch diagnostic exercises the complete frozen two-body fixture and synthetic 18/58-body batches cloned from the public prepared gasket-tray body. See batch-result.json. Its larger warm request times show cumulative worker cost at synthetic batch sizes but cannot establish a frozen painted-time failure.",
+  "batchDiagnostic": {
+    "acceptanceEligible": false,
+    "hostCompetingBuild": true,
+    "capturedAt": "2026-10-01T22:33:16.596Z",
+    "scenarios": [
+      {
+        "name": "actual-two-body-fixture",
+        "bodyCount": 2,
+        "primeMs": 124.69999998807907,
+        "summary": {
+          "count": 20,
+          "minMs": 0.30000001192092896,
+          "medianMs": 0.5999999940395355,
+          "p95Ms": 1.6000000089406967,
+          "maxMs": 2.0999999940395355
+        }
+      },
+      {
+        "name": "synthetic-18-cached-bodies",
+        "bodyCount": 18,
+        "primeMs": 57.79999999701977,
+        "summary": {
+          "count": 20,
+          "minMs": 56,
+          "medianMs": 57.099999994039536,
+          "p95Ms": 58,
+          "maxMs": 58
+        }
+      },
+      {
+        "name": "synthetic-58-cached-bodies",
+        "bodyCount": 58,
+        "primeMs": 228.79999999701977,
+        "summary": {
+          "count": 20,
+          "minMs": 226.09999999403954,
+          "medianMs": 227.80000001192093,
+          "p95Ms": 231,
+          "maxMs": 232.5
+        }
+      }
+    ],
+    "source": "same public-worker frame and one-worker method; actual two-body fixture plus 18/58 stable-geometry clones of the public prepared gasket-tray body with unique IDs/names; one prime request per scenario then 20 repeated requests",
+    "limitation": "Diagnostic only during a competing focused page build. This endpoint is not paintedMs and cannot establish or compare frozen CAD paint budgets."
+  }
 }
