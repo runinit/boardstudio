@@ -96,6 +96,11 @@ function browser(args, input) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`agent-browser ${args.join(' ')} failed (${result.status}): ${result.stderr || result.stdout}`);
   const envelope = JSON.parse(result.stdout.trim());
+  if (Array.isArray(envelope)) {
+    const failed = envelope.find((item) => !item.success);
+    if (failed) throw new Error(`agent-browser ${args.join(' ')} batch command failed: ${JSON.stringify(failed)}`);
+    return envelope;
+  }
   if (!envelope.success) throw new Error(`agent-browser ${args.join(' ')} failed: ${JSON.stringify(envelope.error)}`);
   return envelope.data;
 }
