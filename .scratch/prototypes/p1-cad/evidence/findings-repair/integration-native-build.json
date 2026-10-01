@@ -1,0 +1,15 @@
+{
+  "command": [
+    "env",
+    "CARGO_TARGET_DIR=/home/chris/.local/share/boardstudio/worktrees/p1-cad-findings-20261001/.scratch/prototypes/p1-cad/target",
+    "cargo",
+    "build",
+    "--manifest-path",
+    ".scratch/prototypes/p1-cad/Cargo.toml",
+    "--locked"
+  ],
+  "cwd": "/tmp/boardstudio-migration-m1-20261001",
+  "exit_code": 0,
+  "log": "integration-native-build.log.gz",
+  "raw_sha256": "5b8a76b9a73d6510b804878982edda5fe9cb4101a61ab11071f0fc189d4e58c6"
+}

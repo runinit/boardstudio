@@ -1,0 +1,13 @@
+{
+  "command": [
+    "cargo",
+    "fmt",
+    "--manifest-path",
+    ".scratch/prototypes/p1-cad/Cargo.toml",
+    "--check"
+  ],
+  "cwd": "/tmp/boardstudio-migration-m1-20261001",
+  "exit_code": 0,
+  "log": "integration-fmt.log.gz",
+  "raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,7 @@
+Standards review: 0 documented violations; 0 heuristic smells. Exact candidate: 8015b57f7d149ceb8d14aa5c5adff40bb18deab5, reviewed against 90d857156fae5f8279840763b10d8571090b8724 (one commit). The specified checkout was clean at that HEAD.
+
+The harness retains the preview and export vertex-count assertions and adds byte-for-byte position and normal checks for matching lifetimes. The architecture entry covers owners, data and buffer flow, cancellation, errors, cleanup, measured transfer costs, and retirement criteria. The README clearly labels the original run as blocked and unaccepted. The recorded final native, CAD, release, and browser gates pass; I did not rerun them.
+
+One wording caveat: docs/architecture.md says geometry, material, bounds, and STEP oracles remain strict, while this repair’s recorded STEP oracle checks solids, volume, and bounds; it records no material assertion. I read that sentence as preserving broader project oracles, not claiming this fixture tested material.
+
+No edits, builds, or tests were performed.

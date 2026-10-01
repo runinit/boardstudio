@@ -28,8 +28,8 @@ unauthorized model/provider switch or automatic prototype promotion is allowed.
 | --- | --- | --- |
 | DOC-1 | Complete and technically validate the six mapped M1 specs; preserve accepted inputs | Complete: reviewed and integrated `47d6dbce`; documentation checks only |
 | TOOL-1 | Install official Dioxus CLI **0.7.10** selected by ADR 0003; verify official digest and `dx --version`; add a command link only if absent | Complete: official archive digest and `dioxus 0.7.10 (57d6794)` verified, exit 0 |
-| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; original P1-CAD blocked run preserved; renewed P1-CAD-F1 verification passed, exact review/integration pending |
-| P1-CAD-F1 | Explicit “do it” approval of [P1-CAD-F1-r1](../../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md): two serial reviewed findings | Verification passed; fresh review/integration required; [current handoff](#p1-cad-f1-bounded-findings-repair) |
+| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; original P1-CAD blocked run preserved; P1-CAD bounded feasibility accepted through reviewed/integrated `8015b57f` |
+| P1-CAD-F1 | Explicit “do it” approval of [P1-CAD-F1-r1](../../.scratch/prototypes/p1-cad/evidence/findings-repair/PLAN.md): two serial reviewed findings | Complete: exact source reviewed, integrated and validated; [current handoff](#p1-cad-f1-bounded-findings-repair) |
 | P1-U64 | Explicit renewed defect-only [P1-U64-r1 authority](../../.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json) | Complete; exact source `cce8e78b` reviewed, integrated and validated; [handoff](#p1-u64-accepted-source-and-resumable-handoff) |
 
 TOOL-1 may write only its project-owned tool directory under
@@ -392,7 +392,7 @@ and logs remain historical evidence, not passing gates. Architecture documentati
 now records the experimental worker/CAD boundary, owners, errors/cancellation,
 cleanup, measured copies/costs and named retirement criteria.
 
-**Verification passed; acceptance remains pending exact review/integration.**
+**P1-CAD bounded feasibility accepted at exact source `8015b57f`.**
 Three native protocol/cache tests, native build, fmt, strict native/WASM host/worker
 Clippy and CAD typecheck pass. Fresh provider builds pass23 native CAD tests with
 four existing ignored benchmarks and all49 JavaScript regressions with zero skipped.
@@ -404,8 +404,25 @@ zero in reference byte transport; its expected RED and original typed-byte hash
 GREEN are retained. No CAD provider behavior or tolerance changes.
 [Final verification records](../../.scratch/prototypes/p1-cad/evidence/findings-repair/verification-summary.json)
 link commands, exit statuses, compressed logs and source/served artifact identities.
-Exact Standards/Spec review and actual integration validation must finish before
-P1-CAD is checked complete.
+Fresh Standards and Spec reviews report zero material findings for exact
+`8015b57f7d149ceb8d14aa5c5adff40bb18deab5` against base `90d85715`; requested
+and independent runtime routes confirm Luna/high. Both reports are preserved
+[separately](../../.scratch/prototypes/p1-cad/evidence/findings-repair/REVIEW.md).
+The coordinator fast-forwarded dedicated migration/boardstudio-m1 to that exact
+source, then verified the actual integration checkout with native tests/build,
+fmt, repository and whitespace checks. All source and served-asset hashes match
+the reviewed candidate; provider Git trees are unchanged. Browser evidence is
+reused from exact unchanged task-owned artifacts, not claimed as a fresh browser
+build in the integration worktree.
+[Integration validation](../../.scratch/prototypes/p1-cad/evidence/findings-repair/integration-validation.json)
+and [task status](../../.scratch/prototypes/p1-cad/evidence/findings-repair/task-status.json)
+record bases/candidates/commits, commands/exits/logs, worktree ownership and limits.
+
+No next eligible approved task remains. This final administrative handoff is
+reviewed separately before its integration; it changes no executable source.
+Reviewer closure and final integration commit/checks are persisted after the
+review in the task-owned `target/final-handoff.json` (and integration-owned copy),
+without rewriting immutable reviewed commits. All worktrees/failures remain.
 P2/P3, full-M1, CAD revisions above JS Number's safe range, performance and
 production adoption remain unproved and outside this run. No push/deployment/
 main merge or protected-worktree mutation is authorized.

@@ -1,13 +1,13 @@
 # P1-CAD isolated feasibility probe
 
-**Current run: P1-CAD-F1-r1; verification passed, exact review/integration pending.**
+**Current run: P1-CAD-F1-r1; bounded feasibility accepted at reviewed/integrated source8015b57f.**
 The user's “do it” approves the bounded findings repair in
 `evidence/findings-repair/PLAN.md`. Four isolated public-service controls prove
 the old comparison mixed cold preview with export-warmed preview. The corrected
 oracle retains exact vertex assertions, compares complete position/normal bytes
 at matching independent worker lifetimes, and independently reopens STEP from
 cold export and both cache orders. `docs/architecture.md` now records this
-experimental boundary and its retirement criteria. No production adoption follows.
+experimental boundary and its retirement criteria. Exact review/integration records are in `evidence/findings-repair/`; final administrative handoff review is separate. No production adoption follows.
 
 **Historical original run: blocked, unaccepted.** The original reference gate
 (`evidence/check-step.mjs`) fails on preview vertex count: isolated preview192
