@@ -676,3 +676,12 @@ after confirming existing lost-pointer-capture cancellation. Both reports are
 [retained here](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/).
 Review completion does not satisfy the failed provider, drag or accessibility
 gates. The code candidate is not integrated.
+
+The status/documentation/evidence handoff was committed as
+`23b9044a65e3e7cef9d07d46fc15999e946bb44e` and fast-forwarded into the dedicated
+`migration/boardstudio-m1` branch. This integration contains no executable P2
+source or dependency-manifest changes. The integrated revision passed
+`git diff --check` and `pnpm run check:repo` (7/7 repository-check tests; 553
+authored modules, 369 production-reachable). The copied Reviung41 fixture SHA-256
+was verified against the original. The executable task status remains blocked
+and its integration field remains null.

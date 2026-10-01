@@ -12,7 +12,20 @@
       "command": "pnpm run check:repo",
       "exit": 0,
       "result": "7 scripts; 553 authored modules; 369 production-reachable modules"
+    },
+    {
+      "command": "git diff --check 689f8962f77e04b1150a9541128fec7aca28addc..HEAD",
+      "exit": 0
+    },
+    {
+      "command": "git diff --name-only scope assertion",
+      "exit": 0,
+      "result": "97 paths; no executable source or dependency manifests"
     }
   ],
-  "scope": "Status/docs/evidence-only handoff; executable P2 source is excluded. Integration of the handoff into the dedicated migration branch remains pending."
+  "scope": "Status/docs/evidence-only handoff; executable P2 source is excluded. Integration of the handoff into the dedicated migration branch remains pending.",
+  "handoff_commit": "23b9044a65e3e7cef9d07d46fc15999e946bb44e",
+  "integration_branch": "migration/boardstudio-m1",
+  "integration_revision_before_final_validation": "23b9044a65e3e7cef9d07d46fc15999e946bb44e",
+  "integration": "Fast-forwarded status/docs/evidence only; executable P2 remains unintegrated and task-status.integration remains null."
 }
