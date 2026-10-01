@@ -390,9 +390,26 @@ impl Runtime {
         self.open_sequence.set(sequence);
         Ok(sequence)
     }
-    pub async fn import_archive(self: &Rc<Self>, bytes: Vec<u8>) -> Result<(), String> {
-        let sequence = self.begin_open()?;
-        self.import_archive_at(bytes, sequence).await
+    pub fn import_file(self: &Rc<Self>, file: web_sys::File) {
+        let Ok(sequence) = self.begin_open() else {
+            self.report("Open identity exhausted.");
+            return;
+        };
+        let this = self.clone();
+        spawn_local(async move {
+            let result = match JsFuture::from(file.array_buffer()).await {
+                Ok(buffer) => {
+                    this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence)
+                        .await
+                }
+                Err(error) => Err(format!("Import read failed: {error:?}")),
+            };
+            if let Err(error) = result
+                && this.open_sequence.get() == sequence
+            {
+                this.report(error);
+            }
+        });
     }
     async fn import_archive_at(
         self: &Rc<Self>,
@@ -454,8 +471,13 @@ impl Runtime {
                     })
                 }
                 Ok(Some(_)) => {}
-                Ok(None) => this.report("Saved keyboard is unavailable."),
-                Err(error) => this.report(error.to_string()),
+                Ok(None) if this.open_sequence.get() == sequence => {
+                    this.report("Saved keyboard is unavailable.")
+                }
+                Err(error) if this.open_sequence.get() == sequence => {
+                    this.report(error.to_string())
+                }
+                Ok(None) | Err(_) => {}
             }
         });
     }
