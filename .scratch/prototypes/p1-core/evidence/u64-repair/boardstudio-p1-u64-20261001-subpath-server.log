@@ -1,11 +1,11 @@
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/ HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/assets/boardstudio-p1-core-dxhd4ae797ade295c.js HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/assets/boardstudio-p1-core_bg-dxhe774a406070519a.wasm HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/worker/worker-entry.js HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] code 404, message File not found
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /favicon.ico HTTP/1.1" 404 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/worker/boardstudio_p1_core.js HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/worker/boardstudio_p1_core_bg.wasm HTTP/1.1" 200 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/worker/worker-entry.js HTTP/1.1" 304 -
-127.0.0.1 - - [01/Oct/2026 09:16:33] code 404, message File not found
-127.0.0.1 - - [01/Oct/2026 09:16:33] "GET /boardstudio/missing-worker.js HTTP/1.1" 404 -
+127.0.0.1 - - [01/Oct/2026 09:23:58] "GET /boardstudio/ HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 09:23:58] "GET /boardstudio/assets/boardstudio-p1-core-dxhac1ff242b11ed69a.js HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 09:23:58] "GET /boardstudio/assets/boardstudio-p1-core_bg-dxhe0f0aead6120edf0.wasm HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 09:23:58] "GET /boardstudio/worker/worker-entry.js HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 09:23:58] code 404, message File not found
+127.0.0.1 - - [01/Oct/2026 09:23:58] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [01/Oct/2026 09:23:58] "GET /boardstudio/worker/boardstudio_p1_core.js HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 09:23:58] "GET /boardstudio/worker/boardstudio_p1_core_bg.wasm HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 09:23:59] "GET /boardstudio/worker/worker-entry.js HTTP/1.1" 304 -
+127.0.0.1 - - [01/Oct/2026 09:23:59] code 404, message File not found
+127.0.0.1 - - [01/Oct/2026 09:23:59] "GET /boardstudio/missing-worker.js HTTP/1.1" 404 -

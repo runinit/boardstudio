@@ -203,3 +203,23 @@ transfer are unchanged. Fresh locked worker and Dioxus root/subpath release
 builds and both Chromium assertions now pass. The original P1-CORE failure
 records remain historical. The current candidate is not accepted until exact
 Standards/Spec review and integration validation; canonical completion stays open.
+
+Candidate `55ae024a` was invalidated before integration: an extra isolated
+finite-f64 characterization found default serde_json parsing can change the
+last bit; both independent reviews report that precision blocker. The stronger
+real host/worker browser test reproduced it (exit 1). Repair 2 enables the
+already-pinned library's float_roundtrip feature; no version or lockfile change.
+This feature is unified with the probe engine dependency, so the full provider
+suite is rerun with that feature, in addition to fresh protocol, build, lint
+and browser gates. No repair attempts remain after this correction.
+Repair 1 only packaged raw Cargo output losslessly as gzip to satisfy the
+unchanged staged whitespace gate; all raw bytes and SHA are retained.
+
+The final repaired source passes the full provider suite (334 passed, the same
+six pre-existing opt-in tests ignored), four native transport tests/build, fmt
+and all native/WASM Clippy gates. Both fresh release browser paths preserve
+the original lifecycle/transfer assertions plus integer extrema and the new
+f64 counterexamples/normal/subnormal/max values. The isolated finite-f64 probe
+checks 9,999 values with no bit changes. Exact source/artifact hashes and raw/
+gzip byte sizes are retained; performance and production adoption remain open.
+Final source is awaiting repeated exact-candidate review and integration validation.

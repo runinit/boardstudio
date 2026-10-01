@@ -1,0 +1,21 @@
+{
+  "throwaway_probe": "float-characterization.rs",
+  "purpose": "finite-f64 bit fidelity with same pinned float_roundtrip native library; real WASM checks remain required",
+  "command": [
+    "rustc",
+    "--crate-name",
+    "u64_float_characterization",
+    "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/evidence/u64-repair/float-characterization.rs",
+    "--extern",
+    "serde_json=/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/debug/deps/libserde_json-6c8fa23c735bbecb.rlib",
+    "-L",
+    "dependency=/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/debug/deps",
+    "-o",
+    "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/u64-float-characterization-final"
+  ],
+  "exit_code": 0,
+  "result": {
+    "checked": 9999,
+    "counterexamples": []
+  }
+}

@@ -9,7 +9,7 @@
 
 ## Renewed defect-only task: P1-U64-r1
 
-- [ ] P1-U64 — corrected isolated prototype passes the real host/worker precision and lifecycle assertions at root/subpath; awaiting remaining checks, exact-candidate Standards/Spec review and integration validation. [Authority and scope](.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json). No CAD execution or production adoption in this task.
+- [ ] P1-U64 — corrected isolated prototype passes the real host/worker precision and lifecycle assertions at root/subpath; awaiting exact-candidate Standards/Spec review and integration validation after final float_roundtrip repair. [Authority and scope](.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json). No CAD execution or production adoption in this task.
 
 ## Authorized bounded task set: P1-r1
 

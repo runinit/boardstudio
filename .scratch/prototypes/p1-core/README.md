@@ -83,7 +83,13 @@ provenance, including the original failed precision diagnostics. Their frozen
 passing gate. The current executable gate is `verify-browser.py`, which retains
 all original lifecycle/transfer assertions and adds typed precision assertions
 through Client.send and the real CoreEngine worker. Current RED, corrected
-builds, browser verdicts, hashes and checks are under [u64-repair](evidence/u64-repair/).
+builds, browser verdicts, hashes and checks are under [u64-repair](evidence/u64-repair/). The authoritative corrected-candidate
+records are final-checks.json, final-worker-build.json, final-release-browser.json,
+final-artifacts.json and final-float-characterization.json; earlier green-*
+records belong to invalidated candidate 55ae. Native raw logs are preserved
+losslessly as .log.gz with raw SHA-256. The full provider suite passes 334 tests;
+its six existing opt-in benchmark/KiCad tests remain ignored, matching historical
+coverage exactly. No new test is skipped.
 
 
 See [task authority and attempts](evidence/task-start.json),
@@ -99,18 +105,25 @@ by Git; hashes, source and executable producer remain reviewable.
 
 The original structured-object codec rejected valid u64/i64 values outside the
 JavaScript safe-integer range. Frames now carry opaque JSON text encoded and
-decoded with the already-locked Rust serde_json 1.0.151. JavaScript never parses
+decoded with the already-locked Rust serde_json 1.0.151 and its
+`float_roundtrip` feature. JavaScript never parses
 that text or converts its numbers. The real Rust host/worker regression checks
 Open and Snapshot at revisions 9007199254740991, 9007199254740993 and u64::MAX,
 including scene revisions, nested u64/i64 extrema, null, booleans, strings,
-fractional floats, 1.0 and negative zero. Typed and serialized-value equality
+fractional floats, 1.0, negative zero, demonstrated last-bit rounding
+counterexamples, smallest normal/subnormal and maximum finite f64. Typed and serialized-value equality
 are asserted in Rust; only descriptive strings reach the browser report.
 
 BigInt serializer configuration is an alternative for large integer fields,
 but pinned serde-wasm-bindgen deserialize_any normalizes safe integral JS numbers
 to i64 and loses whole-float/negative-zero JSON representation. A tagged numeric
 schema would add a new protocol and validation surface. JSON text reuses the
-provider codec without new dependencies or changes to engine types. See
+provider codec without new dependency versions or changes to engine types.
+An additional isolated characterization found default float parsing can change
+finite f64 bits; the real-browser regression reproduced that failure. Enabling
+the existing float_roundtrip feature restores this contract. That feature is
+unified into the probe's engine dependency, so the full native provider suite
+is rerun with the same feature rather than relying only on old evidence. See
 [version-matched installed sources](evidence/u64-repair/codec-source-evidence.json).
 The direct serde-wasm-bindgen pin and lockfile remain unchanged in this disposable
 probe; transport no longer calls it. This avoids mixing dependency changes into

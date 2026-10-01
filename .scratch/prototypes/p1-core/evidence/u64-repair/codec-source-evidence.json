@@ -19,9 +19,14 @@
       "installed_source": "/home/chris/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.151/src/de.rs",
       "sha256": "4998d7e252eb513be85b298e287048b4fb283882e9ba7df905f572f07200f3f3",
       "purpose": "Rust JSON parser owns decoding without a JavaScript number conversion"
+    },
+    {
+      "installed_source": "/home/chris/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.151/Cargo.toml",
+      "sha256": "00b920255c320a278bf25b962b491263a19d8c90e12e4a91c1d823db71eabb2f",
+      "purpose": "Existing float_roundtrip feature; version1.0.151 parser branches de.rs623/638 demonstrate precise lexical parser versus default arithmetic parser."
     }
   ],
-  "decision": "Reuse existing Rust serde_json frame encoding/decoding; JS treats frame as opaque text. Typed CoreEngine.handle remains unchanged. Extra Rust/string/worker copies documented; binary buffer channel remains transferable.",
+  "decision": "Reuse existing Rust serde_json frame encoding/decoding; JS treats frame as opaque text. Typed CoreEngine.handle remains unchanged. Extra Rust/string/worker copies documented; binary buffer channel remains transferable. Enable existing float_roundtrip feature: finite f64 bit fidelity verified separately and in real host/worker assertions.",
   "alternatives": "BigInt serializer config addresses u64 but deserialize_any still normalizes JSON whole floats/negative zero. JSON text carries existing provider number meaning without a new tag/schema or third-party library.",
-  "versions": "existing locked providers, Dioxus0.7.10 and wasm bindings unchanged"
+  "versions": "Versions and lockfile unchanged; one serde_json float_roundtrip feature added after demonstrated default-parser compatibility failure."
 }

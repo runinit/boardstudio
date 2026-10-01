@@ -101,7 +101,9 @@ async fn run_probe() -> Result<serde_json::Value, String> {
         expected.parameters.insert("integer-boundaries".into(), serde_json::json!({
             "unsigned": [9_007_199_254_740_991_u64, 9_007_199_254_740_993_u64, u64::MAX],
             "signed": [i64::MIN, -9_007_199_254_740_993_i64, i64::MAX],
-            "nested": [null, true, {"fraction": 1.25, "whole_float": 1.0, "negative_zero": -0.0, "label": "preserve"}],
+            "nested": [null, true, {"fraction": 1.25, "whole_float": 1.0, "negative_zero": -0.0,
+                "precision_floats": [f64::from_bits(0x723f4114006c08c7), f64::from_bits(0x51ffcc7cdc989d43), f64::from_bits(0x6d7d17ace8d6e1c8), f64::MIN_POSITIVE, f64::from_bits(1), f64::MAX],
+                "label": "preserve"}],
         }));
         let opened = Identity {
             epoch: 1,

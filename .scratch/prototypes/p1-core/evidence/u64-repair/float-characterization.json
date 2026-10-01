@@ -1,0 +1,37 @@
+{
+  "isolated_generated_probe": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/u64-float-characterization.rs",
+  "purpose": "Check new text codec against pre-existing arbitrary JSON float contract before integration; never production code",
+  "command": [
+    "rustc",
+    "--crate-name",
+    "u64_float_characterization",
+    "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/u64-float-characterization.rs",
+    "--extern",
+    "serde_json=/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/debug/deps/libserde_json-854907e84dcf4285.rlib",
+    "-L",
+    "dependency=/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/debug/deps",
+    "-o",
+    "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/u64-float-characterization"
+  ],
+  "exit_code": 1,
+  "result": {
+    "checked": 9999,
+    "counterexamples": [
+      {
+        "after_bits": "723f4114006c08c6",
+        "before_bits": "723f4114006c08c7",
+        "text": "2.08403533043113e+242"
+      },
+      {
+        "after_bits": "51ffcc7cdc989d44",
+        "before_bits": "51ffcc7cdc989d43",
+        "text": "9.883920188777563e+86"
+      },
+      {
+        "after_bits": "6d7d17ace8d6e1c7",
+        "before_bits": "6d7d17ace8d6e1c8",
+        "text": "2.567424239278344e+219"
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "wasm-pack",
+    "build",
+    ".",
+    "--target",
+    "web",
+    "--release",
+    "--out-dir",
+    "worker-pkg",
+    "--locked",
+    "--no-default-features",
+    "--features",
+    "worker"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core",
+  "exit_code": 0,
+  "log": "final-worker-build.log"
+}

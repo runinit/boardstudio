@@ -1,0 +1,49 @@
+[
+  {
+    "command": [
+      "node",
+      "/tmp/boardstudio-migration-specs-review-20261001/scripts/repo-check.mjs",
+      "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001",
+    "exit_code": 0,
+    "log": "final-repo.log"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001",
+    "exit_code": 0,
+    "log": "final-whitespace.log"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "8b293b0847b50b865334dd9078e8e2b20a84966e",
+      "--",
+      "core",
+      "contracts"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001",
+    "exit_code": 0,
+    "log": "final-provider-source.log"
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "2caf0874",
+      "--",
+      ".scratch/prototypes/p1-core/Cargo.lock"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001",
+    "exit_code": 0,
+    "log": "final-lock.log"
+  }
+]

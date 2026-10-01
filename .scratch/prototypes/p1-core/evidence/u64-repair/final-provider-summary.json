@@ -1,0 +1,18 @@
+{
+  "command": "final-checks.json provider-test",
+  "passed": 334,
+  "failed": 0,
+  "ignored": 6,
+  "preexisting_ignored_tests": [
+    "artifact::mechanical_plate::tests::kicad_10_exports_actual_gerber_and_npth_drill",
+    "geometry::tests::compare_100",
+    "geometry::tests::compare_200",
+    "guided_matrix_preview",
+    "outline_100_keys",
+    "outline_200_keys"
+  ],
+  "ignored_match_historical": true,
+  "features": "serde_json/float_roundtrip",
+  "versions": "same pinned serde_json1.0.151, serde1.0.229, rhai1.26.1 as prototype",
+  "gates_not_claimed": "Opt-in benchmark and KiCad manufacturing tests remain unrun as in existing default suite; no CAD/export/M1 parity/performance acceptance."
+}

@@ -1,0 +1,21 @@
+{
+  "candidate": "55ae024a84ff032e608901a182faae0876d7cec9",
+  "integration_base": "8b293b0847b50b865334dd9078e8e2b20a84966e",
+  "verdict": "invalidated, not integrated",
+  "axes": {
+    "Standards": {
+      "findings": 1,
+      "worst": "Serialization precision violates CONSTRAINTS.md: default serde_json parser changes last bit for finite f64. Reviewer inspected actual source, native gzip and runtime/check evidence; no material baseline smells.",
+      "reviewer": "/root/u64_standards_review",
+      "thread_id": "01a0f79d-ab7f-7301-89c3-82e718f0f01a"
+    },
+    "Spec": {
+      "findings": 1,
+      "worst": "Task acceptance requires arbitrary nested JSON float values survive host/worker; existing easy float fixtures missed default parser bit changes. Real source/assertions/evidence inspected.",
+      "reviewer": "/root/u64_spec_review",
+      "thread_id": "01a0f79d-e91a-7552-a8ca-e28329b0236f"
+    }
+  },
+  "routing_record": "review-routing.json",
+  "next": "New exact candidate review required after final permitted repair and affected checks."
+}

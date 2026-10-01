@@ -1,0 +1,236 @@
+[
+  {
+    "prefix": "/",
+    "cli_public": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public",
+    "files": [
+      {
+        "path": "assets/boardstudio-p1-core-dxh11bd3fb692edde8c.js",
+        "bytes": 51689,
+        "gzip_bytes": 12475,
+        "sha256": "790d9714853607477e4245cca56b69887bac3a73a054f848ca6d42640492bd40"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxh8c64828571fe63b.js",
+        "bytes": 54671,
+        "gzip_bytes": 13191,
+        "sha256": "54b5f253aa401d94ba9c7bf022935fbe5a90a4aebbf2fff17da2d609a1668cbc"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxh93e0b77eed7ef51a.js",
+        "bytes": 51690,
+        "gzip_bytes": 12474,
+        "sha256": "8d57a3e6aa6cb1f0bbd382310714a2f89bcedcc8015422e11ac1cc83efb4cdae"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxhd4ae797ade295c.js",
+        "bytes": 51699,
+        "gzip_bytes": 12476,
+        "sha256": "e65fc87d8168136a5b4935405ccaa2c260aa7b7cc9d159f467dd114bf29a5b89"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxhf8288ef236282686.js",
+        "bytes": 51690,
+        "gzip_bytes": 12475,
+        "sha256": "fba812a44c6c411c2ecdbba03016d1efc18b2343eefc45833d9aa947b1fc3923"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxh267b195adaf7bbee.wasm",
+        "bytes": 6749698,
+        "gzip_bytes": 1882082,
+        "sha256": "6a501a5f70351c404a2ec3b7074ad34451f9870fef0ee4b4305751820f7e5b81"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxhd2a919de93369d62.wasm",
+        "bytes": 7616369,
+        "gzip_bytes": 2068543,
+        "sha256": "1388fa5e133f113fd5a65eab24cdd86246ee0fa58b9cfe73e2a09dc9768854e5"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxhe0f0aead6120edf0.wasm",
+        "bytes": 6772359,
+        "gzip_bytes": 1891665,
+        "sha256": "59e8b63c308ef447404b959359686c1cb799d2760af9d008c453c7bdae6e33d6"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxhe774a406070519a.wasm",
+        "bytes": 6748679,
+        "gzip_bytes": 1881868,
+        "sha256": "2c055b4c6455bb1a3d1a6b4e994558540c302e718e41a4861e4fb2ee3c2963d0"
+      },
+      {
+        "path": "index.html",
+        "bytes": 539,
+        "gzip_bytes": 321,
+        "sha256": "63529879a30dd1b6963bce7530e779d424eef215097d2dbf80a86a6de0b0199e"
+      },
+      {
+        "path": "worker/.gitignore",
+        "bytes": 1,
+        "gzip_bytes": 21,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "worker/README.md",
+        "bytes": 8746,
+        "gzip_bytes": 3957,
+        "sha256": "2af065e6a5853de4c4a64b73ec0683f1284bcc5b921e043751a1f512e373adcd"
+      },
+      {
+        "path": "worker/boardstudio_p1_core.d.ts",
+        "bytes": 2712,
+        "gzip_bytes": 950,
+        "sha256": "8583cb0f1b55dba4e2f2b7a4dc8bf33114d4ac592bff62e45c9eb5a39d281510"
+      },
+      {
+        "path": "worker/boardstudio_p1_core.js",
+        "bytes": 16495,
+        "gzip_bytes": 4200,
+        "sha256": "f4b8f47c5b30f22011afe481209c44cd99dd66ab8c469d6e3f3b196aee977d40"
+      },
+      {
+        "path": "worker/boardstudio_p1_core_bg.wasm",
+        "bytes": 6595472,
+        "gzip_bytes": 2043832,
+        "sha256": "ff696d57c799459a3a6b2fec5ce5fbfde68e17ac520e51d5ad9c45b9feef571c"
+      },
+      {
+        "path": "worker/boardstudio_p1_core_bg.wasm.d.ts",
+        "bytes": 1241,
+        "gzip_bytes": 393,
+        "sha256": "0a6307e40c44cf2466760dbe4d92e598ac4179dde083694710613cf89c46fe6d"
+      },
+      {
+        "path": "worker/package.json",
+        "bytes": 310,
+        "gzip_bytes": 170,
+        "sha256": "0560a8c51a943dbd41e210d1f1ffde2d3d7479fab896e0fef952e9aacc8aa4ef"
+      },
+      {
+        "path": "worker/worker-entry.js",
+        "bytes": 93,
+        "gzip_bytes": 97,
+        "sha256": "ffcaaa86c61e116ca9d1e251d3335d0822293a85e29aaef4137ff8782382b925"
+      }
+    ]
+  },
+  {
+    "prefix": "/boardstudio/",
+    "cli_public": "/home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001/.scratch/prototypes/p1-core/target/dx/boardstudio-p1-core/release/web/public",
+    "files": [
+      {
+        "path": "assets/boardstudio-p1-core-dxh11bd3fb692edde8c.js",
+        "bytes": 51689,
+        "gzip_bytes": 12475,
+        "sha256": "790d9714853607477e4245cca56b69887bac3a73a054f848ca6d42640492bd40"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxh8c64828571fe63b.js",
+        "bytes": 54671,
+        "gzip_bytes": 13191,
+        "sha256": "54b5f253aa401d94ba9c7bf022935fbe5a90a4aebbf2fff17da2d609a1668cbc"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxh93e0b77eed7ef51a.js",
+        "bytes": 51690,
+        "gzip_bytes": 12474,
+        "sha256": "8d57a3e6aa6cb1f0bbd382310714a2f89bcedcc8015422e11ac1cc83efb4cdae"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxhac1ff242b11ed69a.js",
+        "bytes": 51700,
+        "gzip_bytes": 12475,
+        "sha256": "f61d7934acc47d1588198888b3df8b6d3df2515e12d7ce3d0db668b9bc9e53f3"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxhd4ae797ade295c.js",
+        "bytes": 51699,
+        "gzip_bytes": 12476,
+        "sha256": "e65fc87d8168136a5b4935405ccaa2c260aa7b7cc9d159f467dd114bf29a5b89"
+      },
+      {
+        "path": "assets/boardstudio-p1-core-dxhf8288ef236282686.js",
+        "bytes": 51690,
+        "gzip_bytes": 12475,
+        "sha256": "fba812a44c6c411c2ecdbba03016d1efc18b2343eefc45833d9aa947b1fc3923"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxh267b195adaf7bbee.wasm",
+        "bytes": 6749698,
+        "gzip_bytes": 1882082,
+        "sha256": "6a501a5f70351c404a2ec3b7074ad34451f9870fef0ee4b4305751820f7e5b81"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxhd2a919de93369d62.wasm",
+        "bytes": 7616369,
+        "gzip_bytes": 2068543,
+        "sha256": "1388fa5e133f113fd5a65eab24cdd86246ee0fa58b9cfe73e2a09dc9768854e5"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxhe0f0aead6120edf0.wasm",
+        "bytes": 6772359,
+        "gzip_bytes": 1891665,
+        "sha256": "59e8b63c308ef447404b959359686c1cb799d2760af9d008c453c7bdae6e33d6"
+      },
+      {
+        "path": "assets/boardstudio-p1-core_bg-dxhe774a406070519a.wasm",
+        "bytes": 6748679,
+        "gzip_bytes": 1881868,
+        "sha256": "2c055b4c6455bb1a3d1a6b4e994558540c302e718e41a4861e4fb2ee3c2963d0"
+      },
+      {
+        "path": "index.html",
+        "bytes": 559,
+        "gzip_bytes": 321,
+        "sha256": "b584134e7fc68cfc1da7f8d55e2131140fe9aae580ef7f87749115566c18933f"
+      },
+      {
+        "path": "worker/.gitignore",
+        "bytes": 1,
+        "gzip_bytes": 21,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "worker/README.md",
+        "bytes": 8746,
+        "gzip_bytes": 3957,
+        "sha256": "2af065e6a5853de4c4a64b73ec0683f1284bcc5b921e043751a1f512e373adcd"
+      },
+      {
+        "path": "worker/boardstudio_p1_core.d.ts",
+        "bytes": 2712,
+        "gzip_bytes": 950,
+        "sha256": "8583cb0f1b55dba4e2f2b7a4dc8bf33114d4ac592bff62e45c9eb5a39d281510"
+      },
+      {
+        "path": "worker/boardstudio_p1_core.js",
+        "bytes": 16495,
+        "gzip_bytes": 4200,
+        "sha256": "f4b8f47c5b30f22011afe481209c44cd99dd66ab8c469d6e3f3b196aee977d40"
+      },
+      {
+        "path": "worker/boardstudio_p1_core_bg.wasm",
+        "bytes": 6595472,
+        "gzip_bytes": 2043832,
+        "sha256": "ff696d57c799459a3a6b2fec5ce5fbfde68e17ac520e51d5ad9c45b9feef571c"
+      },
+      {
+        "path": "worker/boardstudio_p1_core_bg.wasm.d.ts",
+        "bytes": 1241,
+        "gzip_bytes": 393,
+        "sha256": "0a6307e40c44cf2466760dbe4d92e598ac4179dde083694710613cf89c46fe6d"
+      },
+      {
+        "path": "worker/package.json",
+        "bytes": 310,
+        "gzip_bytes": 170,
+        "sha256": "0560a8c51a943dbd41e210d1f1ffde2d3d7479fab896e0fef952e9aacc8aa4ef"
+      },
+      {
+        "path": "worker/worker-entry.js",
+        "bytes": 93,
+        "gzip_bytes": 97,
+        "sha256": "ffcaaa86c61e116ca9d1e251d3335d0822293a85e29aaef4137ff8782382b925"
+      }
+    ]
+  }
+]
