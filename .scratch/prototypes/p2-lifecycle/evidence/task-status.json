@@ -10,10 +10,10 @@
   "worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-20261001",
   "branch": "prototype/boardstudio-p2-lifecycle",
   "owner": "coordinator",
-  "repair_attempts": 1,
+  "repair_attempts": 2,
   "repair_limit": 2,
   "next_eligible_tasks": [],
-  "unresolved_approval": "Scope extension to apply exact proposed-renderer-format.patch to four renderer files; preserve strict gate and full P2 verification",
+  "unresolved_approval": "P2-r1-R1 renewed bounded run: original P2 scope plus exact four-file formatting prerequisite; new explicit two-attempt limit, no automatic reset",
   "commands_and_failures": "config-doctor.json, baseline-renderer-fmt.json, proposed-patch-applicability.json; raw SHA and gzip logs retained",
   "unperformed": [
     "Prototype source/TDD/native tests",

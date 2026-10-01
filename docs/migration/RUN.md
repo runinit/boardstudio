@@ -439,7 +439,8 @@ proposal's initial approval-pending wording as history;
 [task-start](../../.scratch/prototypes/p2-lifecycle/evidence/task-start.json)
 records the actual approval, exact specifications, ownership, pre-agreed public
 engine/gesture/lifecycle seams. Preflight started at zero repairs; documentation/
-API evidence repair1 is recorded separately within the two-attempt limit. Base:
+API evidence repair1 and explicit README-link repair2 are recorded separately;
+the two-attempt limit is exhausted. Base:
 `7ed7b5ec9a58449615b05bf7e95eb888711d864b`. Coordinator-owned worktree
 `/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-20261001`, branch
 `prototype/boardstudio-p2-lifecycle`; actual clean checkout was verified before
@@ -475,8 +476,11 @@ is generated from independent temporary copies with rustfmt; it is **unapplied**
 and `git apply --check` passes.
 [Exact scope extension](../../.scratch/prototypes/p2-lifecycle/evidence/scope-extension.json)
 requests only those four source files, preserving renderer behavior/API/pins and
-the strict formatter gate. After that bounded approval, apply it as repair2 within
-the existing two-attempt limit, run all affected renderer checks, then resume the
+the strict formatter gate. The current two-attempt run is exhausted after documentation/evidence repairs.
+Proposed **P2-r1-R1** needs explicit approval of this four-file addition plus an
+explicitly renewed two-attempt limit, with no automatic reset or third repair.
+After that bounded approval, apply the exact patch in the task-owned worktree,
+run all affected renderer checks, then resume the
 original P2 TDD/build/browser/lifecycle/paired-resource/review/integration gates.
 Native/WASM tests/lints/builds, reference frontend, actual Chromium/P2 painting,
 gesture/history, resize/DPR, focus/a11y, resource cleanup and paired acceptance
