@@ -1,0 +1,65 @@
+{
+  "url": "http://127.0.0.1:4456/",
+  "checks": {
+    "keyboardUndoRedo": {
+      "initial": "translate(519.8244267835937 248.40467708047873) rotate(-10)",
+      "moved": "translate(523.1860783776378 248.40467708047873) rotate(-10)"
+    },
+    "focusOrder": [
+      {
+        "tag": "BUTTON",
+        "text": "Unmount editor panel"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Undo"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Redo"
+      },
+      {
+        "tag": "svg",
+        "text": "Keyboard layout editor"
+      }
+    ],
+    "focusStyle": {
+      "outline": "rgb(71, 121, 229) solid 3px",
+      "offset": "2px"
+    }
+  },
+  "runtimeErrors": [],
+  "failedRequests": [],
+  "limitations": [
+    "GPU counters measure API resource ownership, not physical GPU memory.",
+    "Accessibility tree and keyboard evidence do not establish screen-reader speech compatibility.",
+    "Timings and transfer sizes are measurements; no new pass thresholds are introduced."
+  ],
+  "initialReadyMs": 806,
+  "status": "failed",
+  "failure": "page.waitForFunction: Timeout 30000ms exceeded.\n    at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/tests/browser-acceptance.mjs:96:14",
+  "failurePage": {
+    "dpr": 2,
+    "matchesDpr2": true,
+    "status": "One-step Redo completed",
+    "canvas": "<canvas class=\"renderer-canvas\" aria-label=\"Rendered keyboard board preview\" width=\"503\" height=\"320\" data-resize-count=\"1\" data-dpr=\"1\" data-renderer-state=\"active\" data-render-submissions=\"4\"></canvas>",
+    "resources": {
+      "observers": 1,
+      "contexts": [
+        {
+          "connected": true,
+          "state": "active",
+          "live": {
+            "Buffer": 18,
+            "Texture": 0,
+            "Program": 2,
+            "Shader": 0,
+            "Framebuffer": 0,
+            "Renderbuffer": 0,
+            "VertexArray": 1
+          }
+        }
+      ]
+    }
+  }
+}

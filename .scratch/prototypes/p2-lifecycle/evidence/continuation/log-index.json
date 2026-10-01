@@ -1,0 +1,372 @@
+[
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/app-build-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/app-build-final.log.gz",
+    "sha256_uncompressed": "83aa294b447ec590dc8b9c2e70167cd1a2da2d1ceca0605c598ee715e9063e8f"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/app-build.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/app-build.log.gz",
+    "sha256_uncompressed": "a9085074868cd62c80d4e06c4529ad1278306a19041a3bb68b6812e15aabd6d1"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/app-tests-2.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/app-tests-2.log.gz",
+    "sha256_uncompressed": "8294901301ebd91a6bea384c283d7cdd802639e4f9d18942850f5918f2499aec"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/app-tests-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/app-tests-final.log.gz",
+    "sha256_uncompressed": "e028f02084b83978442aff5d273387cf9dda075806248ca983d8425d18fa4893"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/boundaries.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/boundaries.log.gz",
+    "sha256_uncompressed": "800d9e0610305ad766861e95b25619cf74529eab4db268e67a3fee4185cf1a5e"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/browser-root-r2.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/browser-root-r2.log.gz",
+    "sha256_uncompressed": "154ad563aeb23b21a2be0d49933ad3d5c6d7adb9db7600a8812eed8805856d2d"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/browser-root-r3.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/browser-root-r3.log.gz",
+    "sha256_uncompressed": "e3a56a1c32da957eb11b72b80573b1b0ce306296376009b1e9d1af747a277040"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/browser-root-r4.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/browser-root-r4.log.gz",
+    "sha256_uncompressed": "06dae4c8c68dc496633c2d439b8e80ee2e88a7933b5d6dd1fe992b6cccb9cb87"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/browser-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/browser-root.log.gz",
+    "sha256_uncompressed": "680309dd94c4284ea993e1614faaf954db43c2b77024abf9e9ab5563482e673d"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/core-wasm.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/core-wasm.log.gz",
+    "sha256_uncompressed": "ec46b12e29a476b3cc5ed19f18336ae08b27494accf27b445a2b7483342adeab"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/disposal-red.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/disposal-red.log.gz",
+    "sha256_uncompressed": "549f74fd0b798056a6f7428e7142ed3c54aed671b2516c85f8f75fca67669f3c"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/embedded-input-green.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/embedded-input-green.log.gz",
+    "sha256_uncompressed": "b7830e67d61b451b902dcd12e4ef9244bd4afd9ed931be59cf980647e2f2344a"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/embedded-input-red.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/embedded-input-red.log.gz",
+    "sha256_uncompressed": "b5c2c217dce7f86c8125dc7ebf3fecba61a22d9e5c60a69d40229635f0cd20ce"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/final-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/final-root.log.gz",
+    "sha256_uncompressed": "65ca117a49d32ab1784dc3d7a5ce5f2daed20dd56bc3494c7b73ef55ea199fa2"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/final-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/final-subpath.log.gz",
+    "sha256_uncompressed": "65ca117a49d32ab1784dc3d7a5ce5f2daed20dd56bc3494c7b73ef55ea199fa2"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/final4-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/final4-root.log.gz",
+    "sha256_uncompressed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/final4-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/final4-subpath.log.gz",
+    "sha256_uncompressed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/integration-contracts.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/integration-contracts.log.gz",
+    "sha256_uncompressed": "5e85b85064c11d47db8ebc0521db5f709987bb9914de6ef8b5b8607cfbfbc430"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-clippy-dispose.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-clippy-dispose.log.gz",
+    "sha256_uncompressed": "cb617d86008de99fd34c70702dca457881fda6daa7a6f11e03ec4f98920f10db"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-clippy-fix.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-clippy-fix.log.gz",
+    "sha256_uncompressed": "f40697f0032a5460d36fac59943580d70947304c7c5f94e6c38c88225ee5e7bd"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-clippy-native.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-clippy-native.log.gz",
+    "sha256_uncompressed": "6988ed5f2fd5e7b30b7d20ef73adc0f91dfda64ecb225bc14d8d0762e0b22526"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-clippy-origin.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-clippy-origin.log.gz",
+    "sha256_uncompressed": "a850deb1a317df3020a7cfeb857658a761a0899789c1f9bb10587e14c109efc5"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-clippy-wasm-fixed.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-clippy-wasm-fixed.log.gz",
+    "sha256_uncompressed": "530092383c13827306840ec18b121c16d3baf837813136131309bda15e699695"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-clippy-wasm-fixed2.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-clippy-wasm-fixed2.log.gz",
+    "sha256_uncompressed": "517e7dbb1e8b13373bebb698c30ca1ccf2638f899240a1acbf558daf8a127fe6"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-clippy-wasm.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-clippy-wasm.log.gz",
+    "sha256_uncompressed": "c89c87dd34308b0f1786a52eb48b382623cd6fe55aae2ddfadd185bd09773d8f"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-tests-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-tests-final.log.gz",
+    "sha256_uncompressed": "5a538f30c503c1b85824da3a0b08e90be23f2af914e83463d70378c416675c60"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/p2-tests-origin.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/p2-tests-origin.log.gz",
+    "sha256_uncompressed": "9b7fea01bfa9ba3b0646167d9c88b1a48e5398943386d8225dcaa6251f4ad06a"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/react-browser-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/react-browser-final.log.gz",
+    "sha256_uncompressed": "03228c0043057fc5638be4819d4e355ead6dafb9487599ffdc196912ce561b03"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/react-browser.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/react-browser.log.gz",
+    "sha256_uncompressed": "6d912d27de673b6b2f923d6957cd26524eb1ade143546d70fc22514097072083"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/react-canvas-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/react-canvas-final.log.gz",
+    "sha256_uncompressed": "2448c448214ef1f8bdfaa2394730aa410f05d78d9dfc539604af79e8a7c2bbeb"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/renderer-clippy-dispose.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/renderer-clippy-dispose.log.gz",
+    "sha256_uncompressed": "d519687a0d4c65f26cd642cf369c09330b3185e42b100c9f4821b872f3fc4436"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/renderer-tests-dispose.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/renderer-tests-dispose.log.gz",
+    "sha256_uncompressed": "4c512342fd934f3f442b4dae9c20320006860edeee567693d65aa5ceadca2980"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/repo-check-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/repo-check-final.log.gz",
+    "sha256_uncompressed": "7e85950c1ca998c90267cfd63c0886d9dbcab9e8405d32d618ac794a426ddaee"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/staging-provenance-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/staging-provenance-final.log.gz",
+    "sha256_uncompressed": "b623fbf0a59cd818607a4b0a03a31c2b1977374cbbc8fce638eca7146c4ba9f2"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/target/continuation/test-contracts-final.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/continuation/test-contracts-final.log.gz",
+    "sha256_uncompressed": "1af22bf01a4c8ba17e0d56c298473282df3484c15f7dd781866709c2ba149be4"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final1/dx-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final1/dx-root.log.gz",
+    "sha256_uncompressed": "6fb6884cd671df7e418ec36f39e1656c2ead703758eae671e76068411e31908c"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final1/dx-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final1/dx-subpath.log.gz",
+    "sha256_uncompressed": "2cbc93bb1c4e94d0f2ad2bfe3cce6eff0465e6b1ff5b6d54e61fe0c8619988c3"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final1/renderer.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final1/renderer.log.gz",
+    "sha256_uncompressed": "fc325e95c11af02dac468968bab8e15c1ec53c6487d87ccbf6ea852b31cb1783"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final1/stage-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final1/stage-root.log.gz",
+    "sha256_uncompressed": "23a0cf2ac6486544de5c6aae9fd8b44494169f573adc59e1ac24c41c6bb78538"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final1/stage-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final1/stage-subpath.log.gz",
+    "sha256_uncompressed": "c3467049518505fb1272f41100011c4db2da84505f2ab0f20816fb071fc548a5"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final1/worker.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final1/worker.log.gz",
+    "sha256_uncompressed": "15d7f6351625e628e4df58f593d9305560b3ff083b176979bb012e0635f7ed76"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final2/dx-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final2/dx-root.log.gz",
+    "sha256_uncompressed": "998981bf447bbd3617d08d26312f33678bbf4cae24df042a13b928bc79841f5e"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final2/dx-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final2/dx-subpath.log.gz",
+    "sha256_uncompressed": "bf8b39eedad999c6878dadfdf5620aa42639b66d6bea08568b0e9b1cda9a8cb6"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final2/renderer.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final2/renderer.log.gz",
+    "sha256_uncompressed": "da92fcaa0f57d841799db44aef47f6dd60992eecf2d1027cd8038695c38ae080"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final2/stage-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final2/stage-root.log.gz",
+    "sha256_uncompressed": "d6fca6393e9aaf99b3802fef1da18918afeddb8cfd119b27e5c9299199c6153f"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final2/stage-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final2/stage-subpath.log.gz",
+    "sha256_uncompressed": "425c2f18b2f4f8aee5acd6c788b6f98a331c397d5d0e34907773997d2f1db8c0"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final2/worker.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final2/worker.log.gz",
+    "sha256_uncompressed": "99faaff98d4a954ab9c0112dc28c7bc04994be46827ab4e2ac5f5aa6a89c4f81"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final3/dx-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final3/dx-root.log.gz",
+    "sha256_uncompressed": "7c31a1ae335920e032cd34256a3107554ef4bfa23a85ec90033830720262e2eb"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final3/dx-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final3/dx-subpath.log.gz",
+    "sha256_uncompressed": "a1cb6e14a54ce4514519430c8e2fdf9295a2363a600fe79f5ab8e2a2279562dc"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final3/renderer.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final3/renderer.log.gz",
+    "sha256_uncompressed": "a2c634fe4603b356171d04dc71851ec0267225bab3117a5c60949e9d5bd9c3a4"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final3/stage-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final3/stage-root.log.gz",
+    "sha256_uncompressed": "df76abd8a6905bbb7c31dd26cc01f84c127b0cbaee77c124cd8bcdf955c1d5a9"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final3/stage-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final3/stage-subpath.log.gz",
+    "sha256_uncompressed": "74e66c0b14b5fc02e25ea3c94b3acf5fcc3b45f36be09d334aa41fff2369ed43"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final3/worker.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final3/worker.log.gz",
+    "sha256_uncompressed": "2b76e193e8693f5e0508de5d7c9a5a055fef7715533d468d65023bd8709b49ae"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final4/dx-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final4/dx-root.log.gz",
+    "sha256_uncompressed": "0c987c8ff98d5295651a989785f23f9d11a86b9110b4dd90767660e1f90bc17a"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final4/dx-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final4/dx-subpath.log.gz",
+    "sha256_uncompressed": "4bb8df3b2eb0eedd851f59d98edfa708464d411005b4cbafd812b0f4be1bc63b"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final4/stage-root.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final4/stage-root.log.gz",
+    "sha256_uncompressed": "46798065ade8707db07bc0f577b6fab187c15604de049637545193fceb282d87"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/target/builds/final4/stage-subpath.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/builds/final4/stage-subpath.log.gz",
+    "sha256_uncompressed": "913d72661d6ba6c805c0912d58bc7c3cb7b18d7a7882b360b8abbef7b2aa9148"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/contracts-check.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/contracts-check.log.gz",
+    "sha256_uncompressed": "f676a7bce90e5979aff200ab634d62adb71f8676fca6cac9b6239120092ec0d4"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/contracts-test.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/contracts-test.log.gz",
+    "sha256_uncompressed": "4c44864f1025621cfab6a834409fe38243c78133a209fcf2bc5d1511f73e5bea"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/core-build-native.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/core-build-native.log.gz",
+    "sha256_uncompressed": "0a480b07b14d2ea9aae0d0f0d0c41c68b2fdb64fda5de7b0ec8299fce59fee52"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/core-build-wasm.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/core-build-wasm.log.gz",
+    "sha256_uncompressed": "3a9f953c34d93a178cc7ae16b6bedb17b08a025eda3535c4bf8b34b90c21ae32"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/core-clippy-native.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/core-clippy-native.log.gz",
+    "sha256_uncompressed": "d858549bb42dda001164b75caa0424d0fc187fa133fa72a749e4df2d91a0ed58"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/core-clippy-wasm.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/core-clippy-wasm.log.gz",
+    "sha256_uncompressed": "2f3e904f9c32ce23d46db28bd51123a6908d8d0d9fecfe3f7396c409c4625882"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/core-fmt-check.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/core-fmt-check.log.gz",
+    "sha256_uncompressed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/core-test.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/core-test.log.gz",
+    "sha256_uncompressed": "b554688d42513a18825b8376e40683440072853da0e2104809a9c243d75ad374"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/p1-core-test.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/p1-core-test.log.gz",
+    "sha256_uncompressed": "ab77d753403718274d120c383642a608390d85a4eec54296dd46af8b602427c0"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/p1-fmt-check.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/p1-fmt-check.log.gz",
+    "sha256_uncompressed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/p2-fmt-check.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/p2-fmt-check.log.gz",
+    "sha256_uncompressed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/p2-tests.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/p2-tests.log.gz",
+    "sha256_uncompressed": "329506e54afcd5f9dc2ceb89d673d6626ab5a5c35fa6585359467cedbece6f9f"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/p2-wasm-check.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/p2-wasm-check.log.gz",
+    "sha256_uncompressed": "053cb64c90bfc2c1460851b59ecdf0d559b457684481acf25dc344a6de2b0e39"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/renderer-clippy-native.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/renderer-clippy-native.log.gz",
+    "sha256_uncompressed": "41bec8a6b87720a9a5b40cd6d0935ca4cfe1c916346eb457bbb4fd6ba4edd2c1"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/renderer-clippy-wasm.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/renderer-clippy-wasm.log.gz",
+    "sha256_uncompressed": "ae438c61b54d2fd7aab97cd3e12121504f712ab43478198aff5968d567cb6a41"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/renderer-fmt-check.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/renderer-fmt-check.log.gz",
+    "sha256_uncompressed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "original": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001/.scratch/prototypes/p2-lifecycle/target/abi-final/renderer-test.log",
+    "archive": ".scratch/prototypes/p2-lifecycle/evidence/continuation/logs/abi-final/renderer-test.log.gz",
+    "sha256_uncompressed": "41d628f5af1690d915e9b881576990f5056677650971361edb4ddeb3c7f12534"
+  }
+]

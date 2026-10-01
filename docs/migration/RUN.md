@@ -698,3 +698,37 @@ The full core native tests, renderer 26 tests, prototype 7 tests, native rendere
 ## Active approved continuation
 
 The user explicitly requested implementation of the remaining-migration plan on 2026-10-01. [The current run](continuation-run.json) supersedes historical finite budgets and stale status text. A persistent isolated branch combines preserved handoff `a15dc95c` and prototype `7ade8731`; original checkouts and stashes are unchanged. Public enum boxing and one scoped three-d Arc lint exception are approved, with wire/file compatibility required. P2 completion and P3 feasibility proceed independently; production adoption remains dependent on evidence. The prior short-viewport browser regression passed at both root and `/boardstudio/`, while exact provider-artifact provenance and remaining accessibility/lifecycle gates still require completion.
+
+
+### P2 acceptance on the persistent continuation
+
+P2 is accepted at reviewed executable source `e5d4e74868486e052c7a74ab50c5540481136220`.
+The approved ABI refactor (`7be0baa2`, integrated as `f7f6787f`) boxes large payloads
+without changing JSON/files/generated TypeScript. Strict native/WASM checks pass;
+the single scoped Arc exception documents the pinned three-d 0.19 API.
+Provider artifacts were rebuilt from recorded source `ff9b7b0e`; final4 Dioxus
+root/subpath bundles use those exact verified assets and source `e5d4e748`.
+The provenance now includes embedded provider inputs, not only Rust source files.
+
+Browser evidence exposed two further defects and drove focused repairs: cached
+renderer programs retained their context after disposal, and relative dynamic
+imports could retain an old origin across same-tab deployment changes. Explicit
+program-cache teardown plus departing-context release and absolute current-origin
+resource URLs pass the regression checks. Both final deployment suites have no
+runtime errors or failed requests. Keyboard Undo/Redo, focus, compact and short
+viewports, same-canvas DPR, four teardown cycles, context loss, and cancelled late
+imports pass. The unchanged reference app passes 469 tests, its build, and six
+affected browser interaction tests. Contract and native/WASM boundary checks pass.
+
+[Gate commands, logs and limitations](../../.scratch/prototypes/p2-lifecycle/evidence/continuation/gates.json)
+and [fresh independent reviews](../../.scratch/prototypes/p2-lifecycle/evidence/continuation/review-final.json)
+are retained. Axe has zero violations and one incomplete check for overlapping
+SVG labels; computed contrast is at least 7.41:1, without a speech/readability
+claim. The accepted P2 charter does not require a manual speech run. Startup,
+size and resource observations do not substitute invented thresholds for absent
+budgets. Earlier failures remain preserved as historical evidence.
+
+P3 continues independently with copied data and isolated storage. No production
+session/web application, full M1 workflow, full-range CAD integer parity, or
+newer-dev provider reconciliation is claimed. Original checkouts/stashes remain
+preserved. Repair caps remain removed.
