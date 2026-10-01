@@ -227,7 +227,7 @@ try {
       );
     }
     pointerCommands.push(['mouse', 'up', 'left']);
-    browser(['batch', '--bail', ...pointerCommands.map((command) => JSON.stringify(command))]);
+    browser(['batch', '--bail'], JSON.stringify(pointerCommands));
 
     const records = evalPage('window.__ticket06PointerObservation.results');
     assert.equal(records.length, count, `${keys}-key fixture must yield one transform observation per native movement`);
