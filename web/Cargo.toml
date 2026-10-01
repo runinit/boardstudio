@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["page", "core-worker"]
 page = ["dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers"]
 core-worker = ["dep:boardstudio_core"]
+cad-worker = ["dep:boardstudio_core"]
 test-harness = []
 
 [dependencies]
