@@ -33,14 +33,11 @@ export const definitionIssues = (definition: PartDefinition): string[] => {
     issues.push('Courtyard must have positive width and height.');
   }
   const ids = new Set<string>();
-  const numbers = new Set<string>();
   for (const [index, pad] of definition.pads.entries()) {
     if (!pad.id.trim() || ids.has(pad.id)) issues.push(`Pad ${index + 1} needs a unique ID.`);
     ids.add(pad.id);
     if (!definition.kicadSource) {
       if (!pad.number.trim()) issues.push(`Pad ${index + 1} needs a number.`);
-      if (numbers.has(pad.number)) issues.push(`Pad ${index + 1} number must be unique.`);
-      numbers.add(pad.number);
     }
     if (!Number.isFinite(pad.at.x) || !Number.isFinite(pad.at.y)) issues.push(`Pad ${index + 1} position must be finite.`);
     if (!Number.isFinite(pad.size.x) || !Number.isFinite(pad.size.y) || pad.size.x <= 0 || pad.size.y <= 0) {

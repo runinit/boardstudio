@@ -10,7 +10,14 @@ const modelFiles = import.meta.glob('../../ergogen/library/vendor/*/3d_models/**
 const entries = Object.entries(modelFiles).map(([source, url]) => {
   const match = source.match(/vendor\/([^/]+)\/3d_models\/(.+)$/u);
   if (!match) return undefined;
-  const [, vendor, filename] = match;
+  const [, vendor, sourceFilename] = match;
+  // URL fragments in upstream filenames cannot be imported by Vite. Preserve saved IDs.
+  const thqwgd001Names: Record<string, string> = {
+    'THQWGD001-rotation.stp': 'THQWGD001 #1.stp',
+    'THQWGD001C-2pin.stp': 'THQWGD001C [2pin] #1.stp',
+    'THQWGD001C-4pin.stp': 'THQWGD001C [4pin] #1.stp',
+  };
+  const filename = vendor === 'thqwgd001' ? thqwgd001Names[sourceFilename] ?? sourceFilename : sourceFilename;
   return { id: `ergogen:model:${vendor}/${filename}`, url, filename };
 }).filter((entry): entry is BundledModel => Boolean(entry));
 

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { createInstance } from 'libcascade/single/init';
 import { buildAssembly, buildCase, readStepModel, previewAssembly } from '../src/index.ts';
-import { prepareAssembly, prepareCase, resolveMechanical } from './native-prepare.mjs';
+import { prepareAssembly, prepareCase, resolveMechanical, resolveModules } from './native-prepare.mjs';
 
 const rawCase = async (ir) => buildCase(prepareCase(ir));
 const rawAssembly = async (ir) => buildAssembly(prepareAssembly(ir));
@@ -73,6 +73,52 @@ test('exports a holed plate as a readable STEP and mesh', async () => {
   const status = reader.ReadFile('/cad-smoke.step');
   assert.equal(status, oc.IFSelect_ReturnStatus.IFSelect_RetDone);
   oc.FS.unlink('/cad-smoke.step');
+});
+
+test('exports module supports as fused annular case bosses with verified STEP bounds', async () => {
+  const body = {
+    id: 'bottom', name: 'Module support fixture', boardId: 'board', kind: 'plate',
+    thickness: 2, clearance: 0, z: -9.2,
+  };
+  const contours = [{ hole: false, points: square(-40, 40) }];
+  const hole = { id: 'module:module-1:mh1', at: { x: 0, y: 0 }, kind: 'hole', holeDiameter: 2.2 };
+  const boss = { ...hole, kind: 'boss', bossDiameter: 6, height: 1 };
+  const plain = await rawCase({ revision: 1, body: { ...body, mounts: [hole] }, contours });
+  const supported = await rawCase({ revision: 1, body: { ...body, mounts: [boss] }, contours });
+  const model = await readStepModel(supported.step);
+  assertBounds(model.bounds.min, [-40, -40, -9.2], 1e-5);
+  assertBounds(model.bounds.max, [40, 40, -6.2], 1e-5);
+  const plainMass = await inspectStep(plain.step);
+  const supportedMass = await inspectStep(supported.step);
+  const expectedBossVolume = Math.PI * (3 ** 2 - 1.1 ** 2);
+  const measuredBossVolume = supportedMass.volume - plainMass.volume;
+  assert.ok(Math.abs(measuredBossVolume - expectedBossVolume) < 0.15,
+    `STEP must contain the annular boss around the preserved source drill (measured ${measuredBossVolume}, expected ${expectedBossVolume})`);
+});
+
+test('exports a board-module standoff as an annular STEP solid with the authored drill', async () => {
+  const outerRadius = 3;
+  const innerRadius = 1.4;
+  const circle = (radius) => Array.from({ length: 96 }, (_, index) => {
+    const angle = (index / 96) * Math.PI * 2;
+    return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+  });
+  const result = await rawCase({
+    revision: 1,
+    body: { id: 'module-standoff/module-1/mh1', name: 'PCB standoff', boardId: 'host', kind: 'plate', thickness: 3, clearance: 0 },
+    contours: [
+      { hole: false, points: circle(outerRadius) },
+      { hole: true, points: circle(innerRadius) },
+    ],
+  });
+  const model = await readStepModel(result.step);
+  const measured = await inspectStep(result.step);
+  assertBounds(model.bounds.min, [-outerRadius, -outerRadius, 0], 0.02);
+  assertBounds(model.bounds.max, [outerRadius, outerRadius, 3], 0.02);
+  assert.equal(measured.solidCount, 1);
+  const expectedVolume = Math.PI * (outerRadius ** 2 - innerRadius ** 2) * 3;
+  assert.ok(Math.abs(measured.volume - expectedVolume) < 0.06,
+    `STEP must preserve the authored annulus and bore (measured ${measured.volume}, expected ${expectedVolume})`);
 });
 
 test('clearance closes a narrow concave notch without invalid edges', async () => {
@@ -291,6 +337,46 @@ function mechanicalDocument() {
     },
   };
 }
+
+test('an additive support refills the earlier mounting drill through exported STEP', async () => {
+  const built = await rawCase({
+    revision: 1,
+    contours: [{hole:false,points:square(0,20)}],
+    body: {id:'supported',name:'Supported plate',boardId:'board',kind:'plate',thickness:2,clearance:0,
+      mounts:[{id:'drill',kind:'hole',at:{x:10,y:10},holeDiameter:4}],
+      features:[{id:'tower',kind:'support-prism',points:square(7,13),z:1,height:2}]},
+  });
+  const measured = await inspectStep(built.step);
+  assertBounds(measured.bounds.min,[0,0,0]);
+  assertBounds(measured.bounds.max,[20,20,3]);
+  assert.equal(measured.solidCount,1);
+  // The support fills the drill above Z=1; only one millimetre remains drilled.
+  assert.ok(Math.abs(measured.volume-(20*20*2+6*6-4*Math.PI))<0.01);
+});
+
+test('source module PCB preview retains above and below placement through exported STEP', async () => {
+  const catalogue = JSON.parse(await readFile(new URL('../../app/src/modules/imported-modules.json', import.meta.url), 'utf8'));
+  const definition = catalogue.modules.find(entry => entry.row === 'vik-splitter').definition;
+  for (const [hostFace, facingFace, minZ, maxZ] of [['front', 'back', 3, 4.6], ['back', 'front', -6.2, -4.6]]) {
+    const document = mechanicalDocument();
+    document.moduleDefinitions = [definition];
+    document.modules = [{id:'splitter',definitionId:definition.id,hostBoardId:'board',hostFace,facingFace,at:{x:15,y:7},rotation:0,gap:3,attachment:'board',detached:false,serviceClearance:0}];
+    const resolved = resolveModules(document, 'board');
+    assert.ok(resolved.findings.some(finding => finding.scope === 'case' && finding.severity === 'error'), 'Unknown assembly dimensions retain their qualification gates');
+    const built = await buildAssembly(resolved.preview);
+    const measured = await inspectStep(built.step);
+    assertBounds(measured.bounds.min, [2.5, -5.515, minZ]);
+    assertBounds(measured.bounds.max, [27.5, 19.515, maxZ]);
+    assert.equal(measured.solidCount, 1);
+    // Independent pinned-source dimensions: 25 × 25.03, R3.94 corners;
+    // two Ø2.2 mounts, twelve Ø1.1 header drills and 24 source vias.
+    const outerArea = 25 * 25.03 - (4 - Math.PI) * 3.94 ** 2;
+    const drillArea = Math.PI * (2 * 1.1 ** 2 + 12 * 0.55 ** 2 + 2 * 0.2 ** 2 + 22 * 0.15 ** 2);
+    const sourceVolume = (outerArea - drillArea) * 1.6;
+    // The retained outline is polygonized; allow its bounded curve approximation.
+    assert.ok(Math.abs(measured.volume - sourceVolume) < 0.6, `Drilled source PCB volume: ${measured.volume}; expected ${sourceVolume}`);
+  }
+});
 
 
 test('resolved allowance, integrated frame and gasket assemblies retain fit geometry through STEP', async () => {

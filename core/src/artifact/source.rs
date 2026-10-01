@@ -66,6 +66,8 @@ pub(super) fn import_footprint(source: &str, id: &str) -> Result<CompiledFootpri
         projection.courtyard
     };
     let definition = PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
         id: id.to_owned(),
         name,
         kind: PartKind::Custom,
@@ -139,8 +141,35 @@ pub(super) fn patch_footprint(
     } else {
         source.to_owned()
     };
+    let normalized = remove_text_render_caches(&normalized)?;
     patch_footprint_inner(&normalized, patch)
         .map_err(|error| error.artifact(ArtifactErrorCode::Unsupported))
+}
+
+// Cached glyph polygons depend on the old text and pose. KiCad regenerates
+// them from the retained text/effects; transforming stale caches is unsafe.
+fn remove_text_render_caches(source: &str) -> Result<String, ArtifactError> {
+    fn visit(node: &Node, edits: &mut Vec<(Span, String)>) {
+        if sexpr::head(node) == Some("render_cache") {
+            edits.push((sexpr::span(node), String::new()));
+        } else if let Some(items) = sexpr::items(node) {
+            for child in items {
+                visit(child, edits);
+            }
+        }
+    }
+    let document = kiutils_sexpr::parse_one(source)
+        .map_err(|error| ArtifactError::new(ArtifactErrorCode::ParseError, error.to_string()))?;
+    let mut edits = Vec::new();
+    for node in &document.nodes {
+        visit(node, &mut edits);
+    }
+    sexpr::replace_spans(source, edits).ok_or_else(|| {
+        ArtifactError::new(
+            ArtifactErrorCode::ParseError,
+            "Overlapping text render caches",
+        )
+    })
 }
 
 fn upgrade_legacy_arcs(source: &str) -> Result<String, ArtifactError> {

@@ -1,0 +1,144 @@
+   Compiling unicode-ident v1.0.26
+   Compiling cfg-if v1.0.5
+    Checking serde_core v1.0.229
+    Checking once_cell v1.21.4
+    Checking slab v0.4.12
+    Checking pin-project-lite v0.2.17
+    Checking futures-task v0.3.34
+    Checking futures-core v0.3.34
+    Checking foldhash v0.2.0
+    Checking glam v0.33.11
+    Checking link-cplusplus v1.0.12
+    Checking zmij v1.0.23
+    Checking memchr v2.8.3
+    Checking itoa v1.0.18
+   Compiling filetime v0.2.29
+   Compiling crc32fast v1.5.2
+    Checking ttf-parser v0.25.1
+    Checking wasm-bindgen-shared v0.2.129
+   Compiling proc-macro2 v1.0.107
+    Checking futures-util v0.3.34
+   Compiling tar v0.4.46
+   Compiling flate2 v1.1.10
+   Compiling quote v1.0.47
+   Compiling syn v3.0.6
+    Checking serde_json v1.0.151
+   Compiling wasm-bindgen-macro-support v0.2.129
+   Compiling cxx-build v1.0.202
+   Compiling serde_derive v1.0.229
+   Compiling cxxbridge-macro v1.0.202
+   Compiling cadrum v0.8.20
+    Checking serde v1.0.229
+    Checking boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/contracts/rust)
+    Checking cxx v1.0.202
+   Compiling wasm-bindgen-macro v0.2.129
+    Checking wasm-bindgen v0.2.129
+    Checking js-sys v0.3.106
+    Checking serde-wasm-bindgen v0.6.5
+    Checking boardstudio-cadrum-wasm v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/cad/wasm)
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction.rs:533:22
+    |
+533 |                     .chunks_exact(2)
+    |                      ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<2>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+    = note: `-D clippy::chunks-exact-to-as-chunks` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::chunks_exact_to_as_chunks)]`
+
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction.rs:539:28
+    |
+539 |             for pair in ys.chunks_exact(2) {
+    |                            ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<2>().0`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/keycaps.rs:217:14
+    |
+217 |             .chunks_exact(3)
+    |              ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<3>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: manual implementation of `.is_multiple_of()`
+   --> src/model.rs:379:12
+    |
+379 |         || mesh.indices.len() % 3 != 0
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with: `!mesh.indices.len().is_multiple_of(3)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#manual_is_multiple_of
+    = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+error: could not compile `boardstudio-cadrum-wasm` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction/cache.rs:536:42
+    |
+536 |         for normal in model.mesh.normals.chunks_exact(3) {
+    |                                          ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<3>().0`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+    = note: `-D clippy::chunks-exact-to-as-chunks` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::chunks_exact_to_as_chunks)]`
+
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction/planar_mesh.rs:212:26
+    |
+212 |                         .chunks_exact(9)
+    |                          ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<9>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction/planar_mesh.rs:213:43
+    |
+213 |                         .zip(mesh.normals.chunks_exact(9))
+    |                                           ^^^^^^^^^^^^^^^
+    |
+help: consider using `as_chunks::<9>()` instead
+   --> src/model/construction/planar_mesh.rs:213:43
+    |
+213 |                         .zip(mesh.normals.chunks_exact(9))
+    |                                           ^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction/planar_mesh.rs:217:30
+    |
+217 | ...                   .chunks_exact(3)
+    |                        ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<3>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction/planar_mesh.rs:242:30
+    |
+242 | ...                   .chunks_exact(3)
+    |                        ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<3>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> src/model/construction.rs:533:22
+    |
+533 |                     .chunks_exact(2)
+    |                      ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<2>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: called `.err().expect()` on a `Result` value
+   --> src/model/construction/gasket_features.rs:163:14
+    |
+163 |               .err()
+    |  ______________^
+164 | |             .expect("outside support must be rejected");
+    | |___________________^ help: try: `expect_err`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#err_expect
+    = note: `-D clippy::err-expect` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::err_expect)]`
+
+error: could not compile `boardstudio-cadrum-wasm` (lib test) due to 10 previous errors

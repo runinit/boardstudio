@@ -5,6 +5,9 @@ migration reports are removed; retained research and deletion decisions are
 listed in [the cleanup inventory](repository-cleanup.md). Packages live directly
 at the repository root.
 
+Before adding, importing or changing library components, footprints, modules or
+3D models, follow the [component onboarding guide](hardware/component-onboarding.md).
+
 ## App ownership
 
 The app entrypoint composes controllers and the workbench. Controllers receive

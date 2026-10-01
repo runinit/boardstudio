@@ -178,6 +178,10 @@ export async function packProject(doc: ProjectDoc, options: ProjectPackOptions =
     for (const definition of doc.definitions) {
       for (const model of (definition.models ?? [])) if (bundledModel(model.assetId)) bundledIds.add(model.assetId);
     }
+    for (const definition of doc.moduleDefinitions ?? []) {
+      for (const model of definition.models) if (bundledModel(model.assetId)) bundledIds.add(model.assetId);
+      for (const part of definition.circuit?.definitions ?? []) for (const model of part.models ?? []) if (bundledModel(model.assetId)) bundledIds.add(model.assetId);
+    }
     for (const assembly of doc.assemblies ?? []) for (const member of assembly.members) {
       for (const model of member.models) if (bundledModel(model.assetId)) bundledIds.add(model.assetId);
       const definition = doc.definitions.find(d => d.id === member.definitionId);

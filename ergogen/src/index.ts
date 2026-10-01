@@ -45,6 +45,7 @@ export function catalogue(): PartDefinition[] {
     const definition: PartDefinition = {
       id: `ergogen:${source}`, name, kind, pads: [], courtyard: [],
       ...(keyboardSwitch ? { keycap: { x: 18, y: 18 }, matrixTerminals: { row: 'from', column: 'to' } } : {}),
+      ...(source === 'ceoloide/rotary_encoder_ec11_ec12' ? { matrixTerminals: { row: 'S1', column: 'S2' } } : {}),
       envelopeSource: {}, terminals: {},
       generator: { source, version: 'bundled-1', parameters: {} },
     };

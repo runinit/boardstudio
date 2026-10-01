@@ -1,6 +1,16 @@
 use super::*;
 
 pub fn prepare_export(request: PrepareExportRequest) -> Result<ExportPlan, ArtifactError> {
+    prepare(request, true)
+}
+
+pub(in crate::artifact) fn prepare_preview(
+    request: PrepareExportRequest,
+) -> Result<ExportPlan, ArtifactError> {
+    prepare(request, false)
+}
+
+fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPlan, ArtifactError> {
     let doc = &request.document;
     if doc.format != "boardstudio/v2" {
         return Err(validation("Export requires a v2 document"));
@@ -29,6 +39,9 @@ pub fn prepare_export(request: PrepareExportRequest) -> Result<ExportPlan, Artif
                 let definition = definitions
                     .get(part.definition_id.as_str())
                     .ok_or_else(|| validation(format!("Missing part or definition: {part_id}")))?;
+                if fabrication {
+                    require_footprint_qualification(definition)?;
+                }
                 if is_ergogen(definition) {
                     jobs.push(ErgogenJob {
                         job_id: format!("{}:{}", board.id, part.id),
@@ -69,6 +82,9 @@ pub fn prepare_export(request: PrepareExportRequest) -> Result<ExportPlan, Artif
                         format!("Missing definition: {id}"),
                     )
                 })?;
+                if fabrication {
+                    require_footprint_qualification(definition)?;
+                }
                 if is_ergogen(definition) {
                     jobs.push(ErgogenJob {
                         job_id: format!("definition:{}", definition.id),
@@ -216,4 +232,53 @@ fn standalone_part(definition: &PartDefinition) -> Part {
                 .unwrap_or_default(),
         ),
     }
+}
+
+// Enforce the same recorded blockers for stateless exports and UI handoffs.
+fn require_footprint_qualification(definition: &PartDefinition) -> Result<(), ArtifactError> {
+    if let Some(gate) = definition
+        .hardware_profile
+        .iter()
+        .flat_map(|profile| &profile.gates)
+        .find(|gate| {
+            matches!(
+                gate.output,
+                HardwareOutput::Footprint | HardwareOutput::Electrical
+            )
+        })
+    {
+        return Err(validation(format!("{}: {}", definition.name, gate.message)));
+    }
+    Ok(())
+}
+
+pub(super) fn require_plan_qualification(plan: &ExportPlan) -> Result<(), ArtifactError> {
+    let document = &plan.captured_document;
+    let ids = match &plan.target {
+        ExportTarget::Board { board_id } => {
+            let (board, parts, _) = board_and_maps(document, board_id)?;
+            board
+                .part_ids
+                .iter()
+                .map(|id| {
+                    parts
+                        .get(id.as_str())
+                        .map(|part| part.definition_id.as_str())
+                        .ok_or_else(|| validation("Missing board part"))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
+        ExportTarget::StandaloneFootprints { definition_ids } => {
+            definition_ids.iter().map(String::as_str).collect()
+        }
+    };
+    for id in ids {
+        let definition = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == id)
+            .ok_or_else(|| validation("Missing definition"))?;
+        require_footprint_qualification(definition)?;
+    }
+    Ok(())
 }

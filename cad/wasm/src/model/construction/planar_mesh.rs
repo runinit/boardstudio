@@ -209,12 +209,16 @@ mod tests {
                     let sample_stride = (mesh.positions.len() / 9 / 32).max(1);
                     for (triangle_index, (triangle, normals)) in mesh
                         .positions
-                        .chunks_exact(9)
-                        .zip(mesh.normals.chunks_exact(9))
+                        .as_chunks::<9>()
+                        .0
+                        .iter()
+                        .zip(mesh.normals.as_chunks::<9>().0.iter())
                         .enumerate()
                     {
                         let points: Vec<_> = triangle
-                            .chunks_exact(3)
+                            .as_chunks::<3>()
+                            .0
+                            .iter()
                             .map(|p| DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64))
                             .collect();
                         let cross = (points[1] - points[0]).cross(points[2] - points[0]);
@@ -239,7 +243,9 @@ mod tests {
                         }
                         volume += points[0].dot(points[1].cross(points[2])) / 6.;
                         let keys: Vec<[u32; 3]> = triangle
-                            .chunks_exact(3)
+                            .as_chunks::<3>()
+                            .0
+                            .iter()
                             .map(|p| [p[0].to_bits(), p[1].to_bits(), p[2].to_bits()])
                             .collect();
                         for i in 0..3 {

@@ -2,6 +2,7 @@ pub mod compile;
 pub mod kicad;
 pub mod mechanical_extract;
 mod mechanical_plate;
+mod module_import;
 pub mod outline;
 mod preview;
 mod sexpr;
@@ -13,6 +14,13 @@ use crate::model::{
     FootprintCompileJob, PartDefinition,
 };
 pub use crate::model::{ArtifactError, ArtifactErrorCode};
+
+/// Parse source-owned footprint graphics for module preview without widening the parser helpers.
+pub(crate) fn preview_footprint_surfaces(
+    source: &str,
+) -> Result<Vec<crate::model::PcbSurface>, ArtifactError> {
+    preview::footprint_surfaces(source)
+}
 
 /// Handle a stateless artifact operation without touching CoreEngine history or the document.
 pub fn request(json: &str) -> String {
@@ -49,6 +57,30 @@ pub fn request(json: &str) -> String {
 
 fn handle(request: ArtifactRequest) -> ArtifactReply {
     match request {
+        ArtifactRequest::ImportModuleBoard {
+            id,
+            definition_id,
+            name,
+            source,
+            provenance,
+            family,
+            variant,
+            repair,
+        } => match module_import::import(
+            &source,
+            &definition_id,
+            &name,
+            provenance,
+            family,
+            variant,
+            repair,
+        ) {
+            Ok(result) => ArtifactReply::ImportModuleBoard {
+                id,
+                result: Box::new(result),
+            },
+            Err(error) => ArtifactReply::Error { id, error },
+        },
         ArtifactRequest::ExportMechanicalPlate {
             id,
             document,
@@ -100,6 +132,17 @@ fn handle(request: ArtifactRequest) -> ArtifactReply {
                 id,
                 result: Box::new(result),
             },
+            Err(error) => ArtifactReply::Error { id, error },
+        },
+        ArtifactRequest::PreparePreview { id, request } => match kicad::prepare_preview(request) {
+            Ok(result) => ArtifactReply::PreparePreview {
+                id,
+                result: Box::new(result),
+            },
+            Err(error) => ArtifactReply::Error { id, error },
+        },
+        ArtifactRequest::FinishPreview { id, request } => match kicad::finish_preview(request) {
+            Ok(result) => ArtifactReply::PreviewBoard { id, result },
             Err(error) => ArtifactReply::Error { id, error },
         },
         ArtifactRequest::PrepareExport { id, request } => match kicad::prepare_export(request) {

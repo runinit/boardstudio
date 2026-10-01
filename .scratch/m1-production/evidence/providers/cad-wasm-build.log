@@ -1,0 +1,37 @@
+$ pnpm --dir cad run build:wasm
+$ node scripts/build-cadrum-wasm.mjs
+STEP 1/9: FROM ghcr.io/webassembly/wasi-sdk@sha256:737535e2e75a90303fb2b9783c03002c1b8623264e2c853297e9a965a6b6d795
+STEP 2/9: RUN apt-get update && apt-get install -y --no-install-recommends     ca-certificates curl git python3 gcc g++ cmake ninja-build make     && rm -rf /var/lib/apt/lists/*
+--> Using cache 9cf108fa188a7512a2e712f0ea8dd729d1b5222081f877e274ae35abc68fec87
+--> 9cf108fa188a
+STEP 3/9: ENV CC=gcc CXX=g++ AR=ar RANLIB=ranlib LD=ld
+--> Using cache d25ab7255c9d85145feca58806edecd8f148f274a2768261d83d68e8ae9b76b5
+--> d25ab7255c9d
+STEP 4/9: RUN git clone --depth 1 --recurse-submodules --shallow-submodules       --branch wasi-sdk-33 https://github.com/WebAssembly/wasi-sdk /tmp/wasi-sdk     && test "$(git -C /tmp/wasi-sdk rev-parse HEAD)" = "c10c0507deb3e5aad506f1f9f32084e49a21834b"     && sed -i 's/-wasm-use-legacy-eh=false/-wasm-use-legacy-eh=true/' /tmp/wasi-sdk/cmake/wasi-sdk-sysroot.cmake     && rm -rf /opt/wasi-sdk/share/wasi-sysroot     && cmake -G Ninja -B /tmp/wasi-sdk-build -S /tmp/wasi-sdk       -DCMAKE_TOOLCHAIN_FILE=/opt/wasi-sdk/share/cmake/wasi-sdk.cmake       -DCMAKE_C_COMPILER_WORKS=ON -DCMAKE_CXX_COMPILER_WORKS=ON       -DCMAKE_INSTALL_PREFIX=/opt/wasi-sdk       -DWASI_SDK_TARGETS=wasm32-wasip1 -DWASI_SDK_EXCEPTIONS=DUAL       -DWASI_SDK_INCLUDE_TESTS=OFF     && cmake --build /tmp/wasi-sdk-build --target install     && rm -rf /tmp/wasi-sdk /tmp/wasi-sdk-build
+--> Using cache d8ba6e46fd191b8afb38c0464e8e5c65bb043697a345e1f4f7661727a8a98952
+--> d8ba6e46fd19
+STEP 5/9: RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s --       -y --default-toolchain 1.98.0 --profile minimal
+--> Using cache 173a8c40252dcc53f92c08136d483c52d8e1518211f22385483744251b43eb24
+--> 173a8c40252d
+STEP 6/9: ENV PATH=/opt/wasi-sdk/bin:/root/.cargo/bin:$PATH
+--> Using cache 86a0ae34b21c9c67891e0ab41b396cb5a24ceb4b506c4b59e2274165fc2a4c51
+--> 86a0ae34b21c
+STEP 7/9: RUN rustup target add wasm32-unknown-unknown     && cargo install wasm-pack --locked --version 0.15.0     && cargo install wasm-bindgen-cli --locked --version 0.2.129
+--> Using cache 958ad7fcb973281d1c4311a3c336ae3aab7f83c9f28ea85b5bdac9ddd23a927d
+--> 958ad7fcb973
+STEP 8/9: ENV SYSROOT=/opt/wasi-sdk/share/wasi-sysroot     CC_wasm32_unknown_unknown=clang     CXX_wasm32_unknown_unknown=clang++     CXXSTDLIB=c++     CFLAGS_wasm32_unknown_unknown="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_GETPID"     CXXFLAGS_wasm32_unknown_unknown="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot -fwasm-exceptions -fexceptions -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_GETPID"     CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="-L native=/opt/wasi-sdk/share/wasi-sysroot/lib/wasm32-wasip1/eh -L native=/opt/wasi-sdk/share/wasi-sysroot/lib/wasm32-wasip1 -l static=c++abi -l static=unwind -l static=c"
+--> Using cache 254a119122f32df15d30c29750cbd61da2b4dbd84604ae69d99d6ab2caefffff
+--> 254a119122f3
+STEP 9/9: WORKDIR /workspace/cad
+--> Using cache 52a57cdb59b8124ae65a080cb731410025116e832526a3bf7c5dc2312d99fd77
+COMMIT boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33-bindgen-0.2.129
+--> 52a57cdb59b8
+Successfully tagged localhost/boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33-bindgen-0.2.129
+52a57cdb59b8124ae65a080cb731410025116e832526a3bf7c5dc2312d99fd77
+[INFO]: Checking for the Wasm target...
+[INFO]: Compiling to Wasm...
+    Finished `release` profile [optimized] target(s) in 0.22s
+[INFO]: Optimizing wasm binaries with `wasm-opt`...
+[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository', and 'license'. These are not necessary, but recommended
+[INFO]: :-) Done in 3m 10s
+[INFO]: :-) Your wasm pkg is ready to publish at wasm/pkg.

@@ -376,7 +376,7 @@ fn mesh_to_data(mesh: &Mesh) -> Result<MeshData, String> {
     let _stage = Stage::new("meshExpansion");
     metrics::count("tessellatedTriangles", mesh.indices.len() / 3);
     if mesh.indices.is_empty()
-        || mesh.indices.len() % 3 != 0
+        || !mesh.indices.len().is_multiple_of(3)
         || mesh.normals.len() != mesh.vertices.len()
     {
         return Err("OpenCascade returned an invalid case mesh".into());

@@ -12,7 +12,7 @@ export async function exportFirmware(context: ExportContext, services: ExportSer
   if (split && (instances.length !== 2 || !central || !peripheral || central.half !== 'left' || peripheral.half !== 'right')) {
     throw new Error('Split firmware requires a left central and a right peripheral assembly');
   }
-  const primary = await services.resolveWiring(document, central?.boardId ?? boardId, central?.id ?? null);
+  const primary = await services.resolveWiring(document, central?.boardId ?? boardId, central?.id ?? context.snapshot.instance?.id ?? null);
   context.assertCurrent(primary.revision);
   const secondary = peripheral ? await services.resolveWiring(document, peripheral.boardId, peripheral.id) : undefined;
   context.assertCurrent(secondary?.revision);

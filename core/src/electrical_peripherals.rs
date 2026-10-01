@@ -14,6 +14,12 @@ pub struct PeripheralRequirement {
     pub kind: String,
     pub gpio_terminals: Vec<(String, String)>,
     pub fixed_terminals: Vec<(String, String)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub rotary: Option<crate::inputs::RotaryProfile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "export-types", ts(optional))]
+    pub press_key_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -58,7 +64,7 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
     let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
         return vec![];
     };
-    document
+    let mut result: Vec<_> = document
         .parts
         .iter()
         .filter(|part| board.part_ids.contains(&part.id))
@@ -67,6 +73,68 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
                 .definitions
                 .iter()
                 .find(|definition| definition.id == part.definition_id)?;
+            let input = crate::inputs::profile(definition);
+            if let Some(rotary) = input.rotary {
+                let enabled = definition.input_profile.is_some()
+                    || bool_parameter(part, definition, "include_momentary_switch_pads")
+                        != Some(false);
+                let press_key_id = input.press.as_ref().filter(|_| enabled).map(|_| {
+                    if crate::inputs::matrix_member(document, part) {
+                        part.id.clone()
+                    } else {
+                        format!("{}/push", part.id)
+                    }
+                });
+                let press = input.press.filter(|_| {
+                    enabled
+                        && crate::inputs::scan_mode(document, part)
+                            == crate::inputs::PressScanMode::Direct
+                });
+                let mut gpio: Vec<(String, String)> = vec![
+                    (rotary.a.clone(), "encoder-a".into()),
+                    (rotary.b.clone(), "encoder-b".into()),
+                ];
+                let mut fixed = vec![(rotary.common.clone(), "GND".into())];
+                if let Some(press) = press {
+                    gpio.push((press.row, "encoder-push".into()));
+                    fixed.push((press.column, "GND".into()));
+                }
+                return Some(PeripheralRequirement {
+                    part_id: part.id.clone(),
+                    source: definition
+                        .generator
+                        .as_ref()
+                        .map(|g| g.source.clone())
+                        .unwrap_or_else(|| format!("input-profile:{}", definition.id)),
+                    kind: "encoder".into(),
+                    gpio_terminals: gpio
+                        .into_iter()
+                        .map(|(terminal, function)| (terminal, format!("{}/{function}", part.id)))
+                        .collect(),
+                    fixed_terminals: fixed,
+                    rotary: Some(rotary),
+                    press_key_id,
+                });
+            }
+            if let Some(press) = input.press.filter(|_| {
+                definition.input_profile.is_some()
+                    && crate::inputs::scan_mode(document, part)
+                        == crate::inputs::PressScanMode::Direct
+            }) {
+                return Some(PeripheralRequirement {
+                    part_id: part.id.clone(),
+                    source: format!("input-profile:{}", definition.id),
+                    kind: "press".into(),
+                    gpio_terminals: vec![(press.row, format!("{}/input-push", part.id))],
+                    fixed_terminals: vec![(press.column, "GND".into())],
+                    rotary: None,
+                    press_key_id: Some(if crate::inputs::matrix_member(document, part) {
+                        part.id.clone()
+                    } else {
+                        format!("{}/push", part.id)
+                    }),
+                });
+            }
             let source = definition.generator.as_ref()?.source.clone();
             if !source.starts_with("ceoloide/") && source != "infused-kim/nice_view" {
                 return None;
@@ -84,27 +152,6 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
                     "display-spi",
                     vec![("MOSI", "spi/MOSI"), ("SCK", "spi/SCK"), ("CS", "CS")],
                     vec![("VCC", "VCC"), ("GND", "GND")],
-                )
-            } else if source.ends_with("/rotary_encoder_ec11_ec12") {
-                let mut gpio = vec![
-                    ("A", "encoder-a"),
-                    ("C", "encoder-b"),
-                    ("S1", "encoder-push"),
-                ];
-                if bool_parameter(part, definition, "include_momentary_switch_pads") == Some(false)
-                {
-                    gpio.retain(|(_, function)| *function != "encoder-push");
-                }
-                (
-                    "encoder",
-                    gpio,
-                    if bool_parameter(part, definition, "include_momentary_switch_pads")
-                        == Some(false)
-                    {
-                        vec![("B", "GND")]
-                    } else {
-                        vec![("B", "GND"), ("S2", "GND")]
-                    },
                 )
             } else if source.ends_with("/reset_switch_smd_side")
                 || source.ends_with("/reset_switch_tht_top")
@@ -140,6 +187,8 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
                 return None;
             };
             Some(PeripheralRequirement {
+                rotary: None,
+                press_key_id: None,
                 part_id: part.id.clone(),
                 source,
                 kind: kind.into(),
@@ -162,7 +211,9 @@ pub fn describe(document: &ProjectDoc, board_id: &str) -> Vec<PeripheralRequirem
                     .collect(),
             })
         })
-        .collect()
+        .collect();
+    result.extend(crate::modules::host_requirements(document, board_id));
+    result
 }
 
 #[cfg(test)]
@@ -173,6 +224,8 @@ mod tests {
     fn doc(source: &str, params: BTreeMap<String, serde_json::Value>) -> ProjectDoc {
         let mut d = ProjectDoc::empty("p", "p");
         d.definitions.push(PartDefinition {
+            hardware_profile: None,
+            input_profile: None,
             id: "peripheral".into(),
             name: "Peripheral".into(),
             kind: PartKind::Utility,

@@ -8,12 +8,15 @@ pub mod electrical_peripherals;
 pub mod electrical_profiles;
 pub mod firmware;
 mod geometry;
+mod hardware;
+mod inputs;
 mod keycaps;
 mod keymap;
 mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod model;
+mod modules;
 mod outline_controls;
 mod outline_validation;
 mod outline_versions;
@@ -111,6 +114,27 @@ impl Default for CoreEngine {
 impl CoreEngine {
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
         match request {
+            CoreRequest::ResolveModules {
+                id,
+                document,
+                board_id,
+                preview_top_z,
+            } => {
+                let mut result = modules::resolve(&document, &board_id);
+                match modules::prepare_preview(
+                    &document,
+                    &board_id,
+                    &mut result,
+                    preview_top_z.unwrap_or(0.0),
+                ) {
+                    Ok(()) => CoreReply::ModulesResolved { id, result },
+                    Err(message) => CoreReply::Error {
+                        id,
+                        message,
+                        revision: document.revision,
+                    },
+                }
+            }
             CoreRequest::ResolveKeycaps {
                 id,
                 document,
@@ -607,6 +631,9 @@ impl CoreEngine {
         let (outline_findings, mut finding_markers) =
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);
         findings.extend(outline_findings);
+        finding_markers.extend(inputs::finding_markers(doc, &findings));
+        finding_markers.extend(hardware::nominal_fit(doc).1);
+        finding_markers.extend(modules::finding_markers(doc, &findings));
         let mut generic_markers: BTreeMap<(String, String), Vec<Contour>> = BTreeMap::new();
         for marker in outline_validation::feature_markers(doc, &findings) {
             generic_markers
@@ -722,6 +749,11 @@ impl CoreEngine {
                 .iter()
                 .any(|f| matches!(f.scope, Scope::Case) && matches!(f.severity, Severity::Error));
         let scene = SceneDelta {
+            module_scenes: doc
+                .boards
+                .iter()
+                .flat_map(|b| modules::resolve(doc, &b.id).modules)
+                .collect(),
             revision: doc.revision,
             transaction_id: transaction.into(),
             changed_ids: changed,
@@ -886,7 +918,10 @@ impl PreviewBackup {
 fn affects_outline(op: &EditOperation) -> bool {
     matches!(
         op,
-        EditOperation::MoveParts { .. }
+        EditOperation::SetMountedModule {
+            host_connector_definition: Some(_),
+            ..
+        } | EditOperation::MoveParts { .. }
             | EditOperation::SetOutline { .. }
             | EditOperation::CopyOutline { .. }
             | EditOperation::SelectOutline { .. }
@@ -906,6 +941,40 @@ fn affects_outline(op: &EditOperation) -> bool {
 
 fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
     match op {
+        EditOperation::SetModuleDefinition { definition } => {
+            modules::set_definition(doc, definition)
+        }
+        EditOperation::SetMountedModule {
+            instance,
+            definition,
+            host_connector_definition,
+        } => modules::set(
+            doc,
+            instance,
+            definition.as_deref(),
+            host_connector_definition.as_deref(),
+        ),
+        EditOperation::RemoveMountedModule { id } => modules::remove(doc, id),
+        EditOperation::EmbedModuleCircuit {
+            id,
+            definition,
+            host_board_id,
+            pose,
+            side,
+            joins,
+        } => modules::embed(
+            doc,
+            id,
+            definition,
+            host_board_id,
+            *pose,
+            side.clone(),
+            joins,
+        ),
+        EditOperation::RemoveEmbeddedCircuit { id } => modules::remove_circuit(doc, id),
+        EditOperation::SetInputScanMode { part_id, mode } => {
+            inputs::set_scan_mode(doc, part_id, *mode)
+        }
         EditOperation::EditKeymap { change } => keymap::apply_edit(doc, change),
         EditOperation::SetKeyBinding { .. }
         | EditOperation::SetKeycapBoard { .. }

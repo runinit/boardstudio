@@ -1,9 +1,15 @@
-import type { DemoId } from './keyboards';
+import { moduleReviewDemoId, type DemoId } from './keyboards';
 import keyboards from './keyboard-layouts.json';
 import sofle from './sofle-layouts.json';
 
 /** Use the measured layouts directly; browsing must not construct 18 complete projects. */
 export function keyboardPreview(id: DemoId) {
+  if (id === moduleReviewDemoId) {
+    return { boardCount: 1, keys: Array.from({ length: 15 }, (_, index) => ({
+      id: `review-key-${index}`, x: (index % 5) * 19.05, y: -Math.floor(index / 5) * 19.05,
+      angle: 0, width: 18, height: 18,
+    })) };
+  }
   if (id === 'v2' || id === 'rgb' || id === 'choc') {
     const layout = sofle.layouts[id];
     const minX = Math.min(...layout.outline.map(point => point.x));

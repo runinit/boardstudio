@@ -1,6 +1,72 @@
 use super::*;
 
 pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, ArtifactError> {
+    validate_plan(&request.plan)?;
+    planning::require_plan_qualification(&request.plan)?;
+    finish(request, false)
+}
+
+pub(in crate::artifact) fn finish_preview(
+    request: FinishExportRequest,
+) -> Result<PcbPreview, ArtifactError> {
+    if !matches!(request.plan.target, ExportTarget::Board { .. }) {
+        return Err(validation("Preview requires a board"));
+    }
+    let revision = request.plan.revision;
+    let board_id = match &request.plan.target {
+        ExportTarget::Board { board_id } => board_id.clone(),
+        _ => return Err(validation("Preview requires a board")),
+    };
+    let support_diagnostics =
+        missing_module_support_diagnostics(&request.plan.captured_document, &board_id);
+    let artifact = finish(request, true)?;
+    let board = artifact
+        .files
+        .first()
+        .ok_or_else(|| validation("Preview returned no board"))?;
+    let mut preview = crate::artifact::preview::board(&board.content, revision)?;
+    preview.diagnostics.extend(support_diagnostics);
+    preview.diagnostics.sort();
+    preview.diagnostics.dedup();
+    Ok(preview)
+}
+
+fn missing_module_support_diagnostics(doc: &ProjectDoc, board_id: &str) -> Vec<String> {
+    let resolved = crate::modules::resolve(doc, board_id);
+    doc.modules
+        .iter()
+        .filter(|instance| {
+            instance.host_board_id == board_id
+                && !instance.detached
+                && instance.attachment == crate::model::ModuleAttachment::Board
+        })
+        .filter_map(|instance| {
+            let definition = doc
+                .module_definitions
+                .iter()
+                .find(|definition| definition.id == instance.definition_id)?;
+            if definition.mounts.is_empty() {
+                return None;
+            }
+            let module = resolved
+                .modules
+                .iter()
+                .find(|module| module.id == instance.id)?;
+            let missing = module.mounts.len().saturating_sub(module.mount_supports.len());
+            (missing > 0).then(|| {
+                format!(
+                    "Preview omits {missing} unconfigured source mounting drill(s) for module {}; configure standoffs before fabrication.",
+                    instance.id
+                )
+            })
+        })
+        .collect()
+}
+
+fn finish(
+    request: FinishExportRequest,
+    allow_incomplete_module_supports: bool,
+) -> Result<ExportArtifact, ArtifactError> {
     let plan = request.plan;
     validate_plan(&plan)?;
     if request.results.len() != plan.jobs.len() {
@@ -31,7 +97,13 @@ pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, Art
     }
     let (files, skipped_utilities) = match &plan.target {
         ExportTarget::Board { board_id } => (
-            finish_board(&plan, board_id, &completed, &current_nets)?,
+            finish_board(
+                &plan,
+                board_id,
+                &completed,
+                &current_nets,
+                allow_incomplete_module_supports,
+            )?,
             Vec::new(),
         ),
         ExportTarget::StandaloneFootprints { definition_ids } => {
@@ -291,21 +363,25 @@ fn finish_standalone(
                 )?
             )
         } else if is_imported(definition) {
-            source::patch_footprint(
-                &definition.kicad_source.as_ref().expect("checked").source,
-                &FootprintPatch {
-                    footprint_name: Some(safe_name(&definition.name)),
-                    reference: Some("REF**".into()),
-                    value: Some(definition.name.clone()),
-                    placement: Some(Pose2 {
-                        at: Vec2::default(),
-                        rotation: 0.0,
-                    }),
-                    side: Side::Front,
-                    pad_nets: BTreeMap::new(),
-                    uuid_scope: format!("definition:{}", definition.id),
-                    model_forms: managed_model_forms(definition, &plan.model_paths)?,
-                },
+            override_models(
+                source::patch_footprint(
+                    &definition.kicad_source.as_ref().expect("checked").source,
+                    &FootprintPatch {
+                        footprint_name: Some(safe_name(&definition.name)),
+                        reference: Some("REF**".into()),
+                        value: Some(definition.name.clone()),
+                        placement: Some(Pose2 {
+                            at: Vec2::default(),
+                            rotation: 0.0,
+                        }),
+                        side: Side::Front,
+                        pad_nets: BTreeMap::new(),
+                        uuid_scope: format!("definition:{}", definition.id),
+                        model_forms: managed_model_forms(definition, &plan.model_paths)?,
+                    },
+                )?,
+                definition,
+                &plan.model_paths,
             )?
         } else {
             format!(
@@ -332,6 +408,7 @@ fn finish_board(
     board_id: &str,
     results: &[String],
     generated_nets: &[ReservedNet],
+    allow_incomplete_module_supports: bool,
 ) -> Result<Vec<ArtifactFile>, ArtifactError> {
     let doc = &plan.captured_document;
     let (board, parts, definitions) = board_and_maps(doc, board_id)?;
@@ -410,18 +487,22 @@ fn finish_board(
                     )));
                 }
             }
-            footprints.push(source::patch_footprint(
-                &definition.kicad_source.as_ref().expect("checked").source,
-                &FootprintPatch {
-                    footprint_name: Some(safe_name(&definition.name)),
-                    reference: Some(part.reference.clone()),
-                    value: Some(definition.name.clone()),
-                    placement: Some(part.pose),
-                    side: part.side.clone(),
-                    pad_nets,
-                    uuid_scope: scope,
-                    model_forms: managed_model_forms(definition, &plan.model_paths)?,
-                },
+            footprints.push(override_models(
+                source::patch_footprint(
+                    &definition.kicad_source.as_ref().expect("checked").source,
+                    &FootprintPatch {
+                        footprint_name: Some(safe_name(&definition.name)),
+                        reference: Some(part.reference.clone()),
+                        value: Some(definition.name.clone()),
+                        placement: Some(part.pose),
+                        side: part.side.clone(),
+                        pad_nets,
+                        uuid_scope: scope,
+                        model_forms: managed_model_forms(definition, &plan.model_paths)?,
+                    },
+                )?,
+                definition,
+                &plan.model_paths,
             )?);
             continue;
         }
@@ -552,6 +633,43 @@ fn finish_board(
             .chain(vias.iter().map(|item| item.id.as_str())),
         "copper",
     )?;
+    let module_resolution = crate::modules::resolve(doc, board_id);
+    for instance in doc.modules.iter().filter(|instance| {
+        instance.host_board_id == board_id
+            && !instance.detached
+            && instance.attachment == crate::model::ModuleAttachment::Board
+            && doc
+                .module_definitions
+                .iter()
+                .find(|definition| definition.id == instance.definition_id)
+                .is_some_and(|definition| !definition.mounts.is_empty())
+    }) {
+        let module = module_resolution
+            .modules
+            .iter()
+            .find(|module| module.id == instance.id)
+            .ok_or_else(|| {
+                validation(format!(
+                    "Cannot export host drills for unresolved module support {}",
+                    instance.id
+                ))
+            })?;
+        if module.mount_supports.len() != module.mounts.len() {
+            if !allow_incomplete_module_supports {
+                return Err(validation(format!(
+                    "Every source mount on board-attached module {} needs a configured standoff and host drill",
+                    instance.id
+                )));
+            }
+            for support in &module.mount_supports {
+                footprints.push(module_mount_hole_footprint(board_id, module, support)?);
+            }
+            continue;
+        }
+        for support in &module.mount_supports {
+            footprints.push(module_mount_hole_footprint(board_id, module, support)?);
+        }
+    }
     let net_number = |net_id: Option<&str>| -> Result<u32, ArtifactError> {
         let Some(net_id) = net_id else {
             return Ok(0);
@@ -626,6 +744,29 @@ fn finish_board(
         filename: format!("{}.kicad_pcb", safe_name(&board.name)),
         content,
     }])
+}
+
+fn module_mount_hole_footprint(
+    board_id: &str,
+    module: &crate::model::ResolvedModule,
+    support: &crate::model::ModuleSupportGeometry,
+) -> Result<String, ArtifactError> {
+    if !support.hole_diameter.is_finite() || support.hole_diameter <= 0.0 {
+        return Err(validation(
+            "Module host PCB drill diameter must be positive and finite",
+        ));
+    }
+    let id = format!("{}/{}", module.id, support.mount_id);
+    let reference = q(&format!("MH_{}", safe_name(&id)))?;
+    let diameter = num(support.hole_diameter)?;
+    let at = xy(support.at)?;
+    render(&format!(
+        "(footprint \"BoardStudio_ModuleMountHole\" (layer \"F.Cu\") (at {at}) (attr exclude_from_pos_files exclude_from_bom) (fp_text reference {reference} (at 0 0) (layer \"F.SilkS\") (effects (font (size 1 1) (thickness 0.15)) hide) (uuid {})) (fp_text value \"Designer-selected module mount drill\" (at 0 0) (layer \"F.Fab\") (effects (font (size 1 1) (thickness 0.15)) hide) (uuid {})) (pad \"\" np_thru_hole circle (at 0 0) (size {diameter} {diameter}) (drill {diameter}) (layers \"*.Cu\" \"*.Mask\") (uuid {})) (uuid {}))",
+        uuid_text(board_id, "module-support-reference", &id)?,
+        uuid_text(board_id, "module-support-value", &id)?,
+        uuid_text(board_id, "module-support-drill", &id)?,
+        uuid_text(board_id, "module-support-footprint", &id)?,
+    ))
 }
 
 fn edge_forms(contours: &[Contour], scope: &str) -> Result<Vec<String>, ArtifactError> {
