@@ -1,0 +1,33 @@
+{
+  "source_commit": "97a779a60f06f6ee109ecace17d06fa28e625eee",
+  "production_source_matches_release_input": "050e9282",
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+  "checks": [
+    {
+      "argv": [
+        "node",
+        "contracts/scripts/contracts.mjs",
+        "check"
+      ],
+      "exit": 0,
+      "log": "contracts-check.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "log_modified_at": "2026-10-01T22:09:27.099105+00:00"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "application/Cargo.toml",
+        "--locked"
+      ],
+      "exit": 0,
+      "log": "application-tests.log",
+      "tests": 12,
+      "log_sha256": "058aaaf907da24d3b42186a3fff700c47905bb105fc16494e20e271df0400396",
+      "log_modified_at": "2026-10-01T22:10:44.618932+00:00"
+    }
+  ],
+  "recorded_at": "2026-10-01T22:11:03.036273+00:00"
+}
