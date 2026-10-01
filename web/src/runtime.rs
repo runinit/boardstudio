@@ -41,7 +41,7 @@ pub struct Runtime {
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
-        Ok(Rc::new(Self {
+        let runtime = Rc::new(Self {
             session: RefCell::new(Session::new()),
             core: RefCell::new(Rc::new(
                 CoreWorker::new(&resource_url("assets/core-worker/entry.js")?)
@@ -58,7 +58,16 @@ impl Runtime {
             notify: RefCell::new(None),
             status: RefCell::new("Open a saved keyboard or an editable demo copy.".into()),
             open_sequence: Cell::new(0),
-        }))
+        });
+        let weak = Rc::downgrade(&runtime);
+        spawn_local(async move {
+            if let Err(error) = boardstudio_web::host::register_offline(prefix).await
+                && let Some(runtime) = weak.upgrade()
+            {
+                runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
+            }
+        });
+        Ok(runtime)
     }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();
