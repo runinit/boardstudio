@@ -1,0 +1,218 @@
+{
+  "runId": "session-5-candidate",
+  "sessionNumber": 5,
+  "variant": "candidate",
+  "sessionId": "ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4",
+  "driverSha256": "105798cac382efbd66da8e34d28637288e44f1a124dc534dd2c39960c0050acd",
+  "fixtureGeneratorSha256": "7e5f0bb58fb1e5ad2d83a2d02d534d068afa7e5ebeb720df4d7bd8c1573577ad",
+  "sourceCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "releaseRecordPath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/release-8f509433.json",
+  "releaseRecordSha256": "3557465a9bef7c30fbc4c4c89f4a56ecee5394c59232c6668edb1e703d7062a3",
+  "releaseRecord": {
+    "sourceCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+    "releaseId": "m1-release-20261001-8f509433",
+    "candidateUrl": "http://127.0.0.1:46880/",
+    "route": "root site route; exact URL pending coordinator",
+    "releaseProvenancePath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/integration/release-8f509433-provenance.json",
+    "releaseProvenanceSha256": "99f3fb7bec34df7154f3ed4602384b0745a714f879f636810cf1bbc22a697ed6",
+    "buildCommand": "python3 scripts/build-m1.py m1-release-20261001-8f509433",
+    "buildCommandCount": 18,
+    "sourceHashesVerified": 925,
+    "assetHashesVerified": true,
+    "singlePageWasmPerPrefix": true,
+    "productionDiffFromReviewedRuntime": "",
+    "sitePath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-8f509433/site-root",
+    "assetHashes": {
+      "assets/boardstudio-web-dxh15a8788cfa45.js": "b5baaf336704d1375f66c6455d6031f74a3b2d0ba6126aa251693dd58ca2c83b",
+      "assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm": "9d1b0680b898b275d0690153dbb66ef39ead6bccb7a8335feceb5919142f2eae",
+      "assets/cad/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+      "assets/cad/boardstudio_cadrum_wasm.d.ts": "346d955d96c4677239fb0340869964e87eb39159776aad175e56d26f9ecfd3e9",
+      "assets/cad/boardstudio_cadrum_wasm.js": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+      "assets/cad/boardstudio_cadrum_wasm_bg.wasm": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+      "assets/cad/boardstudio_cadrum_wasm_bg.wasm.d.ts": "4adbcf95ca8e87d962c85990152bd687d10b8855a1349a3aaf86f242832e761d",
+      "assets/cad/package.json": "2d2b66395f1ff1286017423fde8fcdb07c82ee7a25f79cf88b44756d5e74d359",
+      "assets/cad/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932",
+      "assets/cad-worker/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+      "assets/cad-worker/entry.js": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5",
+      "assets/cad-worker/m1_cad_worker.d.ts": "c887350eace54fe509bf1c46b2a65041d5dbedf3882f72d9adf89444f4026da6",
+      "assets/cad-worker/m1_cad_worker.js": "7c5527fe8dda18ed527d6a3f2622c8080fcfe33537ce8cde7b5da1b511a2a6a7",
+      "assets/cad-worker/m1_cad_worker_bg.wasm": "01c1197230731e249dca5a78684e77b714bf0a246f47300aed3b971b8baa6052",
+      "assets/cad-worker/m1_cad_worker_bg.wasm.d.ts": "ae566d36f2ff7c0a541a50f72d53ee41f9a5227064ae0ce81d0a4713dea78982",
+      "assets/cad-worker/package.json": "963f85967843b23868ec829a8bef67f0acc3204dc01ccdc418fde3c049b597ce",
+      "assets/core-worker/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+      "assets/core-worker/entry.js": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd",
+      "assets/core-worker/m1_core_worker.d.ts": "40e20b3f04f3dbde0682c5f66091e7eff57ce02d88246b72a49d6077bcd8eaea",
+      "assets/core-worker/m1_core_worker.js": "fc95ba2c7ddf5b69935d6b4f5b9465e3a270ebd5fe5685d51e69bab16bf29896",
+      "assets/core-worker/m1_core_worker_bg.wasm": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42",
+      "assets/core-worker/m1_core_worker_bg.wasm.d.ts": "9889be597a1fa8f843e52404b9c89db58f74f1c301ad465ef434f0445e540833",
+      "assets/core-worker/package.json": "e25932c5a594584bb3f4d37b5b8b21d1c8714c2b2750da74ff5cd7c7e85f80de",
+      "assets/fixtures/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+      "assets/fixtures/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+      "assets/fixtures/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+      "assets/fixtures/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+      "assets/fixtures/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+      "assets/fixtures/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+      "assets/fixtures/provenance.json": "47be5c67e11ea823972c207ff38198777e6aecdd8fc0bc45b34f53dbfb8fa2aa",
+      "assets/fixtures/reviung41.boardstudio": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f",
+      "assets/fixtures/reviung41.json": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae",
+      "assets/fixtures/sofle.boardstudio": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899",
+      "assets/fixtures/sofle.json": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4",
+      "assets/fonts/README.md": "ede022134c114a9fb138450a301d10be2d529a033b1cf494feef55ebf0f83783",
+      "assets/fonts/source-code-pro-upright.woff2": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792",
+      "assets/fonts/source-sans-3-upright.woff2": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8",
+      "assets/m1.css": "1e3ee2fc121759165ca888807ef98c61fa6848a2098faece99a9ab1de11408d5",
+      "assets/renderer/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+      "assets/renderer/boardstudio_renderer_wasm.d.ts": "dedc95f6a8dbd4840ce610d5bdc77eb3f65cc9a9ce57a69580240753f25b09c1",
+      "assets/renderer/boardstudio_renderer_wasm.js": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+      "assets/renderer/boardstudio_renderer_wasm_bg.wasm": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+      "assets/renderer/boardstudio_renderer_wasm_bg.wasm.d.ts": "fd6d34c0e52938f1ae2fef4b01bed1c227c4fa73e96edc9b6888b05b310a4083",
+      "assets/renderer/package.json": "f68fa3489e43eee2a86dd3a41f421c9a02a21c6cdc29ebc0e2dd67442e5f1a56",
+      "boardstudio_offline_worker.js": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61",
+      "index.html": "79e2b40fff22d5316680e6ab9a9d4bf3a466ff95365052029268b2b3ee904a37",
+      "service-worker.js": "6f6a30d3b78a222d3f4daa5a1555053b72e3e45086a20a0f81c17e36827f50fc"
+    },
+    "quietHostSignal": {
+      "source": "host_design final QA handoff",
+      "message": "Final browser QA complete; pristine 8f509433 release idle at http://127.0.0.1:46880/ with no QA worker overlay; quiet-host handoff clear.",
+      "evidencePath": ".scratch/m1-production/evidence/browser-storage/release-8f509433-final-qa.md",
+      "inventoryPath": ".scratch/m1-production/evidence/browser-storage/release-inventory-8f509433.json"
+    }
+  },
+  "releaseUrl": "http://127.0.0.1:46880/",
+  "fixtureManifest": {
+    "source": "app/src/bench-workbench.tsx referenceFixture shape, copied for test-input creation",
+    "generatorSha256": "7e5f0bb58fb1e5ad2d83a2d02d534d068afa7e5ebeb720df4d7bd8c1573577ad",
+    "referenceFixtureSourceSha256": "1bb63d0014163ef8d1135a2f9b2bc3a769b880e36527b4d74cce9cf6809d852d",
+    "contractsSourceSha256": "8af74ac344c0d27cdf910a36a2880d35fc401a00a61af0b820679a3e306ee095",
+    "coreModuleSha256": "658957ae7674d3d53aac876394b139af2f7e852ea977d49af9e0e22cef566908",
+    "coreWasmSha256": "bc3a091122da2ebcb4eb55d3f0967d2b1943611105068f287c2fc6f0e17aa186",
+    "sourceCommit": "99362d8f1c689b90e22e362490405d57c77c19b4",
+    "argv": [
+      "/usr/bin/node",
+      "/home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001/.scratch/m1-production/evidence/performance/generate-pointer-archives.mjs"
+    ],
+    "cwd": "/home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001",
+    "node": "v26.10.0",
+    "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics",
+    "startedAt": "2026-10-01T22:26:34.492Z",
+    "generatedAt": "2026-10-01T22:26:34.492Z",
+    "fixtures": [
+      {
+        "keys": 30,
+        "parts": 90,
+        "projectId": "workbench-bench-30",
+        "archive": "pointer-30-keys.boardstudio",
+        "archiveBytes": 3432,
+        "archiveSha256": "c54f1aaa0204e990cb8b115e955e0cd111289dbf93507ee30433b83566bec51e",
+        "projectJsonSha256": "13f8820b120a9b893b1dceab7c31572d5f33efb26bae26a78e66a00334a93b79",
+        "coreOpenReply": "scene",
+        "archivePackReply": "packed",
+        "archiveUnpackReply": "unpacked"
+      },
+      {
+        "keys": 100,
+        "parts": 300,
+        "projectId": "workbench-bench-100",
+        "archive": "pointer-100-keys.boardstudio",
+        "archiveBytes": 9100,
+        "archiveSha256": "0cfed20ab2389232208291010f00cb1ff5c1191655e07c53d52a8d27f3f3af20",
+        "projectJsonSha256": "d32654340afacd441e3ab106f321ae0995183608956c588b5adeecbb818907a7",
+        "coreOpenReply": "scene",
+        "archivePackReply": "packed",
+        "archiveUnpackReply": "unpacked"
+      },
+      {
+        "keys": 200,
+        "parts": 600,
+        "projectId": "workbench-bench-200",
+        "archive": "pointer-200-keys.boardstudio",
+        "archiveBytes": 16976,
+        "archiveSha256": "430676540fdde1fa840b2e25714cb12a1b2c1d564f81f5b476267e33b36b4a1a",
+        "projectJsonSha256": "e9ae391fb54af0374255502af5d8efd5fdb878cb5f984fc3072e55aa9336c5eb",
+        "coreOpenReply": "scene",
+        "archivePackReply": "packed",
+        "archiveUnpackReply": "unpacked"
+      }
+    ],
+    "finishedAt": "2026-10-01T22:26:34.560Z",
+    "exitStatus": 0,
+    "stdoutSummary": "Generated and publicly validated 3 pointer archives in /home/chris/.local/share/boardstudio/worktrees/m1-ticket06-performance-agent-20261001/.scratch/m1-production/evidence/performance/fixtures/2026-10-01T22-26-34-484Z-574830-bc3a091122da",
+    "stderrSummary": ""
+  },
+  "tool": "agent-browser CLI; visible UI import and native browser mouse input",
+  "node": "v26.10.0",
+  "os": {
+    "platform": "linux",
+    "release": "7.2.8-1-cachyos",
+    "arch": "x64"
+  },
+  "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics",
+  "browserUserAgent": null,
+  "gpuRenderer": null,
+  "viewport": null,
+  "startedAt": "2026-10-01T23:20:49.895Z",
+  "commands": [
+    {
+      "argv": [
+        "agent-browser",
+        "session",
+        "id",
+        "--scope",
+        "worktree",
+        "--prefix",
+        "ticket06-pointer-paired-pointer-8f509433-20261001T2321Z-5-candidate"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-01T23:20:49.895Z",
+      "finishedAt": "2026-10-01T23:20:49.902Z",
+      "status": 0,
+      "stdout": "ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "agent-browser",
+        "--session",
+        "ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4",
+        "--json",
+        "open",
+        "http://127.0.0.1:46880/"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-01T23:20:49.902Z",
+      "finishedAt": "2026-10-01T23:20:49.905Z",
+      "status": 1,
+      "stdout": "{\"error\":\"Session name 'ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4' is too long. Socket path would be 114 bytes (max 103).\\nUse a shorter session name or set AGENT_BROWSER_SOCKET_DIR to a shorter path.\",\"success\":false}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "agent-browser",
+        "--session",
+        "ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4",
+        "--json",
+        "close"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-01T23:20:49.905Z",
+      "finishedAt": "2026-10-01T23:20:49.907Z",
+      "status": 1,
+      "stdout": "{\"error\":\"Session name 'ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4' is too long. Socket path would be 114 bytes (max 103).\\nUse a shorter session name or set AGENT_BROWSER_SOCKET_DIR to a shorter path.\",\"success\":false}\n",
+      "stderr": ""
+    }
+  ],
+  "sessions": [],
+  "scenarios": [],
+  "failures": [
+    {
+      "at": "2026-10-01T23:20:49.905Z",
+      "message": "Error: agent-browser open http://127.0.0.1:46880/ failed (1): {\"error\":\"Session name 'ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4' is too long. Socket path would be 114 bytes (max 103).\\nUse a shorter session name or set AGENT_BROWSER_SOCKET_DIR to a shorter path.\",\"success\":false}\n\n    at browser (file:///home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs:97:34)\n    at file:///home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs:126:3"
+    },
+    {
+      "at": "2026-10-01T23:20:49.907Z",
+      "message": "Browser close failed: agent-browser close failed (1): {\"error\":\"Session name 'ticket06-pointer-paired-pointer-8f509433-20261001t2321z-5-candidate-7dd31abc1fc4' is too long. Socket path would be 114 bytes (max 103).\\nUse a shorter session name or set AGENT_BROWSER_SOCKET_DIR to a shorter path.\",\"success\":false}\n"
+    }
+  ],
+  "verdict": "failed-run-retained",
+  "finishedAt": "2026-10-01T23:20:49.907Z"
+}

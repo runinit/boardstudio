@@ -1,0 +1,56 @@
+{
+  "recordedAt": "2026-10-01T23:36:21.749Z",
+  "kind": "reference public-import navigation diagnostic; no latency measurements",
+  "referenceDistributionRecord": ".scratch/m1-production/evidence/performance/reference-app-dist.json",
+  "referenceTreeSha256": "5a3d371f115c5bd325f35e7efacf3a3ffde74587de538611b3ef2f7f940dabbd",
+  "url": "http://127.0.0.1:46881/",
+  "server": "owned Python SimpleHTTPServer serving unchanged /home/chris/01_Projects/ts-boardstudio2/app/dist; stopped after diagnosis",
+  "browserSession": "pptr-refdiag-7dd31abc1fc4; closed",
+  "browserUserAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+  "viewport": {
+    "width": 1280,
+    "height": 720,
+    "deviceScaleFactor": 1
+  },
+  "observations": [
+    {
+      "state": "ProjectStart after load",
+      "visibleButton": "Open project…",
+      "action": "Clicked the user-visible button, then selected archive using the actual .wb-project-file-input and waited for rendered scene-part count."
+    },
+    {
+      "state": "Workbench after navigation/reload",
+      "trigger": ".wb-project-trigger",
+      "action": "After awaiting the mounted trigger, clicked the visible Project toolbar, waited for .wb-open-project, clicked Open project…, then selected archive with actual .wb-project-file-input."
+    }
+  ],
+  "imports": [
+    {
+      "keys": 30,
+      "archive": "pointer-30-keys.boardstudio",
+      "archiveSha256": "c54f1aaa0204e990cb8b115e955e0cd111289dbf93507ee30433b83566bec51e",
+      "renderedSceneParts": 90,
+      "successful": true
+    },
+    {
+      "keys": 100,
+      "archive": "pointer-100-keys.boardstudio",
+      "archiveSha256": "0cfed20ab2389232208291010f00cb1ff5c1191655e07c53d52a8d27f3f3af20",
+      "renderedSceneParts": 300,
+      "successful": true
+    },
+    {
+      "keys": 200,
+      "archive": "pointer-200-keys.boardstudio",
+      "archiveSha256": "430676540fdde1fa840b2e25714cb12a1b2c1d564f81f5b476267e33b36b4a1a",
+      "renderedSceneParts": 600,
+      "successful": true
+    }
+  ],
+  "navigationRace": {
+    "beforeFix": "Immediately after browser open, a DOM query ran before React mounted and returned false for both .wb-project-trigger and .wb-open-project. The adapter then attempted to click the not-yet-mounted Open project button; the reference run correctly retained this failed attempt.",
+    "fix": "Wait until either .wb-project-trigger or .wb-open-project exists; if on Workbench, open the visible Project menu, then wait for .wb-open-project before clicking it.",
+    "verifiedWithoutTiming": true
+  },
+  "timingRecorded": false
+}

@@ -1,12 +1,13 @@
 # Ticket 06 performance candidate protocol
 
-Status: candidate and paired-reference harnesses prepared; no current M1 candidate measurement has been run.
+Status: the maintained `8f509433` candidate received two complete pointer sessions, but its 100/200-key p95 results exceed the frozen limits. The paired aggregate is incomplete because the reference adapter had a navigation-readiness race; the public import adapter is now corrected and verified without timing.
 
-Evidence branch: `codex/m1-reference-pointer-adapter-20261001`, based on final-release
+Evidence-only performance changes are integrated on
+`codex/m1-production-20261001`; the adapter was prepared from final-release
 integration `8f509433`. Pointer archives were generated from the verified public Core package
-whose source commit is retained in each fixture manifest. A fresh final release URL
-is still pending. Do not use measurements from the 4cb diagnostic build as M1
-release evidence.
+whose source commit is retained in each fixture manifest. The exact maintained
+release was served at `http://127.0.0.1:46880/`. Do not use measurements from
+the 4cb diagnostic build as M1 release evidence.
 
 ## Existing oracles to preserve
 
@@ -147,8 +148,9 @@ not called.
 SHA-256. Its record currently covers 143 files with tree hash
 `5a3d371f115c5bd325f35e7efacf3a3ffde74587de538611b3ef2f7f940dabbd`.
 `release-8f509433.json` records the final candidate build's 47 root-route asset
-hashes and source/build provenance; the coordinator URL and quiet-host signal
-are still pending. Once provided, run the paired form with
+hashes and source/build provenance; the measured-run URL and quiet-host signal
+are pinned in the record. For a new run, use the route-verified release record
+and run the paired form with
 `BOARDSTUDIO_REFERENCE_URL`, `BOARDSTUDIO_REFERENCE_RECORD`,
 `BOARDSTUDIO_CANDIDATE_URL`, and `BOARDSTUDIO_RELEASE_RECORD` set. The runner
 alternates candidate/reference order by fresh session and retains every raw
@@ -167,6 +169,31 @@ workbench worker-to-layout comparator, whose endpoints cannot be aligned with
 this interaction. No measurement is eligible until final release QA completes
 and the coordinator confirms the host is quiet.
 
+## Maintained `8f509433` pointer observations
+
+The quiet-host candidate run retained two complete sessions before the
+reference adapter's navigation race was diagnosed and the wrapper was stopped.
+Candidate session p95 values were 22.9/135.3/495.8 ms and 23.1/134.4/500.6 ms
+for 30/100/200 keys, against the unchanged 33/50/100 ms caps. Thus 30 keys were
+within the cap in both sessions; 100 and 200 keys exceeded their caps in both.
+Each completed scenario has 100 samples, 100 changed target transforms and zero
+missed input markers. Two reference 30-key scenarios completed at 21.7 and 20.3
+ms; both later reference sessions stopped at 100-key import because immediate
+navigation queried before the React public controls mounted. Their 30-key
+differences are descriptive partial observations only. They do not establish a
+three-size, five-session paired comparator or a relative pass/fail result.
+
+The readiness fix waits for either `.wb-project-trigger` or `.wb-open-project`
+after navigation, opens the visible Project toolbar when mounted, then waits for
+the visible Open project control. A separate no-timing browser diagnosis
+successfully imported the same 30/100/200-key archives through the visible
+ProjectStart/Workbench controls and observed 90/300/600 scene parts. See
+`reference-import-diagnostic-20261001.json` and
+`runs/paired-pointer-8f509433-20261001T2328Z/stopped-aggregate.json` for the
+complete diagnostic and raw run paths. The URL-corrected candidate release
+record is `release-8f509433-route-verified.json`; the original input record is
+preserved because its hash is embedded in every run record.
+
 Compare candidate sessions only when the exact reference can be replayed under
 the same browser, host, archive bytes, viewport, DPR, warmup/sample schedule and
 hardware acceleration with equivalent endpoints. For the existing workbench
@@ -183,16 +210,17 @@ against that build before the first run. Performance data from the React
 reference or the historical performance documents supplies context only; it
 is not a fresh comparison for the exact integrated source.
 
-## Preparation inspection
+## Inspection notes
 
 At this snapshot, `web/src/runtime.rs` contains the real archive import flow and
 `web/src/presentation.rs` owns the labelled file input and SVG pointer handlers.
 The existing app performance harness lives in `app/src/bench-workbench.tsx`;
 its `window.runWorkbenchBenchmark` and pointer globals are explicitly excluded
 from candidate operation. The production source has no exposed public
-performance API, and no release URL or final asset identity has been provided.
-Therefore all M1 performance gates remain unperformed pending the exact fresh
-candidate and coordinator quiet-host signal.
+performance API. The maintained 8f509433 pointer run is incomplete and fails the
+100/200-key caps in both complete candidate sessions; no full paired comparator
+or final five-session pointer gate is established. The coordinator's unchanged
+reference workbench and CAD suites remain separate gates.
 
 ## Cached CAD worker diagnostic
 
