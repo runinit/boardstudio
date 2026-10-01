@@ -117,6 +117,45 @@ pub fn snap_part(
     tolerance: f64,
     gap: Option<f64>,
 ) -> Option<SnapGuide> {
+    snap_part_candidates(document, moving, tolerance, gap, &document.parts)
+}
+
+/// Snap against only parts owned by the selected board.
+pub fn snap_part_in_board(
+    document: &ProjectDoc,
+    board_id: &str,
+    moving: &Part,
+    tolerance: f64,
+    gap: Option<f64>,
+) -> Option<SnapGuide> {
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+        return document
+            .boards
+            .is_empty()
+            .then(|| snap_part_candidates(document, moving, tolerance, gap, &document.parts))
+            .flatten();
+    };
+    let candidates = if document.boards.len() == 1 && board.part_ids.is_empty() {
+        // Legacy single-board documents may omit the part index entirely.
+        document.parts.clone()
+    } else {
+        document
+            .parts
+            .iter()
+            .filter(|part| board.part_ids.contains(&part.id))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    snap_part_candidates(document, moving, tolerance, gap, &candidates)
+}
+
+fn snap_part_candidates(
+    document: &ProjectDoc,
+    moving: &Part,
+    tolerance: f64,
+    gap: Option<f64>,
+    candidates: &[Part],
+) -> Option<SnapGuide> {
     let moving_poly = selection_outline(std::slice::from_ref(moving), &document.definitions);
     if moving_poly.is_empty() || tolerance < 0.0 {
         return None;
@@ -146,7 +185,7 @@ pub fn snap_part(
             });
         }
     };
-    for target in &document.parts {
+    for target in candidates {
         if target.id == moving.id {
             continue;
         }
@@ -225,7 +264,7 @@ pub fn snap_part(
                 return best;
             };
             let mut alignment: Option<(bool, f64)> = None;
-            for target in &document.parts {
+            for target in candidates {
                 if target.id == moving.id {
                     continue;
                 }
@@ -274,6 +313,7 @@ pub fn snap_part(
 
 /// Options captured at gesture start and updated only for the live Alt modifier.
 pub struct DragSnapOptions<'a> {
+    pub board_id: &'a str,
     pub pitch: Vec2,
     pub fraction: f64,
     pub geometry_snap: bool,
@@ -290,6 +330,7 @@ pub fn normalize_drag(
     options: DragSnapOptions<'_>,
 ) -> (Vec<boardstudio_core::model::Position>, Option<SnapGuide>) {
     let DragSnapOptions {
+        board_id,
         pitch,
         fraction,
         geometry_snap,
@@ -339,7 +380,7 @@ pub fn normalize_drag(
             },
             ..original.clone()
         };
-        guide = snap_part(document, &moving, 2.0, gap);
+        guide = snap_part_in_board(document, board_id, &moving, 2.0, gap);
         if let Some(snap) = &guide {
             position.at = snap.at;
         }

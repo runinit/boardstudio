@@ -1,0 +1,32 @@
+{
+  "browser": "153.0.8010.52",
+  "origin": "http://127.0.0.1:39781",
+  "cases": [
+    {
+      "rootScope": "http://127.0.0.1:39781/",
+      "subpathScope": "http://127.0.0.1:39781/boardstudio/",
+      "rootCacheBeforeUpdate": [
+        "boardstudio-m1-offline-path-2f-m1-test-v2"
+      ],
+      "cacheBothScopes": [
+        "boardstudio-m1-offline-path-2f-m1-test-v2",
+        "unrelated-stale-cache",
+        "boardstudio-m1-offline-path-2f626f61726473747564696f2f-m1-test-v1"
+      ],
+      "offlineRoot": {
+        "status": 200,
+        "missing": "TypeError"
+      },
+      "offlineSubpath": {
+        "status": 200,
+        "missing": "TypeError"
+      },
+      "unrelatedCacheDidNotLeak": true,
+      "afterRootV3Update": [
+        "unrelated-stale-cache",
+        "boardstudio-m1-offline-path-2f626f61726473747564696f2f-m1-test-v1",
+        "boardstudio-m1-offline-path-2f-m1-test-v3"
+      ]
+    }
+  ]
+}

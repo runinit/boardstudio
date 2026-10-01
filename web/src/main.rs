@@ -1,4 +1,6 @@
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod cad_presentation;
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod runtime;
