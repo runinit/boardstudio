@@ -1,10 +1,26 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use boardstudio_application::{
-    Completion, Effect, Event, Lifecycle, OperationId, ReadModel, SaveResult, Scope, Session,
-    SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
+    SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{ArchiveReply, ProjectDoc};
 use boardstudio_web::host::{BrowserStore, CoreWorker};
+use boardstudio_web::{
+    cad_jobs::{
+        CadJobError, CadOperation, CadRequest, CadResult, prepare_captured_case,
+        prepare_captured_step_assembly, validate_reply,
+    },
+    cad_worker::CadWorker,
+};
+
+pub struct CadScene {
+    pub scope: Scope,
+    pub token: SnapshotToken,
+    pub snapshot: AcceptedSnapshot,
+    pub result: CadResult,
+    pub mechanical: Option<boardstudio_core::model::MechanicalAssembly>,
+    pub exact: bool,
+}
 use js_sys::{Array, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
@@ -24,6 +40,12 @@ struct Artifact {
     token: SnapshotToken,
 }
 
+impl PartialEq for CadScene {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
 pub struct Runtime {
     session: RefCell<Session>,
     core: RefCell<Rc<CoreWorker>>,
@@ -37,11 +59,16 @@ pub struct Runtime {
     notify: RefCell<Option<Notifier>>,
     status: RefCell<String>,
     open_sequence: Cell<u64>,
+    cad_scene: RefCell<Option<Rc<CadScene>>>,
+    cad_worker: RefCell<Option<(Scope, Rc<CadWorker>)>>,
+    cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
+    step_exports: RefCell<BTreeSet<OperationId>>,
+    export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
-        Ok(Rc::new(Self {
+        let runtime = Rc::new(Self {
             session: RefCell::new(Session::new()),
             core: RefCell::new(Rc::new(
                 CoreWorker::new(&resource_url("assets/core-worker/entry.js")?)
@@ -58,7 +85,21 @@ impl Runtime {
             notify: RefCell::new(None),
             status: RefCell::new("Open a saved keyboard or an editable demo copy.".into()),
             open_sequence: Cell::new(0),
-        }))
+            cad_scene: RefCell::new(None),
+            cad_worker: RefCell::new(None),
+            cad_jobs: RefCell::new(BTreeMap::new()),
+            step_exports: RefCell::new(BTreeSet::new()),
+            export_workers: RefCell::new(BTreeMap::new()),
+        });
+        let weak = Rc::downgrade(&runtime);
+        spawn_local(async move {
+            if let Err(error) = boardstudio_web::host::register_offline(prefix).await
+                && let Some(runtime) = weak.upgrade()
+            {
+                runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
+            }
+        });
+        Ok(runtime)
     }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();
@@ -94,7 +135,14 @@ impl Runtime {
         }
     }
     pub fn submit(self: &Rc<Self>, event: Event) {
+        let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
+        if self.scope() != previous_scope {
+            self.cad_scene.borrow_mut().take();
+            if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
+                worker.close();
+            }
+        }
         self.changed();
         self.drive(effects);
     }
@@ -112,6 +160,12 @@ impl Runtime {
             }
             if this.model().lifecycle == Lifecycle::Closed {
                 this.cancel_frames();
+                if let Some((_, worker)) = this.cad_worker.borrow_mut().take() {
+                    worker.close();
+                }
+                for (_, worker) in std::mem::take(&mut *this.export_workers.borrow_mut()) {
+                    worker.close();
+                }
                 this.core.borrow().close();
             }
         });
@@ -195,7 +249,11 @@ impl Runtime {
                     result,
                 })
             }
-            Effect::Settled { outcome, .. } => {
+            Effect::Settled {
+                operation_id,
+                outcome,
+            } => {
+                self.step_exports.borrow_mut().remove(&operation_id);
                 match outcome {
                     TerminalOutcome::Completed => self.report("Saved locally."),
                     TerminalOutcome::Rejected(reason)
@@ -269,7 +327,11 @@ impl Runtime {
                 operation_id,
                 scope,
                 snapshot,
-            } => match self.pack_archive(&snapshot.document).await {
+            } => match if self.step_exports.borrow().contains(&operation_id) {
+                self.step_bytes(operation_id, &snapshot, &scope).await
+            } else {
+                self.pack_archive(&snapshot.document).await
+            } {
                 Ok(bytes) => {
                     let current = self.session.borrow().scope() == Some(scope.clone())
                         && self
@@ -281,7 +343,7 @@ impl Runtime {
                     if !current || cancelled {
                         return self.complete(Completion::ExportFailed {
                             operation_id,
-                            reason: "Archive scope changed before delivery.".into(),
+                            reason: "Export scope changed before delivery.".into(),
                         });
                     }
                     let artifact_id = format!("archive-{}", operation_id.0);
@@ -289,7 +351,12 @@ impl Runtime {
                         artifact_id.clone(),
                         Artifact {
                             bytes,
-                            filename: "keyboard.boardstudio".into(),
+                            filename: if self.step_exports.borrow().contains(&operation_id) {
+                                "keyboard.step"
+                            } else {
+                                "keyboard.boardstudio"
+                            }
+                            .into(),
                             scope: scope.clone(),
                             token: snapshot.token,
                         },
@@ -327,22 +394,230 @@ impl Runtime {
                 }
                 vec![]
             }
-            Effect::RunGeneration { job_id, scope, .. } => {
-                self.complete(Completion::GenerationFailed {
-                    job_id,
-                    scope,
-                    reason: "Exact case generation is awaiting M1 ticket 04 integration.".into(),
-                })
+            Effect::RunGeneration {
+                job_id,
+                scope,
+                snapshot,
+                ..
+            } => self.generate(job_id, scope, snapshot).await,
+            Effect::CancelJob { job_id } => {
+                if let Some(cancelled) = self.cad_jobs.borrow_mut().remove(&job_id) {
+                    cancelled.set(true);
+                }
+                if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
+                    worker.cancel(&format!("case-{}", job_id.0));
+                    worker.close();
+                }
+                vec![]
             }
-            Effect::CancelJob { .. } => vec![],
             Effect::CancelExport { operation_id } => {
                 self.cancelled_exports.borrow_mut().insert(operation_id);
+                if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
+                    worker.close();
+                }
                 self.artifacts
                     .borrow_mut()
                     .remove(&format!("archive-{}", operation_id.0));
                 vec![]
             }
         }
+    }
+    pub fn cad_scene(&self) -> Option<Rc<CadScene>> {
+        self.cad_scene
+            .borrow()
+            .as_ref()
+            .filter(|scene| self.scope() == Some(scene.scope.clone()))
+            .cloned()
+    }
+    pub fn export_step(self: &Rc<Self>) {
+        let Some(scope) = self.scope() else {
+            return;
+        };
+        let operation_id = self.operation();
+        self.step_exports.borrow_mut().insert(operation_id);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+    fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
+        self.scope().as_ref() == Some(scope)
+            && self
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|s| s.token == token)
+    }
+    async fn generate(
+        self: &Rc<Self>,
+        job_id: JobId,
+        scope: Scope,
+        snapshot: AcceptedSnapshot,
+    ) -> Vec<Effect> {
+        let cancelled = Rc::new(Cell::new(false));
+        self.cad_jobs.borrow_mut().insert(job_id, cancelled.clone());
+        let result = self
+            .generate_current(job_id, &scope, &snapshot, &cancelled)
+            .await;
+        self.cad_jobs.borrow_mut().remove(&job_id);
+        match result {
+            Ok(()) => self.complete(Completion::GenerationFinished {
+                job_id,
+                scope,
+                exact: true,
+            }),
+            Err(CadJobError::Blocked(reason)) => self.complete(Completion::GenerationBlocked {
+                job_id,
+                scope,
+                reason,
+            }),
+            Err(CadJobError::Failed(reason) | CadJobError::Stale(reason)) => {
+                self.complete(Completion::GenerationFailed {
+                    job_id,
+                    scope,
+                    reason,
+                })
+            }
+            Err(CadJobError::Cancelled) => vec![],
+        }
+    }
+    async fn generate_current(
+        &self,
+        job_id: JobId,
+        scope: &Scope,
+        snapshot: &AcceptedSnapshot,
+        cancelled: &Cell<bool>,
+    ) -> Result<(), CadJobError> {
+        let guard = || {
+            if cancelled.get() || !self.snapshot_current(snapshot.token, scope) {
+                Err(CadJobError::Cancelled)
+            } else {
+                Ok(())
+            }
+        };
+        guard()?;
+        let core = self.core.borrow().clone();
+        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
+        let prepared = prepare_captured_case(
+            &core,
+            &epoch,
+            &format!("case-{}", job_id.0),
+            snapshot,
+            scope,
+        )
+        .await?;
+        guard()?;
+        let previous = self.cad_worker.borrow_mut().take();
+        let worker = match previous {
+            Some((worker_scope, worker)) if worker_scope == *scope => worker,
+            Some((_, worker)) => {
+                worker.close();
+                Rc::new(
+                    CadWorker::new(
+                        &resource_url("assets/cad-worker/entry.js").map_err(CadJobError::Failed)?,
+                    )
+                    .map_err(|e| CadJobError::Failed(e.to_string()))?,
+                )
+            }
+            None => Rc::new(
+                CadWorker::new(
+                    &resource_url("assets/cad-worker/entry.js").map_err(CadJobError::Failed)?,
+                )
+                .map_err(|e| CadJobError::Failed(e.to_string()))?,
+            ),
+        };
+        *self.cad_worker.borrow_mut() = Some((scope.clone(), worker.clone()));
+        worker
+            .ready()
+            .await
+            .map_err(|e| CadJobError::Failed(e.to_string()))?;
+        guard()?;
+        for operation in [CadOperation::Preview, CadOperation::Exact] {
+            let request = CadRequest {
+                request_id: format!("case-{}-{operation:?}", job_id.0),
+                job_id: format!("case-{}", job_id.0),
+                identity: prepared.identity.clone(),
+                operation,
+                prepared: Some(prepared.prepared.clone()),
+                input_bytes: vec![],
+            };
+            let reply = worker
+                .request(request.clone())
+                .await
+                .map_err(|e| CadJobError::Failed(e.to_string()))?;
+            guard()?;
+            let result = validate_reply(&request, reply, &prepared.identity)?;
+            *self.cad_scene.borrow_mut() = Some(Rc::new(CadScene {
+                scope: scope.clone(),
+                token: snapshot.token,
+                snapshot: snapshot.clone(),
+                result,
+                mechanical: prepared.mechanical_assembly.clone(),
+                exact: operation == CadOperation::Exact,
+            }));
+            self.changed();
+        }
+        Ok(())
+    }
+    async fn step_bytes(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<Vec<u8>, String> {
+        let guard = || {
+            if self.cancelled_exports.borrow().contains(&operation_id)
+                || !self.snapshot_current(snapshot.token, scope)
+            {
+                Err("STEP export was cancelled or superseded.".to_owned())
+            } else {
+                Ok(())
+            }
+        };
+        guard()?;
+        let core = self.core.borrow().clone();
+        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
+        let prepared = prepare_captured_step_assembly(
+            &core,
+            &epoch,
+            &format!("step-{}", operation_id.0),
+            snapshot,
+            scope,
+        )
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+        guard()?;
+        let worker = Rc::new(
+            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                .map_err(|e| e.to_string())?,
+        );
+        self.export_workers
+            .borrow_mut()
+            .insert(operation_id, worker.clone());
+        let result = async {
+            worker.ready().await.map_err(|e| e.to_string())?;
+            guard()?;
+            let request = CadRequest {
+                request_id: format!("step-{}", operation_id.0),
+                job_id: format!("step-{}", operation_id.0),
+                identity: prepared.identity.clone(),
+                operation: CadOperation::ExportStep,
+                prepared: Some(prepared.prepared),
+                input_bytes: vec![],
+            };
+            let reply = worker
+                .request(request.clone())
+                .await
+                .map_err(|e| e.to_string())?;
+            guard()?;
+            validate_reply(&request, reply, &prepared.identity)
+                .map(|result| result.step)
+                .map_err(|e| format!("{e:?}"))
+        }
+        .await;
+        worker.close();
+        self.export_workers.borrow_mut().remove(&operation_id);
+        result
     }
     fn cancel_frames(&self) {
         if let Some(window) = web_sys::window() {
@@ -381,9 +656,26 @@ impl Runtime {
         self.open_sequence.set(sequence);
         Ok(sequence)
     }
-    pub async fn import_archive(self: &Rc<Self>, bytes: Vec<u8>) -> Result<(), String> {
-        let sequence = self.begin_open()?;
-        self.import_archive_at(bytes, sequence).await
+    pub fn import_file(self: &Rc<Self>, file: web_sys::File) {
+        let Ok(sequence) = self.begin_open() else {
+            self.report("Open identity exhausted.");
+            return;
+        };
+        let this = self.clone();
+        spawn_local(async move {
+            let result = match JsFuture::from(file.array_buffer()).await {
+                Ok(buffer) => {
+                    this.import_archive_at(Uint8Array::new(&buffer).to_vec(), sequence)
+                        .await
+                }
+                Err(error) => Err(format!("Import read failed: {error:?}")),
+            };
+            if let Err(error) = result
+                && this.open_sequence.get() == sequence
+            {
+                this.report(error);
+            }
+        });
     }
     async fn import_archive_at(
         self: &Rc<Self>,
@@ -445,8 +737,13 @@ impl Runtime {
                     })
                 }
                 Ok(Some(_)) => {}
-                Ok(None) => this.report("Saved keyboard is unavailable."),
-                Err(error) => this.report(error.to_string()),
+                Ok(None) if this.open_sequence.get() == sequence => {
+                    this.report("Saved keyboard is unavailable.")
+                }
+                Err(error) if this.open_sequence.get() == sequence => {
+                    this.report(error.to_string())
+                }
+                Ok(None) | Err(_) => {}
             }
         });
     }
@@ -516,6 +813,12 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.cancel_frames();
+        if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
+            worker.close();
+        }
+        for (_, worker) in std::mem::take(&mut *self.export_workers.borrow_mut()) {
+            worker.close();
+        }
         self.core.borrow().close();
     }
 }
@@ -576,9 +879,19 @@ fn deliver(bytes: &[u8], filename: &str) -> Result<(), String> {
             .map_err(|e| format!("{e:?}"))?;
         anchor.set_href(&url);
         anchor.set_download(filename);
+        let body = document.body().ok_or("document body unavailable")?;
+        body.append_child(&anchor).map_err(|e| format!("{e:?}"))?;
         anchor.click();
+        anchor.remove();
         Ok(())
     })();
-    Url::revoke_object_url(&url).map_err(|e| format!("{e:?}"))?;
+    if result.is_ok() {
+        spawn_local(async move {
+            gloo_timers::future::TimeoutFuture::new(1_000).await;
+            let _ = Url::revoke_object_url(&url);
+        });
+    } else {
+        let _ = Url::revoke_object_url(&url);
+    }
     result
 }

@@ -79,6 +79,7 @@ pub enum GenerationStatus {
     Preparing { job_id: JobId },
     Running { job_id: JobId },
     Ready { job_id: JobId, exact: bool },
+    Blocked { job_id: JobId, reason: String },
     Failed { job_id: JobId, reason: String },
     Cancelled { job_id: JobId },
 }
@@ -277,6 +278,11 @@ pub enum Completion {
         exact: bool,
     },
     GenerationFailed {
+        job_id: JobId,
+        scope: Scope,
+        reason: String,
+    },
+    GenerationBlocked {
         job_id: JobId,
         scope: Scope,
         reason: String,
@@ -816,6 +822,22 @@ impl Session {
                             TerminalOutcome::ExecutorFailed(reason),
                             &mut effects,
                         );
+                    }
+                }
+            }
+            Completion::GenerationBlocked {
+                job_id,
+                scope,
+                reason,
+            } => {
+                if self.job_is_current(job_id, &scope) {
+                    self.model.generation = GenerationStatus::Blocked {
+                        job_id,
+                        reason: reason.clone(),
+                    };
+                    self.model.last_error = Some(reason.clone());
+                    if let Some((_, operation, _)) = self.active_job.take() {
+                        self.settle(operation, TerminalOutcome::Rejected(reason), &mut effects);
                     }
                 }
             }
@@ -1471,6 +1493,7 @@ impl Session {
         end: bool,
         effects: &mut Vec<Effect>,
     ) {
+        let board_id = self.model.active_board_id.clone();
         let Some(g) = &mut self.gesture else {
             return;
         };
@@ -1488,6 +1511,7 @@ impl Session {
                         &g.start,
                         positions,
                         DragSnapOptions {
+                            board_id: &board_id,
                             pitch: g.pitch,
                             fraction: g.snap_fraction,
                             geometry_snap: g.geometry_snap,

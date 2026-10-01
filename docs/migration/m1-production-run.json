@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "in progress: providers verified in candidate; headless session and browser host integrated; page compiles; CAD/STEP and offline development underway",
+  "status": "in progress: reconciled providers, durable session, scoped host/offline policy and CAD worker integrated; interaction browser repairs and final release/acceptance remain",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -10,29 +10,29 @@
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "tasks": {
     "01": {
-      "status": "in-progress",
+      "status": "provider suites and boxing compatibility verified; final integration review pending",
       "blocked_by": []
     },
     "02": {
-      "status": "headless and host integrated; page WASM check/strict lint pass; production browser verification pending providers",
+      "status": "11 public native session tests pass, including recovery and board-scoped snapping; interaction/storage browser acceptance in progress",
       "blocked_by": [
         "01"
       ]
     },
     "03": {
-      "status": "independent offline-policy development; integrated archive/browser verification awaits 02",
+      "status": "scoped Rust offline policy integrated; minimal-shell root/subpath proof passes; full application and archive exchange pending",
       "blocked_by": [
         "02"
       ]
     },
     "04": {
-      "status": "independent CAD worker development; integrated exact-case verification awaits 02",
+      "status": "CAD preparation/worker integrated; five native identity/payload tests pass; Runtime/canvas consumer implemented, integrated browser/oracle checks pending",
       "blocked_by": [
         "02"
       ]
     },
     "05": {
-      "status": "shared CAD/STEP worker development; STEP acceptance awaits 04",
+      "status": "captured independent STEP worker wired with scope/token delivery guards; browser readback/oracle acceptance pending",
       "blocked_by": [
         "04"
       ]

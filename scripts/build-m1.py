@@ -48,6 +48,7 @@ def main():
 
     run("core", ["wasm-pack", "build", REPO / "core", "--target", "web", "--release", "--locked"])
     run("core-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_core_worker", "--out-dir", output / "core-worker", "--release", "--locked", "--no-default-features", "--features", "core-worker"])
+    run("cad-worker", ["wasm-pack", "build", WEB, "--target", "web", "--out-name", "m1_cad_worker", "--out-dir", output / "cad-worker", "--release", "--locked", "--no-default-features", "--features", "cad-worker"])
     run("renderer", ["wasm-pack", "build", REPO / "renderer", "--target", "web", "--out-dir", output / "renderer", "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"])
     run("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"])
     run("fixtures", ["node", REPO / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"])
@@ -61,9 +62,10 @@ def main():
         assets = destination / "assets"
         shutil.copytree(WEB / "assets", assets, dirs_exist_ok=True)
         shutil.copytree(REPO / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
-        for name in ["core-worker", "renderer", "fixtures"]:
+        for name in ["core-worker", "cad-worker", "renderer", "fixtures"]:
             shutil.copytree(output / name, assets / name, dirs_exist_ok=True)
         (assets / "core-worker/entry.js").write_text('import init, { start_core_worker } from "./m1_core_worker.js";\nawait init();\nstart_core_worker();\n')
+        (assets / "cad-worker/entry.js").write_text('import init, { start_cad_worker } from "./m1_cad_worker.js";\nawait init();\nstart_cad_worker(new URL("../cad/boardstudio_cadrum_wasm.js", import.meta.url).href);\n')
         manifest = output / f"offline-manifest-{mode}.json"
         required = sorted({str(path.relative_to(destination)) for path in destination.rglob("*") if path.is_file()} | {"service-worker.js", "boardstudio_offline_worker.js"})
         manifest.write_text(json.dumps({"version": f"{build_id}-{mode}", "assets": required}, indent=2)+"\n")
