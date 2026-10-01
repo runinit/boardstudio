@@ -1,6 +1,6 @@
-# M1 host boundary inventory — design, not acceptance
+# Maintained M1 host boundary inventory
 
-Consumer contracts: SPEC-editor-session, SPEC-host-platform, SPEC-rendering and SPEC-generators-cad-export. Production composition belongs to the web package; the headless application crate imports no browser/Dioxus/CAD/GPU handles. This inventory is a reviewable extraction design; source paths below are evidence inputs, not production dependencies.
+Consumer contracts: SPEC-editor-session, SPEC-host-platform, SPEC-rendering and SPEC-generators-cad-export. Production composition belongs to the web package; the headless application crate imports no browser/Dioxus/CAD/GPU handles. This inventory describes the maintained `web/` composition. Historical prototype inputs supplied feasibility evidence; they are not runtime dependencies. Measured behavior and remaining gates are recorded separately in [the acceptance ledger](ACCEPTANCE.md).
 
 | Boundary | Rust owner / caller | Contract and ownership | Cancellation / cleanup | Costs and retirement |
 | --- | --- | --- | --- | --- |

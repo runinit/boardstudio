@@ -54,10 +54,10 @@ values above the JavaScript safe integer range before the provider boundary.
 
 ## Evidence and limits
 
-Public native tests exercise the real CoreEngine and controlled effect
+Thirteen public native session tests exercise the real CoreEngine and controlled effect
 completions, including abort/retry, explicit recovery, stale identities, gesture
-history and board-scoped snapping. CAD tests validate captured preparation,
-instance reflection, operation/identity/payload rejection and safe-range limits.
+history and board-scoped snapping. Twelve native web tests validate captured preparation,
+instance reflection, operation/identity/payload rejection and safe-range limits. Exact assembly results may omit bounds because the public CAD provider emits none; STEP readback still requires valid bounds. A failed export removes its current registration before caller settlement, so later reopen cannot cancel an already settled export.
 See [session evidence](evidence/session/implementation.md),
 [CAD evidence](evidence/cad-jobs/verification.md) and the
 [acceptance ledger](ACCEPTANCE.md). Native coverage does not substitute for the

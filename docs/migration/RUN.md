@@ -841,3 +841,29 @@ readback; max-safe and wide-revision behavior is explicit. The final complete
 root/subpath release, Runtime stale/cancel guards, renderer resource lifecycle,
 accessibility, applicable performance budgets and independent Standards/Spec
 review remain required. No production ticket is closed by this checkpoint.
+
+### Production source and final candidate checkpoint
+
+The production tree at `2040e23b` includes the reviewed export-registration
+cleanup and public CAD reply correction. Exact assembly output legitimately
+omits bounds; STEP readback continues to require valid bounds. Thirteen session
+and twelve web native tests, formatting, application strict Clippy and strict
+all-target page/CAD-worker WASM Clippy pass. Independent Standards and Spec
+reviews report no blocking findings; the final source-check record confirms no
+production-source difference from that reviewed revision.
+
+The real editor on focused `2040e23b` generates exact geometry for REVIUNG41
+and Sofle Left/Right. DPR2 resize, scope invalidation/remount, cancellation and
+immediate retry pass. Context loss stops rendering; a fresh remount recovers.
+This focused artifact deliberately omits offline policy and is not complete
+release acceptance. The uniquely staged final build
+`m1-release-20261001-bc1c6b52` is in progress; current-release offline, file/URL
+lifetimes and eligible performance checks follow it. Earlier complete releases
+and failed attempts remain retained. Relevant screen-reader testing is blocked
+because no screen reader is installed. No missing gate is reported as passed.
+
+See [source checks](../../.scratch/m1-production/evidence/integration/final-source-checks/record.json),
+[editor renderer evidence](../../.scratch/m1-production/evidence/renderer/focused-2040e23b/README.md),
+[reviews](../../.scratch/m1-production/evidence/review/standards-2040e23b.md),
+[Spec review](../../.scratch/m1-production/evidence/review/spec-2040e23b.md) and
+[performance protocol](../../.scratch/m1-production/evidence/performance/README.md).

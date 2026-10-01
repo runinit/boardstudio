@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "presentation source frozen; complete release, resource, accessibility, performance and independent review acceptance remain",
+  "status": "production implementation frozen at2040e23b; final complete candidate build and browser/performance acceptance in progress",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -14,31 +14,31 @@
       "blocked_by": []
     },
     "02": {
-      "status": "12 native session tests reported passing; real IndexedDB abort/retry and full-fixture archive exchange pass; interaction keyboard/pointer checks pass on recorded development assets",
+      "status": "13 native public session tests pass; real IndexedDB abort/retry, full-fixture assets/archive exchange and keyboard/pointer checks pass on recorded assets; final resource gates remain",
       "blocked_by": [
         "01"
       ]
     },
     "03": {
-      "status": "scoped Rust offline policy integrated and minimal-shell proof passes; actual full-fixture storage/archive exchange passes; complete release offline acceptance pending",
+      "status": "full release050e9282 root/subpath storage/cache install, update and offline reopen pass; fresh corrected final release verification in progress",
       "blocked_by": [
         "02"
       ]
     },
     "04": {
-      "status": "nine actual TypeScript case-projection comparisons pass; both-fixture preview/exact worker checks pass on recorded staged assets; final Runtime/renderer resource checks pending",
+      "status": "12 native web tests and nine actual TypeScript projections pass; real editor exact generation on both fixtures, DPR2, scope remount, cancel/retry and context-loss reporting pass on focused2040e23b; full resource accounting remains",
       "blocked_by": [
         "02"
       ]
     },
     "05": {
-      "status": "independent fresh-worker STEP and readback pass on both fixtures; wide identity rejection passes; final release stale/cancel delivery checks pending",
+      "status": "independent fresh-worker STEP readback and wide revision rejection pass; failed-export registration regression fixed/tested; final UI delivery/resource checks in progress",
       "blocked_by": [
         "04"
       ]
     },
     "06": {
-      "status": "complete release and final integration, accessibility, resource and performance acceptance in progress",
+      "status": "native/fmt/strict affected WASM checks and independent Standards/Spec reviews pass; raw axe/contrast evidence retained; relevant screen reader blocked, final release/resource/performance verification in progress",
       "blocked_by": [
         "03",
         "05"
@@ -57,5 +57,11 @@
       "EditOperation::SetMountedModule.definition",
       "EditOperation::SetMountedModule.host_connector_definition"
     ]
+  },
+  "production_source": "2040e23ba2cd97aef3757d24b81fe2463d6f86be",
+  "final_build": {
+    "id": "m1-release-20261001-bc1c6b52",
+    "source_commit": "bc1c6b524ec5a6350ca432472bf4ff543482aeb5",
+    "status": "in progress; source identity verification required before use"
   }
 }
