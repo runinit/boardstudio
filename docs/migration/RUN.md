@@ -824,3 +824,20 @@ progress. The full page check currently waits for the interaction worker's
 execution or populated PCB parity. No production ticket is closed by this
 checkpoint; final release, exact geometry/readback, resource, accessibility,
 performance and Standards/Spec review gates remain open.
+
+### Full-fixture development verification checkpoint
+
+Presentation source is frozen at `23c67f8a`. Browser evidence records numeric
+preview/Escape/Enter, saved-library refresh, keyboard list entry/navigation,
+pointer threshold/final sample/cancellation, Undo/Redo, Shift range, Ctrl toggle,
+Alt snap bypass and a scrollable Sofle layout at 920×500. These results use the
+recorded development page and are not complete release/offline acceptance.
+
+Actual IndexedDB abort/retry, all REVIUNG41 and Sofle asset hashes, reload, invalid
+archive preservation and Rust → reference storage/archive → Rust exchange pass.
+Nine case projections match the actual TypeScript reference, including flipped
+instances. Both fixtures pass staged worker preview/exact and independent STEP
+readback; max-safe and wide-revision behavior is explicit. The final complete
+root/subpath release, Runtime stale/cancel guards, renderer resource lifecycle,
+accessibility, applicable performance budgets and independent Standards/Spec
+review remain required. No production ticket is closed by this checkpoint.

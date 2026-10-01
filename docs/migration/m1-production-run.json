@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "in progress: reconciled providers, durable session, scoped host/offline policy and CAD worker integrated; interaction browser repairs and final release/acceptance remain",
+  "status": "presentation source frozen; complete release, resource, accessibility, performance and independent review acceptance remain",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -14,31 +14,31 @@
       "blocked_by": []
     },
     "02": {
-      "status": "11 public native session tests pass, including recovery and board-scoped snapping; interaction/storage browser acceptance in progress",
+      "status": "12 native session tests reported passing; real IndexedDB abort/retry and full-fixture archive exchange pass; interaction keyboard/pointer checks pass on recorded development assets",
       "blocked_by": [
         "01"
       ]
     },
     "03": {
-      "status": "scoped Rust offline policy integrated; minimal-shell root/subpath proof passes; full application and archive exchange pending",
+      "status": "scoped Rust offline policy integrated and minimal-shell proof passes; actual full-fixture storage/archive exchange passes; complete release offline acceptance pending",
       "blocked_by": [
         "02"
       ]
     },
     "04": {
-      "status": "CAD preparation/worker integrated; five native identity/payload tests pass; Runtime/canvas consumer implemented, integrated browser/oracle checks pending",
+      "status": "nine actual TypeScript case-projection comparisons pass; both-fixture preview/exact worker checks pass on recorded staged assets; final Runtime/renderer resource checks pending",
       "blocked_by": [
         "02"
       ]
     },
     "05": {
-      "status": "captured independent STEP worker wired with scope/token delivery guards; browser readback/oracle acceptance pending",
+      "status": "independent fresh-worker STEP and readback pass on both fixtures; wide identity rejection passes; final release stale/cancel delivery checks pending",
       "blocked_by": [
         "04"
       ]
     },
     "06": {
-      "status": "blocked-by-dependencies",
+      "status": "complete release and final integration, accessibility, resource and performance acceptance in progress",
       "blocked_by": [
         "03",
         "05"
