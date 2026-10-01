@@ -18,6 +18,6 @@ The provider reconciliation is the required prefactor. Remaining tickets deliver
 
 ## Integration and verification
 
-Reference provider input: main checkout dev 5a472a9426e6e38993361da402cd4ec730feb369; migration input cd1efb34. Do not apply stashes. Native and browser seams follow the parent specification; pending seam feedback blocks new seam tests, not provider reconciliation or documentation. Each ticket records red-green evidence, affected checks and exact source before coordinator integration. Review changes at the fixed integration base. Keep worker branches/checkouts recoverable; do not delete pre-existing worktrees.
+Reference provider input: main checkout dev 5a472a9426e6e38993361da402cd4ec730feb369; migration input cd1efb34. Do not apply stashes. Native and browser seams follow the parent specification; the previously approved public session and real-browser seams are the default; optional feedback may extend them. Each ticket records red-green evidence, affected checks and exact source before coordinator integration. Review changes at the fixed integration base. Keep worker branches/checkouts recoverable; do not delete pre-existing worktrees.
 
 M1 acceptance requires ticket 06. Source or partial browser success alone cannot close it. Existing API/schema visibility changes and new budgets/gates require explicit decisions, with independent work continuing.
