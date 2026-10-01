@@ -489,7 +489,10 @@ impl Runtime {
         cancelled: &Cell<bool>,
     ) -> Result<(), CadJobError> {
         let guard = || {
-            if cancelled.get() || !self.snapshot_current(snapshot.token, scope) {
+            let current_job = matches!(self.model().generation,
+                boardstudio_application::GenerationStatus::Preparing { job_id: active }
+                | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+            if cancelled.get() || !current_job || !self.snapshot_current(snapshot.token, scope) {
                 Err(CadJobError::Cancelled)
             } else {
                 Ok(())
