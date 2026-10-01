@@ -1,0 +1,79 @@
+{
+  "integration_head": "4da1f6af77e4582c4c8660812e31bdcd5c9336ec",
+  "integration_status": "",
+  "source_commit": "cce8e78bc107cadb39a8457f0ed17e3e57035181",
+  "source_changed_since_review": false,
+  "worktrees": "worktree /home/chris/01_Projects/ts-boardstudio2/.scratch/git/dioxus-context-baseline.git\nbare\n\nworktree /home/chris/.local/share/boardstudio/worktrees/p1-u64-repair-20261001\nHEAD cce8e78bc107cadb39a8457f0ed17e3e57035181\nbranch refs/heads/prototype/boardstudio-p1-u64\n\nworktree /home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline\nHEAD 96dd51d3e790c28f5554a8c9888a147c8814e2a7\nbranch refs/heads/docs/dioxus-context-baseline\n\nworktree /tmp/boardstudio-migration-m1-20261001\nHEAD 4da1f6af77e4582c4c8660812e31bdcd5c9336ec\nbranch refs/heads/migration/boardstudio-m1\n\nworktree /tmp/boardstudio-migration-specs-review-20261001\nHEAD 47d6dbce5af2285d1f886ef63d2d4c7b1de57925\nbranch refs/heads/docs/boardstudio-migration-specs-review\n\nworktree /tmp/boardstudio-p1-core-20261001\nHEAD 6519a8c2215b68855cd1bc097001199ffd4b10e3\nbranch refs/heads/prototype/boardstudio-p1-core\n\n",
+  "protected_inputs": {
+    "count": 31,
+    "changes": [],
+    "source_head": "96dd51d3e790c28f5554a8c9888a147c8814e2a7"
+  },
+  "checks": [
+    {
+      "command": [
+        "node",
+        "/tmp/boardstudio-migration-specs-review-20261001/scripts/repo-check.mjs",
+        "/tmp/boardstudio-migration-m1-20261001"
+      ],
+      "exit_code": 0,
+      "stdout": "Repository check passed: 553 authored modules, 369 production-reachable.\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "cce8e78bc107cadb39a8457f0ed17e3e57035181",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "metadata_head": "ae1a257e28bffe9602464ff01ba39a1e65e1fc2c",
+  "metadata_checks": [
+    {
+      "command": [
+        "node",
+        "/tmp/boardstudio-migration-specs-review-20261001/scripts/repo-check.mjs",
+        "/tmp/boardstudio-migration-m1-20261001"
+      ],
+      "exit_code": 0,
+      "stdout": "Repository check passed: 553 authored modules, 369 production-reachable.\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "cce8e78bc107cadb39a8457f0ed17e3e57035181",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--exit-code",
+        "cce8e78bc107cadb39a8457f0ed17e3e57035181",
+        "--",
+        ".scratch/prototypes/p1-core/src",
+        ".scratch/prototypes/p1-core/Cargo.toml",
+        ".scratch/prototypes/p1-core/Cargo.lock",
+        ".scratch/prototypes/p1-core/build.py",
+        ".scratch/prototypes/p1-core/evidence/verify-browser.py"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "metadata_status": ""
+}

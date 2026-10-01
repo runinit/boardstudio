@@ -19,5 +19,12 @@
     "model": "gpt-6-luna",
     "reasoning_effort": "high",
     "archived": 1
+  },
+  {
+    "id": "01a0f7a6-e152-74c3-96d5-f3dc5f4c3400",
+    "agent_path": "/root/u64_handoff_review",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "archived": 1
   }
 ]
