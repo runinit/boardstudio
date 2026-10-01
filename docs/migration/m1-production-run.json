@@ -38,7 +38,7 @@
       ]
     },
     "06": {
-      "status": "native/fmt/strict affected WASM checks and independent Standards/Spec reviews pass; raw axe/contrast evidence retained; relevant screen reader blocked, final release/resource/performance verification in progress",
+      "status": "Complete final release and browser verification, affected native/fmt/strict WASM checks and independent source reviews pass; raw axe/contrast retained; resource/performance verification in progress and relevant screen reader blocked",
       "blocked_by": [
         "03",
         "05"
