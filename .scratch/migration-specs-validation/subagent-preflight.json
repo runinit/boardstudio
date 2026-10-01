@@ -43,6 +43,23 @@
           }
         }
       ]
+    },
+    {
+      "id": "01a0f5f9-491e-7f42-8c66-de880b1c3d70",
+      "agent_path": "/root/spec_review",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "model_provider": "openai",
+      "archived": 0,
+      "rollout_path": "/home/chris/.codex/sessions/2026/10/01/rollout-2026-10-01T01-39-10-01a0f5f9-491e-7f42-8c66-de880b1c3d70.jsonl",
+      "observable_turn_contexts": [
+        {
+          "model": "gpt-6-luna",
+          "effort": "high",
+          "cwd": "/home/chris/01_Projects/ts-boardstudio2",
+          "approval_policy": "never"
+        }
+      ]
     }
   ],
   "smoke_result": "Read-only commands passed: assessment cwd, 96dd51d3, approved map and proposed session spec; no writes.",
@@ -52,5 +69,9 @@
     "exit_code": 1,
     "output": "Error: failed to archive session",
     "status": "Completed threads retained. No close-thread collaboration tool is exposed; no direct state-DB mutation or repeated retry."
+  },
+  "review_requested": {
+    "model": "gpt-6-luna",
+    "effort": "high"
   }
 }

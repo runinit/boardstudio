@@ -131,10 +131,10 @@ behavior from proposed implementation. Accepted ADRs are not reopened.
 | Accepted, applicable | Typed keymap edits, Rust defaults and firmware generation through current APIs | [Keycaps/keymap](keycaps-and-keymap.md), [architecture](architecture.md). Physical fit, firmware compilation and device acceptance remain separate evidence gaps. |
 | Accepted, applicable | Production Cadrum/OCCT adapter and existing Rust renderer | [CAD decision record](cad-kernel-options.md), [renderer source](../renderer/src/wasm.rs). Full-Rust application scope is not evidence for reopening the third-party kernel choice. |
 | Accepted, applicable | Frozen performance controls, budgets and ownership/cache protections | [Performance baseline](performance-baseline.md), [generation performance](generation-performance.md). The separate 200 ms exact gasket target remains unmet. |
-| Accepted scope; implementation pending | Approved encoder/VIK behaviors and eight-ticket breakdown | [Specification](../.scratch/encoder-vik-modules/spec.md), [ticket index](../.scratch/encoder-vik-modules-implementation/README.md). Concurrent code exists; the index's historical pending status is not a current completion audit. |
+| Accepted scope; implementation pending | Approved encoder/VIK behaviors and eight-ticket breakdown | [Specification](/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/.scratch/encoder-vik-modules/spec.md), [ticket index](/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/.scratch/encoder-vik-modules-implementation/README.md). Concurrent code exists; the index's historical pending status is not a current completion audit. |
 | Provisional | Exact Dioxus patch/CLI pin, worker packaging and Rust interface integration choices | [Platform research](../.scratch/dioxus-browser-trial/research/browser-platform.md), [integration research](../.scratch/dioxus-browser-trial/research/rust-integration.md). Resolved research tickets do not approve an architecture. |
 | Provisional | Unimplemented workbench design details and performance/kernel experiments | [Workbench design](design/workbench-redesign.md), [optimization status](generation-optimization-status.md), [kernel research](pure-rust-cad-assessment.md). Retain intent/evidence without assuming implementation or selection. |
-| Provisional | Encoder/VIK synthesis defaults and per-part qualification | [Specification defaults and gates](../.scratch/encoder-vik-modules/spec.md). Ready-for-agent scope does not turn unanswered historical choices into human agreement or establish hardware fit. |
+| Provisional | Encoder/VIK synthesis defaults and per-part qualification | [Specification defaults and gates](/home/chris/01_Projects/ts-boardstudio2/.scratch/worktrees/dioxus-context-baseline/.scratch/encoder-vik-modules/spec.md). Ready-for-agent scope does not turn unanswered historical choices into human agreement or establish hardware fit. |
 | Superseded by current scope | Earlier Leptos-CSR-first prototype recommendation; historical Wayfinder skill routing | [Framework comparison](frontend-framework-comparison.md), [map](../.scratch/dioxus-browser-trial/map.md). The user selected Dioxus and Addy's skills. Preserve useful browser/offline/testing cautions; do not restart framework selection. |
 | Invalidated by source evidence | CAD research prose identifying Three.js as current mesh consumer and libcascade as current production integration | [Historical CAD prose](cad-kernel-options.md), [renderer](../renderer/src/wasm.rs), [CAD package](../cad/package.json). Current rendering is Rust three-d and libcascade is dev-only. |
 | Insufficient for expanded scope | A UI substitution or temporary TS client bridge as the complete migration design | [Framework comparison](frontend-framework-comparison.md), [current session scope](../PLAN.md). Temporary coexistence remains useful; the final ownership of session, workers, generators and offline policy needs a Rust architecture. |
@@ -158,7 +158,7 @@ The tested production sources are commit
 Each completed check records command, working directory, UTC timestamps,
 exit code, HEAD and before/after hashes of every tracked file in
 [validation evidence](dioxus-context-baseline-evidence.json). No completed
-command changed a tracked file. [Raw logs and manifests](../../../context-reconciliation-20260930/)
+command changed a tracked file. [Raw logs and manifests](/home/chris/01_Projects/ts-boardstudio2/.scratch/context-reconciliation-20260930/)
 remain outside the assessed worktree.
 
 Environment: Linux 7.2.8 CachyOS x86-64; Node 26.10.0; pnpm 12.6.0;
@@ -268,3 +268,9 @@ as linked provenance under Addy's specification/API/ADR workflow; extend the
 decision brief to the full application scope before choosing prototype details.
 The decision remains open. Layout/case trials and migration implementation are
 subsequent work, not actions taken in this session.
+
+Copy provenance: the three historical evidence destinations above resolve to
+the original read-only assessment and reconciliation directories. Relative links
+were relocated for this isolated copy; those inputs were neither changed nor
+claimed as new validation. The original assessment hash remains in the run
+start manifest.

@@ -15,8 +15,9 @@ accepted inputs. Leave every pre-existing protected worktree untouched.
 
 Extend this plan with only P1 worker/CAD packaging in [tasks/plan.md](tasks/plan.md),
 revision `P1-r1`, and its bounded task set in [TODO.md](TODO.md). Present that
-candidate for one explicit approval before executing prototype or application
-code. P2/P3 and production adoption remain outside the proposed run. Record
+candidate as authorized in advance by the later user instruction. DOC-1
+technical validation remains required before prototype execution. P2/P3 and
+production adoption remain outside this bounded run. Record
 preflight, exact document versions, candidate review and resumable handoff in
 [the migration run record](docs/migration/RUN.md).
 

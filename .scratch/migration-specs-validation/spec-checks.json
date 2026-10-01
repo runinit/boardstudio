@@ -81,10 +81,11 @@
       "module_id": true
     }
   },
-  "local_links": 75,
+  "local_links": 145,
   "errors": [],
   "protected_input_files_checked": 31,
   "protected_input_changes": [],
   "runtime_acceptance": "not established",
-  "head": "96dd51d3e790c28f5554a8c9888a147c8814e2a7"
+  "head": "ed972b8d9e5dd3081b99846472846d5c083c68f5",
+  "refresh_note": "Approval wording and historical evidence links relocated; all six spec contents unchanged. Protected source files remain unchanged."
 }
