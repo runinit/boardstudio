@@ -89,3 +89,14 @@ These are isolated integration probes; production adoption is not implicit.
 - [x] 6. Validate complete workflows. Run focused tests, typechecking, and the full repository `pnpm check` gate. Exercise onboarding through board, PCB, and case generation and inspect exported artifacts, beyond whether export buttons work. Compare results against the baseline. (depends: 5)
 - [x] 7. Apply Impeccable audit, hardening, and polish. Inspect desktop and compact layouts, light/dark themes, keyboard navigation, focus, zoom, long names, empty/loading/error states, and failed or rapid project switching. Preserve the simplified interface and established design. Batch fixes, run the required detector, and confirm the rendered result within the skill's bounded review passes. (depends: 6)
 - [x] 8. Verify the final changes and prepare the handoff. Rerun checks affected by hardening and polish. Review the final diff against both inputs for lost behavior, weakened tests, and accidental churn. Require preserved implementation and verification evidence for every identified `dev` feature or fix, complete and reachable workflows within the simplified UI, and no unresolved integration regressions. Record results, remaining limitations, failed/blocked/unperformed checks, and integration instructions. Impeccable review complements functional tests; neither substitutes for the other. (depends: 7)
+
+## Remaining M1 production task set
+
+See [specification](.scratch/m1-production/spec.md), [task graph](.scratch/m1-production/PLAN.md) and [current state](docs/migration/m1-production-run.json).
+
+- [ ] M1-01: [Reconcile the exact newer provider reference](.scratch/m1-production/issues/01-providers.md)
+- [ ] M1-02: [Open, edit, durably save and recover one copied keyboard](.scratch/m1-production/issues/02-durable-editor.md)
+- [ ] M1-03: [Reload and exchange faithful archives, including offline reopen](.scratch/m1-production/issues/03-archives-offline.md)
+- [ ] M1-04: [Generate and inspect the committed case in workers](.scratch/m1-production/issues/04-exact-case.md)
+- [ ] M1-05: [Export committed STEP with exact snapshot guards](.scratch/m1-production/issues/05-step-export.md)
+- [ ] M1-06: [Verify the complete M1 editor and retain a resumable handoff](.scratch/m1-production/issues/06-acceptance.md)

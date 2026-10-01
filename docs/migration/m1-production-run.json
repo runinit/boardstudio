@@ -1,0 +1,50 @@
+{
+  "run": "M1-production-20261001",
+  "status": "planned; provider reconciliation eligible",
+  "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
+  "plan_revision": "M1-production-r1",
+  "spec": ".scratch/m1-production/spec.md",
+  "plan": ".scratch/m1-production/PLAN.md",
+  "integration_branch": "codex/m1-production-20261001",
+  "base": "cd1efb34b2e9b316ab1f54fd66c5410d8763d559",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "tasks": {
+    "01": {
+      "status": "ready",
+      "blocked_by": []
+    },
+    "02": {
+      "status": "blocked-by-dependencies",
+      "blocked_by": [
+        "01"
+      ]
+    },
+    "03": {
+      "status": "blocked-by-dependencies",
+      "blocked_by": [
+        "02"
+      ]
+    },
+    "04": {
+      "status": "blocked-by-dependencies",
+      "blocked_by": [
+        "02"
+      ]
+    },
+    "05": {
+      "status": "blocked-by-dependencies",
+      "blocked_by": [
+        "04"
+      ]
+    },
+    "06": {
+      "status": "blocked-by-dependencies",
+      "blocked_by": [
+        "03",
+        "05"
+      ]
+    }
+  },
+  "cutover": false,
+  "repair_limit": null
+}

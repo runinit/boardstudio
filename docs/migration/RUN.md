@@ -780,3 +780,7 @@ accepted complete M1 session/web workflow using REVIUNG41 and Sofle. Full-range
 CAD revision compatibility remains an explicit gate before complete integer
 parity is claimed. Full application parity and React retirement remain later
 capability milestones; detailed whole-migration tasks have not been generated.
+
+## Remaining M1 production workflow — 2026-10-01
+
+The user requested to-spec planning of all remaining M1 documentation followed by implementation. [M1-r1 specification](../../.scratch/m1-production/spec.md), [bounded plan and documentation deliverables](../../.scratch/m1-production/PLAN.md), and [current production-slice state](m1-production-run.json) govern this new task set. The completed P2/P3 run stays complete. Newer provider input is main-checkout dev `5a472a94`, fetched into the separate migration repository under a pinned reference. Integration proceeds on `codex/m1-production-20261001` in the persistent continuation; original checkout/stashes and historical evidence stay preserved. No cutover/push/deployment/main merge follows from M1 implementation.
