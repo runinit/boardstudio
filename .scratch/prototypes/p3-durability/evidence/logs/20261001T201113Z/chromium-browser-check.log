@@ -1,0 +1,17 @@
+command: node browser/run.mjs
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: activation removes previous root cache
+    at file:///home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability/browser/run.mjs:247:3 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v26.10.0
+exit=1

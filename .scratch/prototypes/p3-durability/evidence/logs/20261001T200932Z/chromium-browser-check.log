@@ -1,0 +1,25 @@
+command: node browser/run.mjs
+SERVICE WORKER http://127.0.0.1:37265/sw-bootstrap.mjs
+SW warning: using deprecated parameters for `initSync()`; pass a single object instead
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'http://127.0.0.1:37265/'
+- '/'
+
+    at checkOfflineEntry (file:///home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability/browser/run.mjs:77:10)
+    at async file:///home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability/browser/run.mjs:216:23 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'http://127.0.0.1:37265/',
+  expected: '/',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.10.0
+exit=1

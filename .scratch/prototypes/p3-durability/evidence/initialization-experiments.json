@@ -1,0 +1,27 @@
+{
+  "browser": "Chromium 153.0.8010.52",
+  "attempts": [
+    {
+      "attempt": "module-top-level-await",
+      "probe": "minimal module service worker does `await caches.keys()` before registering an install listener",
+      "result": "ServiceWorker registration rejects with ServiceWorker cannot be started",
+      "disposition": "removed; generated loader performs no top-level await"
+    },
+    {
+      "attempt": "inline-full-core-wasm",
+      "wasmBytes": 5235225,
+      "base64BootstrapBytes": 6980519,
+      "result": "ServiceWorker registration rejects with Failed to access storage",
+      "control": "a comment-only script of roughly the same 6.98 MB size fails similarly; a small listener-only script registers",
+      "disposition": "archive/CoreEngine code is excluded from the service-worker feature and retained in the page feature"
+    },
+    {
+      "attempt": "inline-policy-only-wasm",
+      "wasmBytes": 53981,
+      "base64BootstrapBytes": 72206,
+      "result": "synchronous initSync completes and Rust install/activate/fetch listeners run in Chromium",
+      "disposition": "measured before the injective scope-prefix hardening; the final merged build size is pending"
+    }
+  ],
+  "scope": "These are observed outcomes in this Chromium build and harness, not a claimed browser-wide script-size limit."
+}

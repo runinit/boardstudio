@@ -1,0 +1,47 @@
+{
+  "browser": "153.0.8010.52",
+  "origin": "http://127.0.0.1:41591",
+  "cases": [
+    {
+      "name": "IndexedDB completion, abort rollback, same-snapshot retry and archive/assets",
+      "initialRevision": 3,
+      "abortedRevisionRemained": 3,
+      "abortTerminal": {
+        "name": "AbortError",
+        "transactionEvent": "abort",
+        "requestsSucceeded": 1
+      },
+      "retryReceipt": {
+        "operationId": "p3-durability-edit-1",
+        "saveAttempt": 2,
+        "revision": 4,
+        "engineCommitCount": 1,
+        "transactionEvent": "complete",
+        "requestsSucceeded": 5
+      },
+      "undo": {
+        "revision": 5,
+        "partX": 147.285
+      },
+      "archiveRoundtrip": {
+        "projectId": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+        "assetCount": 4,
+        "hashes": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b,77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f,abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722,ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+      },
+      "storageShape": {
+        "projectKeyPath": "id",
+        "assetKeyPath": null,
+        "storeNames": [
+          "assets",
+          "projects"
+        ],
+        "activeProjectId": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4"
+      }
+    },
+    {
+      "name": "root navigation away and saved project reopen",
+      "revision": 4,
+      "assetCount": 4
+    }
+  ]
+}

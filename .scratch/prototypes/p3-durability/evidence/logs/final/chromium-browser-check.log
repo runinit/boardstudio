@@ -1,0 +1,120 @@
+command: node browser/run.mjs
+{
+  "browser": "153.0.8010.52",
+  "origin": "http://127.0.0.1:41591",
+  "cases": [
+    {
+      "name": "IndexedDB completion, abort rollback, same-snapshot retry and archive/assets",
+      "initialRevision": 3,
+      "abortedRevisionRemained": 3,
+      "abortTerminal": {
+        "name": "AbortError",
+        "transactionEvent": "abort",
+        "requestsSucceeded": 1
+      },
+      "retryReceipt": {
+        "operationId": "p3-durability-edit-1",
+        "saveAttempt": 2,
+        "revision": 4,
+        "engineCommitCount": 1,
+        "transactionEvent": "complete",
+        "requestsSucceeded": 5
+      },
+      "undo": {
+        "revision": 5,
+        "partX": 147.285
+      },
+      "archiveRoundtrip": {
+        "projectId": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+        "assetCount": 4,
+        "hashes": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b,77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f,abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722,ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+      },
+      "storageShape": {
+        "projectKeyPath": "id",
+        "assetKeyPath": null,
+        "storeNames": [
+          "assets",
+          "projects"
+        ],
+        "activeProjectId": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4"
+      }
+    },
+    {
+      "name": "root navigation away and saved project reopen",
+      "revision": 4,
+      "assetCount": 4
+    },
+    {
+      "name": "root cold registration and first-evaluation Rust listener capture",
+      "scope": "http://127.0.0.1:41591/",
+      "controller": "http://127.0.0.1:41591/sw-bootstrap.mjs",
+      "caches": [
+        "unrelated-stale-cache",
+        "boardstudio-p3-durability-root-v1"
+      ],
+      "unrelatedStaleCacheDidNotLeak": "p3-cache-v1"
+    },
+    {
+      "name": "root cached offline reopen and missing lazy asset",
+      "navigationStatus": 200,
+      "missingLazyAsset": {
+        "kind": "network-error",
+        "name": "TypeError"
+      }
+    },
+    {
+      "name": "subpath module registration retains both independent cache scopes",
+      "scope": "http://127.0.0.1:41591/boardstudio/",
+      "controller": "http://127.0.0.1:41591/boardstudio/sw-bootstrap.mjs",
+      "scopes": [
+        "http://127.0.0.1:41591/",
+        "http://127.0.0.1:41591/boardstudio/"
+      ],
+      "caches": [
+        "unrelated-stale-cache",
+        "boardstudio-p3-durability-root-v1",
+        "boardstudio-p3-durability-boardstudio-v1"
+      ]
+    },
+    {
+      "name": "root worker update replaces only root cache",
+      "names": [
+        "unrelated-stale-cache",
+        "boardstudio-p3-durability-boardstudio-v1",
+        "boardstudio-p3-durability-root-v2"
+      ],
+      "activeScript": "http://127.0.0.1:41591/sw-bootstrap.mjs"
+    },
+    {
+      "name": "root v2 cached offline reopen",
+      "navigationStatus": 200,
+      "missingLazyAsset": {
+        "kind": "network-error",
+        "name": "TypeError"
+      }
+    },
+    {
+      "name": "root update serves v2 independently",
+      "version": "p3-cache-v2"
+    },
+    {
+      "name": "subpath cached offline reopen",
+      "navigationStatus": 200,
+      "missingLazyAsset": {
+        "kind": "network-error",
+        "name": "TypeError"
+      }
+    },
+    {
+      "name": "subpath cache retains its independent asset version",
+      "version": "p3-cache-v1"
+    },
+    {
+      "name": "fresh context with no worker or cache fails offline honestly",
+      "caches": [],
+      "registrations": [],
+      "navigationFailure": "page.goto: net::ERR_INTERNET_DISCONNECTED at http://127.0.0.1:41591/index.html\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:41591/index.html\", waiting until \"load\"\u001b[22m\n"
+    }
+  ]
+}
+exit=0

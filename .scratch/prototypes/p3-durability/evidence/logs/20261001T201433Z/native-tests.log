@@ -1,0 +1,22 @@
+command: cargo test --manifest-path Cargo.toml --locked
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src/lib.rs (target/debug/deps/p3_durability_probe-f64e4ffe4ba85771)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/archive_roundtrip.rs (target/debug/deps/archive_roundtrip-165fcb9cf956f048)
+
+running 1 test
+test copied_reviung41_project_and_all_assets_round_trip_through_rust_archive_api ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.54s
+
+   Doc-tests p3_durability_probe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+exit=0

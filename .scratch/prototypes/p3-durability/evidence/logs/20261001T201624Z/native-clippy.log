@@ -1,0 +1,3 @@
+command: cargo clippy --manifest-path Cargo.toml --locked --all-targets -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+exit=0

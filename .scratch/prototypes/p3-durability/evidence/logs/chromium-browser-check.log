@@ -1,0 +1,13 @@
+command: node browser/run.mjs
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 30000ms exceeded.
+    at /home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001/.scratch/prototypes/p3-durability/browser/run.mjs:102:14 {
+  log: [],
+  name: 'TimeoutError'
+}
+
+Node.js v26.10.0
+exit=1
