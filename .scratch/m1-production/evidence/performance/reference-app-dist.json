@@ -151,5 +151,10 @@
     "sw.js": "8fe470af5261e809e00533f64c60a6a00ebdc504ccb86ac02fe37985c9b58fe5"
   },
   "sourceCommit": null,
-  "sourceCommitNote": "app/dist is a generated ignored distribution; this record pins every served file byte by SHA-256."
+  "sourceCommitNote": "app/dist is a generated ignored distribution; this record pins every served file byte by SHA-256.",
+  "referenceUrl": "http://127.0.0.1:46881/",
+  "server": {
+    "command": "python3 -m http.server 46881 --bind 127.0.0.1 --directory /home/chris/01_Projects/ts-boardstudio2/app/dist",
+    "contentTypeProbe": "index.html served as text/html; representative WASM served as application/wasm via Python SimpleHTTPServer"
+  }
 }
