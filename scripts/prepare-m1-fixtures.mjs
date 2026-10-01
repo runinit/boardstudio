@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createServer } from '../app/node_modules/vite/dist/node/index.js';
@@ -19,7 +20,8 @@ const engine = new core.CoreEngine();
 const server = await createServer({ root: path.join(root, 'app'), configFile: false,
   server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 try {
-  await mkdir(output, { recursive: true });
+  await mkdir(path.dirname(output), { recursive: true });
+  await mkdir(output);
   const archivePath = 'docs/design/evidence/board-outlines/reviung41-original.boardstudio';
   const archive = await readFile(path.join(root, archivePath));
   const unpacked = core.archive_request(JSON.stringify({ kind: 'unpack-project' }), [archive]);
@@ -28,7 +30,7 @@ try {
   const reviung = JSON.parse(reply.projectJson);
   const assets = [];
   for (const entry of reply.assets) {
-    const bytes = unpacked[entry.bufferIndex + 1];
+    const bytes = unpacked[1][entry.bufferIndex];
     if (hash(bytes) !== entry.sha256) throw new Error(`Unpack hash mismatch: ${entry.sha256}`);
     await writeFile(path.join(output, entry.sha256), bytes);
     assets.push({ sha256: entry.sha256, bytes: bytes.length });
@@ -67,7 +69,7 @@ try {
       const outputs = core.archive_request(JSON.stringify(input.request), input.buffers);
       const result = JSON.parse(outputs[0]);
       if (result.kind !== 'packed') throw new Error(JSON.stringify(result));
-      return { kind: 'archive', reply: { kind: 'packed', bytes: outputs[1] } };
+      return { kind: 'archive', reply: { kind: 'packed', bytes: outputs[1][0] } };
     } });
   } finally { globalThis.fetch = originalFetch; }
   const sofleFiles = unzipSync(sofleArchive);
@@ -82,7 +84,9 @@ try {
   }
   await writeFile(path.join(output, 'sofle.json'), projectJson);
   await writeFile(path.join(output, 'sofle.boardstudio'), sofleArchive);
-  const provenance = { schema: 1, core_wasm_sha256: hash(coreBytes),
+  const inputs = ['scripts/prepare-m1-fixtures.mjs', 'app/src/demos/sofle.ts', 'app/src/mechanicalPresets.ts', 'app/src/storage.ts', 'app/src/bundledModels.ts', 'core/Cargo.toml', 'core/Cargo.lock'];
+  const sourceHashes = Object.fromEntries(await Promise.all(inputs.map(async file => [file, hash(await readFile(path.join(root, file)))])));
+  const provenance = { schema: 1, source_commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), source_hashes: sourceHashes, core_wasm_sha256: hash(coreBytes),
     preparation: 'Reference openSofleDemo v2 plus public set-mechanical gasket edit and reference packProject with embedded used models',
     fixtures: [ { name: 'REVIUNG41', source: archivePath, source_sha256: hash(archive),
       document_id: reviung.id, revision: reviung.revision, assets },
