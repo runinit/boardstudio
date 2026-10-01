@@ -13,6 +13,10 @@ pub struct RendererHost {
     inner: Rc<RendererInner>,
 }
 
+type EventCallback = Closure<dyn FnMut(Event)>;
+type ObserverCallback = Closure<dyn FnMut(Array, ResizeObserver)>;
+type FrameCallback = Closure<dyn FnMut(f64)>;
+
 struct RendererInner {
     renderer: JsValue,
     canvas: HtmlCanvasElement,
@@ -22,12 +26,12 @@ struct RendererInner {
     frame_id: Cell<i32>,
     render_submissions: Cell<u32>,
     observer: RefCell<Option<ResizeObserver>>,
-    observer_callback: RefCell<Option<Closure<dyn FnMut(Array, ResizeObserver)>>>,
-    resize_callback: RefCell<Option<Closure<dyn FnMut(Event)>>>,
+    observer_callback: RefCell<Option<ObserverCallback>>,
+    resize_callback: RefCell<Option<EventCallback>>,
     dpr_query: RefCell<Option<MediaQueryList>>,
-    dpr_callback: RefCell<Option<Closure<dyn FnMut(Event)>>>,
-    context_callback: RefCell<Option<Closure<dyn FnMut(Event)>>>,
-    frame_callback: RefCell<Option<Closure<dyn FnMut(f64)>>>,
+    dpr_callback: RefCell<Option<EventCallback>>,
+    context_callback: RefCell<Option<EventCallback>>,
+    frame_callback: RefCell<Option<FrameCallback>>,
 }
 
 #[derive(Serialize)]
@@ -194,10 +198,10 @@ fn ensure_current(is_current: &Rc<dyn Fn() -> bool>) -> Result<(), String> {
 fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
     let weak = Rc::downgrade(inner);
     let observer_callback = Closure::<dyn FnMut(Array, ResizeObserver)>::new(move |_, _| {
-        if let Some(inner) = weak.upgrade() {
-            if let Err(error) = resize(&inner) {
-                (inner.status)(format!("Resize failed: {}", js_error(error)));
-            }
+        if let Some(inner) = weak.upgrade()
+            && let Err(error) = resize(&inner)
+        {
+            (inner.status)(format!("Resize failed: {}", js_error(error)));
         }
     });
     let observer = ResizeObserver::new(observer_callback.as_ref().unchecked_ref())?;
@@ -207,10 +211,10 @@ fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
 
     let weak = Rc::downgrade(inner);
     let resize_callback = Closure::<dyn FnMut(Event)>::new(move |_| {
-        if let Some(inner) = weak.upgrade() {
-            if let Err(error) = resize(&inner) {
-                (inner.status)(format!("Resize failed: {}", js_error(error)));
-            }
+        if let Some(inner) = weak.upgrade()
+            && let Err(error) = resize(&inner)
+        {
+            (inner.status)(format!("Resize failed: {}", js_error(error)));
         }
     });
     window()?

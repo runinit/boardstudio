@@ -257,10 +257,10 @@ fn EditorPanel(
                 }
             }
         }
-        if let Some(renderer) = cleanup_resources.borrow_mut().renderer.take() {
-            if let Err(error) = renderer.dispose() {
-                cleanup_status.set(format!("Renderer disposal failed: {error}"));
-            }
+        if let Some(renderer) = cleanup_resources.borrow_mut().renderer.take()
+            && let Err(error) = renderer.dispose()
+        {
+            cleanup_status.set(format!("Renderer disposal failed: {error}"));
         }
         cleanup_resources.borrow_mut().mounted = false;
     });
@@ -408,7 +408,6 @@ fn EditorPanel(
         let gesture = gesture.clone();
         let resources = resources.clone();
         let worker = worker.clone();
-        let generation = generation;
         let sequence = preview_sequence.clone();
         let mut preview_scene = preview_scene;
         let mut status = status;
@@ -476,7 +475,6 @@ fn EditorPanel(
         let gesture = gesture.clone();
         let resources = resources.clone();
         let worker = worker.clone();
-        let generation = generation;
         let mut document = document;
         let mut scene = scene;
         let mut preview_scene = preview_scene;
@@ -584,7 +582,6 @@ fn EditorPanel(
         let gesture = gesture.clone();
         let resources = resources.clone();
         let worker = worker.clone();
-        let generation = generation;
         let sequence = preview_sequence.clone();
         let mut preview_scene = preview_scene;
         let mut status = status;
@@ -611,11 +608,9 @@ fn EditorPanel(
                         spawn_local(async move {
                             if let Err(error) =
                                 worker.request(request).await.and_then(preview_reply)
+                                && worker.generation.get() == generation
                             {
-                                if worker.generation.get() == generation {
-                                    status
-                                        .set(format!("Cancel preview restoration failed: {error}"));
-                                }
+                                status.set(format!("Cancel preview restoration failed: {error}"));
                             }
                         });
                     }
@@ -637,7 +632,6 @@ fn EditorPanel(
     let key_down = {
         let mut cancel = cancel_gesture.clone();
         let worker = worker.clone();
-        let generation = generation;
         let mut document = document;
         let mut scene = scene;
         let mut status = status;
