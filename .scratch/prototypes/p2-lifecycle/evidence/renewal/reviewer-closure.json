@@ -1,0 +1,19 @@
+{
+  "reviewers": [
+    {
+      "id": "01a0f88a-90cc-7e10-a867-1f3fa5204f5b",
+      "agent_path": "/root/p2_r1_spec_review",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "archived": 1
+    },
+    {
+      "id": "01a0f88a-d1fd-7b90-a16b-a7c365759cce",
+      "agent_path": "/root/p2_r1_standards_review",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "archived": 1
+    }
+  ],
+  "disposition": "review reports preserved in review-spec.md and review-standards.md; no child writes"
+}

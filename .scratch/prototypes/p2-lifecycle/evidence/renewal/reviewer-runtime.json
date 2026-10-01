@@ -1,0 +1,44 @@
+[
+  {
+    "requested_model": "gpt-6-luna",
+    "requested_effort": "high",
+    "runtime": {
+      "id": "01a0f88a-90cc-7e10-a867-1f3fa5204f5b",
+      "agent_path": "/root/p2_r1_spec_review",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "archived": 0,
+      "rollout_path": "/home/chris/.codex/sessions/2026/10/01/rollout-2026-10-01T13-37-05-01a0f88a-90cc-7e10-a867-1f3fa5204f5b.jsonl"
+    },
+    "turn_context": [
+      {
+        "model": "gpt-6-luna",
+        "effort": "high",
+        "cwd": "/home/chris/01_Projects/ts-boardstudio2",
+        "service_tier": null
+      }
+    ],
+    "served_tier_exposed": false
+  },
+  {
+    "requested_model": "gpt-6-luna",
+    "requested_effort": "high",
+    "runtime": {
+      "id": "01a0f88a-d1fd-7b90-a16b-a7c365759cce",
+      "agent_path": "/root/p2_r1_standards_review",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "archived": 0,
+      "rollout_path": "/home/chris/.codex/sessions/2026/10/01/rollout-2026-10-01T13-37-22-01a0f88a-d1fd-7b90-a16b-a7c365759cce.jsonl"
+    },
+    "turn_context": [
+      {
+        "model": "gpt-6-luna",
+        "effort": "high",
+        "cwd": "/home/chris/01_Projects/ts-boardstudio2",
+        "service_tier": null
+      }
+    ],
+    "served_tier_exposed": false
+  }
+]

@@ -652,6 +652,40 @@ HEAD and dirty status match the original preservation record. Fresh Standards
 and Spec reviews follow against current integration base689f8962; no executable
 candidate integration or task completion is authorized while these gates fail.
 
+The status handoff is prepared separately from689f8962 on
+docs/boardstudio-p2-handoff. [Handoff scope](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/handoff-scope.json)
+contains documentation, the immutable copied fixture and selected recorded
+evidence. It excludes executable Rust/JS/Python, Cargo manifests/locks, WASM and
+the renderer formatting changes. Those remain solely in preserved source
+`b2cf39db`, full review candidate`57bd6ece`, under
+/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001.
+The formatter and build pass claims above describe that owned prototype
+candidate; provider sources on the migration branch remain at the prior accepted
+base. The copied evidence subset is not a standalone rebuildable prototype.
+
+Final independent reviews completed read-only against source/report candidate
+`57bd6eceed3bce9ad9b854121e93d8adc22f7bf8` and integration base689f8962. The
+Spec review confirms the short-viewport focus-scroll coordinate defect and rejects
+executable acceptance. It also found the inherited prototype README still says
+the predecessor run is unstarted and points to its old authority path. That
+README records historical predecessor status and was preserved; this renewal
+RUN/task status is the current authority. The Standards review found no hard
+standards violation, identified only an optional inspection/readability note
+about the1,088line web module, and withdrew an initial pointer-capture finding
+after confirming existing lost-pointer-capture cancellation. Both reports are
+[retained here](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/).
+Review completion does not satisfy the failed provider, drag or accessibility
+gates. The code candidate is not integrated.
+
+The status/documentation/evidence handoff was committed as
+`23b9044a65e3e7cef9d07d46fc15999e946bb44e` and fast-forwarded into the dedicated
+`migration/boardstudio-m1` branch. This integration contains no executable P2
+source or dependency-manifest changes. The integrated revision passed
+`git diff --check` and `pnpm run check:repo` (7/7 repository-check tests; 553
+authored modules, 369 production-reachable). The copied Reviung41 fixture SHA-256
+was verified against the original. The executable task status remains blocked
+and its integration field remains null.
+
 ## P2 lifecycle continuation — 2026-10-01
 
 The user's later instruction to continue with parallel implementation and unlimited repair iterations supersedes the finite repair-budget statements in the earlier historical checkpoints above. Work continues only on the isolated branch `prototype/p2-lifecycle-followup-20261001`; no production promotion, push, or main-branch merge occurred. The approved source candidate and current run status are recorded in [task-status.json](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/task-status.json).
