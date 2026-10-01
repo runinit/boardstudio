@@ -223,3 +223,30 @@ f64 counterexamples/normal/subnormal/max values. The isolated finite-f64 probe
 checks 9,999 values with no bit changes. Exact source/artifact hashes and raw/
 gzip byte sizes are retained; performance and production adoption remain open.
 Final source is awaiting repeated exact-candidate review and integration validation.
+
+### P1-U64 accepted source and resumable handoff
+
+Repeated independent Standards and Spec reviews report zero material findings
+for exact corrected candidate `cce8e78bc107cadb39a8457f0ed17e3e57035181` against
+integration base `8b293b0847b50b865334dd9078e8e2b20a84966e`. Both requested and
+observable runtime routes are gpt-6-luna/high. Results and prior invalidated
+reviews are preserved; both reviewer threads are archived. The read-only smoke
+used observable gpt-6-luna/medium. Only the coordinator wrote or integrated.
+
+The dedicated `migration/boardstudio-m1` branch fast-forwarded to that exact
+reviewed candidate (exit 0). The resulting checkout passes fresh native
+transport tests/build, fmt, repository and whitespace checks. All eight source
+hashes and both release host/worker asset sets match the reviewed candidate.
+Chromium evidence is reused from those exact unchanged artifacts, not claimed
+as a fresh integration-worktree browser build. See [integration validation](../../.scratch/prototypes/p1-core/evidence/u64-repair/integration-validation.json),
+[separate reviews](../../.scratch/prototypes/p1-core/evidence/u64-repair/accepted-candidate-reviews.json)
+and [task status](../../.scratch/prototypes/p1-core/evidence/u64-repair/task-status.json).
+
+P1-U64 is complete; the P1-CORE bounded packaging/transport gate is now accepted.
+P1-CAD is next eligible but remains unstarted and outside this defect-only run.
+P2 rendering, P3 durability/offline, representative layout/case parity, Undo,
+CAD/export and performance remain open; no prototype code is promoted.
+Two diagnosed repairs were used (lossless log packaging, exact float parser);
+no unlimited retry, version/provider routing change or gate weakening occurred.
+The failed P1-CORE worktree, new task-owned worktree and all protected work are
+retained. No push, deploy or main merge was performed.

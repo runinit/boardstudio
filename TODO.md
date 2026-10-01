@@ -9,15 +9,15 @@
 
 ## Renewed defect-only task: P1-U64-r1
 
-- [ ] P1-U64 — corrected isolated prototype passes the real host/worker precision and lifecycle assertions at root/subpath; awaiting exact-candidate Standards/Spec review and integration validation after final float_roundtrip repair. [Authority and scope](.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json). No CAD execution or production adoption in this task.
+- [x] P1-U64 — accepted and integrated at `cce8e78b`: exact u64/i64 and JSON float values pass real host/worker root/subpath regressions; Standards/Spec reviews report no material findings and integrated native/build/repository checks pass. [Authority and scope](.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json). No CAD execution or production adoption in this task.
 
 ## Authorized bounded task set: P1-r1
 
 Plan/spec/advance approval: [P1-r1](tasks/plan.md) and [run ledger](docs/migration/RUN.md).
 These are isolated integration probes; production adoption is not implicit.
 
-- [ ] P1-CORE — **blocked, unaccepted**: valid-u64 serialization fails in reviewed candidate `3f25e9d9`; two repairs exhausted. Failed prototype and evidence preserved on its owned branch, with no integration. Prove pinned release host and real core-worker packaging at root/subpath, typed provider request handling, scoped lifecycle/caller settlement and owned-buffer transfer. Depends on DOC-1 and completed TOOL-1; meaningful native transport tests, fmt/Clippy, release builds, actual Chromium assertions and exact-candidate review are required.
-- [ ] P1-CAD — **dependency-blocked, not started**: P1-CORE is unaccepted. Prove existing CAD package initialization and one copied prepared-case generation/STEP in a Rust-managed worker at root/subpath, with cache/stale/cancel/failure/close and ownership evidence. Depends on accepted P1-CORE; native/prerequisite and relevant CAD regressions, fresh builds, actual Chromium output/lifecycle assertions and exact-candidate review are required. At most two diagnosed repair attempts per failed task; preserve blockers and worktrees.
+- [x] P1-CORE — **bounded feasibility proof accepted via P1-U64** at `cce8e78b`, with [review and integration evidence](.scratch/prototypes/p1-core/evidence/u64-repair/integration-validation.json). Original failed candidate `3f25e9d9` and exhausted run remain preserved on their branch; corrected code stays an isolated prototype. Prove pinned release host and real core-worker packaging at root/subpath, typed provider request handling, scoped lifecycle/caller settlement and owned-buffer transfer. Depends on DOC-1 and completed TOOL-1; meaningful native transport tests, fmt/Clippy, release builds, actual Chromium assertions and exact-candidate review are required.
+- [ ] P1-CAD — **next eligible, not started**: corrected P1-CORE transport feasibility proof is accepted; CAD is outside this defect-only run. Prove existing CAD package initialization and one copied prepared-case generation/STEP in a Rust-managed worker at root/subpath, with cache/stale/cancel/failure/close and ownership evidence. Depends on accepted P1-CORE; native/prerequisite and relevant CAD regressions, fresh builds, actual Chromium output/lifecycle assertions and exact-candidate review are required. At most two diagnosed repair attempts per failed task; preserve blockers and worktrees.
 
 ## Prior request history
 
