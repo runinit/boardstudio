@@ -1015,6 +1015,50 @@ fn cancelled_export_is_no_longer_current_before_its_async_cancel_effect_runs() {
 }
 
 #[test]
+fn failed_export_is_removed_and_not_cancelled_again_after_reopen() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let scope = session.scope().unwrap();
+    let effects = session.submit(Event::StartExport {
+        operation_id: OperationId(83),
+        scope: scope.clone(),
+    });
+    let token = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::RunExport { snapshot, .. } => Some(snapshot.token),
+            _ => None,
+        })
+        .expect("export dispatch captures the accepted snapshot");
+
+    session.complete(Completion::ExportFailed {
+        operation_id: OperationId(83),
+        reason: "archive writer failed".into(),
+    });
+
+    assert!(!session.export_is_current(OperationId(83), token, &scope));
+    let durable = session
+        .read_model()
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .as_ref()
+        .clone();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(84),
+        document: durable,
+    });
+    assert!(!effects.iter().any(|effect| matches!(
+        effect,
+        Effect::CancelExport {
+            operation_id: OperationId(83)
+        }
+    )));
+}
+
+#[test]
 fn generation_block_is_typed_and_stale_block_completion_is_ignored() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();

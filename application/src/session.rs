@@ -886,11 +886,15 @@ impl Session {
             Completion::ExportFailed {
                 operation_id,
                 reason,
-            } => self.settle(
-                operation_id,
-                TerminalOutcome::ExecutorFailed(reason),
-                &mut effects,
-            ),
+            } => {
+                self.exports
+                    .retain(|(registered_operation, _, _)| *registered_operation != operation_id);
+                self.settle(
+                    operation_id,
+                    TerminalOutcome::ExecutorFailed(reason),
+                    &mut effects,
+                );
+            }
         }
         if self.active_core.is_none()
             && self.pending_save.is_none()
