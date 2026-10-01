@@ -4,6 +4,19 @@
 
 ## Current request
 
+- [ ] DOC-1: Complete and technically validate all six M1 module specifications, continuing the accepted map/ADR; preserve protected worktrees and exact inputs, record preflight/advance approval and retain all runtime limitations. Evidence: [run ledger](docs/migration/RUN.md).
+- [x] TOOL-1: Install official pinned Dioxus CLI 0.7.10 following the user's explicit installation request; verify official archive SHA-256 and `dx --version`, without PATH/config changes or overwriting an existing executable. [Install evidence](.scratch/migration-specs-validation/tool-install.json); independent command/help verification exits 0.
+
+## Authorized bounded task set: P1-r1
+
+Plan/spec/advance approval: [P1-r1](tasks/plan.md) and [run ledger](docs/migration/RUN.md).
+These are isolated integration probes; production adoption is not implicit.
+
+- [ ] P1-CORE: Prove pinned release host and real core-worker packaging at root/subpath, typed provider request handling, scoped lifecycle/caller settlement and owned-buffer transfer. Depends on DOC-1 and completed TOOL-1; meaningful native transport tests, fmt/Clippy, release builds, actual Chromium assertions and exact-candidate review are required.
+- [ ] P1-CAD: Prove existing CAD package initialization and one copied prepared-case generation/STEP in a Rust-managed worker at root/subpath, with cache/stale/cancel/failure/close and ownership evidence. Depends on accepted P1-CORE; native/prerequisite and relevant CAD regressions, fresh builds, actual Chromium output/lifecycle assertions and exact-candidate review are required. At most two diagnosed repair attempts per failed task; preserve blockers and worktrees.
+
+## Prior request history
+
 - [x] Record scope approval and specify only `editor-session` for the representative milestone: Link the accepted map/ADR to [the proposed module spec](SPEC-editor-session.md); define ordered commands, captured gestures, durable-save recovery, scoped jobs/export, ownership and observable success criteria. Repository/whitespace and 39 capability/spec/ADR local-link checks pass; [verification](.scratch/dioxus-session-spec/scoped-document-checks.json) retains the five inherited missing PLAN report links. Preserve production sources, constraints and Wayfinder artifacts; stop for Phase 1 review without an application crate, implementation plan or migration backlog.
 
 - [x] Propose the architecture scope before specifications: Publish [six ownership capabilities and blocking resolutions](CAPABILITY-MAP.md) with dependency direction, justified packaging, a representative layout/case milestone and isolated integration probes; record observed problems, alternatives, preserved/changed contracts and evidence in [proposed ADR 0003](docs/adr/0003-rust-application-ownership.md). Verify exact Dioxus 0.7.10 official sources and dependency resolution with existing binding pins plus mounted support; retain the offline cache failure. Repository, local-link and whitespace checks pass; stop for scope review without module specifications, migration implementation or a migration backlog.

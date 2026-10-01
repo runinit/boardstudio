@@ -1,0 +1,36 @@
+{
+  "dx-version": {
+    "command": [
+      "dx",
+      "--version"
+    ],
+    "exit_code": 0,
+    "log": "/tmp/boardstudio-migration-specs-review-20261001/.scratch/migration-specs-validation/dx-version.log"
+  },
+  "dx-build-help": {
+    "command": [
+      "dx",
+      "build",
+      "--help"
+    ],
+    "exit_code": 0,
+    "log": "/tmp/boardstudio-migration-specs-review-20261001/.scratch/migration-specs-validation/dx-build-help.log"
+  },
+  "wasm-pack-version": {
+    "command": [
+      "wasm-pack",
+      "--version"
+    ],
+    "exit_code": 0,
+    "log": "/tmp/boardstudio-migration-specs-review-20261001/.scratch/migration-specs-validation/wasm-pack-version.log"
+  },
+  "git-status": {
+    "command": [
+      "git",
+      "status",
+      "--short"
+    ],
+    "exit_code": 0,
+    "log": "/tmp/boardstudio-migration-specs-review-20261001/.scratch/migration-specs-validation/git-status.log"
+  }
+}

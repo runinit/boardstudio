@@ -1,9 +1,14 @@
 # Spec: editor-session for the representative layout/case milestone
 
-Status: **Phase 1 proposed for review**, 2026-10-01. Module id: `editor-session`
+Status: **Phase 1 authorized in advance; technical validation required**, 2026-10-01. Module id: `editor-session`
 in the [approved capability map](CAPABILITY-MAP.md). Scope approval accepts
 [ADR 0003](docs/adr/0003-rust-application-ownership.md); it does not approve
 this specification, complete a runtime probe or authorize production cutover.
+
+The later user instruction **“Assume everything is approved in advance”**
+authorizes this defined M1 specification and phase continuation without routine
+approval prompts. The original gate below is historical; technical validation
+and actual runtime acceptance remain required. See [the run ledger](docs/migration/RUN.md).
 
 Source reference: the isolated assessment at `96dd51d3e790c28f5554a8c9888a147c8814e2a7`.
 Reconcile protected concurrent main-checkout work before implementation; this
@@ -333,6 +338,6 @@ exact host delivery handshake and stale cache-delta consumption must be proven
 against their adapters. Assign any temporary adapter's accountable owner,
 removal item and exit evidence before introducing it. No adapter exists here.
 
-Review this module's transition/effect interface, snapshot-token semantics,
-terminal recovery outcomes and S1–S8 before Phase 2 planning. Scope approval is
-already recorded; this is the next, separate spec-driven-development gate.
+Validate this module's transition/effect interface, snapshot-token semantics,
+terminal recovery outcomes and S1–S8 before implementation. Advance approval is
+recorded; missing integration/compatibility evidence still blocks dependent work.

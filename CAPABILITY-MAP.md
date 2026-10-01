@@ -103,10 +103,22 @@ remain subject to their own scoped evidence and review.
 
 | Module id | Specification | Status |
 | --- | --- | --- |
-| `editor-session` | [Representative-milestone session contracts](SPEC-editor-session.md) | Phase 1 proposed for review; uses existing engine/service providers |
+| `editor-session` | [Representative-milestone session contracts](SPEC-editor-session.md) | Authorized in advance; technical validation; existing providers |
+| `document-engine` | [Existing provider contract](SPEC-document-engine.md) | M1 technical validation; no engine rewrite |
+| `generators-cad-export` | [Preparation, CAD/cache and artifact contracts](SPEC-generators-cad-export.md) | M1 technical validation; broader generator parity remains outside M1 |
+| `rendering` | [Neutral scene consumption and backend lifecycle](SPEC-rendering.md) | M1 technical validation; P2 runtime evidence pending |
+| `host-platform` | [Browser executor, storage and platform contracts](SPEC-host-platform.md) | M1 technical validation; P1/P3 runtime evidence pending |
+| `dioxus-presentation` | [Presentation/subscription contracts](SPEC-dioxus-presentation.md) | M1 technical validation; paired browser evidence pending |
 
-Only this next module specification is being written. No whole-migration
+At the original scope review only editor-session was specified. No whole-migration
 implementation plan or task backlog follows from scope approval.
+
+Continuation on 2026-10-01 completes the five remaining specifications for the
+same M1 scope. The user's **“Assume everything is approved in advance”**
+authorizes phase continuation for defined bounded work without routine approval
+pauses. All six specs receive technical cross-contract validation; neither
+advance approval nor a spec substitutes for runtime/parity evidence. The current
+bounded task set is [P1-r1](tasks/plan.md), recorded in [the run ledger](docs/migration/RUN.md).
 
 Accepted inputs remain the [Wayfinder map](.scratch/dioxus-browser-trial/map.md),
 [context assessment](docs/dioxus-context-baseline.md) and existing accepted ADRs.

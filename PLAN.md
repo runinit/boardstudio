@@ -1,5 +1,25 @@
 # Generation and edit performance plan
 
+## Current run: finish milestone specifications and bound the first probe
+
+Continue the approved six-capability map and accepted ADR 0003; do not reopen
+settled architecture or replace this direction with a competing migration plan.
+The 2026-10-01 request authorizes documentation, technical validation and a
+read-only subagent preflight. It does not approve an undefined implementation
+task set. The existing editor-session spec remains a review input.
+
+Complete the other five module specs for the same representative milestone,
+validate all six together, and retain runtime/compatibility questions as gates.
+Use a fresh, task-owned review worktree at `96dd51d3`, with verified copies of
+accepted inputs. Leave every pre-existing protected worktree untouched.
+
+Extend this plan with only P1 worker/CAD packaging in [tasks/plan.md](tasks/plan.md),
+revision `P1-r1`, and its bounded task set in [TODO.md](TODO.md). Present that
+candidate for one explicit approval before executing prototype or application
+code. P2/P3 and production adoption remain outside the proposed run. Record
+preflight, exact document versions, candidate review and resumable handoff in
+[the migration run record](docs/migration/RUN.md).
+
 ## Current session: editor-session specification
 
 The user approved the [capability map](CAPABILITY-MAP.md) and

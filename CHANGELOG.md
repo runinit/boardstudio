@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-10-01 (Continue approved milestone and provision Dioxus)
+- Continue the accepted six-capability architecture with the remaining document-engine, generator/CAD/export, rendering, host and Dioxus M1 specs; retain the editor-session contract and record advance approval for defined bounded work. Extend the existing direction with only P1-r1's core-worker → CAD-package probe set, with per-task ownership, verification, review and repair limits; preserve all pre-existing worktrees and unrelated changes.
+- Install official Dioxus CLI 0.7.10 into a project-owned versioned directory, verify the release archive's published SHA-256 and independent command/help execution, and expose an absent dx command link. Record Codex 0.159.3/configuration, Luna routing from runtime metadata, actual Chromium launch capability, source-version verification and the unavailable thread-archive operation without configuration/state repair.
+
 ## 2026-10-01 (Approve scope and specify editor-session)
 - Record user approval of the six capability boundaries, dependency direction, blocking resolutions and representative milestone in CAPABILITY-MAP.md and accepted ADR 0003. Propose only SPEC-editor-session.md: headless transition/effect contracts, immutable snapshot identity, command/gesture ordering, save retry without replay, scoped generation/export and eight observable acceptance criteria. Stop for module-spec review before implementation planning, tasks or code.
 - Pass repository and whitespace checks and validate 39 local links in the capability map, module spec and ADR. Retain the full tracking-link inventory's five inherited missing performance reports; preserve existing source/constraint/Wayfinder evidence and HEAD. Reuse version-matched framework evidence without installing dependencies, rerunning runtime probes or claiming browser/parity acceptance.
