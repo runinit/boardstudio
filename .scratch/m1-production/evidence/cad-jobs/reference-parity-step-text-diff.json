@@ -1,0 +1,105 @@
+{
+  "sourceCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "m1Step": {
+    "path": "web/target/builds/m1-release-20261001-8f509433/qa-reviung41.step",
+    "bytes": 13662781,
+    "sha256": "f946d69c2ad39abd3f799ca996067d7f89dba7cc361a9516251c9e32307722f4"
+  },
+  "referenceStep": {
+    "path": "web/target/builds/m1-release-20261001-8f509433/qa-reference-reviung41-default.step",
+    "bytes": 13662809,
+    "sha256": "a8b7fb8288eeed2e29c06ebcfaa290767625879e175579aa9dd61f5c190d0cda"
+  },
+  "lineCounts": [
+    303613,
+    303613
+  ],
+  "differingLineCount": 434,
+  "firstDifferences": [
+    {
+      "line": 48719,
+      "m1": "#42018 = DIRECTION('',(0.707106781187,0.707106781187,-0.));",
+      "reference": "#42018 = DIRECTION('',(0.707106781186,0.707106781187,-0.));"
+    },
+    {
+      "line": 48720,
+      "m1": "#42019 = DIRECTION('',(0.707106781187,-0.707106781187,0.));",
+      "reference": "#42019 = DIRECTION('',(0.707106781187,-0.707106781186,0.));"
+    },
+    {
+      "line": 48766,
+      "m1": "#42059 = DIRECTION('',(0.707106781187,-0.707106781187,0.));",
+      "reference": "#42059 = DIRECTION('',(0.707106781187,-0.707106781186,0.));"
+    },
+    {
+      "line": 48781,
+      "m1": "#42072 = DIRECTION('',(0.707106781187,-0.707106781187));",
+      "reference": "#42072 = DIRECTION('',(0.707106781187,-0.707106781186));"
+    },
+    {
+      "line": 48823,
+      "m1": "#42108 = DIRECTION('',(0.707106781187,-0.707106781187,0.));",
+      "reference": "#42108 = DIRECTION('',(0.707106781187,-0.707106781186,0.));"
+    },
+    {
+      "line": 48838,
+      "m1": "#42121 = DIRECTION('',(0.707106781187,-0.707106781187));",
+      "reference": "#42121 = DIRECTION('',(0.707106781187,-0.707106781186));"
+    },
+    {
+      "line": 140506,
+      "m1": "#121262 = DIRECTION('',(-2.099700537026E-02,0.999779538581,0.));",
+      "reference": "#121262 = DIRECTION('',(-2.099700537025E-02,0.999779538581,0.));"
+    },
+    {
+      "line": 140507,
+      "m1": "#121263 = DIRECTION('',(0.999779538581,2.099700537026E-02,0.));",
+      "reference": "#121263 = DIRECTION('',(0.999779538581,2.099700537025E-02,0.));"
+    }
+  ],
+  "lastDifferences": [
+    {
+      "line": 288352,
+      "m1": "#249014 = DIRECTION('',(4.906767432741E-02,0.998795456205,0.));",
+      "reference": "#249014 = DIRECTION('',(4.906767432749E-02,0.998795456205,0.));"
+    },
+    {
+      "line": 288367,
+      "m1": "#249027 = DIRECTION('',(4.906767432741E-02,0.998795456205));",
+      "reference": "#249027 = DIRECTION('',(4.906767432749E-02,0.998795456205));"
+    },
+    {
+      "line": 290448,
+      "m1": "#250824 = DIRECTION('',(0.803207531481,0.595699304492,-0.));",
+      "reference": "#250824 = DIRECTION('',(0.803207531481,0.595699304493,-0.));"
+    },
+    {
+      "line": 290449,
+      "m1": "#250825 = DIRECTION('',(0.595699304492,-0.803207531481,0.));",
+      "reference": "#250825 = DIRECTION('',(0.595699304493,-0.803207531481,0.));"
+    },
+    {
+      "line": 290495,
+      "m1": "#250865 = DIRECTION('',(0.595699304492,-0.803207531481,0.));",
+      "reference": "#250865 = DIRECTION('',(0.595699304493,-0.803207531481,0.));"
+    },
+    {
+      "line": 290510,
+      "m1": "#250878 = DIRECTION('',(0.595699304492,-0.803207531481));",
+      "reference": "#250878 = DIRECTION('',(0.595699304493,-0.803207531481));"
+    },
+    {
+      "line": 290552,
+      "m1": "#250914 = DIRECTION('',(0.595699304492,-0.803207531481,0.));",
+      "reference": "#250914 = DIRECTION('',(0.595699304493,-0.803207531481,0.));"
+    },
+    {
+      "line": 290567,
+      "m1": "#250927 = DIRECTION('',(0.595699304492,-0.803207531481));",
+      "reference": "#250927 = DIRECTION('',(0.595699304493,-0.803207531481));"
+    }
+  ],
+  "allChangedRecordsNumericFieldsMatch": true,
+  "maxAbsoluteNumericFieldDelta": 1.000444171950221e-11,
+  "interpretation": "Raw STEP serialization differs in repeated decimal direction-vector coefficients at final printed precision; files have equal line counts and identical model topology metrics observed by public CAD mesh/readback. This is not exact-byte parity."
+}
