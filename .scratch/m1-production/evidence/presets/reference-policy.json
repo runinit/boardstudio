@@ -1,0 +1,27 @@
+{
+  "source_commit": "5543592944d23487b0bc45becd9c37780b4a6b09",
+  "scope": "working source hashes before consumer commit",
+  "argv": [
+    "node",
+    "scripts/verify-m1-presets.mjs",
+    "/home/chris/.local/share/boardstudio/worktrees/m1-providers-worker-20261001/web/target/builds/providers-postintegration-20261001/fixtures"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+  "exit": 0,
+  "cases": 8,
+  "hashes": {
+    "web/src/case_settings.rs": "44534d4370a114143701063497dd4efe8757f11cc775510e9799086013da65fb",
+    "web/examples/case-settings.rs": "3d9ceeb523397b16826e77fc37bfccebc2e22d02564fbf45a081051e569d471b",
+    "scripts/verify-m1-presets.mjs": "fdadca87a9d2fcc811bf148a0c792c3334cdb7353b76bd431e982c07be438f0f",
+    "app/src/mechanicalPresets.ts": "a380bbf390a0f9bbda3e534a6248b6b82389d483a766b18266b786188eb1e6a7",
+    "app/src/hardwareInstances.ts": "3d79515245989616c3b542875c1afc5a40ca5f771a345abbbcca91b627208b83"
+  },
+  "fixtures": {
+    "reviung41.json": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae",
+    "sofle.json": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4",
+    "provenance.json": "bf1891542c7703f3f5ffad063773962abf4b5a77c3fb2f95c1194b190921104b"
+  },
+  "failure_retained": {
+    "initial_instance_oracle": "Deep object comparison found reference gasketLayout:undefined versus absent Rust JSON field. Oracle now compares the actual serialized reference document, matching durable/wire representation. No Rust behavior change was needed."
+  }
+}

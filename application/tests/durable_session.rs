@@ -975,6 +975,46 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
 }
 
 #[test]
+fn cancelled_export_is_no_longer_current_before_its_async_cancel_effect_runs() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let scope = session.scope().unwrap();
+    let effects = session.submit(Event::StartExport {
+        operation_id: OperationId(81),
+        scope: scope.clone(),
+    });
+    let token = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::RunExport { snapshot, .. } => Some(snapshot.token),
+            _ => None,
+        })
+        .expect("export dispatch captures the accepted snapshot");
+
+    assert!(session.export_is_current(OperationId(81), token, &scope));
+    let durable = session
+        .read_model()
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .as_ref()
+        .clone();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(82),
+        document: durable,
+    });
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::CancelExport {
+            operation_id: OperationId(81)
+        }
+    )));
+    assert!(!session.export_is_current(OperationId(81), token, &scope));
+}
+
+#[test]
 fn generation_block_is_typed_and_stale_block_completion_is_ignored() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();

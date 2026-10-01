@@ -480,6 +480,23 @@ impl Session {
             instance_id: self.model.active_instance_id.clone(),
         })
     }
+    /// Whether an asynchronous export is still owned by this session and its
+    /// captured document, board, instance, and snapshot remain current.
+    /// Checking membership also closes the cancellation window before a host
+    /// has processed the corresponding `CancelExport` effect.
+    pub fn export_is_current(
+        &self,
+        operation_id: OperationId,
+        token: SnapshotToken,
+        scope: &Scope,
+    ) -> bool {
+        self.exports
+            .iter()
+            .any(|(operation, captured_scope, captured_token)| {
+                *operation == operation_id && captured_scope == scope && *captured_token == token
+            })
+            && self.snapshot_matches(token, scope)
+    }
     pub fn submit(&mut self, event: Event) -> Vec<Effect> {
         let mut effects = Vec::new();
         if self.model.lifecycle == Lifecycle::Closed {

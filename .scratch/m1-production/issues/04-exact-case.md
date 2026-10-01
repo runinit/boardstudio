@@ -4,7 +4,7 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** CAD worker and renderer composition implemented; current fixture/browser geometry acceptance in progress
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 

@@ -2,7 +2,9 @@
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Event, GenerationStatus};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
-use boardstudio_web::{case_settings, renderer_host::RendererHost};
+use boardstudio_web::{
+    cad_jobs::captured_case_document, case_settings, renderer_host::RendererHost,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
@@ -22,7 +24,40 @@ pub fn CasePanel() -> Element {
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
-    let settings = case_settings::initial_settings(&snapshot.document, &model.active_board_id);
+    let settings_state = use_memo(use_reactive(
+        (
+            &snapshot.token,
+            &model.active_board_id,
+            &model.active_instance_id,
+        ),
+        {
+            let runtime = runtime.clone();
+            move |_| {
+                let model = runtime.model();
+                let effective = model
+                    .accepted
+                    .as_ref()
+                    .ok_or("Case snapshot unavailable".to_owned())
+                    .and_then(|snapshot| {
+                        runtime
+                            .scope()
+                            .ok_or("Case scope unavailable".to_owned())
+                            .and_then(|scope| {
+                                captured_case_document(snapshot, &scope)
+                                    .map_err(|error| format!("{error:?}"))
+                            })
+                    });
+                let has_settings = effective
+                    .as_ref()
+                    .is_ok_and(|document| document.mechanical.is_some());
+                let settings = effective.and_then(|document| {
+                    case_settings::initial_settings(&document, &model.active_board_id)
+                });
+                (has_settings, settings)
+            }
+        },
+    ));
+    let (has_settings, settings) = settings_state();
     let initialize = runtime.clone();
     let generate = runtime.clone();
     let cancel = runtime.clone();
@@ -49,7 +84,7 @@ pub fn CasePanel() -> Element {
     rsx! {
         section { class: "m1-case-panel", "aria-label": "Case assembly",
             h2 { "Case assembly" }
-            if snapshot.document.mechanical.as_ref().is_none_or(|c| c.board_id != model.active_board_id) {
+            if !has_settings {
                 button { onclick: move |_| set_settings(&initialize, None), "Add case settings" }
             }
             if let Ok(config) = settings {
@@ -63,6 +98,7 @@ pub fn CasePanel() -> Element {
             button { disabled: !matches!(model.generation, GenerationStatus::Preparing {..} | GenerationStatus::Running {..}), onclick: move |_| cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() }), "Cancel generation" }
             button { onclick: move |_| export.export_step(), "Export STEP" }
             p { role: "status", "aria-live": "polite", "{title}" }
+            p { "PCB reference is unpopulated; case bodies use exact CAD geometry." }
             if let Some(scene) = scene {
                 CaseCanvas { key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}", scene }
             }
@@ -74,20 +110,33 @@ fn set_settings(runtime: &Rc<Runtime>, bottom: Option<f64>) {
     let Some(snapshot) = model.accepted else {
         return;
     };
-    // Instance policy must be updated through its own supported document command.
-    if model.active_instance_id.is_some() {
-        runtime.report("Select the canonical board to edit shared case settings.");
+    let Some(scope) = runtime.scope() else {
         return;
-    }
-    let result = case_settings::initial_settings(&snapshot.document, &model.active_board_id)
+    };
+    let result = captured_case_document(&snapshot, &scope)
+        .map_err(|error| format!("{error:?}"))
+        .and_then(|document| case_settings::initial_settings(&document, &model.active_board_id))
         .and_then(|mut config| {
             if let Some(bottom) = bottom {
                 case_settings::update_bottom_thickness(&mut config, bottom)?;
             }
-            Ok(config)
+            if let Some(instance_id) = model.active_instance_id.as_ref() {
+                case_settings::update_instance_settings(
+                    &snapshot.document,
+                    instance_id,
+                    Some(config),
+                )
+                .map(|document| EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                })
+            } else {
+                Ok(EditOperation::SetMechanical {
+                    configuration: Some(Box::new(config)),
+                })
+            }
         });
     match result {
-        Ok(config) => {
+        Ok(edit_operation) => {
             let operation_id = runtime.operation();
             runtime.submit(Event::Edit {
                 operation_id,
@@ -96,9 +145,7 @@ fn set_settings(runtime: &Rc<Runtime>, bottom: Option<f64>) {
                     transaction_id: format!("case-settings-{}", operation_id.0),
                     phase: EditPhase::Commit,
                     target_ids: vec![],
-                    operation: EditOperation::SetMechanical {
-                        configuration: Some(Box::new(config)),
-                    },
+                    operation: edit_operation,
                 },
             });
         }
@@ -214,14 +261,7 @@ fn scene_input(scene: &CadScene, keep_camera: bool) -> Result<JsValue, String> {
         .iter()
         .find(|b| b.id == scene.scope.board_id)
         .ok_or("Case board unavailable")?;
-    let contours = scene
-        .snapshot
-        .scene
-        .board_contours
-        .iter()
-        .find(|b| b.board_id == scene.scope.board_id)
-        .map(|b| &b.contours)
-        .ok_or("Case contours unavailable")?;
+    let contours = &scene.contours;
     let stack = scene
         .mechanical
         .as_ref()

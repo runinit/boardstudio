@@ -112,3 +112,38 @@ pub fn update_bottom_thickness(
     }
     Ok(())
 }
+
+/// Preserve per-instance features while changing the reference shared construction policy.
+pub fn update_instance_settings(
+    document: &ProjectDoc,
+    instance_id: &str,
+    configuration: Option<MechanicalConfiguration>,
+) -> Result<ProjectDoc, String> {
+    let mut updated = document.clone();
+    let hardware = updated
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    if !hardware
+        .instances
+        .iter()
+        .any(|instance| instance.id == instance_id)
+    {
+        return Err("Selected physical instance is unavailable".into());
+    }
+    let mut common = configuration.clone();
+    if let Some(layout) = common
+        .as_mut()
+        .and_then(|config| config.gasket_layout.as_mut())
+    {
+        layout.supports.clear();
+    }
+    hardware.shared_construction = common;
+    for instance in &mut hardware.instances {
+        instance.construction_linked = configuration.is_some();
+        if configuration.is_none() || instance.id == instance_id {
+            instance.mechanical = configuration.clone();
+        }
+    }
+    Ok(updated)
+}

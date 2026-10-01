@@ -4,7 +4,7 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** archive transport and scoped offline policy implemented; full application/browser exchange acceptance in progress
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 

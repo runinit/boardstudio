@@ -7,8 +7,8 @@ use boardstudio_core::model::{ArchiveReply, ProjectDoc};
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use boardstudio_web::{
     cad_jobs::{
-        CadJobError, CadOperation, CadRequest, CadResult, prepare_captured_case,
-        prepare_captured_step_assembly, validate_reply,
+        CadJobError, CadOperation, CadRequest, CadResult, captured_case_scene,
+        prepare_captured_case, prepare_captured_step_assembly, validate_reply,
     },
     cad_worker::CadWorker,
 };
@@ -20,6 +20,7 @@ pub struct CadScene {
     pub result: CadResult,
     pub mechanical: Option<boardstudio_core::model::MechanicalAssembly>,
     pub exact: bool,
+    pub contours: Vec<boardstudio_core::model::Contour>,
 }
 use js_sys::{Array, Uint8Array};
 use std::{
@@ -330,15 +331,10 @@ impl Runtime {
             } => match if self.step_exports.borrow().contains(&operation_id) {
                 self.step_bytes(operation_id, &snapshot, &scope).await
             } else {
-                self.pack_archive(&snapshot.document).await
+                self.pack_archive(operation_id, &snapshot, &scope).await
             } {
                 Ok(bytes) => {
-                    let current = self.session.borrow().scope() == Some(scope.clone())
-                        && self
-                            .model()
-                            .accepted
-                            .as_ref()
-                            .is_some_and(|s| s.token == snapshot.token);
+                    let current = self.export_current(operation_id, snapshot.token, &scope);
                     let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
                     if !current || cancelled {
                         return self.complete(Completion::ExportFailed {
@@ -440,6 +436,17 @@ impl Runtime {
             scope,
         });
     }
+    fn export_current(
+        &self,
+        operation_id: OperationId,
+        token: SnapshotToken,
+        scope: &Scope,
+    ) -> bool {
+        self.session
+            .borrow()
+            .export_is_current(operation_id, token, scope)
+            && !self.cancelled_exports.borrow().contains(&operation_id)
+    }
     fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
         self.scope().as_ref() == Some(scope)
             && self
@@ -460,6 +467,15 @@ impl Runtime {
             .generate_current(job_id, &scope, &snapshot, &cancelled)
             .await;
         self.cad_jobs.borrow_mut().remove(&job_id);
+        let current_job = matches!(self.model().generation,
+            boardstudio_application::GenerationStatus::Preparing { job_id: active }
+            | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+        if result.is_err()
+            && current_job
+            && let Some((_, worker)) = self.cad_worker.borrow_mut().take()
+        {
+            worker.close();
+        }
         match result {
             Ok(()) => self.complete(Completion::GenerationFinished {
                 job_id,
@@ -489,7 +505,10 @@ impl Runtime {
         cancelled: &Cell<bool>,
     ) -> Result<(), CadJobError> {
         let guard = || {
-            if cancelled.get() || !self.snapshot_current(snapshot.token, scope) {
+            let current_job = matches!(self.model().generation,
+                boardstudio_application::GenerationStatus::Preparing { job_id: active }
+                | boardstudio_application::GenerationStatus::Running { job_id: active } if active == job_id);
+            if cancelled.get() || !current_job || !self.snapshot_current(snapshot.token, scope) {
                 Err(CadJobError::Cancelled)
             } else {
                 Ok(())
@@ -532,6 +551,12 @@ impl Runtime {
             .await
             .map_err(|e| CadJobError::Failed(e.to_string()))?;
         guard()?;
+        let contours = captured_case_scene(snapshot, scope)?
+            .board_contours
+            .into_iter()
+            .find(|board| board.board_id == scope.board_id)
+            .ok_or_else(|| CadJobError::Blocked("Case contours unavailable".into()))?
+            .contours;
         for operation in [CadOperation::Preview, CadOperation::Exact] {
             let request = CadRequest {
                 request_id: format!("case-{}-{operation:?}", job_id.0),
@@ -556,6 +581,7 @@ impl Runtime {
                 result,
                 mechanical: prepared.mechanical_assembly.clone(),
                 exact: operation == CadOperation::Exact,
+                contours: contours.clone(),
             }));
             self.changed();
         }
@@ -568,9 +594,7 @@ impl Runtime {
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
         let guard = || {
-            if self.cancelled_exports.borrow().contains(&operation_id)
-                || !self.snapshot_current(snapshot.token, scope)
-            {
+            if !self.export_current(operation_id, snapshot.token, scope) {
                 Err("STEP export was cancelled or superseded.".to_owned())
             } else {
                 Ok(())
@@ -733,10 +757,18 @@ impl Runtime {
         spawn_local(async move {
             match this.store.load_document(id).await {
                 Ok(Some(document)) if this.open_sequence.get() == sequence => {
-                    this.submit(Event::Open {
-                        operation_id: this.operation(),
-                        document,
-                    })
+                    let operation_id = this.operation();
+                    if this.model().lifecycle == Lifecycle::RecoveryRequired {
+                        this.submit(Event::RecoverWithDocument {
+                            operation_id,
+                            document,
+                        });
+                    } else {
+                        this.submit(Event::Open {
+                            operation_id,
+                            document,
+                        });
+                    }
                 }
                 Ok(Some(_)) => {}
                 Ok(None) if this.open_sequence.get() == sequence => {
@@ -782,7 +814,21 @@ impl Runtime {
             }
         });
     }
-    async fn pack_archive(&self, document: &ProjectDoc) -> Result<Vec<u8>, String> {
+    async fn pack_archive(
+        &self,
+        export_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<Vec<u8>, String> {
+        let guard = || {
+            if self.export_current(export_id, snapshot.token, scope) {
+                Ok(())
+            } else {
+                Err("Archive export was cancelled or superseded.".to_owned())
+            }
+        };
+        guard()?;
+        let document = snapshot.document.as_ref();
         let mut buffers = vec![];
         let mut entries = vec![];
         for asset in &document.assets {
@@ -792,10 +838,12 @@ impl Runtime {
                 .await
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Missing asset: {}", asset.name))?;
+            guard()?;
             entries.push(serde_json::json!({"path": format!("assets/{}", asset.sha256), "bufferIndex": buffers.len()}));
             buffers.push(bytes);
         }
         let metadata = serde_json::json!({"kind":"pack-project", "projectJson":serde_json::to_string(document).map_err(|e| e.to_string())?, "assets":entries}).to_string();
+        guard()?;
         let operation = self.operation();
         let core = self.core.borrow().clone();
         let result = core
