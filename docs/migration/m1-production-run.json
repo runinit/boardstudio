@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "STEP decoder repair integrated and reviewed; final complete candidate8f509433 build and browser/performance acceptance in progress",
+  "status": "Reviewed M1 implementation and final build complete; final browser gates pass; performance/resource verification in progress and screen-reader acceptance blocked",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -20,7 +20,7 @@
       ]
     },
     "03": {
-      "status": "full release050e9282 root/subpath storage/cache install, update and offline reopen pass; fresh corrected final release verification in progress",
+      "status": "Final release8f509433 root/subpath scoped storage/cache install, update and offline reopen pass; cold and missing-asset failures observed; dependent overall acceptance remains open",
       "blocked_by": [
         "02"
       ]
@@ -32,7 +32,7 @@
       ]
     },
     "05": {
-      "status": "optional body decoding browser regression repaired5a0972a2 and reviewed; independent focused UI STEP/hash and URL cleanup pass; maintained final release stale/cancel/resource checks pending",
+      "status": "STEP-only decoder regression repaired and reviewed; final release downloads and URL cleanup pass for both fixtures, stale-scope delivery suppressed; complete semantic/resource acceptance remains open",
       "blocked_by": [
         "04"
       ]
@@ -62,7 +62,12 @@
   "final_build": {
     "id": "m1-release-20261001-8f509433",
     "source_commit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
-    "status": "in progress; allsourceandstagedhashes mustverify beforeacceptance"
+    "status": "complete \u2014 all 18 commands exit zero, 925 source hashes and all staged hashes verified, 47 files and one page WASM per prefix",
+    "provenance": ".scratch/m1-production/evidence/integration/release-8f509433-provenance.json"
   },
-  "runtime_source": "5a0972a2889a702051e9a7ab53b2727db07126e0"
+  "runtime_source": "5a0972a2889a702051e9a7ab53b2727db07126e0",
+  "demo": {
+    "root": "http://127.0.0.1:46880/",
+    "subpath": "http://127.0.0.1:46880/boardstudio/"
+  }
 }

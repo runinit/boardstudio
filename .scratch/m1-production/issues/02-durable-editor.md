@@ -4,13 +4,15 @@
 
 **Blocked by:** 01
 
-**Status:** native session and browser composition implemented; interaction/storage browser acceptance in progress
+**Status:** Implementation complete; 13 public session tests and recorded pointer/keyboard/storage checks pass; complete resource acceptance remains open.
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 
 **Authority:** [M1 specification](../spec.md), existing six module specifications and ADR 0003.
 
-- [ ] Public session tests cover durable ordering, stale scope/replies, retained retry and exact caller settlement.
-- [ ] Pointer final sample, Escape/cancel, modifier/snap semantics and one-step history match the reference.
+- [x] Public session tests cover durable ordering, stale scope/replies, retained retry and exact caller settlement.
+- [x] Pointer final sample, Escape/cancel, modifier/snap semantics and one-step history match the reference.
 - [ ] Real IndexedDB transaction abort/retry and worker crash/close behave truthfully; isolated schema stays compatible.
-- [ ] Editor reuses styles with named controls and reachable keyboard focus.
+- [x] Editor reuses styles with named controls and reachable keyboard focus.
+
+See [current acceptance evidence](../ACCEPTANCE.md#current-evidence--final-release-8f509433) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.

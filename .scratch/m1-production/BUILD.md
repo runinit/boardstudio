@@ -1,6 +1,6 @@
 # M1 reproducible build and staging
 
-Status: maintained build implementation exists; final complete M1 release and acceptance remain pending. Partial builds and failures are retained under evidence/providers. Never overwrite an earlier release or evidence directory.
+Status: complete release `m1-release-20261001-8f509433` passed all 18 build commands, 925 source hashes and both 47-file prefix inventories, with one current page WASM per prefix. [Portable provenance](evidence/integration/release-8f509433-provenance.json) retains the exact inputs. M1 acceptance remains open under [the ledger](ACCEPTANCE.md). Partial builds and failures are retained; never overwrite earlier outputs.
 
 ## Toolchain and package layout
 

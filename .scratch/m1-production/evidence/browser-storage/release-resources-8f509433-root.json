@@ -1,0 +1,21 @@
+{
+  "buildId": "m1-release-20261001-8f509433",
+  "sourceCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "scope": "/",
+  "url": "http://127.0.0.1:46880/",
+  "session": "m1final8f509-root",
+  "firstOnlineNavigation": {
+    "transferSize": 823,
+    "encodedBodySize": 523,
+    "decodedBodySize": 523
+  },
+  "startupResources": [
+    { "path": "/assets/boardstudio-web-dxh15a8788cfa45.js", "transferSize": 67894, "decodedBodySize": 67594 },
+    { "path": "/assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm", "transferSize": 9374273, "decodedBodySize": 9373973 },
+    { "path": "/assets/m1.css", "transferSize": 5850, "decodedBodySize": 5550 },
+    { "path": "/assets/fonts/source-sans-3-upright.woff2", "transferSize": 170488, "decodedBodySize": 170188 },
+    { "path": "/assets/core-worker/entry.js", "transferSize": 398, "decodedBodySize": 98 },
+    { "path": "/assets/core-worker/m1_core_worker.js", "transferSize": 17240, "decodedBodySize": 16940 }
+  ],
+  "provenance": "Release inventory and source/staged hashes are in release-inventory-8f509433.json and evidence/integration/release-8f509433-provenance.json."
+}

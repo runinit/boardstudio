@@ -1,0 +1,884 @@
+{
+  "buildId": "m1-release-20261001-8f509433",
+  "sourceCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "buildScope": "Development candidate; acceptance is recorded separately.",
+  "generatedAt": "2026-10-01T23:12:50.400Z",
+  "root": {
+    "site": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-8f509433/site-root",
+    "fileCount": 47,
+    "totalBytes": 50143103,
+    "startupCandidates": [
+      {
+        "path": "assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm",
+        "bytes": 9373973,
+        "sha256": "9d1b0680b898b275d0690153dbb66ef39ead6bccb7a8335feceb5919142f2eae"
+      },
+      {
+        "path": "assets/boardstudio-web-dxh15a8788cfa45.js",
+        "bytes": 67594,
+        "sha256": "b5baaf336704d1375f66c6455d6031f74a3b2d0ba6126aa251693dd58ca2c83b"
+      },
+      {
+        "path": "assets/cad-worker/entry.js",
+        "bytes": 161,
+        "sha256": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm",
+        "bytes": 6097242,
+        "sha256": "01c1197230731e249dca5a78684e77b714bf0a246f47300aed3b971b8baa6052"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker.js",
+        "bytes": 22197,
+        "sha256": "7c5527fe8dda18ed527d6a3f2622c8080fcfe33537ce8cde7b5da1b511a2a6a7"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+        "bytes": 14518126,
+        "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm.js",
+        "bytes": 26610,
+        "sha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e"
+      },
+      {
+        "path": "assets/cad/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js",
+        "bytes": 780,
+        "sha256": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932"
+      },
+      {
+        "path": "assets/core-worker/entry.js",
+        "bytes": 98,
+        "sha256": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm",
+        "bytes": 7496864,
+        "sha256": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker.js",
+        "bytes": 16940,
+        "sha256": "fc95ba2c7ddf5b69935d6b4f5b9465e3a270ebd5fe5685d51e69bab16bf29896"
+      },
+      {
+        "path": "assets/m1.css",
+        "bytes": 5550,
+        "sha256": "1e3ee2fc121759165ca888807ef98c61fa6848a2098faece99a9ab1de11408d5"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+        "bytes": 858570,
+        "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.js",
+        "bytes": 52455,
+        "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc"
+      },
+      {
+        "path": "boardstudio_offline_worker.js",
+        "bytes": 20540,
+        "sha256": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61"
+      },
+      {
+        "path": "index.html",
+        "bytes": 523,
+        "sha256": "79e2b40fff22d5316680e6ab9a9d4bf3a466ff95365052029268b2b3ee904a37"
+      },
+      {
+        "path": "service-worker.js",
+        "bytes": 89368,
+        "sha256": "6f6a30d3b78a222d3f4daa5a1555053b72e3e45086a20a0f81c17e36827f50fc"
+      }
+    ],
+    "largestFiles": [
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+        "bytes": 14518126,
+        "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719"
+      },
+      {
+        "path": "assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm",
+        "bytes": 9373973,
+        "sha256": "9d1b0680b898b275d0690153dbb66ef39ead6bccb7a8335feceb5919142f2eae"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm",
+        "bytes": 7496864,
+        "sha256": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm",
+        "bytes": 6097242,
+        "sha256": "01c1197230731e249dca5a78684e77b714bf0a246f47300aed3b971b8baa6052"
+      },
+      {
+        "path": "assets/fixtures/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "bytes": 2769044,
+        "sha256": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+      },
+      {
+        "path": "assets/fixtures/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "bytes": 2649877,
+        "sha256": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b"
+      },
+      {
+        "path": "assets/fixtures/sofle.boardstudio",
+        "bytes": 1585714,
+        "sha256": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899"
+      },
+      {
+        "path": "assets/fixtures/reviung41.boardstudio",
+        "bytes": 1397611,
+        "sha256": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f"
+      },
+      {
+        "path": "assets/fixtures/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "bytes": 1171446,
+        "sha256": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f"
+      },
+      {
+        "path": "assets/fixtures/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "bytes": 1121898,
+        "sha256": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+        "bytes": 858570,
+        "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8"
+      },
+      {
+        "path": "assets/fonts/source-sans-3-upright.woff2",
+        "bytes": 170188,
+        "sha256": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8"
+      },
+      {
+        "path": "assets/fixtures/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "bytes": 149936,
+        "sha256": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+      },
+      {
+        "path": "assets/fixtures/sofle.json",
+        "bytes": 132422,
+        "sha256": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4"
+      },
+      {
+        "path": "assets/fixtures/reviung41.json",
+        "bytes": 105292,
+        "sha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae"
+      },
+      {
+        "path": "assets/fixtures/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "bytes": 103328,
+        "sha256": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e"
+      },
+      {
+        "path": "assets/fonts/source-code-pro-upright.woff2",
+        "bytes": 90124,
+        "sha256": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792"
+      },
+      {
+        "path": "service-worker.js",
+        "bytes": 89368,
+        "sha256": "6f6a30d3b78a222d3f4daa5a1555053b72e3e45086a20a0f81c17e36827f50fc"
+      },
+      {
+        "path": "assets/boardstudio-web-dxh15a8788cfa45.js",
+        "bytes": 67594,
+        "sha256": "b5baaf336704d1375f66c6455d6031f74a3b2d0ba6126aa251693dd58ca2c83b"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.js",
+        "bytes": 52455,
+        "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc"
+      }
+    ],
+    "fixtureCount": 11,
+    "files": [
+      {
+        "path": "assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm",
+        "bytes": 9373973,
+        "sha256": "9d1b0680b898b275d0690153dbb66ef39ead6bccb7a8335feceb5919142f2eae"
+      },
+      {
+        "path": "assets/boardstudio-web-dxh15a8788cfa45.js",
+        "bytes": 67594,
+        "sha256": "b5baaf336704d1375f66c6455d6031f74a3b2d0ba6126aa251693dd58ca2c83b"
+      },
+      {
+        "path": "assets/cad-worker/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/cad-worker/entry.js",
+        "bytes": 161,
+        "sha256": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm",
+        "bytes": 6097242,
+        "sha256": "01c1197230731e249dca5a78684e77b714bf0a246f47300aed3b971b8baa6052"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm.d.ts",
+        "bytes": 1743,
+        "sha256": "ae566d36f2ff7c0a541a50f72d53ee41f9a5227064ae0ce81d0a4713dea78982"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker.d.ts",
+        "bytes": 3240,
+        "sha256": "c887350eace54fe509bf1c46b2a65041d5dbedf3882f72d9adf89444f4026da6"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker.js",
+        "bytes": 22197,
+        "sha256": "7c5527fe8dda18ed527d6a3f2622c8080fcfe33537ce8cde7b5da1b511a2a6a7"
+      },
+      {
+        "path": "assets/cad-worker/package.json",
+        "bytes": 310,
+        "sha256": "963f85967843b23868ec829a8bef67f0acc3204dc01ccdc418fde3c049b597ce"
+      },
+      {
+        "path": "assets/cad/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+        "bytes": 14518126,
+        "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm.d.ts",
+        "bytes": 13653,
+        "sha256": "4adbcf95ca8e87d962c85990152bd687d10b8855a1349a3aaf86f242832e761d"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm.d.ts",
+        "bytes": 15111,
+        "sha256": "346d955d96c4677239fb0340869964e87eb39159776aad175e56d26f9ecfd3e9"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm.js",
+        "bytes": 26610,
+        "sha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e"
+      },
+      {
+        "path": "assets/cad/package.json",
+        "bytes": 334,
+        "sha256": "2d2b66395f1ff1286017423fde8fcdb07c82ee7a25f79cf88b44756d5e74d359"
+      },
+      {
+        "path": "assets/cad/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js",
+        "bytes": 780,
+        "sha256": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932"
+      },
+      {
+        "path": "assets/core-worker/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/core-worker/entry.js",
+        "bytes": 98,
+        "sha256": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm",
+        "bytes": 7496864,
+        "sha256": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm.d.ts",
+        "bytes": 1246,
+        "sha256": "9889be597a1fa8f843e52404b9c89db58f74f1c301ad465ef434f0445e540833"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker.d.ts",
+        "bytes": 2722,
+        "sha256": "40e20b3f04f3dbde0682c5f66091e7eff57ce02d88246b72a49d6077bcd8eaea"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker.js",
+        "bytes": 16940,
+        "sha256": "fc95ba2c7ddf5b69935d6b4f5b9465e3a270ebd5fe5685d51e69bab16bf29896"
+      },
+      {
+        "path": "assets/core-worker/package.json",
+        "bytes": 315,
+        "sha256": "e25932c5a594584bb3f4d37b5b8b21d1c8714c2b2750da74ff5cd7c7e85f80de"
+      },
+      {
+        "path": "assets/fixtures/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "bytes": 2649877,
+        "sha256": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b"
+      },
+      {
+        "path": "assets/fixtures/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "bytes": 1121898,
+        "sha256": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3"
+      },
+      {
+        "path": "assets/fixtures/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "bytes": 103328,
+        "sha256": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e"
+      },
+      {
+        "path": "assets/fixtures/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "bytes": 1171446,
+        "sha256": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f"
+      },
+      {
+        "path": "assets/fixtures/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "bytes": 149936,
+        "sha256": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+      },
+      {
+        "path": "assets/fixtures/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "bytes": 2769044,
+        "sha256": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+      },
+      {
+        "path": "assets/fixtures/provenance.json",
+        "bytes": 2987,
+        "sha256": "47be5c67e11ea823972c207ff38198777e6aecdd8fc0bc45b34f53dbfb8fa2aa"
+      },
+      {
+        "path": "assets/fixtures/reviung41.boardstudio",
+        "bytes": 1397611,
+        "sha256": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f"
+      },
+      {
+        "path": "assets/fixtures/reviung41.json",
+        "bytes": 105292,
+        "sha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae"
+      },
+      {
+        "path": "assets/fixtures/sofle.boardstudio",
+        "bytes": 1585714,
+        "sha256": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899"
+      },
+      {
+        "path": "assets/fixtures/sofle.json",
+        "bytes": 132422,
+        "sha256": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4"
+      },
+      {
+        "path": "assets/fonts/README.md",
+        "bytes": 755,
+        "sha256": "ede022134c114a9fb138450a301d10be2d529a033b1cf494feef55ebf0f83783"
+      },
+      {
+        "path": "assets/fonts/source-code-pro-upright.woff2",
+        "bytes": 90124,
+        "sha256": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792"
+      },
+      {
+        "path": "assets/fonts/source-sans-3-upright.woff2",
+        "bytes": 170188,
+        "sha256": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8"
+      },
+      {
+        "path": "assets/m1.css",
+        "bytes": 5550,
+        "sha256": "1e3ee2fc121759165ca888807ef98c61fa6848a2098faece99a9ab1de11408d5"
+      },
+      {
+        "path": "assets/renderer/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+        "bytes": 858570,
+        "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm.d.ts",
+        "bytes": 1957,
+        "sha256": "fd6d34c0e52938f1ae2fef4b01bed1c227c4fa73e96edc9b6888b05b310a4083"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.d.ts",
+        "bytes": 3914,
+        "sha256": "dedc95f6a8dbd4840ce610d5bdc77eb3f65cc9a9ce57a69580240753f25b09c1"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.js",
+        "bytes": 52455,
+        "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc"
+      },
+      {
+        "path": "assets/renderer/package.json",
+        "bytes": 341,
+        "sha256": "f68fa3489e43eee2a86dd3a41f421c9a02a21c6cdc29ebc0e2dd67442e5f1a56"
+      },
+      {
+        "path": "boardstudio_offline_worker.js",
+        "bytes": 20540,
+        "sha256": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61"
+      },
+      {
+        "path": "index.html",
+        "bytes": 523,
+        "sha256": "79e2b40fff22d5316680e6ab9a9d4bf3a466ff95365052029268b2b3ee904a37"
+      },
+      {
+        "path": "service-worker.js",
+        "bytes": 89368,
+        "sha256": "6f6a30d3b78a222d3f4daa5a1555053b72e3e45086a20a0f81c17e36827f50fc"
+      }
+    ]
+  },
+  "subpath": {
+    "site": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-8f509433/site-subpath/boardstudio",
+    "fileCount": 47,
+    "totalBytes": 50143149,
+    "startupCandidates": [
+      {
+        "path": "assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm",
+        "bytes": 9373973,
+        "sha256": "9d1b0680b898b275d0690153dbb66ef39ead6bccb7a8335feceb5919142f2eae"
+      },
+      {
+        "path": "assets/boardstudio-web-dxh1653f8b436eec3ad.js",
+        "bytes": 67604,
+        "sha256": "9f2dda9162ff414793bf30483d6b6183ab8b02ab7cfeb67f96a7b90af4480852"
+      },
+      {
+        "path": "assets/cad-worker/entry.js",
+        "bytes": 161,
+        "sha256": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm",
+        "bytes": 6097242,
+        "sha256": "01c1197230731e249dca5a78684e77b714bf0a246f47300aed3b971b8baa6052"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker.js",
+        "bytes": 22197,
+        "sha256": "7c5527fe8dda18ed527d6a3f2622c8080fcfe33537ce8cde7b5da1b511a2a6a7"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+        "bytes": 14518126,
+        "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm.js",
+        "bytes": 26610,
+        "sha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e"
+      },
+      {
+        "path": "assets/cad/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js",
+        "bytes": 780,
+        "sha256": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932"
+      },
+      {
+        "path": "assets/core-worker/entry.js",
+        "bytes": 98,
+        "sha256": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm",
+        "bytes": 7496864,
+        "sha256": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker.js",
+        "bytes": 16940,
+        "sha256": "fc95ba2c7ddf5b69935d6b4f5b9465e3a270ebd5fe5685d51e69bab16bf29896"
+      },
+      {
+        "path": "assets/m1.css",
+        "bytes": 5550,
+        "sha256": "1e3ee2fc121759165ca888807ef98c61fa6848a2098faece99a9ab1de11408d5"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+        "bytes": 858570,
+        "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.js",
+        "bytes": 52455,
+        "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc"
+      },
+      {
+        "path": "boardstudio_offline_worker.js",
+        "bytes": 20540,
+        "sha256": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61"
+      },
+      {
+        "path": "index.html",
+        "bytes": 551,
+        "sha256": "b5c674d1667b3022db4bdaf4de2f9dec0732ecd41f42882a59a7fcc76ccd14b5"
+      },
+      {
+        "path": "service-worker.js",
+        "bytes": 89376,
+        "sha256": "5b7a6cff6fbb942302af632b0cc64bb449cfee4e22eb8110d4a4ea9e761c4cdb"
+      }
+    ],
+    "largestFiles": [
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+        "bytes": 14518126,
+        "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719"
+      },
+      {
+        "path": "assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm",
+        "bytes": 9373973,
+        "sha256": "9d1b0680b898b275d0690153dbb66ef39ead6bccb7a8335feceb5919142f2eae"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm",
+        "bytes": 7496864,
+        "sha256": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm",
+        "bytes": 6097242,
+        "sha256": "01c1197230731e249dca5a78684e77b714bf0a246f47300aed3b971b8baa6052"
+      },
+      {
+        "path": "assets/fixtures/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "bytes": 2769044,
+        "sha256": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+      },
+      {
+        "path": "assets/fixtures/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "bytes": 2649877,
+        "sha256": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b"
+      },
+      {
+        "path": "assets/fixtures/sofle.boardstudio",
+        "bytes": 1585714,
+        "sha256": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899"
+      },
+      {
+        "path": "assets/fixtures/reviung41.boardstudio",
+        "bytes": 1397611,
+        "sha256": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f"
+      },
+      {
+        "path": "assets/fixtures/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "bytes": 1171446,
+        "sha256": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f"
+      },
+      {
+        "path": "assets/fixtures/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "bytes": 1121898,
+        "sha256": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+        "bytes": 858570,
+        "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8"
+      },
+      {
+        "path": "assets/fonts/source-sans-3-upright.woff2",
+        "bytes": 170188,
+        "sha256": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8"
+      },
+      {
+        "path": "assets/fixtures/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "bytes": 149936,
+        "sha256": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+      },
+      {
+        "path": "assets/fixtures/sofle.json",
+        "bytes": 132422,
+        "sha256": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4"
+      },
+      {
+        "path": "assets/fixtures/reviung41.json",
+        "bytes": 105292,
+        "sha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae"
+      },
+      {
+        "path": "assets/fixtures/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "bytes": 103328,
+        "sha256": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e"
+      },
+      {
+        "path": "assets/fonts/source-code-pro-upright.woff2",
+        "bytes": 90124,
+        "sha256": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792"
+      },
+      {
+        "path": "service-worker.js",
+        "bytes": 89376,
+        "sha256": "5b7a6cff6fbb942302af632b0cc64bb449cfee4e22eb8110d4a4ea9e761c4cdb"
+      },
+      {
+        "path": "assets/boardstudio-web-dxh1653f8b436eec3ad.js",
+        "bytes": 67604,
+        "sha256": "9f2dda9162ff414793bf30483d6b6183ab8b02ab7cfeb67f96a7b90af4480852"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.js",
+        "bytes": 52455,
+        "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc"
+      }
+    ],
+    "fixtureCount": 11,
+    "files": [
+      {
+        "path": "assets/boardstudio-web_bg-dxh8b1fd8eeafc12bbc.wasm",
+        "bytes": 9373973,
+        "sha256": "9d1b0680b898b275d0690153dbb66ef39ead6bccb7a8335feceb5919142f2eae"
+      },
+      {
+        "path": "assets/boardstudio-web-dxh1653f8b436eec3ad.js",
+        "bytes": 67604,
+        "sha256": "9f2dda9162ff414793bf30483d6b6183ab8b02ab7cfeb67f96a7b90af4480852"
+      },
+      {
+        "path": "assets/cad-worker/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/cad-worker/entry.js",
+        "bytes": 161,
+        "sha256": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm",
+        "bytes": 6097242,
+        "sha256": "01c1197230731e249dca5a78684e77b714bf0a246f47300aed3b971b8baa6052"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker_bg.wasm.d.ts",
+        "bytes": 1743,
+        "sha256": "ae566d36f2ff7c0a541a50f72d53ee41f9a5227064ae0ce81d0a4713dea78982"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker.d.ts",
+        "bytes": 3240,
+        "sha256": "c887350eace54fe509bf1c46b2a65041d5dbedf3882f72d9adf89444f4026da6"
+      },
+      {
+        "path": "assets/cad-worker/m1_cad_worker.js",
+        "bytes": 22197,
+        "sha256": "7c5527fe8dda18ed527d6a3f2622c8080fcfe33537ce8cde7b5da1b511a2a6a7"
+      },
+      {
+        "path": "assets/cad-worker/package.json",
+        "bytes": 310,
+        "sha256": "963f85967843b23868ec829a8bef67f0acc3204dc01ccdc418fde3c049b597ce"
+      },
+      {
+        "path": "assets/cad/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+        "bytes": 14518126,
+        "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm_bg.wasm.d.ts",
+        "bytes": 13653,
+        "sha256": "4adbcf95ca8e87d962c85990152bd687d10b8855a1349a3aaf86f242832e761d"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm.d.ts",
+        "bytes": 15111,
+        "sha256": "346d955d96c4677239fb0340869964e87eb39159776aad175e56d26f9ecfd3e9"
+      },
+      {
+        "path": "assets/cad/boardstudio_cadrum_wasm.js",
+        "bytes": 26610,
+        "sha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e"
+      },
+      {
+        "path": "assets/cad/package.json",
+        "bytes": 334,
+        "sha256": "2d2b66395f1ff1286017423fde8fcdb07c82ee7a25f79cf88b44756d5e74d359"
+      },
+      {
+        "path": "assets/cad/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js",
+        "bytes": 780,
+        "sha256": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932"
+      },
+      {
+        "path": "assets/core-worker/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/core-worker/entry.js",
+        "bytes": 98,
+        "sha256": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm",
+        "bytes": 7496864,
+        "sha256": "c97accc055eb7e4b32ebed1153585749f04e50df34f5d8b393fdfedfd5a3db42"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker_bg.wasm.d.ts",
+        "bytes": 1246,
+        "sha256": "9889be597a1fa8f843e52404b9c89db58f74f1c301ad465ef434f0445e540833"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker.d.ts",
+        "bytes": 2722,
+        "sha256": "40e20b3f04f3dbde0682c5f66091e7eff57ce02d88246b72a49d6077bcd8eaea"
+      },
+      {
+        "path": "assets/core-worker/m1_core_worker.js",
+        "bytes": 16940,
+        "sha256": "fc95ba2c7ddf5b69935d6b4f5b9465e3a270ebd5fe5685d51e69bab16bf29896"
+      },
+      {
+        "path": "assets/core-worker/package.json",
+        "bytes": 315,
+        "sha256": "e25932c5a594584bb3f4d37b5b8b21d1c8714c2b2750da74ff5cd7c7e85f80de"
+      },
+      {
+        "path": "assets/fixtures/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "bytes": 2649877,
+        "sha256": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b"
+      },
+      {
+        "path": "assets/fixtures/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "bytes": 1121898,
+        "sha256": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3"
+      },
+      {
+        "path": "assets/fixtures/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "bytes": 103328,
+        "sha256": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e"
+      },
+      {
+        "path": "assets/fixtures/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "bytes": 1171446,
+        "sha256": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f"
+      },
+      {
+        "path": "assets/fixtures/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "bytes": 149936,
+        "sha256": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722"
+      },
+      {
+        "path": "assets/fixtures/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "bytes": 2769044,
+        "sha256": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4"
+      },
+      {
+        "path": "assets/fixtures/provenance.json",
+        "bytes": 2987,
+        "sha256": "47be5c67e11ea823972c207ff38198777e6aecdd8fc0bc45b34f53dbfb8fa2aa"
+      },
+      {
+        "path": "assets/fixtures/reviung41.boardstudio",
+        "bytes": 1397611,
+        "sha256": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f"
+      },
+      {
+        "path": "assets/fixtures/reviung41.json",
+        "bytes": 105292,
+        "sha256": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae"
+      },
+      {
+        "path": "assets/fixtures/sofle.boardstudio",
+        "bytes": 1585714,
+        "sha256": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899"
+      },
+      {
+        "path": "assets/fixtures/sofle.json",
+        "bytes": 132422,
+        "sha256": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4"
+      },
+      {
+        "path": "assets/fonts/README.md",
+        "bytes": 755,
+        "sha256": "ede022134c114a9fb138450a301d10be2d529a033b1cf494feef55ebf0f83783"
+      },
+      {
+        "path": "assets/fonts/source-code-pro-upright.woff2",
+        "bytes": 90124,
+        "sha256": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792"
+      },
+      {
+        "path": "assets/fonts/source-sans-3-upright.woff2",
+        "bytes": 170188,
+        "sha256": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8"
+      },
+      {
+        "path": "assets/m1.css",
+        "bytes": 5550,
+        "sha256": "1e3ee2fc121759165ca888807ef98c61fa6848a2098faece99a9ab1de11408d5"
+      },
+      {
+        "path": "assets/renderer/.gitignore",
+        "bytes": 1,
+        "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+        "bytes": 858570,
+        "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm_bg.wasm.d.ts",
+        "bytes": 1957,
+        "sha256": "fd6d34c0e52938f1ae2fef4b01bed1c227c4fa73e96edc9b6888b05b310a4083"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.d.ts",
+        "bytes": 3914,
+        "sha256": "dedc95f6a8dbd4840ce610d5bdc77eb3f65cc9a9ce57a69580240753f25b09c1"
+      },
+      {
+        "path": "assets/renderer/boardstudio_renderer_wasm.js",
+        "bytes": 52455,
+        "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc"
+      },
+      {
+        "path": "assets/renderer/package.json",
+        "bytes": 341,
+        "sha256": "f68fa3489e43eee2a86dd3a41f421c9a02a21c6cdc29ebc0e2dd67442e5f1a56"
+      },
+      {
+        "path": "boardstudio_offline_worker.js",
+        "bytes": 20540,
+        "sha256": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61"
+      },
+      {
+        "path": "index.html",
+        "bytes": 551,
+        "sha256": "b5c674d1667b3022db4bdaf4de2f9dec0732ecd41f42882a59a7fcc76ccd14b5"
+      },
+      {
+        "path": "service-worker.js",
+        "bytes": 89376,
+        "sha256": "5b7a6cff6fbb942302af632b0cc64bb449cfee4e22eb8110d4a4ea9e761c4cdb"
+      }
+    ]
+  },
+  "comparison": {
+    "commonFileCount": 46,
+    "differingCommonPaths": [
+      "index.html",
+      "service-worker.js"
+    ],
+    "rootOnlyFiles": [
+      "assets/boardstudio-web-dxh15a8788cfa45.js"
+    ],
+    "subpathOnlyFiles": [
+      "assets/boardstudio-web-dxh1653f8b436eec3ad.js"
+    ]
+  },
+  "note": "Static byte inventory. Browser performance resource timing is collected separately after the first online startup of each scope."
+}

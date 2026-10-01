@@ -7,11 +7,15 @@ and [acceptance ledger](ACCEPTANCE.md) govern acceptance.
 
 ## Editable copied-project trial
 
-The complete candidate is being staged at
-`web/target/builds/m1-release-20261001-8f509433`. Use it only after its
-`provenance.json` records all 18 commands exiting zero, both prefix asset maps,
-and the final source check. Build outputs and logs are retained locally; the
-portable release record will retain their identities.
+The completed candidate is at `web/target/builds/m1-release-20261001-8f509433`.
+All 18 build commands exited zero, all 925 source hashes verified, and each
+prefix contains 47 verified files and one current page WASM. See the
+[portable provenance](evidence/integration/release-8f509433-provenance.json).
+The owned editable demo is running at [root](http://127.0.0.1:46880/) and
+[/boardstudio/](http://127.0.0.1:46880/boardstudio/). Both passed scoped offline
+reloads. Both copied fixtures generated and downloaded STEP files; stale-scope
+export delivered no download. [Final browser record](evidence/browser-storage/release-8f509433-final-qa.md)
+records the exact actions, hashes and limits.
 
 To rebuild, run `python3 scripts/build-m1.py <new-unique-id>` from this checkout.
 The maintained builder refuses to overwrite earlier outputs. To serve a
@@ -38,8 +42,8 @@ blocking findings on the unchanged production tree. Both real fixture editors
 generated exact cases; high-DPI resize, scope remount, cancellation and retry
 passed on the focused artifact. Durable save abort/retry, faithful assets and
 archive exchange, case input comparisons, independent STEP readback and wide
-revision rejection have separate retained evidence. Current-release checks and
-performance results are recorded separately as they finish.
+revision rejection have separate retained evidence. Final-release browser checks pass at both prefixes. Performance results and
+remaining resource/semantic checks are recorded separately as they finish.
 
 The canvas includes a nominal PCB contour, without populated PCB parity. CAD
 revisions above 9,007,199,254,740,991 are rejected before conversion. Context loss

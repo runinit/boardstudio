@@ -4,13 +4,15 @@
 
 **Blocked by:** 04
 
-**Status:** captured independent STEP execution implemented; readback/cancellation acceptance in progress
+**Status:** Implementation complete; real STEP-only reply regression repaired and reviewed, both final downloads and stale-scope suppression pass; complete independent semantic/resource acceptance remains open.
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 
 **Authority:** [M1 specification](../spec.md), existing six module specifications and ADR 0003.
 
-- [ ] Archive and STEP delivery require current immutable snapshot/session/board/instance identity.
+- [x] Archive and STEP delivery require current immutable snapshot/session/board/instance identity.
 - [ ] Reopened STEP matches existing bounds/material/volume and cached/uncached geometry oracles on both fixtures.
 - [ ] Cancellation, changed scope, save recovery and worker failure prevent delivery and settle callers.
-- [ ] Characterize CAD wide revisions and reject unsupported identity loss; complete integer parity requires explicit compatibility resolution.
+- [x] Characterize CAD wide revisions and reject unsupported identity loss; complete integer parity requires explicit compatibility resolution.
+
+See [current acceptance evidence](../ACCEPTANCE.md#current-evidence--final-release-8f509433) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.

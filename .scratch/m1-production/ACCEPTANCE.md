@@ -1,6 +1,6 @@
 # M1 acceptance ledger design
 
-All entries below are **unperformed for production M1** until a current ticket records exact commands, outputs, source and built asset identity. P1/P2/P3 results remain historical feasibility evidence. Parent constraints and six specifications define the acceptance bar.
+The implementation and completed checks below are attributable to the recorded source and artifacts. M1 acceptance remains **open**: an absent or ineligible check never becomes a pass. P1/P2/P3 results remain historical feasibility evidence. Parent constraints and six specifications define the acceptance bar.
 
 | Gate | Oracle / required observation | Evidence owner |
 | --- | --- | --- |
@@ -18,6 +18,25 @@ All entries below are **unperformed for production M1** until a current ticket r
 | Presentation | Paired reference desktop/compact/short views, theme/overflow and long/error/recovery content; names, real keyboard/focus order/restoration, relevant screen-reader, raw axe and contrast | 06 |
 | Performance | Existing affected CAD/live/UI budgets and controls retained; startup/size/crossing measurements with reference variance, no invented threshold | 06 |
 | Exact integration | Locked builds, native/WASM fmt/strict lint/tests, contracts, repository/boundary, React tests/build/affected browser matrix; source/asset hashes and Standards/Spec reviews | 06 |
+
+## Current evidence — final release `8f509433`
+
+| Gate | Current outcome and scope | Record |
+| --- | --- | --- |
+| Provider reconciliation | Pass: approved transparent boxing, contracts and affected provider checks; ticket 01 closed | [Provider summary](evidence/providers/SUMMARY.md) |
+| Session and integer identity | Pass: 13 public native session tests, 12 native web tests; lossless core transport and explicit CAD safe-range rejection | [Final source checks](evidence/integration/final-source-checks/record.json), [decoder checks](evidence/integration/final-decoder-checks/record.json) |
+| Durable storage/archive exchange | Pass on recorded component artifacts: real IndexedDB abort/retry and full-fixture archive exchange; final release scoped databases and reload pass | [Final browser QA](evidence/browser-storage/release-8f509433-final-qa.md) |
+| Offline/deployment | Pass on final root/subpath assets: control, offline reload, cold/missing asset failure, scoped update and unrelated cache preservation | [Final offline record](evidence/offline/release-8f509433-browser.json) |
+| Case/renderer | Both final fixtures generate; focused DPR2, resize, remount, cancellation/retry and visible context-loss stop pass; complete allocation accounting remains open | [Focused renderer](evidence/renderer/focused-2040e23b/README.md), [final QA](evidence/browser-storage/release-8f509433-final-qa.md) |
+| STEP | Final downloads and URL cleanup pass for both fixtures, stale scope suppresses delivery; independent geometry oracle has narrower configured-fixture scope, final REVIUNG solids still need semantic attribution | [Final exports](evidence/renderer/step-exports-8f509433.json), [geometry oracle](evidence/cad-jobs/step-geometry-oracle.json) |
+| Presentation | Raw axe, contrast, keyboard/pointer and compact views recorded; actual screen-reader interaction blocked on this host | [Assistive technology limitation](#available-assistive-technology--2026-10-01) |
+| Performance | In progress; historical endpoint/environment mismatches remain ineligible, frozen budgets unchanged | [Performance evidence](evidence/performance/) |
+| Exact integration | Pass: complete locked build, source/asset verification, native/fmt/strict checks, repository/contracts/boundaries and independent source reviews | [Release provenance](evidence/integration/release-8f509433-provenance.json), [Standards](evidence/review/standards-step-decoder-5a0972a2.md), [Spec](evidence/review/spec-5a0972a2.md) |
+
+Runtime decoder source is `5a0972a2`; final maintained build source is
+`8f509433`. Later evidence/document commits do not change production inputs.
+Component evidence is reused only where relevant source inputs are unchanged;
+final release observations are distinguished explicitly.
 
 ## Evidence record shape
 

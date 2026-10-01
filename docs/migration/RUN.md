@@ -1,5 +1,13 @@
 # BoardStudio milestone continuation
 
+Active run: [remaining M1 production plan](../../.scratch/m1-production/PLAN.md),
+[canonical state](m1-production-run.json) and
+[editable candidate handoff](../../.scratch/m1-production/HANDOFF.md).
+The reviewed implementation is integrated at `8f509433`; its complete release
+build and final root/subpath browser gates pass. Performance and complete
+resource/semantic gates remain in progress; relevant screen-reader testing is blocked. Earlier sections retain historical
+proposals, failures and accepted feasibility work.
+
 Initial specification-run base: `96dd51d3e790c28f5554a8c9888a147c8814e2a7`.
 Initial coordinator worktree: `/tmp/boardstudio-migration-specs-review-20261001`.
 Branch: `docs/boardstudio-migration-specs-review` (existing protected worktrees
@@ -22,7 +30,7 @@ actual failed gates, incompatible data or invalidated architecture still block
 dependent work. No push, deployment, main merge, protected-worktree writes,
 unauthorized model/provider switch or automatic prototype promotion is allowed.
 
-## Current task set
+## Historical initial task set
 
 | Task | Exact scope / authority | Status |
 | --- | --- | --- |
@@ -909,6 +917,16 @@ Independent public UI verification downloads the same 10,334,256-byte Sofle STEP
 as the independent worker/readback proof. The blob URL is revoked after about
 one second, with no retained anchor or browser errors. Standards and Spec
 reviews have no blocking findings. Independent merger integrates the exact
-candidate at `8f509433`; final complete build
-`m1-release-20261001-8f509433` is in progress before current-release offline,
-export-scope/resource and quiet-host performance verification.
+candidate at `8f509433`. The final complete build
+`m1-release-20261001-8f509433` passed all 18 commands, 925 source hashes and
+both 47-file prefix inventories with one current page WASM each. Final root
+and subpath offline/storage/update checks pass. Both fixtures generated and
+downloaded STEP files with URL revocation; changing scope suppressed stale
+delivery. Quiet-host performance and complete resource/semantic checks remain
+in progress. Relevant screen-reader testing remains blocked.
+
+See [final release browser evidence](../../.scratch/m1-production/evidence/browser-storage/release-8f509433-final-qa.md),
+[build provenance](../../.scratch/m1-production/evidence/integration/release-8f509433-provenance.json),
+[current acceptance](../../.scratch/m1-production/ACCEPTANCE.md) and
+[editable handoff](../../.scratch/m1-production/HANDOFF.md). Earlier checkpoint
+statements retain their contemporaneous failures and pending gates.

@@ -10,5 +10,5 @@
   "expected_stashes_present": true,
   "status": "?? .scratch/",
   "operations": "read only; no stash application/reset/worktree removal/history rewrite",
-  "limitation": "Does not compare unrelated untracked file contents; this run has not written to the original checkout."
+  "limitation": "Does not compare unrelated untracked file contents. No original source or stash writes were performed. The separate migration Git repository keeps owned metadata under the original checkout .scratch/git/dioxus-context-baseline.git."
 }

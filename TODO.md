@@ -4,7 +4,7 @@
 
 ## Active migration continuation — 2026-10-01
 
-The user approved implementing the remaining-migration plan. The active task set is P2 completion plus isolated P3 durability/offline feasibility; see [run status](docs/migration/continuation-run.json). P2 and P3 are now reviewed and accepted within that isolated scope. Earlier repair-limit and fixed-defect statements below are historical. Full M1 and production parity remain unfinished.
+The active task set is the [remaining M1 production plan](.scratch/m1-production/PLAN.md), with [current state](docs/migration/m1-production-run.json) and [candidate handoff](.scratch/m1-production/HANDOFF.md). P2 and P3 feasibility are reviewed and accepted; their earlier repair-limit and fixed-defect statements below are historical. The M1 implementation is integrated, while final acceptance and complete production parity remain unfinished.
 
 - [x] P2-ABI: box approved public payloads while preserving serialized contracts; one documented three-d Arc exception.
 - [x] P2-BUILD-BROWSER: reproducible provider assets and remaining P2 browser/accessibility evidence.

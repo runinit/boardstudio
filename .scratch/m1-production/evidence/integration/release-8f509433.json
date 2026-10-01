@@ -1,0 +1,22 @@
+{
+  "source_commit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "reviewed_runtime_commit": "5a0972a2889a702051e9a7ab53b2727db07126e0",
+  "reviewed_builder_commit": "fe2ada03",
+  "argv": [
+    "python3",
+    "scripts/build-m1.py",
+    "m1-release-20261001-8f509433"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+  "exit": 0,
+  "commands": 18,
+  "source_hashes_verified": 925,
+  "asset_hashes_verified": true,
+  "one_page_wasm_per_prefix": true,
+  "production_diff_from_review": "",
+  "provenance_path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-8f509433/provenance.json",
+  "provenance_sha256": "99f3fb7bec34df7154f3ed4602384b0745a714f879f636810cf1bbc22a697ed6",
+  "portable_provenance": "release-8f509433-provenance.json",
+  "verified_at": "2026-10-01T23:12:42.891997+00:00",
+  "gate_scope": "Complete build and exact source/asset identity; browser and performance scenarios recorded separately."
+}
