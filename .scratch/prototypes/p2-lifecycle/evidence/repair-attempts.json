@@ -1,0 +1,14 @@
+{
+  "limit": 2,
+  "used": 1,
+  "attempts": [
+    {
+      "number": 1,
+      "candidate": "6f96b5c4a83ebcaa908388c4ace0bc252fbefac1",
+      "failure": "Standards: README names ignored raw artifact; Spec: independently available API source preflight left incomplete",
+      "correction": "README names committed gzip patch; complete read-only exact-version mount/DOM/events/effect/drop source verification, preserving all unperformed runtime gates",
+      "status": "implemented, affected review pending"
+    }
+  ],
+  "formatting_prerequisite": "Not applied; scope extension pending. If approved, application is repair2 within original limit."
+}

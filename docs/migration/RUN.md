@@ -438,7 +438,8 @@ completed P1 handoff. Exact original proposal SHA-256:
 proposal's initial approval-pending wording as history;
 [task-start](../../.scratch/prototypes/p2-lifecycle/evidence/task-start.json)
 records the actual approval, exact specifications, ownership, pre-agreed public
-engine/gesture/lifecycle seams and zero of two repair attempts. Base:
+engine/gesture/lifecycle seams. Preflight started at zero repairs; documentation/
+API evidence repair1 is recorded separately within the two-attempt limit. Base:
 `7ed7b5ec9a58449615b05bf7e95eb888711d864b`. Coordinator-owned worktree
 `/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-20261001`, branch
 `prototype/boardstudio-p2-lifecycle`; actual clean checkout was verified before
@@ -450,8 +451,12 @@ no manifest/lock changes. Configuration retains max3 child threads and Luna/high
 defaults; a fresh read-only Luna/medium smoke is independently confirmed by DB/
 turn-context, preserved and archived through the supported tool with DB proof.
 No writes were delegated. Context7 resolves exact Dioxus0.7.10 and tagged
-side-effect sources; complete DOM-downcast/teardown/API verification remains
-unperformed after the blocker. A provider API source smoke finds resize/dispose/
+side-effect sources. The initial review found independent API-source verification
+incomplete; repair1 finishes mount/DOM conversion, pointer events, effects and
+use_drop using five tagged official sources byte-identical to installed0.7.10.
+Installed web-sys0.3.106 verifies capture/RAF/observer/SVG focus signatures.
+[API record](../../.scratch/prototypes/p2-lifecycle/evidence/API.md) distinguishes
+these source facts from unperformed compile/runtime proof. A provider API source smoke finds resize/dispose/
 generated free, but proves no actual GPU disposal or painted-frame behavior.
 Doctor's standalone sandbox metadata does not override the current never/
 danger-full-access execution permissions. No routing/config/permission changes.
@@ -470,7 +475,7 @@ is generated from independent temporary copies with rustfmt; it is **unapplied**
 and `git apply --check` passes.
 [Exact scope extension](../../.scratch/prototypes/p2-lifecycle/evidence/scope-extension.json)
 requests only those four source files, preserving renderer behavior/API/pins and
-the strict formatter gate. After that bounded approval, apply it as repair1 within
+the strict formatter gate. After that bounded approval, apply it as repair2 within
 the existing two-attempt limit, run all affected renderer checks, then resume the
 original P2 TDD/build/browser/lifecycle/paired-resource/review/integration gates.
 Native/WASM tests/lints/builds, reference frontend, actual Chromium/P2 painting,

@@ -10,7 +10,7 @@
   "worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-20261001",
   "branch": "prototype/boardstudio-p2-lifecycle",
   "owner": "coordinator",
-  "repair_attempts": 0,
+  "repair_attempts": 1,
   "repair_limit": 2,
   "next_eligible_tasks": [],
   "unresolved_approval": "Scope extension to apply exact proposed-renderer-format.patch to four renderer files; preserve strict gate and full P2 verification",
@@ -21,5 +21,6 @@
     "Dioxus release/browser/paired frame/cleanup/a11y/resource assertions",
     "Complete mount/downcast/teardown API verification"
   ],
-  "preserved": "Providers/protected work unchanged; no reset/stash/clean, no baseline/test/gate weakening or automatic prototype promotion"
+  "preserved": "Providers/protected work unchanged; no reset/stash/clean, no baseline/test/gate weakening or automatic prototype promotion",
+  "initial_preflight_repair_attempts": 0
 }

@@ -18,7 +18,7 @@
     "renderer/src/wasm.rs": true
   },
   "provider_status": "",
-  "repair_attempts": 0,
+  "repair_attempts": 1,
   "repair_limit": 2,
   "reason_no_repair": "Approved file boundary is prototype subtree and coordinator documents; renderer changes excluded. No exception or provider-format scope expansion inferred.",
   "executed": [
@@ -31,10 +31,11 @@
   "unperformed": [
     "Prototype source/TDD/native tests",
     "Core/renderer Clippy/tests/WASM builds",
-    "Dioxus release/browser/paired frame/cleanup/a11y/resource assertions",
-    "Complete mount/downcast/teardown API verification"
+    "Dioxus release/browser/paired frame/cleanup/a11y/resource assertions"
   ],
   "safe_remaining_tasks": [],
   "next": "Approve bounded formatting-only prerequisite for these exact existing renderer files, retaining strict fmt gate; then resume P2 from same base/owned worktree with full planned verification",
-  "preserved": "No source provider edits, protected work untouched, no tests/baselines/gates weakened"
+  "preserved": "No source provider edits, protected work untouched, no tests/baselines/gates weakened",
+  "initial_preflight_repair_attempts": 0,
+  "api_verification": "Completed independently through Context7 + official tagged source matching installed versions; api-verification.json and API.md; no compile/runtime claim"
 }

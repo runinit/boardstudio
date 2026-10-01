@@ -5,8 +5,8 @@ P2-r1 from base7ed7b5ec. PLAN.md preserves the supplied proposal, whose initial
 approval-pending wording is historical; evidence/task-start.json records approval.
 
 Required renderer formatting exits1 in four files whose bytes match the approved
-base. No provider source is changed. Evidence/blocker.json distinguishes executed
-checks from unperformed runtime gates. Evidence/proposed-renderer-format.patch and
+base. No provider source is changed. evidence/blocker.json distinguishes executed
+checks from unperformed runtime gates. evidence/proposed-renderer-format.patch.gz and
 scope-extension.json provide a concrete formatting-only prerequisite for review;
 the patch is not applied and no gate exception is inferred. Original P2 verification
 remains required after this prerequisite is authorized.

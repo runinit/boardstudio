@@ -189,7 +189,8 @@ This is the next accepted P2 charter, not a new architecture or migration backlo
 
 The required unchanged renderer fmt gate fails. Its four candidate files match
 the base; no renderer change is within this task's approved file boundary.
-P2 is blocked with zero repairs and no executable implementation. A concrete
+P2 is blocked with no executable implementation; one documentation/API evidence
+repair is recorded within the existing two-attempt limit. A concrete
 formatting-only patch is preserved for one bounded scope-extension approval;
 the original strict gate and all P2 runtime/build/review requirements remain.
 [Current blocked ledger](../docs/migration/RUN.md#p2-r1-preflight-blocked).

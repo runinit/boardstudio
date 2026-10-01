@@ -33,11 +33,12 @@
     "docs/adr/0003-rust-application-ownership.md": "17f7d160b244af47f2c00d6ca2350d1a574e3981707bde03a90d92d0d3ca1fa3"
   },
   "repair_limit": 2,
-  "repair_attempts": 0,
+  "repair_attempts": 1,
   "exclusions": [
     "P3,production session/workspace port",
     "provider/schema/API/visibility/backend/version changes",
     "CAD u64 repair, automatic promotion,main,push,deploy"
   ],
-  "next": "Preflight and version-matched APIs; public fixture characterization before source edits"
+  "next": "Preflight and version-matched APIs; public fixture characterization before source edits",
+  "initial_preflight_repair_attempts": 0
 }

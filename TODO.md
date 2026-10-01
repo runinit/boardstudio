@@ -21,7 +21,7 @@ These are isolated integration probes; production adoption is not implicit.
 
 ## Approved bounded continuation: P2-r1
 
-- [ ] P2-LIFECYCLE — **blocked in preflight, executable implementation unstarted**. User approved the exact [P2-r1 proposal](.scratch/prototypes/p2-lifecycle/PLAN.md), base `7ed7b5ec`, owned branch `prototype/boardstudio-p2-lifecycle`. Required renderer formatting fails in four files byte-identical to that base. Renderer edits are outside the approved file boundary, so no provider edits/formatting exception are inferred. [Failure and provenance](.scratch/prototypes/p2-lifecycle/evidence/blocker.json); [unapplied formatting-only scope extension](.scratch/prototypes/p2-lifecycle/evidence/scope-extension.json). Zero repairs used of two; no other eligible task. Build/browser/lifecycle acceptance is unperformed; P3 and production adoption remain excluded.
+- [ ] P2-LIFECYCLE — **blocked in preflight, executable implementation unstarted**. User approved the exact [P2-r1 proposal](.scratch/prototypes/p2-lifecycle/PLAN.md), base `7ed7b5ec`, owned branch `prototype/boardstudio-p2-lifecycle`. Required renderer formatting fails in four files byte-identical to that base. Renderer edits are outside the approved file boundary, so no provider edits/formatting exception are inferred. [Failure and provenance](.scratch/prototypes/p2-lifecycle/evidence/blocker.json); [unapplied formatting-only scope extension](.scratch/prototypes/p2-lifecycle/evidence/scope-extension.json). One documentation/API evidence repair used of two; no other eligible task. Build/browser/lifecycle acceptance is unperformed; P3 and production adoption remain excluded.
 
 ## Prior request history
 
