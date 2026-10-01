@@ -11,12 +11,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-EXPECTED = {
-    "p1-worker/p1_core.js": "22159af2bcdea073243e47408c716900021ba52055161ad2de5547a0a1e9870d",
-    "p1-worker/p1_core_bg.wasm": "913041a1fc01e5337dbfb3c0c53a217761c31209965ae3268d4780d9113a7f26",
-    "renderer/boardstudio_renderer_wasm.js": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
-    "renderer/boardstudio_renderer_wasm_bg.wasm": "ed5e115042045358680ad4355ddceb5d457aa3b906f23646fc31494caf979864",
-    "worker/worker-entry.js": "652acf853416adcf6af0cd83183a048df67d6c53cad3608af313117d3647c948",
+REPO = ROOT.parents[3]
+REQUIRED_ASSETS = {
+    "p1-worker/p1_core.js", "p1-worker/p1_core_bg.wasm",
+    "renderer/boardstudio_renderer_wasm.js", "renderer/boardstudio_renderer_wasm_bg.wasm",
+    "worker/worker-entry.js",
 }
 
 
@@ -34,6 +33,24 @@ def main() -> int:
     if not (public / "index.html").is_file() or not (public / "assets").is_dir():
         raise SystemExit(f"not a Dioxus public output: {public}")
 
+    provenance_file = ROOT / "asset-provenance.json"
+    if not provenance_file.is_file():
+        raise SystemExit("missing provider provenance; run build-release.py first")
+    provenance = json.loads(provenance_file.read_text())
+    if provenance.get("schema") != 1 or not provenance.get("source_files"):
+        raise SystemExit("invalid provider provenance")
+    expected_assets = provenance.get("assets", {})
+    if not REQUIRED_ASSETS.issubset(expected_assets):
+        raise SystemExit("provider provenance is missing required assets")
+    for relative, expected in provenance["source_files"].items():
+        source = (REPO / relative).resolve()
+        if not source.is_relative_to(REPO) or not source.is_file() or sha256(source) != expected:
+            raise SystemExit(f"provider source changed since build: {relative}; rebuild providers")
+    for relative in REQUIRED_ASSETS:
+        source = ROOT / "assets" / relative
+        if not source.is_file() or sha256(source) != expected_assets[relative]:
+            raise SystemExit(f"provider artifact changed since build: {relative}; rebuild providers")
+
     stage_root = ROOT / "target" / "renewal-worker"
     site_name = f"site-{mode}-{build_id}"
     destination = stage_root / site_name
@@ -44,7 +61,8 @@ def main() -> int:
     shutil.copytree(public, destination)
 
     staged: dict[str, str] = {}
-    for relative, expected_hash in EXPECTED.items():
+    for relative in sorted(REQUIRED_ASSETS):
+        expected_hash = expected_assets[relative]
         source = ROOT / "assets" / relative
         actual = sha256(source)
         if actual != expected_hash:
@@ -58,6 +76,7 @@ def main() -> int:
         staged[f"assets/{relative}"] = copied
 
     bundle = {
+        "provider_provenance": provenance,
         "mode": mode,
         "build_id": build_id,
         "base_path": "/" if mode == "root" else "/boardstudio/",
