@@ -58,11 +58,14 @@ fallback `codex --strict-config doctor --json` succeeds (exit 0) and validates
 configuration load. Doctor retains a pre-existing rollout/DB parity warning;
 no configuration or state repair is performed.
 
-Closing threads is a capability limitation: `codex archive` for the completed
-smoke thread returns exit 1. The collaboration interface exposes no close-thread
-operation. Preserve completed results and do not mutate the Codex state DB or
-spawn beyond three total open child threads. This may constrain delegation;
-it does not block coordinator documentation/tool installation.
+Initial CLI closure failed: `codex archive` for the completed smoke thread
+returned exit 1. No direct close-thread operation was identified in the exposed
+collaboration interface, so completed threads were retained during implementation
+and the three-thread cap was respected. Final deferred-tool discovery located
+`mcp__codex_tui__set_thread_archived`; it successfully archived all three completed
+children after preserving their results. Actual state DB now independently shows
+`archived=1` for each. No direct state-DB mutation or permission change was used.
+See [final closure record](../../.scratch/migration-specs-validation/thread-closure-final.json).
 
 Official Dioxus latest release is rechecked as stable v0.7.10. Tagged CLI build,
 target and web configuration sources verify build/base-path flags. Some web
@@ -101,9 +104,9 @@ Next eligible task: **P1-CORE**, plan **P1-r1**, the six specs and ADR at the ex
 reviewed commit above. Authority is the recorded advance approval plus local
 commit/integration authorization. Prototype-only path ownership is
 `.scratch/prototypes/p1-core/`; no production adoption. Coordinator implementation
-is used because all three existing child threads are retained and native closure
-is unavailable; the non-authoring reviewer remains available for exact-candidate
-review. A new task-owned worktree is created and checked before any prototype
+was used while all three existing child threads were retained after the CLI
+closure failure; the non-authoring reviewer performed exact-candidate review.
+The later-discovered deferred archive tool resolved closure before final handoff. A new task-owned worktree is created and checked before any prototype
 edit. P1-CAD depends on accepted P1-CORE; P2/P3 remain outside this task set.
 
 ## P1-CORE stopped: preserved-provider compatibility failure
@@ -154,8 +157,9 @@ and [failed gate](../../.scratch/migration-specs-validation/p1-core-large-intege
 are retained here. Complete source/build/native/browser logs and generated
 artifact hashes remain in the preserved prototype worktree and its local branch.
 No failed worktree or uncommitted work was deleted; protected inputs are untouched.
-All three completed child threads remain retained because supported archive
-failed and no close-thread operation is exposed; their results are preserved.
+All three completed child threads have now been archived through the supported
+deferred TUI tool after preserving their results. The earlier CLI archive failure
+is retained as historical preflight evidence, with final resolution above.
 
 Resume from the current integration branch and retained failed candidate, with
 this blocker resolved in a separately bounded continuation. Preserve full u64
@@ -165,3 +169,12 @@ builds and both deployment prefixes, and review the exact new candidate. The
 exhausted repair budget must be addressed explicitly before another repair run.
 Do not adopt the prototype, infer CAD readiness or remove the React fallback.
 P2/P3, archived failed checks and five missing historical reports remain open.
+
+Final handoff review: the independent reviewer inspected exact metadata candidate
+`113689f2eb7b07f64da97d5e3b1ab7ede3b1eabf` against `e9950d17` and found no
+material inconsistency. It confirms no prototype integration, the failed valid-u64
+gate, two exhausted repairs, unstarted CAD and open M1 acceptance. The subsequent
+closure/protected-input audit updates only administrative records. All 31
+protected source inputs still match their initial hashes; the migration and
+failed-prototype working trees are clean. Download/source/check logs remain
+preserved as untracked run artifacts in the original review worktree.
