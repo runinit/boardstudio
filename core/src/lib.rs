@@ -281,7 +281,9 @@ impl CoreEngine {
                         transaction_id: "apply-wiring".into(),
                         phase: EditPhase::Commit,
                         target_ids: vec![],
-                        operation: EditOperation::ReplaceDocument { document },
+                        operation: EditOperation::ReplaceDocument {
+                            document: Box::new(document),
+                        },
                     },
                 )
             }
@@ -759,7 +761,7 @@ impl CoreEngine {
             SceneKind::Committed => CoreReply::Scene {
                 id,
                 scene,
-                document: doc.clone(),
+                document: Box::new(doc.clone()),
             },
         }
     }
@@ -1109,7 +1111,7 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             Ok(vec![net.id.clone()])
         }
         EditOperation::SetMechanical { configuration } => {
-            doc.mechanical = configuration.clone();
+            doc.mechanical = configuration.as_deref().cloned();
             Ok(vec![])
         }
         EditOperation::SetCase { body } => {
@@ -1196,11 +1198,11 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             let mut changed = apply(
                 doc,
                 &EditOperation::SetMatrix {
-                    matrix: matrix.clone(),
+                    matrix: matrix.as_ref().clone(),
                     definitions: definitions.clone(),
                 },
             )?;
-            let mut target = matrix.clone();
+            let mut target = matrix.as_ref().clone();
             target.id = right.matrix_id.clone();
             target.name = Some(right.name.clone());
             for cell in &mut target.cells {
@@ -1274,7 +1276,7 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
                 return Err("Unsupported document format".into());
             }
             let changed = changed_ids(doc, document);
-            let mut prepared = document.clone();
+            let mut prepared = document.as_ref().clone();
             script::apply_scripts(&mut prepared)?;
             layout::resolve(&mut prepared)?;
             *doc = prepared;

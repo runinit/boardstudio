@@ -309,6 +309,10 @@ impl Renderer {
             .dyn_into::<WebGl2RenderingContext>()
             .map_err(|_| JsValue::from_str("WebGL2 is unavailable"))?;
         let low_level = three_d::context::Context::from_webgl2_context(context);
+        #[expect(
+            clippy::arc_with_non_send_sync,
+            reason = "three-d 0.19.0 requires Arc<Context>; WebGL2 context and renderer stay on the page thread"
+        )]
         let context = three_d::core::Context::from_gl_context(Arc::new(low_level))
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let viewport = Viewport::new_at_origo(1, 1);

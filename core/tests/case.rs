@@ -66,7 +66,7 @@ fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
     match engine.handle(CoreRequest::Snapshot {
         id: "snapshot".into(),
     }) {
-        CoreReply::Scene { document, .. } => document,
+        CoreReply::Scene { document, .. } => *document,
         other => panic!("expected scene snapshot, got {other:?}"),
     }
 }

@@ -566,7 +566,7 @@ fn apply_request_is_reversible() {
     let base = doc.revision;
     let plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
         instance_id: None,
-        document: doc,
+        document: *doc,
         mode: ElectricalMode::Matrix,
         locks: BTreeMap::new(),
         controller_profile: Some("ceoloide/mcu_nice_nano".into()),

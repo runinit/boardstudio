@@ -133,7 +133,9 @@ fn open_replace_undo_and_roundtrip_preserve_settings() {
             phase: EditPhase::Commit,
             transaction_id: "color".into(),
             target_ids: vec![],
-            operation: EditOperation::ReplaceDocument { document: changed },
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(changed),
+            },
         },
     });
     let undo = core.handle(CoreRequest::Undo { id: "undo".into() });
@@ -165,14 +167,16 @@ fn custom_standalone_keys_can_select_a_socket_and_profiles_resolve_valid_roofs()
             document.matrices.clear();
             let config = document.keycaps.as_mut().unwrap();
             config.keys.clear();
-            let mut key = KeycapKeySettings::default();
-            key.profile = Some(profile);
-            key.mount = Some(if profile == KeycapProfile::Choc {
-                KeycapMount::ChocV1
-            } else {
-                KeycapMount::Mx
-            });
-            key.row = Some(row);
+            let key = KeycapKeySettings {
+                profile: Some(profile),
+                mount: Some(if profile == KeycapProfile::Choc {
+                    KeycapMount::ChocV1
+                } else {
+                    KeycapMount::Mx
+                }),
+                row: Some(row),
+                ..Default::default()
+            };
             config.keys.insert(document.parts[0].id.clone(), key);
             let result = resolve(document, None);
             assert!(

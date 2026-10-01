@@ -36,7 +36,7 @@ fn document(reply: CoreReply) -> ProjectDoc {
     let CoreReply::Scene { document, .. } = reply else {
         panic!("expected committed scene: {reply:?}")
     };
-    document
+    *document
 }
 
 #[test]

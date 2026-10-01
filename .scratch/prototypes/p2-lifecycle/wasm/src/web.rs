@@ -914,7 +914,7 @@ fn scene_reply(reply: CoreReply) -> Result<(ProjectDoc, SceneDelta), String> {
     match reply {
         CoreReply::Scene {
             document, scene, ..
-        } => Ok((document, scene)),
+        } => Ok((*document, scene)),
         CoreReply::Error { message, .. } => Err(message),
         _ => Err("CoreEngine returned a non-scene reply".to_owned()),
     }

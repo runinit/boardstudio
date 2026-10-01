@@ -263,7 +263,7 @@ fn missing_keep_gap_source_retains_last_valid_geometry_and_blocks_only_generated
             .any(|finding| finding.id.contains(":keep-gap:"))
     );
     assert!(!after.finding_markers.is_empty());
-    let reopened = open(document);
+    let reopened = open(*document);
     assert_eq!(after.board_contours, reopened.board_contours);
     assert!(!reopened.board_readiness[0].outline);
 }

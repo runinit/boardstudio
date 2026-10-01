@@ -97,7 +97,7 @@ fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
     match reply {
         CoreReply::Scene {
             scene, document, ..
-        } => (scene, document),
+        } => (scene, *document),
         other => panic!("expected scene: {other:?}"),
     }
 }

@@ -12,6 +12,125 @@ fn project_document_serialization_keeps_format_and_numeric_revision() {
 }
 
 #[test]
+fn boxed_public_payloads_keep_their_existing_json_shape() {
+    let document = ProjectDoc::empty("boxed-contract", "Box compatibility");
+    let operation = serde_json::to_value(EditOperation::ReplaceDocument {
+        document: Box::new(document.clone()),
+    })
+    .unwrap();
+    assert_eq!(operation["kind"], "replace-document");
+    assert_eq!(operation["document"]["id"], "boxed-contract");
+    assert_eq!(operation["document"]["format"], "boardstudio/v2");
+
+    let mechanical = serde_json::to_value(EditOperation::SetMechanical {
+        configuration: None,
+    })
+    .unwrap();
+    assert_eq!(
+        mechanical,
+        json!({ "kind": "set-mechanical", "configuration": null })
+    );
+
+    let mirrored_pair = serde_json::to_value(EditOperation::CreateMirroredPair {
+        left: Layout {
+            id: "left".into(),
+            name: "Left".into(),
+            board_id: "board".into(),
+            matrix_id: "matrix".into(),
+            part_ids: vec![],
+            mirror_link: None,
+        },
+        right: Layout {
+            id: "right".into(),
+            name: "Right".into(),
+            board_id: "board".into(),
+            matrix_id: "matrix-mirror".into(),
+            part_ids: vec![],
+            mirror_link: Some(LayoutMirrorLink {
+                source_id: "left".into(),
+                axis_x: 0.0,
+            }),
+        },
+        matrix: Box::new(Matrix {
+            id: "matrix".into(),
+            name: None,
+            rows: 1,
+            columns: 1,
+            pitch: Vec2 { x: 19.0, y: 19.0 },
+            origin: Vec2::default(),
+            definition_id: "switch".into(),
+            part_ids: vec![],
+            board_id: None,
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_offsets: vec![],
+            column_offsets: vec![],
+            column_staggers: vec![],
+            column_splays: vec![],
+            column_origins: vec![],
+            cells: vec![],
+        }),
+        definitions: None,
+    })
+    .unwrap();
+    assert_eq!(
+        mirrored_pair,
+        json!({
+            "kind": "create-mirrored-pair",
+            "left": {"id": "left", "name": "Left", "boardId": "board", "matrixId": "matrix", "partIds": []},
+            "right": {"id": "right", "name": "Right", "boardId": "board", "matrixId": "matrix-mirror", "partIds": [], "mirrorLink": {"sourceId": "left", "axisX": 0.0}},
+            "matrix": {"id": "matrix", "rows": 1, "columns": 1, "pitch": {"x": 19.0, "y": 19.0}, "origin": {"x": 0.0, "y": 0.0}, "definitionId": "switch", "partIds": []}
+        })
+    );
+
+    let mut engine = boardstudio_core::CoreEngine::new();
+    let reply: CoreReply = serde_json::from_str(
+        &engine.request(
+            &serde_json::to_string(&CoreRequest::Open {
+                id: "boxed-open".into(),
+                document,
+            })
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    let reply = serde_json::to_value(reply).unwrap();
+    assert_eq!(reply["kind"], "scene");
+    assert_eq!(reply["id"], "boxed-open");
+    assert_eq!(reply["document"]["id"], "boxed-contract");
+    assert!(reply.get("scene").is_some());
+
+    let artifact_reply = ArtifactReply::PrepareExport {
+        id: "boxed-export".into(),
+        result: Box::new(ExportPlan {
+            snapshot_token: "snapshot".into(),
+            fingerprint: "fingerprint".into(),
+            revision: 0,
+            target: ExportTarget::Board {
+                board_id: "board".into(),
+            },
+            jobs: vec![],
+            reserved_nets: vec![],
+            next_net_index: 1,
+            contours: vec![],
+            captured_document: ProjectDoc::empty("captured", "Captured"),
+            model_paths: Default::default(),
+        }),
+    };
+    let artifact_reply = serde_json::to_value(artifact_reply).unwrap();
+    assert_eq!(artifact_reply["kind"], "prepare-export");
+    assert_eq!(artifact_reply["id"], "boxed-export");
+    assert_eq!(artifact_reply["result"]["snapshotToken"], "snapshot");
+    assert_eq!(artifact_reply["result"]["target"]["kind"], "board");
+    assert_eq!(
+        artifact_reply["result"]["capturedDocument"]["format"],
+        "boardstudio/v2"
+    );
+}
+
+#[test]
 fn optional_and_defaulted_fields_keep_their_json_behavior() {
     let envelope = serde_json::to_value(EnvelopeSource::default()).unwrap();
     assert_eq!(envelope, json!({ "courtyard": null, "keycap": null }));
@@ -72,10 +191,14 @@ fn artifact_import_protocol_preserves_authoritative_source_in_document_json() {
     let request_value = serde_json::to_value(request).unwrap();
     assert_eq!(request_value["kind"], "import-footprint");
     assert_eq!(request_value["definitionId"], "fixture");
-    let reply: ArtifactReply = serde_json::from_str(&boardstudio_core::artifact::request(
+    let reply_json: serde_json::Value = serde_json::from_str(&boardstudio_core::artifact::request(
         &request_value.to_string(),
     ))
     .unwrap();
+    assert_eq!(reply_json["kind"], "import-footprint");
+    assert_eq!(reply_json["id"], "import-1");
+    assert_eq!(reply_json["result"]["definition"]["id"], "fixture");
+    let reply: ArtifactReply = serde_json::from_value(reply_json).unwrap();
     let ArtifactReply::ImportFootprint {
         result: imported, ..
     } = reply
@@ -183,7 +306,7 @@ fn artifact_import_protocol_preserves_authoritative_source_in_document_json() {
         phase: EditPhase::Commit,
         target_ids: vec![],
         operation: EditOperation::ReplaceDocument {
-            document: replacement,
+            document: Box::new(replacement),
         },
     };
     let commit: CoreReply = serde_json::from_str(
