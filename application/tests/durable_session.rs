@@ -333,7 +333,6 @@ fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
         save_attempt_id,
         result: SaveResult::Committed,
     });
-
     session.submit(Event::GestureBegin {
         operation_id: OperationId(21),
         pointer_id: 7,
@@ -362,6 +361,98 @@ fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
     assert!(
         matches!(core_effect(&effects).2, CoreRequest::Edit { command: EditCommand { operation: EditOperation::MoveParts { positions }, phase: EditPhase::Preview, .. }, .. } if positions[0].at.x == 19.0)
     );
+}
+
+#[test]
+fn geometry_snap_ignores_parts_owned_by_another_board() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let mut document = fixture();
+    let mut moving = document.parts[0].clone();
+    moving.id = "moving".into();
+    moving.reference = "SW2".into();
+    moving.pose.at = Vec2 { x: 19.6, y: 0.0 };
+    document.parts.push(moving);
+    document.boards = vec![
+        Board {
+            id: "left".into(),
+            name: "Left".into(),
+            outline_ids: vec![],
+            part_ids: vec!["moving".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        },
+        Board {
+            id: "right".into(),
+            name: "Right".into(),
+            outline_ids: vec![],
+            part_ids: vec!["key".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        },
+    ];
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(22),
+        document,
+    });
+    let (request_id, epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch: epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, _) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+
+    session.submit(Event::Navigate {
+        operation_id: OperationId(24),
+        board_id: "left".into(),
+        instance_id: None,
+    });
+
+    session.submit(Event::GestureBegin {
+        operation_id: OperationId(23),
+        pointer_id: 8,
+        target_ids: vec!["moving".into()],
+        transaction_id: "cross-board-snap".into(),
+        start: vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x: 19.6, y: 0.0 },
+        }],
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        snap_fraction: 0.0,
+        geometry_snap: true,
+        gap: Some(1.0),
+        alt: false,
+    });
+    session.submit(Event::GestureSample {
+        pointer_id: 8,
+        positions: vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x: 19.4, y: 0.0 },
+        }],
+        alt: false,
+    });
+    let generation = session.read_model().gesture.as_ref().unwrap().generation;
+    let effects = session.submit(Event::GestureFrame { generation });
+    assert!(matches!(
+        core_effect(&effects).2,
+        CoreRequest::Edit {
+            command: EditCommand {
+                operation: EditOperation::MoveParts { positions },
+                phase: EditPhase::Preview,
+                ..
+            },
+            ..
+        } if positions[0].at.x == 19.4
+    ));
 }
 
 #[test]
@@ -881,4 +972,50 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
             .iter()
             .any(|effect| matches!(effect, Effect::DeliverExport { .. }))
     );
+}
+
+#[test]
+fn generation_block_is_typed_and_stale_block_completion_is_ignored() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let scope = session.scope().unwrap();
+    let effects = session.submit(Event::StartGeneration {
+        operation_id: OperationId(80),
+        scope: scope.clone(),
+    });
+    let job_id = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::RunGeneration { job_id, .. } => Some(*job_id),
+            _ => None,
+        })
+        .unwrap();
+    let mut stale_scope = scope.clone();
+    stale_scope.board_id = "other-board".into();
+    session.complete(Completion::GenerationBlocked {
+        job_id,
+        scope: stale_scope,
+        reason: "stale blocked outcome".into(),
+    });
+    assert!(matches!(
+        session.read_model().generation,
+        boardstudio_application::GenerationStatus::Preparing { job_id: current } if current == job_id
+    ));
+    let effects = session.complete(Completion::GenerationBlocked {
+        job_id,
+        scope,
+        reason: "case has blocking findings".into(),
+    });
+    assert!(matches!(
+        session.read_model().generation,
+        boardstudio_application::GenerationStatus::Blocked { job_id: current, .. } if current == job_id
+    ));
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Settled {
+            operation_id: OperationId(80),
+            outcome: TerminalOutcome::Rejected(reason)
+        } if reason == "case has blocking findings"
+    )));
 }
