@@ -1,6 +1,6 @@
 {
   "run": "M1-continuation-20261001",
-  "status": "executing P2 completion and isolated P3 feasibility",
+  "status": "P2 accepted and integrated; P3 isolated browser/storage/offline proof executing",
   "approval": "User explicitly requested PLEASE IMPLEMENT THIS PLAN: Remaining Dioxus migration steps, including public-enum boxing and one scoped three-d Arc exception. Earlier repair caps removed by user.",
   "plan_revision": "Remaining Dioxus migration steps / 2026-10-01",
   "specifications": [
@@ -40,30 +40,48 @@
   },
   "tasks": {
     "P2-ABI": {
-      "status": "ready",
+      "status": "complete: reviewed and integration-verified within P2 scope",
       "category": "intentional Rust API refactor; wire/file compatibility preserved",
       "ownership": [
         "core",
         "renderer/src/wasm.rs",
         "existing Rust prototype callers"
       ],
-      "acceptance": "strict native/WASM Clippy and fmt, full affected Rust suites, generated contract equality, JSON/request/archive parity; only approved Arc exception"
+      "acceptance": "strict native/WASM Clippy and fmt, full affected Rust suites, generated contract equality, JSON/request/archive parity; only approved Arc exception",
+      "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-abi-final-20261001",
+      "worker_base": "b6d75b2b53c9d23bf6ea94a951a22db0c0ceb736",
+      "candidate": "7be0baa2e988bf3ae718c0c24e4cb4e22f435e5a",
+      "reviewed": "7be0baa2e988bf3ae718c0c24e4cb4e22f435e5a",
+      "integration": "f7f6787f",
+      "review_evidence": ".scratch/prototypes/p2-lifecycle/evidence/continuation/review-final.json",
+      "verified_integration_source": "e5d4e74868486e052c7a74ab50c5540481136220",
+      "verification_evidence": ".scratch/prototypes/p2-lifecycle/evidence/continuation/gates.json"
     },
     "P2-BUILD-BROWSER": {
-      "status": "ready; final checks depend on P2-ABI",
+      "status": "complete: reviewed and integration-verified within P2 scope",
       "category": "build provenance and remaining lifecycle acceptance",
       "ownership": [
         ".scratch/prototypes/p2-lifecycle build/staging/tests/evidence"
       ],
-      "acceptance": "Fresh recorded provider builds; root/subpath Dioxus releases; exact asset identity; drag/history/cancellation/focus/DPR/teardown/paired checks and raw accessibility evidence"
+      "acceptance": "Fresh recorded provider builds; root/subpath Dioxus releases; exact asset identity; drag/history/cancellation/focus/DPR/teardown/paired checks and raw accessibility evidence",
+      "verified_integration_source": "e5d4e74868486e052c7a74ab50c5540481136220",
+      "review_evidence": ".scratch/prototypes/p2-lifecycle/evidence/continuation/review-final.json",
+      "verification_evidence": ".scratch/prototypes/p2-lifecycle/evidence/continuation/gates.json",
+      "base": "b6d75b2b53c9d23bf6ea94a951a22db0c0ceb736",
+      "candidate": "e5d4e74868486e052c7a74ab50c5540481136220",
+      "reviewed": "e5d4e74868486e052c7a74ab50c5540481136220",
+      "integration": "e5d4e74868486e052c7a74ab50c5540481136220",
+      "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001"
     },
     "P3-DURABILITY": {
-      "status": "ready",
+      "status": "implementing: native archive and real IndexedDB abort/retry/reload browser proof passed; small Rust-only service worker starts and reopens offline; cache update validation in progress; not yet accepted",
       "category": "isolated feasibility prototype",
       "ownership": [
         ".scratch/prototypes/p3-durability"
       ],
-      "acceptance": "Real IndexedDB commit/abort/retry without duplicate edit/history; faithful project/assets/archive roundtrip; Rust-owned service-worker cache policy, offline/root/subpath/cold missing assets/update evidence; no production promotion"
+      "acceptance": "Real IndexedDB commit/abort/retry without duplicate edit/history; faithful project/assets/archive roundtrip; Rust-owned service-worker cache policy, offline/root/subpath/cold missing assets/update evidence; no production promotion",
+      "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/p3-durability-20261001",
+      "worker_base": "b6d75b2b53c9d23bf6ea94a951a22db0c0ceb736"
     }
   },
   "next_after_acceptance": [
@@ -71,5 +89,8 @@
     "Implement reviewed headless application/session and web host/presentation M1 workflow"
   ],
   "repair_limit": null,
-  "review_policy": "Fresh exact-candidate independent review; coordinator alone integrates and records status; changed candidates receive affected checks/review."
+  "review_policy": "Fresh exact-candidate independent review; coordinator alone integrates and records status; changed candidates receive affected checks/review.",
+  "next_eligible_tasks": [
+    "P3-DURABILITY: finish offline scope/update checks; independent exact-candidate review and integration validation"
+  ]
 }

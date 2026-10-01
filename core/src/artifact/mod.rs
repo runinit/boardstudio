@@ -96,11 +96,17 @@ fn handle(request: ArtifactRequest) -> ArtifactReply {
             definition_id,
             source,
         } => match source::import_footprint(&source, &definition_id) {
-            Ok(result) => ArtifactReply::ImportFootprint { id, result },
+            Ok(result) => ArtifactReply::ImportFootprint {
+                id,
+                result: Box::new(result),
+            },
             Err(error) => ArtifactReply::Error { id, error },
         },
         ArtifactRequest::PrepareExport { id, request } => match kicad::prepare_export(request) {
-            Ok(result) => ArtifactReply::PrepareExport { id, result },
+            Ok(result) => ArtifactReply::PrepareExport {
+                id,
+                result: Box::new(result),
+            },
             Err(error) => ArtifactReply::Error { id, error },
         },
         ArtifactRequest::FinishExport { id, request } => match kicad::finish_export(request) {

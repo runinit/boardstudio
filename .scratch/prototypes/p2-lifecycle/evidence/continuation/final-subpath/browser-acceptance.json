@@ -1,0 +1,308 @@
+{
+  "url": "http://127.0.0.1:4461/boardstudio/",
+  "checks": {
+    "keyboardUndoRedo": {
+      "initial": "translate(519.8244267835937 248.40467708047873) rotate(-10)",
+      "moved": "translate(523.1860783776378 248.40467708047873) rotate(-10)"
+    },
+    "focusOrder": [
+      {
+        "tag": "BUTTON",
+        "text": "Unmount editor panel"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Undo"
+      },
+      {
+        "tag": "BUTTON",
+        "text": "Redo"
+      },
+      {
+        "tag": "svg",
+        "text": "Keyboard layout editor"
+      }
+    ],
+    "focusStyle": {
+      "outline": "rgb(71, 121, 229) solid 3px",
+      "offset": "2px"
+    },
+    "sameCanvasDpr": {
+      "beforeDpr": {
+        "width": 503,
+        "height": 320,
+        "cssWidth": 503,
+        "cssHeight": 320,
+        "dpr": "1"
+      },
+      "afterDpr": {
+        "width": 1006,
+        "height": 640,
+        "cssWidth": 503,
+        "cssHeight": 320,
+        "dpr": "2"
+      },
+      "dprEvents": [
+        {
+          "matches": false,
+          "dpr": 2
+        }
+      ]
+    },
+    "compact": {
+      "viewport": 390,
+      "content": 390,
+      "canvas": {
+        "x": 29,
+        "y": 674.734375,
+        "width": 332,
+        "height": 260,
+        "top": 674.734375,
+        "right": 361,
+        "bottom": 934.734375,
+        "left": 29
+      }
+    },
+    "teardownCycles": [
+      {
+        "observers": 0,
+        "contexts": [
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          }
+        ]
+      },
+      {
+        "observers": 0,
+        "contexts": [
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          },
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          }
+        ]
+      },
+      {
+        "observers": 0,
+        "contexts": [
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          },
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          },
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          }
+        ]
+      },
+      {
+        "observers": 0,
+        "contexts": [
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          },
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          },
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          },
+          {
+            "connected": false,
+            "state": "disposed",
+            "contextLost": true,
+            "live": {
+              "Buffer": 0,
+              "Texture": 0,
+              "Program": 0,
+              "Shader": 0,
+              "Framebuffer": 0,
+              "Renderbuffer": 0,
+              "VertexArray": 1
+            }
+          }
+        ]
+      }
+    ],
+    "contextLoss": "WebGL context lost; renderer stopped and reported failure"
+  },
+  "runtimeErrors": [],
+  "failedRequests": [
+    {
+      "url": "http://127.0.0.1:4461/assets/renderer/boardstudio_renderer_wasm.js",
+      "error": {
+        "errorText": "net::ERR_FAILED"
+      }
+    }
+  ],
+  "limitations": [
+    "GPU counters measure API resource ownership, not physical GPU memory.",
+    "Accessibility tree and keyboard evidence do not establish screen-reader speech compatibility.",
+    "Timings and transfer sizes are measurements; no new pass thresholds are introduced."
+  ],
+  "initialReadyMs": 332,
+  "resources": [
+    {
+      "name": "http://127.0.0.1:4461/boardstudio/assets/p2-lifecycle-probe-dxh3a93ecd5eb7679c1.js",
+      "transferSize": 57407,
+      "encodedBodySize": 57107,
+      "decodedBodySize": 57107,
+      "duration": 5
+    },
+    {
+      "name": "http://127.0.0.1:4461/boardstudio/assets/p2-lifecycle-probe_bg-dxh9f3193e6ebe5fd4.wasm",
+      "transferSize": 7462249,
+      "encodedBodySize": 7461949,
+      "decodedBodySize": 7461949,
+      "duration": 14
+    },
+    {
+      "name": "http://127.0.0.1:4461/favicon.ico",
+      "transferSize": 760,
+      "encodedBodySize": 460,
+      "decodedBodySize": 460,
+      "duration": 3.2000000029802322
+    },
+    {
+      "name": "http://127.0.0.1:4461/boardstudio/assets/worker/worker-entry.js",
+      "transferSize": 393,
+      "encodedBodySize": 93,
+      "decodedBodySize": 93,
+      "duration": -13.900000005960464
+    },
+    {
+      "name": "http://127.0.0.1:4461/boardstudio/assets/p1-worker/p1_core.js",
+      "transferSize": 16759,
+      "encodedBodySize": 16459,
+      "decodedBodySize": 16459,
+      "duration": 1.7000000029802322
+    },
+    {
+      "name": "http://127.0.0.1:4461/boardstudio/assets/renderer/boardstudio_renderer_wasm.js",
+      "transferSize": 52755,
+      "encodedBodySize": 52455,
+      "decodedBodySize": 52455,
+      "duration": 2.300000011920929
+    },
+    {
+      "name": "http://127.0.0.1:4461/boardstudio/assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+      "transferSize": 858870,
+      "encodedBodySize": 858570,
+      "decodedBodySize": 858570,
+      "duration": 3.1000000089406967
+    }
+  ],
+  "status": "failed",
+  "failure": "page.waitForFunction: Timeout 30000ms exceeded.\n    at ready (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/tests/browser-acceptance.mjs:61:28)\n    at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/prototypes/p2-lifecycle/wasm/tests/browser-acceptance.mjs:149:11",
+  "failurePage": {
+    "dpr": 1,
+    "matchesDpr2": false,
+    "status": "Renderer initialization failed: {}",
+    "canvas": "<canvas class=\"renderer-canvas\" aria-label=\"Rendered keyboard board preview\"></canvas>",
+    "resources": {
+      "observers": 0,
+      "contexts": []
+    }
+  }
+}

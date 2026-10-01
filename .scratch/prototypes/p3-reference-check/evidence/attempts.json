@@ -1,0 +1,15 @@
+[
+  {
+    "attempt": "initial",
+    "exit": 1,
+    "diagnosis": "Test server sent headers before async file read completed; a missing requested file made its fallback send headers twice. Fixed by reading before writing headers. Library-mode build also inlined optional model assets; normal entry build preserves lazy asset URLs. No application source changed.",
+    "log": "initial.log.gz"
+  },
+  {
+    "attempt": "reference2",
+    "exit": 0,
+    "source_status": "P3 uncommitted working candidate; final source rerun required",
+    "log": "reference2.log.gz",
+    "results": "pre-review-results.json"
+  }
+]

@@ -280,12 +280,12 @@ unproven by this experiment.
 The approved P2-r1-R1 run continues the accepted lifecycle investigation in
 [the isolated prototype](../.scratch/prototypes/p2-lifecycle/PLAN.md), with its
 actual authority and current gate status in
-[the renewal record](../.scratch/prototypes/p2-lifecycle/evidence/renewal/PLAN.md).
+[the continuation record](migration/continuation-run.json).
 It is an investigation of one copied Reviung 41 document, an SVG gesture surface
 and the existing renderer canvas. The coordinator owns the experiment. It does
 not replace the production session or establish full editor, persistence or
-performance parity. An interim runnable build remains incomplete while any
-original acceptance gate is blocked.
+performance parity. Scoped P2 feasibility is accepted at `e5d4e748`; production
+adoption remains a separate reviewed M1 step.
 
 The prototype uses modules in one isolated web package rather than new
 production crates. Gesture policy must be testable without Dioxus or DOM
@@ -323,10 +323,15 @@ pixels, pointer capture, final samples, cancellation, DPR/resize and repeated
 unmount/remount, decides whether these lifetime contracts hold.
 
 The original React application remains the reference and fallback on an
-isolated origin. No production provider behavior, schema, backend or framework
-pin changes are introduced. The renewal permits only the recorded four-file
-renderer formatter patch; baseline strict Clippy failures remain acceptance
-blockers rather than authorizing provider fixes or lint suppression.
+isolated origin. The later approved continuation boxes oversized Rust enum
+payloads while preserving JSON, persisted documents and generated TypeScript.
+One narrow Clippy exception documents three-d 0.19's Arc context parameter.
+Renderer disposal clears its cached programs to break their context ownership
+cycle; the departing canvas releases its WebGL context. Root/subpath browser
+checks establish these scoped lifecycle fixes. Import URLs include the current
+origin and deployment prefix, preventing an old document origin from being reused.
+Provider artifacts have source and byte fingerprints, including embedded inputs.
+The framework pin remains Dioxus/CLI 0.7.10; no schema or CAD backend change occurs.
 
 The named coordinator-owned retirement follow-up is **P2 lifecycle retirement**,
 part of the next explicitly approved production session/web-host slice. Retire

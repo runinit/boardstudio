@@ -13,6 +13,10 @@ pub struct RendererHost {
     inner: Rc<RendererInner>,
 }
 
+type EventCallback = Closure<dyn FnMut(Event)>;
+type ObserverCallback = Closure<dyn FnMut(Array, ResizeObserver)>;
+type FrameCallback = Closure<dyn FnMut(f64)>;
+
 struct RendererInner {
     renderer: JsValue,
     canvas: HtmlCanvasElement,
@@ -22,12 +26,12 @@ struct RendererInner {
     frame_id: Cell<i32>,
     render_submissions: Cell<u32>,
     observer: RefCell<Option<ResizeObserver>>,
-    observer_callback: RefCell<Option<Closure<dyn FnMut(Array, ResizeObserver)>>>,
-    resize_callback: RefCell<Option<Closure<dyn FnMut(Event)>>>,
+    observer_callback: RefCell<Option<ObserverCallback>>,
+    resize_callback: RefCell<Option<EventCallback>>,
     dpr_query: RefCell<Option<MediaQueryList>>,
-    dpr_callback: RefCell<Option<Closure<dyn FnMut(Event)>>>,
-    context_callback: RefCell<Option<Closure<dyn FnMut(Event)>>>,
-    frame_callback: RefCell<Option<Closure<dyn FnMut(f64)>>>,
+    dpr_callback: RefCell<Option<EventCallback>>,
+    context_callback: RefCell<Option<EventCallback>>,
+    frame_callback: RefCell<Option<FrameCallback>>,
 }
 
 #[derive(Serialize)]
@@ -194,10 +198,10 @@ fn ensure_current(is_current: &Rc<dyn Fn() -> bool>) -> Result<(), String> {
 fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
     let weak = Rc::downgrade(inner);
     let observer_callback = Closure::<dyn FnMut(Array, ResizeObserver)>::new(move |_, _| {
-        if let Some(inner) = weak.upgrade() {
-            if let Err(error) = resize(&inner) {
-                (inner.status)(format!("Resize failed: {}", js_error(error)));
-            }
+        if let Some(inner) = weak.upgrade()
+            && let Err(error) = resize(&inner)
+        {
+            (inner.status)(format!("Resize failed: {}", js_error(error)));
         }
     });
     let observer = ResizeObserver::new(observer_callback.as_ref().unchecked_ref())?;
@@ -207,10 +211,10 @@ fn install_lifecycle(inner: &Rc<RendererInner>) -> Result<(), JsValue> {
 
     let weak = Rc::downgrade(inner);
     let resize_callback = Closure::<dyn FnMut(Event)>::new(move |_| {
-        if let Some(inner) = weak.upgrade() {
-            if let Err(error) = resize(&inner) {
-                (inner.status)(format!("Resize failed: {}", js_error(error)));
-            }
+        if let Some(inner) = weak.upgrade()
+            && let Err(error) = resize(&inner)
+        {
+            (inner.status)(format!("Resize failed: {}", js_error(error)));
         }
     });
     window()?
@@ -418,6 +422,9 @@ fn dispose(inner: &RendererInner) -> Result<(), String> {
     if let Err(error) = call_method(&inner.renderer, "free", &[]) {
         failures.push(format!("renderer free: {}", js_error(error)));
     }
+    if let Err(error) = release_graphics_context(&inner.canvas) {
+        failures.push(format!("release WebGL context: {}", js_error(error)));
+    }
     inner.observer_callback.borrow_mut().take();
     inner.dpr_callback.borrow_mut().take();
     inner.frame_callback.borrow_mut().take();
@@ -436,6 +443,27 @@ fn dispose(inner: &RendererInner) -> Result<(), String> {
     }
 }
 
+fn release_graphics_context(canvas: &HtmlCanvasElement) -> Result<(), JsValue> {
+    let Some(context) = canvas.get_context("webgl2")? else {
+        return Ok(());
+    };
+    if call_method(&context, "isContextLost", &[])?.as_bool() == Some(true) {
+        return Ok(());
+    }
+    let extension = call_method(
+        &context,
+        "getExtension",
+        &[JsValue::from_str("WEBGL_lose_context")],
+    )?;
+    if extension.is_null() || extension.is_undefined() {
+        return Err(JsValue::from_str("WEBGL_lose_context is unavailable"));
+    }
+    // The canvas is leaving this mount permanently. This releases the context's
+    // internal VAO too; three-d 0.19 does not expose that object for deletion.
+    call_method(&extension, "loseContext", &[])?;
+    Ok(())
+}
+
 fn call_method(receiver: &JsValue, name: &str, arguments: &[JsValue]) -> Result<JsValue, JsValue> {
     let function = Reflect::get(receiver, &JsValue::from_str(name))?.dyn_into::<Function>()?;
     let args = Array::new();
@@ -446,17 +474,17 @@ fn call_method(receiver: &JsValue, name: &str, arguments: &[JsValue]) -> Result<
 }
 
 fn resource_url(path: &str) -> Result<String, String> {
-    let path_name = window()
-        .map_err(js_error)?
-        .location()
-        .pathname()
-        .map_err(js_error)?;
+    let location = window().map_err(js_error)?.location();
+    let path_name = location.pathname().map_err(js_error)?;
+    let origin = location.origin().map_err(js_error)?;
     let prefix = if path_name.starts_with("/boardstudio/") || path_name == "/boardstudio" {
         "/boardstudio/"
     } else {
         "/"
     };
-    Ok(format!("{prefix}{path}"))
+    // Dynamic Function imports can retain an earlier document's referrer base
+    // after navigation. Pin both origin and prefix to the current host page.
+    Ok(format!("{origin}{prefix}{path}"))
 }
 
 fn window() -> Result<Window, JsValue> {
@@ -466,6 +494,11 @@ fn window() -> Result<Window, JsValue> {
 fn js_error(error: JsValue) -> String {
     error
         .as_string()
+        .or_else(|| {
+            Reflect::get(&error, &JsValue::from_str("message"))
+                .ok()
+                .and_then(|value| value.as_string())
+        })
         .or_else(|| {
             js_sys::JSON::stringify(&error)
                 .ok()

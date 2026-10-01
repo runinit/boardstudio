@@ -1,7 +1,9 @@
 # P2-r1: bounded Dioxus event/canvas lifecycle probe
 
-Status: proposed; execution approval pending. This continues the accepted P2
-charter in CAPABILITY-MAP.md, not a competing architecture or migration backlog.
+Status: approved and completed within the isolated P2 scope at `e5d4e748`.
+See [current status](README.md) and [acceptance](evidence/continuation/gates.json).
+The proposal/approval-boundary text below is the preserved original charter;
+subsequent user approval and unlimited repair instructions supersede it.
 
 ## Exact base, specifications and approval boundary
 

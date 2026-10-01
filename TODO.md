@@ -6,8 +6,8 @@
 
 The user approved implementing the remaining-migration plan. The active task set is P2 completion plus isolated P3 durability/offline feasibility; see [run status](docs/migration/continuation-run.json). Earlier repair-limit and fixed-defect statements below are historical. Full M1 and production parity remain unfinished.
 
-- [ ] P2-ABI: box approved public payloads while preserving serialized contracts; one documented three-d Arc exception.
-- [ ] P2-BUILD-BROWSER: reproducible provider assets and remaining P2 browser/accessibility evidence.
+- [x] P2-ABI: box approved public payloads while preserving serialized contracts; one documented three-d Arc exception.
+- [x] P2-BUILD-BROWSER: reproducible provider assets and remaining P2 browser/accessibility evidence.
 - [ ] P3-DURABILITY: real IndexedDB recovery/archive and Rust-owned offline-policy feasibility.
 
 ## Current request
@@ -31,9 +31,9 @@ These are isolated integration probes; production adoption is not implicit.
 
 - [ ] P2-LIFECYCLE — **blocked in preflight, executable implementation unstarted**. User approved the exact [P2-r1 proposal](.scratch/prototypes/p2-lifecycle/PLAN.md), base `7ed7b5ec`, owned branch `prototype/boardstudio-p2-lifecycle`. Required renderer formatting fails in four files byte-identical to that base. Renderer edits are outside the approved file boundary, so no provider edits/formatting exception are inferred. [Failure and provenance](.scratch/prototypes/p2-lifecycle/evidence/blocker.json); [unapplied formatting-only scope extension](.scratch/prototypes/p2-lifecycle/evidence/scope-extension.json). Two documentation/evidence repairs exhausted; no other eligible task. Build/browser/lifecycle acceptance is unperformed; P3 and production adoption remain excluded.
 
-## Current approved renewal: P2-r1-R1
+## Historical approved renewal: P2-r1-R1
 
-- [ ] P2-LIFECYCLE — **runnable prototype; acceptance blocked; both repair budgets exhausted2/2**. User approved the [Luna Fast renewal](.scratch/dioxus-browser-trial/p2-fast-run.md), exact proposal SHA8d44c8b…, from689f8962. [Authority/immutable fixture](.scratch/prototypes/p2-lifecycle/evidence/renewal/task-start.json) and [current status](.scratch/prototypes/p2-lifecycle/evidence/renewal/task-status.json) retain the finite budgets and gates. Root4394/subpath4393 releases run; scoped visible frame, gesture/history at1280×720, native DPR, actual cleanup/context-loss and delayed-import guards pass. Full app469 tests, native prototype7/core334/renderer26 tests and reference build/contract/repository/boundary checks pass. Existing provider fmt/strict Clippy, axe html-has-lang and a verified short-viewport focus-scroll drag defect block acceptance. No third repair, waived gate or executable integration; final fresh reviews/evidence remain required. All old worktrees and unrelated changes are preserved; no dependent task is eligible.
+- [ ] P2-LIFECYCLE — **runnable prototype; acceptance blocked; both repair budgets exhausted2/2**. User approved the [Luna Fast renewal](.scratch/dioxus-browser-trial/p2-fast-run.md), exact proposal SHA8d44c8b…, from689f8962. [Authority/immutable fixture](.scratch/prototypes/p2-lifecycle/evidence/renewal/task-start.json) and [checkpoint history](.scratch/prototypes/p2-lifecycle/evidence/renewal/task-status.json) retain the superseded finite budgets and gates. Root4394/subpath4393 releases run; scoped visible frame, gesture/history at1280×720, native DPR, actual cleanup/context-loss and delayed-import guards pass. Full app469 tests, native prototype7/core334/renderer26 tests and reference build/contract/repository/boundary checks pass. Existing provider fmt/strict Clippy, axe html-has-lang and a verified short-viewport focus-scroll drag defect block acceptance. No third repair, waived gate or executable integration; final fresh reviews/evidence remain required. All old worktrees and unrelated changes are preserved; no dependent task is eligible.
 
 ## Prior request history
 

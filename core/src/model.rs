@@ -1088,7 +1088,7 @@ pub enum EditOperation {
         change: KeycapKeyChange,
     },
     SetMechanical {
-        configuration: Option<MechanicalConfiguration>,
+        configuration: Option<Box<MechanicalConfiguration>>,
     },
     MoveParts {
         positions: Vec<Position>,
@@ -1163,7 +1163,7 @@ pub enum EditOperation {
     CreateMirroredPair {
         left: Layout,
         right: Layout,
-        matrix: Matrix,
+        matrix: Box<Matrix>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         definitions: Option<Vec<PartDefinition>>,
     },
@@ -1174,7 +1174,7 @@ pub enum EditOperation {
         id: String,
     },
     ReplaceDocument {
-        document: ProjectDoc,
+        document: Box<ProjectDoc>,
     },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1541,7 +1541,7 @@ pub enum CoreReply {
     Scene {
         id: String,
         scene: SceneDelta,
-        document: ProjectDoc,
+        document: Box<ProjectDoc>,
     },
     #[serde(rename = "matrix-projections")]
     MatrixProjections {
@@ -1876,11 +1876,11 @@ pub enum ArtifactReply {
     },
     ImportFootprint {
         id: String,
-        result: CompiledFootprint,
+        result: Box<CompiledFootprint>,
     },
     PrepareExport {
         id: String,
-        result: ExportPlan,
+        result: Box<ExportPlan>,
     },
     FinishExport {
         id: String,

@@ -90,7 +90,7 @@ fn public_keymap_edit_and_undo_preserve_keycaps_and_legacy_data() {
     let mut legacy_engine = CoreEngine::new();
     legacy_engine.handle(CoreRequest::Open {
         id: "reopen".into(),
-        document: document.clone(),
+        document: document.as_ref().clone(),
     });
     let reply = legacy_engine.handle(CoreRequest::Edit {
         id: "legacy".into(),
