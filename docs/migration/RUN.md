@@ -28,7 +28,7 @@ unauthorized model/provider switch or automatic prototype promotion is allowed.
 | --- | --- | --- |
 | DOC-1 | Complete and technically validate the six mapped M1 specs; preserve accepted inputs | Complete: reviewed and integrated `47d6dbce`; documentation checks only |
 | TOOL-1 | Install official Dioxus CLI **0.7.10** selected by ADR 0003; verify official digest and `dx --version`; add a command link only if absent | Complete: official archive digest and `dioxus 0.7.10 (57d6794)` verified, exit 0 |
-| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; P1-CAD next eligible, unstarted and outside this defect-only run |
+| P1 | Existing worker/CAD packaging charter; exact bounded [P1-r1](../../tasks/plan.md), task set P1-CORE → P1-CAD in root TODO | P1-CORE accepted via reviewed `cce8e78b`; current P1-CAD continuation blocked/unaccepted; [handoff](#p1-cad-blocked-reference-comparison) |
 | P1-U64 | Explicit renewed defect-only [P1-U64-r1 authority](../../.scratch/prototypes/p1-core/evidence/u64-repair/task-start.json) | Complete; exact source `cce8e78b` reviewed, integrated and validated; [handoff](#p1-u64-accepted-source-and-resumable-handoff) |
 
 TOOL-1 may write only its project-owned tool directory under
@@ -84,7 +84,7 @@ Official archive SHA-256 is
 the command link resolves to the project-owned versioned installation. No PATH
 or configuration change, source build or existing-binary overwrite was needed.
 
-## DOC-1 accepted revision and next task
+## Historical DOC-1 accepted revision and next task
 
 Exact candidate/review/integration: `47d6dbce5af2285d1f886ef63d2d4c7b1de57925`,
 reviewed by the fresh Luna/high reviewer against `38bbe42f`. The stale approval
@@ -110,7 +110,7 @@ closure failure; the non-authoring reviewer performed exact-candidate review.
 The later-discovered deferred archive tool resolved closure before final handoff. A new task-owned worktree is created and checked before any prototype
 edit. P1-CAD depends on accepted P1-CORE; P2/P3 remain outside this task set.
 
-## P1-CORE stopped: preserved-provider compatibility failure
+## Historical P1-CORE stopped: preserved-provider compatibility failure
 
 Exact authority: P1-r1 and six module specs at reviewed `47d6dbce`, with the
 recorded advance approval. Task base `e9950d17ed9d1a067df4660783740edd26343b19`;
@@ -257,3 +257,78 @@ Two diagnosed repairs were used (lossless log packaging, exact float parser);
 no unlimited retry, version/provider routing change or gate weakening occurred.
 The failed P1-CORE worktree, new task-owned worktree and all protected work are
 retained. No push, deploy or main merge was performed.
+
+
+## P1-CAD blocked reference comparison
+
+The explicit `$implement /tmp/boardstudio-migration-m1-20261001/docs/migration/RUN.md`
+request resumes the approved **P1-r1 P1-CAD** task after accepted P1-CORE.
+Exact integration base: `c1605a1c6018a77ac7636143bc0dda3fc8d86498`; authority
+is the recorded advance approval plus this explicit continuation. No architecture
+rediscovery, competing plan, P2/P3 or automatic production promotion is included.
+Owned worktree: `/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001`,
+branch `prototype/boardstudio-p1-cad`; isolated source candidate
+`f0fe6e2f77ad53bd63f67056a6d08f528bac5a7c`. Source stays on that branch.
+Canonical integration contains status/evidence only. Full commits, commands,
+logs, review routing and worktree ownership are in the
+[task record](../../.scratch/migration-specs-validation/p1-cad-blocked-review.json).
+
+Preflight verifies Codex0.159.3 recognized configuration, pinned Dioxus0.7.10/
+bindings and actual local CAD toolchain image, Git base/status/worktrees,
+permissions, frozen dependencies and repository commands. A fresh read-only smoke
+requests Luna/medium; Codex DB and turn-context confirm runtime model/effort.
+Fresh Standards/Spec reviews request Luna/high, independently confirmed likewise.
+The smoke child is archived; review routing snapshots are taken before closure.
+After final results are retained, supported reviewer closure is recorded separately.
+No writes were delegated and no alternate model/provider or permission change was made.
+
+Verified on the final prototype source: three meaningful native transport/cache
+RED/GREEN tests, native build, formatting and strict native/WASM host/worker Clippy;
+CAD typecheck; fresh CAD package/worker and both pinned release hosts; actual local
+Chromium root and `/boardstudio/` assertions. Existing CAD native tests pass23 with
+four unchanged ignored diagnostic benchmarks; all49 JavaScript CAD regressions
+pass with zero skipped. The copied holed plate is prepared by the public core
+example. Real workers return preview/export meshes with expected bounds and
+720mm³ volume, committed STEP that reopens, exact bodyKey/full-delta identities,
+active/queued cancellation without completed-cache advancement, raced cache
+consumption, retry and close/crash/init settlement. Actual owned-buffer detachment
+and byte counts, remaining copies, source and served artifact hashes are retained.
+Repository/protected-input checks pass; provider sources/manifests/locks are unchanged.
+These are bounded fixture/package results, not full-M1/platform/performance parity.
+
+**Failed gate retained:** `node evidence/check-step.mjs` exits1 at the independent
+reference preview vertex comparison: isolated cold preview192 versus reference
+preview-after-export96. Literal bounds and volume agree; root STEP/solid/export
+checks preceding this assertion pass, but the harness stops before completing the
+subpath independent comparison. Existing `cached_region` may use the planar
+mesher; an export miss uses the kernel mesh and populates `PREVIEW_CACHE`, which
+later preview returns. This supports a cache-state mismatch explanation, not a
+passing equivalence result or a confirmed geometry regression. The failing
+assertion is unchanged; no baseline/test normalization or kernel alteration occurs.
+
+Two diagnosed repairs were used: build the required public core preparation
+executable before the unchanged CAD native suite; then satisfy pinned Rust1.98
+Clippy with a buffer type alias, if-let chains and `as_chunks`. All affected final
+checks/builds/browser probes pass. No third implementation repair is attempted.
+Verbatim upstream docs and generated STEP include trailing spaces; gzip packaging
+preserves their exact bytes/hashes and raw owned-worktree copies for review rather
+than normalizing artifacts. This administrative evidence packaging changes no
+assertion, provider or check. Initial failed logs and browser artifacts remain.
+
+Exact two-axis review keeps the candidate **blocked/unaccepted**. Standards finds
+one documented gap: the README describes the experimental worker boundary, but
+CONSTRAINTS requires an architecture-document entry too. Spec finds the unresolved
+reference/cached-uncached comparison; no scope creep or weakened checks is reported.
+The source review and final evidence-only follow-up are separately recorded.
+Architecture documentation and equivalent-cache-state control evidence remain open;
+neither is silently supplied by promotion of the prototype. Existing CAD's JS
+Number revision ABI above2^53-1 is also unproven here; this fixture uses revision7.
+Accepted P1-CORE's full-u64 text-frame proof remains intact.
+
+No safe unblocked task remains in this defined graph. Resume from the preserved
+branch/worktree with a separately bounded repair that explicitly addresses the
+exhausted attempt limit, compares equivalent cold/warm preview/export cache
+lifetimes, resolves the architecture documentation gap, and reruns affected gates
+and exact review. Preserve the failed comparison and all work. P1-CAD is unchecked;
+P2/P3, full M1 and historical missing/failed acceptance remain open. No push,
+deploy, main merge, protected-worktree modification or failed worktree deletion.

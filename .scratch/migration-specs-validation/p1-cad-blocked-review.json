@@ -1,0 +1,68 @@
+{
+  "task": "P1-CAD",
+  "plan_revision": "P1-r1",
+  "authority": "Advance approval + explicit $implement current migration RUN continuation",
+  "status": "blocked, unaccepted",
+  "base": "c1605a1c6018a77ac7636143bc0dda3fc8d86498",
+  "source_candidate": "f0fe6e2f77ad53bd63f67056a6d08f528bac5a7c",
+  "reviewed_source": "f0fe6e2f77ad53bd63f67056a6d08f528bac5a7c",
+  "prototype_integration": null,
+  "worktree": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001",
+  "branch": "prototype/boardstudio-p1-cad",
+  "owner": "coordinator",
+  "evidence_dir": "/home/chris/.local/share/boardstudio/worktrees/p1-cad-20261001/.scratch/prototypes/p1-cad/evidence",
+  "repairs": 2,
+  "repair_limit": 2,
+  "failed_gate": "unchanged independent preview count comparison192vs96",
+  "review_counts": {
+    "standards": 1,
+    "spec": 1
+  },
+  "review_issues": [
+    "Missing architecture-document entry for experimental browser boundary",
+    "Unresolved equivalent-cache-state reference comparison"
+  ],
+  "next_eligible": [],
+  "verified": {
+    "native_protocol_tests": 3,
+    "native_cad_pass": 23,
+    "native_cad_preexisting_ignored": 4,
+    "javascript_cad_pass": 49,
+    "javascript_cad_skipped": 0,
+    "release_root_and_subpath_browser": "passed on latest source",
+    "strict_rust_checks": "passed",
+    "cad_typecheck": "passed",
+    "repo_check": "passed",
+    "protected_31_inputs": "match"
+  },
+  "unfinished": [
+    "Independent reference comparison",
+    "Architecture boundary documentation",
+    "P2/P3 and full M1",
+    "Full-range CAD u64 ABI compatibility above JS safe integer range"
+  ],
+  "command_records": [
+    "task-start.json",
+    "preflight.json",
+    "smoke.json",
+    "smoke-closure.json",
+    "prerequisites.json",
+    "cad-baseline-build.json",
+    "cad-repaired-baseline-build.json",
+    "repair-attempts.json",
+    "final-checks.json",
+    "release-checks.json",
+    "step-comparison-failure.json",
+    "repo-check.json",
+    "final-artifact-identity.json",
+    "protected-input-audit.json",
+    "review-routing.json",
+    "standards-review.txt",
+    "spec-review.txt"
+  ],
+  "resumption": "No further repair in exhausted run; renew a bounded equivalent-cache-state validation/adapter correction and architecture documentation task, retain failed assertion and worktrees.",
+  "reviewed_evidence_candidate": "6ed33becfb188b79c2e15d070c9e10dcf5e855b2",
+  "administrative_followup": "Source and6ed evidence reviews completed, metadata corrections made without implementation/assertion edits; actual status integration and supported thread closure are recorded after execution.",
+  "integration_policy": "Canonical status/evidence only; execution revision recorded separately after commit. Prototype never accepted or integrated.",
+  "reviewed_handoff_candidate": "79783b5f849f78810c6c6fcfa0df4b5cf15804b9"
+}

@@ -159,8 +159,10 @@ set remains, leaving a resumable handoff and verified versus unfinished results.
 The probes remain isolated even if successful. Their verdict authorizes no
 automatic production promotion, cutover or removal of the React reference.
 
-Current run stopped at P1-CORE compatibility failure. Its two diagnosed repair
-attempts are exhausted; P1-CAD is dependency-blocked and unstarted. The command
+Historical original P1-CORE run stopped at compatibility failure with two
+exhausted repair attempts. Its renewed P1-U64 run later passed and was accepted.
+The current P1-CAD continuation and failed gate are recorded in RUN/TODO; this
+paragraph preserves the earlier command correction, not current task status. The command
 above places wasm-pack-owned options before Cargo EXTRA_OPTIONS, matching the
 observed CLI semantics. This documentation correction changes no task scope or
 dependency. Reviewed failure and resumable state: [RUN](../docs/migration/RUN.md).
