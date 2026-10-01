@@ -504,6 +504,22 @@ fn receive_worker_message(
         .ok_or_else(|| JsValue::from_str("CAD request omitted frame"))?;
     let mut request = serde_json::from_str::<WireRequest>(&frame)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    if request.identity.revision > crate::cad_jobs::MAX_CAD_REVISION {
+        return post_reply(
+            scope,
+            WireReply {
+                request_id: request.request_id,
+                job_id: request.job_id,
+                identity: request.identity,
+                operation: request.operation,
+                outcome: CadReplyOutcome::Failed,
+                error: Some("CAD revision is outside the exact JavaScript integer range".into()),
+            }
+            .into(),
+            None,
+            Array::new(),
+        );
+    }
     if let Some(buffer) = Reflect::get(&data, &"inputBytes".into())
         .ok()
         .filter(|value| !value.is_undefined())

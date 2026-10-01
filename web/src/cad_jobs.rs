@@ -501,13 +501,13 @@ fn effective_case_inputs(
     };
 
     let flipped = selected_instance.is_some_and(|instance| instance.flipped);
+    if let Some(instance) = selected_instance {
+        effective.physical_instance_id = Some(instance.id.clone());
+    }
     let configuration = if let Some(instance) = selected_instance {
         effective_instance_configuration(document, instance, board.thickness)
     } else {
-        document
-            .mechanical
-            .clone()
-            .filter(|configuration| configuration.board_id == scope.board_id)
+        document.mechanical.clone()
     };
     effective.mechanical = configuration.map(|configuration| {
         mechanical_defaults(document, configuration, &scope.board_id, flipped)
@@ -1010,6 +1010,10 @@ mod tests {
         assert_eq!(effective.parts[1], document.parts[1]);
         assert_eq!(scene.transforms[0].pose.at.x, -3.0);
         assert_eq!(scene.transforms[1].pose.at.x, 8.0);
+        assert_eq!(
+            captured_document.physical_instance_id.as_deref(),
+            Some("instance-a")
+        );
         assert_eq!(captured_document, effective);
         assert_eq!(captured_scene, scene);
     }
