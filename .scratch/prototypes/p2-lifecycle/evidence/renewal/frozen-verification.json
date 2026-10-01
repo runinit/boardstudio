@@ -1,0 +1,10 @@
+{
+  "source_candidate": "b2cf39db55db7826368031e61bb1b033bb652800",
+  "command": "cargo test --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --locked",
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001",
+  "exit": 0,
+  "result": "7 passed",
+  "log": "coordinator-frozen-native-tests.log.gz",
+  "uncompressed_sha256": "3166b56a495ffdeb1e13bd24b8bffc0dd1c093e4062106955677e02f418a7977",
+  "accepted": false
+}

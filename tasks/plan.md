@@ -195,3 +195,26 @@ renewed finite run; no third repair is inferred. A concrete
 formatting-only patch is preserved for one bounded scope-extension approval;
 the original strict gate and all P2 runtime/build/review requirements remain.
 [Current blocked ledger](../docs/migration/RUN.md#p2-r1-preflight-blocked).
+
+## Current P2-r1-R1 approved renewal
+
+The user approved the exact [bounded Luna Fast renewal](../.scratch/dioxus-browser-trial/p2-fast-run.md)
+from689f8962, with proposal SHA8d44c8b… and [execution authority](../.scratch/prototypes/p2-lifecycle/evidence/renewal/task-start.json).
+This supersedes the old P2 run's execution exclusions only for the four exact
+formatter files and serial coding delegation; all original contracts/gates stay.
+New owned worktree: /home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001,
+branch prototype/boardstudio-p2-lifecycle-r1, writer checkout e5383450.
+Root owns canonical status/integration; Luna/high owns only the prototype and
+exact formatter patch. Fresh read-only Luna/medium smoke preceded writer
+assignment; DB/turn_context independently confirm both routes. Configured Fast
+is not served-tier evidence. Repair limits: two implementation, two administrative;
+old exhausted run is preserved, not reset.
+
+The authorized renderer formatting passes. Existing renderer and core strict
+Clippy, unchanged core formatting and prototype accessibility failures remain
+acceptance blockers outside the exhausted repair budget. A verified short-viewport
+focus-scroll drag defect is also unrepaired. Independent prototype build/runtime
+work may continue under the approved interim-demo clause, with no completed-P2
+claim or waived gate. Record material blockers without an unlimited investigation;
+only exact verified/reviewed candidates may be integrated. No P3/provider behavior/
+API/visibility/version change or production promotion follows this renewal.

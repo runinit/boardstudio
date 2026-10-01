@@ -34,6 +34,10 @@ maintained code is Rust, replacing TypeScript and React completely.
   User-confirmed Rust/browser/persistence requirements take precedence over a
   generic prototype's in-memory HTML defaults. Use `codebase-design` if a new
   module boundary needs design.
+- Current execution-route session (2026-10-01) continues accepted P2 at
+  migration revision `689f8962`; it investigates Luna Fast and seeks one bounded
+  renewal decision. It does not reopen the architecture or resolve the still-open
+  layout/case/staged-route tickets. Global config and provider files stay unchanged.
 - Tracker conventions:
   `/home/chris/.agents/skills/setup-matt-pocock-skills/issue-tracker-local.md`.
   Children carry labels, type, status, assignee, parent and blocking metadata.
@@ -60,6 +64,10 @@ maintained code is Rust, replacing TypeScript and React completely.
 
 - [Verify the Dioxus browser platform and toolchain](issues/01-dioxus-browser-platform.md): Dioxus 0.7.10 is a versioned browser candidate without a declared Rust-floor obstacle; actual build, browser adapters, worker packaging and offline behavior remain trial gates.
 - [Establish Rust routes for engine integration and remaining application JavaScript](issues/02-rust-engine-browser-integration.md): Existing Rust engines are reusable, while browser orchestration and parameter-dependent generator logic need Rust implementations and compatibility evidence.
+
+- [Verify Luna Fast execution for the existing prototype](issues/07-verify-luna-fast-execution.md): Installed Codex supports Luna and Fast requests; model/effort are observed, while served Fast is not exposed in the available runtime record.
+
+- [Choose a bounded route to a runnable P2 prototype](issues/08-choose-p2-execution-policy.md): User approved the exact formatter prerequisite, one Luna Fast coding writer, unchanged P2 gates and separate finite repair budgets.
 
 ## Not yet specified
 

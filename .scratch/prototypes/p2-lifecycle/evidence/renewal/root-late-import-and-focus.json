@@ -1,0 +1,314 @@
+{
+  "task": "P2-LIFECYCLE",
+  "plan": "P2-r1-R1",
+  "status": "Independent scoped lifecycle pass plus bounded coordinate-frame diagnosis; not acceptance",
+  "base": "689f8962f77e04b1150a9541128fec7aca28addc",
+  "browser_session": "p2-coordinator-root-r2-fresh",
+  "url": "http://127.0.0.1:4394/",
+  "late_import": {
+    "actual_provider": "The actual import(url) Promise is delayed in browser; generated renderer module/provider remains unchanged",
+    "result": "Panel unmounted before actual module import settles: no WebGL getContext allocation, no canvas, no tracked renderer listeners, observers or RAF, no stale status publication. Normal later remount active/errors empty.",
+    "instrumentation": "Actual browser getContext/listeners/ResizeObserver/RAF and generated Renderer.dispose/free, no provider stub",
+    "commands": [
+      {
+        "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{const r=__p2_resources;window.__p2_native_Function=window.Function;window.__p2_delayed_import={requested:false,allocations:0};const nativeGetContext=HTMLCanvasElement.prototype.getContext;window.__p2_native_GetContext=nativeGetContext;HTMLCanvasElement.prototype.getContext=function(...args){if(this.matches('.renderer-canvas'))__p2_delayed_import.allocations++;return nativeGetContext.apply(this,args)};window.Function=new Proxy(window.Function,{construct(target,args){const fn=Reflect.construct(target,args);if(args[1]==='return import(url)')return url=>{__p2_delayed_import.requested=true;const actual=fn(url);return new Promise((resolve,reject)=>{__p2_delayed_import.release=()=>actual.then(resolve,reject)})};return fn}});return {listeners:r.listeners.length,observers:r.observers.size,dispose:r.dispose,free:r.free,controlledDelay:'Actual module import Promise, no provider stub'}})()\nJS",
+        "result": {
+          "chunk_id": "4bdee5",
+          "wall_time_seconds": 0.000013376,
+          "exit_code": 0,
+          "original_token_count": 35,
+          "output": "{\n  \"controlledDelay\": \"Actual module import Promise, no provider stub\",\n  \"dispose\": 6,\n  \"free\": 6,\n  \"listeners\": 0,\n  \"observers\": 0\n}\n"
+        }
+      },
+      {
+        "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{if(!__p2_delayed_import.requested)throw Error('Import delay not reached');return {requested:__p2_delayed_import.requested,allocations:__p2_delayed_import.allocations,canvasPresent:!!document.querySelector('canvas')}})()\nJS",
+        "result": {
+          "chunk_id": "5a16ed",
+          "wall_time_seconds": 0.000009818,
+          "exit_code": 0,
+          "original_token_count": 18,
+          "output": "{\n  \"allocations\": 0,\n  \"canvasPresent\": true,\n  \"requested\": true\n}\n"
+        }
+      },
+      {
+        "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(async()=>{__p2_delayed_import.release();await new Promise(resolve=>__p2_resources.nativeRaf(()=>__p2_resources.nativeRaf(resolve)));window.Function=__p2_native_Function;HTMLCanvasElement.prototype.getContext=__p2_native_GetContext;const r=__p2_resources,result={allocationCalls:__p2_delayed_import.allocations,canvases:document.querySelectorAll('canvas').length,listeners:r.listeners.length,observers:r.observers.size,pendingRAF:r.pending.size,status:document.querySelector('.status').textContent,dispose:r.dispose,free:r.free};if(result.allocationCalls||result.canvases||result.listeners||result.observers||result.pendingRAF)throw Error(JSON.stringify(result));return result})()\nJS",
+        "result": {
+          "chunk_id": "ab0c35",
+          "wall_time_seconds": 0.000016511,
+          "exit_code": 0,
+          "original_token_count": 42,
+          "output": "{\n  \"allocationCalls\": 0,\n  \"canvases\": 0,\n  \"dispose\": 6,\n  \"free\": 6,\n  \"listeners\": 0,\n  \"observers\": 0,\n  \"pendingRAF\": 0,\n  \"status\": \"One-step Redo completed\"\n}\n"
+        }
+      }
+    ]
+  },
+  "focus_scroll": {
+    "observations": {
+      "after": {
+        "focused": "Keyboard layout editor",
+        "scrollY": 116,
+        "svgTop": 157.125
+      },
+      "before": {
+        "scrollY": 0,
+        "svgTop": 273.125,
+        "target": "translate(568.4253104360238 260.1960603004334) rotate(-10)",
+        "viewport": [
+          1280,
+          600
+        ],
+        "x": 426,
+        "y": 450
+      },
+      "changed": false,
+      "committed": "translate(568.4253104360238 260.1960603004334) rotate(-10)",
+      "status": "Drag committed by public CoreEngine worker"
+    },
+    "cause_hypothesis": "pointer_down captures viewbox sample before svg.focus(); focus may scroll viewport, changing client-to-viewbox mapping during captured drag",
+    "proven_scope": "At1280x600 svg.focus on trusted pointerdown moved scrollY0→116 and SVGtop273.125→157.125",
+    "limitations": "Previously moved/overlapping fixture part was under pointer; selectedSW1 transform remained unchanged in this root experiment, so it is not an independent exactSW1 offboard reproduction. Worker paired evidence carries the distinct target/request outcome.",
+    "classification": "Contributing coordinate-frame diagnosis, needs exact untouched-fixture target/request evidence. No source repair authorized."
+  },
+  "commands": [
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{const t=document.querySelector('[data-part-id=\"matrix/main-right-keys/r0c0\"]').getAttribute('transform');if(t!==__p2_r2_drag_after)throw Error('r2Redo mismatch');return {restored:t}})()\nJS",
+      "result": {
+        "chunk_id": "339ba6",
+        "wall_time_seconds": 0.000019086,
+        "exit_code": 0,
+        "original_token_count": 20,
+        "output": "{\n  \"restored\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\"\n}\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh snapshot -i -s .toolbar",
+      "result": {
+        "chunk_id": "85f370",
+        "wall_time_seconds": 0.000017253,
+        "exit_code": 0,
+        "original_token_count": 23,
+        "output": "- button \"Unmount editor panel\" [ref=e2]\n- button \"Undo\" [ref=e3]\n- button \"Redo\" [ref=e4]\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh click @e2",
+      "result": {
+        "chunk_id": "21bb71",
+        "wall_time_seconds": 0.000012243,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{const r=__p2_resources;window.__p2_native_Function=window.Function;window.__p2_delayed_import={requested:false,allocations:0};const nativeGetContext=HTMLCanvasElement.prototype.getContext;window.__p2_native_GetContext=nativeGetContext;HTMLCanvasElement.prototype.getContext=function(...args){if(this.matches('.renderer-canvas'))__p2_delayed_import.allocations++;return nativeGetContext.apply(this,args)};window.Function=new Proxy(window.Function,{construct(target,args){const fn=Reflect.construct(target,args);if(args[1]==='return import(url)')return url=>{__p2_delayed_import.requested=true;const actual=fn(url);return new Promise((resolve,reject)=>{__p2_delayed_import.release=()=>actual.then(resolve,reject)})};return fn}});return {listeners:r.listeners.length,observers:r.observers.size,dispose:r.dispose,free:r.free,controlledDelay:'Actual module import Promise, no provider stub'}})()\nJS",
+      "result": {
+        "chunk_id": "4bdee5",
+        "wall_time_seconds": 0.000013376,
+        "exit_code": 0,
+        "original_token_count": 35,
+        "output": "{\n  \"controlledDelay\": \"Actual module import Promise, no provider stub\",\n  \"dispose\": 6,\n  \"free\": 6,\n  \"listeners\": 0,\n  \"observers\": 0\n}\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh snapshot -i -s .toolbar",
+      "result": {
+        "chunk_id": "f94ee4",
+        "wall_time_seconds": 0.000017633,
+        "exit_code": 0,
+        "original_token_count": 23,
+        "output": "- button \"Mount editor panel\" [ref=e2]\n- button \"Undo\" [ref=e3]\n- button \"Redo\" [ref=e4]\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh click @e2",
+      "result": {
+        "chunk_id": "139fc4",
+        "wall_time_seconds": 0.000013546,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{if(!__p2_delayed_import.requested)throw Error('Import delay not reached');return {requested:__p2_delayed_import.requested,allocations:__p2_delayed_import.allocations,canvasPresent:!!document.querySelector('canvas')}})()\nJS",
+      "result": {
+        "chunk_id": "5a16ed",
+        "wall_time_seconds": 0.000009818,
+        "exit_code": 0,
+        "original_token_count": 18,
+        "output": "{\n  \"allocations\": 0,\n  \"canvasPresent\": true,\n  \"requested\": true\n}\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh snapshot -i -s .toolbar",
+      "result": {
+        "chunk_id": "cb52cd",
+        "wall_time_seconds": 0.000013806,
+        "exit_code": 0,
+        "original_token_count": 23,
+        "output": "- button \"Unmount editor panel\" [ref=e2]\n- button \"Undo\" [ref=e3]\n- button \"Redo\" [ref=e4]\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh click @e2",
+      "result": {
+        "chunk_id": "414da9",
+        "wall_time_seconds": 0.000008295,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(async()=>{__p2_delayed_import.release();await new Promise(resolve=>__p2_resources.nativeRaf(()=>__p2_resources.nativeRaf(resolve)));window.Function=__p2_native_Function;HTMLCanvasElement.prototype.getContext=__p2_native_GetContext;const r=__p2_resources,result={allocationCalls:__p2_delayed_import.allocations,canvases:document.querySelectorAll('canvas').length,listeners:r.listeners.length,observers:r.observers.size,pendingRAF:r.pending.size,status:document.querySelector('.status').textContent,dispose:r.dispose,free:r.free};if(result.allocationCalls||result.canvases||result.listeners||result.observers||result.pendingRAF)throw Error(JSON.stringify(result));return result})()\nJS",
+      "result": {
+        "chunk_id": "ab0c35",
+        "wall_time_seconds": 0.000016511,
+        "exit_code": 0,
+        "original_token_count": 42,
+        "output": "{\n  \"allocationCalls\": 0,\n  \"canvases\": 0,\n  \"dispose\": 6,\n  \"free\": 6,\n  \"listeners\": 0,\n  \"observers\": 0,\n  \"pendingRAF\": 0,\n  \"status\": \"One-step Redo completed\"\n}\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh snapshot -i -s .toolbar",
+      "result": {
+        "chunk_id": "29f35c",
+        "wall_time_seconds": 0.000016371,
+        "exit_code": 0,
+        "original_token_count": 23,
+        "output": "- button \"Mount editor panel\" [ref=e2]\n- button \"Undo\" [ref=e3]\n- button \"Redo\" [ref=e4]\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh click @e2",
+      "result": {
+        "chunk_id": "dcc1b3",
+        "wall_time_seconds": 0.000013906,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh wait --text 'Renderer initialized'",
+      "result": {
+        "chunk_id": "55d761",
+        "wall_time_seconds": 0.000017453,
+        "exit_code": 0,
+        "original_token_count": 6,
+        "output": "Renderer initialized\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh errors",
+      "result": {
+        "chunk_id": "8f559a",
+        "wall_time_seconds": 0.000013545,
+        "exit_code": 0,
+        "original_token_count": 0,
+        "output": ""
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh set viewport 1280 600 2",
+      "result": {
+        "chunk_id": "335bd1",
+        "wall_time_seconds": 0.000009188,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{window.scrollTo(0,0);const e=document.querySelector('[data-part-id=\"matrix/main-right-keys/r0c0\"]'),svg=document.querySelector('svg'),b=e.getBoundingClientRect();window.__p2_focus_before={scrollY:scrollY,svgTop:svg.getBoundingClientRect().top,target:e.getAttribute('transform'),x:Math.round(b.x+b.width/2),y:Math.round(b.y+b.height/2),viewport:[innerWidth,innerHeight]};return __p2_focus_before})()\nJS",
+      "result": {
+        "chunk_id": "beba90",
+        "wall_time_seconds": 0.000017523,
+        "exit_code": 0,
+        "original_token_count": 45,
+        "output": "{\n  \"scrollY\": 0,\n  \"svgTop\": 273.125,\n  \"target\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\",\n  \"viewport\": [\n    1280,\n    600\n  ],\n  \"x\": 426,\n  \"y\": 450\n}\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh mouse move 426 450",
+      "result": {
+        "chunk_id": "57edec",
+        "wall_time_seconds": 0.000012874,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh mouse down left",
+      "result": {
+        "chunk_id": "926e8f",
+        "wall_time_seconds": 0.00001588,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{const r={before:__p2_focus_before,after:{scrollY:scrollY,svgTop:document.querySelector('svg').getBoundingClientRect().top,focused:document.activeElement.getAttribute('aria-label')}};window.__p2_focus_result=r;return r})()\nJS",
+      "result": {
+        "chunk_id": "fe3055",
+        "wall_time_seconds": 0.00001098,
+        "exit_code": 0,
+        "original_token_count": 79,
+        "output": "{\n  \"after\": {\n    \"focused\": \"Keyboard layout editor\",\n    \"scrollY\": 116,\n    \"svgTop\": 157.125\n  },\n  \"before\": {\n    \"scrollY\": 0,\n    \"svgTop\": 273.125,\n    \"target\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\",\n    \"viewport\": [\n      1280,\n      600\n    ],\n    \"x\": 426,\n    \"y\": 450\n  }\n}\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh mouse move 456 474",
+      "result": {
+        "chunk_id": "197983",
+        "wall_time_seconds": 0.000013305,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh mouse up left",
+      "result": {
+        "chunk_id": "bcb565",
+        "wall_time_seconds": 0.000019096,
+        "exit_code": 0,
+        "original_token_count": 3,
+        "output": "✓ Done\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh wait --text 'Drag committed'",
+      "result": {
+        "chunk_id": "b7fe64",
+        "wall_time_seconds": 0.000017182,
+        "exit_code": 0,
+        "original_token_count": 4,
+        "output": "Drag committed\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>({...__p2_focus_result,committed:document.querySelector('[data-part-id=\"matrix/main-right-keys/r0c0\"]').getAttribute('transform'),status:document.querySelector('.status').textContent}))()\nJS",
+      "result": {
+        "chunk_id": "b073c8",
+        "wall_time_seconds": 0.000013335,
+        "exit_code": 0,
+        "original_token_count": 113,
+        "output": "{\n  \"after\": {\n    \"focused\": \"Keyboard layout editor\",\n    \"scrollY\": 116,\n    \"svgTop\": 157.125\n  },\n  \"before\": {\n    \"scrollY\": 0,\n    \"svgTop\": 273.125,\n    \"target\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\",\n    \"viewport\": [\n      1280,\n      600\n    ],\n    \"x\": 426,\n    \"y\": 450\n  },\n  \"committed\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\",\n  \"status\": \"Drag committed by public CoreEngine worker\"\n}\n"
+      }
+    },
+    {
+      "command": "TMPDIR=../target/renewal/coordinator-temp agent-browser --session p2-coordinator-root-r2-fresh eval --stdin <<'JS'\n(()=>{const t=document.querySelector('[data-part-id=\"matrix/main-right-keys/r0c0\"]').getAttribute('transform');return {...__p2_focus_result,committed:t,changed:t!==__p2_focus_before.target,status:document.querySelector('.status').textContent}})()\nJS",
+      "result": {
+        "chunk_id": "b33a49",
+        "wall_time_seconds": 0.000017262,
+        "exit_code": 0,
+        "original_token_count": 118,
+        "output": "{\n  \"after\": {\n    \"focused\": \"Keyboard layout editor\",\n    \"scrollY\": 116,\n    \"svgTop\": 157.125\n  },\n  \"before\": {\n    \"scrollY\": 0,\n    \"svgTop\": 273.125,\n    \"target\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\",\n    \"viewport\": [\n      1280,\n      600\n    ],\n    \"x\": 426,\n    \"y\": 450\n  },\n  \"changed\": false,\n  \"committed\": \"translate(568.4253104360238 260.1960603004334) rotate(-10)\",\n  \"status\": \"Drag committed by public CoreEngine worker\"\n}\n"
+      }
+    }
+  ]
+}

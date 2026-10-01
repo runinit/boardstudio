@@ -1,0 +1,10 @@
+{
+  "supported_archive": true,
+  "independent_db": {
+    "id": "01a0f83c-5bba-7070-b482-9c99211881f5",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "archived": 1,
+    "rollout_path": "/home/chris/.codex/archived_sessions/rollout-2026-10-01T12-11-40-01a0f83c-5bba-7070-b482-9c99211881f5.jsonl"
+  }
+}

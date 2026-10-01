@@ -1,0 +1,12 @@
+{
+  "coordinator-root-r2.png": {
+    "sha256": "801e84ffd45f3a4f5ed2988a77e9596f94113d7fcf3e966a3066bac340e63911",
+    "bytes": 144109,
+    "actual_viewed_by_coordinator": true
+  },
+  "coordinator-root-r2-dpr2.png": {
+    "sha256": "3af928c526e429b71cae5ceb49883637ab5fb1684c08da6f52d97b27ba8d180f",
+    "bytes": 383304,
+    "actual_viewed_by_coordinator": true
+  }
+}

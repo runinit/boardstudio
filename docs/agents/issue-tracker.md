@@ -15,3 +15,12 @@ P2-LIFECYCLE P2-r1: [approved plan](../../.scratch/prototypes/p2-lifecycle/PLAN.
 [authority](../../.scratch/prototypes/p2-lifecycle/evidence/task-start.json) and
 [blocked preflight](../migration/RUN.md#p2-r1-preflight-blocked). Exact formatting
 prerequisite is proposed, not applied; all executable/runtime work remains open.
+
+Current P2-r1-R1: [approved human execution decision](../../.scratch/dioxus-browser-trial/issues/08-choose-p2-execution-policy.md),
+[exact task authority](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/task-start.json)
+and [current status](../../.scratch/prototypes/p2-lifecycle/evidence/renewal/task-status.json).
+Historical failures remain. The renderer formatter prerequisite passes;
+provider fmt/strict Clippy, prototype accessibility and short-viewport focus-scroll
+drag failures block acceptance.
+The r2 release runs locally while bounded independent verification finishes;
+both renewed repair budgets are exhausted and P2 stays unchecked.

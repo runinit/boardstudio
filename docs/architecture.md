@@ -274,3 +274,64 @@ no production promotion, React removal or source-worktree deletion. Revision7 is
 the tested fixture; full-range u64 support in the existing CAD JS Number ABI,
 other geometry, complete platform coverage, Undo/redo and M1 performance remain
 unproven by this experiment.
+
+## Experimental P2 browser lifecycle boundary
+
+The approved P2-r1-R1 run continues the accepted lifecycle investigation in
+[the isolated prototype](../.scratch/prototypes/p2-lifecycle/PLAN.md), with its
+actual authority and current gate status in
+[the renewal record](../.scratch/prototypes/p2-lifecycle/evidence/renewal/PLAN.md).
+It is an investigation of one copied Reviung 41 document, an SVG gesture surface
+and the existing renderer canvas. The coordinator owns the experiment. It does
+not replace the production session or establish full editor, persistence or
+performance parity. An interim runnable build remains incomplete while any
+original acceptance gate is blocked.
+
+The prototype uses modules in one isolated web package rather than new
+production crates. Gesture policy must be testable without Dioxus or DOM
+handles; browser attachment has a different lifetime from the root-owned core
+worker. Keeping those owners separate allows a panel to unmount without
+destroying engine history. Dioxus presents immutable document/scene snapshots
+and owns panel visibility and focus presentation. It does not run a second
+CoreEngine. The native engine harness is a public-provider characterization
+test, not the browser's document authority.
+
+The web host reuses the accepted P1 core worker and opaque serde_json framing,
+including float_roundtrip and executor/operation identity. The worker alone
+owns the browser's CoreEngine. Requests and replies copy JSON text between
+separate WASM memories; an immutable Rust read model is decoded at the host.
+The fixture is 105,292 bytes before parsing, not a measurement of every request,
+reply or retained heap. No zero-copy, latency or whole-application memory claim
+follows from Rust components.
+
+The renderer adapter consumes existing Core SceneDelta geometry through the
+unchanged generated renderer entrypoints. Its bounded input is a bare board:
+contours and thickness, with empty surfaces, holes and models. Paired renderer
+evidence must use that same reduced public input. This attachment proof cannot
+establish full-project 3D fidelity or production scene-preparation scheduling.
+The renderer still owns its camera and GPU state. The adapter owns actual DOM
+elements, ResizeObserver, browser listeners and pending animation-frame handles;
+dirty work queues a single frame rather than a continuous idle redraw loop.
+Submission counters are instrumentation, not proof that pixels were painted.
+
+Mount conversion and initialization failures must be explicit. A cancelled
+mount checks its panel generation after each await and before allocation or
+publication. Cleanup must attempt all owned releases, report failures, and
+prevent further frames or late scene publication. Context loss is an explicit
+failure; recovery is not claimed. Real browser evidence, including visible
+pixels, pointer capture, final samples, cancellation, DPR/resize and repeated
+unmount/remount, decides whether these lifetime contracts hold.
+
+The original React application remains the reference and fallback on an
+isolated origin. No production provider behavior, schema, backend or framework
+pin changes are introduced. The renewal permits only the recorded four-file
+renderer formatter patch; baseline strict Clippy failures remain acceptance
+blockers rather than authorizing provider fixes or lint suppression.
+
+The named coordinator-owned retirement follow-up is **P2 lifecycle retirement**,
+part of the next explicitly approved production session/web-host slice. Retire
+this runtime and its copied P1 host adapter only after that slice provides
+equivalent public-engine history, captured gesture, stale-result and browser
+resource evidence at both deployment prefixes, and production adoption is
+explicitly authorized. Preserve the branch and reports as evidence. P2 alone
+does not authorize React removal, prototype promotion or worktree deletion.

@@ -1,0 +1,25 @@
+{
+  "requested_model": "gpt-6-luna",
+  "requested_effort": "high",
+  "requested_service": "Fast/priority supported; current config service_tier=fast; collaboration tool has no tier override",
+  "runtime": {
+    "id": "01a0f83c-5bba-7070-b482-9c99211881f5",
+    "agent_path": "/root/p2_luna_implementation",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "rollout_path": "/home/chris/.codex/sessions/2026/10/01/rollout-2026-10-01T12-11-40-01a0f83c-5bba-7070-b482-9c99211881f5.jsonl",
+    "archived": 0
+  },
+  "contexts": [
+    {
+      "model": "gpt-6-luna",
+      "effort": "high",
+      "cwd": "/home/chris/01_Projects/ts-boardstudio2"
+    }
+  ],
+  "served_tier_observable": false,
+  "requested_base": "e5383450baa5298c19c8dc0c219e5c1634376df0",
+  "source_integration_base": "689f8962f77e04b1150a9541128fec7aca28addc",
+  "worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001",
+  "owner": "/root/p2_luna_implementation"
+}

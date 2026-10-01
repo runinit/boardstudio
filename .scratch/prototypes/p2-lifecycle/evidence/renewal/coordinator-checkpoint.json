@@ -1,0 +1,56 @@
+{
+  "phase": "Pre-freeze independent read-only audit; final source candidate pending",
+  "base": "689f8962f77e04b1150a9541128fec7aca28addc",
+  "approved_spec_hash_count": 7,
+  "proposal_raw_sha256": "8d44c8b16fc5f7e4245dc3894ab912d0e14fc19713a7d1b13f073923ebfe5d45",
+  "fixture_source_identity": true,
+  "formatter_after_hashes_match": {
+    "renderer/src/geometry.rs": "2ffb551c617859d8915a532fb4e81144e35a729776d3eb276d8cc80396580a99",
+    "renderer/src/math.rs": "41d7246f17ae7c7ea1eeb01bf4a1e611fbc83bba6097a109cb74df9dbd03ee6e",
+    "renderer/src/mechanical.rs": "01e14fa4e4a98ea033a2ad4f775a6f2d73932bb2301c87c3b78826b0ba832a3f",
+    "renderer/src/wasm.rs": "391fedd79f33121169a2de1a2b784cb5e01061ad1158d0903781b93e1c0b70ec"
+  },
+  "tracked_paths_inside_scope": [
+    ".scratch/dioxus-browser-trial/map.md",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/core-wasm-build.log.gz",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/format-and-native-slice.json",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/native-focused-tests.log.gz",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/renderer-clippy-native.log.gz",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/renderer-clippy-wasm.log.gz",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/renderer-test-native.log.gz",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal-worker/renderer-wasm-build.log.gz",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal/PLAN.md",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal/smoke.json",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal/task-start.json",
+    ".scratch/prototypes/p2-lifecycle/evidence/renewal/task-status.json",
+    ".scratch/prototypes/p2-lifecycle/fixtures/reviung41.json",
+    ".scratch/prototypes/p2-lifecycle/wasm/Cargo.lock",
+    ".scratch/prototypes/p2-lifecycle/wasm/Cargo.toml",
+    ".scratch/prototypes/p2-lifecycle/wasm/src/engine.rs",
+    ".scratch/prototypes/p2-lifecycle/wasm/src/gesture.rs",
+    ".scratch/prototypes/p2-lifecycle/wasm/src/lib.rs",
+    ".scratch/prototypes/p2-lifecycle/wasm/tests/gesture_contract.rs",
+    ".scratch/prototypes/p2-lifecycle/wasm/tests/public_engine_history.rs",
+    "TODO.md",
+    "docs/agents/issue-tracker.md",
+    "docs/architecture.md",
+    "docs/migration/RUN.md",
+    "renderer/src/geometry.rs",
+    "renderer/src/math.rs",
+    "renderer/src/mechanical.rs",
+    "renderer/src/wasm.rs",
+    "tasks/plan.md"
+  ],
+  "native_test_command": "cargo test --manifest-path .scratch/prototypes/p2-lifecycle/wasm/Cargo.toml --locked",
+  "native_test_exit": 0,
+  "native_tests_passed": 7,
+  "native_log": {
+    "path": "../../target/renewal/coordinator-native-tests.log",
+    "sha256": "a725ccbbdce928daf41d54bc50db6cc96f8bb5f85f01795d7db5a1bd109ffb20"
+  },
+  "core_native_log_totals": {
+    "passed": 334,
+    "ignored_existing": 6
+  },
+  "acceptance": "Blocked, not integrated"
+}

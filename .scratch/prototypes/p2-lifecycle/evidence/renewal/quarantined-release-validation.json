@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-01T16:56:39.020Z",
+  "path": ".scratch/prototypes/p2-lifecycle/wasm/target/renewal-worker/site-subpath-final-20261001/boardstudio/assets/p2-lifecycle-probe_bg-dxhdaedaee6c2678d1.wasm",
+  "bytes": 2281472,
+  "sha256": "ab9aafaa76d109ec4727d398ada8734bdd8f8bdd87007d4515bb858ac270f740",
+  "purpose": "Independent read-only confirmation of quarantined failed release; not a browser pass or repair.",
+  "valid": false,
+  "error": "WebAssembly.compile(): section (code 10, \"Code\") extends past end of the module (length 5256642, remaining bytes 2241382) @+40085"
+}

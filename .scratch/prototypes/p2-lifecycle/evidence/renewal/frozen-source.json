@@ -1,0 +1,60 @@
+{
+  "recorded_utc": "2026-10-01T17:35:43.571356+00:00",
+  "base": "689f8962f77e04b1150a9541128fec7aca28addc",
+  "source_candidate": "b2cf39db55db7826368031e61bb1b033bb652800",
+  "prototype_subtree": "82287749f3003e3653e097cd26339226052efd7f",
+  "source_files": {
+    ".scratch/prototypes/p2-lifecycle/wasm/Cargo.toml": {
+      "sha256": "dc85770b9edde625471e6ddbdf8e509059395e965d3e605416081a5db77df04b",
+      "mtime_ns": 1790874210718205348
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/Cargo.lock": {
+      "sha256": "6b4e000f9ee006abe43df275de6caa60f5f5d846a231da657385a738a5da69c4",
+      "mtime_ns": 1790872121958208534
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/src/engine.rs": {
+      "sha256": "18df509a506c0dd2159016771448925e4073121d88520a9b0e3d19f51c0d6c3a",
+      "mtime_ns": 1790871928257171021
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/src/gesture.rs": {
+      "sha256": "3b898b90691563ee26872264c905dbf9d5f8a5dbde2ab98f23e90f562a29d613",
+      "mtime_ns": 1790872867675186523
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/src/lib.rs": {
+      "sha256": "02224f3c9a263fe5b32840b0e752a4cea1365108a5f2eb4430d4daad9b5adffd",
+      "mtime_ns": 1790873236062393313
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/src/main.rs": {
+      "sha256": "7c51b0fbf388a2c4bf9127d390edce554add52e0cb6c368707275b95f13cf097",
+      "mtime_ns": 1790872119161208279
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/src/p1_host.rs": {
+      "sha256": "18d98cab2b9d7f3449fb54e294121ec81e16e73bdc61386023da4eddde92f434",
+      "mtime_ns": 1790871677575041998
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/src/renderer_host.rs": {
+      "sha256": "efa88d1973dd7d65ead1d9cdb26999c2f17eacfda289c2287d4df9f8b5e4af7e",
+      "mtime_ns": 1790874215825200524
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/src/web.rs": {
+      "sha256": "c2839c172704bc411df3704e531875ed1fe572f4f01ad3d33d75284d6c95d32a",
+      "mtime_ns": 1790873265244343675
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/tests/gesture_contract.rs": {
+      "sha256": "629669ebdbdf1bbb364649a32c1844f12b31f4a03f414c72f352c8bb6f21b980",
+      "mtime_ns": 1790873014976825980
+    },
+    ".scratch/prototypes/p2-lifecycle/wasm/tests/public_engine_history.rs": {
+      "sha256": "1dfd537d3aa0d1227c160f5892c4c44131a93fde8a7616608e5d6823f2504e65",
+      "mtime_ns": 1790871928258171022
+    }
+  },
+  "root_r2_app": {
+    ".scratch/prototypes/p2-lifecycle/wasm/target/dx/p2-lifecycle-probe/release/web/public/assets/p2-lifecycle-probe_bg-dxhd1ed8b8fc5a59135.wasm": {
+      "sha256": "3624990ee51631e90deca5a9cc1335144929c75bcdc57b539c11cd7a122abaf9",
+      "bytes": 7452739,
+      "mtime_ns": 1790874259258427894
+    }
+  },
+  "provenance_limit": "Hashes taken after frozen source; file timestamps are corroboration, not compiler-input attestation. Exact r2 command logs retained; no executable source edits after builds reported by writer. Frozen candidate independently retested by coordinator."
+}

@@ -1,19 +1,30 @@
 {
   "task": "P2-LIFECYCLE",
   "revision": "P2-r1-R1",
-  "status": "Approved; smoke passes; formatter prerequisite and executable implementation next",
+  "status": "Acceptance blocked: runnable incomplete prototype; finite repair budgets exhausted; final safe evidence/reviews pending",
   "base": "689f8962f77e04b1150a9541128fec7aca28addc",
   "worktree": "/home/chris/.local/share/boardstudio/worktrees/p2-lifecycle-r1-20261001",
   "branch": "prototype/boardstudio-p2-lifecycle-r1",
-  "implementation_repairs": 0,
-  "administrative_repairs": 1,
+  "implementation_repairs": 2,
+  "administrative_repairs": 2,
   "limit_each": 2,
-  "candidate": null,
+  "candidate": "b2cf39db55db7826368031e61bb1b033bb652800",
   "reviewed": null,
   "integration": null,
-  "next_eligible_tasks": [
-    "One serial P2 task"
-  ],
+  "next_eligible_tasks": [],
   "approval": "task-start.json",
-  "unperformed": "All executable P2 tests/build/browser/review/integration gates"
+  "unperformed": "Fresh exact-candidate reviews pending; axe raw execution/report unavailable, contrast/screen-reader/keyboard-focus equivalence incomplete. Paired drag gate failed; executable acceptance/integration blocked. No dependent approved task eligible.",
+  "writer": "/root/p2_luna_implementation; results preserved then supported archive independently confirmed",
+  "formatter": "Exact authorized patch applied; fmt exit0; native renderer26/26 tests and fresh release renderer WASM build pass",
+  "blocker": "Baseline renderer native strict Clippy14 lib/17 test and WASM29 lib/33 test errors; core fmt three unchanged files and strict Clippy69 lib/76 test diagnostics; axe html-has-lang at both prefixes, contrast incomplete; verified focus-scroll coordinate discontinuity moves selected target offboard at1280x577. No third repair/provider suppression. Reused cross-origin browser session discrepancy retained.",
+  "runtime_record": "writer-runtime.json",
+  "administrative_repair2": "Worker cargo fmt --all recursively formatted three core dependency files. Exact patch and complete pre-reconciliation bytes retained in renewal-worker; reverse-check and reverse-apply restored only its own formatting. Three files verified against HEAD; no unrelated changes discarded.",
+  "release_failure": "Repair1 used task-local TMPDIR on home filesystem after packaged WASM truncation; unchanged locked build produced valid7448875-byte app WASM. Failed bundle retained.",
+  "dpr_repair": "Repair2/2 native resolution-query listener/rearm/teardown passes unchanged-CSS same-canvas DPR1→2 proof; root4394/subpath4393 locked releases built. No third diagnosed repair allowed.",
+  "interim_browser": "Root4394/subpath4393 r2 releases live. Independent root visible frame, native DPR, repeated actual resource teardown and actual WebGL context loss pass; root-browser-checkpoint.json preserves scope/discrepancy. Prior4392 drag/UndoRedo evidence remains historical, not final acceptance.",
+  "passed_checkpoint": "Full app81 suites/469 tests, reference build, contracts/checks, repository/boundaries; native core334 +6existingignored and renderer26; prototype7 independently rerun frozen; reference canvas4 and drag/keyboard2 browser regressions. Exact validation-ledger.json retains gates/limitations.",
+  "writer_closure": "writer-closure.json",
+  "source_fingerprint": "frozen-source.json",
+  "worker_validation": "../renewal-worker/validation-ledger.json",
+  "owned_servers": "../renewal-worker/owned-servers.json"
 }
