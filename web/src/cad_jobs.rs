@@ -98,7 +98,7 @@ pub enum CadReplyOutcome {
 
 pub fn validate_reply(
     request: &CadRequest,
-    reply: &CadReply,
+    mut reply: CadReply,
     current: &CadSnapshotIdentity,
 ) -> Result<CadResult, CadJobError> {
     if reply.request_id != request.request_id
@@ -122,7 +122,7 @@ pub fn validate_reply(
         CadReplyOutcome::Completed => {
             let result = reply
                 .result
-                .clone()
+                .take()
                 .ok_or_else(|| CadJobError::Failed("CAD worker returned no result".into()))?;
             if request.operation != CadOperation::ReadStep
                 && result.revision != request.identity.revision
@@ -139,16 +139,16 @@ pub fn validate_reply(
 
 fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(), CadJobError> {
     let bad = |reason: &str| CadJobError::Failed(format!("invalid CAD result: {reason}"));
-    let valid_mesh = |mesh: &CadMesh| {
-        !mesh.positions.is_empty()
-            && mesh.positions.len().is_multiple_of(3)
-            && mesh.positions.len() == mesh.normals.len()
-            && mesh
-                .positions
+    let valid_mesh_parts = |positions: &[f32], normals: &[f32]| {
+        !positions.is_empty()
+            && positions.len().is_multiple_of(3)
+            && positions.len() == normals.len()
+            && positions
                 .iter()
-                .chain(&mesh.normals)
+                .chain(normals)
                 .all(|value| value.is_finite())
     };
+    let valid_mesh = |mesh: &CadMesh| valid_mesh_parts(&mesh.positions, &mesh.normals);
     let valid_bounds = |bounds: &CadBounds| {
         bounds
             .min
@@ -172,11 +172,7 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
                 .ok_or_else(|| bad("preview has no prepared bodies"))?;
             if result.bodies.len() != expected.len()
                 || result.bodies.iter().zip(expected).any(|(body, id)| {
-                    body.id != id
-                        || !valid_mesh(&CadMesh {
-                            positions: body.positions.clone(),
-                            normals: body.normals.clone(),
-                        })
+                    body.id != id || !valid_mesh_parts(&body.positions, &body.normals)
                 })
             {
                 return Err(bad(
@@ -191,11 +187,7 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             if !result.mesh.as_ref().is_some_and(valid_mesh)
                 || result.bodies.is_empty()
                 || result.bodies.iter().any(|body| {
-                    body.id.is_empty()
-                        || !valid_mesh(&CadMesh {
-                            positions: body.positions.clone(),
-                            normals: body.normals.clone(),
-                        })
+                    body.id.is_empty() || !valid_mesh_parts(&body.positions, &body.normals)
                 })
                 || !result.bounds.as_ref().is_some_and(valid_bounds)
             {
@@ -855,17 +847,17 @@ mod tests {
             }),
             error: None,
         };
-        assert!(validate_reply(&request, &reply, &identity).is_ok());
+        assert!(validate_reply(&request, reply.clone(), &identity).is_ok());
 
         reply.operation = CadOperation::Exact;
         assert!(matches!(
-            validate_reply(&request, &reply, &identity),
+            validate_reply(&request, reply.clone(), &identity),
             Err(CadJobError::Stale(_))
         ));
         reply.operation = CadOperation::ExportStep;
         reply.result.as_mut().unwrap().step = b"not STEP".to_vec();
         assert!(matches!(
-            validate_reply(&request, &reply, &identity),
+            validate_reply(&request, reply, &identity),
             Err(CadJobError::Failed(_))
         ));
     }
