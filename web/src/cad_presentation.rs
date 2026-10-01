@@ -47,9 +47,12 @@ pub fn CasePanel() -> Element {
                                     .map_err(|error| format!("{error:?}"))
                             })
                     });
-                let has_settings = effective
-                    .as_ref()
-                    .is_ok_and(|document| document.mechanical.is_some());
+                let has_settings = effective.as_ref().is_ok_and(|document| {
+                    document
+                        .mechanical
+                        .as_ref()
+                        .is_some_and(|config| config.board_id == model.active_board_id)
+                });
                 let settings = effective.and_then(|document| {
                     case_settings::initial_settings(&document, &model.active_board_id)
                 });
