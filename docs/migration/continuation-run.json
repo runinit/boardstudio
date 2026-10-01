@@ -1,0 +1,75 @@
+{
+  "run": "M1-continuation-20261001",
+  "status": "executing P2 completion and isolated P3 feasibility",
+  "approval": "User explicitly requested PLEASE IMPLEMENT THIS PLAN: Remaining Dioxus migration steps, including public-enum boxing and one scoped three-d Arc exception. Earlier repair caps removed by user.",
+  "plan_revision": "Remaining Dioxus migration steps / 2026-10-01",
+  "specifications": [
+    "SPEC-document-engine.md",
+    "SPEC-editor-session.md",
+    "SPEC-rendering.md",
+    "SPEC-host-platform.md",
+    "SPEC-generators-cad-export.md",
+    "SPEC-dioxus-presentation.md",
+    ".scratch/prototypes/p2-lifecycle/PLAN.md"
+  ],
+  "base": "81dc13da95c10b221674c9f277937669b87ca0da",
+  "preserved_inputs": {
+    "prototype": "7ade87316ae634308ced9528ebae38fa6bd6ad76",
+    "migration_handoff": "a15dc95c3678ae9e6b4e120c55eb760412c5d271",
+    "original_dev": "5a472a9426e6e38993361da402cd4ec730feb369"
+  },
+  "integration_worktree": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+  "integration_branch": "migration/boardstudio-m1-continuation",
+  "preflight": {
+    "codex": "0.159.3",
+    "dioxus_cli": "0.7.10 (57d6794)",
+    "configuration": {
+      "default_subagent_model": "gpt-6-luna",
+      "default_subagent_reasoning_effort": "high",
+      "max_concurrent_threads_per_session": 3,
+      "requested_service_tier": "fast"
+    },
+    "permissions": "Local filesystem, git worktrees/commits, dependency fetch/builds/browser tests allowed; no push/deploy/main merge. Original checkout/stashes preserved.",
+    "smoke": {
+      "agent": "migration_run_smoke",
+      "requested_model": "gpt-6-luna",
+      "requested_effort": "medium",
+      "result": "read-only checkout/head/spec read passed; source clean",
+      "runtime_confirmation": "Spawn accepted requested model/effort; effective runtime model and served Fast tier not exposed"
+    }
+  },
+  "tasks": {
+    "P2-ABI": {
+      "status": "ready",
+      "category": "intentional Rust API refactor; wire/file compatibility preserved",
+      "ownership": [
+        "core",
+        "renderer/src/wasm.rs",
+        "existing Rust prototype callers"
+      ],
+      "acceptance": "strict native/WASM Clippy and fmt, full affected Rust suites, generated contract equality, JSON/request/archive parity; only approved Arc exception"
+    },
+    "P2-BUILD-BROWSER": {
+      "status": "ready; final checks depend on P2-ABI",
+      "category": "build provenance and remaining lifecycle acceptance",
+      "ownership": [
+        ".scratch/prototypes/p2-lifecycle build/staging/tests/evidence"
+      ],
+      "acceptance": "Fresh recorded provider builds; root/subpath Dioxus releases; exact asset identity; drag/history/cancellation/focus/DPR/teardown/paired checks and raw accessibility evidence"
+    },
+    "P3-DURABILITY": {
+      "status": "ready",
+      "category": "isolated feasibility prototype",
+      "ownership": [
+        ".scratch/prototypes/p3-durability"
+      ],
+      "acceptance": "Real IndexedDB commit/abort/retry without duplicate edit/history; faithful project/assets/archive roundtrip; Rust-owned service-worker cache policy, offline/root/subpath/cold missing assets/update evidence; no production promotion"
+    }
+  },
+  "next_after_acceptance": [
+    "Reconcile newer dev providers into migration continuation",
+    "Implement reviewed headless application/session and web host/presentation M1 workflow"
+  ],
+  "repair_limit": null,
+  "review_policy": "Fresh exact-candidate independent review; coordinator alone integrates and records status; changed candidates receive affected checks/review."
+}

@@ -2,6 +2,14 @@
 
 <!-- phase: 3 -->
 
+## Active migration continuation — 2026-10-01
+
+The user approved implementing the remaining-migration plan. The active task set is P2 completion plus isolated P3 durability/offline feasibility; see [run status](docs/migration/continuation-run.json). Earlier repair-limit and fixed-defect statements below are historical. Full M1 and production parity remain unfinished.
+
+- [ ] P2-ABI: box approved public payloads while preserving serialized contracts; one documented three-d Arc exception.
+- [ ] P2-BUILD-BROWSER: reproducible provider assets and remaining P2 browser/accessibility evidence.
+- [ ] P3-DURABILITY: real IndexedDB recovery/archive and Rust-owned offline-policy feasibility.
+
 ## Current request
 
 - [x] DOC-1: Complete and technically validate all six M1 module specifications, continuing the accepted map/ADR; preserve protected worktrees and exact inputs, record preflight/advance approval and retain all runtime limitations. Evidence: [run ledger](docs/migration/RUN.md).
