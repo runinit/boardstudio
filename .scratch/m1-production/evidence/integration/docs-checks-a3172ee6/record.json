@@ -1,0 +1,38 @@
+{
+  "source_commit": "a3172ee64f2fcea0bda7795ed2c8654947e17808",
+  "commands": [
+    {
+      "argv": [
+        "pnpm",
+        "run",
+        "check:repo"
+      ],
+      "started_at": "2026-10-01T23:32:28.074051+00:00",
+      "finished_at": "2026-10-01T23:32:29.814496+00:00",
+      "exit": 0,
+      "log": "repo.log"
+    },
+    {
+      "argv": [
+        "pnpm",
+        "run",
+        "check:contracts"
+      ],
+      "started_at": "2026-10-01T23:32:29.814543+00:00",
+      "finished_at": "2026-10-01T23:32:30.478064+00:00",
+      "exit": 0,
+      "log": "contracts.log"
+    },
+    {
+      "argv": [
+        "pnpm",
+        "run",
+        "test:contracts"
+      ],
+      "started_at": "2026-10-01T23:32:30.478102+00:00",
+      "finished_at": "2026-10-01T23:32:30.912870+00:00",
+      "exit": 0,
+      "log": "runtime-contracts.log"
+    }
+  ]
+}

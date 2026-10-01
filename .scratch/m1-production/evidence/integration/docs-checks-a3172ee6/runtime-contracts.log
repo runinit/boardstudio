@@ -1,0 +1,1 @@
+$ node contracts/test/runtime-import.test.mjs
