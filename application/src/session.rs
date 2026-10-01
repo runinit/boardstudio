@@ -502,7 +502,29 @@ impl Session {
             Event::RecoverWithDocument {
                 operation_id,
                 document,
-            } => self.queue_open(operation_id, document, &mut effects),
+            } => {
+                if self.model.lifecycle != Lifecycle::RecoveryRequired {
+                    self.settle(
+                        operation_id,
+                        TerminalOutcome::Rejected("session is not awaiting recovery".into()),
+                        &mut effects,
+                    );
+                } else {
+                    // The user chose the last known persisted document. Discard the
+                    // failed retained candidate so it cannot block the explicit reopen.
+                    self.pending_save = None;
+                    self.model.durability = self
+                        .model
+                        .accepted
+                        .as_ref()
+                        .map(|snapshot| Durability::Saved {
+                            revision: snapshot.document.revision,
+                        })
+                        .unwrap_or(Durability::NoDocument);
+                    self.model.last_error = None;
+                    self.queue_open(operation_id, document, &mut effects);
+                }
+            }
             Event::Edit {
                 operation_id,
                 command,
@@ -752,7 +774,9 @@ impl Session {
                 reason,
             } => self.core_failed(request_id, executor_epoch, reason, &mut effects),
             Completion::ExecutorRestarted { executor_epoch } => {
-                self.core_epoch = executor_epoch;
+                if executor_epoch == self.core_epoch {
+                    self.core_epoch = executor_epoch;
+                }
             }
             Completion::GenerationProgress {
                 job_id,
@@ -1804,6 +1828,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
 fn reply_id(reply: &CoreReply) -> String {
     match reply {
         CoreReply::KeycapsResolved { id, .. }
+        | CoreReply::ModulesResolved { id, .. }
         | CoreReply::FirmwareGenerated { id, .. }
         | CoreReply::ElectricalResolved { id, .. }
         | CoreReply::ElectricalApplied { id, .. }
