@@ -62,7 +62,11 @@
   ],
   "resumption": "No further repair in exhausted run; renew a bounded equivalent-cache-state validation/adapter correction and architecture documentation task, retain failed assertion and worktrees.",
   "reviewed_evidence_candidate": "6ed33becfb188b79c2e15d070c9e10dcf5e855b2",
-  "administrative_followup": "Source and6ed evidence reviews completed, metadata corrections made without implementation/assertion edits; actual status integration and supported thread closure are recorded after execution.",
+  "administrative_followup": "Exact actual status integration reviewed on both axes; repo/whitespace pass, five-file status-only diff verified, all31 protected inputs match, three children archived through supported tool and readonly DB confirmation. Subsequent commit stores these execution facts only; no implementation candidate or assertion change.",
   "integration_policy": "Canonical status/evidence only; execution revision recorded separately after commit. Prototype never accepted or integrated.",
-  "reviewed_handoff_candidate": "79783b5f849f78810c6c6fcfa0df4b5cf15804b9"
+  "reviewed_handoff_candidate": "79783b5f849f78810c6c6fcfa0df4b5cf15804b9",
+  "preserved_source_evidence_head": "3b2008408b50d282b0d752caedb7b6ff41bbb4b7",
+  "status_integration_revision": "03da0f1d7d5ccd976a806bdc41bb8ce2caf3602e",
+  "reviewed_status_integration_revision": "03da0f1d7d5ccd976a806bdc41bb8ce2caf3602e",
+  "integration_validation": "p1-cad-status-integration.json"
 }

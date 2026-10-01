@@ -332,3 +332,16 @@ lifetimes, resolves the architecture documentation gap, and reruns affected gate
 and exact review. Preserve the failed comparison and all work. P1-CAD is unchecked;
 P2/P3, full M1 and historical missing/failed acceptance remain open. No push,
 deploy, main merge, protected-worktree modification or failed worktree deletion.
+
+
+Final P1-CAD execution record: exact status-only integration
+`03da0f1d7d5ccd976a806bdc41bb8ce2caf3602e` was independently reviewed on both
+axes against `c1605a1c`; its diff contains only the five canonical status/evidence
+files. Integrated repository and whitespace checks pass, all31 protected inputs
+still match, and no prototype/provider source was integrated. All three run
+children are now archived through the supported tool with independent DB
+confirmation. The preserved source/evidence branch HEAD is
+`3b2008408b50d282b0d752caedb7b6ff41bbb4b7`; only administrative result/closure
+records follow the reviewed source and handoff. This final audit adds execution
+facts without accepting or changing the implementation candidate.
+[Exact integration/check/closure record](../../.scratch/migration-specs-validation/p1-cad-status-integration.json).
