@@ -1,0 +1,208 @@
+{
+  "workflow": "F4",
+  "status": "planned",
+  "dependency_semantics": "start_after gates implementation; acceptance_after gates completion; depends_on is their union. Existing F1/F3a baseline assumed.",
+  "tasks": [
+    {
+      "id": "F4.1",
+      "title": "Browse and search the Parts library",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": {
+        "red": "On the current Dioxus source, opening Parts shows the unavailable-workspace placeholder; there is no parts query, category list, selection or module loading state.",
+        "green": "Through the public browser UI, search and select canonical/legacy/custom footprint entries, key assemblies and grouped VIK module variants; keyboard selection, query changes, empty/no-match/loading/source-error states and selected-row labels match React fixtures. Selection opens the correct definition/assembly/module details without changing the document revision."
+      },
+      "boundary_status": "Existing catalogue/definition data; private Dioxus browsing UI can start after minimal shell contract. F2 panel completion joins final UI qualification, not catalogue implementation.",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.2",
+      "title": "Create, import and edit footprint definitions",
+      "depends_on": [
+        "F4.1",
+        "INT.2"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no custom definition form or KiCad/model file import action.",
+        "green": "Create a custom definition; import a supported KiCad footprint; edit supported courtyard, pad and profile fields; preserve source-owned geometry, IDs, assets, terminal/net relationships and unrelated document data; reject malformed input locally; commit through one normal edit/Undo/Redo/save/reopen path. Import errors, invalid fields and changed-project async races leave the prior document intact. Do not claim board placement in this slice; F3 owns that public action."
+      },
+      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset façade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.3",
+      "title": "Edit supported generator settings and preview generated geometry",
+      "depends_on": [
+        "F4.1",
+        "INT.2"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no generator form or retained-generator settings workflow.",
+        "green": "For reference generator fixtures, edit booleans, typed numbers, strings, front/back side, structured settings and attached-model parameters in their named groups; preserve false/zero/empty values; use the retained F3a generator service and shared SVG projection; expose pending/error/invalid states; discard stale results after a newer edit/selection; and Apply exactly one undoable document edit only after a successful current preview. No project change occurs while drafting."
+      },
+      "boundary_status": "generator remains retained Ergogen JavaScript service by F3a decision; authored Rust compiler explicitly rejects generator definitions; coordinator artifact/runtime bridge plus generator parameter metadata call path must be confirmed; no Rust generator rewrite",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.4",
+      "title": "Inspect isolated 2D and 3D library previews",
+      "depends_on": [
+        "F4.1",
+        "F7.1",
+        "F7.3",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no footprint/model preview view or isolated sample-assembly preview owner.",
+        "green": "For the same reference definition and companion fixtures, 2D shows pads, drills, generator graphics/text, footprint layers and named per-part visibility; 3D uses available model assets with the expected side/pose/transforms. Loading, missing model, conversion/render failure and retry states are explicit. Toggle/select/retry/unmount never changes the active project/revision, does not publish stale scene results, and releases the preview worker/renderer resources. Paired React/Dioxus light/dark desktop/compact captures and service outputs agree."
+      },
+      "boundary_status": "existing F3a SVG projector, Core/CAD request types and RendererHost can be reused; no Dioxus standalone Parts sample-preview facade/lifecycle exists, so coordinator Runtime integration is required",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1",
+        "F7.1"
+      ],
+      "acceptance_after": [
+        "F7.3",
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.5",
+      "title": "Edit and save part mechanical-fit profiles",
+      "depends_on": [
+        "F4.1",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": {
+        "red": "Dioxus Parts has no library-level part-fit profile editor or source-geometry extraction flow.",
+        "green": "From a selected part, edit supported purpose, measured dimensions, clearances, evidence and qualification fields; extract only supported mappings from source geometry; show extraction/validation failures and preserve unqualified gates for unknown or unreviewed facts. Reject stale extraction results after selection/scope changes. Save through normal edit/Undo/Redo/save/reopen behavior without asserting case fit or fabrication readiness."
+      },
+      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime façade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.6",
+      "title": "Author and save reusable key assemblies",
+      "depends_on": [
+        "F4.1",
+        "F4.4",
+        "F3.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no saved assembly list or editor.",
+        "green": "Create/edit/duplicate a saved assembly with name, member definitions, side, pose, parameter overrides, default/custom models and supported file import; preview the draft in isolation; validate empty/name/transform/member errors; save via normal edit/Undo/Redo/reload; applying to a matrix or placing on a board uses the existing F3 public seam. A saved recipe edit does not move existing placement snapshots or change matrix/key identities."
+      },
+      "boundary_status": "AssemblyDefinition, ProjectDoc edits and Core history already exist; React helper logic must be ported as a Dioxus draft/action without contract changes; F3 placement seam is a hard acceptance prerequisite",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "F4.4",
+        "F3.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.7",
+      "title": "Inspect VIK module sources and edit library profiles",
+      "depends_on": [
+        "F4.1",
+        "INT.2",
+        "F4.4"
+      ],
+      "priority": "P2",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no module catalogue, source preview or module profile editor.",
+        "green": "Browse grouped module variants with source/license/readiness metadata; inspect bundled source-board/constituent footprint preview; edit supported definition-level measured volumes, openings, models and rotary profile facts with evidence/qualification states; save through existing module-definition/edit services; show loading/extraction/save errors; reject stale async results after selection/scope change; preserve project assets/source provenance. Mounted placements, connectors, wiring, circuit copies and PCB layer behavior are not claimed by this slice."
+      },
+      "boundary_status": "bundled module catalogue, ImportModuleBoard/SetModuleDefinition and profile/extraction services exist; Runtime façade is coordinator-owned; mounted module and PCB presentation remain F5 and physical fit acceptance remains F7",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2",
+        "F4.4"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    }
+  ]
+}

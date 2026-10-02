@@ -32,7 +32,21 @@
             "handoff.md",
             "visual-final/desktop-dark.png"
           ],
-          "acceptance": "F1 increment verified; remaining shared/workspace responsibilities stay open"
+          "acceptance": "F1 increment verified; remaining shared/workspace responsibilities stay open",
+          "planning_assignment": {
+            "lead_workflow": "INT",
+            "shared_consumers": [
+              "F2",
+              "F3",
+              "F4",
+              "F5",
+              "F6",
+              "F7",
+              "F8",
+              "F9"
+            ],
+            "planned_dioxus_owner": "coordinator-owned web/src/presentation.rs and web/src/runtime.rs composition"
+          }
         },
         {
           "path": "app/src/ui/ProjectLibrary.tsx",
@@ -41,7 +55,12 @@
           "source_sha256": "41606dfcce957a7bf932cb874697623d3f144cd7b0e03e423ad1a97d4376100f",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/ProjectStart.tsx",
@@ -50,7 +69,12 @@
           "source_sha256": "6b7475890ae4806125540d9ef8bf3540056b2c96bdb816ec4aacdde2e5431053",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/SetupChoice.tsx",
@@ -59,7 +83,12 @@
           "source_sha256": "ecb82afcf1085d0584fe4f7ec46b2aa14320a61678bfc2a86d9b881a4b5364fc",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/SetupGuide.tsx",
@@ -68,7 +97,12 @@
           "source_sha256": "7e686b5c5e2c080b8cb24c583e1f5d661c71737545e37c92c7c467353f157442",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/Workbench.tsx",
@@ -81,7 +115,21 @@
             "visual-final/desktop-dark.png",
             "layout-layers/handoff.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "planning_assignment": {
+            "lead_workflow": "INT",
+            "shared_consumers": [
+              "F2",
+              "F3",
+              "F4",
+              "F5",
+              "F6",
+              "F7",
+              "F8",
+              "F9"
+            ],
+            "planned_dioxus_owner": "coordinator-owned web/src/presentation.rs and web/src/runtime.rs composition"
+          }
         },
         {
           "path": "app/src/ui/WorkbenchIcons.tsx",
@@ -90,7 +138,12 @@
           "source_sha256": "93eb1f025cd6a662f0dd50ec1d61d2e80eac97182ab1dc96b86f04c23817d2d7",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/WorkflowNavigation.tsx",
@@ -99,7 +152,12 @@
           "source_sha256": "ef069d73ec55667d434243d37fb02f47896e2cb80034b97e3a9768ac199f2c54",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/WorkspacePanel.tsx",
@@ -108,7 +166,12 @@
           "source_sha256": "78fc0765bf9851e4a9e813c1b97589e01049610553b4d2aae057cb0d21bafc0e",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         }
       ],
       "tests": [
@@ -137,7 +200,12 @@
           "evidence": [
             "layout-layers/handoff.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/CanvasObjects.tsx",
@@ -148,7 +216,12 @@
           "evidence": [
             "layout-layers/handoff.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/CommandMenu.tsx",
@@ -157,7 +230,19 @@
           "source_sha256": "45e3fe234f1e88642fbde5c7c12831af19063ae5014b022e491b3f8a6705480d",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [
+              "F3",
+              "F4",
+              "F5",
+              "F6",
+              "F7",
+              "F8"
+            ],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/ConstraintEditor.tsx",
@@ -166,7 +251,12 @@
           "source_sha256": "eff7c2f709459a789fc6315a817bacf2dbc4d61782450d70de605170c8ef8328",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/ExistingHalfSetup.tsx",
@@ -175,7 +265,12 @@
           "source_sha256": "ba55efbef1c4ba70d3dac7f87ddc9236567b0576ee3dcc4f8b1eaf4bb74df0f6",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/FindingList.tsx",
@@ -184,7 +279,17 @@
           "source_sha256": "63254e5e7c22a4a043a67123645c0012f52e46ec7aab27a8f96529ca712d081c",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [
+              "F5",
+              "F6",
+              "F7",
+              "F8"
+            ],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/InspectorControls.tsx",
@@ -193,7 +298,19 @@
           "source_sha256": "239b32a385dfaf34f6e4e72a8a76ab56db62316714e0e392aac0bae7a4d8cbc8",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [
+              "F3",
+              "F4",
+              "F5",
+              "F6",
+              "F7",
+              "F8"
+            ],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/InspectorSection.tsx",
@@ -202,7 +319,19 @@
           "source_sha256": "2780bf4c1f7232f272ed892a4e60fa45fdbbef88037ca2ba57f99e80b80e95f9",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F2",
+            "shared_consumers": [
+              "F3",
+              "F4",
+              "F5",
+              "F6",
+              "F7",
+              "F8"
+            ],
+            "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules"
+          }
         },
         {
           "path": "app/src/ui/MatrixInspector.tsx",
@@ -211,7 +340,12 @@
           "source_sha256": "f22a2ad8f384c6877e0890272ba484251b4b389bd6800506c89ea8881ec2132e",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/MatrixInspectorPanel.tsx",
@@ -220,7 +354,12 @@
           "source_sha256": "6016655034b755a772aeaea4a788e55ee253df58997870396b71636f5bd41174",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/MatrixSetupPreview.tsx",
@@ -229,7 +368,12 @@
           "source_sha256": "b4015e0d166e2c7f107cf71ec1e2924841d5187486458a8f2a54129cd25a9339",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/MirroredPairSetup.tsx",
@@ -238,7 +382,12 @@
           "source_sha256": "106b227d9c44bbac60621f7f0779fda861d45c548e8fbcffce3a09af28999a65",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/OutlineControlOverlay.tsx",
@@ -247,7 +396,12 @@
           "source_sha256": "ac7270529f9f3557e672560268e68ee274f2bc16362d710f1a55e2503325b782",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/OutlineDraftPreview.tsx",
@@ -256,7 +410,12 @@
           "source_sha256": "b1017716be27981fc0cac91b5ffb0af58c5d196930dc85e5e413b9efbee0e8d1",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/OutlineFeatureEditor.tsx",
@@ -265,7 +424,12 @@
           "source_sha256": "022d545627da36770ded7d33a0e96f018f4801a140c21c673d510f613c3f3b04",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/OutlineInspector.tsx",
@@ -274,7 +438,12 @@
           "source_sha256": "6315ced0811d8c92624b47896f63713b0178ceb592f4ec72ce964e9b046b286b",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/OutlineSnapGuides.tsx",
@@ -283,7 +452,12 @@
           "source_sha256": "9860fc5afa8bd94b8625e26d8f5b6d7f1dc8854bd1ce12de518221e012130964",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/OutlineTools.tsx",
@@ -292,7 +466,12 @@
           "source_sha256": "c3259ad453e459e533e6f24387fc6e2e768e0e1bafc9fe59fcade231def2b8b0",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/WorkbenchLayers.tsx",
@@ -303,7 +482,12 @@
           "evidence": [
             "layout-layers/handoff.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/WorkbenchTree.tsx",
@@ -312,7 +496,12 @@
           "source_sha256": "b5a557f075e4777a9223c85b01d70ea4f5b1489c3d84da5482f78719994a62d3",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/useOutlineEditor.tsx",
@@ -321,7 +510,12 @@
           "source_sha256": "d37ca5ed08b873bac42f26e8fe2b68099f7bbd9b987b97bba906b1189fa60af4",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         },
         {
           "path": "app/src/ui/useScriptEditor.tsx",
@@ -330,7 +524,12 @@
           "source_sha256": "2150dea6c81112f2cfb478843101c9cd44810d45377855396a2812a15b03c05a",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F3",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules"
+          }
         }
       ],
       "tests": [
@@ -359,7 +558,12 @@
           "source_sha256": "404352159a377689df076edaa0c6ca2b483071d7b27e3a7fa6d50bad9e1a940c",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/Ergogen2DPreview.tsx",
@@ -370,7 +574,12 @@
           "evidence": [
             "layout-layers/handoff.md"
           ],
-          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/GeneratorFields.tsx",
@@ -379,7 +588,12 @@
           "source_sha256": "5b33b92471f37e20b21cf2f93f5b49ced013c2967df7993ea9f065551e095d21",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/InputProfileEditor.tsx",
@@ -388,7 +602,15 @@
           "source_sha256": "44d9f87b913a4462cc8014a9fd151ecf19847bb87e67b9026fc49d249156a03f",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [
+              "F5",
+              "F6"
+            ],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/LibraryWorkspace.tsx",
@@ -397,7 +619,12 @@
           "source_sha256": "22b0cfe19a268236d77d3ad1e1a59684b4396e4883cef51e98b58fafa5b6482b",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/ModuleInspector.tsx",
@@ -406,7 +633,15 @@
           "source_sha256": "2ca22b9d4b10af3f38c4fa995d42c972109c424934ea04ceba3af68758a7b4a7",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [
+              "F5",
+              "F7"
+            ],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/ModulePreview.tsx",
@@ -415,7 +650,15 @@
           "source_sha256": "d2a948fcfe58216b561d70cc198920bc0bc08bd3bcf81b858ccd290067b346fd",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [
+              "F5",
+              "F7"
+            ],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/ModuleProfileEditor.tsx",
@@ -424,7 +667,12 @@
           "source_sha256": "264427b013215ac05179cbf963d8fc8880270ebef712c4a47b53c9eae98e4baf",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/PartMechanicalProfileEditor.tsx",
@@ -433,7 +681,12 @@
           "source_sha256": "ba0c49ae459c88af4bba2395e59c3c6bc37798de928118a292c161b6538cbe71",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/PartsInspectorPanel.tsx",
@@ -442,7 +695,12 @@
           "source_sha256": "7ce08ec50426cb94d808df03cfed5140c11bd33f14105de35d6860af9b04449a",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/PartsLibrary.tsx",
@@ -451,7 +709,12 @@
           "source_sha256": "0acfa192b4141b51e7f5e1136f52ba5e4dda865e3afbfccfcec374a4a3cd1edb",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         }
       ],
       "tests": [
@@ -479,7 +742,12 @@
           "source_sha256": "4d5ffc4207030d183b5a7ddabedee82defde19d2bf8619cd76dca91e8fd9715e",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F5",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
+          }
         },
         {
           "path": "app/src/ui/HardwareInstancesPanel.tsx",
@@ -488,7 +756,14 @@
           "source_sha256": "eb82625d5546ed481aa91c897ac92b1bd74f846beb218ef47d4b0aa5308e857e",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F5",
+            "shared_consumers": [
+              "F7"
+            ],
+            "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
+          }
         },
         {
           "path": "app/src/ui/HardwareReadiness.tsx",
@@ -497,7 +772,15 @@
           "source_sha256": "30778f22579b33c95a93c98254be271ab5f3501be6766dd3af7f724e5bc05f94",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F4",
+            "shared_consumers": [
+              "F5",
+              "F7"
+            ],
+            "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules"
+          }
         },
         {
           "path": "app/src/ui/ModulePcbOverlay.tsx",
@@ -506,7 +789,12 @@
           "source_sha256": "63bb74b24b204574c3e37d466b79d83da094cc230d13463d0657fde25eff9937",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F5",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
+          }
         },
         {
           "path": "app/src/ui/WiringPanel.tsx",
@@ -515,7 +803,12 @@
           "source_sha256": "96c2c3cd6b6d740b44e53e2aa8a1ac041bbd4937d8bcb2e832b7e44e98dce488",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F5",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
+          }
         },
         {
           "path": "app/src/ui/usePcbWorkspace.tsx",
@@ -524,7 +817,12 @@
           "source_sha256": "f66a97c030c2e747de454ab5ba1b520765b6d9259f09e556a78d026e4dd1bf23",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F5",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules"
+          }
         }
       ],
       "tests": [
@@ -550,7 +848,14 @@
           "source_sha256": "bb3db7db1705364c28b3f98ae3fa4c491161e5210daf89112fc2d370a609936b",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F6",
+            "shared_consumers": [
+              "F5"
+            ],
+            "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          }
         },
         {
           "path": "app/src/ui/KeyBindingEditor.tsx",
@@ -559,7 +864,12 @@
           "source_sha256": "b802b651d16841ba06f61bb68b7341d090f1c0ae717c6c559b48c2095eb2dee5",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F6",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          }
         },
         {
           "path": "app/src/ui/KeySizeControls.tsx",
@@ -568,7 +878,14 @@
           "source_sha256": "4e8adbf9ecc170ea8fc58ea03bb2fe21c60042d13c25e628e6b4c3d86bdf9718",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F6",
+            "shared_consumers": [
+              "F3"
+            ],
+            "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          }
         },
         {
           "path": "app/src/ui/KeycapPanel.tsx",
@@ -577,7 +894,12 @@
           "source_sha256": "f04b1f062cd77bae48696c33bf5722bde0b251160ce5feda31bca3bd9c5e0466",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F6",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          }
         },
         {
           "path": "app/src/ui/KeymapLayout.tsx",
@@ -586,7 +908,12 @@
           "source_sha256": "66ab460465d7e26342ee54fa9e47277baadb50d18c2897be8652eed942586707",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F6",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          }
         },
         {
           "path": "app/src/ui/KeymapPanel.tsx",
@@ -595,7 +922,12 @@
           "source_sha256": "2ddb320e7396925d715f0564457b06da1b3ca9402a1551eb83fa723c48a36de4",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F6",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          }
         },
         {
           "path": "app/src/ui/createKeymapWorkspace.tsx",
@@ -604,7 +936,12 @@
           "source_sha256": "4afc3fe232614154fdf687e8a270bc8251b7a17a770566e593d68423095015f5",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F6",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private Keymap and Keycaps presentation modules"
+          }
         }
       ],
       "tests": [],
@@ -628,7 +965,16 @@
           "source_sha256": "f0cb88c22e26c9788cfd9b10452ff40e88ff89d6944a6bba618068d247340416",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [
+              "F3",
+              "F4",
+              "F6"
+            ],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         },
         {
           "path": "app/src/ui/AssemblyViewer.tsx",
@@ -637,7 +983,16 @@
           "source_sha256": "40bd398d6b2e9dad397e26ed0bfedf1f1dcf0ae7709a85efccbe57bf0cb980cd",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [
+              "F3",
+              "F4",
+              "F6"
+            ],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         },
         {
           "path": "app/src/ui/CaseChoice.tsx",
@@ -646,7 +1001,12 @@
           "source_sha256": "65486b463f0cd10bd6cf1d7c1eb784f64f104cf13e93a87cc90cfb95d70b7ed8",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         },
         {
           "path": "app/src/ui/CaseGenerationControls.tsx",
@@ -655,7 +1015,12 @@
           "source_sha256": "7152a00ee04be3a7f15d10768aee63d69903766b8837e96dc0b5ac47671e7e73",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         },
         {
           "path": "app/src/ui/CaseInspectorPanel.tsx",
@@ -664,7 +1029,12 @@
           "source_sha256": "051396a0e97254886fc9853d5d922f5e7409ee41a34876b57472fb02869d3eca",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         },
         {
           "path": "app/src/ui/MechanicalAssemblyPanel.tsx",
@@ -673,7 +1043,12 @@
           "source_sha256": "89ef0de8e114fc4098df40ce175c31783850be27fcba4def0d0fd01a8d446ee4",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         },
         {
           "path": "app/src/ui/ModelPreviewBoundary.tsx",
@@ -682,7 +1057,15 @@
           "source_sha256": "c72439220fb8087f47301ca14a4d4e15bf42b8d7e8fd45f4213ce10243561857",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [
+              "F4",
+              "F6"
+            ],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         },
         {
           "path": "app/src/ui/useCaseWorkspace.tsx",
@@ -691,7 +1074,12 @@
           "source_sha256": "80cecb584fb2c6639fb5b7b7a11cd0b82aad13641e19139d5590fbca991c047e",
           "dioxus_owner": null,
           "evidence": [],
-          "acceptance": "planned"
+          "acceptance": "planned",
+          "planning_assignment": {
+            "lead_workflow": "F7",
+            "shared_consumers": [],
+            "planned_dioxus_owner": "private common viewer and Case presentation/host modules"
+          }
         }
       ],
       "tests": [
@@ -946,7 +1334,7 @@
     }
   },
   "non_scope_note": "This is a frontend implementation inventory. Existing Rust document engine, editor session, host storage, renderer, CAD, generator and export services are dependencies to reuse; their implementation is not ported by this frontend roadmap.",
-  "coverage_note": "Workbench is split across F1/F2/F3/F5/F6/F7/F8; assignment counts do not imply equal work or completion. Export and crosscutting behavior are embedded in shared components and adjacent TS UI controllers.",
+  "coverage_note": "Workbench is split across F1/F2/F3/F5/F6/F7/F8; assignment counts do not imply equal work or completion. Export and crosscutting behavior are embedded in shared components and adjacent TS UI controllers. Workflow planning assignments are explicit; planned owners are not implemented counterparts. See ../coverage.json and ../tasks.json.",
   "f1_increment": {
     "source": "242184509c1ec2d97ab0754dd29faa95edf0b342",
     "status": "verified shell increment, not complete TSX parity",
@@ -959,5 +1347,6 @@
     "status": "scoped functional and visual verification; actual AT unavailable",
     "fully_ported_file_claims": 0,
     "evidence": "layout-layers/handoff.md"
-  }
+  },
+  "planning_revision": "2026-10-02 workflow decomposition"
 }

@@ -1,0 +1,285 @@
+{
+  "workflow": "F6",
+  "status": "planned",
+  "dependency_semantics": "start_after gates implementation; acceptance_after gates completion; depends_on is their union. Existing F1/F3a baseline assumed.",
+  "tasks": [
+    {
+      "id": "F6K.1",
+      "title": "Keymap projection, layers, selection, and active-layer 2D view",
+      "depends_on": [
+        "INT.1",
+        "F3.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "A saved fixture opens with the same supported board key set, stable key identities, layer order/names, selection from canvas and searchable list, active-layer labels, default base layer, and explicit empty states as React. Add, rename, and remove only permitted non-base layers through EditKeymap; no display index is persisted. The slice works independently against fixtures before F3/F4 integration and later passes the accepted selection/read-model handoff.",
+      "boundary_status": "Existing immutable accepted document and EditKeymap contract; new private Dioxus projection only. Fixture-ready before F3/F4 handoffs.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [
+        "F3.1"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6K.2",
+      "title": "Binding editor, supported behavior fields, and keycode search",
+      "depends_on": [
+        "F6K.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Binding choices and conditional fields match current KeyBinding and core validation: key press, mod tap, layer tap, momentary/toggle/to/sticky layer, sticky key, macro, transparent, and none. Keycode search/free-form input, applicable hold/tap/layer/macro controls, selected-layer binding labels, invalid input recovery, and legacy base bindings retain React behavior. Committed bindings use EditKeymap and survive Undo/Redo, reload, and workspace switching without losing stable IDs or collapsing transparent and none.",
+      "boundary_status": "Existing EditKeymap and KeyBinding contracts; private Dioxus editor/projection. No new behavior family, parser, or public API.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6K.3",
+      "title": "Structured macro editor",
+      "depends_on": [
+        "F6K.1",
+        "F6K.2",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Create, rename, edit, and remove macros; edit tap duration, between-action wait, and ordered tap/press/release/wait steps; respect existing non-empty and count/timing/expanded-binding limits. Prevent or report unsupported nested macros, preserve macro IDs and references, and verify Undo/Redo, persistence, validation feedback, and generated ZMK output through the existing provider.",
+      "boundary_status": "Existing KeymapChange, MacroChange, MacroStep, validation, and GenerateFirmware behavior. No macro-engine changes.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1",
+        "F6K.2"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6K.4",
+      "title": "Encoder bindings, PCB firmware-position editor, and ZMK export handoff",
+      "depends_on": [
+        "F6K.1",
+        "F6K.2",
+        "F5.2",
+        "F8.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "Use the agreed F5 selected-board handoff for supported encoders, push inputs, electrical readiness, and legacy firmware-position values. Edit clockwise/counterclockwise actions per stable encoder ID and layer; show push editing only for reported push inputs. Preserve the existing PCB Wiring-panel quick binding editor and its legacy SetKeyBinding behavior alongside the typed Keymap surface. With a fixture and then real F5 data, run existing electrical/firmware requests, show qualification failures truthfully, and deliver the same ZMK package/output; verify rotation and push source output, Undo/Redo, save/reload, compact controls, and recovery. Firmware UI work can be implemented with fixtures before F5 is complete.",
+      "boundary_status": "Existing SetKeyBinding, EditKeymap, ResolveElectrical, GenerateFirmware, and artifact provider contracts. F5 owns electrical data and Wiring composition; F6 owns the private migrated control and adapter. No new public command/event/API.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1",
+        "F6K.2"
+      ],
+      "acceptance_after": [
+        "F5.2",
+        "F8.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.1",
+      "title": "Keycaps projection, shared selection, and physical 2D view",
+      "depends_on": [
+        "INT.1",
+        "F3.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Show the same board-scoped supported keys and matrix list as React. The 2D Keycaps canvas uses stable selected-key identity, effective dimensions/color, inherited or explicit legend, and keyboard/pointer selection; it stays distinct from Keymap's active-layer label view. Empty input, standalone switch, mixed matrix, and per-key overrides are represented without manufacturing persisted defaults. Fixture implementation may proceed before F3/F4 integration; complete acceptance uses their agreed projections.",
+      "boundary_status": "Accepted document snapshot plus generated keycap defaults; private Dioxus read projection only. Fixture-ready before F3/F4 integration.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [
+        "F3.1"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.2",
+      "title": "Board, matrix, and per-key keycap controls",
+      "depends_on": [
+        "F6C.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Port board keycap/legend colors and clearance, matrix profile/first row/wall thickness/socket, and per-key legend/color/profile/socket/row/width/depth controls. Preserve supported profile/mount choices, valid ranges, inheritance, and null-versus-empty legend behavior. Selection changes, blur commits, workspace switching, errors, Undo/Redo, save/reload, and visual 2D updates match the reference. All durable changes use the existing SetKeycapBoard, SetMatrixKeycaps, or SetKeycapKey command path.",
+      "boundary_status": "Existing SetKeycapBoard, SetMatrixKeycaps, SetKeycapKey, and defaults. No schema or validation changes.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.3",
+      "title": "Shared key-size drafts, selection scope, and linked reflow",
+      "depends_on": [
+        "F6C.1",
+        "F3.2",
+        "F3.5"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Port width/depth sliders, quarter-unit steps, wide/tall actions, mixed-selection display, pointer and keyboard commit behavior, and duplicate-commit protection. Preserve existing selection scopes, per-axis commits, key envelope sizing, neighboring reflow, canonical linked-half behavior, affected IDs, single history entry, Undo/Redo, save/reload, and outline/position parity. Draft values settle or reset consistently when selection/project changes. Implement the control against fixtures before the full F3 Layout integration.",
+      "boundary_status": "Existing TypeScript UI resize/reflow policy has no located callable Rust equivalent: port it unchanged into a private Rust frontend controller using existing matrix projection and replace-document/history path. F3 owns Layout callbacks; no new algorithm semantics/public API.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.1"
+      ],
+      "acceptance_after": [
+        "F3.2",
+        "F3.5"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.4",
+      "title": "Keycap fit resolution, findings, and navigation",
+      "depends_on": [
+        "F6C.2",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Use the existing ResolveKeycaps result for supported specs and findings. Present invalid profile/socket/row/wall/dimension/color/legend/roof states, unsupported inputs, neighboring swept-envelope clearance, current-case body/feature warnings, and stale-case-revision warning with the current conservative-fit wording. Finding activation navigates/focuses the exact affected keys or geometry when available. Keymap edits affecting inherited legends refresh the result; failed or superseded resolution never replaces current accepted state.",
+      "boundary_status": "Existing ResolveKeycaps and finding-navigation contracts; missing private query adapter must carry request identity/revision/scope and reject stale replies. No new public read endpoint or fit algorithm.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.2"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.5",
+      "title": "Key workspace shared 3D consumption, keycap preview and STEP action",
+      "depends_on": [
+        "F6C.4",
+        "F7.1",
+        "F7.3",
+        "F8.2",
+        "BND.1"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "Expose the existing 2D/3D view choice in Keymap and Keycaps and feed current resolved specs to the F7-owned shared assembly viewer. Show caps and separate legend inlays, colors, pending/error/retry behavior, current assembly layer visibility, and no late results after revision/board/project switch or unmount. Preserve camera, scene, worker, and viewer ownership in F7. Port the existing keycap STEP action through the accepted snapshot, existing resolver plus the BND.1-proven keycap CAD service bridge, revision check, and download delivery; verify valid STEP bytes and the established empty/error/readiness messages. The common viewer is an integration dependency only: no Keycaps-specific viewer implementation is part of this task.",
+      "boundary_status": "Existing Core ResolveKeycaps and Rust CAD WASM build_keycaps export; missing private Dioxus host/worker request adapter. BND.1 proves private wire/host reuse, revision/body validation and chunked preview cancellation. F7 owns viewer; F6 owns canonical consumers/local STEP. No engine/public API change required by current source evidence.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.4",
+        "F7.1"
+      ],
+      "acceptance_after": [
+        "F7.3",
+        "F8.2",
+        "BND.1"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6.6",
+      "title": "Keymap and Keycaps shared integration and paired public acceptance",
+      "depends_on": [
+        "F6K.1",
+        "F6K.2",
+        "F6K.3",
+        "F6K.4",
+        "F6C.1",
+        "F6C.2",
+        "F6C.3",
+        "F6C.4",
+        "F6C.5",
+        "F2.3",
+        "F5.2",
+        "F7.6"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Integrate Keymap and Keycaps in the coordinator-owned shell/runtime without feature owners editing global tokens or shared drawers concurrently. Compare pinned React and Dioxus public browser workflows on identical saved fixtures for selection, layers/bindings/macros/encoders, legacy quick bindings, profile/legend/size/color/fit, Undo/Redo, reload/archive, workspace switching, exports, validation failures, and stale/cancelled preview. Review paired desktop and compact captures in light/dark themes plus visible focus, labels, empty/loading/error states. A handoff blocks only its affected final evidence; saved-fixture slices stay independently usable. Update the TSX inventory with exact owner/evidence/disposition and keep F6 open for real F5/F7 joins if they are unfinished.",
+      "boundary_status": "Coordinator-owned integration only. Reuses the existing public browser/edit/history/provider seams; no shared runtime shell ownership transfer and no new public API.",
+      "workflow": "F6",
+      "owner": "F6 workflow lead",
+      "start_after": [
+        "F6K.1",
+        "F6K.2",
+        "F6K.3",
+        "F6K.4",
+        "F6C.1",
+        "F6C.2",
+        "F6C.3",
+        "F6C.4",
+        "F6C.5"
+      ],
+      "acceptance_after": [
+        "F2.3",
+        "F5.2",
+        "F7.6"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    }
+  ]
+}

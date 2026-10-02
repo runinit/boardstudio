@@ -1,0 +1,17 @@
+# Independent review: F4
+
+## Material findings
+
+1. **Several tasks are gated on all of F2, though they need only its shared host seam.** `F4.json` puts `F2` in `depends_on` for F4.1, F4.2, and F4.5; F4.1 also calls the F2 Parts panel a prerequisite. The Parts route already exists as a Dioxus placeholder, and the F4 acceptance flows do not use F2's project library, archive, or setup-guide workflows. The actual potential integration need is the panel/shell host, owned by F2.3/F1. This unnecessarily blocks catalog, definition, and profile work on unrelated F2 outcomes. **Fix:** allow fixture/private-module work to start independently; retain only the F2.3/F1 Parts-host join in `acceptance_after` (or the narrow shared slot once named).
+
+2. **F4.3 and F4.4 are over-serialized behind work they can exercise independently.** `F4.json` requires F4.2 before generator settings and F4.3 before isolated previews. Generator fixtures already come from the catalog/retained Ergogen service, so custom/authored footprint editing is not a prerequisite for F4.3. Existing selected definitions and generator fixtures also support useful 2D/3D preview work without first implementing the generator form. F4.md's sequence/table repeats these dependencies even though its later note says generator and preview slices are independent of matrix authoring after the Parts host is available. **Fix:** make each slice start after F4.1/F3a and the necessary coordinator adapters; keep generator-edited-preview and combined visual qualification as an integration acceptance join, not a hard start gate.
+
+3. **F4.4's 3D completion lacks the F7 viewer join and conflicts with common-viewer ownership.** F4.4 acceptance requires 3D model rendering, error/retry, stale-result handling, and renderer resource cleanup. F4.md describes a Dioxus Parts preview owner over `RendererHost`, while F7 and `EXECUTION.md` assign the single shared assembly/model viewer and its lifecycle to F7; the F4 task graph has no F7 viewer dependency. This can be read as authorizing a parallel Parts renderer implementation. **Fix:** make F4 own isolated sample inputs/request state only, consume the F7 shared viewer, and mark 3D acceptance after the specific F7 viewer contract/consumer integration. Keep F4's 2D footprint preview independently actionable.
+
+4. **F4.6's graph makes the entire F3 milestone a hard prerequisite for all assembly authoring.** `F4.json` lists `F3` in F4.6 `depends_on`, but the task includes create/edit/duplicate, draft preview, validation, and save, while only its matrix/board Apply/Place controls require F3 placement. F4.md's Further Notes explicitly says save can be delivered before placement. **Fix:** allow saved-assembly editor/save work to start from F4.1 and its preview-input seam; move only Apply/Place acceptance behind the named F3 placement slice.
+
+## Other checks
+
+The React-source split between F4 library-level definitions/profiles and F5 mounted-module placement/electrical wiring is consistent with the plan. Rust artifact, generator, history, module, and asset claims are framed as existing provider contracts plus private/coordinator adapter gaps; the plan does not silently authorize a public API/schema or backend change. Mechanical profile evidence and qualification language does not overstate case fit.
+
+**Scope/limits:** Planning review only against baseline `c827c4e6` and pinned React `5a472a94`. No builds, browser runs, or repository/draft edits. This report is not implementation acceptance.

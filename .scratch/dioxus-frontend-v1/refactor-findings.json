@@ -1,0 +1,393 @@
+{
+  "purpose": "Living architectural/design/theoretical/quality findings for a major refactoring phase after frontend parity. Record during every rewrite/port slice; do not expand current scope automatically.",
+  "source_baseline": "c827c4e6",
+  "policy": {
+    "required_handoff": "Update existing entry or add one with evidence, impact, current workaround, later proposal and validation; explicitly record none observed when applicable.",
+    "certainty": "Separate confirmed defect/limitation, supported design risk and hypothesis. Missing frontend implementation alone is not poor architecture.",
+    "timing": "Fix required behavior/contract correctness in current slice; defer broader structural cleanup. Never use deferred status to waive a frontend acceptance gate.",
+    "deduplication": "Stable RF IDs, append new evidence and affected workflows rather than duplicate entries.",
+    "closure": "Retain history with fix/decision/source/evidence; do not delete embarrassing findings or mark solved from a plan."
+  },
+  "findings": [
+    {
+      "id": "RF-001",
+      "title": "Shared presentation and Runtime are integration hotspots",
+      "category": "architecture / modularity",
+      "confidence": "design risk supported by source",
+      "impact_priority": "high",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "evidence": [
+        "web/src/presentation.rs",
+        "web/src/runtime.rs",
+        "app/src/ui/Workbench.tsx"
+      ],
+      "observation": "The current presentation spans 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules. The reference Workbench is 1,426 lines. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.",
+      "impact": "Concurrent changes can conflict, and a one-to-one port could preserve broad coupling between workspace controls and service lifecycles.",
+      "during_port": "Use private feature modules with one coordinator owning shared composition; avoid a general framework before useful screens land.",
+      "post_port_proposal": "After parity, assess stable workspace/host orchestration modules with narrow interfaces and one authoritative session.",
+      "validation_needed": "Measure cross-workflow files changed for a representative feature and show that isolated workflow edits/tests no longer require unrelated shell/runtime changes.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "INT.1"
+      ]
+    },
+    {
+      "id": "RF-002",
+      "title": "Internal browser host types are exposed as crate APIs",
+      "category": "architecture / API design",
+      "confidence": "confirmed observation; future cost is a design risk",
+      "impact_priority": "high",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F7",
+        "F8"
+      ],
+      "evidence": [
+        "web/src/lib.rs",
+        "web/src/cad_jobs.rs",
+        "web/src/renderer_host.rs",
+        "web/src/main.rs"
+      ],
+      "observation": "web exports cad_jobs, renderer_host and several host modules publicly; CadOperation/CadRequest and wrapper methods are public. Adding a seemingly internal operation can therefore widen a Rust crate surface even when wire/file semantics stay unchanged. The page binary separately declares Runtime/presentation and imports the boardstudio_web library: pub(crate) in that library is not callable from the binary. Private wrapper placement must account for the actual crate boundary.",
+      "impact": "Implementation detail and intentional compatibility contract are hard to distinguish; private adapter evolution can trigger unnecessary broad API decisions.",
+      "during_port": "Place a private wrapper in the same crate as its consumer, or use an already sufficient public facade. Verify library-to-binary reachability before declaring a pub(crate) wrapper feasible; any needed public expansion remains an explicit decision.",
+      "post_port_proposal": "Audit actual consumers, explicitly separate stable public contracts from host internals, and propose compatible deprecation/module boundaries rather than silently shrinking visibility.",
+      "validation_needed": "List real external consumers and compile compatibility fixtures; prove internal operation changes no longer alter the intended public surface.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "F7.1",
+        "BND.1"
+      ]
+    },
+    {
+      "id": "RF-003",
+      "title": "CAD engine capabilities and host protocols drift apart",
+      "category": "architecture / capability discovery",
+      "confidence": "confirmed adapter gap",
+      "impact_priority": "high",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "evidence": [
+        "cad/wasm/src/model/keycaps.rs",
+        "cad/wasm/src/lib.rs",
+        "cad/src/index.ts",
+        "app/src/CaseClient.ts",
+        "web/src/cad_jobs.rs",
+        "web/src/cad_worker.rs"
+      ],
+      "observation": "Rust WASM already exports build_keycaps, but the Dioxus host/worker operation set covers case preview/exact/STEP/read only. The initial review mistook the absent host path for a missing provider until the engine export was traced.",
+      "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
+      "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
+      "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
+      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "BND.1"
+      ]
+    },
+    {
+      "id": "RF-004",
+      "title": "Immutable export tokens do not model export-owned commits",
+      "category": "architecture / transaction theory",
+      "confidence": "confirmed contract mismatch for PCB workflow",
+      "impact_priority": "high",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F5",
+        "F8"
+      ],
+      "evidence": [
+        "application/src/session.rs",
+        "app/src/exports/context.ts",
+        "app/src/exports/pcb.ts",
+        "web/src/runtime.rs"
+      ],
+      "observation": "Session export captures an immutable token and cancels registered exports on accepted commits. React PCB export deliberately adopts its own wiring and protection commits, with packaging before protection, while unrelated changes invalidate output.",
+      "impact": "A naive port either cancels its own valid export or weakens stale-output guards. Ownership of a multi-step operation and its accepted document lineage is not represented uniformly.",
+      "during_port": "BND.2 must prove safe private operation/commit correlation; preserve ordering and reject all unrelated changes. If impossible through existing contracts, record a concrete API proposal before dependent code.",
+      "post_port_proposal": "Evaluate explicit operation lineage/transaction ownership across session jobs, edits, persistence and artifact delivery, with a documented consistency model.",
+      "validation_needed": "Race matrix: owned versus unrelated commits, save failure, navigation, cancellation and packaging failure; no stale delivery and no protection without successful packaging.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "BND.2",
+        "F8.2"
+      ]
+    },
+    {
+      "id": "RF-005",
+      "title": "Geometric edit planning lives in frontend helper policy",
+      "category": "architecture / domain ownership",
+      "confidence": "confirmed remaining TS policy; target placement is a hypothesis",
+      "impact_priority": "medium",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F3",
+        "F6"
+      ],
+      "evidence": [
+        "app/src/ui/planKeycapResize.ts",
+        "app/src/ui/keycapReflow.ts",
+        "application/src/interactions.rs",
+        "core/src/matrix/layout.rs"
+      ],
+      "observation": "Resize/reflow computes canonical linked-half deduplication, axis projections, spacing and center preservation in TS UI helpers. No equivalent callable Rust resize/reflow controller was found, although core owns matrix projection and accepted edits.",
+      "impact": "A component-only rewrite would lose behavior or leave hidden TS logic; moving the policy carelessly could duplicate geometry authority.",
+      "during_port": "F6C.3 ports the existing policy into a private Rust frontend controller with preserved helper/public workflow tests and one normal edit/history path.",
+      "post_port_proposal": "After parity, decide whether interaction planning belongs in a dedicated application service using core geometry primitives, with explicit draft/commit ownership.",
+      "validation_needed": "Compare identical resize traces across pointer/keyboard, mixed selections and linked boards; no semantic drift, duplicated calculations or extra history steps.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "F6C.3"
+      ]
+    },
+    {
+      "id": "RF-006",
+      "title": "Canonical, physical-instance and isolated sample scopes are easy to conflate",
+      "category": "design / coordinate and identity model",
+      "confidence": "confirmed distinct scopes; abstraction improvement is a hypothesis",
+      "impact_priority": "high",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "evidence": [
+        "app/src/ui/Workbench.tsx",
+        "app/src/ui/LibraryWorkspace.tsx",
+        "app/src/exports/cases.ts",
+        "web/src/cad_jobs.rs"
+      ],
+      "observation": "Layout/Keymap/Keycaps use canonical boards; Case projects a physical instance; Parts builds an isolated sample. Authored Case STEP uses canonical saved bodies while generated mechanical export explicitly projects the instance. All may share viewer and artifact code.",
+      "impact": "A generic board/instance argument or copied projection rule can mirror the wrong geometry, leak a sample into the document, or export the wrong scope.",
+      "during_port": "Use one shared viewer with explicit consumer inputs; preserve each reference projection and captured identity. Test cross-scope switches and stale replies.",
+      "post_port_proposal": "Evaluate typed scope/projection inputs and coordinate-frame invariants for view, edit and export consumers; separate display projection from saved-document identity.",
+      "validation_needed": "Table-driven fixtures for front/back/split/instance/sample scopes plus properties for stable IDs, reflection count, unchanged canonical document and correct outputs.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "F7.3",
+        "F7.7",
+        "F8.5"
+      ]
+    },
+    {
+      "id": "RF-007",
+      "title": "Runtime observation currently supports one subscriber",
+      "category": "architecture / reactivity",
+      "confidence": "hypothesis requiring consumer audit",
+      "impact_priority": "medium",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "evidence": [
+        "web/src/runtime.rs"
+      ],
+      "observation": "Runtime subscribe assigns a single notifier and unsubscribe clears it. This supports the current root composition but is not an independently mountable multi-consumer subscription contract.",
+      "impact": "If feature modules subscribe directly, one may replace another or remove notification delivery on unmount. No present lost-update bug is claimed.",
+      "during_port": "Keep the existing root subscription and pass projections/callbacks to children; do not give each workspace an independent subscription.",
+      "post_port_proposal": "Assess a scoped subscription lifecycle or explicit root reactive projection after measuring actual needs; avoid adding an event bus by default.",
+      "validation_needed": "Mount/unmount and rapid switching with two observers in a characterization probe; verify ownership and no stale/lost notification or redundant large clone.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "INT.1"
+      ]
+    },
+    {
+      "id": "RF-008",
+      "title": "Archive packing capability is split from its UI options and asset resolution",
+      "category": "design / persistence orchestration",
+      "confidence": "confirmed frontend parity gap",
+      "impact_priority": "medium",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F2",
+        "F4",
+        "F8"
+      ],
+      "evidence": [
+        "app/src/storage.ts",
+        "app/src/ui/Workbench.tsx",
+        "web/src/runtime.rs"
+      ],
+      "observation": "React copy always includes local assets and optionally discovers/embeds used bundled models with the project-name filename. Runtime packing currently includes document.assets and delivers keyboard.boardstudio without that option.",
+      "impact": "The same visible copy action can produce archives with different portability and naming across entrypoints/hosts.",
+      "during_port": "F2.2 owns one shared packing action with correct asset semantics; F8 owns its route checkbox/button. Preserve formats, IDs and hashes.",
+      "post_port_proposal": "Unify explicit archive input/options and asset-source resolution responsibilities with one compatibility test corpus across hosts.",
+      "validation_needed": "Reference/candidate round trips with imported assets, bundled used models enabled/disabled, missing asset failures and identical project-name output.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "F2.2",
+        "F8.1"
+      ]
+    },
+    {
+      "id": "RF-009",
+      "title": "Parity accounting and acceptance evidence are scattered",
+      "category": "verification / process design",
+      "confidence": "confirmed planning and evidence gap",
+      "impact_priority": "medium",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F9"
+      ],
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
+        "CONSTRAINTS.md",
+        "app/playwright.config.ts",
+        ".scratch/m1-production/ACCEPTANCE.md"
+      ],
+      "observation": "The original roadmap contained invented project/export controls and coarse dependencies; UI-owned helper work was not explicit. Existing browser suites target React, bounded Dioxus evidence lives in task artifacts, and historical visual references are only in the original checkout. Actual screen-reader coverage is unavailable on this host.",
+      "impact": "Plans and passing partial checks can imply unsupported completeness; evidence may not identify the delivered source and environment consistently.",
+      "during_port": "Maintain the source/task/evidence ledger and public Dioxus scenarios during the port; resolve actual AT and applicable release gates before frontend adoption.",
+      "post_port_proposal": "After parity, consolidate maintained conformance scenarios, source/fixture/build provenance and CI integration; treat evidence as reproducible outputs rather than accumulated prose.",
+      "validation_needed": "From one commit, locate every required workflow scenario and produce its current result with exact source/build/fixture identity and explicit unavailable gates.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "F9.1",
+        "F9.2",
+        "F9.3"
+      ]
+    },
+    {
+      "id": "RF-010",
+      "title": "Cancellation has different guarantees at worker and kernel boundaries",
+      "category": "theoretical / async resource lifecycle",
+      "confidence": "confirmed limitation; not automatically a design defect",
+      "impact_priority": "medium",
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "workflows": [
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "evidence": [
+        "cad/src/index.ts",
+        "web/src/cad_worker.rs",
+        "cad/wasm/src/model/keycaps.rs"
+      ],
+      "observation": "Preview can yield between keycap chunks; a synchronous WASM STEP build cannot be interrupted mid-kernel call. Host cancellation can stop queued work and suppress stale completion without immediately releasing ongoing computation.",
+      "impact": "A single cancelled status can obscure remaining CPU/memory work or lead the UI to promise prompt preemption that the engine does not provide.",
+      "during_port": "Preserve chunk/yield preview behavior and late-result suppression; report actual cancellation granularity, keep resource checks and do not add unproven preemption claims.",
+      "post_port_proposal": "Review cancellation contracts, scheduling/resource budgets and operation status terminology across host/worker/kernel; evaluate cooperative work units only with measured benefit.",
+      "validation_needed": "Measure cancel-to-settle and retained resources for queued, chunked preview and synchronous export; verify no stale scene/file even when computation finishes after cancellation.",
+      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "linked_tasks": [
+        "BND.1",
+        "F7.3",
+        "F8.2"
+      ]
+    },
+    {
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "decision": "proposal only; no current API/schema/backend change approved",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "id": "RF-011",
+      "title": "CAD revision envelope has a JavaScript safe-integer ceiling",
+      "category": "theoretical / representation and identity",
+      "confidence": "confirmed CAD-only technical limit; low-probability scale risk",
+      "impact_priority": "low",
+      "workflows": [
+        "F7",
+        "F8"
+      ],
+      "evidence": [
+        "web/src/cad_jobs.rs"
+      ],
+      "observation": "MAX_CAD_REVISION is 9,007,199,254,740,991 and larger CAD revisions are explicitly rejected because that worker boundary uses JS numbers. This is specific to CAD and does not negate the separately verified exact core/archive integer transport.",
+      "impact": "The CAD identity domain is narrower than the document integer domain; practical lifetime relevance needs evidence.",
+      "during_port": "Preserve explicit rejection and existing boundary tests; never round a revision or weaken stale checks.",
+      "post_port_proposal": "Audit whether this limit matters; only if warranted consider string/bigint identity across the CAD envelope with compatibility handling.",
+      "validation_needed": "Max/max+1 request/reply tests and realistic revision growth estimate before changing representation.",
+      "linked_tasks": [
+        "F7.1",
+        "F9.4"
+      ]
+    },
+    {
+      "status": "observed; structural proposal deferred until post-port review",
+      "discovered": "2026-10-02",
+      "baseline": "c827c4e6",
+      "decision": "proposal only; no current API/schema/backend change approved",
+      "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
+      "id": "RF-012",
+      "title": "Renderer host relies on reflective method names and partial capability wrappers",
+      "category": "architecture / boundary typing",
+      "confidence": "confirmed wrapper shape; maintenance risk needs measurement",
+      "impact_priority": "medium",
+      "workflows": [
+        "F3",
+        "F4",
+        "F6",
+        "F7"
+      ],
+      "evidence": [
+        "web/src/renderer_host.rs",
+        "renderer/src/wasm.rs"
+      ],
+      "observation": "RendererHost invokes wasm methods through Reflect/string names and wraps only part of the already-exported state/handles/pick/scene/camera capability set.",
+      "impact": "Missing wrappers and string-level mismatches can surface at runtime rather than at a typed application boundary.",
+      "during_port": "F7.1 maps the existing exports; F7.3 supplies one private viewer adapter with public behavior/lifecycle checks and correct crate placement.",
+      "post_port_proposal": "Evaluate a small typed internal viewer port/capability map and generated or checked boundary mappings; do not duplicate renderer behavior per workspace.",
+      "validation_needed": "Exercise every mapped method, model/scene DTO and mount/update/error/context-loss/disposal path with the same fixture outputs.",
+      "linked_tasks": [
+        "F7.1",
+        "F7.3"
+      ]
+    }
+  ]
+}

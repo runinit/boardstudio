@@ -1,59 +1,141 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "F1 and scoped F3a implemented and verified; full F2\u2013F9 open",
+  "status": "F1 and scoped F3a implemented and verified; full F2–F9 open",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "F2",
+  "current_milestone": "parallel F2/F3 frontend continuation",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
     "F1": {
-      "status": "verified first increment; full parity remains F2\u2013F9",
+      "status": "verified first increment; full parity remains F2–F9",
       "ticket": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md",
       "depends_on": "M1 implementation"
     },
     "F2": {
       "status": "planned",
       "ticket": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
-      "depends_on": "F1"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F2.1",
+        "F2.2",
+        "F2.3",
+        "F2.4"
+      ]
     },
     "F3": {
       "status": "F3a layers/keycaps/footprints functionally/visually verified; full F3 open",
       "ticket": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-      "depends_on": "F2",
-      "active_slice": ".scratch/dioxus-frontend-v1/issues/03a-layout-layers.md"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "active_slice": ".scratch/dioxus-frontend-v1/issues/03a-layout-layers.md",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F3.1",
+        "F3.2",
+        "F3.3",
+        "F3.4",
+        "F3.5",
+        "F3.6",
+        "F3.7",
+        "F3.8"
+      ]
     },
     "F4": {
       "status": "planned",
       "ticket": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-      "depends_on": "F2; integrate with F3"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F4.1",
+        "F4.2",
+        "F4.3",
+        "F4.4",
+        "F4.5",
+        "F4.6",
+        "F4.7"
+      ]
     },
     "F5": {
       "status": "planned",
       "ticket": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
-      "depends_on": "F3, F4"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F5.1",
+        "F5.2",
+        "F5.3",
+        "F5.4",
+        "F5.5",
+        "F5.6",
+        "F5.7",
+        "F5.8"
+      ]
     },
     "F6": {
       "status": "planned",
       "ticket": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
-      "depends_on": "F3, F4; F5 hardware handoff"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F6K.1",
+        "F6K.2",
+        "F6K.3",
+        "F6K.4",
+        "F6C.1",
+        "F6C.2",
+        "F6C.3",
+        "F6C.4",
+        "F6C.5",
+        "F6.6"
+      ]
     },
     "F7": {
       "status": "planned",
       "ticket": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
-      "depends_on": "F3, F4; F5 hardware-dependent views"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F7.1",
+        "F7.2",
+        "F7.3",
+        "F7.4",
+        "F7.5",
+        "F7.6",
+        "F7.7",
+        "F7.8"
+      ]
     },
     "F8": {
       "status": "planned",
       "ticket": ".scratch/dioxus-frontend-v1/issues/08-export.md",
-      "depends_on": "F5, F6, F7"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F8.1",
+        "F8.2",
+        "F8.3",
+        "F8.4",
+        "F8.5",
+        "F8.6"
+      ]
     },
     "F9": {
       "status": "planned",
       "ticket": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
-      "depends_on": "F1\u2013F8; applicable carried gates"
+      "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
+      "planning_status": "planned and independently reviewed; implementation open",
+      "slices": [
+        "F9.1",
+        "F9.2",
+        "F9.3",
+        "F9.4",
+        "F9.5",
+        "F9.6",
+        "F9.7"
+      ]
     }
   },
   "m1_acceptance": "open; separate retained ledger",
@@ -62,5 +144,30 @@
   "executable_source": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
   "build": "frontend-layout-f44a3d1b-20261001",
   "demo_url": "http://127.0.0.1:34643/",
-  "handoff": ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md"
+  "handoff": ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md",
+  "planning_revision": "2026-10-02",
+  "planning_baseline": "c827c4e69389a77b1f0e8d647ce86a4c41529611",
+  "planning_status": "workflow plans and independent reviews reconciled; implementation remains open",
+  "task_graph": ".scratch/dioxus-frontend-v1/tasks.json",
+  "agent_execution_plan": ".scratch/dioxus-frontend-v1/EXECUTION.md",
+  "coverage": ".scratch/dioxus-frontend-v1/coverage.json",
+  "planning_review": ".scratch/dioxus-frontend-v1/evidence/planning/review-resolution.md",
+  "slice_counts": {
+    "total": 62,
+    "workflow_slices": 58,
+    "integration_slices": 2,
+    "boundary_slices": 2
+  },
+  "next_visible_tranche": [
+    "F2.1",
+    "F2.3",
+    "F3.1"
+  ],
+  "early_boundary_tasks": [
+    "F7.1",
+    "BND.1",
+    "BND.2"
+  ],
+  "refactoring_takeaways": "docs/migration/POST-PORT-REFACTOR.md",
+  "refactoring_register": ".scratch/dioxus-frontend-v1/refactor-findings.json"
 }

@@ -1,0 +1,1852 @@
+{
+  "schema_version": 1,
+  "planned_at": "2026-10-02",
+  "baseline": "c827c4e6",
+  "executable_source": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "scope": "100% frontend Dioxus parity; no backend rewrite",
+  "dependency_semantics": {
+    "start_after": "Prerequisites for dispatch of implementation/fixture-backed preparation.",
+    "acceptance_after": "Additional real integration dependencies required before completion.",
+    "depends_on": "Conservative union of start_after and acceptance_after; graph is acyclic.",
+    "external_gates": "Unmet external host/approval conditions; never infer completion from elapsed time."
+  },
+  "tasks": [
+    {
+      "id": "INT.1",
+      "title": "Minimal private workspace seams and shared control ownership",
+      "workflow": "INT",
+      "owner": "integration coordinator",
+      "start_after": [],
+      "acceptance_after": [],
+      "depends_on": [],
+      "priority": "P0",
+      "effort": "S",
+      "status": "planned",
+      "acceptance": "Existing session/runtime remains authoritative; private workspace read-model/callback slots, scope/draft keys and shared panel/control contracts let the first F2/F3 slices mount without parallel edits to the same shell. Preserve working F1/F3a behavior. No general framework or public API expansion.",
+      "boundary_status": "Private presentation composition only; existing events/model/types suffice.",
+      "external_gates": [],
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "INT.2",
+      "title": "Small shared scoped request, asset and delivery seam",
+      "workflow": "INT",
+      "owner": "integration coordinator with consuming workflow author",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "status": "planned",
+      "acceptance": "Provide the smallest private scoped dispatch and file/asset/delivery seam, prove it with the first required existing provider call and cancellation/stale/error/resource checks. Individual format/query adapters belong to their consuming visible feature tasks and do not all have to exist before INT.2 completes. Preserve current session/document/revision/board identity and one session/store; no backend rewrite.",
+      "boundary_status": "Runtime currently lacks complete workspace facades; existing CoreWorker/BrowserStore/application/provider contracts are present. Verify each concrete call during implementation and record genuine public gaps instead of assuming them.",
+      "external_gates": [],
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "BND.1",
+      "title": "Prove private Dioxus access to existing Rust keycap CAD export",
+      "workflow": "BND",
+      "owner": "common-viewer/keycaps boundary author plus independent reviewer",
+      "start_after": [],
+      "acceptance_after": [],
+      "depends_on": [],
+      "priority": "P0",
+      "effort": "M",
+      "status": "planned",
+      "acceptance": "Use the existing packaged Rust WASM build_keycaps export; prove a crate-private host/worker request path with a current fixture, revision identity and disposal/cancellation. Core ResolveKeycaps alone and generic Case STEP are insufficient. Document existing CAD asset/build inputs, stable body/legend IDs, scope/revision validation, preview chunk/yield cancellation and non-preemptible STEP late-result suppression. If existing callable capability is genuinely insufficient, leave dependent keycap CAD acceptance open and present the concrete public-contract decision before changing APIs.",
+      "boundary_status": "Existing Rust CAD WASM build_keycaps is public and packaged, but current web CAD enum/worker request path lacks keycaps. Prefer private wire/host types, not changes to public web::cad_jobs types. No new engine function or public contract indicated.",
+      "external_gates": [],
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "BND.2",
+      "title": "Prove PCB export-owned commit and stale-snapshot sequencing",
+      "workflow": "BND",
+      "owner": "export boundary author plus independent reviewer",
+      "start_after": [],
+      "acceptance_after": [],
+      "depends_on": [],
+      "priority": "P0",
+      "effort": "M",
+      "status": "planned",
+      "acceptance": "Characterize React export own-commit adoption and current immutable Session export token. Prove a private orchestration using existing accepted edits that preserves resolve/wiring commit/package/protection commit/delivery order, rejects unrelated changes and never protects failed packaging. If existing Session APIs cannot safely express it, record the exact required contract and keep only dependent export acceptance open before an API change.",
+      "boundary_status": "Existing application export token has no adopt transition; this is unresolved adapter/contract feasibility, not already-supported semantics. No weakened stale guards or direct second document authority.",
+      "external_gates": [],
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F2.1",
+      "title": "Project start, library, search and demos",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Public entry/library shows loading, empty, populated, search/no-match/clear, saved-project and demo cards with previews/counts/current marker, damaged-preview fallback, list-error retry, and editable demo opening. Browsing does not mutate project revision, history, or active selection until an open action.",
+      "boundary_status": "Existing BrowserStore list/load, active-project restore, and fixture open boundaries suffice; missing private presentation projection and local list loading/error/retry state. Shared route placement is coordinator-owned.",
+      "workflow": "F2",
+      "owner": "F2 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F2.2",
+      "title": "Project lifecycle and portable archive",
+      "depends_on": [
+        "F2.1",
+        "INT.2"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Public browser flows create without resetting other projects, open saved projects, recover durable state, import a validated archive, download and re-open a portable project copy with assets, and delete only after named confirmation with cancel/success/failure/retry behavior. Superseded asynchronous opens do not replace the newer selection. Verify durable project/asset outcomes and active-project identity.",
+      "boundary_status": "Existing Session Open/RecoverWithDocument, BrowserStore list/load/delete/save/active-id, and core archive pack/unpack contracts; Runtime lacks complete private create/delete/archive-download action adapters. Project rename/duplicate are excluded because the pinned React library/menu do not offer them. No new public API assumed.",
+      "workflow": "F2",
+      "owner": "F2 workflow lead",
+      "start_after": [
+        "F2.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F2.3",
+      "title": "Workspace panels and compact drawers",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Public desktop behavior covers pinned/auto-hide/collapsed modes, bounded pointer and keyboard resize, persistence, and panel interaction. Compact behavior covers breakpoint transitions, scrim, close/Escape, focus restoration, and hidden-content focus exclusion. Panel actions do not alter document revision, history, or camera.",
+      "boundary_status": "Presentation-only feature; React behavior is established. Rust candidate only has basic compact visibility controls. Private panel state/controller needs shell props/events; shell/layout integration is coordinator-owned.",
+      "workflow": "F2",
+      "owner": "F2 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F2.4",
+      "title": "Setup guide, shared menus, shortcuts and focus",
+      "depends_on": [
+        "F2.3"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "Public UI presents five freely navigable guide stages with readiness and per-project saved state, plus command menus with viewport-safe placement, useful initial focus, outside/Escape/explicit dismissal, and focus return. Supported shortcuts work outside text entry and do not fire while editing. Light/Dark/System presentation remains consistent across entry, menu, panel, and drawer states.",
+      "boundary_status": "Private presentation components/state suffice. Current candidate lacks the guide and reusable command-menu behavior. Project creation needs a callback to open guide but does not require lifecycle adapter internals. Shared shell shortcut/focus wiring is coordinator-owned.",
+      "workflow": "F2",
+      "owner": "F2 workflow lead",
+      "start_after": [
+        "F2.3"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.1",
+      "title": "Layout tree, board scope and selection",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": [
+        "Public Dioxus UI presents board, matrix, row/column, key, component, outline/version/bridge groups with independent disclosure and selection.",
+        "Tree and canvas synchronize selection; Ctrl/Cmd toggles, Shift selects the anchored rectangular key range, and selection respects active-board/matrix membership.",
+        "Board/project switches cancel active gestures and clear only invalid scoped state; visibility and panel opening do not create document revisions.",
+        "Desktop/compact keyboard interaction and focus behavior match the React workflow."
+      ],
+      "boundary_status": "Existing Session selection/navigation/read-model APIs; missing Dioxus tree projection, disclosure state and adapter.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.2",
+      "title": "Matrix and component authoring",
+      "depends_on": [
+        "F3.1"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "Create custom/preset matrices and mirrored pairs through existing operations; show a non-durable preview before commit.",
+        "Arrow keys adjust pending placement by active snap increment, Enter commits and Escape cancels with no revision/history change.",
+        "Add and place supported standalone components; preserve definitions, IDs, assets, cell overrides and board scope.",
+        "Verify commit, save/reload, Undo/redo and invalid-input behavior through public UI scenarios."
+      ],
+      "boundary_status": "Existing core matrix/add-part operations and Rust projection; missing Dioxus setup forms, placement preview/controller and intent adapter.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.3",
+      "title": "Transforms, constraints and snapping",
+      "depends_on": [
+        "F3.1",
+        "F3.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "Direct position/rotation, matrix stagger/splay/origin, alignment and offset/mirror constraints use existing edit operations.",
+        "Characterize and fix the reference non-zero-world-movement versus current Dioxus 4 CSS px drag threshold mismatch using paired small-drag and stationary-click/panel-reflow regressions; preserve existing pointer budgets, capture, modifiers, cancellation and Undo gates.",
+        "Pointer capture, pointercancel/lost capture/Escape cancellation, final pointer-up sample and project/board cancellation are covered; one completed drag is one Undo step.",
+        "Alt bypasses grid and geometry snapping; snap guide appears/clears correctly; arrow nudge is 0.1 mm and Shift+arrow is 1 mm outside editable fields.",
+        "Align is disabled for locked/driven targets and row scope crossing separate splay; stale revisions cannot publish."
+      ],
+      "boundary_status": "Existing application gesture/session transactions, snap_part and core MoveParts/SetMatrix/SetMatrixSplay/SetConstraint/RemoveConstraint; missing Dioxus adapters, controllers and draft fields. No domain geometry algorithm gap identified.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [
+        "F3.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.4",
+      "title": "Outline editing, versions and refinements",
+      "depends_on": [
+        "F3.1"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "Inspect Generated and fixed versions; configure, regenerate, copy, rename, delete and activate versions with expected history behavior.",
+        "Draw additions, cutouts and supported bridges as drafts with live preview, point undo, finish and cancel; no draft writes durable geometry.",
+        "Edit dimensions and contour points, insert/remove points, drag under pointer capture, and restore on cancel/Escape/lost capture.",
+        "Preserve fixed edited outlines, linked refinements, protected gaps, bridges, cutouts and corner finishing according to ADR 0001/0002.",
+        "Alt bypasses snapping; arrows move selected point by one snap step and Shift+arrows by ten; verify save/reload/Undo and findings navigation."
+      ],
+      "boundary_status": "Existing core outline model/edit/version/refinement/geometry services and React snapping behavior; missing Dioxus outline inspector, point handles, draft controller and browser intent adapter.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.5",
+      "title": "Layout inspector, relationships and findings",
+      "depends_on": [
+        "F3.1"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": [
+        "Contextual inspector shows correct board/matrix/key/component properties and relation state for empty, single and multiple selection.",
+        "Numeric drafts commit/revert on the characterized boundaries; invalid values do not dispatch edits; locked or driven values are presented as unavailable.",
+        "Findings are grouped/presented with live target navigation; outline and component targets select/focus/fit correctly, while missing targets have no dead action.",
+        "Inspector tabs, nested pages, Escape/back behavior and focus restoration work by keyboard and in compact drawers."
+      ],
+      "boundary_status": "Existing accepted document/scene/findings and edit operations; missing Dioxus Layout inspector routing, target navigation adapter and UI draft lifecycle.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.6",
+      "title": "2D camera, fit and 3D Layout assembly viewer",
+      "depends_on": [
+        "F3.1",
+        "F7.1",
+        "F7.3"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "2D pointer-centered zoom, Space-drag pan, Fit board and Fit selection match reference bounds and limits, including rotated part/keycap envelopes and visible outline geometry.",
+        "Changing views cancels active placement/gesture tools; 2D camera and selection restore when returning from 3D.",
+        "Layout 3D uses the canonical selected PCB board and the F7-owned common viewer for orbit/zoom/preset/fit/picking; physical-instance reflection belongs to Case.",
+        "Renderer mount/resize/theme/error/context-loss/unmount and repeated switching settle callers and release listeners/GPU resources.",
+        "Keep renderer live camera/GPU ownership separate from session view preset/scope; document any missing public adapter before changing visibility/contracts."
+      ],
+      "boundary_status": "Existing Session 2D camera and RendererHost mount/update_scene/lifecycle; F7 owns missing common scene/camera/picking/model adapter. F3 owns canonical-board projection and 2D/3D return integration.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1",
+        "F7.1"
+      ],
+      "acceptance_after": [
+        "F7.3"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.7",
+      "title": "Integrated Layout parity qualification",
+      "depends_on": [
+        "F3.1",
+        "F3.2",
+        "F3.3",
+        "F3.4",
+        "F3.5",
+        "F3.6",
+        "F3.8",
+        "F2.3",
+        "F6C.3"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": [
+        "Complete the same representative project journey in React and public Dioxus UI: select, create/place matrix, transform/constrain, edit outline, navigate finding, switch 2D/3D, save/reload and Undo/redo.",
+        "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
+        "F3a layer/keycap/footprint behavior remains covered by its existing evidence and is not reimplemented or claimed as newly missing.",
+        "Desktop/compact and light/dark visual comparisons, keyboard/axe/manual accessibility checks and affected performance/resource checks are recorded; blocked gates remain explicit.",
+        "Map each inventory responsibility and retained React test to Dioxus owner, public scenario, or reviewed disposition; no whole shared TSX file is marked ported by partial coverage."
+      ],
+      "boundary_status": "Public application/session and React reference exist. Paired frontend runner and Dioxus production-browser gate are project-wide enforcement gaps; build success alone cannot close parity.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1",
+        "F3.2",
+        "F3.3",
+        "F3.4",
+        "F3.5",
+        "F3.6",
+        "F3.8"
+      ],
+      "acceptance_after": [
+        "F2.3",
+        "F6C.3"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.8",
+      "title": "Supported geometry script editor",
+      "depends_on": [
+        "F3.1",
+        "F3.5"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": [
+        "New/select/name/Rhai source/Enable on Apply/Apply/Core findings match React.",
+        "Blank source cannot apply; drafts reset at reference boundaries; applied scripts preserve core execution, history, stable identity and save/reload."
+      ],
+      "boundary_status": "Existing script document and ReplaceDocument/EditCommand path; private Dioxus draft/intent adapter missing. No language or public API change.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [
+        "F3.5"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.1",
+      "title": "Browse and search the Parts library",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": {
+        "red": "On the current Dioxus source, opening Parts shows the unavailable-workspace placeholder; there is no parts query, category list, selection or module loading state.",
+        "green": "Through the public browser UI, search and select canonical/legacy/custom footprint entries, key assemblies and grouped VIK module variants; keyboard selection, query changes, empty/no-match/loading/source-error states and selected-row labels match React fixtures. Selection opens the correct definition/assembly/module details without changing the document revision."
+      },
+      "boundary_status": "Existing catalogue/definition data; private Dioxus browsing UI can start after minimal shell contract. F2 panel completion joins final UI qualification, not catalogue implementation.",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.2",
+      "title": "Create, import and edit footprint definitions",
+      "depends_on": [
+        "F4.1",
+        "INT.2"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no custom definition form or KiCad/model file import action.",
+        "green": "Create a custom definition; import a supported KiCad footprint; edit supported courtyard, pad and profile fields; preserve source-owned geometry, IDs, assets, terminal/net relationships and unrelated document data; reject malformed input locally; commit through one normal edit/Undo/Redo/save/reopen path. Import errors, invalid fields and changed-project async races leave the prior document intact. Do not claim board placement in this slice; F3 owns that public action."
+      },
+      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset fa\u00e7ade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.3",
+      "title": "Edit supported generator settings and preview generated geometry",
+      "depends_on": [
+        "F4.1",
+        "INT.2"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no generator form or retained-generator settings workflow.",
+        "green": "For reference generator fixtures, edit booleans, typed numbers, strings, front/back side, structured settings and attached-model parameters in their named groups; preserve false/zero/empty values; use the retained F3a generator service and shared SVG projection; expose pending/error/invalid states; discard stale results after a newer edit/selection; and Apply exactly one undoable document edit only after a successful current preview. No project change occurs while drafting."
+      },
+      "boundary_status": "generator remains retained Ergogen JavaScript service by F3a decision; authored Rust compiler explicitly rejects generator definitions; coordinator artifact/runtime bridge plus generator parameter metadata call path must be confirmed; no Rust generator rewrite",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.4",
+      "title": "Inspect isolated 2D and 3D library previews",
+      "depends_on": [
+        "F4.1",
+        "F7.1",
+        "F7.3",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no footprint/model preview view or isolated sample-assembly preview owner.",
+        "green": "For the same reference definition and companion fixtures, 2D shows pads, drills, generator graphics/text, footprint layers and named per-part visibility; 3D uses available model assets with the expected side/pose/transforms. Loading, missing model, conversion/render failure and retry states are explicit. Toggle/select/retry/unmount never changes the active project/revision, does not publish stale scene results, and releases the preview worker/renderer resources. Paired React/Dioxus light/dark desktop/compact captures and service outputs agree."
+      },
+      "boundary_status": "existing F3a SVG projector, Core/CAD request types and RendererHost can be reused; no Dioxus standalone Parts sample-preview facade/lifecycle exists, so coordinator Runtime integration is required",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1",
+        "F7.1"
+      ],
+      "acceptance_after": [
+        "F7.3",
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.5",
+      "title": "Edit and save part mechanical-fit profiles",
+      "depends_on": [
+        "F4.1",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": {
+        "red": "Dioxus Parts has no library-level part-fit profile editor or source-geometry extraction flow.",
+        "green": "From a selected part, edit supported purpose, measured dimensions, clearances, evidence and qualification fields; extract only supported mappings from source geometry; show extraction/validation failures and preserve unqualified gates for unknown or unreviewed facts. Reject stale extraction results after selection/scope changes. Save through normal edit/Undo/Redo/save/reopen behavior without asserting case fit or fabrication readiness."
+      },
+      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime fa\u00e7ade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.6",
+      "title": "Author and save reusable key assemblies",
+      "depends_on": [
+        "F4.1",
+        "F4.4",
+        "F3.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no saved assembly list or editor.",
+        "green": "Create/edit/duplicate a saved assembly with name, member definitions, side, pose, parameter overrides, default/custom models and supported file import; preview the draft in isolation; validate empty/name/transform/member errors; save via normal edit/Undo/Redo/reload; applying to a matrix or placing on a board uses the existing F3 public seam. A saved recipe edit does not move existing placement snapshots or change matrix/key identities."
+      },
+      "boundary_status": "AssemblyDefinition, ProjectDoc edits and Core history already exist; React helper logic must be ported as a Dioxus draft/action without contract changes; F3 placement seam is a hard acceptance prerequisite",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "F4.4",
+        "F3.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F4.7",
+      "title": "Inspect VIK module sources and edit library profiles",
+      "depends_on": [
+        "F4.1",
+        "INT.2",
+        "F4.4"
+      ],
+      "priority": "P2",
+      "effort": "L",
+      "acceptance": {
+        "red": "Dioxus Parts has no module catalogue, source preview or module profile editor.",
+        "green": "Browse grouped module variants with source/license/readiness metadata; inspect bundled source-board/constituent footprint preview; edit supported definition-level measured volumes, openings, models and rotary profile facts with evidence/qualification states; save through existing module-definition/edit services; show loading/extraction/save errors; reject stale async results after selection/scope change; preserve project assets/source provenance. Mounted placements, connectors, wiring, circuit copies and PCB layer behavior are not claimed by this slice."
+      },
+      "boundary_status": "bundled module catalogue, ImportModuleBoard/SetModuleDefinition and profile/extraction services exist; Runtime fa\u00e7ade is coordinator-owned; mounted module and PCB presentation remain F5 and physical fit acceptance remains F7",
+      "workflow": "F4",
+      "owner": "F4 workflow lead",
+      "start_after": [
+        "F4.1"
+      ],
+      "acceptance_after": [
+        "INT.2",
+        "F4.4"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.1",
+      "title": "PCB workspace and host layers",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "The selected PCB canvas and host layer controls match the React defaults and visible geometry on paired fixtures; independent toggles alter presentation only, preserve document revision/history/export inputs, and work in both themes and desktop/compact layouts.",
+      "boundary_status": "Existing scene/read-model and edit services; Dioxus PCB presentation and scoped visibility adapter missing.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.2",
+      "title": "Electrical resolver and wiring summary",
+      "depends_on": [
+        "F5.1",
+        "INT.2"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Resolve and apply wiring for populated-controller fixtures and multiple boards; display controller, mode, assignments, free/used pins, peripherals, diagnostics, readiness and loading/error states. Plans are scoped to current document revision and board; applying uses existing revision/fingerprint checks and one undoable edit.",
+      "boundary_status": "Public CoreRequest/CoreReply electrical resolve/apply contracts exist; Dioxus workflow adapter and presentation missing.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "F5.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.3",
+      "title": "Manual pin review, nets, and protected handoff",
+      "depends_on": [
+        "F5.2",
+        "F4.2",
+        "F3.2",
+        "F6K.4"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Pin locks, conflicts, existing-connection replacement/review, net creation/mapping, supported input modes and firmware key bindings match reference outcomes; unrelated connections survive and net/lock edits undo; protected assignment state clears only through explicit existing remap review. Controller-add integration uses the specific F4 placement action when available.",
+      "boundary_status": "Existing public electrical/remap/edit requests are sufficient; Dioxus command/presentation adapter missing. No API/schema addition is authorized.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "F5.2"
+      ],
+      "acceptance_after": [
+        "F4.2",
+        "F3.2",
+        "F6K.4"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.4",
+      "title": "Mounted-module PCB overlays and finding focus",
+      "depends_on": [
+        "F5.1",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Resolved source-owned module footprints/artwork/pads/drills, outlines, clearances, source holes, standoffs and findings match React across front/back and flipped placements. Module and host layer visibility are independent, finding focus reveals its target, and selecting by mouse or keyboard identifies the owning module without turning daughterboard copper into host geometry.",
+      "boundary_status": "ResolveModules, SceneDelta.moduleScenes, resolved module geometry and finding contracts exist; Dioxus scene overlay/selection adapter missing. F4 integration needed only for final inspector click-through.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "F5.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.5",
+      "title": "Mounted-module placement and inspector integration",
+      "depends_on": [
+        "F5.4",
+        "F4.7"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "The PCB selection opens the mounted-placement inspector for its module/instance scope, face, pose, gap, attachment, clearance, supports, connection, circuit joins and individual-component actions. It reuses F4-owned definition selection, source readiness/profile editing and asset/model presentation. Placement identity, pending/error/cancel behavior, resolver results and board/instance scope match React.",
+      "boundary_status": "Public mounted-module edits and resolution exist; F5 Dioxus placement adapter missing. F4 owns module definitions, readiness/profile editing and library asset presentation; F5 consumes those seams without duplicating them.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "F5.4"
+      ],
+      "acceptance_after": [
+        "F4.7"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.6",
+      "title": "Physical-board instance setup and Case handoff",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Unibody/split/wireless/wired/reversible setup and Case instance select/board/flip controls match paired fixtures; stable physical instance IDs, retained edits/controller and board associations survive switching, Undo/Redo and reload. F7 consumes these existing instances in the shared viewer; viewer verification is joint integration evidence, not a panel implementation prerequisite.",
+      "boundary_status": "Hardware/physical-instance document contracts and normal edit path exist; Dioxus setup/Case presentation adapter missing.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.7",
+      "title": "Routed KiCad board and model references",
+      "depends_on": [
+        "INT.1",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "The reference panel imports/replaces/removes a supported .kicad_pcb under the 32 MiB limit, previews model paths, enables and positions the board, attaches valid individual or uniquely basename-matched model assets, persists SHA-256 assets and survives reload. Invalid input, missing assets and project/board/revision changes during async work show retryable errors. The viewer effect is checked in F5.8 after the actual F7 join; it does not block this editor slice.",
+      "boundary_status": "Existing PreviewBoard artifact, worker dispatch, BrowserStore asset read/write and BoardReference. INT.2 supplies coordinator-owned generic file/asset bridge; F5 owns routed-reference UI. F7 viewer evidence joins F5.8.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F5.8",
+      "title": "PCB cross-workspace parity and inventory closure",
+      "depends_on": [
+        "F5.1",
+        "F5.2",
+        "F5.3",
+        "F5.4",
+        "F5.5",
+        "F5.6",
+        "F5.7",
+        "F2.3",
+        "F4.7",
+        "F6K.4",
+        "F7.3",
+        "F7.7"
+      ],
+      "priority": "P2",
+      "effort": "L",
+      "acceptance": "Paired React/Dioxus public browser journeys cover multi-board/split wiring, locks/conflicts/protection, module overlays/selection/findings, physical instances and routed references; desktop/compact, light/dark/system, keyboard/focus/Escape, loading/errors/recovery, save/reopen, Undo/Redo and affected axe results are recorded. Every scoped TSX/test inventory row has an owner, evidence and truthful status; independent standards/spec reviews have no unresolved actionable finding. Join F7.3 and F7.7 for routed-reference visible geometry and selected physical-instance effects.",
+      "boundary_status": "Acceptance/evidence slice across existing services; it joins F2/F4 at named interface seams and records F7 viewer consumption separately. No backend API/schema, new enforcement gate, production cutover or React retirement permission implied.",
+      "workflow": "F5",
+      "owner": "F5 workflow lead",
+      "start_after": [
+        "F5.1",
+        "F5.2",
+        "F5.3",
+        "F5.4",
+        "F5.5",
+        "F5.6",
+        "F5.7"
+      ],
+      "acceptance_after": [
+        "F2.3",
+        "F4.7",
+        "F6K.4",
+        "F7.3",
+        "F7.7"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6K.1",
+      "title": "Keymap projection, layers, selection, and active-layer 2D view",
+      "depends_on": [
+        "INT.1",
+        "F3.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "A saved fixture opens with the same supported board key set, stable key identities, layer order/names, selection from canvas and searchable list, active-layer labels, default base layer, and explicit empty states as React. Add, rename, and remove only permitted non-base layers through EditKeymap; no display index is persisted. The slice works independently against fixtures before F3/F4 integration and later passes the accepted selection/read-model handoff.",
+      "boundary_status": "Existing immutable accepted document and EditKeymap contract; new private Dioxus projection only. Fixture-ready before F3/F4 handoffs.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [
+        "F3.1"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6K.2",
+      "title": "Binding editor, supported behavior fields, and keycode search",
+      "depends_on": [
+        "F6K.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Binding choices and conditional fields match current KeyBinding and core validation: key press, mod tap, layer tap, momentary/toggle/to/sticky layer, sticky key, macro, transparent, and none. Keycode search/free-form input, applicable hold/tap/layer/macro controls, selected-layer binding labels, invalid input recovery, and legacy base bindings retain React behavior. Committed bindings use EditKeymap and survive Undo/Redo, reload, and workspace switching without losing stable IDs or collapsing transparent and none.",
+      "boundary_status": "Existing EditKeymap and KeyBinding contracts; private Dioxus editor/projection. No new behavior family, parser, or public API.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6K.3",
+      "title": "Structured macro editor",
+      "depends_on": [
+        "F6K.1",
+        "F6K.2",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Create, rename, edit, and remove macros; edit tap duration, between-action wait, and ordered tap/press/release/wait steps; respect existing non-empty and count/timing/expanded-binding limits. Prevent or report unsupported nested macros, preserve macro IDs and references, and verify Undo/Redo, persistence, validation feedback, and generated ZMK output through the existing provider.",
+      "boundary_status": "Existing KeymapChange, MacroChange, MacroStep, validation, and GenerateFirmware behavior. No macro-engine changes.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1",
+        "F6K.2"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6K.4",
+      "title": "Encoder bindings, PCB firmware-position editor, and ZMK export handoff",
+      "depends_on": [
+        "F6K.1",
+        "F6K.2",
+        "F5.2",
+        "F8.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "Use the agreed F5 selected-board handoff for supported encoders, push inputs, electrical readiness, and legacy firmware-position values. Edit clockwise/counterclockwise actions per stable encoder ID and layer; show push editing only for reported push inputs. Preserve the existing PCB Wiring-panel quick binding editor and its legacy SetKeyBinding behavior alongside the typed Keymap surface. With a fixture and then real F5 data, run existing electrical/firmware requests, show qualification failures truthfully, and deliver the same ZMK package/output; verify rotation and push source output, Undo/Redo, save/reload, compact controls, and recovery. Firmware UI work can be implemented with fixtures before F5 is complete.",
+      "boundary_status": "Existing SetKeyBinding, EditKeymap, ResolveElectrical, GenerateFirmware, and artifact provider contracts. F5 owns electrical data and Wiring composition; F6 owns the private migrated control and adapter. No new public command/event/API.",
+      "workflow": "F6",
+      "owner": "Keymap frontend lead",
+      "start_after": [
+        "F6K.1",
+        "F6K.2"
+      ],
+      "acceptance_after": [
+        "F5.2",
+        "F8.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.1",
+      "title": "Keycaps projection, shared selection, and physical 2D view",
+      "depends_on": [
+        "INT.1",
+        "F3.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Show the same board-scoped supported keys and matrix list as React. The 2D Keycaps canvas uses stable selected-key identity, effective dimensions/color, inherited or explicit legend, and keyboard/pointer selection; it stays distinct from Keymap's active-layer label view. Empty input, standalone switch, mixed matrix, and per-key overrides are represented without manufacturing persisted defaults. Fixture implementation may proceed before F3/F4 integration; complete acceptance uses their agreed projections.",
+      "boundary_status": "Accepted document snapshot plus generated keycap defaults; private Dioxus read projection only. Fixture-ready before F3/F4 integration.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [
+        "F3.1"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.2",
+      "title": "Board, matrix, and per-key keycap controls",
+      "depends_on": [
+        "F6C.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Port board keycap/legend colors and clearance, matrix profile/first row/wall thickness/socket, and per-key legend/color/profile/socket/row/width/depth controls. Preserve supported profile/mount choices, valid ranges, inheritance, and null-versus-empty legend behavior. Selection changes, blur commits, workspace switching, errors, Undo/Redo, save/reload, and visual 2D updates match the reference. All durable changes use the existing SetKeycapBoard, SetMatrixKeycaps, or SetKeycapKey command path.",
+      "boundary_status": "Existing SetKeycapBoard, SetMatrixKeycaps, SetKeycapKey, and defaults. No schema or validation changes.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.3",
+      "title": "Shared key-size drafts, selection scope, and linked reflow",
+      "depends_on": [
+        "F6C.1",
+        "F3.2",
+        "F3.5"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Port width/depth sliders, quarter-unit steps, wide/tall actions, mixed-selection display, pointer and keyboard commit behavior, and duplicate-commit protection. Preserve existing selection scopes, per-axis commits, key envelope sizing, neighboring reflow, canonical linked-half behavior, affected IDs, single history entry, Undo/Redo, save/reload, and outline/position parity. Draft values settle or reset consistently when selection/project changes. Implement the control against fixtures before the full F3 Layout integration.",
+      "boundary_status": "Existing TypeScript UI resize/reflow policy has no located callable Rust equivalent: port it unchanged into a private Rust frontend controller using existing matrix projection and replace-document/history path. F3 owns Layout callbacks; no new algorithm semantics/public API.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.1"
+      ],
+      "acceptance_after": [
+        "F3.2",
+        "F3.5"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.4",
+      "title": "Keycap fit resolution, findings, and navigation",
+      "depends_on": [
+        "F6C.2",
+        "INT.2"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Use the existing ResolveKeycaps result for supported specs and findings. Present invalid profile/socket/row/wall/dimension/color/legend/roof states, unsupported inputs, neighboring swept-envelope clearance, current-case body/feature warnings, and stale-case-revision warning with the current conservative-fit wording. Finding activation navigates/focuses the exact affected keys or geometry when available. Keymap edits affecting inherited legends refresh the result; failed or superseded resolution never replaces current accepted state.",
+      "boundary_status": "Existing ResolveKeycaps and finding-navigation contracts; missing private query adapter must carry request identity/revision/scope and reject stale replies. No new public read endpoint or fit algorithm.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.2"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6C.5",
+      "title": "Key workspace shared 3D consumption, keycap preview and STEP action",
+      "depends_on": [
+        "F6C.4",
+        "F7.1",
+        "F7.3",
+        "F8.2",
+        "BND.1"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "Expose the existing 2D/3D view choice in Keymap and Keycaps and feed current resolved specs to the F7-owned shared assembly viewer. Show caps and separate legend inlays, colors, pending/error/retry behavior, current assembly layer visibility, and no late results after revision/board/project switch or unmount. Preserve camera, scene, worker, and viewer ownership in F7. Port the existing keycap STEP action through the accepted snapshot, existing resolver plus the BND.1-proven keycap CAD service bridge, revision check, and download delivery; verify valid STEP bytes and the established empty/error/readiness messages. The common viewer is an integration dependency only: no Keycaps-specific viewer implementation is part of this task.",
+      "boundary_status": "Existing Core ResolveKeycaps and Rust CAD WASM build_keycaps export; missing private Dioxus host/worker request adapter. BND.1 proves private wire/host reuse, revision/body validation and chunked preview cancellation. F7 owns viewer; F6 owns canonical consumers/local STEP. No engine/public API change required by current source evidence.",
+      "workflow": "F6",
+      "owner": "Keycaps frontend lead",
+      "start_after": [
+        "F6C.4",
+        "F7.1"
+      ],
+      "acceptance_after": [
+        "F7.3",
+        "F8.2",
+        "BND.1"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F6.6",
+      "title": "Keymap and Keycaps shared integration and paired public acceptance",
+      "depends_on": [
+        "F6K.1",
+        "F6K.2",
+        "F6K.3",
+        "F6K.4",
+        "F6C.1",
+        "F6C.2",
+        "F6C.3",
+        "F6C.4",
+        "F6C.5",
+        "F2.3",
+        "F5.2",
+        "F7.6"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Integrate Keymap and Keycaps in the coordinator-owned shell/runtime without feature owners editing global tokens or shared drawers concurrently. Compare pinned React and Dioxus public browser workflows on identical saved fixtures for selection, layers/bindings/macros/encoders, legacy quick bindings, profile/legend/size/color/fit, Undo/Redo, reload/archive, workspace switching, exports, validation failures, and stale/cancelled preview. Review paired desktop and compact captures in light/dark themes plus visible focus, labels, empty/loading/error states. A handoff blocks only its affected final evidence; saved-fixture slices stay independently usable. Update the TSX inventory with exact owner/evidence/disposition and keep F6 open for real F5/F7 joins if they are unfinished.",
+      "boundary_status": "Coordinator-owned integration only. Reuses the existing public browser/edit/history/provider seams; no shared runtime shell ownership transfer and no new public API.",
+      "workflow": "F6",
+      "owner": "F6 workflow lead",
+      "start_after": [
+        "F6K.1",
+        "F6K.2",
+        "F6K.3",
+        "F6K.4",
+        "F6C.1",
+        "F6C.2",
+        "F6C.3",
+        "F6C.4",
+        "F6C.5"
+      ],
+      "acceptance_after": [
+        "F2.3",
+        "F5.2",
+        "F7.6"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.1",
+      "title": "Common viewer contract and renderer feasibility",
+      "depends_on": [],
+      "priority": "P0",
+      "effort": "S",
+      "acceptance": [
+        "Map the accepted React viewer behaviors to existing renderer-host and wasm-renderer operations, including scene updates, state/display, camera, pick, handles, model decoding, lifecycle, and error recovery.",
+        "Record a minimal private adapter contract that supports the common Layout, Parts, Keymap, Keycaps, and Case consumers without duplicating viewer implementations.",
+        "Demonstrate which gaps are private wrapper/adapter work and identify any true public Rust/application contract or visibility gap precisely; no public API change is implied or made.",
+        "Confirm canonical-board assembly versus selected physical-instance Case assembly as an invariant for adapter input.",
+        "Publish the decision for F7.3 and consumer integration; saved-fixture Case work remains unblocked.",
+        "Prove actual crate reachability: page binary and boardstudio_web library differ; pub(crate) library methods are not visible to the binary. Choose private same-crate facade placement or an existing sufficient public API, without implicit widening."
+      ],
+      "boundary_status": "Existing wasm Renderer exports state/handles/pick/prepared scenes/camera. Map the missing private RendererHost wrappers and consumer DTOs; no demonstrated public-contract gap. Proceed privately unless a concrete operation is proven insufficient; no public visibility widening.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.2",
+      "title": "Authored Case body and stack editor",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": [
+        "Migrate the selected-board authored case-body stack, add-body and no-body states, supported body types, and body selection against saved fixtures.",
+        "Edit supported thickness, clearance, z-offset, wall dimensions, mounting holes/bosses, and gasket-channel fields through existing SetCase/session edit and history behavior.",
+        "Keep authored body data separate from generated mechanical output; scope drafts and results to document, board, project session, and instance where applicable.",
+        "Preserve blur/Enter commit, Escape rollback, validation/error feedback, keyboard focus, compact layout, and board mismatch/empty states.",
+        "Case iconography helper remains visual support; do not add a Case choice wizard."
+      ],
+      "boundary_status": "Can start immediately with accepted saved fixtures and existing public edit/session services; does not wait for F3, F4, or F5 completion.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.3",
+      "title": "Single shared assembly viewer and model-preview adapter",
+      "depends_on": [
+        "F7.1",
+        "INT.2",
+        "BND.1"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": [
+        "Implement one common viewer and private adapter for Layout, Parts, Keymap, Keycaps, and Case; consumers supply scoped scene inputs and receive supported interactions without cloning viewer behavior.",
+        "Support the current shaded, wireframe, hybrid, hidden-line, assembled/exploded/section, supported section-plane, layer/model visibility and color/reset behavior.",
+        "Support fit/top/bottom/isometric, orbit/zoom, selection/picking, available project-part/module/case/finding mapping, focus/highlight, and viewer status/error feedback and existing provider/model retry actions.",
+        "Load supported current asset sources using existing STL/WRL renderer decode and STEP/CAD import paths; preserve unavailable-model feedback and module/mechanical geometry inputs and BND.1-proven keycap solids/inlays.",
+        "Handle theme palette, resize/device-pixel-ratio, context loss, loading and update failures, existing provider/model retry, superseded async work, event capture, unmount, and renderer/GPU disposal without breaking surrounding forms.",
+        "Prove canonical board inputs remain in Layout/Keymap/Keycaps while Case receives the selected physical-instance projection; no scope bleed on selection changes.",
+        "F3/F4/F6 consumer wiring targets this single viewer contract; renderer-private DTOs stay private and no public API widening is assumed.",
+        "Parts consumes an isolated sample project for its selected definition/companions. Renderer initialization/context loss reports and stops cleanly; preserve surrounding forms and available 2D return, without adding an unrequested canvas-retry button."
+      ],
+      "boundary_status": "F7 owns the single implementation. Depends on F7.1 feasibility decision; fixture-backed common viewer work can proceed before consumer milestones finish. Genuine public ABI gaps require separate authorization.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [
+        "F7.1"
+      ],
+      "acceptance_after": [
+        "INT.2",
+        "BND.1"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "boundary_checkpoint": "F7.1 maps present wasm exports to private wrappers; BND.1 resolves the known keycap-service handoff. No demonstrated new public renderer API requirement.",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.4",
+      "title": "Mechanical assembly configuration editor",
+      "depends_on": [
+        "INT.1",
+        "INT.2"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": [
+        "Migrate represented construction/mount/shell/frame/plate choices and case-configuration inherited/custom profile assignment/overrides/extraction. Reusable PartDefinition mechanical profiles remain F4-owned.",
+        "Edit represented plate/foam/PCB/bottom/wall/clearance dimensions and show supported derived gaps and allowances.",
+        "Migrate openings and battery envelope/cable exit; mounting and closure hardware; suspension and gasket settings; hardware and critical-fit fields; suggested mount adoption; process overrides; and stabilizer-fit choices where currently supported.",
+        "Show resolved stack and layer selection, diagnostics/findings navigation, unsupported/missing profile affordances, and explicit disable-stack behavior.",
+        "Use existing SetMechanical/profile resolution/session history services; transient field drafts are scoped, validated, cancelable, and committed once.",
+        "Do not invent construction options, profiles, hardware, lighting controls, or geometry behavior absent from the React/source contracts."
+      ],
+      "boundary_status": "Can start now against saved fixtures and existing mechanical edit/profile services. Geometry and generation may remain provisional until existing CAD jobs complete; F3/F4/F5 do not block editor work.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [
+        "INT.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.5",
+      "title": "Case viewer direct-manipulation preview edits",
+      "depends_on": [
+        "F7.3",
+        "F7.4"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "Support the source UI's existing gasket/mount edit and unlink actions through viewer handles and scoped draft operations.",
+        "Apply current constraint/fit validation to pointer movement; show valid, invalid, provisional, and canceled states without partially committing invalid moves.",
+        "Pointer capture, pointer cancel, scope change, Escape/cancel, and unmount reliably end transient interaction and release renderer resources.",
+        "Commit a successful gesture once through existing session edit/history behavior and request/update preview according to the existing live/manual setting.",
+        "Do not add arbitrary 3D object manipulation beyond supported current Case actions."
+      ],
+      "boundary_status": "Requires F7.3's proven interaction seam and F7.4's configuration state. Geometry/session operations remain existing services; no new backend geometry behavior is implied.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [
+        "F7.3",
+        "F7.4"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.6",
+      "title": "Case preview, readiness, generation and STEP export workflow",
+      "depends_on": [
+        "F7.2",
+        "F7.4"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": [
+        "Port live-preview toggle and manual Update Preview, Configure Case affordance, progress and preparing/running/ready/blocked/failed/cancelled states, cancel, retry, and generation messages.",
+        "Reuse current session and CAD job identity/cancellation, preview-then-exact operation, accepted-snapshot semantics, and verified M1 offline/STEP foundations.",
+        "Validate results against document, board, physical instance when applicable, revision, job/request identity, and current scope; ignore stale completion and cancel obsolete work.",
+        "Retain previous generated geometry only with an explicit stale status while current work runs or fails; do not label provisional output exact/current.",
+        "Match Case readiness: current matching mechanical revision and scene, current preview/generation, no blocking outline/error diagnostics, and no active draft/job; supported warnings remain visible and follow existing export policy.",
+        "Enable STEP export only when exact current geometry is ready under existing warning rules; use the existing export path and captured accepted snapshot."
+      ],
+      "boundary_status": "Can start with saved fixtures and existing M1 CAD, session, cancellation, and STEP services. F3/F4/F5 completion is not a prerequisite for fixture generation and readiness.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [
+        "F7.2",
+        "F7.4"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.7",
+      "title": "Physical board/instance Case projection and F5 handoff",
+      "depends_on": [
+        "F7.2",
+        "F7.3",
+        "F7.6",
+        "F5.6"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": [
+        "Use the selected physical board-instance case document and matching board/instance mechanical assembly only in Case mode.",
+        "Keep Layout, Keymap, and Keycaps common-viewer scenes on the canonical board document; Parts and other consumers use their own agreed project/module scopes.",
+        "Follow the F5 hardware/instance selection handoff and show clear setup/empty states when physical instance data is absent or unsupported.",
+        "Switching board or instance updates forms, viewer, jobs, findings, and display preferences coherently; no stale draft, scene, or asynchronous result crosses scope.",
+        "Preserve saved settings on the correct scope and verify multi-board/instance selection using public UI actions."
+      ],
+      "boundary_status": "Only the physical-instance integration join depends on F5.hardware-handoff. F7.2/F7.3/F7.6 remain fixture-actionable beforehand; this is not a whole-milestone blocker.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [
+        "F7.2",
+        "F7.3",
+        "F7.6"
+      ],
+      "acceptance_after": [
+        "F5.6"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F7.8",
+      "title": "Cross-workflow viewer adoption and paired acceptance",
+      "depends_on": [
+        "F7.3",
+        "F7.5",
+        "F7.6",
+        "F7.7",
+        "F3.6",
+        "F4.4",
+        "F6C.5",
+        "F2.3"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": [
+        "Wire Layout, Parts, Keymap, Keycaps, and Case to the same viewer implementation with each owning workflow's correct scope projection and controls.",
+        "Run public UI parity flows for camera/render/layers/selection/error/retry and verify behavior across all consumers, not only an isolated viewer fixture.",
+        "Run Case UI workflows covering authored and mechanical edits, history/draft cancel, live/manual generation, cancel/retry/staleness/readiness, diagnostics, current exact STEP export, and physical scope selection.",
+        "Exercise cancellation and scope/revision changes during CAD/model loads and generation, renderer failure and retry, context-loss/unmount, and preservation of forms when canvas work fails.",
+        "Verify keyboard focus, compact layout, accessible control names, readable operation status, and fallback to 2D through public UI behavior.",
+        "Use accepted saved fixtures and existing public service seams; compare actions, observable state and outcomes to React prior art without asserting private implementation details."
+      ],
+      "boundary_status": "Integration join after the named viewer consumer work and F5 hardware handoff are available. Shared shell/runtime/global CSS/build remain coordinator-owned.",
+      "workflow": "F7",
+      "owner": "F7 workflow lead",
+      "start_after": [
+        "F7.3",
+        "F7.5",
+        "F7.6",
+        "F7.7"
+      ],
+      "acceptance_after": [
+        "F3.6",
+        "F4.4",
+        "F6C.5",
+        "F2.3"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F8.1",
+      "title": "Complete Export workspace, exact output rows, readiness and return path",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": {
+        "red": "The Dioxus Export view exposes only whole-project archive and a generic STEP action; it lacks the React design-output rows, blocker reasons, and return-to-prior-workspace behavior.",
+        "green": "On reference fixture projects, the public Dioxus route presents the same selected-board scope, all seven design rows, optional generated mechanical row, portable-copy option, readiness labels/reasons, Review wiring/Review case links and Escape/Export/return navigation. It preserves the selected board and resumes the prior workspace. Cover ready, disabled, compact, light and dark states without adding controls absent from React."
+      },
+      "boundary_status": "Private Export route can start after minimal shell contract on saved fixtures; F2 panel integration joins final qualification. Shared shell/runtime/global CSS/build remain coordinator-owned.",
+      "workflow": "F8",
+      "owner": "F8 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F8.2",
+      "title": "Reusable private export coordination, snapshot guards and browser delivery",
+      "depends_on": [
+        "F8.1",
+        "INT.2",
+        "BND.2"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": {
+        "red": "Current Dioxus Runtime supports archive and a generic STEP export only; it does not route the full typed provider set through a reusable per-format operation coordinator.",
+        "green": "Public UI actions dispatch to the existing archive/Core/artifact/firmware/electrical/CAD providers from one accepted document/scene snapshot; scope includes document/session/revision/board and relevant physical instance. PCB's own accepted wiring preparation advances the context in the existing order; stale changes prevent delivery, packaging failure prevents protection, failures appear in the existing global error path, re-invoking the action retries, and completed file URLs/resources are released. Provider fixtures exercise all outcomes without requiring final F5/F6/F7 UI."
+      },
+      "boundary_status": "Existing StartExport/CancelExport and immutable snapshot validation; no export-owned adopt transition. BND.2 must prove private ordered wiring/package/protection/delivery orchestration without weakening stale guards or changing public Session contracts. F2 shared packing; F8 Export-route controls and provider coordination.",
+      "workflow": "F8",
+      "owner": "F8 workflow lead",
+      "start_after": [
+        "F8.1"
+      ],
+      "acceptance_after": [
+        "INT.2",
+        "BND.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F8.3",
+      "title": "Integrate selected-board KiCad, draft, outline, and footprint exports",
+      "depends_on": [
+        "F8.1",
+        "F8.2",
+        "F3.4",
+        "F4.3",
+        "F5.2",
+        "F5.3",
+        "F5.5"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": {
+        "red": "The Dioxus Export route cannot request board KiCad/full or draft handoffs, project footprint libraries, or selected-board SVG/DXF outlines.",
+        "green": "For public Dioxus browser actions, full KiCad is enabled only for PCB-ready selected board plus ready wiring; draft KiCad is enabled for PCB-ready board and includes incomplete-wiring findings. Preserve selected-board outlines, all-definition footprint scope, model assets, existing artifact bytes/names/media types, accepted wiring/protection ordering, and exact blocker copy/navigation for PCB and outline findings. Verify no stale board/project output is delivered."
+      },
+      "boundary_status": "Existing artifact plan/finish, footprint library and SVG/DXF outline contracts/providers are present; retained Ergogen conversion remains where the existing artifact path needs it. F3/F4 supply source document state and F5 supplies board readiness/wiring. Runtime feature adapter is private coordinator work; no new public endpoint.",
+      "workflow": "F8",
+      "owner": "F8 workflow lead",
+      "start_after": [
+        "F8.1",
+        "F8.2"
+      ],
+      "acceptance_after": [
+        "F3.4",
+        "F4.3",
+        "F5.2",
+        "F5.3",
+        "F5.5"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F8.4",
+      "title": "Join firmware and local keycap STEP exports through F6 owners",
+      "depends_on": [
+        "F8.1",
+        "F8.2",
+        "F5.2",
+        "F6K.4",
+        "F6C.5"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": {
+        "red": "Dioxus does not expose the Export-route ZMK row or the Keycaps-local STEP action through the existing Rust providers.",
+        "green": "Export-route firmware follows the reference readiness rule (ready wiring, controller, at least one assignment), emits the existing ZMK 0.3.0 ZIP and electrical plan; the Keycaps-local STEP action resolves current specs, rejects findings/empty selection/stale CAD revision, and returns to Keycaps without moving or duplicating its button into Export. Both visible entrypoints call F6-owned state/provider operations."
+      },
+      "boundary_status": "Rust GenerateFirmware and CAD build_keycaps exports exist. BND.1 proves the missing private Dioxus keycap worker adapter; F6 owns the local control/handoff. F8 owns firmware route and shared delivery. Generic Case STEP is not the keycap path.",
+      "workflow": "F8",
+      "owner": "F8 workflow lead",
+      "start_after": [
+        "F8.1",
+        "F8.2"
+      ],
+      "acceptance_after": [
+        "F5.2",
+        "F6K.4",
+        "F6C.5"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F8.5",
+      "title": "Join authored and generated mechanical outputs through F7 owners",
+      "depends_on": [
+        "F8.1",
+        "F8.2",
+        "F7.2",
+        "F7.6",
+        "F7.7"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": {
+        "red": "The Dioxus Export route has no separate authored Case STEP and generated mechanical package actions governed by their different readiness states.",
+        "green": "The public route preserves the reference authored Case STEP label, output and authored-case readiness; the separate generated package is offered only for current export-ready generated assembly and contains the provider-produced STEP/STL parts, outlines, specifications and FR4 plate project. Authored Case STEP uses canonical selected-board document/scene; generated mechanical uses selected-instance effective document/scene, with scope guards on both, rejects draft or stale generation and stale delivery, and keeps F7's local Export geometry action in Case."
+      },
+      "boundary_status": "CAD and captured STEP export providers exist; Runtime already offers generic current assembly STEP and owns worker cancellation. F7 owns case setup/generation/readiness and local controls, F5 owns physical-instance context. F8 integrates existing providers without reimplementing CAD.",
+      "workflow": "F8",
+      "owner": "F8 workflow lead",
+      "start_after": [
+        "F8.1",
+        "F8.2"
+      ],
+      "acceptance_after": [
+        "F7.2",
+        "F7.6",
+        "F7.7"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F8.6",
+      "title": "Qualify end-to-end project-to-export journeys and delivery cleanup",
+      "depends_on": [
+        "F8.1",
+        "F8.2",
+        "F8.3",
+        "F8.4",
+        "F8.5",
+        "F2.2",
+        "F3.7",
+        "F4.5",
+        "F4.6",
+        "F4.7",
+        "F5.8",
+        "F6.6",
+        "F7.8"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": {
+        "red": "No Dioxus public browser journey proves the same project survives edits across Layout, Parts, PCB, Keymap, Keycaps and Case and then emits the correct current-scope exports.",
+        "green": "Run paired public journeys on the same saved project through Layout edit, Parts definition use, PCB board/wiring readiness, Keymap/Keycaps edits, Case generation and Export. Verify required output choices, readiness explanations, filenames/bytes/archive entries, snapshots, own-transaction exceptions, project round-trip where applicable, error/repeat-retry behavior, return navigation and temporary URL cleanup. Cover project/board/instance switch during pending operations; no stale artifact or protection record may appear. Include desktop/compact themes, keyboard/focus and applicable accessibility evidence."
+      },
+      "boundary_status": "Final integration requires F2/F5/F6/F7 actual providers and F3/F4 state, beyond fixture-only F8 UI acceptance. Existing core archive/artifact/firmware/CAD tests and React exporter tests provide behavior oracles. Shared acceptance ledger/inventory edits remain coordinator-owned.",
+      "workflow": "F8",
+      "owner": "F8 workflow lead",
+      "start_after": [
+        "F8.1",
+        "F8.2",
+        "F8.3",
+        "F8.4",
+        "F8.5"
+      ],
+      "acceptance_after": [
+        "F2.2",
+        "F3.7",
+        "F4.5",
+        "F4.6",
+        "F4.7",
+        "F5.8",
+        "F6.6",
+        "F7.8"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.1",
+      "title": "Inventory and transferable tests",
+      "depends_on": [],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Every existing frontend file/behavior has an owner and explicit coverage disposition",
+      "boundary_status": "existing reference and inventory; audit now",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.2",
+      "title": "Paired workflow verification",
+      "depends_on": [
+        "F2.2",
+        "F2.4",
+        "F3.7",
+        "F4.5",
+        "F4.6",
+        "F4.7",
+        "F5.8",
+        "F6.6",
+        "F7.8",
+        "F8.6"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "All completed workflows pass paired UI/theme/compact/keyboard/axe/review checks",
+      "boundary_status": "existing public UI seams; scenario-specific joins",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F2.2",
+        "F2.4",
+        "F3.7",
+        "F4.5",
+        "F4.6",
+        "F4.7",
+        "F5.8",
+        "F6.6",
+        "F7.8",
+        "F8.6"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.3",
+      "title": "Assistive technology qualification",
+      "depends_on": [
+        "F9.2"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Actual screen-reader journeys pass with named browser/OS/source",
+      "boundary_status": "external host capability unavailable; prepare script now",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F9.2"
+      ],
+      "status": "planned",
+      "external_gates": [
+        "actual screen-reader/browser/OS host available; test unperformed on current host"
+      ],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.4",
+      "title": "Compatibility and offline journeys",
+      "depends_on": [
+        "F8.6"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Archive/assets/storage/offline/stale-operation journeys pass on final routes",
+      "boundary_status": "existing public application/host/provider seams; workflow-specific joins",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F8.6"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.5",
+      "title": "Affected performance and resource gates",
+      "depends_on": [
+        "F9.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "Applicable unchanged budgets and resource lifecycle checks pass with eligible evidence",
+      "boundary_status": "retained budget/oracle failures must be resolved; no threshold changes",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F9.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.6",
+      "title": "Release candidate and adoption patch",
+      "depends_on": [
+        "F9.1",
+        "F9.2",
+        "F9.3",
+        "F9.4",
+        "F9.5"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "No required placeholders/React UI; final provenance and rollback-ready patch reviewed Deliver the consolidated post-port refactoring register with evidence, confidence, impact, mitigation/retirement and proposed validation; do not turn deferred structural issues into waived parity gates.",
+      "boundary_status": "existing build/deployment; explicit cutover approval remains separate",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [
+        "F9.1",
+        "F9.2",
+        "F9.3",
+        "F9.4",
+        "F9.5"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.7",
+      "title": "Approved adoption and retirement",
+      "depends_on": [
+        "F9.6"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Approved default works and rollback/reference remain recoverable",
+      "boundary_status": "requires explicit approval of concrete cutover",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [
+        "F9.6"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [
+        "explicit approval of concrete production cutover/retirement patch"
+      ],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    }
+  ],
+  "conservative_topological_order": [
+    "INT.1",
+    "BND.1",
+    "BND.2",
+    "F7.1",
+    "F9.1",
+    "INT.2",
+    "F2.1",
+    "F2.3",
+    "F3.1",
+    "F4.1",
+    "F5.1",
+    "F5.6",
+    "F7.2",
+    "F8.1",
+    "F2.2",
+    "F2.4",
+    "F3.2",
+    "F3.4",
+    "F3.5",
+    "F4.2",
+    "F4.3",
+    "F4.5",
+    "F5.2",
+    "F5.4",
+    "F5.7",
+    "F6K.1",
+    "F6C.1",
+    "F7.3",
+    "F7.4",
+    "F8.2",
+    "F3.3",
+    "F3.6",
+    "F3.8",
+    "F4.4",
+    "F6K.2",
+    "F6C.2",
+    "F6C.3",
+    "F7.5",
+    "F7.6",
+    "F3.7",
+    "F4.6",
+    "F4.7",
+    "F6K.3",
+    "F6K.4",
+    "F6C.4",
+    "F7.7",
+    "F5.3",
+    "F5.5",
+    "F6C.5",
+    "F8.5",
+    "F5.8",
+    "F6.6",
+    "F7.8",
+    "F8.3",
+    "F8.4",
+    "F8.6",
+    "F9.2",
+    "F9.4",
+    "F9.3",
+    "F9.5",
+    "F9.6",
+    "F9.7"
+  ],
+  "initial_dispatch_frontier": [
+    "INT.1",
+    "BND.1",
+    "BND.2",
+    "F7.1",
+    "F9.1",
+    "F9.2",
+    "F9.3",
+    "F9.4",
+    "F9.5"
+  ],
+  "counts": {
+    "total": 62,
+    "workflow_slices": 58,
+    "integration_slices": 2,
+    "boundary_slices": 2
+  }
+}

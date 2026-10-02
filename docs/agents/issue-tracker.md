@@ -45,3 +45,17 @@ The user’s 2026-10-01 clarification makes the active scope frontend-only. The
 [current state](../migration/dioxus-frontend-v1-run.json) cover F1–F9.
 Root TODO/RUN remain canonical pointers. M1 acceptance evidence and limits stay
 separate; placeholders do not complete the corresponding full frontend milestone.
+
+
+### Refactoring observations during the frontend port
+
+The user requires architectural, design, theoretical and software-quality issues
+encountered during the rewrite to be retained for the later major refactoring phase.
+Every slice author and independent reviewer updates the
+[post-port takeaways](../migration/POST-PORT-REFACTOR.md) and
+[machine register](../../.scratch/dioxus-frontend-v1/refactor-findings.json), or records
+“No new refactoring takeaway observed” with the reviewed scope. Use stable RF IDs,
+source evidence, confidence, impact, current mitigation, later proposal and validation.
+Required parity/correctness remains current work; deferred structural cleanup never
+waives acceptance or authorizes unrelated API/schema changes. F9 consolidates the
+register into the post-port refactoring handoff.

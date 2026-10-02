@@ -1,0 +1,59 @@
+{
+  "baseline": "c827c4e6",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "scope": "planning-only",
+  "workflows": {
+    "F2": {
+      "author": "plan_projects_shared",
+      "reviewer": "plan_pcb",
+      "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F2-review.md"
+    },
+    "F3": {
+      "author": "plan_layout",
+      "reviewer": "plan_pcb",
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F3-review.md"
+    },
+    "F4": {
+      "author": "layout_documenter",
+      "reviewer": "plan_pcb",
+      "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F4-review.md"
+    },
+    "F5": {
+      "author": "plan_pcb",
+      "reviewer": "layout_documenter",
+      "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F5-review.md"
+    },
+    "F6": {
+      "author": "plan_key_workspaces",
+      "reviewer": "plan_pcb",
+      "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F6-review.md"
+    },
+    "F7": {
+      "author": "plan_key_workspaces",
+      "reviewer": "layout_documenter",
+      "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F7-review.md"
+    },
+    "F8": {
+      "author": "layout_documenter",
+      "reviewer": "plan_key_workspaces",
+      "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F8-review.md"
+    },
+    "F9": {
+      "author": "root",
+      "reviewer": "plan_pcb",
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "review": ".scratch/dioxus-frontend-v1/evidence/planning/F9-review.md"
+    }
+  },
+  "graph_reviewer": "plan_pcb",
+  "integration": "root",
+  "all_implementation_tasks": "planned",
+  "checks_record": ".scratch/dioxus-frontend-v1/evidence/planning/validation.json"
+}

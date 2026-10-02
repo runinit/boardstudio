@@ -1,0 +1,253 @@
+{
+  "workflow": "F3",
+  "status": "planned",
+  "dependency_semantics": "start_after gates implementation; acceptance_after gates completion; depends_on is their union. Existing F1/F3a baseline assumed.",
+  "tasks": [
+    {
+      "id": "F3.1",
+      "title": "Layout tree, board scope and selection",
+      "depends_on": [
+        "INT.1"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": [
+        "Public Dioxus UI presents board, matrix, row/column, key, component, outline/version/bridge groups with independent disclosure and selection.",
+        "Tree and canvas synchronize selection; Ctrl/Cmd toggles, Shift selects the anchored rectangular key range, and selection respects active-board/matrix membership.",
+        "Board/project switches cancel active gestures and clear only invalid scoped state; visibility and panel opening do not create document revisions.",
+        "Desktop/compact keyboard interaction and focus behavior match the React workflow."
+      ],
+      "boundary_status": "Existing Session selection/navigation/read-model APIs; missing Dioxus tree projection, disclosure state and adapter.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "INT.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.2",
+      "title": "Matrix and component authoring",
+      "depends_on": [
+        "F3.1"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "Create custom/preset matrices and mirrored pairs through existing operations; show a non-durable preview before commit.",
+        "Arrow keys adjust pending placement by active snap increment, Enter commits and Escape cancels with no revision/history change.",
+        "Add and place supported standalone components; preserve definitions, IDs, assets, cell overrides and board scope.",
+        "Verify commit, save/reload, Undo/redo and invalid-input behavior through public UI scenarios."
+      ],
+      "boundary_status": "Existing core matrix/add-part operations and Rust projection; missing Dioxus setup forms, placement preview/controller and intent adapter.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.3",
+      "title": "Transforms, constraints and snapping",
+      "depends_on": [
+        "F3.1",
+        "F3.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "Direct position/rotation, matrix stagger/splay/origin, alignment and offset/mirror constraints use existing edit operations.",
+        "Characterize and fix the reference non-zero-world-movement versus current Dioxus 4 CSS px drag threshold mismatch using paired small-drag and stationary-click/panel-reflow regressions; preserve existing pointer budgets, capture, modifiers, cancellation and Undo gates.",
+        "Pointer capture, pointercancel/lost capture/Escape cancellation, final pointer-up sample and project/board cancellation are covered; one completed drag is one Undo step.",
+        "Alt bypasses grid and geometry snapping; snap guide appears/clears correctly; arrow nudge is 0.1 mm and Shift+arrow is 1 mm outside editable fields.",
+        "Align is disabled for locked/driven targets and row scope crossing separate splay; stale revisions cannot publish."
+      ],
+      "boundary_status": "Existing application gesture/session transactions, snap_part and core MoveParts/SetMatrix/SetMatrixSplay/SetConstraint/RemoveConstraint; missing Dioxus adapters, controllers and draft fields. No domain geometry algorithm gap identified.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [
+        "F3.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.4",
+      "title": "Outline editing, versions and refinements",
+      "depends_on": [
+        "F3.1"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "Inspect Generated and fixed versions; configure, regenerate, copy, rename, delete and activate versions with expected history behavior.",
+        "Draw additions, cutouts and supported bridges as drafts with live preview, point undo, finish and cancel; no draft writes durable geometry.",
+        "Edit dimensions and contour points, insert/remove points, drag under pointer capture, and restore on cancel/Escape/lost capture.",
+        "Preserve fixed edited outlines, linked refinements, protected gaps, bridges, cutouts and corner finishing according to ADR 0001/0002.",
+        "Alt bypasses snapping; arrows move selected point by one snap step and Shift+arrows by ten; verify save/reload/Undo and findings navigation."
+      ],
+      "boundary_status": "Existing core outline model/edit/version/refinement/geometry services and React snapping behavior; missing Dioxus outline inspector, point handles, draft controller and browser intent adapter.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.5",
+      "title": "Layout inspector, relationships and findings",
+      "depends_on": [
+        "F3.1"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": [
+        "Contextual inspector shows correct board/matrix/key/component properties and relation state for empty, single and multiple selection.",
+        "Numeric drafts commit/revert on the characterized boundaries; invalid values do not dispatch edits; locked or driven values are presented as unavailable.",
+        "Findings are grouped/presented with live target navigation; outline and component targets select/focus/fit correctly, while missing targets have no dead action.",
+        "Inspector tabs, nested pages, Escape/back behavior and focus restoration work by keyboard and in compact drawers."
+      ],
+      "boundary_status": "Existing accepted document/scene/findings and edit operations; missing Dioxus Layout inspector routing, target navigation adapter and UI draft lifecycle.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.6",
+      "title": "2D camera, fit and 3D Layout assembly viewer",
+      "depends_on": [
+        "F3.1",
+        "F7.1",
+        "F7.3"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": [
+        "2D pointer-centered zoom, Space-drag pan, Fit board and Fit selection match reference bounds and limits, including rotated part/keycap envelopes and visible outline geometry.",
+        "Changing views cancels active placement/gesture tools; 2D camera and selection restore when returning from 3D.",
+        "Layout 3D uses the canonical selected PCB board and the F7-owned common viewer for orbit/zoom/preset/fit/picking; physical-instance reflection belongs to Case.",
+        "Renderer mount/resize/theme/error/context-loss/unmount and repeated switching settle callers and release listeners/GPU resources.",
+        "Keep renderer live camera/GPU ownership separate from session view preset/scope; document any missing public adapter before changing visibility/contracts."
+      ],
+      "boundary_status": "Existing Session 2D camera and RendererHost mount/update_scene/lifecycle; F7 owns missing common scene/camera/picking/model adapter. F3 owns canonical-board projection and 2D/3D return integration.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1",
+        "F7.1"
+      ],
+      "acceptance_after": [
+        "F7.3"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.7",
+      "title": "Integrated Layout parity qualification",
+      "depends_on": [
+        "F3.1",
+        "F3.2",
+        "F3.3",
+        "F3.4",
+        "F3.5",
+        "F3.6",
+        "F3.8",
+        "F2.3",
+        "F6C.3"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": [
+        "Complete the same representative project journey in React and public Dioxus UI: select, create/place matrix, transform/constrain, edit outline, navigate finding, switch 2D/3D, save/reload and Undo/redo.",
+        "Paired behavior agrees for accepted geometry, history/revision, save behavior, errors/cancellation, camera/view scope and service outputs.",
+        "F3a layer/keycap/footprint behavior remains covered by its existing evidence and is not reimplemented or claimed as newly missing.",
+        "Desktop/compact and light/dark visual comparisons, keyboard/axe/manual accessibility checks and affected performance/resource checks are recorded; blocked gates remain explicit.",
+        "Map each inventory responsibility and retained React test to Dioxus owner, public scenario, or reviewed disposition; no whole shared TSX file is marked ported by partial coverage."
+      ],
+      "boundary_status": "Public application/session and React reference exist. Paired frontend runner and Dioxus production-browser gate are project-wide enforcement gaps; build success alone cannot close parity.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1",
+        "F3.2",
+        "F3.3",
+        "F3.4",
+        "F3.5",
+        "F3.6",
+        "F3.8"
+      ],
+      "acceptance_after": [
+        "F2.3",
+        "F6C.3"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F3.8",
+      "title": "Supported geometry script editor",
+      "depends_on": [
+        "F3.1",
+        "F3.5"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": [
+        "New/select/name/Rhai source/Enable on Apply/Apply/Core findings match React.",
+        "Blank source cannot apply; drafts reset at reference boundaries; applied scripts preserve core execution, history, stable identity and save/reload."
+      ],
+      "boundary_status": "Existing script document and ReplaceDocument/EditCommand path; private Dioxus draft/intent adapter missing. No language or public API change.",
+      "workflow": "F3",
+      "owner": "F3 workflow lead",
+      "start_after": [
+        "F3.1"
+      ],
+      "acceptance_after": [
+        "F3.5"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    }
+  ]
+}

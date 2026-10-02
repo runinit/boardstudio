@@ -1,8 +1,10 @@
 # Dioxus frontend v1 — complete React interface parity
 
-**Current priority: 100% frontend.** Updated 2026-10-01.
+**Current priority: 100% frontend.** Updated 2026-10-02.
 **F1 and the requested F3a Layout layer correction are implemented and verified; full F2–F9 remain open.**
-[Demo and evidence](../../.scratch/dioxus-frontend-v1/evidence/handoff.md).
+[Current demo and evidence](../../.scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md).
+
+The remaining work is now decomposed into **58 workflow slices plus two integration and two boundary tasks**, planned and independently reviewed by workflow agents. See the [execution and team plan](../../.scratch/dioxus-frontend-v1/EXECUTION.md), [task graph](../../.scratch/dioxus-frontend-v1/tasks.json), [source ownership](../../.scratch/dioxus-frontend-v1/coverage.json) and [review resolutions](../../.scratch/dioxus-frontend-v1/evidence/planning/review-resolution.md). Exact slice start/acceptance dependencies supersede the older coarse milestone sequence.
 
 The user clarified that this run is the Dioxus migration: rewrite and port every
 existing TSX screen/component, its presentation behavior, theming and responsive
@@ -45,23 +47,24 @@ visibility, budget or persistence cutover is implied by a frontend ticket.
 
 ## Phases and milestones
 
-| Phase | Milestone | Visible deliverable | Exit criterion | Dependency |
+| Phase | Milestone | Visible deliverable | Exit criterion | Integration context (exact slice graph governs dispatch) |
 | --- | --- | --- | --- | --- |
 | 1 — recognizable application | F1: workbench shell and themes | Exact reference navigation, project menu, Objects/canvas/Inspect/footer, light/dark/system, compact navigation; working existing Layout/Case/Export, explicit placeholders for pending workspaces. | Matched desktop and compact captures, themes/preferences, reachable tabs/menu, preserved edits/history and functional existing paths. | M1 implementation |
-| 1 — usable application frame | F2: projects, panels and shared controls | Complete project start/library/demos/create/rename/duplicate/delete/copy/import; onboarding, resizable panels/drawers, menus, shortcuts and focus restoration. | Paired project/panel/menu flows, persisted preferences, all loading/empty/error/recovery states, supported compact and zoom behavior. | F1 |
-| 2 — complete authoring | F3: Layout, tree and inspector | Full matrices/components/relations/constraints, placement/transforms/snapping, outlines/cutouts/refinements/scripts, findings, layers, camera and selection UI. | Every reference Layout action through public services, same geometry/history/save results, matching inspector/tree/canvas and keyboard interaction. | F2 |
-| 2 — complete library | F4: Parts and assembly UI | Search/browse/import/create/edit, generator parameter forms, footprint/model previews, module catalogue and assembly editor. | Every supported Parts action and failure state, preserved assets/IDs, same preview and service input/output behavior. | F2; integrates with F3 |
-| 3 — electrical workspace | F5: PCB and hardware UI | Layers, modules/physical instances, controller/connectors/wiring/pins/jumpers, profiles, reference panels and located findings. | Paired electrical/module scenarios, complete controls and scope selection, same readiness and service calls. | F3, F4 |
-| 3 — key workspaces | F6: Keymap and Keycaps UI | Layers, key/behavior search/editing, macros/encoders; profile/legend/size/fit editing and 2D/3D keycap presentation. | All reference-supported controls and saved settings, stable selection/history, keyboard workflows and matching preview. | F3, F4; F5 for hardware handoff |
-| 3 — mechanical workspace | F7: Case and assembly UI | Full Case inspector/settings/construction/physical scope, generation controls, findings and reference 3D viewer behavior. | Paired complete settings/cancel/retry/preview paths, camera/picking/layers/material presentation, no stale/mis-scoped canvas or resource regression. | F3, F4; F5 for hardware-dependent views |
-| 4 — complete frontend workflow | F8: Export UI and cross-workspace flows | Reference Export workspace, format/scope/readiness/progress/error/cancel/retry/download controls and return paths. | Every supported reference export reachable through existing providers with accepted snapshot identity; end-to-end project→edit→inspect→export. | F5, F6, F7 |
+| 1 — usable application frame | F2: projects, panels and shared controls | Complete project start/library/demos/create/delete/copy/import; onboarding, resizable panels/drawers, menus, shortcuts and focus restoration. | Paired project/panel/menu flows, persisted preferences, all loading/empty/error/recovery states, supported compact and zoom behavior. | F1 |
+| 2 — complete authoring | F3: Layout, tree and inspector | Full matrices/components/relations/constraints, placement/transforms/snapping, outlines/cutouts/refinements/scripts, findings, layers, camera and selection UI. | Every reference Layout action through public services, same geometry/history/save results, matching inspector/tree/canvas and keyboard interaction. | Private shell; F2.3 at integrated UI qualification |
+| 2 — complete library | F4: Parts and assembly UI | Search/browse/import/create/edit, generator parameter forms, footprint/model previews, module catalogue and assembly editor. | Every supported Parts action and failure state, preserved assets/IDs, same preview and service input/output behavior. | Private shell; specific F3 placement/F7 viewer joins |
+| 3 — electrical workspace | F5: PCB and hardware UI | Layers, modules/physical instances, controller/connectors/wiring/pins/jumpers, profiles, reference panels and located findings. | Paired electrical/module scenarios, complete controls and scope selection, same readiness and service calls. | Private shell and named selection/definition/provider joins |
+| 3 — key workspaces | F6: Keymap and Keycaps UI | Layers, key/behavior search/editing, macros/encoders; profile/legend/size/fit editing and 2D/3D keycap presentation. | All reference-supported controls and saved settings, stable selection/history, keyboard workflows and matching preview. | Private forms start on fixtures; named F3/F5/F7 joins |
+| 3 — mechanical workspace | F7: Case and assembly UI | Full Case inspector/settings/construction/physical scope, generation controls, findings and reference 3D viewer behavior. | Paired complete settings/cancel/retry/preview paths, camera/picking/layers/material presentation, no stale/mis-scoped canvas or resource regression. | Forms start on fixtures; specific F5 physical/viewer joins |
+| 4 — complete frontend workflow | F8: Export UI and cross-workspace flows | Reference Export workspace with exact format rows, selected scope/readiness, copy/embedding option, error/repeat-action retry, downloads and return paths. | Every supported reference export reachable through existing providers with accepted snapshot identity; end-to-end project→edit→inspect→export. | Export UI starts on fixtures; exact provider/workflow joins |
 | 4 — frontend v1 release | F9: parity qualification and React entrypoint retirement | Complete Dioxus default frontend, documented migration/rollback, transferred frontend regression coverage. | Entire TSX/style/hook inventory disposed; no required placeholders/React islands; visual, keyboard, actual AT, theme, responsive, functional and affected performance gates resolved. | F1–F8 and applicable carried gates |
 
-F1 is implemented first to show visible progress immediately. F2 completes the
-application frame before feature density grows. F3/F4 are the next major ports;
-F5/F6/F7 can then progress independently where their dependencies are available.
-F8 joins the complete user journey. F9 qualifies the frontend and prepares a
-reviewable entrypoint switch. Existing backend benchmark or generator rewrite
+F1 and F3a have delivered the first visible increments. The next parallel tranche
+is project library, shared panels/drawers and the Layout object tree. Other workspace
+forms and previews can start from saved fixtures behind the minimal private shell
+contract, joining only their actual shared inputs for acceptance. The task graph
+separates start prerequisites from final integration joins. F8 joins complete
+journeys; F9 qualifies continuously and prepares a reviewable entrypoint switch. Existing backend benchmark or generator rewrite
 projects do not replace or consume this frontend sequence.
 
 ## Detailed slice order
@@ -80,7 +83,7 @@ the only milestone where placeholder workspaces count as the requested deliverab
 
 **F2 — shared product UI.** Port ProjectStart/ProjectLibrary, setup/choice guides,
 WorkspacePanel, CommandMenu, shared icons/controls/sections and their hooks.
-Finish search and demo discovery, new/copy/rename/delete/reset with matching
+Finish search and demo discovery, new/copy/delete/import/recovery with matching
 confirmation and recovery, archive open/save, theme settings, panel modes/widths,
 drawers/scrims, keyboard shortcuts and focus restoration. Match startup, empty,
 loading, unavailable project, save failure, long names and compact states.
@@ -123,8 +126,10 @@ ownership must be verified. Theme the 3D presentation consistently with referenc
 An M1 nominal PCB preview does not satisfy the full reference assembly UI.
 
 **F8 — Export.** Inventory formats actually offered by the reference; port their
-complete presentation and state flow: scope, options, readiness explanation,
-progress, cancellation, retry, errors, return navigation and download delivery.
+complete presentation and state flow: selected-board scope, actual copy/embedding option, readiness explanation,
+errors, repeat-action retry, return navigation and download delivery. There is no
+reference export progress/cancel/dedicated retry UI; preserve internal supported
+cancellation and stale-output rejection without inventing controls.
 Use existing archive/geometry/PCB/manufacturing/firmware providers and accepted
 snapshot contracts. UI parity does not authorize format changes. Qualify complete
 cross-workspace journeys with the same project and service outputs.
@@ -188,3 +193,9 @@ See `.scratch/dioxus-frontend-v1/issues/03a-layout-layers.md` and the retained
 reference/red evidence under `evidence/layout-layers/`.
 
 [Current F3a demo, verification and limits](../../.scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md).
+
+## Source-audited boundary corrections — 2026-10-02
+
+The detailed plans retain actual reference behavior: Layout/Keymap/Keycaps use a canonical board, Case uses a physical instance, and Parts uses an isolated sample project. F7 owns one shared viewer. Rust WASM already exports keycap construction/STEP, but the Dioxus CAD worker requires a private adapter; PCB export requires a proven own-commit lineage guard around wiring/protection. Shared archive output needs optional bundled-model embedding and the reference project filename. Remaining TypeScript resize/reflow and other UI controllers are part of the frontend port. These are explicit frontend integration tasks, not new backend migration milestones.
+
+The user also requires continuous architectural/design/theoretical/quality takeaways. The [post-port refactoring register](POST-PORT-REFACTOR.md) is updated at every workflow handoff and consolidated for the later refactoring phase; it does not broaden this frontend port or waive current gates.

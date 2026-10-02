@@ -1,48 +1,62 @@
 # Dioxus frontend execution plan
 
-[Roadmap](../../docs/migration/DIOXUS-FRONTEND-V1.md) · [parent spec](spec.md)
+**Updated 2026-10-02. Scope: 100% frontend parity.** F1 shell/themes and the requested F3a Layout correction are verified. Full F2–F9 remain open. This revision plans the remaining implementation; it does not claim new UI completion.
 
-Branch: `codex/rust-v1-ui-parity-20261001`, base `f0ac0a19`.
-Current scope is **100% frontend**. F1 is implemented and verified; F2 is the next frontend milestone in the
-frontend graph. Engine/generator/CAD rewrites are outside this plan.
+[Milestone roadmap](../../docs/migration/DIOXUS-FRONTEND-V1.md) · [parent specification](spec.md) · [agent ownership and execution](EXECUTION.md) · [62-task graph](tasks.json) · [source coverage](coverage.json) · [planning reviews](evidence/planning/review-resolution.md)
+
+Integration branch `codex/rust-v1-ui-parity-20261001`; planning baseline `c827c4e6`; current executable `f44a3d1b`; React reference `5a472a9426e6e38993361da402cd4ec730feb369`. The existing [editable demo/evidence](evidence/layout-layers/handoff.md) is unchanged.
+
+## Phases and workflow teams
+
+| Phase | Workflow and specification | Remaining visible outcome | Slices |
+| --- | --- | --- | --- |
+| 1 — usable frame | [F2 Projects and shared UI](issues/02-projects-shared-ui.md) | Project library/search/new/open/import/delete/portable copies, resizable panels, drawers, guide, shared controls and focus | 4 |
+| 2 — Layout authoring | [F3 Layout](issues/03-layout.md) | Real object tree, matrix/component tools, transformations/constraints, outlines/refinements/scripts, inspectors/findings and 2D/3D | 8 |
+| 2 — library authoring | [F4 Parts](issues/04-parts.md) | Catalogue/import/edit, generator settings, isolated previews, mechanical profiles and assembly/module recipes | 7 |
+| 3 — electrical workspace | [F5 PCB](issues/05-pcb.md) | Host/module layers, wiring/pins/protection, mounted modules, physical instances and routed-board references | 8 |
+| 3 — logical and physical keys | [F6 Keymap and Keycaps](issues/06-keymap-keycaps.md) | Separate teams for layers/bindings/macros/encoders and profiles/legends/colors/size/reflow/fit/preview | 10 |
+| 3 — mechanical workspace | [F7 Case and common 3D](issues/07-case-3d.md) | Complete Case settings/generation and one shared assembly/model viewer for all consumers | 8 |
+| 4 — complete journeys | [F8 Export](issues/08-export.md) | Exact offered export rows, readiness, project-copy options, current-scope downloads and return paths | 6 |
+| 4 — frontend v1 | [F9 Qualification and adoption](issues/09-frontend-v1.md) | Complete coverage, paired visuals/interaction/AT, compatibility/offline/resources and reviewable adoption/rollback | 7 |
+
+The 58 workflow slices are supported by two small integration tasks and two early boundary tasks. They do not wait serially for whole preceding milestones. `start_after` in the graph gates dispatch; `acceptance_after` names later real integration joins. A conservative scheduler can use their union, `depends_on`. All workflow scopes require implementation and independent verification/review; planning review does not close them.
+
+## First visible tranche
+
+The coordinator establishes INT.1's minimal private shell/read-model/callback seam. Then run three feature agents in parallel on **F2.1 project library**, **F2.3 panels/drawers**, and **F3.1 Layout tree/selection**. Integrate and verify those complete actions in one runnable candidate with paired reference captures. Preserve default keycaps, all five Layout layers and the shared Footprints state already delivered by F3a.
+
+Rotate the next slots into Parts catalogue, PCB/Keymap/Keycaps fixture-backed controls and remaining Layout authoring. Run common-viewer mapping (F7.1), the private keycap CAD adapter proof (BND.1), and export commit-lineage proof (BND.2) early. Those investigations can also begin immediately when a slot is free; do not wait until release to discover their boundaries. F9 coverage/test preparation runs alongside the feature work.
+
+Each workflow uses a feature author plus a different verification/review agent. Root integrates shared runtime/shell/global CSS/build files; feature authors work in private modules with explicit ownership. With four available slots, root runs at most three agents concurrently and rotates authors into independent reviews as work lands. [Dispatch and ownership details](EXECUTION.md) describe exact boundaries and handoffs.
+
+## Dependency structure
 
 ```mermaid
 flowchart LR
-  F1[Shell and themes] --> F2[Projects and shared UI]
-  F2 --> F3[Layout]
-  F2 --> F4[Parts]
-  F3 --> F5[PCB]
-  F4 --> F5
-  F3 --> F6[Keymap and Keycaps]
-  F4 --> F6
-  F3 --> F7[Case and 3D]
-  F4 --> F7
-  F5 --> F8[Export and complete journeys]
-  F6 --> F8
-  F7 --> F8
-  F8 --> F9[Frontend v1 qualification]
+  I[Private shell and provider seams] --> UI[Parallel workspace UI slices]
+  V[F7 common viewer] --> C[Layout Parts Keymap Keycaps Case consumers]
+  K[Existing keycap CAD adapter] --> C
+  UI --> C
+  E[Export commit-lineage proof] --> X[Export formats and complete journeys]
+  UI --> X
+  C --> X
+  Q[Continuous coverage and parity verification] --> R[Frontend v1 qualification]
+  X --> R
+  R --> A[Concrete adoption and rollback review]
 ```
 
-F5 hardware-dependent subflows join F6/F7 before their acceptance. Refinement of
-later tickets uses the pinned reference and actual component inventory, preserving
-accepted domain contracts. Implement isolated frontend slices, retain public
-browser evidence, and run independent Standards/Spec reviews before acceptance.
-No new API/schema/budget or production cutover follows from a placeholder or plan.
+This is a summary; the [acyclic slice graph](tasks.json) is the exact execution authority. In particular, Layout does not wait for all project-management features; Parts previews do not wait for custom definition editors; 2D Keymap/Keycaps do not wait for complete PCB or Case; and Case forms do not wait for all Layout/Parts work.
 
-- [x] F1: [Reference shell and theming](issues/01-shell-theme.md) — verified first increment; [handoff](evidence/handoff.md).
-- [ ] F2: [Projects, panels and shared controls](issues/02-projects-shared-ui.md) — planned; depends on F1.
-- [ ] F3: [Complete Layout frontend](issues/03-layout.md) — F3a layers/keycaps/footprints verified; full F3 open and depends on F2.
-- [ ] F4: [Parts and assembly frontend](issues/04-parts.md) — planned; depends on F2; integrate with F3.
-- [ ] F5: [PCB and hardware frontend](issues/05-pcb.md) — planned; depends on F3, F4.
-- [ ] F6: [Keymap and Keycaps frontend](issues/06-keymap-keycaps.md) — planned; depends on F3, F4; F5 hardware handoff.
-- [ ] F7: [Case and 3D frontend](issues/07-case-3d.md) — planned; depends on F3, F4; F5 hardware-dependent views.
-- [ ] F8: [Export frontend and complete journeys](issues/08-export.md) — planned; depends on F5, F6, F7.
-- [ ] F9: [Frontend v1 qualification and React retirement](issues/09-frontend-v1.md) — planned; depends on F1–F8; applicable carried gates.
+## Completion and known boundaries
 
-## User correction: Layout layers and keycap rendering
+- **UI parity:** all 63 production TSX responsibilities, 15 TSX tests, one benchmark, 18 stylesheets and supporting UI controllers/assets have assigned owners. Planning makes no new whole-file migration claims. F9 follows remaining transitive UI imports before release.
+- **3D:** use one shared viewer. Layout/Keymap/Keycaps show the canonical board; Case uses its selected physical instance; Parts uses an isolated sample project. Existing wasm renderer capabilities need private host wrappers.
+- **Keycap CAD:** Rust WASM already exports `build_keycaps`; the current Dioxus worker lacks its request path. BND.1 proves a private adapter, chunked preview cancellation and STEP delivery without new CAD algorithms or public API widening.
+- **Export:** preserve the exact reference rows and readiness. PCB's own wiring/protection commits need a proven private lineage guard; the current immutable Session export token cannot simply span those commits. Portable copies must preserve local assets, optional used bundled models and the reference filename.
+- **Release:** actual screen-reader evidence remains host-blocked; applicable carried performance/resource failures remain explicit. Production cutover/React retirement requires approval of the final concrete patch. Existing backend/provider rewrites and wider full-Rust runtime completion remain outside this frontend plan.
 
-The missing keycap outlines and layer/footprint controls are restored and verified
-as F3a, pulled forward before the remaining F2 work. This corrects the first demo’s Layout
-presentation without claiming the rest of F3 or 3D assembly is complete.
-See `.scratch/dioxus-frontend-v1/issues/03a-layout-layers.md` and the retained
-reference/red evidence under `evidence/layout-layers/`.
+No required placeholder or React UI island satisfies frontend v1. Each accepted slice needs current source/build provenance, public behavior/output tests, paired visual/keyboard checks and independent Standards/Spec review. Preserve existing M1 evidence and its limits separately.
+
+## Refactoring takeaways during implementation
+
+The user requested a living record of architectural, design, theoretical and general software-quality issues encountered during the rewrite. Update [post-port takeaways](../../docs/migration/POST-PORT-REFACTOR.md) and the [RF register](refactor-findings.json) at every workflow handoff/review, or state that no new takeaway was observed. Record evidence and uncertainty, impact, current mitigation, later proposal and validation. F9 carries the accumulated register into the major post-port refactoring phase. Required correctness stays in the current slice; broader structural redesign is deferred without waiving acceptance gates.

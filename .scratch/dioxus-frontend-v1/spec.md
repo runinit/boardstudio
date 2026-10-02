@@ -2,7 +2,7 @@
 
 **Triage:** ready-for-agent
 **Authority:** 2026-10-01 request and clarification: 100% frontend; all existing TSX, theming and UI behavior ported to Dioxus.
-**Execution:** F1 now; all later frontend phases planned and dependency ordered.
+**Execution:** F1/F3a are verified increments; the 2026-10-02 workflow specs and 62-task graph plan F2–F9 with independent author/reviewer roles. See [execution plan](PLAN.md) and [ownership/dispatch](EXECUTION.md).
 
 ## Problem Statement
 
@@ -29,7 +29,7 @@ Keep existing domain engines and service providers underneath the frontend.
 8. As a designer, I want to resize or open panels and restore their state, so that I can continue my existing workflow in Dioxus.
 9. As a designer, I want to operate menus, tabs and controls with visible keyboard focus, so that I can continue my existing workflow in Dioxus.
 10. As a designer, I want to see truthful loading, saving, error and recovery states, so that I can continue my existing workflow in Dioxus.
-11. As a designer, I want to create, open, rename, duplicate and delete local projects, so that I can continue my existing workflow in Dioxus.
+11. As a designer, I want to create, open, import and delete local projects, and save portable copies, so that I can continue my existing workflow in Dioxus.
 12. As a designer, I want to browse demo copies and saved keyboards, so that I can continue my existing workflow in Dioxus.
 13. As a designer, I want to import and save portable project copies, so that I can continue my existing workflow in Dioxus.
 14. As a designer, I want to follow the setup guide and resume editing, so that I can continue my existing workflow in Dioxus.
@@ -53,8 +53,8 @@ Keep existing domain engines and service providers underneath the frontend.
 32. As a designer, I want to use every supported Case setting and construction control, so that I can continue my existing workflow in Dioxus.
 33. As a designer, I want to generate, cancel and retry cases with accurate status, so that I can continue my existing workflow in Dioxus.
 34. As a designer, I want to inspect camera, picking, materials, layers and mechanical findings, so that I can continue my existing workflow in Dioxus.
-35. As a designer, I want to choose supported export formats, scopes and options, so that I can continue my existing workflow in Dioxus.
-36. As a designer, I want to receive correct progress, cancellation, error and retry feedback for exports, so that I can continue my existing workflow in Dioxus.
+35. As a designer, I want to use the exact offered export formats, selected-board scope and portable-copy embedding option, so that I can continue my existing workflow in Dioxus.
+36. As a designer, I want to see the reference export error and readiness feedback, retry by repeating an action, and never receive stale or internally cancelled output, so that I can continue my existing workflow in Dioxus.
 37. As a designer, I want to return from Export to the prior workspace, so that I can continue my existing workflow in Dioxus.
 38. As a designer, I want to complete the same project-to-export workflow entirely in Dioxus, so that I can continue my existing workflow in Dioxus.
 39. As a designer, I want to reopen work offline through the existing host services, so that I can continue my existing workflow in Dioxus.
@@ -93,3 +93,9 @@ The inventory and milestone roadmap cover all production TSX plus tests/benchmar
 and UI-owned TS/CSS/assets. Existing M1 limits remain recorded. Backend services
 remain the foundation; any missing service capability is an explicit dependency,
 not permission to silently drop or permanently placeholder a frontend feature.
+
+The 2026-10-02 source audit corrects the earlier broad roadmap: project rename/duplicate and visible export progress/cancel/dedicated retry are not pinned-reference affordances. Preserve the actual existing UI. Case generation does have progress/cancel/retry controls. The detailed workflow specs and [source coverage](coverage.json) retain every required frontend responsibility.
+
+## Refactoring takeaways during implementation
+
+The user requested a living record of architectural, design, theoretical and general software-quality issues encountered during the rewrite. Update [post-port takeaways](../../docs/migration/POST-PORT-REFACTOR.md) and the [RF register](refactor-findings.json) at every workflow handoff/review, or state that no new takeaway was observed. Record evidence and uncertainty, impact, current mitigation, later proposal and validation. F9 carries the accumulated register into the major post-port refactoring phase. Required correctness stays in the current slice; broader structural redesign is deferred without waiving acceptance gates.

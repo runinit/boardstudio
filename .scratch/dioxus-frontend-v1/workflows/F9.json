@@ -1,0 +1,187 @@
+{
+  "workflow": "F9",
+  "status": "planned",
+  "dependency_semantics": "start_after gates implementation; acceptance_after gates completion; depends_on is their union. Existing F1/F3a baseline assumed.",
+  "tasks": [
+    {
+      "id": "F9.1",
+      "title": "Inventory and transferable tests",
+      "depends_on": [],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Every existing frontend file/behavior has an owner and explicit coverage disposition",
+      "boundary_status": "existing reference and inventory; audit now",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.2",
+      "title": "Paired workflow verification",
+      "depends_on": [
+        "F2.2",
+        "F2.4",
+        "F3.7",
+        "F4.5",
+        "F4.6",
+        "F4.7",
+        "F5.8",
+        "F6.6",
+        "F7.8",
+        "F8.6"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "All completed workflows pass paired UI/theme/compact/keyboard/axe/review checks",
+      "boundary_status": "existing public UI seams; scenario-specific joins",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F2.2",
+        "F2.4",
+        "F3.7",
+        "F4.5",
+        "F4.6",
+        "F4.7",
+        "F5.8",
+        "F6.6",
+        "F7.8",
+        "F8.6"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.3",
+      "title": "Assistive technology qualification",
+      "depends_on": [
+        "F9.2"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "Actual screen-reader journeys pass with named browser/OS/source",
+      "boundary_status": "external host capability unavailable; prepare script now",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F9.2"
+      ],
+      "status": "planned",
+      "external_gates": [
+        "actual screen-reader/browser/OS host available; test unperformed on current host"
+      ],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.4",
+      "title": "Compatibility and offline journeys",
+      "depends_on": [
+        "F8.6"
+      ],
+      "priority": "P0",
+      "effort": "L",
+      "acceptance": "Archive/assets/storage/offline/stale-operation journeys pass on final routes",
+      "boundary_status": "existing public application/host/provider seams; workflow-specific joins",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F8.6"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.5",
+      "title": "Affected performance and resource gates",
+      "depends_on": [
+        "F9.2"
+      ],
+      "priority": "P1",
+      "effort": "L",
+      "acceptance": "Applicable unchanged budgets and resource lifecycle checks pass with eligible evidence",
+      "boundary_status": "retained budget/oracle failures must be resolved; no threshold changes",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [],
+      "acceptance_after": [
+        "F9.2"
+      ],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.6",
+      "title": "Release candidate and adoption patch",
+      "depends_on": [
+        "F9.1",
+        "F9.2",
+        "F9.3",
+        "F9.4",
+        "F9.5"
+      ],
+      "priority": "P0",
+      "effort": "M",
+      "acceptance": "No required placeholders/React UI; final provenance and rollback-ready patch reviewed Deliver the consolidated post-port refactoring register with evidence, confidence, impact, mitigation/retirement and proposed validation; do not turn deferred structural issues into waived parity gates.",
+      "boundary_status": "existing build/deployment; explicit cutover approval remains separate",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [
+        "F9.1",
+        "F9.2",
+        "F9.3",
+        "F9.4",
+        "F9.5"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    },
+    {
+      "id": "F9.7",
+      "title": "Approved adoption and retirement",
+      "depends_on": [
+        "F9.6"
+      ],
+      "priority": "P1",
+      "effort": "M",
+      "acceptance": "Approved default works and rollback/reference remain recoverable",
+      "boundary_status": "requires explicit approval of concrete cutover",
+      "workflow": "F9",
+      "owner": "F9 workflow lead",
+      "start_after": [
+        "F9.6"
+      ],
+      "acceptance_after": [],
+      "status": "planned",
+      "external_gates": [
+        "explicit approval of concrete production cutover/retirement patch"
+      ],
+      "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
+      "shared_edit_owner": "integration coordinator",
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+    }
+  ]
+}

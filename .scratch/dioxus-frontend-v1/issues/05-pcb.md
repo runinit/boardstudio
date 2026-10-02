@@ -1,40 +1,165 @@
-# F5: PCB and hardware frontend
+# F5: PCB and hardware workflow parity
 
-**Status:** planned
-**Blocked by:** F3, F4
-**Category:** frontend behavior-preserving port of the pinned React reference.
-**Reference:** React 5a472a94; Rust base f0ac0a19.
-**Authority:** [parent spec](../spec.md), [roadmap](../../../docs/migration/DIOXUS-FRONTEND-V1.md).
+**Triage:** ready-for-agent. Implementation/acceptance dispatch follows the [slice graph](../tasks.json) and [agent execution plan](../EXECUTION.md).
 
-## Work
+**Scope:** remaining Dioxus frontend work for the PCB and hardware workflows, compared with the pinned React reference at `5a472a94`. The Dioxus candidate is the Rust/Dioxus continuation at `c827c4e6`; F1 and the pulled-forward F3a layers/keycaps correction are already verified at `f44a3d1b`.
 
-PCB composition/layers, module overlays/inspectors/profiles, wiring/controllers/connectors/pins/jumpers, readiness/reference/findings UI.
+**Priority vocabulary:** P0 is required for the central PCB editing/handoff path; P1 is required for the remaining supported module and physical-hardware workflows; P2 is final cross-surface parity qualification and inventory closure. All three priorities remain required for 100% frontend parity. **Effort:** S/M/L is relative sizing for a single isolated frontend slice, not a calendar estimate.
 
-## Exit evidence
+## Problem Statement
 
-Matched multi-board/physical module workflows, controls and public service calls; state/selection/readiness parity.
+The Dioxus shell and Layout layer correction are present, but PCB still needs its working canvas layers, wiring inspector, module overlays and selection, reference-board controls, hardware readiness, and physical-instance setup/case controls. A PCB tab or screenshot alone would not let a designer inspect and change the same multi-board hardware workflows as React.
 
-- [ ] Port all scoped TSX/UI-hook behavior through existing service contracts.
-- [ ] Match reference visuals, themes, responsive and interaction states.
-- [ ] Retain affected checks/browser evidence and resolve independent reviews.
-- [ ] Update inventory, integrated source, demo and remaining limits.
+The application already has Rust authorities for electrical resolution/application, mounted-module resolution and edits, document history, findings, and routed-board preview. The port must carry their existing behavior into Dioxus while keeping one document/history authority, preserving current project data, and reporting loading, stale, and error states truthfully. It must not silently drop controls when a Dioxus host/presentation adapter is missing or expand the backend/API scope to make the port convenient.
 
-A visible placeholder does not complete F2–F9. Preserve original projects and
-reference source. Backend implementation/format/API changes require separate
-scope; never silently remove a frontend behavior when an adapter is missing.
+## Solution
 
-## Reference ownership
+Port the reference PCB and hardware flows as isolated, reviewable frontend slices. Start with PCB canvas presentation and electrical wiring, then cover module scene/selection and module-facing integration, physical-board instances, and routed-board references. Use existing Rust request/edit/artifact contracts and the current browser host capabilities. Keep panel drafts and layer visibility in presentation state; make persisted changes through normal public edit/history paths. Compare paired React and Dioxus projects and actions, including two-board/split-instance and mounted-module cases.
 
-The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
-are source responsibilities, not permission to mark whole shared files complete.
+A slice may start when its actual shared shell or data/service contract is available. It does not wait for all of F3 or F4 by milestone label: F3a already supplies the layer-control precedent, and F5 can exercise existing project definitions and service contracts with fixtures while broader Layout/Parts work proceeds. F4 owns module definitions, source readiness/profile editors, and the library asset workflow; F5 owns mounted-module placement/net mappings, electrical overlays, physical instances, and routed-board reference controls while consuming F4’s exact shared asset seam. F7 consumes the existing physical instances and routed reference in the viewer; that is joint integration evidence, not a blocker for independent panel work.
 
-- `app/src/ui/BoardReferencePanel.tsx`
-- `app/src/ui/HardwareInstancesPanel.tsx`
-- `app/src/ui/HardwareReadiness.tsx`
-- `app/src/ui/ModulePcbOverlay.tsx`
-- `app/src/ui/WiringPanel.tsx`
-- `app/src/ui/usePcbWorkspace.tsx`
+## User Stories
 
-Existing regression coverage to transfer or retain:
+1. As a designer, I want to switch to PCB while keeping the selected board, project, and accepted edit history, so that I can review electrical work without changing documents.
+2. As a designer, I want the PCB canvas to show the current board, parts, pads, drills, copper and technical artwork using the reference’s coordinates and transforms, so that I can inspect the real placed design.
+3. As a designer, I want to toggle each host PCB layer independently, so that I can isolate front/back copper, outline, technical artwork, pads, holes, courtyards, and references without changing the project or an export.
+4. As a designer, I want PCB layer controls to start in the same visible state as React and retain their transient state while I work in the current view, so that the first render and each toggle are predictable.
+5. As a designer, I want the mounted-module layer group to control footprints, board outlines, clearances/service envelopes, source holes, standoffs, front/back silkscreen, front/back fabrication artwork, and module findings independently, so that I can inspect a daughterboard without hiding unrelated host geometry.
+6. As a designer, I want source footprints to remain visually distinct from host parts, so that selecting or hiding a mounted module does not falsely imply its source pads and copper belong to the host PCB.
+7. As a designer, I want to select a module outline, clearance, hole, standoff, or footprint with pointer or keyboard and open the owning module in Parts, so that I can identify and edit the right placement.
+8. As a designer, I want module layer state to respect both module-specific and host-layer visibility, including correct front/back resolution for a flipped module, so that hidden copper, references, courtyards, holes, and source artwork remain consistent.
+9. As a designer, I want to see module source and per-output readiness gates in the module inspector, so that footprint, electrical, case, 3D-model, and firmware readiness are not conflated.
+10. As a designer, I want to select a PCB board and see its current controller, topology, wiring mode, used pins, free pins, assignments, and resolver findings, so that I can understand the board’s electrical state before editing it.
+11. As a designer, I want to choose among controllers already placed on the selected board or follow the existing Parts action to add one, so that wiring always refers to a real controller part.
+12. As a designer, I want to switch between matrix and direct-GPIO wiring, so that the resolver plans the wiring mode I intend to use.
+13. As a designer, I want to ask Rust to resolve wiring automatically and see its assignments, free pins, peripheral terminals, diagnostics, and readiness, so that the preview reflects the current project and board.
+14. As a designer, I want to lock a pin assignment, unlock it, and review conflicts without hand-editing the document, so that automatic resolution respects my confirmed pin choices.
+15. As a designer, I want to apply a current error-free plan as one undoable edit, so that generated nets/assignments stay consistent and I can safely reverse the change.
+16. As a designer, I want stale plans to be rejected and re-resolved after the document, board, controller, or relevant scope changes, so that a delayed reply cannot update the wrong board.
+17. As a designer, I want to review existing connections before replacing them with automatic wiring, see which connections will be replaced, and undo the choice, so that unrelated nets remain intact.
+18. As a designer, I want to assign named part terminals and eligible plated pads to existing board nets, create a named net, and see net/pin counts, so that supported manual PCB mapping remains available.
+19. As a designer, I want switch scan mode and supported Ergogen net/anchor parameters to be editable in the relevant inspector, so that I can make the same connection adjustments as React.
+20. As a designer, I want the reference’s controller/key behavior controls to remain available alongside wiring, so that supported press, rotary, and firmware key bindings are not lost in the PCB migration.
+21. As a designer, I want a protected electrical handoff to be clearly explained and explicitly reviewed before starting a new PCB revision, so that changing a released assignment cannot silently invalidate a PCB/firmware handoff.
+22. As a designer, I want current module/jumper electrical diagnostics and available resolver-produced jumper recipes to remain visible where the reference exposes them, so that a handoff does not imply unsupported or unreviewed wiring is safe. No new manual jumper edit semantics are implied by this story.
+23. As a designer, I want to configure one unibody or a split keyboard, select wireless or wired inter-half transport, and set reversible layout using the existing setup controls, so that hardware topology matches my intended assembly.
+24. As a designer, I want split physical instances to retain stable identities, board association, left/right role, orientation, controller assignment, and per-instance mechanical settings while I select between them, so that one board’s assembly is not mistaken for another’s.
+25. As a designer, I want the Case instance panel to select a physical assembly, change its PCB design, flip the PCB, and review wired-half guidance and routed-reference status, so that case previews use the correct physical instance.
+26. As a designer, I want to import or replace a routed KiCad PCB reference with the existing size/type constraints and see loading/errors, so that I can preview routing produced outside BoardStudio.
+27. As a designer, I want the imported board and attached model assets saved with stable SHA-256 asset identities and reopened with the project, so that the reference is portable and remains available offline.
+28. As a designer, I want to enable/disable, translate, elevate, and rotate the routed-board reference, so that its assembly position matches my physical build.
+29. As a designer, I want to attach an external STEP/STP/STL/WRL model to a referenced model path, select an existing saved model, and match model-directory files only when filenames are unique, so that reference geometry is linked without ambiguous substitutions.
+30. As a designer, I want import results to be discarded with a clear retry message if the project or selected board changed while the file was being parsed, so that an old asynchronous reply cannot update a different scope.
+31. As a designer, I want to remove a routed reference and its project link through the same normal edit path, so that the viewer cannot keep displaying detached stale data.
+32. As a designer, I want all these screens to retain the current Light/Dark/System appearance, responsive desktop and compact panel behavior, semantic labels, keyboard access, visible focus, Escape/return paths, and reference typography/spacing, so that PCB work feels like the same application.
+33. As a designer, I want empty, loading, unavailable, stale, success, and failure states to be explicit and recoverable, so that an unavailable worker, missing asset, invalid file, unresolved controller, or electrical finding never looks like a successful handoff.
+34. As a designer, I want cancellation and workspace/board/project changes to clear only the relevant transient draft and reject late results, so that I do not commit edits to an unintended project or instance.
+35. As a designer, I want save status, Undo/Redo, board selection, and focused finding to remain coherent across PCB, Layout, Parts, and Case, so that the whole project retains one accepted document and history.
+36. As a maintainer, I want every PCB React component, hook, and regression case mapped to its Dioxus owner and public browser evidence, so that no part of the electrical or hardware workflow is called complete from a placeholder.
 
-- `app/src/ui/ModulePcbOverlay.test.tsx`
+## F5 slices
+
+| Slice | Visible outcome | Actual prerequisite | Priority / effort | Acceptance and boundary status |
+| --- | --- | --- | --- | --- |
+| **F5.1 — PCB workspace and host layers** | The PCB tab renders the selected board and host PCB layers with the reference layer popover and functional independent toggles. | F1 shell and the verified F3a layer-control behavior are sufficient to begin. Full F2/F3 are not required to implement or fixture-test this slice. Integrate with F2’s shared compact panel behavior if that work changes the shared presentation contract. | P0 / M | Paired board fixtures show matching default geometry/layers, layer visibility, selection, theme and desktop/compact controls; toggles change no document revision/history/export input. **Boundary:** scene/read-model and edit services exist; Dioxus canvas/layer presentation and scoped visibility state are missing. |
+| **F5.2 — Electrical resolver and wiring summary** | PCB inspector shows board/controller/topology, matrix/direct mode, assignments, free/used pins, peripheral terminals, diagnostics, findings, and resolve/apply status. | F5.1’s PCB selection/canvas scope. Existing electrical CoreRequest/Reply and `ElectricalPlanRequest` are sufficient; no F3/F4 milestone completion is needed if a fixture already has a placed controller. | P0 / M | Same multi-board fixtures/actions produce same plan diagnostics and outputs as React; resolve is preview-only, current plan is scoped to document/revision/board, and Apply uses existing revision/fingerprint validation and a single normal history edit. Loading/error/no-controller states are covered. **Boundary:** public Rust resolve/apply contracts exist; Dioxus workflow adapter, subscriptions and presentation are missing. |
+| **F5.3 — Manual pin review, nets, and protected handoff** | Users can lock/release resolver pins, resolve assignment conflicts, review existing-net replacement, add nets, map supported part terminals/pads, edit press mode and retain firmware binding controls; protected handoff has explicit review action. | F5.2; existing `Edit` operations plus the public electrical remap/protection requests. Adding controllers from Parts is an integration point with the specific F4 part-placement action, not a dependency on the full F4 library milestone. | P0 / L | Pin locks survive resolve/reload/Undo as in React; stale and conflict cases stay truthful; replacement preserves unrelated nets and is undoable; no action clears protected state except its explicit review request. **Boundary:** public core edit/electrical requests exist. Host/presentation command assembly is private and absent from Dioxus; do not add a new request/API or change document contracts. |
+| **F5.4 — Mounted-module PCB overlays and finding focus** | PCB canvas displays source-owned module footprints/artwork/pads/drills plus independently controlled board outlines, clearance/service envelopes, source holes, standoffs, findings, and front/back artwork; choosing a graphic enters the owning module selection. | F5.1 layer/popover scope. Existing `ResolveModules`, `SceneDelta.moduleScenes`, resolved module geometry, and finding markers are usable. A fixture with module definitions/instances is enough; wait only for F4’s selection/inspector interface when integrating the click-through. | P1 / M | Compare multi-board and above/below/flipped module scenes, all independent visibility switches, host-layer interactions, reference text, exact geometry/units, source ownership, keyboard/pointer selection, and focused findings. No module source copper becomes host pads/nets. **Boundary:** public resolution results and generated scene contracts exist; Dioxus SVG/selection/state adapter is missing. |
+| **F5.5 — Mounted-module placement and inspector integration** | Selecting an existing module placement exposes its host board/physical-instance scope, face, pose, gap, attachment, service clearance, support/standoff drafts, VIK connection, embedded-circuit joins, and individual-component placement actions. It reuses F4-owned module definition selection, readiness, profile editor, and library model-asset presentation. | Existing project definitions, module edits, and resolver support fixture-based placement. Only F4’s definition/readiness/profile/asset interfaces are needed at the specific integration points; general F4 Parts import/search/create is not a prerequisite. | P1 / L | Paired React flows preserve definition/placement identities, placement draft/save/error/pending/cancel semantics, selector scope, and resolver results. A stale selection cannot update another board/instance. Source gates/profile editing remain F4-owned and truthful. **Boundary:** public `SetMountedModule`, remove/embed/remove-circuit edits and `ResolveModules` exist; Dioxus placement presentation is missing. F4-owned definition/readiness/profile/model-asset UI is consumed through its named seam, not duplicated. |
+| **F5.6 — Physical-board instance setup and Case handoff** | Setup and Case panels configure topology, transport, reversible layout, physical-instance selection, board association, flipped state, and reference status with stable identities. | F1 workbench can host it; F5.1 board scope is useful. Existing project document and normal `Edit` path suffice. F7 consumes the existing physical instances in its shared viewer; viewer work is a joint integration check, not a prerequisite for the setup/Case panel and persisted edit behavior. | P1 / M | Reproduce unibody/split/wireless/wired and reversible setups; preserve retained primary instance ID, case/controller edits, and board links; select instances without cross-board state leaks; Undo/Redo/reload preserve changes. **Boundary:** types and document edits exist; Dioxus presentation and setup/Case host adapter are missing. |
+| **F5.7 — Routed KiCad board reference controls** | The routed-board reference panel imports/replaces/removes a board; exposes enabled, XYZ, rotation, model-path mapping and per-file/directory attachment; reports parse/file/asset/scope errors. | Existing `PreviewBoard` artifact, artifact-worker dispatch, browser asset storage, and board-reference document type are present. F5 owns the reference controls; use coordinator-owned shared host ownership for low-level file/asset import. F7 is needed only for joint viewer-consumption evidence, not to implement the panel/edit flow. | P1 / L | Preserve the 32 MiB `.kicad_pcb` and model extension constraints, parse diagnostics/model paths, SHA-256 asset identities, unique-basename directory matching, project persistence, revision/board guards, returned values, and removal/reopen behavior. F7 confirms enabled pose/elevation/attached-model rendering in the shared viewer. **Boundary:** public artifact and browser storage services exist; F5’s Dioxus reference UI is missing and consumes the private coordinator-owned shared host asset seam; no parser/export/document API change. |
+| **F5.8 — Cross-workspace parity and inventory closure** | F5 is an integrated Dioxus workflow, with reference comparisons, transferred browser regressions, inventory ownership/evidence, and honest residual limits. | F5.1–F5.7; F2 compact panel integration and F4 module-inspector seam where the specific owned controls apply. Record the F7 viewer result as an explicit integration dependency only for the routed-board assembly effect. | P2 / L | Run identical representative single-board, split/multi-board, conflict/locked wiring, protected handoff, mounted-module and routed-board/model actions through React and Dioxus. Compare desktop/compact and Light/Dark/System. Verify pointer and keyboard selection/focus, Escape, loading/error/recovery, save/reopen, Undo/Redo, no browser errors, and affected axe checks. Mark actual screen-reader checks separately if host support is unavailable. The existing overlay test is server-rendered and does not establish real browser keyboard dispatch, focus, or pointer hit-testing; transfer those interaction assertions at the public browser seam. Transfer its scene/toggle cases; dispositions for React tests are explicit. Update all six inventoried PCB production TSX rows and the existing overlay test, without claiming shared large workbench files complete. **Boundary:** acceptance evidence only; it does not authorize new enforcement gates, API/format changes, production entrypoint cutover, or React retirement. |
+
+### Dependency interpretation
+
+- F5.1 and F5.2 are the first independent user-visible deliverables. F5.2 can use an already-populated project; it need not wait for Parts or complete Layout authoring.
+- F5.3 only needs the controller/part-placement action at the exact “add a controller” point. Existing projects and placed-controller fixtures allow the rest of its work to proceed before F4 is complete.
+- F5.4 uses current module read models and can proceed from fixtures without F4’s full Parts library. F5.5 consumes only F4’s module-definition/readiness/profile/asset contracts, avoiding duplicated library definition and profile ownership.
+- F5.7’s editor/asset-save path uses current public artifact and browser-storage contracts. Its 3D visual effect is verified with F7; F7 is not a false blocker for implementing its form, validation, and durable project reference.
+
+## Implementation Decisions
+
+- Treat Rust document edits/history and Rust electrical/module/preview services as authoritative. Dioxus owns selected tabs, local drafts, layer visibility, popover state, focus and display state; it does not maintain a second writable project or independently derive electrical correctness.
+- Use the existing electrical resolve/apply contract. Resolver output is preview information until applied; applying rechecks its base revision and fingerprint. Preserve the current transaction/Undo shape and existing net replacement review. Build presentation-specific calls/adapters around the existing public request/reply/edit surface; do not alter engine APIs, contract visibility, schemas or saved-project fields for convenience.
+- Use the existing module resolver/read models and typed edits. Source-owned daughterboard geometry remains an overlay, not host electrical geometry. Keep module-specific and host PCB visibility independent and compose resolved face/layer transforms once.
+- Preserve the existing `boardstudio/v2` document and asset representation. Routed KiCad parsing remains a preview artifact; its original file stays an asset referenced from the project. Host file input, asset persistence and worker/artifact handles remain host responsibilities.
+- Compare behavior to the exact React source/action reference, preserving labels, defaults, dimensions, states, modal/popover placement, keyboard/pointer interactions and light/dark appearance. Keep reference behavior that is presentation-only out of project revision/history.
+- Do not add a new manual jumper programming API. Render/retain resolver-produced jumpers and their diagnostics only where established behavior or the agreed F5 requirement calls for review. The React WiringPanel itself does not provide a jumper-state editor; the setup-guide copy mentions reversible jumpers and the electrical plan/export services already describe recipes. Classify any visible UI treatment as a review presentation and never infer changed fabrication semantics from a click.
+- Do not turn imported component/module data, footprints or models into new catalogue entries as part of the frontend port. If an implementation must add/change/import a library component, footprint, module or 3D model, follow the project’s component-onboarding workflow and preserve source, license, variant, identity, units and asset evidence.
+- Keep all async results tied to their captured project/session/revision/board/physical-instance scope; show pending/errors and reject stale publication. Cancel view drafts on the same navigation boundaries as React; only committed edits enter normal save/Undo/Redo flow.
+
+## Testing Decisions
+
+- Use paired reference/candidate browser scenarios at the public app seam. Assert visible layer state, geometry/ownership, selected board/instance/module, current plan/readiness/finding, accepted document result, save/reopen and Undo/Redo rather than component internals.
+- Reuse the current module-overlay rendering regression cases for source artwork, toggles, flipped face, mounting holes/standoffs, and host visibility. Port them to a Dioxus/public-scene behavior assertion before disposition of the React-only component test.
+- Reuse electrical plan/context and workflow fixtures to characterize controller choice, matrix/direct resolution, lock behavior, stale plans, errors, generated nets, protected handoff and multi-board/split scope. Add browser action coverage at the highest public seam so the same flow validates Rust service wiring and user-visible outcomes.
+- Reuse the core public request tests and application-session/edit/history tests to protect resolver fingerprints, public edit outcomes, stale revision errors and Undo grouping. UI behavior tests must not replace those service tests or inspect private implementation details.
+- Exercise asset import through real browser file selection and worker parsing, then save/reopen the project and verify stored asset bytes/identity, model mappings, size/type failures and stale-board/project failure. Test the routed-board effect in the real Case viewer when F7’s viewer is available.
+- Compare desktop and compact supported viewports, light and dark themes, focus visibility/return, keyboard selection/toggles/Enter/Space/Escape, loading/error states and screen-reader-relevant names/roles. Preserve the distinction between automated axe coverage and actual assistive-technology acceptance.
+- Use the affected existing Rust, generated-contract/boundary, app Vitest, build and Playwright checks required by the migration constraints. The completion record must state every failed, blocked or not-run check; a successful build alone does not establish parity. Do not add a new check or budget in this plan.
+
+## Out of Scope
+
+- Any rewrite or widening of the Rust core, electrical planner, module resolver, firmware/PCB exporters, CAD kernel, generator algorithms, project schema, serialization format or public API.
+- New component/module catalogue content, unsupported controller or electrical behavior, new jumper-edit semantics, or claims of manufacturing readiness beyond existing service findings and evidence.
+- Implementing F2’s general project library/onboarding/panel system, F3’s remaining full Layout tree/authoring tools, F4’s unrelated Parts workflows, or F7’s assembly viewer. F5 integrates with the specific seams it uses and records viewer follow-up where required.
+- Production Dioxus writer/entrypoint cutover, React removal, export-format changes, or resolving unrelated M1 CAD/resource/screen-reader gates.
+
+## Testing seams and external behavior
+
+The highest useful seam is the actual Dioxus browser workflow backed by the real core/artifact workers and project storage, exercised against the same React fixture/actions. Existing public CoreRequest/CoreReply and ArtifactRequest/ArtifactReply contracts are the service oracle; core public tests remain the engine oracle. Avoid new private UI hooks solely for testing. If a Dioxus host adapter is needed, test it through its existing public runtime behavior and keep its contract internal unless an independently approved public API change exists.
+
+## Further Notes
+
+### Reference inventory and proposed private ownership
+
+These file names are inventory evidence and ownership context; they do not belong in the implementation-decision list. The exact hashes/primary milestone rows remain in the pinned TSX inventory.
+
+| React responsibility | Proposed private Dioxus ownership | F5 role |
+| --- | --- | --- |
+| `WiringPanel.tsx` plus `usePcbWorkspace.tsx` | Dioxus PCB inspector/presentation module and an internal electrical-workflow adapter that consumes the session document, electrical plans and public core requests | F5 owns the visual and draft/action behavior; the adapter owns only request construction and stale-result eligibility, not planning rules. |
+| `ModulePcbOverlay.tsx` | Dioxus PCB-scene overlay/visibility module under the canvas renderer adapter | F5 owns SVG/scene projection, select focus, and independent visibility; the resolved geometry remains provider-owned. |
+| `HardwareReadiness.tsx` | F4-owned reusable readiness presentation colocated with module/Parts definition UI | F5 consumes the read-only readiness/source summary; output gate meaning and provenance remain provider-owned. |
+| `HardwareInstancesPanel.tsx` | Dioxus setup/physical-instance panel with the session edit adapter | F5 owns setup and Case presentation; the Rust document/edit path owns persisted topology/instances. |
+| `BoardReferencePanel.tsx` | Dioxus routed-board reference editor plus the coordinator-owned shared host file/asset seam | F5 owns board-reference controls and async scope feedback; the shared host owns file APIs/asset I/O and artifact worker owns parsing. |
+| Module definition catalogue, source readiness, profile editor, and library model-asset presentation | F4-owned Parts/module presentation consumed through a narrow definition/readiness/profile/asset seam | F5 owns mounted placement and electrical connection drafts; it does not copy source profile editing or library asset management. |
+| PCB finder/finding presentation and shared inspector/layer controls | Shared shell/presentation modules, with PCB-scoped finding and layer state supplied by F5 | Keep shell/tokens/panel infrastructure with the designated coordinator; F5 owns only PCB-specific state/content. |
+
+**Reference source responsibilities:** `BoardReferencePanel.tsx`, `HardwareInstancesPanel.tsx`, `HardwareReadiness.tsx`, `ModulePcbOverlay.tsx`, `WiringPanel.tsx`, and `usePcbWorkspace.tsx`; retain/disposition the existing `ModulePcbOverlay.test.tsx`. Cross-cutting Workbench orchestration is not a reason to claim the large React Workbench row complete. F3a already owns the prior Layout-layer fix and supplies a visual/interaction reference, not proof that the PCB port is done.
+
+### Verified service/host boundaries
+
+- `CoreRequest` already exposes `ResolveElectrical`, `ApplyElectrical`, `ReviewElectricalRemap`, `ProtectElectricalHandoff`, `ResolveModules`, normal `Edit`, `Undo`, and `Redo`. Corresponding replies include an electrical plan/application result, module resolution and standard scene/error outcomes.
+- `EditOperation` already includes typed module definition/placement/remove/embed/remove-circuit edits, input scan mode, key binding, and a generic `ReplaceDocument` path. `ProjectDoc` already carries nets, board references and hardware topology/instance/electrical configuration.
+- Electrical-plan data already includes board/instance/controller scope, revision, fingerprint, locks-derived assignments, row/column pins, peripheral mapping, free pins, nets, diagnostics, jumper recipes and jumper diagnostics. `electrical_jumper` recipes are planner output, while saved jumper state is already represented in the existing per-board configuration.
+- `ArtifactRequest::PreviewBoard` and its reply already provide render-only KiCad board projection (contours, layer surfaces, holes, model paths/transforms and diagnostics). This is not a routed-board editing/export service.
+- The browser host already has generic `CoreWorker` request/artifact dispatch and browser asset load/save methods. F5 needs private wiring between Dioxus runtime/session and these host services where no workflow action is exposed. Low-level shared file/asset import remains with F4/host-platform ownership; F5 consumes it for routed-board reference controls. This is adapter work, not evidence of a missing core endpoint.
+- `SceneDelta` already has module scene data and finding markers; the module resolver returns resolved outlines/holes/footprints/artwork/clearances/models/gates. Preserve ownership and scope when adapting them to the Dioxus canvas.
+
+### Source and project references
+
+Read and preserve the active roadmap/spec/issue graph, pinned reference inventory and handoffs alongside `CONSTRAINTS.md`, `CAPABILITY-MAP.md`, `docs/agents/domain.md`, and accepted ADR 0003. The current F5 ticket is the six-file PCB component slice; the source inventory also records `usePcbWorkspace` as a UI controller and `ModulePcbOverlay.test.tsx` as regression coverage. The component/footprint onboarding contract applies if library data is changed, but a pure UI port does not itself authorize library-data edits.
+
+### Independent review reconciliation
+
+The coordinator owns generic file/asset I/O (INT.2); F4 owns its library-specific import forms only. F5.7 completes with routed-reference import/edit/persist/reopen and scoped errors; it does not wait for F7 rendering. F5.8 joins F7.3 common viewer and F7.7 physical-instance projection to prove the routed reference has the expected visible effect. F4 owns the reusable HardwareReadiness source/profile summary; F5 consumes it alongside its own wiring readiness.
+
+
+### Authoritative execution dependencies
+
+The milestone-level prerequisites above describe integration context. The refined rows below replace whole-milestone or symbolic dependencies. Preparation/fixture work may start after `Start after`; completion also requires `Acceptance joins`. Existing F1/F3a source and evidence are baseline prerequisites, not tasks to repeat. Full workflow qualification also joins F2 shared panels/controls under F9.
+
+| Slice | Start after | Acceptance joins |
+| --- | --- | --- |
+| F5.1 | INT.1 | Own slice acceptance |
+| F5.2 | F5.1 | INT.2 |
+| F5.3 | F5.2 | F4.2, F3.2, F6K.4 |
+| F5.4 | F5.1 | INT.2 |
+| F5.5 | F5.4 | F4.7 |
+| F5.6 | INT.1 | Own slice acceptance |
+| F5.7 | INT.1 | INT.2 |
+| F5.8 | F5.1, F5.2, F5.3, F5.4, F5.5, F5.6, F5.7 | F2.3, F4.7, F6K.4, F7.3, F7.7 |
+
+### Refactoring observation handoff
+
+Update the [living RF register](../refactor-findings.json) and [post-port takeaways](../../../docs/migration/POST-PORT-REFACTOR.md) for architectural, design, theoretical or quality issues discovered in this slice, or record “No new refactoring takeaway observed” with reviewed scope. Distinguish confirmed findings from hypotheses; include evidence, impact, current mitigation, later proposal and validation. This does not authorize unrelated refactoring or defer required parity fixes.

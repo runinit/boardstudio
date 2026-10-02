@@ -2,7 +2,27 @@
 
 Current priority: **100% frontend Dioxus migration**. See [frontend v1 roadmap](DIOXUS-FRONTEND-V1.md), [task graph](../../.scratch/dioxus-frontend-v1/PLAN.md) and [current run](dioxus-frontend-v1-run.json). The 2026-10-01 clarification prioritizes porting all existing TSX, themes and interface behavior. F1 is implemented and verified as the first shell/theme increment ([handoff](../../.scratch/dioxus-frontend-v1/evidence/handoff.md)); The user-requested F3a correction now restores default keycaps, five Layout layers and the shared footprint toggle ([current demo/evidence](../../.scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md)). Full F2–F9 remain open. Existing engines/providers remain underneath. The prior M1 run below is retained foundation/evidence, with its acceptance limits unchanged.
 
-Active run: [remaining M1 production plan](../../.scratch/m1-production/PLAN.md),
+## Current frontend planning — 2026-10-02
+
+The user requested remaining-work planning with multiple agents for each workflow.
+Workflow authors and different reviewers expanded F2–F9 into 58 workflow slices,
+two shared integration tasks and two bounded adapter investigations. The
+[plan](../../.scratch/dioxus-frontend-v1/PLAN.md),
+[ownership and dispatch](../../.scratch/dioxus-frontend-v1/EXECUTION.md),
+[machine graph](../../.scratch/dioxus-frontend-v1/tasks.json),
+[source coverage](../../.scratch/dioxus-frontend-v1/coverage.json) and
+[review resolutions](../../.scratch/dioxus-frontend-v1/evidence/planning/review-resolution.md)
+are the active frontend execution documents. First visible tranche: project
+library, panels/drawers and Layout tree/selection; other workspace work joins only
+its exact dependencies. The graph separates starts from acceptance joins.
+
+Planning baseline `c827c4e6`; executable `f44a3d1b` and its demo/build are unchanged.
+No frontend milestone is closed by this documentation update. Existing M1 limits,
+actual screen-reader host gap and final concrete cutover approval remain separate.
+The retained production M1 run below is historical foundation, not the active
+frontend dispatch queue.
+
+Retained foundation run: [remaining M1 production plan](../../.scratch/m1-production/PLAN.md),
 [canonical state](m1-production-run.json) and
 [editable candidate handoff](../../.scratch/m1-production/HANDOFF.md).
 The reviewed implementation includes pointer allocation repairs at `b9748745`.
@@ -1054,3 +1074,5 @@ UI/live failures, environment-ineligible frozen CAD comparison, and required
 material/direct resource attribution. The [handoff](../../.scratch/m1-production/HANDOFF.md#remaining-acceptance-work)
 records the continuation work. Original tracked checkout and stash identities
 remain preserved; unrelated untracked content was not hashed.
+
+The user also requires continuous architectural/design/theoretical/quality takeaways. The [post-port refactoring register](POST-PORT-REFACTOR.md) is updated at every workflow handoff and consolidated for the later refactoring phase; it does not broaden this frontend port or waive current gates.

@@ -2,9 +2,11 @@
 
 <!-- phase: 3 -->
 
-## Active migration continuation — 2026-10-01
+**Current priority:** [Dioxus frontend v1](.scratch/dioxus-frontend-v1/PLAN.md), with 62 planned tasks and workflow author/reviewer ownership. Full F2–F9 remain open; executable F1/F3a evidence is unchanged.
 
-The active task set is the [remaining M1 production plan](.scratch/m1-production/PLAN.md), with [current state](docs/migration/m1-production-run.json) and [candidate handoff](.scratch/m1-production/HANDOFF.md). P2 and P3 feasibility are reviewed and accepted; their earlier repair-limit and fixed-defect statements below are historical. The M1 implementation is integrated, while final acceptance and complete production parity remain unfinished.
+## Retained M1 migration foundation — 2026-10-01
+
+The retained foundation task set is the [remaining M1 production plan](.scratch/m1-production/PLAN.md), with [current state](docs/migration/m1-production-run.json) and [candidate handoff](.scratch/m1-production/HANDOFF.md). P2 and P3 feasibility are reviewed and accepted; their earlier repair-limit and fixed-defect statements below are historical. The M1 implementation is integrated, while final acceptance and complete production parity remain unfinished.
 
 - [x] P2-ABI: box approved public payloads while preserving serialized contracts; one documented three-d Arc exception.
 - [x] P2-BUILD-BROWSER: reproducible provider assets and remaining P2 browser/accessibility evidence.
@@ -104,7 +106,12 @@ See [specification](.scratch/m1-production/spec.md), [task graph](.scratch/m1-pr
 
 ## Dioxus frontend v1 — current priority
 
-[Roadmap](docs/migration/DIOXUS-FRONTEND-V1.md) and [task graph](.scratch/dioxus-frontend-v1/PLAN.md). All existing TSX, theming and frontend behavior; backend rewrites excluded.
+[Roadmap](docs/migration/DIOXUS-FRONTEND-V1.md), [plan](.scratch/dioxus-frontend-v1/PLAN.md), [62-task graph](.scratch/dioxus-frontend-v1/tasks.json) and [agent ownership](.scratch/dioxus-frontend-v1/EXECUTION.md). All existing TSX, supporting UI controllers, theming and frontend behavior; backend rewrites excluded.
+
+- [x] Plan the remaining workflows with separate authors and reviewers; publish exact slice starts/acceptance joins and source owners. [Planning review resolutions](.scratch/dioxus-frontend-v1/evidence/planning/review-resolution.md).
+- [ ] Next visible tranche: F2.1 project library, F2.3 panels/drawers, F3.1 Layout tree/selection after INT.1.
+- [ ] Early boundary work: F7.1 common-viewer mapping, BND.1 private keycap CAD adapter, BND.2 export-owned commit lineage.
+
 
 - [x] F1: [Reference shell and theming](.scratch/dioxus-frontend-v1/issues/01-shell-theme.md) — bounded first increment verified at `24218450`; [handoff](.scratch/dioxus-frontend-v1/evidence/handoff.md). Full UI parity remains F2–F9.
 - [ ] F2: [Projects, panels and shared controls](.scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md)
@@ -115,3 +122,5 @@ See [specification](.scratch/m1-production/spec.md), [task graph](.scratch/m1-pr
 - [ ] F7: [Case and 3D frontend](.scratch/dioxus-frontend-v1/issues/07-case-3d.md)
 - [ ] F8: [Export frontend and complete journeys](.scratch/dioxus-frontend-v1/issues/08-export.md)
 - [ ] F9: [Frontend v1 qualification and React retirement](.scratch/dioxus-frontend-v1/issues/09-frontend-v1.md)
+
+- [ ] During every frontend slice, record evidence-backed architecture/design/theory/quality takeaways in the [post-port refactoring register](docs/migration/POST-PORT-REFACTOR.md); F9 consolidates them for the later major refactor.

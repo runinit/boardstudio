@@ -1,0 +1,1359 @@
+{
+  "reference": {
+    "repository": "/home/chris/01_Projects/ts-boardstudio2",
+    "branch": "dev",
+    "revision": "5a472a9426e6e38993361da402cd4ec730feb369",
+    "scope": "app/**/*.tsx plus app CSS, frontend hooks and local UI font/image assets",
+    "generated_at": "2026-10-01"
+  },
+  "baseline": "c827c4e6",
+  "policy": "One accountable lead per source row; shared consumers do not count as additional migrated files. No full-production-file completion is claimed by planning. F9.1 audits remaining transitive UI TS imports and test dispositions before final release.",
+  "rows": [
+    {
+      "path": "app/src/main.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9"
+      ],
+      "planned_dioxus_owner": "coordinator-owned web/src/presentation.rs and web/src/runtime.rs composition",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "a71e3e64bf301737a3c1e701542889f784ad12a165b108a45414006877d2695d",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ProjectLibrary.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "41606dfcce957a7bf932cb874697623d3f144cd7b0e03e423ad1a97d4376100f",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ProjectStart.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "6b7475890ae4806125540d9ef8bf3540056b2c96bdb816ec4aacdde2e5431053",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/SetupChoice.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "ecb82afcf1085d0584fe4f7ec46b2aa14320a61678bfc2a86d9b881a4b5364fc",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/SetupGuide.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "7e686b5c5e2c080b8cb24c583e1f5d661c71737545e37c92c7c467353f157442",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/Workbench.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9"
+      ],
+      "planned_dioxus_owner": "coordinator-owned web/src/presentation.rs and web/src/runtime.rs composition",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "8c85a0857550c5ba860a4151a1d0a5789b7bcfaf5dbd349f6eadf29e300e6220",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/WorkbenchIcons.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "93eb1f025cd6a662f0dd50ec1d61d2e80eac97182ab1dc96b86f04c23817d2d7",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/WorkflowNavigation.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "ef069d73ec55667d434243d37fb02f47896e2cb80034b97e3a9768ac199f2c54",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/WorkspacePanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "78fc0765bf9851e4a9e813c1b97589e01049610553b4d2aae057cb0d21bafc0e",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/CanvasLayers.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "e1b41a10094b0006dacd21dda5a58b827926afc1d9ec9192097395073c2ba0eb",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/CanvasObjects.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "dfd094d9a0941bc6aa6e64d6aa1368797f3a4b6f55985e0f9a9d4a7e65c34f8f",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/CommandMenu.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "45e3fe234f1e88642fbde5c7c12831af19063ae5014b022e491b3f8a6705480d",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ConstraintEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "eff7c2f709459a789fc6315a817bacf2dbc4d61782450d70de605170c8ef8328",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ExistingHalfSetup.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "ba55efbef1c4ba70d3dac7f87ddc9236567b0576ee3dcc4f8b1eaf4bb74df0f6",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/FindingList.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F5",
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "63254e5e7c22a4a043a67123645c0012f52e46ec7aab27a8f96529ca712d081c",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/InspectorControls.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "239b32a385dfaf34f6e4e72a8a76ab56db62316714e0e392aac0bae7a4d8cbc8",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/InspectorSection.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8"
+      ],
+      "planned_dioxus_owner": "private projects/panels/shared-controls presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "2780bf4c1f7232f272ed892a4e60fa45fdbbef88037ca2ba57f99e80b80e95f9",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/MatrixInspector.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "f22a2ad8f384c6877e0890272ba484251b4b389bd6800506c89ea8881ec2132e",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/MatrixInspectorPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "6016655034b755a772aeaea4a788e55ee253df58997870396b71636f5bd41174",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/MatrixSetupPreview.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "b4015e0d166e2c7f107cf71ec1e2924841d5187486458a8f2a54129cd25a9339",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/MirroredPairSetup.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "106b227d9c44bbac60621f7f0779fda861d45c548e8fbcffce3a09af28999a65",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/OutlineControlOverlay.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "ac7270529f9f3557e672560268e68ee274f2bc16362d710f1a55e2503325b782",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/OutlineDraftPreview.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "b1017716be27981fc0cac91b5ffb0af58c5d196930dc85e5e413b9efbee0e8d1",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/OutlineFeatureEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "022d545627da36770ded7d33a0e96f018f4801a140c21c673d510f613c3f3b04",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/OutlineInspector.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "6315ced0811d8c92624b47896f63713b0178ceb592f4ec72ce964e9b046b286b",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/OutlineSnapGuides.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "9860fc5afa8bd94b8625e26d8f5b6d7f1dc8854bd1ce12de518221e012130964",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/OutlineTools.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "c3259ad453e459e533e6f24387fc6e2e768e0e1bafc9fe59fcade231def2b8b0",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/WorkbenchLayers.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "1ff03a8ad230adbd9200b192d180be361c6d77af320c94e4e36bcb1feda32188",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/WorkbenchTree.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "b5a557f075e4777a9223c85b01d70ea4f5b1489c3d84da5482f78719994a62d3",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/useOutlineEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "d37ca5ed08b873bac42f26e8fe2b68099f7bbd9b987b97bba906b1189fa60af4",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/useScriptEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Layout tree/canvas/authoring/outline/script presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "2150dea6c81112f2cfb478843101c9cd44810d45377855396a2812a15b03c05a",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/AssemblyEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "404352159a377689df076edaa0c6ca2b483071d7b27e3a7fa6d50bad9e1a940c",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/Ergogen2DPreview.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "90464298a1f6bfb239192d5abe11862ac74bfb15e8f1093fce51218b33d37d26",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/GeneratorFields.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "5b33b92471f37e20b21cf2f93f5b49ced013c2967df7993ea9f065551e095d21",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/InputProfileEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F5",
+        "F6"
+      ],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "44d9f87b913a4462cc8014a9fd151ecf19847bb87e67b9026fc49d249156a03f",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/LibraryWorkspace.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "22b0cfe19a268236d77d3ad1e1a59684b4396e4883cef51e98b58fafa5b6482b",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ModuleInspector.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F5",
+        "F7"
+      ],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "2ca22b9d4b10af3f38c4fa995d42c972109c424934ea04ceba3af68758a7b4a7",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ModulePreview.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F5",
+        "F7"
+      ],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "d2a948fcfe58216b561d70cc198920bc0bc08bd3bcf81b858ccd290067b346fd",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ModuleProfileEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "264427b013215ac05179cbf963d8fc8880270ebef712c4a47b53c9eae98e4baf",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/PartMechanicalProfileEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "ba0c49ae459c88af4bba2395e59c3c6bc37798de928118a292c161b6538cbe71",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/PartsInspectorPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "7ce08ec50426cb94d808df03cfed5140c11bd33f14105de35d6860af9b04449a",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/PartsLibrary.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "0acfa192b4141b51e7f5e1136f52ba5e4dda865e3afbfccfcec374a4a3cd1edb",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/BoardReferencePanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F5",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "4d5ffc4207030d183b5a7ddabedee82defde19d2bf8619cd76dca91e8fd9715e",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/HardwareInstancesPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F5",
+      "shared_consumers": [
+        "F7"
+      ],
+      "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "eb82625d5546ed481aa91c897ac92b1bd74f846beb218ef47d4b0aa5308e857e",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/HardwareReadiness.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F5",
+        "F7"
+      ],
+      "planned_dioxus_owner": "private Parts/library/definition/assembly presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "30778f22579b33c95a93c98254be271ab5f3501be6766dd3af7f724e5bc05f94",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ModulePcbOverlay.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F5",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "63bb74b24b204574c3e37d466b79d83da094cc230d13463d0657fde25eff9937",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/WiringPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F5",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "96c2c3cd6b6d740b44e53e2aa8a1ac041bbd4937d8bcb2e832b7e44e98dce488",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/usePcbWorkspace.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F5",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private PCB/wiring/modules/hardware/reference presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "f66a97c030c2e747de454ab5ba1b520765b6d9259f09e556a78d026e4dd1bf23",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/FirmwareKeymapPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F6",
+      "shared_consumers": [
+        "F5"
+      ],
+      "planned_dioxus_owner": "private Keymap and Keycaps presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "bb3db7db1705364c28b3f98ae3fa4c491161e5210daf89112fc2d370a609936b",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/KeyBindingEditor.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F6",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Keymap and Keycaps presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "b802b651d16841ba06f61bb68b7341d090f1c0ae717c6c559b48c2095eb2dee5",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/KeySizeControls.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F6",
+      "shared_consumers": [
+        "F3"
+      ],
+      "planned_dioxus_owner": "private Keymap and Keycaps presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "4e8adbf9ecc170ea8fc58ea03bb2fe21c60042d13c25e628e6b4c3d86bdf9718",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/KeycapPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F6",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Keymap and Keycaps presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "f04b1f062cd77bae48696c33bf5722bde0b251160ce5feda31bca3bd9c5e0466",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/KeymapLayout.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F6",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Keymap and Keycaps presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "66ab460465d7e26342ee54fa9e47277baadb50d18c2897be8652eed942586707",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/KeymapPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F6",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Keymap and Keycaps presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "2ddb320e7396925d715f0564457b06da1b3ca9402a1551eb83fa723c48a36de4",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/createKeymapWorkspace.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F6",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private Keymap and Keycaps presentation modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "4afc3fe232614154fdf687e8a270bc8251b7a17a770566e593d68423095015f5",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/AssemblyScene.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F3",
+        "F4",
+        "F6"
+      ],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "f0cb88c22e26c9788cfd9b10452ff40e88ff89d6944a6bba618068d247340416",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/AssemblyViewer.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F3",
+        "F4",
+        "F6"
+      ],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "40bd398d6b2e9dad397e26ed0bfedf1f1dcf0ae7709a85efccbe57bf0cb980cd",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/CaseChoice.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "65486b463f0cd10bd6cf1d7c1eb784f64f104cf13e93a87cc90cfb95d70b7ed8",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/CaseGenerationControls.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "7152a00ee04be3a7f15d10768aee63d69903766b8837e96dc0b5ac47671e7e73",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/CaseInspectorPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "051396a0e97254886fc9853d5d922f5e7409ee41a34876b57472fb02869d3eca",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/MechanicalAssemblyPanel.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "89ef0de8e114fc4098df40ce175c31783850be27fcba4def0d0fd01a8d446ee4",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/ModelPreviewBoundary.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F4",
+        "F6"
+      ],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "c72439220fb8087f47301ca14a4d4e15bf42b8d7e8fd45f4213ce10243561857",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/useCaseWorkspace.tsx",
+      "kind": "production_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [],
+      "planned_dioxus_owner": "private common viewer and Case presentation/host modules",
+      "status": "planned; no whole-file parity claim",
+      "source_sha256": "80cecb584fb2c6639fb5b7b7a11cd0b82aad13641e19139d5590fbca991c047e",
+      "required_evidence": "paired public scenario, matching visual/interaction states and saved/output effects; independent Standards/Spec review"
+    },
+    {
+      "path": "app/src/ui/AssemblyScene.mounts.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/AssemblyScene.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/Ergogen2DPreview.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/MechanicalAssemblyPanel.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/MechanicalAssemblyPending.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/ModelPreviewBoundary.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/ModulePcbOverlay.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F5",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/OutlineControlOverlay.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/ProjectLibrary.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/Workbench.performance.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/WorkbenchLayers.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/libraryDisplay.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/partsCatalog.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/ui/useWorkbenchNavigation.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/useCaseGeneration.live.test.tsx",
+      "kind": "test_tsx",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/bench-workbench.tsx",
+      "kind": "benchmark_tsx",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "disposition planned; retained until replacement verified",
+      "required_evidence": "transfer user-visible assertions to public Dioxus scenario; retain benchmark oracle/limits; record exact replacement or reviewed non-applicability before deletion"
+    },
+    {
+      "path": "app/src/startup.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/assembly-preview.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/canvas-layers.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/firmware-keymap-panel.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F6",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/inspector.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/keymap.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F6",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/library-workspace.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/mechanical-assembly.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/mirrored-layouts.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/module-workspace.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/outline-editor.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/project-library.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/setup-guide.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/unified-workbench.css",
+      "kind": "stylesheet",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/wiring-panel.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F5",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/workbench.css",
+      "kind": "stylesheet",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/workflow.css",
+      "kind": "stylesheet",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/workspace-panels.css",
+      "kind": "stylesheet",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "INT",
+        "F9"
+      ],
+      "status": "visual port/reuse planned",
+      "required_evidence": "paired theme/viewport/state captures; global tokens and shared CSS integrated only by coordinator"
+    },
+    {
+      "path": "app/src/ui/usePartsEditing.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F4",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/ui/useSetupGuide.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/ui/useWorkbenchNavigation.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/ui/useWorkbenchSelection.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/ui/useWorkbenchTheme.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/ui/useWorkbenchTree.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/useCaseGeneration.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/useProjectSession.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/createProjectActions.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F2",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/createProjectExporter.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F8",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/useElectricalPlanning.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F5",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "port UI-owned state/policy; retain only explicitly documented provider adapter",
+      "required_evidence": "same action/draft/reset/scope/error/history semantics through public UI"
+    },
+    {
+      "path": "app/src/ui/planKeycapResize.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F6",
+      "shared_consumers": [
+        "F3",
+        "F7",
+        "F9"
+      ],
+      "status": "existing TypeScript frontend policy to port; not an already-migrated service",
+      "required_evidence": "retained helper regressions plus public browser/saved-output parity"
+    },
+    {
+      "path": "app/src/ui/keycapReflow.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F6",
+      "shared_consumers": [
+        "F3",
+        "F7",
+        "F9"
+      ],
+      "status": "existing TypeScript frontend policy to port; not an already-migrated service",
+      "required_evidence": "retained helper regressions plus public browser/saved-output parity"
+    },
+    {
+      "path": "app/src/ui/createCanvasInteractions.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F3",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "existing TypeScript frontend policy to port; not an already-migrated service",
+      "required_evidence": "retained helper regressions plus public browser/saved-output parity"
+    },
+    {
+      "path": "app/src/assemblyPreview.ts",
+      "kind": "ui_controller",
+      "lead_workflow": "F7",
+      "shared_consumers": [
+        "F9"
+      ],
+      "status": "existing TypeScript frontend policy to port; not an already-migrated service",
+      "required_evidence": "retained helper regressions plus public browser/saved-output parity"
+    },
+    {
+      "path": "app/src/assets/fonts/source-code-pro-upright.woff2",
+      "kind": "visual_asset",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9"
+      ],
+      "status": "F1 bundled font reuse; whole-app qualification pending",
+      "required_evidence": "correct deployed URLs/hash, typography and offline root/subpath load"
+    },
+    {
+      "path": "app/src/assets/fonts/source-sans-3-upright.woff2",
+      "kind": "visual_asset",
+      "lead_workflow": "INT",
+      "shared_consumers": [
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9"
+      ],
+      "status": "F1 bundled font reuse; whole-app qualification pending",
+      "required_evidence": "correct deployed URLs/hash, typography and offline root/subpath load"
+    },
+    {
+      "path": "app/.impeccable/mocks/current-design.png",
+      "kind": "reference_only",
+      "lead_workflow": "F9",
+      "shared_consumers": [],
+      "status": "historical visual context; paired pinned-reference captures are authoritative",
+      "required_evidence": "do not treat historical mock as proof of current reference parity",
+      "reference_location": "/home/chris/01_Projects/ts-boardstudio2/app/.impeccable/mocks/current-design.png",
+      "availability": "only in original reference checkout; historical context, not current paired evidence"
+    },
+    {
+      "path": "app/.impeccable/mocks/current-parts.png",
+      "kind": "reference_only",
+      "lead_workflow": "F9",
+      "shared_consumers": [],
+      "status": "historical visual context; paired pinned-reference captures are authoritative",
+      "required_evidence": "do not treat historical mock as proof of current reference parity",
+      "reference_location": "/home/chris/01_Projects/ts-boardstudio2/app/.impeccable/mocks/current-parts.png",
+      "availability": "only in original reference checkout; historical context, not current paired evidence"
+    },
+    {
+      "path": "app/.impeccable/mocks/workspace-family.png",
+      "kind": "reference_only",
+      "lead_workflow": "F9",
+      "shared_consumers": [],
+      "status": "historical visual context; paired pinned-reference captures are authoritative",
+      "required_evidence": "do not treat historical mock as proof of current reference parity",
+      "reference_location": "/home/chris/01_Projects/ts-boardstudio2/app/.impeccable/mocks/workspace-family.png",
+      "availability": "only in original reference checkout; historical context, not current paired evidence"
+    },
+    {
+      "path": "app/.impeccable/mocks/decision/unified-design-light-final.png",
+      "kind": "reference_only",
+      "lead_workflow": "F9",
+      "shared_consumers": [],
+      "status": "historical visual context; paired pinned-reference captures are authoritative",
+      "required_evidence": "do not treat historical mock as proof of current reference parity",
+      "reference_location": "/home/chris/01_Projects/ts-boardstudio2/app/.impeccable/mocks/decision/unified-design-light-final.png",
+      "availability": "only in original reference checkout; historical context, not current paired evidence"
+    },
+    {
+      "path": "app/.impeccable/mocks/decision/unified-design-dark.png",
+      "kind": "reference_only",
+      "lead_workflow": "F9",
+      "shared_consumers": [],
+      "status": "historical visual context; paired pinned-reference captures are authoritative",
+      "required_evidence": "do not treat historical mock as proof of current reference parity",
+      "reference_location": "/home/chris/01_Projects/ts-boardstudio2/app/.impeccable/mocks/decision/unified-design-dark.png",
+      "availability": "only in original reference checkout; historical context, not current paired evidence"
+    },
+    {
+      "path": "app/.impeccable/review/desktop.png",
+      "kind": "reference_only",
+      "lead_workflow": "F9",
+      "shared_consumers": [],
+      "status": "historical visual context; paired pinned-reference captures are authoritative",
+      "required_evidence": "do not treat historical mock as proof of current reference parity",
+      "reference_location": "/home/chris/01_Projects/ts-boardstudio2/app/.impeccable/review/desktop.png",
+      "availability": "only in original reference checkout; historical context, not current paired evidence"
+    },
+    {
+      "path": "app/.impeccable/review/mobile.png",
+      "kind": "reference_only",
+      "lead_workflow": "F9",
+      "shared_consumers": [],
+      "status": "historical visual context; paired pinned-reference captures are authoritative",
+      "required_evidence": "do not treat historical mock as proof of current reference parity",
+      "reference_location": "/home/chris/01_Projects/ts-boardstudio2/app/.impeccable/review/mobile.png",
+      "availability": "only in original reference checkout; historical context, not current paired evidence"
+    }
+  ],
+  "counts": {
+    "benchmark_tsx": 1,
+    "production_tsx": 63,
+    "reference_only": 7,
+    "stylesheet": 18,
+    "test_tsx": 15,
+    "ui_controller": 15,
+    "visual_asset": 2
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "scope": "documentation-only planning verification",
+  "baseline": "c827c4e6",
+  "executable_unchanged": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
+  "checks": {
+    "graph": "62 unique tasks; references, union semantics and topological order pass; acyclic",
+    "review_graph_corrections": "targeted dependency and external-gate assertions pass",
+    "coverage": {
+      "benchmark_tsx": 1,
+      "production_tsx": 63,
+      "reference_only": 7,
+      "stylesheet": 18,
+      "test_tsx": 15,
+      "ui_controller": 15,
+      "visual_asset": 2
+    },
+    "source_hashes": "63 production reference hashes match the current integration source",
+    "agents": "8 workflow plans have distinct author and reviewer; graph independently reviewed",
+    "json": "all staged JSON parses",
+    "markdown_links_checked": 324,
+    "specs": "8 expanded to-spec documents with required sections and path-free Implementation Decisions",
+    "refactoring_register": "12 evidence-backed RF entries, source/task links verified; all 62 tasks require observation handoff",
+    "historical_visuals": "7 reference-only images reside in original checkout; location and limits explicit"
+  },
+  "errors": [],
+  "application_builds_or_browser_tests": "not run; no application source changed",
+  "repository_check": "pnpm run check:repo passed: 7 tests, 616 authored modules, 418 production-reachable",
+  "whitespace_check": "git diff --check passed; all newly added text files checked for trailing whitespace",
+  "repository_check_attempts": [
+    {
+      "result": "sandbox blocked pnpm temporary-file creation (EROFS); no check executed",
+      "resolution": "reran with scoped filesystem escalation"
+    },
+    {
+      "result": "exit 0; all 7 checker tests and repository check pass"
+    }
+  ],
+  "published_files": 44,
+  "original_checkout": "unchanged; pre-existing untracked .scratch remains"
+}
