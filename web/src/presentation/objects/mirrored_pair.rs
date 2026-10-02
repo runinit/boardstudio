@@ -5,6 +5,9 @@ use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Vec2;
 use dioxus::prelude::*;
 
+mod canvas_overlay;
+pub(in crate::presentation) use canvas_overlay::MirroredPairCanvasOverlay;
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::presentation) struct MirroredPairRequest {
     pub owner: MirroredPairOwner,
