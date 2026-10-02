@@ -148,6 +148,12 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
     let remove_disabled = !props.enabled || props.is_base;
     let layer_id = props.layer_id.clone();
     let accepted_name = props.layer_name.clone();
+    let feedback_pending = matches!(props.feedback.as_ref(), Some(KeymapLayerFeedback::Pending));
+    let feedback_saved = matches!(props.feedback.as_ref(), Some(KeymapLayerFeedback::Saved));
+    let feedback_error = props.feedback.as_ref().and_then(|feedback| match feedback {
+        KeymapLayerFeedback::Failed(message) => Some(message.as_str()),
+        KeymapLayerFeedback::Pending | KeymapLayerFeedback::Saved => None,
+    });
 
     rsx! {
         div { class: "m1-keymap-layer-controls", role: "group", "aria-label": "Layer operations",
@@ -167,7 +173,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                     disabled: !props.enabled,
                     oninput: move |event: FormEvent| name_draft.set(event.value()),
                     onblur: {
-                        let mut name_draft = name_draft;
+                        let name_draft = name_draft;
                         let on_operation = props.on_operation;
                         let layer_id = layer_id.clone();
                         let accepted_name = accepted_name.clone();
@@ -202,13 +208,9 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
             if !props.enabled && props.feedback.is_none() {
                 p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
             }
-            if let Some(feedback) = props.feedback.as_ref() {
-                match feedback {
-                    KeymapLayerFeedback::Pending => p { role: "status", "Saving layer changes…" },
-                    KeymapLayerFeedback::Saved => p { role: "status", "Layer changes saved." },
-                    KeymapLayerFeedback::Failed(message) => p { role: "alert", "{message}" },
-                }
-            }
+            if feedback_pending { p { role: "status", "Saving layer changes…" } }
+            if feedback_saved { p { role: "status", "Layer changes saved." } }
+            if let Some(message) = feedback_error { p { role: "alert", "{message}" } }
         }
     }
 }
