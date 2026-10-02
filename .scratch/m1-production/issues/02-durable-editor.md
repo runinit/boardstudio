@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** Implementation complete; 13 public session tests and recorded pointer/keyboard/storage checks pass; complete resource acceptance remains open.
+**Status:** Implementation complete; 14 public session tests and recorded pointer/keyboard/storage checks pass; complete resource acceptance remains open.
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 

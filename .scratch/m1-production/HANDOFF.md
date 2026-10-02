@@ -1,24 +1,26 @@
 # M1 candidate handoff
 
-Branch: `codex/m1-production-20261001`. Runtime decoder source: `5a0972a2`; pointer repairs: `e7d29ce6`; build correction: `fe2ada03`; complete release source: `b9748745`.
+Branch: `codex/m1-production-20261001`. Runtime decoder source: `5a0972a2`; pointer repairs: `e7d29ce6`; build correction: `fe2ada03`; complete release source: `a49bb798`.
 The [to-spec plan](PLAN.md), [specification](spec.md) and six local tickets
 define the required scope; acceptance remains open. The [canonical run state](../../docs/migration/m1-production-run.json)
 and [acceptance ledger](ACCEPTANCE.md) govern acceptance.
 
 ## Editable copied-project trial
 
-The completed candidate is at `web/target/builds/m1-release-20261001-b9748745`.
+The completed release artifact is at `web/target/builds/m1-release-20261002-a49bb798`.
 All 18 build commands exited zero, all 925 source hashes verified, and each
 prefix contains 47 verified files and one current page WASM. See the
-[portable provenance](evidence/integration/release-b9748745-provenance.json).
-The owned editable demo is running at [root](http://127.0.0.1:46890/) and
-[/boardstudio/](http://127.0.0.1:46890/boardstudio/). The [b974 browser smoke](evidence/integration/final-browser-smoke-b9748745.md)
+[portable provenance](evidence/integration/release-a49bb798-provenance.json).
+The owned editable demo is running at [root](http://127.0.0.1:34285/) and
+[/boardstudio/](http://127.0.0.1:34285/boardstudio/). The [b974 browser smoke](evidence/integration/final-browser-smoke-b9748745.md)
 passed root and subpath offline library reload, copied-project editing, Sofle STEP
 download, and disposal on switching to REVIUNG41. Earlier broader
 [8f browser checks](evidence/browser-storage/release-8f509433-final-qa.md)
-remain evidence only for their recorded source and actions. Saved-project startup
-restoration and a physical-instance selector are being completed after a final
-story audit; this release does not yet provide those two flows.
+remain evidence only for their recorded source and actions. The newer reviewed `a49bb798` source implements startup restoration and a
+physical-instance selector. [Focused root-only online QA](evidence/integration/startup-restore-instance-focused-b50ddbdd-qa/record.json)
+passes restoration, stale preference, filtered options, keyboard selection and
+compact layouts. The complete `a49bb798` build passes. Final offline/subpath/startup/case
+race checks are in progress; the previous b974 demo does not provide these flows.
 
 To rebuild, run `python3 scripts/build-m1.py <new-unique-id>` from this checkout.
 The maintained builder refuses to overwrite earlier outputs. To serve a
@@ -26,7 +28,7 @@ completed build at root and subpath on the same owned local origin:
 
 ```sh
 node .scratch/m1-production/evidence/browser-storage/serve-release.mjs \
-  web/target/builds/m1-release-20261001-b9748745 0
+  web/target/builds/m1-release-20261002-a49bb798 0
 ```
 
 Use the printed origin at `/` and `/boardstudio/`. Open **REVIUNG41 copy** or
@@ -39,13 +41,13 @@ The original `boardstudio-v2` database remains the reference.
 
 ## Verified source and limits
 
-Thirteen public session and twelve native web tests pass. Formatting and strict
+Fourteen public session and twelve native web tests pass on the integrated story-completion candidate. Formatting and strict
 application/page/CAD-worker Clippy pass. Standards and Spec reviews have no
 blocking findings on the unchanged production tree. Both real fixture editors
 generated exact cases; high-DPI resize, scope remount, cancellation and retry
 passed on the focused artifact. Durable save abort/retry, faithful assets and
 archive exchange, case input comparisons, independent STEP readback and wide
-revision rejection have separate retained evidence. Final-release browser checks pass at both prefixes. Performance results and
+revision rejection have separate retained evidence. Earlier b974 bounded browser checks pass at both prefixes; current release QA is in progress. Performance results and
 remaining resource/semantic checks are recorded separately as they finish.
 
 The canvas includes a nominal PCB contour, without populated PCB parity. CAD

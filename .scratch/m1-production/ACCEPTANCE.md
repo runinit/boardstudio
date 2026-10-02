@@ -37,8 +37,13 @@ Runtime decoder source is `5a0972a2`; the latest completed maintained build is
 `b9748745`, including both pointer allocation repairs. Its bounded
 [root/subpath smoke](evidence/integration/final-browser-smoke-b9748745.md) passes.
 The wider `8f509433` observations above retain their exact source scope. Saved
-active-project restoration and physical-instance selection are implementation
-gaps under repair; neither is accepted by the bounded smoke. Failed paired
+active-project restoration and physical-instance selection were gaps in that
+release. Reviewed source `a49bb798` now implements both; its
+[focused root online QA](evidence/integration/startup-restore-instance-focused-b50ddbdd-qa/record.json)
+passes restoration, stale preference, filtered options, keyboard selection and
+compact layout/axe checks. Fourteen session and twelve web tests pass on the
+updated candidate. The complete rebuild, offline/subpath and startup/case race
+checks remain pending; neither flow was established by the earlier bounded smoke. Failed paired
 performance attempts remain [recorded](evidence/performance/README.md); a valid
 five-session aggregate is still unperformed. The unchanged
 [reference gates](evidence/performance/runs/reference-gates-20261002T002536Z/assessment.md)

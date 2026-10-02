@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "Reviewed b9748745 complete release and bounded root/subpath smoke pass; active-project startup restoration and physical-instance selector are undergoing checks. Final five-session pointer gate pending; unchanged reference UI/live comparisons fail and frozen CAD comparison is ineligible; screen-reader acceptance blocked.",
+  "status": "Reviewed a49bb798 startup restoration and physical-instance UI pass focused root online checks; application14/web12 and strict checks pass. Complete maintained rebuild passes; final offline/subpath/race checks in progress; five-session pointer pending. Reference timing failures/ineligible CAD and actual screen-reader blocker remain.",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -14,7 +14,7 @@
       "blocked_by": []
     },
     "02": {
-      "status": "13 native public session tests pass; real IndexedDB abort/retry, full-fixture assets/archive exchange and keyboard/pointer checks pass on recorded assets; final resource gates remain",
+      "status": "14 public session tests pass, including physical/canonical navigation cancellation; durable storage and original UI checks retained. Updated presentation passes focused root online checks; actual root-close resource gate open.",
       "blocked_by": [
         "01"
       ]
@@ -38,7 +38,7 @@
       ]
     },
     "06": {
-      "status": "Source reviews for active restoration and physical-instance UI pass; execution/browser verification pending. Pointer repairs pass focused/partial caps; final five-session gate pending. Reference UI/live frozen comparisons fail; CAD completes five sessions with passing row limits but frozen environment/provider identity mismatch. Actual screen reader blocked.",
+      "status": "Reviewed story completion integrated at a49bb798; focused root online UI/compact/axe checks pass. Complete maintained build passes; offline/subpath/startup/case races pending; final five-session pointer pending. Reference UI/live frozen comparisons fail; CAD row limits pass but frozen environment/provider mismatch. Actual screen reader blocked.",
       "blocked_by": [
         "03",
         "05"
@@ -58,20 +58,21 @@
       "EditOperation::SetMountedModule.host_connector_definition"
     ]
   },
-  "production_source": "b9748745ec444416136a97d4befd075670ef49b7",
+  "production_source": "a49bb798cf751d0f111c265c29d7276841e513b9",
   "final_build": {
-    "id": "m1-release-20261001-b9748745",
-    "source_commit": "b9748745ec444416136a97d4befd075670ef49b7",
-    "status": "complete \u2014 18 commands exit zero,925 source hashes and all staged hashes verified;47files and onepageWasm perprefix",
-    "provenance": ".scratch/m1-production/evidence/integration/release-b9748745-provenance.json"
+    "id": "m1-release-20261002-a49bb798",
+    "source_commit": "a49bb798cf751d0f111c265c29d7276841e513b9",
+    "status": "complete \u2014 18 commands exit zero, 925 source hashes and all 47 asset hashes per prefix match; one current page WASM per prefix",
+    "provenance": ".scratch/m1-production/evidence/integration/release-a49bb798-provenance.json"
   },
-  "runtime_source": "e7d29ce6dd703a4d9b064cb842366538987cf442",
+  "runtime_source": "b50ddbdd6b74a2489e80078e4a0d2923aeca6edb",
   "demo": {
-    "root": "http://127.0.0.1:46890/",
-    "subpath": "http://127.0.0.1:46890/boardstudio/"
+    "root": "http://127.0.0.1:34285/",
+    "subpath": "http://127.0.0.1:34285/boardstudio/",
+    "source_commit": "a49bb798cf751d0f111c265c29d7276841e513b9"
   },
   "decoder_source": "5a0972a2889a702051e9a7ab53b2727db07126e0",
-  "previous_verified_release": "m1-release-20261001-8f509433",
+  "previous_verified_release": "m1-release-20261001-b9748745",
   "reference_performance": {
     "record": ".scratch/m1-production/evidence/performance/runs/reference-gates-20261002T002536Z/record.json",
     "ui_live": "executed \u2014 exit 1 on unchanged frozen timing comparisons",

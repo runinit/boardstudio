@@ -5,7 +5,9 @@ Active run: [remaining M1 production plan](../../.scratch/m1-production/PLAN.md)
 [editable candidate handoff](../../.scratch/m1-production/HANDOFF.md).
 The reviewed implementation includes pointer allocation repairs at `b9748745`.
 Its complete maintained rebuild and bounded root/subpath smoke pass. Active-project
-startup restoration and physical-instance selection are being completed. Earlier `8f509433` build and
+startup restoration and physical-instance selection pass focused online root
+checks on reviewed source `a49bb798`; its complete rebuild and final race/offline
+checks are in progress. Earlier `8f509433` build and
 root/subpath browser checks pass, with scoped resource and same-input STEP
 geometry evidence retained. Final five-session timing remains pending; unchanged reference gates completed
 with UI/live failures and an ineligible frozen CAD comparison; relevant screen-reader testing is blocked. Earlier
@@ -992,3 +994,14 @@ Its frozen comparator exits 1 because OS and core/renderer WASM identities
 differ from the baseline, so baseline-comparable acceptance is ineligible.
 All nine pinned inputs remain byte-identical. This reference-only run does not
 substitute for final public M1 pointer timing. No budget or baseline changed.
+
+
+The final story repair is integrated at `a49bb798` after independent Standards
+and Spec review. Fourteen public application tests, twelve web tests, formatting,
+strict application/page lint and focused release compilation pass.
+[Focused root-only browser QA](../../.scratch/m1-production/evidence/integration/startup-restore-instance-focused-b50ddbdd-qa/record.json)
+passes active restoration, stale-preference recovery, board-filtered physical
+options, canonical reset, keyboard selection and compact layouts; axe reports
+zero violations with SVG contrast incomplete. The focused artifact has no
+offline policy. A fresh maintained root/subpath build is running; actual offline
+restoration, delayed IDB/slow-worker startup and physical-case races remain open.

@@ -4,7 +4,7 @@
 
 **Blocked by:** 03, 05
 
-**Status:** Reviewed b974 release build and bounded browser checks pass. Final story audit found missing startup restoration and physical-instance UI; both are under repair with public red evidence. Full performance/resource acceptance remains open; actual screen-reader gate blocked.
+**Status:** Reviewed b974 release build and bounded browser checks pass. Final story audit found missing startup restoration and physical-instance UI; reviewed source a49bb798 repairs both and passes focused online root checks. Full rebuilt-release offline/subpath/startup/case race verification is pending. Full performance/resource acceptance remains open; actual screen-reader gate blocked.
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 
