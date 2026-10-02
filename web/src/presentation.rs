@@ -1,11 +1,16 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+mod inspector;
+mod library;
+mod objects;
+
+use inspector::Inspector;
+use library::Library;
+use objects::Objects;
 mod footprint_graphics;
 
 use crate::{cad_presentation::CasePanel, runtime::Runtime};
 use boardstudio_application::{Durability, Event, SelectionMode};
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
-};
+use boardstudio_core::model::{Matrix, Part, PartDefinition, Position, Vec2};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use footprint_graphics::FootprintGraphics;
@@ -15,8 +20,7 @@ use std::{
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, closure::Closure};
-use wasm_bindgen_futures::spawn_local;
-use web_sys::{HtmlElement, HtmlInputElement, SvgElement};
+use web_sys::{HtmlElement, SvgElement};
 
 #[derive(Clone)]
 struct Drag {
@@ -30,14 +34,6 @@ struct Drag {
     camera: Vec2,
 }
 
-#[derive(Clone)]
-struct NumericEdit {
-    id: String,
-    revision: u64,
-    transaction_id: String,
-    start: Vec2,
-}
-type KeyboardHandler = Rc<RefCell<Box<dyn FnMut(KeyboardEvent)>>>;
 #[derive(Clone, Copy)]
 struct WorkspaceState(Signal<&'static str>);
 #[derive(Clone, Copy)]
@@ -388,116 +384,6 @@ fn LibraryLanding() -> Element {
 }
 
 #[component]
-fn Objects() -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let _ = use_context::<Signal<u64>>()();
-    let model = runtime.model();
-    let Some(snapshot) = model.accepted.as_ref() else {
-        return rsx! {};
-    };
-    let document = &snapshot.document;
-    let items: Rc<Vec<_>> = Rc::new(
-        document
-            .parts
-            .iter()
-            .filter(|part| {
-                document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == model.active_board_id)
-                    .is_some_and(|board| board.part_ids.contains(&part.id))
-            })
-            .enumerate()
-            .map(|(index, part)| {
-                let kind = document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == part.definition_id)
-                    .map(|definition| format!("{:?}", definition.kind))
-                    .unwrap_or_else(|| "component".into());
-                (
-                    index,
-                    part.id.clone(),
-                    part.reference.clone(),
-                    kind,
-                    model.selected_part_ids.contains(&part.id),
-                )
-            })
-            .collect(),
-    );
-    let selected = items.iter().any(|item| item.4);
-    let board_runtime = runtime.clone();
-    let instance_runtime = runtime.clone();
-    let board_id = model.active_board_id.clone();
-    let active_instance = model.active_instance_id.clone().unwrap_or_default();
-    let instances: Vec<_> = document
-        .hardware
-        .as_ref()
-        .map(|hardware| {
-            hardware
-                .instances
-                .iter()
-                .filter(|instance| instance.board_id == model.active_board_id)
-                .collect()
-        })
-        .unwrap_or_default();
-    let select: Rc<dyn Fn(String)> = Rc::new({
-        let runtime = runtime.clone();
-        move |id| {
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: vec![id],
-                range_part_ids: vec![],
-                mode: SelectionMode::Replace,
-            })
-        }
-    });
-    rsx! {
-        aside { class: "m1-objects", "aria-label": "Objects",
-            header { h2 { "Objects" } }
-            div { class: "m1-object-navigation",
-                label { "Board"
-                    select { "aria-label": "Board", value: "{model.active_board_id}", onchange: move |event: FormEvent| board_runtime.submit(Event::Navigate { operation_id: board_runtime.operation(), board_id: event.value(), instance_id: None }),
-                        for board in &document.boards { option { value: "{board.id}", "{board.name}" } }
-                    }
-                }
-                if !instances.is_empty() {
-                    label { "Physical instance"
-                        select { "aria-label": "Physical instance", value: "{active_instance}", onchange: move |event: FormEvent| {
-                            let value = event.value();
-                            instance_runtime.submit(Event::Navigate { operation_id: instance_runtime.operation(), board_id: board_id.clone(), instance_id: (!value.is_empty()).then_some(value) });
-                        },
-                            option { value: "", "Canonical board" }
-                            for instance in &instances { option { key: "{instance.id}", value: "{instance.id}", "{instance.name}" } }
-                        }
-                    }
-                }
-            }
-            div { class: "m1-object-tree",
-                div { class: "m1-object-tree-heading", "{document.name}", span { "{items.len()} parts" } }
-                div { role: "listbox", "aria-label": "Objects on current board", class: "m1-component-list",
-                    for (index, id, reference, kind, is_selected) in items.iter().cloned() {
-                        {
-                            let click = select.clone();
-                            let key_select = select.clone();
-                            let items_for_key = items.clone();
-                            rsx! { button { key: "{id}", id: "m1-object-{index}", class: if is_selected { "m1-component selected" } else { "m1-component" }, role: "option", "aria-label": "{reference}, {kind}", "aria-selected": "{is_selected}", tabindex: if is_selected || (!selected && index == 0) { "0" } else { "-1" }, onclick: move |_| click(id.clone()), onkeydown: move |event: KeyboardEvent| {
-                                let key = event.data().key().to_string();
-                                let next = match key.as_str() { "ArrowDown" => Some(index + 1), "ArrowUp" => Some(index.saturating_sub(1)), "Home" => Some(0), "End" => Some(items_for_key.len().saturating_sub(1)), _ => None };
-                                let Some(next) = next.filter(|next| *next < items_for_key.len()) else { return; };
-                                event.prevent_default();
-                                if let Some((_, next_id, _, _, _)) = items_for_key.get(next) { key_select(next_id.clone()); }
-                                if let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-object-{next}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok()) { let _ = element.focus(); }
-                            }, span { class: "m1-object-reference", "{reference}" } span { class: "m1-object-kind", "{kind}" } } }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[component]
 fn PlaceholderWorkspace(name: &'static str) -> Element {
     let mut workspace = use_context::<WorkspaceState>().0;
     let message = match name {
@@ -544,52 +430,6 @@ fn durability_state(durability: &Durability) -> &'static str {
         Durability::Saving { .. } => "saving",
         Durability::Failed { .. } => "failed",
         _ => "pending",
-    }
-}
-
-#[component]
-fn Library() -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let _ = use_context::<Signal<u64>>()();
-    let recovery_required =
-        runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired;
-    let mut saved = use_signal(Vec::<(String, String)>::new);
-    let accepted_identity = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
-    let list_runtime = runtime.clone();
-    use_effect(use_reactive!(|accepted_identity| {
-        let _ = accepted_identity;
-        let runtime = list_runtime.clone();
-        spawn_local(async move {
-            match runtime.store.list_documents().await {
-                Ok(documents) => saved.set(documents.into_iter().map(|d| (d.id, d.name)).collect()),
-                Err(error) => runtime.report(error.to_string()),
-            }
-        });
-    }));
-    let reviung = runtime.clone();
-    let sofle = runtime.clone();
-    let import = runtime.clone();
-    rsx! {
-        section { class: "m1-library", "aria-label": "Keyboard library",
-            button { onclick: move |_| { close_project_menu(); reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
-            button { onclick: move |_| { close_project_menu(); sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
-            label { "Import .boardstudio"
-                input { r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
-                    let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
-                    let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
-                    close_project_menu();
-                    import.import_file(file);
-                    input.set_value("");
-                }}
-            }
-            for (id, name) in saved() {
-                button { key: "{id}", onclick: { let runtime = runtime.clone(); move |_| { close_project_menu(); runtime.open_saved(id.clone()); } }, if recovery_required { "Recover from {name} (discard pending changes)" } else { "{name}" } }
-            }
-        }
     }
 }
 
@@ -1108,145 +948,6 @@ fn Editor() -> Element {
     }
 }
 
-#[component]
-fn Inspector() -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let _ = use_context::<Signal<u64>>()();
-    let model = runtime.model();
-    let selected = model
-        .accepted
-        .as_ref()
-        .and_then(|s| {
-            s.document
-                .parts
-                .iter()
-                .find(|p| model.selected_part_ids.contains(&p.id))
-        })
-        .cloned();
-    let mut x = use_signal(String::new);
-    let mut y = use_signal(String::new);
-    let numeric_edit = use_hook(|| Rc::new(RefCell::new(None::<NumericEdit>)));
-    use_drop({
-        let runtime = runtime.clone();
-        let numeric_edit = numeric_edit.clone();
-        move || {
-            let pending = numeric_edit.borrow_mut().take();
-            if let Some(edit) = pending {
-                let start = edit.start;
-                submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
-            }
-        }
-    });
-    let key = selected
-        .as_ref()
-        .map(|p| (p.id.clone(), p.pose.at.x, p.pose.at.y));
-    use_effect(use_reactive((&key,), {
-        let runtime = runtime.clone();
-        let numeric_edit = numeric_edit.clone();
-        move |(key,)| {
-            if let Some((_, px, py)) = key {
-                x.set(px.to_string());
-                y.set(py.to_string());
-            }
-            let changed_target = numeric_edit
-                .borrow()
-                .as_ref()
-                .is_some_and(|edit| key.as_ref().is_none_or(|(id, _, _)| id != &edit.id));
-            if changed_target && let Some(edit) = numeric_edit.borrow_mut().take() {
-                let start = edit.start;
-                submit_position(
-                    &runtime,
-                    &Rc::new(RefCell::new(None)),
-                    edit,
-                    start,
-                    EditPhase::Preview,
-                );
-            }
-        }
-    }));
-    let submit = {
-        let runtime = runtime.clone();
-        let numeric_edit = numeric_edit.clone();
-        move |_| {
-            commit_numeric(&runtime, &numeric_edit, &x(), &y());
-        }
-    };
-    let cancel_numeric: KeyboardHandler = {
-        let runtime = runtime.clone();
-        let numeric_edit = numeric_edit.clone();
-        let mut x = x;
-        let mut y = y;
-        Rc::new(RefCell::new(Box::new(move |event: KeyboardEvent| {
-            let key = event.data().key().to_string();
-            if key == "Escape" {
-                event.prevent_default();
-                let edit = numeric_edit.borrow_mut().take();
-                if let Some(edit) = edit {
-                    let start = edit.start;
-                    submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
-                }
-                if let Some(part) = runtime.model().accepted.and_then(|s| {
-                    s.document
-                        .parts
-                        .iter()
-                        .find(|p| runtime.model().selected_part_ids.contains(&p.id))
-                        .cloned()
-                }) {
-                    let restored_x = part.pose.at.x.to_string();
-                    let restored_y = part.pose.at.y.to_string();
-                    if let Some(document) = web_sys::window().and_then(|window| window.document()) {
-                        if let Some(input) = document
-                            .get_element_by_id("m1-position-x")
-                            .and_then(|element| element.dyn_into::<HtmlInputElement>().ok())
-                        {
-                            input.set_value(&restored_x);
-                        }
-                        if let Some(input) = document
-                            .get_element_by_id("m1-position-y")
-                            .and_then(|element| element.dyn_into::<HtmlInputElement>().ok())
-                        {
-                            input.set_value(&restored_y);
-                        }
-                    }
-                    x.set(restored_x);
-                    y.set(restored_y);
-                }
-                runtime.report("Position preview canceled.");
-            } else if key == "Enter" {
-                event.prevent_default();
-                commit_numeric(&runtime, &numeric_edit, &x(), &y());
-            }
-        })))
-    };
-    rsx! { aside { class: "m1-inspector", "aria-label": "Inspect",
-        header { h2 { "Inspect" } }
-        h2 { "Position" }
-        if let Some(part) = selected {
-            p { "{part.reference}" }
-            label { "X (mm)" input { id: "m1-position-x", r#type: "number", step: "any", value: "{x}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
-                x.set(event.value());
-                let (Ok(px), Ok(py)) = (event.value().parse::<f64>(), y().parse::<f64>()) else { return; };
-                if !px.is_finite() || !py.is_finite() { return; }
-                let Some(snapshot) = runtime.model().accepted else { return; };
-                let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.contains(&p.id)) else { return; };
-                let edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at });
-                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
-            }} } }
-            label { "Y (mm)" input { id: "m1-position-y", r#type: "number", step: "any", value: "{y}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
-                y.set(event.value());
-                let (Ok(px), Ok(py)) = (x().parse::<f64>(), event.value().parse::<f64>()) else { return; };
-                if !px.is_finite() || !py.is_finite() { return; }
-                let Some(snapshot) = runtime.model().accepted else { return; };
-                let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.contains(&p.id)) else { return; };
-                let edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at });
-                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
-            }} } }
-            button { onclick: submit, "Apply position" }
-            if numeric_edit.borrow().is_some() { p { role: "status", "Preview only. Press Enter or Apply position to save, or Escape to cancel." } }
-        } else { p { "Select a component to edit its position." } }
-    }}
-}
-
 fn resolved_matrix_keycap(
     part: Option<&Part>,
     definition: Option<&PartDefinition>,
@@ -1331,69 +1032,4 @@ fn moved(drag: &Drag, point: Vec2) -> Vec<Position> {
             },
         })
         .collect()
-}
-
-fn submit_position(
-    runtime: &Rc<Runtime>,
-    current: &Rc<RefCell<Option<NumericEdit>>>,
-    edit: NumericEdit,
-    at: Vec2,
-    phase: EditPhase,
-) {
-    runtime.submit(Event::Edit {
-        operation_id: runtime.operation(),
-        command: EditCommand {
-            base_revision: edit.revision,
-            transaction_id: edit.transaction_id.clone(),
-            phase,
-            target_ids: vec![edit.id.clone()],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: edit.id.clone(),
-                    at,
-                }],
-            },
-        },
-    });
-    if phase == EditPhase::Preview && at != edit.start {
-        *current.borrow_mut() = Some(edit);
-    } else {
-        current.borrow_mut().take();
-    }
-}
-
-fn commit_numeric(
-    runtime: &Rc<Runtime>,
-    current: &Rc<RefCell<Option<NumericEdit>>>,
-    x: &str,
-    y: &str,
-) {
-    let (Ok(x), Ok(y)) = (x.parse::<f64>(), y.parse::<f64>()) else {
-        runtime.report("Enter finite X and Y coordinates.");
-        return;
-    };
-    if !x.is_finite() || !y.is_finite() {
-        runtime.report("Enter finite X and Y coordinates.");
-        return;
-    }
-    let model = runtime.model();
-    let Some(snapshot) = model.accepted else {
-        return;
-    };
-    let Some(part) = snapshot
-        .document
-        .parts
-        .iter()
-        .find(|part| model.selected_part_ids.contains(&part.id))
-    else {
-        return;
-    };
-    let start = part.pose.at;
-    let edit = current.borrow_mut().take().unwrap_or_else(|| NumericEdit {
-        id: part.id.clone(),
-        revision: snapshot.document.revision,
-        transaction_id: format!("position-{}", runtime.operation().0),
-        start,
-    });
-    submit_position(runtime, current, edit, Vec2 { x, y }, EditPhase::Commit);
 }
