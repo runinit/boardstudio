@@ -59,6 +59,19 @@ pub(super) enum DisplayAction {
     ResetColor,
 }
 
+/// One owner identity shared by the tree and display callbacks. The request's
+/// target Scope stays separate inside DisplayRequest for inactive-root rows.
+#[derive(Clone)]
+pub(super) struct Admission {
+    pub(super) runtime: Rc<Runtime>,
+    pub(super) adapter: SelectionAdapter,
+    pub(super) case_selection: CaseSelection,
+    pub(super) instance_selection: InstanceSelection,
+    pub(super) owner_scope: Scope,
+    pub(super) owner_token: SnapshotToken,
+    pub(super) owner_generation: u64,
+}
+
 pub(super) struct ObjectsInput<'a> {
     pub(super) model: &'a ReadModel,
     pub(super) scope: Option<Scope>,
@@ -553,15 +566,16 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
 /// no-op after navigation, acceptance, or editor-generation changes.
 pub(super) fn apply_tree_action(
     action: TreeAction,
-    runtime: &Rc<Runtime>,
-    adapter: &SelectionAdapter,
-    mut case_selection: CaseSelection,
-    instance_selection: InstanceSelection,
-    expected_scope: &Scope,
-    expected_token: SnapshotToken,
-    expected_generation: u64,
+    owner: &Admission,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
 ) {
+    let runtime = &owner.runtime;
+    let adapter = &owner.adapter;
+    let mut case_selection = owner.case_selection;
+    let instance_selection = owner.instance_selection;
+    let expected_scope = &owner.owner_scope;
+    let expected_token = owner.owner_token;
+    let expected_generation = owner.owner_generation;
     let action_scope = match &action {
         TreeAction::SelectAssembly { scope, .. }
         | TreeAction::NavigateAssembly { scope, .. }
@@ -699,16 +713,14 @@ pub(super) fn apply_tree_action(
 /// Admit display changes against the live Editor owner before writing either
 /// the CaseSelection signal or its existing local-storage preference. The
 /// target may be another real assembly, but must belong to this accepted doc.
-pub(super) fn apply_display_request(
-    request: DisplayRequest,
-    runtime: &Rc<Runtime>,
-    adapter: &SelectionAdapter,
-    case_selection: CaseSelection,
-    instance_selection: InstanceSelection,
-    owner_scope: &Scope,
-    owner_token: SnapshotToken,
-    owner_generation: u64,
-) {
+pub(super) fn apply_display_request(request: DisplayRequest, owner: &Admission) {
+    let runtime = &owner.runtime;
+    let adapter = &owner.adapter;
+    let case_selection = owner.case_selection;
+    let instance_selection = owner.instance_selection;
+    let owner_scope = &owner.owner_scope;
+    let owner_token = owner.owner_token;
+    let owner_generation = owner.owner_generation;
     if runtime.scope().as_ref() != Some(owner_scope) || (adapter.generation)() != owner_generation {
         return;
     }
@@ -758,7 +770,7 @@ fn target_display_is_current(
     let root_exists = target_scope
         .instance_id
         .as_deref()
-        .map_or(true, |instance_id| {
+        .is_none_or(|instance_id| {
             snapshot.document.hardware.as_ref().is_some_and(|hardware| {
                 hardware.instances.iter().any(|instance| {
                     instance.id == instance_id && instance.board_id == target_scope.board_id
@@ -1043,22 +1055,6 @@ fn toggle_visibility_value(display: &mut CaseDisplay, id: &str) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn inspector_visibility_requires_every_alias_to_be_visible_while_tree_uses_all_hidden() {
-        let display = CaseDisplay {
-            hidden: vec!["PCB".into()],
-            ..CaseDisplay::default()
-        };
-
-        assert!(is_visible(&display, "pcb"));
-        assert!(!is_inspector_visible(&display, "pcb"));
-    }
-}
-
 struct CaseRoot {
     id: String,
     instance_id: Option<String>,
@@ -1121,5 +1117,21 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
     let mut state = expanded.write();
     if !state.remove(id) {
         state.insert(id.to_owned());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inspector_visibility_requires_every_alias_to_be_visible_while_tree_uses_all_hidden() {
+        let display = CaseDisplay {
+            hidden: vec!["PCB".into()],
+            ..CaseDisplay::default()
+        };
+
+        assert!(is_visible(&display, "pcb"));
+        assert!(!is_inspector_visible(&display, "pcb"));
     }
 }

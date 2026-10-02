@@ -139,7 +139,6 @@ pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
         let runtime = runtime.clone();
         let expected_scene = scene.clone();
         let scope = scene.scope.clone();
-        let selection = selection;
         move |event: super::shared_viewer::ScopedDisplayChange| {
             if !event.is_current()
                 || !source_is_current(

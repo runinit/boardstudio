@@ -1473,52 +1473,32 @@ fn Editor() -> Element {
             );
         }
     };
+    let case_admission = case_workspace::Admission {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        case_selection,
+        instance_selection,
+        owner_scope: render_scope.clone(),
+        owner_token: snapshot.token,
+        owner_generation: render_generation,
+    };
     let on_case_action = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let token = snapshot.token;
-        let generation = render_generation;
-        let selection = case_selection;
+        let admission = case_admission.clone();
         let navigate = workspace_callbacks.navigate;
         move |action| {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_tree_action(
-                action,
-                &runtime,
-                &adapter,
-                selection,
-                instance_selection,
-                &scope,
-                token,
-                generation,
-                navigate,
-            );
+            case_workspace::apply_tree_action(action, &admission, navigate);
         }
     };
     let on_case_display = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let token = snapshot.token;
-        let generation = render_generation;
-        let selection = case_selection;
+        let admission = case_admission;
         move |request| {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_display_request(
-                request,
-                &runtime,
-                &adapter,
-                selection,
-                instance_selection,
-                &scope,
-                token,
-                generation,
-            );
+            case_workspace::apply_display_request(request, &admission);
         }
     };
     let on_keymap_layer = {
@@ -2594,8 +2574,8 @@ fn Editor() -> Element {
                 scope_generation: (adapter.generation)(),
             },
         )),
-        "Case" => {
-            workspace_composition::WorkspaceInspectorInput::Case(case_workspace::InspectorInput {
+        "Case" => workspace_composition::WorkspaceInspectorInput::Case(Box::new(
+            case_workspace::InspectorInput {
                 mechanical_settings: mechanical_settings.clone(),
                 instance_scope_pending,
                 scope: current_scope.clone(),
@@ -2605,8 +2585,8 @@ fn Editor() -> Element {
                 selected_context: case_selected_context,
                 on_show_configured_board: workspace_callbacks.show_configured_board,
                 on_display: workspace_callbacks.case_display,
-            })
-        }
+            },
+        )),
         "Parts" => {
             workspace_composition::WorkspaceInspectorInput::Parts(parts_workspace::InspectorInput {
                 snapshot: snapshot.clone(),

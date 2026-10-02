@@ -61,7 +61,7 @@ pub(super) enum WorkspaceInspectorInput {
     Pcb,
     Keymap(Box<super::keymap_workspace::InspectorInput>),
     Keycaps(super::keycaps_workspace::InspectorInput),
-    Case(super::case_workspace::InspectorInput),
+    Case(Box<super::case_workspace::InspectorInput>),
     Parts(super::parts_workspace::InspectorInput),
 }
 
@@ -107,7 +107,7 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
         WorkspaceInspectorInput::Pcb => super::pcb_workspace::inspector(),
         WorkspaceInspectorInput::Keymap(input) => super::keymap_workspace::inspector(*input),
         WorkspaceInspectorInput::Keycaps(input) => super::keycaps_workspace::inspector(input),
-        WorkspaceInspectorInput::Case(input) => super::case_workspace::inspector(input),
+        WorkspaceInspectorInput::Case(input) => super::case_workspace::inspector(*input),
         WorkspaceInspectorInput::Parts(input) => super::parts_workspace::inspector(input),
     }
 }
