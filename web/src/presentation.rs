@@ -3837,6 +3837,7 @@ fn Editor() -> Element {
             workspace_composition::WorkspaceObjectsInput::Parts(parts_workspace::ObjectsInput {
                 snapshot: snapshot.clone(),
                 scope: current_scope.clone(),
+                scope_generation: adapter.generation,
                 workspace,
                 query: parts_query,
                 selected: parts_selection,

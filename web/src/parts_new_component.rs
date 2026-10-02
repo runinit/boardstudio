@@ -26,6 +26,7 @@ mod ui {
     pub(crate) fn NewCustomComponentAction(
         scope: Option<Scope>,
         view_generation: Signal<u64>,
+        scope_generation: Signal<u64>,
         workspace: Signal<&'static str>,
         query: Signal<String>,
         selected: Signal<Option<(Option<Scope>, String)>>,
@@ -68,6 +69,7 @@ mod ui {
                     &waiting.capture,
                     runtime.scope().as_ref(),
                     view_generation(),
+                    scope_generation(),
                     workspace(),
                     snapshot,
                     &waiting.definition_id,
@@ -118,6 +120,7 @@ mod ui {
                     &snapshot,
                     current_scope,
                     view_generation(),
+                    scope_generation(),
                     definition_id.clone(),
                 );
                 let Ok(event) = prepare_create_edit(&snapshot, &capture, operation_id) else {
@@ -192,7 +195,27 @@ pub(crate) struct CreateCapture {
     snapshot_token: SnapshotToken,
     revision: u64,
     view_generation: u64,
+    scope_generation: u64,
     definition_id: String,
+}
+
+/// Resolve editable project-owned selection from the accepted document even when the
+/// module catalogue is still loading or has failed.
+pub(crate) fn accepted_project_definition(
+    snapshot: &AcceptedSnapshot,
+    current_scope: &Option<Scope>,
+    selection: &Option<(Option<Scope>, String)>,
+) -> Option<PartDefinition> {
+    let (selected_scope, definition_id) = selection.as_ref()?;
+    if selected_scope != current_scope {
+        return None;
+    }
+    snapshot
+        .document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == *definition_id)
+        .cloned()
 }
 
 impl CreateCapture {
@@ -200,6 +223,7 @@ impl CreateCapture {
         snapshot: &AcceptedSnapshot,
         scope: Scope,
         view_generation: u64,
+        scope_generation: u64,
         definition_id: String,
     ) -> Self {
         Self {
@@ -209,6 +233,7 @@ impl CreateCapture {
             snapshot_token: snapshot.token,
             revision: snapshot.document.revision,
             view_generation,
+            scope_generation,
             definition_id,
         }
     }
@@ -294,12 +319,14 @@ pub(crate) fn reconciliation_is_current(
     capture: &CreateCapture,
     current_scope: Option<&Scope>,
     current_generation: u64,
+    current_scope_generation: u64,
     current_workspace: &str,
     current: &AcceptedSnapshot,
     definition_id: &str,
 ) -> bool {
     current_workspace == "Parts"
         && current_generation == capture.view_generation
+        && current_scope_generation == capture.scope_generation
         && current_scope == Some(&capture.scope)
         && current.session_epoch == capture.session_epoch
         && current.document.id == capture.document_id
@@ -372,7 +399,7 @@ mod tests {
         let (mut session, mut core) = open_document(document);
         let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
         let scope = session.scope().unwrap();
-        let capture = CreateCapture::new(&snapshot, scope.clone(), 4, "ui-fresh".into());
+        let capture = CreateCapture::new(&snapshot, scope.clone(), 4, 8, "ui-fresh".into());
         let event = prepare_create_edit(&snapshot, &capture, OperationId(21)).unwrap();
 
         let Event::Edit {
@@ -419,6 +446,7 @@ mod tests {
             &capture,
             session.scope().as_ref(),
             4,
+            8,
             "Parts",
             accepted_create,
             "ui-fresh",
@@ -461,7 +489,8 @@ mod tests {
         let document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
         let (session, _) = open_document(document);
         let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let capture = CreateCapture::new(&snapshot, session.scope().unwrap(), 4, "ui-fresh".into());
+        let capture =
+            CreateCapture::new(&snapshot, session.scope().unwrap(), 4, 8, "ui-fresh".into());
         let newer = AcceptedSnapshot {
             token: SnapshotToken(snapshot.token.0 + 1),
             ..snapshot.clone()
@@ -502,6 +531,40 @@ mod tests {
     }
 
     #[test]
+    fn accepted_project_selection_resolves_without_catalogue_state() {
+        let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
+        document.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "project-custom", "name": "Project custom", "kind": "custom",
+                "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        let (session, _) = open_document(document);
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let scope = session.scope();
+        let selection = Some((scope.clone(), "project-custom".to_string()));
+
+        let definition = accepted_project_definition(&snapshot, &scope, &selection).unwrap();
+        assert_eq!(definition.id, "project-custom");
+        assert_eq!(definition.name, "Project custom");
+
+        let other_scope = Some(Scope {
+            board_id: "another-board".into(),
+            ..scope.clone().unwrap()
+        });
+        assert!(accepted_project_definition(&snapshot, &other_scope, &selection).is_none());
+        assert!(
+            accepted_project_definition(
+                &snapshot,
+                &scope,
+                &Some((scope.clone(), "missing".to_string()))
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
     fn reconciliation_requires_accepted_definition_and_current_parts_owner_intent() {
         let (mut session, mut core) = open_document(ProjectDoc::empty(
             "parts-create-test",
@@ -509,7 +572,7 @@ mod tests {
         ));
         let original = session.read_model().accepted.as_ref().unwrap().clone();
         let scope = session.scope().unwrap();
-        let capture = CreateCapture::new(&original, scope.clone(), 4, "ui-fresh".into());
+        let capture = CreateCapture::new(&original, scope.clone(), 4, 8, "ui-fresh".into());
         let event = prepare_create_edit(&original, &capture, OperationId(30)).unwrap();
         let effects = session.submit(event);
         advance(&mut session, &mut core, effects);
@@ -519,6 +582,7 @@ mod tests {
             &capture,
             Some(&scope),
             4,
+            8,
             "Parts",
             accepted_create,
             "ui-fresh",
@@ -527,6 +591,7 @@ mod tests {
             &capture,
             Some(&scope),
             5,
+            8,
             "Parts",
             accepted_create,
             "ui-fresh",
@@ -535,6 +600,7 @@ mod tests {
             &capture,
             Some(&scope),
             4,
+            8,
             "Layout",
             accepted_create,
             "ui-fresh",
@@ -543,6 +609,7 @@ mod tests {
             &capture,
             None,
             4,
+            8,
             "Parts",
             accepted_create,
             "ui-fresh",
@@ -551,8 +618,19 @@ mod tests {
             &capture,
             Some(&scope),
             4,
+            8,
             "Parts",
             &original,
+            "ui-fresh",
+        ));
+        // Scope generation advances across A→B→A even when the final Scope value compares equal.
+        assert!(!reconciliation_is_current(
+            &capture,
+            Some(&scope),
+            4,
+            10,
+            "Parts",
+            accepted_create,
             "ui-fresh",
         ));
     }

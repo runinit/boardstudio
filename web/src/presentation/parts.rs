@@ -132,12 +132,16 @@ pub(super) async fn load_controller_definition(
 pub(super) fn PartsLibraryPanel(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
+    scope_generation: Signal<u64>,
     workspace: Signal<&'static str>,
     mut query: PartsQuery,
     mut selected: PartsSelection,
     on_select: EventHandler<()>,
 ) -> Element {
     let mut view_generation = use_signal(|| 0_u64);
+    use_effect(use_reactive((&workspace(),), move |_| {
+        view_generation.set(view_generation() + 1);
+    }));
     let catalogue = use_catalogue(&snapshot, &scope);
     let content = if let Some(entries) = catalogue.entries {
         let choices = group_choices(&entries);
@@ -230,6 +234,7 @@ pub(super) fn PartsLibraryPanel(
                 crate::parts_new_component::NewCustomComponentAction {
                     scope: scope.clone(),
                     view_generation,
+                    scope_generation,
                     workspace,
                     query,
                     selected,
@@ -254,31 +259,34 @@ pub(super) fn PartsInspectorPanel(
     mut layout_target: Signal<Option<String>>,
 ) -> Element {
     let catalogue = use_catalogue(&snapshot, &scope);
-    let Some(entries) = catalogue.entries else {
-        return if let Some(error) = catalogue.error {
-            rsx! {
-                section { class: "m1-parts-inspector", "aria-label": "Selected component details",
-                    p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
-                }
-            }
-        } else {
-            rsx! {
-                section { class: "m1-parts-inspector", "aria-label": "Selected component details",
-                    p { class: "m1-parts-loading", role: "status", "Loading selected component details…" }
-                }
-            }
-        };
-    };
-    let listed_entries = catalogue_choices(&entries);
-    let search = query().trim().to_lowercase();
-    let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
-    let entry = selected_id.as_deref().and_then(|id| {
-        listed_entries
-            .iter()
-            .copied()
-            .find(|entry| entry.definition.id == id)
-            .cloned()
-    });
+    let project_entry =
+        crate::parts_new_component::accepted_project_definition(&snapshot, &scope, &selected())
+            .map(|definition| CatalogEntry {
+                definition: Rc::new(definition),
+                source: catalogue::CatalogueSource::Project,
+            });
+    let entry = catalogue
+        .entries
+        .as_ref()
+        .and_then(|entries| {
+            let listed_entries = catalogue_choices(entries);
+            let search = query().trim().to_lowercase();
+            let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
+            selected_id.as_deref().and_then(|id| {
+                listed_entries
+                    .iter()
+                    .copied()
+                    .find(|entry| entry.definition.id == id)
+                    .cloned()
+            })
+        })
+        .or_else(|| {
+            catalogue
+                .entries
+                .is_none()
+                .then_some(project_entry)
+                .flatten()
+        });
     let editable_definition = entry
         .as_ref()
         .filter(|entry| {
@@ -308,6 +316,11 @@ pub(super) fn PartsInspectorPanel(
 
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
+            if let Some(error) = catalogue.error.as_ref() {
+                p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
+            } else if catalogue.entries.is_none() {
+                p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
+            }
             SelectedDefinition { entry }
             if let Some(definition) = editable_definition {
                 crate::parts_definition_name::DefinitionNameEditor {
