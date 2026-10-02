@@ -1,0 +1,49 @@
+- heading "BoardStudio" [level=1, ref=e62]
+- tab "Layout" [selected, ref=e64]
+- tab "PCB" [ref=e65]
+- tab "Keymap" [ref=e66]
+- tab "Keycaps" [ref=e67]
+- tab "Case" [ref=e68]
+- tab "Parts" [ref=e69]
+- button "Export" [ref=e63]
+- combobox "Theme" [expanded=false, ref=e70]: Dark
+  - option "System" [ref=e75]
+  - option "Light" [ref=e76]
+  - option "Dark" [selected, ref=e77]
+- region "Keyboard editor" [ref=e61]
+  - heading "Objects" [level=2, ref=e82]
+  - button "Objects options" [expanded=false, ref=e83]
+  - combobox "Board" [expanded=false, ref=e87]: Left PCB
+    - option "Left PCB" [selected, ref=e105]
+    - option "Right PCB" [ref=e106]
+  - combobox "Physical instance" [expanded=false, ref=e88]: left half
+    - option "left half" [selected, ref=e107]
+  - combobox "Group objects" [expanded=false, ref=e89]: Columns
+    - option "Columns" [selected, ref=e108]
+    - option "Rows" [ref=e109]
+  - treeitem "Left PCB 58 parts" [level=1, expanded=true, ref=e90]
+    - button "Collapse Left PCB" [expanded=true, ref=e94]
+    - button "Left PCB 58 parts" [ref=e95]
+  - treeitem "keys comparison Independent" [level=2, expanded=false, selected, ref=e91]
+    - button "Expand keys comparison" [expanded=false, ref=e96]
+    - button "keys comparison Independent" [ref=e97]
+  - treeitem "thumbs Independent" [level=2, expanded=false, ref=e92]
+    - button "Expand thumbs" [expanded=false, ref=e98]
+    - button "thumbs Independent" [ref=e99]
+  - button "Footprints" [ref=e78]
+  - group "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls" [ref=e73] focusable [tabindex]
+  - region "Canvas layers" [ref=e74]
+    - button "Layers" [expanded=false, ref=e79]
+  - heading "Inspect" [level=2, ref=e84]
+  - button "Inspector options" [expanded=false, ref=e85]
+  - region "Selected context" [ref=e80]
+    - heading "keys comparison" [level=2, ref=e86]
+  - region "Matrix inspector" [ref=e81]
+    - heading "Matrix" [level=2, ref=e93]
+    - textbox "Layout name" [ref=e100]: keys comparison
+    - spinbutton "Rows" [ref=e101]: 3
+    - spinbutton "Columns" [ref=e102]: 6
+    - spinbutton "Pitch X" [ref=e103]: 19.049999237060547
+    - spinbutton "Pitch Y" [ref=e104]: 19.049999237060547
+  - button "Undo" [ref=e71]
+  - button "Redo" [ref=e72]

@@ -2,6 +2,10 @@
 
 Current priority: **100% frontend Dioxus migration**. See [frontend v1 roadmap](DIOXUS-FRONTEND-V1.md), [task graph](../../.scratch/dioxus-frontend-v1/PLAN.md) and [current run](dioxus-frontend-v1-run.json). The 2026-10-01 clarification prioritizes porting all existing TSX, themes and interface behavior. F1 is implemented and verified as the first shell/theme increment ([handoff](../../.scratch/dioxus-frontend-v1/evidence/handoff.md)); The user-requested F3a correction now restores default keycaps, five Layout layers and the shared footprint toggle ([current demo/evidence](../../.scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md)). Full F2–F9 remain open. Existing engines/providers remain underneath. The prior M1 run below is retained foundation/evidence, with its acceptance limits unchanged.
 
+## Latest frontend integration — 2026-10-02
+
+The [Matrix/Keycaps wave results](../../.scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md) record actual compiler/build and browser evidence. Current editable candidate: http://127.0.0.1:34693/ (source `a896cd49`); TypeScript reference: http://127.0.0.1:5175/. Keymap tabs/outline and the remount fix, editable Matrix fields, and the first Keycaps physical scene are now mounted. Full workbench parity remains open. User concurrency ceiling: 30 agents; this session provides 11 slots including the coordinator. Mandatory architecture/refactor ledger remains active.
+
 ## Current bounded-ticket ledger
 
 There are 48 published bounded ticket records, of which 47 are non-superseded; those totals do not mean all records are dispatchable or accepted. Four source-backed F3.2 execution children are now published under `.scratch/dioxus-layout-authoring/issues/`, each with only the canonical F3.1 start gate. The 62-parent graph and F3.2/F3.3/F3.7 acceptance relationships are unchanged. Exact-hash Spec/Standards reports and source mapping are retained in `.scratch/dioxus-layout-authoring/evidence/ticket-split/`.

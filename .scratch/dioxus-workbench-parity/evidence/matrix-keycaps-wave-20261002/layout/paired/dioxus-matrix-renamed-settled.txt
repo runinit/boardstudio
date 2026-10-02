@@ -1,0 +1,49 @@
+- heading "BoardStudio" [level=1, ref=e1]
+- tab "Layout" [selected, ref=e5]
+- tab "PCB" [ref=e6]
+- tab "Keymap" [ref=e7]
+- tab "Keycaps" [ref=e8]
+- tab "Case" [ref=e9]
+- tab "Parts" [ref=e10]
+- button "Export" [ref=e2]
+- combobox "Theme" [expanded=false, ref=e11]: Dark
+  - option "System" [ref=e16]
+  - option "Light" [ref=e17]
+  - option "Dark" [selected, ref=e18]
+- region "Keyboard editor" [ref=e20]
+  - heading "Objects" [level=2, ref=e29]
+  - button "Objects options" [expanded=false, ref=e30]
+  - combobox "Board" [expanded=false, ref=e34]: Left PCB
+    - option "Left PCB" [selected, ref=e52]
+    - option "Right PCB" [ref=e53]
+  - combobox "Physical instance" [expanded=false, ref=e35]: left half
+    - option "left half" [selected, ref=e54]
+  - combobox "Group objects" [expanded=false, ref=e36]: Columns
+    - option "Columns" [selected, ref=e55]
+    - option "Rows" [ref=e56]
+  - treeitem "Left PCB 70 parts" [level=1, expanded=true, ref=e37]
+    - button "Collapse Left PCB" [expanded=true, ref=e41]
+    - button "Left PCB 70 parts" [ref=e42]
+  - treeitem "keys comparison Independent" [level=2, expanded=false, selected, ref=e38]
+    - button "Expand keys comparison" [expanded=false, ref=e43]
+    - button "keys comparison Independent" [ref=e44]
+  - treeitem "thumbs Independent" [level=2, expanded=false, ref=e39]
+    - button "Expand thumbs" [expanded=false, ref=e45]
+    - button "thumbs Independent" [ref=e46]
+  - button "Footprints" [ref=e25]
+  - group "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls" [ref=e23] focusable [tabindex]
+  - region "Canvas layers" [ref=e24]
+    - button "Layers" [expanded=false, ref=e26]
+  - heading "Inspect" [level=2, ref=e31]
+  - button "Inspector options" [expanded=false, ref=e32]
+  - region "Selected context" [ref=e27]
+    - heading "keys comparison" [level=2, ref=e33]
+  - region "Matrix inspector" [ref=e28]
+    - heading "Matrix" [level=2, ref=e40]
+    - textbox "Layout name" [ref=e47]: keys comparison
+    - spinbutton "Rows" [ref=e48]: 4
+    - spinbutton "Columns" [ref=e49]: 6
+    - spinbutton "Pitch X" [ref=e50]: 19.049999237060547
+    - spinbutton "Pitch Y" [ref=e51]: 19.049999237060547
+  - button "Undo" [ref=e21]
+  - button "Redo" [ref=e22]

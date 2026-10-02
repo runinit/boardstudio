@@ -72,6 +72,12 @@
           "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/composition/source-standards-review.md; /tmp/frontend-parity-reset-20261002/composition/source-spec-review.md",
           "observation": "The private six-workspace leaves and dispatcher are implemented and mounted. Standards identified unbounded per-render EventHandler::new callback allocations; the bounded correction allocates typed slots once via an unconditional pre-early-return use_hook and replaces each slot with fresh closures per render. The six-leaf seam mitigates shared edit contention, while root composition and the Layout SVG remain coordinator-owned. PCB source review separately observed full PartDefinition and generator-parameter copies on selection repaints.",
           "status": "Source review clear; native 34, strict WASM Clippy, final formatting, and integrated eight-command/980-hash build pass. Six-workspace paired characterization remains pending. PCB copy cost is unmeasured and deferred; no performance improvement or hotspot resolution is claimed."
+        },
+        {
+          "source": "a896cd49; paired React5a472a94",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
+          "observation": "Root integration still owns repeated route/callback/stylesheet wiring. Browser found Keycaps list placement and missing Matrix styles despite typed source review; bounded placement and CSS corrections are committed, broader composition redesign deferred.",
+          "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
         }
       ]
     },
@@ -289,6 +295,20 @@
           "post_port_follow_up": "After parity, reassess the bounded full-document/full-scene projection cost using actual resolution frequency and workload; do not infer a performance problem or optimize without measurements.",
           "validation": "Prove accepted snapshot/scope guards, canonical and flipped-instance results, matching original-snapshot contours without double reflection, unchanged accepted document/history and stale rejection."
         }
+      ],
+      "handoff_evidence": [
+        {
+          "source": "a896cd49; paired React5a472a94",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
+          "observation": "Exact Layout-matrix\u2192Keycaps\u2192SW7 journey differs: React retains matrix selection/first SW1, Dioxus selects SW7 alone. Independent source diagnosis traces React setSelectionMode(key) followed by choosePart using captured previous mode; classification as confirmed legacy stale-state bug is under review, not silently declared parity.",
+          "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
+        },
+        {
+          "source": "React5a472a94 vs Dioxus92db0b8f",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md",
+          "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
+          "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
+        }
       ]
     },
     {
@@ -380,6 +400,12 @@
           "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/README.md; /tmp/frontend-parity-reset-20261002/keymap/paired/react-return-keys.txt",
           "observation": "The previously red filtered SW7 return-to-Keys path now retains the same accepted selection identity after both Macros\u2192Keys and Encoders\u2192Keys remounts; the selected option and layer projection agree with the retained same-fixture React reference. Clearing the query and selecting SW8 on canvas also retains its identity over Function\u2192Main while presenting Transparent then Unassigned.",
           "status": "Targeted public selection-lineage regression passes at immutable candidate 34691; read-only project revision/hash unchanged. Full Keymap/F6K and parent acceptance remain open; retained under RF-006 without a new register ID."
+        },
+        {
+          "source": "React5a472a94 vs Dioxus92db0b8f",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md",
+          "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
+          "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
         }
       ]
     },
@@ -592,6 +618,18 @@
           "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/assertions.txt; /tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/screenshots/; prior red/reference: /tmp/frontend-parity-reset-20261002/keymap/paired/",
           "observation": "A fresh public DOM run on the same imported archive verified the previously red selected-option remount after both Macros\u2192Keys and Encoders\u2192Keys, plus clear-filter canvas selection and layer changes. The persisted project revision and serialized record hash were identical before/after; Undo/Redo control DOM state, browser errors, and console output were unchanged/empty. This is a targeted browser evidence loop, not full Keymap/F6K acceptance.",
           "status": "The exact remount regression is publicly green at candidate 34691 after deba7087; full feature and canonical-parent evidence remains open. Retain under RF-009 with RF-006 selection lineage; no new RF ID."
+        },
+        {
+          "source": "a896cd49; paired React5a472a94",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
+          "observation": "Retained initial compiler/lint failures, corrected strict WASM/native gates, build provenance, and paired observations separately. Actual browser caught missing Matrix styles and contextual Keycaps selection difference; source existence and review did not imply accepted visible behavior.",
+          "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
+        },
+        {
+          "source": "React5a472a94 vs Dioxus92db0b8f",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md",
+          "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
+          "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
         }
       ]
     },

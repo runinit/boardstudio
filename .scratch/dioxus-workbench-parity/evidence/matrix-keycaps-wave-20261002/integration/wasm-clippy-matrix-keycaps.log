@@ -1,0 +1,81 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error: unused import: `MatrixInspectorProps`
+ --> src/presentation/objects/matrix_inspector_controller.rs:4:54
+  |
+4 |     MatrixInspectorOwner, MatrixInspectorProjection, MatrixInspectorProps, MatrixNameTarget,
+  |                                                      ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error[E0599]: no method named `as_str` found for enum `dioxus::prelude::Key` in the current scope
+   --> src/presentation/objects/matrix_inspector.rs:381:62
+    |
+381 |         move |event: KeyboardEvent| match event.data().key().as_str() {
+    |                                                              ^^^^^^ method not found in `dioxus::prelude::Key`
+    |
+note: the method `as_str` exists on the type `std::string::String`
+   --> /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/alloc/src/string.rs:1057:4
+
+error[E0308]: mismatched types
+   --> src/presentation.rs:822:63
+    |
+822 |                 Some((view, accepted_board_contours(snapshot, board_id)))
+    |                             -----------------------           ^^^^^^^^ expected `&str`, found `String`
+    |                             |
+    |                             arguments to this function are incorrect
+    |
+note: function defined here
+   --> src/presentation.rs:577:4
+    |
+577 | fn accepted_board_contours(snapshot: &AcceptedSnapshot, board_id: &str) -> Rc<[Contour]> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^                              --------------
+help: consider borrowing here
+    |
+822 |                 Some((view, accepted_board_contours(snapshot, &board_id)))
+    |                                                               +
+
+error[E0308]: mismatched types
+   --> src/presentation.rs:836:78
+    |
+836 |                 let view = keycaps_scene::project(snapshot, scope.as_ref()?, board_id)?;
+    |                            ----------------------                            ^^^^^^^^ expected `&str`, found `String`
+    |                            |
+    |                            arguments to this function are incorrect
+    |
+note: function defined here
+   --> src/presentation/keycaps_scene.rs:47:15
+    |
+ 47 | pub(super) fn project(
+    |               ^^^^^^^
+...
+ 50 |     active_board_id: &str,
+    |     ---------------------
+help: consider borrowing here
+    |
+836 |                 let view = keycaps_scene::project(snapshot, scope.as_ref()?, &board_id)?;
+    |                                                                              +
+
+error[E0308]: mismatched types
+   --> src/presentation.rs:837:63
+    |
+837 |                 Some((view, accepted_board_contours(snapshot, board_id)))
+    |                             -----------------------           ^^^^^^^^ expected `&str`, found `String`
+    |                             |
+    |                             arguments to this function are incorrect
+    |
+note: function defined here
+   --> src/presentation.rs:577:4
+    |
+577 | fn accepted_board_contours(snapshot: &AcceptedSnapshot, board_id: &str) -> Rc<[Contour]> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^                              --------------
+help: consider borrowing here
+    |
+837 |                 Some((view, accepted_board_contours(snapshot, &board_id)))
+    |                                                               +
+
+Some errors have detailed explanations: E0308, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 5 previous errors

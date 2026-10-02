@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Six-stream private composition and first Keymap tabs/accepted-outline surface are implemented and mounted. Root native 34 and strict WASM Clippy pass at 98188448; formatting passes at 10377780. Corrected integrated build 92db0b8f passes eight commands/983 hashes. The targeted filtered SW7 remount regression is green on public candidate 34691; full F6K, all canonical acceptance joins and six-workspace paired characterization remain open.",
+  "status": "Six streams retain all 62 parent criteria. Private composition, Keymap tabs/contours, Matrix Inspector and first Keycaps 2D surface are mounted. Targeted Keymap remount regression is browser-green; Matrix name/rows, Undo/Redo and saved reopen are demonstrated. Full workbench and parent acceptance remain open.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "Private six-workspace composition and first Keymap tabs/accepted-outline route are implemented and mounted. Native34/strict WASM pass at 98188448; formatting passes at 10377780. Corrected candidate 92db0b8f completes eight commands/983 hashes. Fresh public assertions at 34691 pass the exact SW7 filtered Macros\u2192Keys and Encoders\u2192Keys remounts; SW8 canvas selection and Function\u2192Main projection also pass without changing the persisted revision/hash. Full Keymap/F6K and six-workspace paired characterization are open; no feature or canonical parent acceptance inferred.",
+    "status": "Six streams retain all 62 parent criteria. Private composition, Keymap tabs/contours, Matrix Inspector and first Keycaps 2D surface are mounted. Targeted Keymap remount regression is browser-green; Matrix name/rows, Undo/Redo and saved reopen are demonstrated. Full workbench and parent acceptance remain open.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -25,26 +25,43 @@
       "keymap_first_surface": {
         "source_commit": "98188448",
         "status": "Keys/Macros/Encoders tabs and accepted outline/board contour implemented and mounted; targeted selected-option remount regression green at 92db0b8f/34691; full paired public/F6K acceptance open",
-        "build": "latest integrated build frontend-matrix-keycaps-styled-20261002 at 92db0b8f: 8 commands, 983 hashes; immutable candidate 34691; public root route exposes 29 key controls, one Keymap layout group, three tabs",
+        "build": "Regression-green build frontend-matrix-keycaps-20261002 at92db0b8f/34691; later Matrix CSS-only build frontend-matrix-keycaps-styled-20261002 at a896cd49/34693 reuses same Rust behavior.",
         "paired_status": "Targeted regression green: after filter SW7, selected matrix/left-keys/r1c0 survives Macros\u2192Keys and Encoders\u2192Keys; retained same-fixture React reference agrees. Clear-filter SW8 canvas selection and Function\u2192Main labels pass. Full Keymap/F6K and canonical parent acceptance remain open."
+      },
+      "layout_matrix_inspector": {
+        "source_commit": "1ad8c478",
+        "compiler_corrections": [
+          "92e16f4c",
+          "0fd34c65",
+          "23214cc4"
+        ],
+        "style_commit": "a896cd49",
+        "status": "mounted; source reviews and affected checks pass; bounded edit/Undo/Redo/reopen proof retained; full F3.2d and F3.1 joins open",
+        "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md"
+      },
+      "keycaps_first_scene": {
+        "source_commit": "052351be",
+        "placement_correction": "4f7b8aa9",
+        "status": "mounted and built; first physical scene/selection summary visible; legacy inherited-Matrix selection bug is an explicitly recorded Q1 deviation; settings and full F6C acceptance open",
+        "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md"
       }
     },
     "canonical_parent_count": 62,
     "canonical_graph_changed": false,
     "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved",
     "current_integration": {
-      "commit": "92db0b8f",
+      "commit": "a896cd493ab31a9894c740ca131379409fc49735",
       "checks": {
-        "native_page_tests": "34 passed at 98188448 (12 library + 22 page)",
-        "strict_wasm_clippy": "pass at 98188448",
-        "formatting": "pass at 10377780"
+        "native_page_tests": "34 passed at23214cc4 (12 library +22 binary); WASM UI tests not executed by native target",
+        "strict_wasm_clippy": "all-targets/-D warnings passed at23214cc4 after retained bounded compiler/lint fixes",
+        "formatting": "passed at92db0b8f; a896cd49 changes CSS only"
       },
-      "build": "complete: frontend-matrix-keycaps-styled-20261002 at 92db0b8f; eight commands, 983 source hashes; immutable candidate 34691",
-      "paired_browser_acceptance": "Targeted filtered SW7 remount regression green on root candidate 34691, comparing same-fixture retained React evidence: selected identity/option survives Macros\u2192Keys and Encoders\u2192Keys. SW8 canvas selection plus Function\u2192Main label projection pass; read-only project revision/hash and Undo/Redo DOM state unchanged. Full F6K/Keymap, six-workspace journey, and parent acceptance remain open.",
-      "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md",
-      "build_evidence": "/tmp/frontend-parity-reset-20261002/integration/build-matrix-keycaps-styled.log",
-      "paired_evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/; prior red and retained React references: /tmp/frontend-parity-reset-20261002/keymap/paired/",
-      "layout_matrix_inspector_source": "candidate c9411 Standards-clear; root mount, integrated build, and public journey pending"
+      "build": "frontend-matrix-keycaps-styled-20261002 at a896cd49: 8 successful commands; 983 verified source hashes",
+      "demo": "http://127.0.0.1:34693/",
+      "subpath": "http://127.0.0.1:34693/boardstudio/",
+      "paired_browser_acceptance": "Targeted Keymap selected-option remount green at92db0b8f. Matrix name/rows and Undo/Redo/save-reopen demonstrated; styled form and Rows0 validation/Escape inspected at a896cd49. Keycaps scene shown; shared matrix-to-key mismatch diagnosed as confirmed legacy stale-closure bug. Correct Dioxus single-key behavior retained under Q1 with paired intent oracle. No whole parent closed.",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
+      "build_evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/frontend-matrix-keycaps-styled-20261002-provenance.json"
     },
     "agent_parallelism": {
       "user_concurrency_ceiling": 30,
@@ -56,7 +73,7 @@
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "Six-stream composition and first Keymap route integrated; corrected build and targeted SW7 remount regression pass, while full Keymap/F6K and all canonical acceptance joins remain open",
+  "current_milestone": "Six streams retain all 62 parent criteria. Private composition, Keymap tabs/contours, Matrix Inspector and first Keycaps 2D surface are mounted. Targeted Keymap remount regression is browser-green; Matrix name/rows, Undo/Redo and saved reopen are demonstrated. Full workbench and parent acceptance remain open.",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {

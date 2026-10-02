@@ -1,0 +1,8 @@
+✓ Done
+✓ Done
+✓ Done
+✓ Done
+✓ Done
+✗ Evaluation error: Error: Expected clicked SW7 alone (matrix/left-keys/r1c0); got matrix/left-keys/r0c0, selected cap count 24
+    at <anonymous>:1:320
+    at <anonymous>:1:453
