@@ -90,21 +90,28 @@ pub fn CasePanel() -> Element {
     };
     rsx! {
         section { class: "m1-case-panel", "aria-label": "Case assembly",
-            h2 { "Case assembly" }
-            if !has_settings && !mismatch {
-                button { disabled: !can_edit_settings, onclick: move |_| set_settings(&initialize, instance_selection, None), "Add case settings" }
-            }
-            if let Ok(config) = settings && !mismatch {
-                label { "Bottom thickness (mm)"
-                    input { disabled: !can_edit_settings, r#type: "number", min: "0.1", step: "0.1", value: "{config.bottom_thickness}", onchange: move |event: FormEvent| {
-                        if let Ok(value) = event.value().parse::<f64>() { set_settings(&update, instance_selection, Some(value)); }
-                    } }
+            div { class: "m1-case-header",
+                h2 { "Case assembly" }
+                button { onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Generate case" }
+                button { disabled: !matches!(model.generation, GenerationStatus::Preparing {..} | GenerationStatus::Running {..}), onclick: move |_| cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() }), "Cancel generation" }
+                details { class: "m1-case-settings",
+                    summary { "Case settings" }
+                    div { class: "m1-case-settings-body",
+                        if !has_settings && !mismatch {
+                            button { disabled: !can_edit_settings, onclick: move |_| set_settings(&initialize, instance_selection, None), "Add case settings" }
+                        }
+                        if let Ok(config) = settings && !mismatch {
+                            label { "Bottom thickness (mm)"
+                                input { disabled: !can_edit_settings, r#type: "number", min: "0.1", step: "0.1", value: "{config.bottom_thickness}", onchange: move |event: FormEvent| {
+                                    if let Ok(value) = event.value().parse::<f64>() { set_settings(&update, instance_selection, Some(value)); }
+                                } }
+                            }
+                        }
+                        p { "PCB reference is unpopulated; case bodies use exact CAD geometry." }
+                    }
                 }
             }
-            button { onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Generate case" }
-            button { disabled: !matches!(model.generation, GenerationStatus::Preparing {..} | GenerationStatus::Running {..}), onclick: move |_| cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() }), "Cancel generation" }
             p { role: "status", "aria-live": "polite", "{title}" }
-            p { "PCB reference is unpopulated; case bodies use exact CAD geometry." }
             if let Some(scene) = scene {
                 crate::presentation::CaseViewer { key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}", scene }
             }

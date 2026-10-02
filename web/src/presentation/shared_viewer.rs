@@ -1332,8 +1332,12 @@ fn SharedViewer(
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
-            div { role: "group", "aria-label": "Case camera",
+            div { class: "m1-case-view-toolbar",
                 button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "Fit case" }
+                details { class: "m1-case-view-settings",
+                    summary { "View controls" }
+                    div { class: "m1-case-view-settings-body",
+            div { role: "group", "aria-label": "Case camera",
                 button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
                 button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
                 button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
@@ -1413,8 +1417,11 @@ fn SharedViewer(
                 r#type: "checkbox", checked: transient().show_hidden,
                 onchange: move |_| transient.with_mut(|state| state.show_hidden = !state.show_hidden),
             } "Show hidden lines" }
+                    }
+                }
+            }
             canvas {
-                style: "width:100%;height:320px;display:block",
+                style: "width:100%;height:100%;display:block",
                 tabindex: "0", role: "img",
                 "aria-label": "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display.",
                 onmounted: mount_host,
