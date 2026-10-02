@@ -428,64 +428,6 @@ pub(super) fn KeycapsKeyList(
     }
 }
 
-#[component]
-pub(super) fn KeycapsMatrixList(view: Rc<KeycapsView>) -> Element {
-    if view.matrices.is_empty() {
-        return rsx! {
-            p { class: "m1-keycaps-empty-note", "Standalone switches use their individual profile override." }
-        };
-    }
-    rsx! {
-        section { class: "m1-keycaps-matrix-list", "aria-label": "Keycaps matrices",
-            h2 { "Matrices" }
-            ul {
-                for matrix in &view.matrices {
-                    li { key: "{matrix.id}", "{matrix.name}" }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-pub(super) fn KeycapsSelectedSummary(
-    view: Rc<KeycapsView>,
-    selected_key_id: Option<String>,
-) -> Element {
-    let selected_key = selected_key_id
-        .as_deref()
-        .and_then(|id| view.keys.iter().find(|key| key.id.as_ref() == id));
-    let Some(key) = selected_key else {
-        return rsx! {
-            section { class: "m1-keycaps-selected-summary", "aria-label": "Selected keycap",
-                h2 { "Select a key" }
-                p { "Choose a key on the physical view or from the key list." }
-            }
-        };
-    };
-    let legend_status = match key.legend_source {
-        LegendSource::Binding => "From binding",
-        LegendSource::Explicit if key.legend.is_empty() => "Blank keycap",
-        LegendSource::Explicit => "Explicit legend",
-    };
-    let dimensions = format!("{} × {} mm", key.size.x, key.size.y);
-    rsx! {
-        section { class: "m1-keycaps-selected-summary", "aria-label": "Selected keycap",
-            h2 { "{key.reference} · key" }
-            dl {
-                dt { "Physical size" }
-            dd { "{dimensions}" }
-            dt { "Keycap color" }
-            dd { span { "aria-hidden": "true", class: "m1-keycaps-color-swatch", style: "background-color: {key.color}" } "{key.color}" }
-            dt { "Legend" }
-            dd { if key.legend.is_empty() { "—" } else { "{key.legend}" } }
-            dt { "Legend source" }
-            dd { "{legend_status}" }
-            }
-        }
-    }
-}
-
 fn foreground_color(color: &str) -> &'static str {
     let Some(hex) = color.strip_prefix('#') else {
         return "#ffffff";

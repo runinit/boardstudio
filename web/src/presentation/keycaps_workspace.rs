@@ -1,8 +1,6 @@
 //! Keycaps-owned workspace surface composition.
 use super::keycaps_fit::{KeycapsFitInspector, KeycapsFitState};
-use super::keycaps_scene::{
-    KeycapsCanvas, KeycapsKeyList, KeycapsMatrixList, KeycapsSelectedSummary, KeycapsView,
-};
+use super::keycaps_scene::{KeycapsCanvas, KeycapsKeyList, KeycapsView};
 use super::keycaps_settings::{
     KeycapsBoardSettingsEditor, KeycapsMatrixSettingsEditor, KeycapsSettingsActions,
     KeycapsSettingsEditor, SelectedKeySettings,
@@ -94,6 +92,14 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
     if let Some(view) = input.view {
         let settings_editor = input.settings_editor;
         let settings_actions = input.settings_actions;
+        let selected_title = input
+            .selected_key_id
+            .as_deref()
+            .and_then(|selected_id| view.keys.iter().find(|key| key.id.as_ref() == selected_id))
+            .map_or_else(
+                || "Select a key".to_owned(),
+                |key| format!("{} · key", key.reference),
+            );
         rsx! {
             section { class: "m1-keycaps-inspector", "aria-label": "Keycaps inspector",
                 if let Some(actions) = settings_actions.clone() {
@@ -108,18 +114,18 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         }
                     }
                 }
-                KeycapsMatrixList { view: view.clone() }
-                KeycapsKeyList {
-                    view: view.clone(),
-                    selected_key_id: input.selected_key_id.clone(),
-                    on_select_key: input.on_select_key,
-                }
-                KeycapsSelectedSummary {
-                    view: view.clone(),
-                    selected_key_id: input.selected_key_id,
-                }
-                if let Some((selected, actions)) = settings_editor {
-                    KeycapsSettingsEditor { selected, actions }
+                details { class: "m1-keycaps-disclosure m1-keycaps-selected-key", open: true,
+                    summary { "{selected_title}" }
+                    div { class: "m1-keycaps-selected-key-body",
+                        KeycapsKeyList {
+                            view: view.clone(),
+                            selected_key_id: input.selected_key_id.clone(),
+                            on_select_key: input.on_select_key,
+                        }
+                        if let Some((selected, actions)) = settings_editor {
+                            KeycapsSettingsEditor { selected, actions }
+                        }
+                    }
                 }
                 KeycapsFitInspector { document: input.document, state: input.fit_state, on_retry: input.fit_retry }
             }
@@ -133,3 +139,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         }
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "keycaps_workspace_tests.rs"]
+mod tests;

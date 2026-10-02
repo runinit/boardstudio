@@ -1664,7 +1664,6 @@ pub(super) fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Elemen
     let depth_change = actions.on_change;
     rsx! {
         section { class: "m1-keycaps-settings", aria_label: "Keycap overrides for {key.reference}",
-            h3 { "{key.reference} · key" }
             label { "Legend",
                 input {
                     aria_label: "Legend for {key.reference}",
