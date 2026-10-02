@@ -158,7 +158,8 @@ summary.verdict = summary.invocations.every((item) => item.status === 0)
   && variants.every((variant) => [30, 100, 200].every((keys) => summary.scenarios[variant]?.[keys]?.everySessionWithinExistingLimit
     && summary.scenarios[variant][keys].samplesPerSession.every((count) => count === 100)
     && summary.scenarios[variant][keys].visibleTransformAssertionPassed))
-  ? paired ? 'paired-observations-complete-all-sizes-within-existing-absolute-limits-no-relative-verdict' : 'five-session-absolute-budgets-pass'
+  ? paired ? 'paired-observations-complete-all-sizes-within-existing-absolute-limits-no-relative-verdict'
+    : sessionCount === 5 ? 'five-session-absolute-budgets-pass' : `${sessionCount}-session-focused-absolute-budgets-pass`
   : 'incomplete-or-failed-runs-retained';
 await writeFile(resolve(outputDir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
 console.log(`Candidate pointer sessions ${summary.verdict}: ${resolve(outputDir, 'summary.json')}`);
