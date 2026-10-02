@@ -1,7 +1,11 @@
 //! Mounted browser regressions for key-size timer ownership and feedback attribution.
 use super::super::{TreeContext, keycap_size::KeySizeControls};
 use super::*;
-use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+use boardstudio_application::{
+    Completion, Effect, Event as SessionEvent, OperationId, Scope, SelectionMode, Session,
+    SessionEpoch, SnapshotToken,
+};
+use boardstudio_core::CoreEngine;
 use boardstudio_core::model::Vec2;
 use boardstudio_core::model::{Part, Pose2, Side};
 use std::{cell::RefCell, rc::Rc};
@@ -184,6 +188,302 @@ async fn delayed_keyboard_resize_cannot_be_retargeted_to_a_new_mixed_selection()
         "an A-owned delayed keyup must not turn into a B-owned edit after selection changes"
     );
     root.remove();
+}
+
+#[wasm_bindgen_test]
+fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
+    let parts = vec![
+        Part {
+            keycap: None,
+            outline: None,
+            id: "a".into(),
+            definition_id: "switch".into(),
+            reference: "A".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        },
+        Part {
+            keycap: None,
+            outline: None,
+            id: "c".into(),
+            definition_id: "switch".into(),
+            reference: "C".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        },
+        Part {
+            keycap: None,
+            outline: None,
+            id: "b".into(),
+            definition_id: "switch".into(),
+            reference: "B".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        },
+    ];
+    let placements = vec![
+        KeycapPlacement {
+            id: "a".into(),
+            matrix_id: "m1".into(),
+            row: 0,
+            column: 0,
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+            size: Vec2 { x: 18.0, y: 18.0 },
+        },
+        KeycapPlacement {
+            id: "c".into(),
+            matrix_id: "m2".into(),
+            row: 0,
+            column: 0,
+            at: Vec2 { x: 10.0, y: 0.0 },
+            rotation: 0.0,
+            size: Vec2 { x: 18.0, y: 18.0 },
+        },
+        KeycapPlacement {
+            id: "b".into(),
+            matrix_id: "m3".into(),
+            row: 0,
+            column: 0,
+            at: Vec2 { x: 100.0, y: 0.0 },
+            rotation: 0.0,
+            size: Vec2 { x: 18.0, y: 18.0 },
+        },
+    ];
+    let labels = |selected: &[&str]| {
+        let ids: Vec<String> = selected.iter().map(|id| (*id).to_owned()).collect();
+        let selected = super::selected_keycap_ids(&ids, &placements);
+        super::overlap_references(&parts, &placements, &selected)
+    };
+
+    // The last-hit context is B, but the selected set contains A+B after Add.
+    assert!(labels(&["b"]).is_empty());
+    assert_eq!(labels(&["a", "b"]), ["A", "C"]);
+    // Toggling A off leaves B, so its unrelated context must clear the warning.
+    assert!(labels(&["b"]).is_empty());
+    // Selecting C after that still reports both members across matrix contexts.
+    assert_eq!(labels(&["b", "c"]), ["A", "C"]);
+}
+
+#[wasm_bindgen_test]
+fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
+    let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
+        "../../../../core/tests/fixtures/reviung41-outline-original.json"
+    ))
+    .unwrap();
+    let first_matrix_id = document.matrices[0].id.clone();
+    let first_ids: Vec<_> = document.matrices[0]
+        .part_ids
+        .iter()
+        .filter(|id| !id.ends_with("/diode"))
+        .cloned()
+        .collect();
+    let other_id = document.matrices[1]
+        .part_ids
+        .iter()
+        .find(|id| !id.ends_with("/diode"))
+        .unwrap()
+        .clone();
+    let first_id = first_ids[0].clone();
+    let context_id = first_ids[1].clone();
+    for id in [&first_id, &other_id] {
+        let part = document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == *id)
+            .unwrap();
+        part.keycap = Some(Vec2 {
+            x: 1000.0,
+            y: 1000.0,
+        });
+    }
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(SessionEvent::Open {
+        operation_id: OperationId(900),
+        document,
+    });
+    let (request_id, executor_epoch, request) = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Core {
+                request_id,
+                executor_epoch,
+                request,
+                ..
+            } => Some((*request_id, *executor_epoch, (**request).clone())),
+            _ => None,
+        })
+        .unwrap();
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let save_attempt_id = effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Persist {
+                save_attempt_id, ..
+            } => Some(*save_attempt_id),
+            _ => None,
+        })
+        .unwrap();
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: boardstudio_application::SaveResult::Committed,
+    });
+    let scope = session.scope().unwrap_or_else(|| {
+        panic!(
+            "Session has no live scope after Open: lifecycle={:?}, error={:?}",
+            session.read_model().lifecycle,
+            session.read_model().last_error
+        )
+    });
+
+    session.submit(SessionEvent::SelectParts {
+        operation_id: OperationId(901),
+        part_ids: vec![first_id.clone()],
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Replace,
+    });
+    session.submit(SessionEvent::SelectParts {
+        operation_id: OperationId(902),
+        part_ids: vec![context_id.clone()],
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Add,
+    });
+    let model = session.read_model().clone();
+    assert_eq!(
+        model.selected_part_ids,
+        vec![first_id.clone(), context_id.clone()]
+    );
+
+    let accepted = model.accepted.as_ref().unwrap();
+    let context_cell = accepted
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == first_matrix_id)
+        .unwrap()
+        .cells
+        .iter()
+        .find(|cell| cell.member_id.as_deref() == Some(context_id.as_str()))
+        .unwrap_or_else(|| {
+            panic!(
+                "accepted scene has no cell for {context_id} in {first_matrix_id}; members={:?}",
+                accepted
+                    .scene
+                    .matrix_scenes
+                    .iter()
+                    .find(|scene| scene.matrix_id == first_matrix_id)
+                    .map(|scene| scene
+                        .cells
+                        .iter()
+                        .map(|cell| cell.member_id.clone())
+                        .collect::<Vec<_>>())
+            )
+        });
+    let hit_context = ScopedTreeContext {
+        scope: scope.clone(),
+        context: TreeContext::Key {
+            matrix_id: first_matrix_id,
+            row: context_cell.row,
+            column: context_cell.column,
+        },
+    };
+    let project = |model: &boardstudio_application::ReadModel| {
+        super::project_for_scope(
+            model,
+            Some(&scope),
+            Some(&scope),
+            Some(&hit_context),
+            super::ProjectionContext {
+                editor: 7,
+                generation: 1,
+                scope_generation: 1,
+                workspace: "Layout",
+            },
+        )
+        .unwrap()
+        .0
+    };
+
+    let projection = project(&model);
+    assert_eq!(
+        projection
+            .items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<std::collections::BTreeSet<_>>(),
+        [first_id.as_str(), context_id.as_str()].into()
+    );
+    let other_reference = accepted
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == other_id)
+        .unwrap()
+        .reference
+        .clone();
+    assert!(
+        projection.overlap_references.contains(&other_reference),
+        "the accepted selection includes {first_id}, even though the Inspector hit context is only {context_id}"
+    );
+
+    session.submit(SessionEvent::SelectParts {
+        operation_id: OperationId(903),
+        part_ids: vec![first_id.clone()],
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Toggle,
+    });
+    let toggled = session.read_model().clone();
+    assert_eq!(toggled.selected_part_ids, vec![context_id.clone()]);
+    let projection = project(&toggled);
+    assert_eq!(projection.items.len(), 1);
+    assert_eq!(projection.items[0].id, context_id);
+
+    session.submit(SessionEvent::SelectParts {
+        operation_id: OperationId(904),
+        part_ids: Vec::new(),
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Replace,
+    });
+    let cleared = session.read_model().clone();
+    assert!(
+        super::project_for_scope(
+            &cleared,
+            Some(&scope),
+            Some(&scope),
+            Some(&hit_context),
+            super::ProjectionContext {
+                editor: 7,
+                generation: 1,
+                scope_generation: 1,
+                workspace: "Layout",
+            },
+        )
+        .is_none()
+    );
 }
 
 #[wasm_bindgen_test]

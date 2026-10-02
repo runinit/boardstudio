@@ -330,6 +330,17 @@ fn project_for(
     selected: Option<&ScopedTreeContext>,
     context: ProjectionContext,
 ) -> Option<(KeySizeProjection, bool)> {
+    let runtime_scope = runtime.scope();
+    project_for_scope(model, live_scope, runtime_scope.as_ref(), selected, context)
+}
+
+fn project_for_scope(
+    model: &boardstudio_application::ReadModel,
+    live_scope: Option<&Scope>,
+    runtime_scope: Option<&Scope>,
+    selected: Option<&ScopedTreeContext>,
+    context: ProjectionContext,
+) -> Option<(KeySizeProjection, bool)> {
     let ProjectionContext {
         editor,
         generation,
@@ -341,7 +352,7 @@ fn project_for(
     }
     let scope = live_scope?;
     let selected = selected?;
-    if scope != &selected.scope || runtime.scope().as_ref() != Some(scope) {
+    if scope != &selected.scope || runtime_scope != Some(scope) {
         return None;
     }
     if !matches!(
@@ -361,13 +372,17 @@ fn project_for(
     {
         return None;
     }
-    let selected_ids = super::resolve_selection(model, &selected.context)?;
+    // The tree context identifies the current Inspector section, but Ctrl/Shift canvas
+    // selection can contain parts that are not members of the last hit context. Validate
+    // that context independently and use Session's accepted selected IDs as the authority,
+    // matching React's selectedKeycaps projection.
+    super::resolve_selection(model, &selected.context)?;
     let placement_list = placements(
         &snapshot.document,
         &snapshot.scene.matrix_scenes,
         &scope.board_id,
     );
-    let selected_set: BTreeSet<_> = selected_ids.into_iter().collect();
+    let selected_set = selected_keycap_ids(&model.selected_part_ids, &placement_list);
     let overlap_references =
         overlap_references(&snapshot.document.parts, &placement_list, &selected_set);
     let items: Vec<_> = placement_list
@@ -510,6 +525,21 @@ fn order_placements_by_document_parts(
             .copied()
             .unwrap_or(usize::MAX)
     });
+}
+
+fn selected_keycap_ids(
+    selected_part_ids: &[String],
+    placements: &[KeycapPlacement],
+) -> BTreeSet<String> {
+    let visible: BTreeSet<_> = placements
+        .iter()
+        .map(|placement| placement.id.as_str())
+        .collect();
+    selected_part_ids
+        .iter()
+        .filter(|id| visible.contains(id.as_str()))
+        .cloned()
+        .collect()
 }
 
 fn quarter(value: f64) -> f64 {

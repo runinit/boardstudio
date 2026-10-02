@@ -798,6 +798,20 @@ fn selection_navigation_and_camera_updates_are_session_only() {
             ))
     );
     session.submit(Event::SelectParts {
+        operation_id: OperationId(60),
+        part_ids: vec!["key-2".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Add,
+    });
+    assert_eq!(session.read_model().selected_part_ids, vec!["key", "key-2"]);
+    session.submit(Event::SelectParts {
+        operation_id: OperationId(61),
+        part_ids: vec!["key".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Toggle,
+    });
+    assert_eq!(session.read_model().selected_part_ids, vec!["key-2"]);
+    session.submit(Event::SelectParts {
         operation_id: OperationId(52),
         part_ids: vec!["key-2".into()],
         range_part_ids: vec!["key".into(), "key-2".into()],
