@@ -1323,9 +1323,29 @@ fn Editor() -> Element {
         },
         pcb_wiring_mount.resolution_signal,
     );
-    // The Project-stage guide slot is coordinator-owned; this remains false until that mount is
-    // supplied and connected. Case inspector intents are active independently.
-    let project_setup_active: Rc<dyn Fn() -> bool> = Rc::new(|| false);
+    // Read guide state at every admission: an async operation may outlive the rendered guide
+    // stage or switch to a different accepted project.
+    let project_setup_active: Rc<dyn Fn() -> bool> = Rc::new({
+        let runtime = runtime.clone();
+        move || {
+            let model = runtime.model();
+            let Some(project_id) = model
+                .accepted
+                .as_ref()
+                .map(|snapshot| snapshot.document.id.as_str())
+            else {
+                return false;
+            };
+            guide_preferences
+                .peek()
+                .as_ref()
+                .is_some_and(|preferences| {
+                    preferences.open
+                        && preferences.current_stage == SetupGuideStage::Project
+                        && preferences.project_id == project_id
+                })
+        }
+    });
     let physical_setup_mount = pcb_physical_setup::use_controller(
         runtime.clone(),
         version,
@@ -3590,7 +3610,15 @@ fn Editor() -> Element {
                             on_open_matrix_setup: None,
                             on_choose_controller: None,
                             on_dismiss: on_dismiss_guide,
-                            project_controls: None,
+                            project_controls: if preferences.current_stage
+                                == SetupGuideStage::Project
+                            {
+                                Some(pcb_physical_setup::controller::project_setup_controls(
+                                    physical_setup_mount.clone(),
+                                ))
+                            } else {
+                                None
+                            },
                         }
                     } else {
                         {workspace_composition::objects(objects_input)}
