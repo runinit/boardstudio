@@ -337,7 +337,8 @@ pub(super) fn use_keycaps_settings_actions(
                 | TerminalOutcome::Cancelled
                 | TerminalOutcome::Closed => {
                     pending.set(None);
-                    let message = "The keycap edit did not complete in the active session.".into();
+                    let message =
+                        String::from("The keycap edit did not complete in the active session.");
                     keep_retry_draft(&mut retry_drafts, &waiting.request, message.clone());
                     feedback.set(Some(FeedbackState {
                         request: waiting.request,
@@ -735,7 +736,7 @@ fn current_accepted_noop(
         && request.scope == expected.scope
         && snapshot.session_epoch == request.scope.session_epoch
         && snapshot.document.id == request.scope.document_id
-        && model.active_board_id.as_ref() == Some(&request.scope.board_id)
+        && model.active_board_id == request.scope.board_id
         && model.active_instance_id == request.scope.instance_id
         && snapshot.token == request.admission_token
         && snapshot.document.revision == request.admission_revision
@@ -1305,10 +1306,10 @@ pub(super) fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Elemen
             }
             if let Some(feedback) = feedback {
                 match &feedback.status {
-                    KeycapsEditStatus::Pending => p { role: "status", "Saving keycap override…" },
-                    KeycapsEditStatus::Blocked(message) => p { role: "status", "{message}" },
-                    KeycapsEditStatus::Saved => p { role: "status", "Keycap override saved." },
-                    KeycapsEditStatus::Failed(message) => p { role: "alert", "{message}" },
+                    KeycapsEditStatus::Pending => rsx! { p { role: "status", "Saving keycap override…" } },
+                    KeycapsEditStatus::Blocked(message) => rsx! { p { role: "status", "{message}" } },
+                    KeycapsEditStatus::Saved => rsx! { p { role: "status", "Keycap override saved." } },
+                    KeycapsEditStatus::Failed(message) => rsx! { p { role: "alert", "{message}" } },
                 }
             }
             for draft in retry_drafts.iter() {
@@ -1434,7 +1435,7 @@ mod tests {
                 .into(),
                 ..boardstudio_core::model::KeycapConfiguration::default()
             }),
-            ..ProjectDoc::empty()
+            ..ProjectDoc::empty("keycaps-settings-test", "Keycaps settings test")
         };
         assert_eq!(
             core_change(&document, "sw1", &KeycapEditChange::UnitsWidth(3.0)),
@@ -1472,7 +1473,7 @@ mod tests {
                 .into(),
                 ..boardstudio_core::model::KeycapConfiguration::default()
             }),
-            ..ProjectDoc::empty()
+            ..ProjectDoc::empty("keycaps-settings-test", "Keycaps settings test")
         };
         assert!(change_is_applied(
             &document,
