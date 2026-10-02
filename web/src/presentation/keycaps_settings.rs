@@ -1442,21 +1442,23 @@ pub(super) fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps)
     let clearance_target = target.clone();
     let clearance_baseline = baseline.clone();
     rsx! {
-        section { class: "m1-keycaps-settings", aria_label: "Board colors",
-            h3 { "Board colors" }
-            label { "Keycap color",
-                input { r#type: "color", aria_label: "Board keycap color", value: "{settings.color}",
-                    oninput: move |event| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value())) }
+        details { class: "m1-keycaps-disclosure", open: true,
+            summary { "Board colors" }
+            section { class: "m1-keycaps-settings", aria_label: "Board colors",
+                label { "Keycap color",
+                    input { r#type: "color", aria_label: "Board keycap color", value: "{settings.color}",
+                        oninput: move |event| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value())) }
+                }
+                label { "Legend color",
+                    input { r#type: "color", aria_label: "Board legend color", value: "{settings.legend_color}",
+                        oninput: move |event| emit_settings_change(&legend_actions, legend_target.clone(), legend_baseline.clone(), KeycapEditChange::BoardLegendColor(event.value())) }
+                }
+                label { "Minimum clearance (mm)",
+                    input { r#type: "number", aria_label: "Keycap clearance", min: "0", max: "5", step: "0.1", value: "{settings.clearance}",
+                        oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&clearance_actions, clearance_target.clone(), clearance_baseline.clone(), KeycapEditChange::BoardClearance(value)); } }
+                }
+                {settings_feedback(feedback, retries, &actions)}
             }
-            label { "Legend color",
-                input { r#type: "color", aria_label: "Board legend color", value: "{settings.legend_color}",
-                    oninput: move |event| emit_settings_change(&legend_actions, legend_target.clone(), legend_baseline.clone(), KeycapEditChange::BoardLegendColor(event.value())) }
-            }
-            label { "Minimum clearance (mm)",
-                input { r#type: "number", aria_label: "Keycap clearance", min: "0", max: "5", step: "0.1", value: "{settings.clearance}",
-                    oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&clearance_actions, clearance_target.clone(), clearance_baseline.clone(), KeycapEditChange::BoardClearance(value)); } }
-            }
-            {settings_feedback(feedback, retries, &actions)}
         }
     }
 }

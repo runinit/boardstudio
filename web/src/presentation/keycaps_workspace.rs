@@ -95,12 +95,14 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             section { class: "m1-keycaps-inspector", "aria-label": "Keycaps inspector",
                 if let Some(actions) = settings_actions.clone() {
                     KeycapsBoardSettingsEditor { settings: view.board_settings.clone(), actions: actions.clone() }
-                    section { class: "m1-keycaps-settings", "aria-label": "Matrix profiles",
-                        h3 { "Matrix profiles" }
-                        for matrix in view.matrices.iter() {
-                            KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
+                    details { class: "m1-keycaps-disclosure", open: true,
+                        summary { "Matrix profiles" }
+                        section { class: "m1-keycaps-settings", "aria-label": "Matrix profiles",
+                            for matrix in view.matrices.iter() {
+                                KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
+                            }
+                            if view.matrices.is_empty() { p { class: "m1-keycaps-empty-note", "Standalone switches use their individual profile override." } }
                         }
-                        if view.matrices.is_empty() { p { class: "m1-keycaps-empty-note", "Standalone switches use their individual profile override." } }
                     }
                 }
                 KeycapsMatrixList { view: view.clone() }
