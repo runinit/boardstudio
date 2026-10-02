@@ -1,0 +1,24 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-align-selection-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.21s
+     Running tests/layout_align_effect.rs (web/target/debug/deps/layout_align_effect-5a7da7fb102f3dc8)
+
+running 1 test
+test mounted_empty_reference_effect_does_not_self_trigger ... FAILED
+
+failures:
+
+---- mounted_empty_reference_effect_does_not_self_trigger stdout ----
+
+thread 'mounted_empty_reference_effect_does_not_self_trigger' (2447095) panicked at tests/layout_align_effect.rs:119:5:
+assertion `left == right` failed
+  left: 30
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    mounted_empty_reference_effect_does_not_self_trigger
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test layout_align_effect`

@@ -1,0 +1,24 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-align-selection-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.75s
+     Running tests/layout_align_effect.rs (web/target/debug/deps/layout_align_effect-5a7da7fb102f3dc8)
+
+running 1 test
+test completed_old_scope_does_not_wait_for_the_new_scopes_lower_revision ... FAILED
+
+failures:
+
+---- completed_old_scope_does_not_wait_for_the_new_scopes_lower_revision stdout ----
+
+thread 'completed_old_scope_does_not_wait_for_the_new_scopes_lower_revision' (2447504) panicked at tests/layout_align_effect.rs:162:5:
+assertion `left == right` failed
+  left: WaitForAcceptedAdvance
+ right: RetireOldScope
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    completed_old_scope_does_not_wait_for_the_new_scopes_lower_revision
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test layout_align_effect`
