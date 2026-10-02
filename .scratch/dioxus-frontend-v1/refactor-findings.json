@@ -166,6 +166,25 @@
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
         "F6C.3"
+      ],
+      "follow_up_evidence": [
+        {
+          "date": "2026-10-02",
+          "task": "first frontend tranche to-tickets proposal",
+          "baseline": "530e60dd",
+          "proposal": ".scratch/dioxus-frontend-tranche-1/PROPOSAL.md",
+          "observation": "The reference selection controller carries matrix/row/column context and computes an anchored live-member rectangle. The current Dioxus caller supplies flat visible part IDs to a Session Range operation that selects their linear interval and advances its anchor. Semantic tree context is absent from the read model. This extends the frontend interaction-policy ownership finding beyond resize/reflow.",
+          "certainty": "source-confirmed behavior mismatch; public regression reproduction remains required",
+          "evidence": [
+            "app/src/ui/useWorkbenchSelection.ts:37-54",
+            "web/src/presentation.rs:1046",
+            "application/src/session.rs:102-115",
+            "application/src/session.rs:602-625"
+          ],
+          "current_mitigation": "Proposed T1-10 proves a private semantic-context adapter while Session keeps real part selection. T1-12 first reproduces the rectangle/anchor mismatch, then Astra repairs the bounded behavior using existing contracts.",
+          "post_port_follow_up": "Review one explicit home for matrix selection context, anchor policy and part-ID membership, avoiding overlapping writable selection stores.",
+          "validation": "Paired range traces with repeated Shift, toggles, empty/disabled cells and board switches; no fabricated part IDs, stale scope or extra document revisions."
+        }
       ]
     },
     {
@@ -265,6 +284,24 @@
       "linked_tasks": [
         "F2.2",
         "F8.1"
+      ],
+      "follow_up_evidence": [
+        {
+          "date": "2026-10-02",
+          "task": "first frontend tranche to-tickets proposal",
+          "baseline": "530e60dd",
+          "proposal": ".scratch/dioxus-frontend-tranche-1/PROPOSAL.md",
+          "observation": "Demo fixture opening currently reuses archive import, which submits the parsed project identity unchanged, whereas React demo constructors allocate a fresh project ID. A fixture reopen therefore must not be assumed to have editable-copy identity semantics.",
+          "certainty": "source-supported copy-identity risk; repeated-open browser reproduction not yet performed",
+          "evidence": [
+            "app/src/demos/keyboards.ts:17",
+            "app/src/demos/sofle.ts:16",
+            "web/src/runtime.rs:668-763"
+          ],
+          "current_mitigation": "Proposed T1-04 characterizes repeated demo starts and preserves prior edited copies through a private demo action. Confirmed defects go to Astra; ordinary archive-import identity semantics must remain unchanged.",
+          "post_port_follow_up": "Separate explicit open-existing/import-archive/start-demo-copy intent and identity ownership while sharing archive validation and asset transport.",
+          "validation": "Start the same demo twice, edit/save each, and independently reopen both with identical intended asset references; stale/failing starts cannot replace later work."
+        }
       ]
     },
     {
@@ -303,6 +340,23 @@
           "task": "agent routing/readiness review",
           "observation": "Corrected stale F2 spec prose claiming no Rust archive output despite an existing Export archive control/Runtime pack path. Work package prose is insufficient for execution unless actual call paths are checked.",
           "current_mitigation": "Concrete source-checked dispatch packets and full per-packet Standards/Spec coverage; existing archive implementation reused."
+        },
+        {
+          "date": "2026-10-02",
+          "task": "first frontend tranche to-tickets proposal",
+          "baseline": "530e60dd",
+          "proposal": ".scratch/dioxus-frontend-tranche-1/PROPOSAL.md",
+          "observation": "First-tranche decomposition found 19 reference demo entries (3 Sofle, 15 measured layouts, VIK module review) versus two exposed Dioxus fixture buttons. It also corrected outline navigation claims: selecting a version uses the edit/history path and opening a bridge intentionally fits the camera. Broad task labels concealed these concrete parity obligations.",
+          "certainty": "confirmed source-accounting gap; missing UI alone is not classified as poor architecture",
+          "evidence": [
+            "app/src/demos/keyboards.ts:7-12",
+            "app/src/ui/ProjectLibrary.tsx:137-143",
+            "web/src/presentation.rs:551-594",
+            "app/src/ui/Workbench.tsx:669-680"
+          ],
+          "current_mitigation": "Proposed T1-04/05/06 cover every demo family and actual opens, and T1-11 distinguishes version edits, part-selection clearing and bridge camera movement. Parent task status is unchanged.",
+          "post_port_follow_up": "Include callable catalogue entries and side-effect classifications in reproducible parity accounting, alongside source-file inventories.",
+          "validation": "Every pinned demo maps to a verified real open; paired tree version/bridge traces assert actual document/history/selection/camera effects."
         }
       ]
     },

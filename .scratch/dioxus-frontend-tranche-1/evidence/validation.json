@@ -1,0 +1,29 @@
+{
+  "status": "pass",
+  "ticket_count": 12,
+  "initial_frontier": [
+    1
+  ],
+  "dependency_graph": "acyclic; blockers exist and precede dependents",
+  "all_tickets": "draft; unpublished; not implemented",
+  "unchanged_parent_files": 15,
+  "markdown_links_checked": 59,
+  "refactor_entries": "12 preserved; append-only evidence on RF-005/RF-008/RF-009",
+  "application_changes": false,
+  "review": {
+    "standards": "no material issues",
+    "spec": "no material issues",
+    "report": "astra-review.md",
+    "reviewed_hashes_matched": 18,
+    "clarification": "Ticket07 idle-hide requires no ticket08 reverse dependency."
+  },
+  "repository_check": {
+    "command": "pnpm run check:repo",
+    "exit_code": 0,
+    "tests_passed": 7,
+    "authored_modules": 616,
+    "production_reachable": 418
+  },
+  "draft_whitespace": "pass",
+  "note": "No application build or browser run: documentation-only proposal. Independent report will be recorded separately."
+}

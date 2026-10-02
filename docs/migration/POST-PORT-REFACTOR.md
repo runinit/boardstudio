@@ -226,3 +226,32 @@ Evidence: [renderer_host.rs](../../web/src/renderer_host.rs), [wasm.rs](../../re
 Use the next stable RF ID. Record: title; category; confirmed limitation, supported risk or hypothesis; source revision and specific evidence; impacted workflows and example; severity with reason; mitigation required during the port; temporary adapter/retirement implications; proposed post-port investigation/refactor; validation or falsification criterion; owner; linked task/issue; and eventual decision/fix evidence. Add source line links where they clarify the finding. Do not overwrite earlier evidence when a hypothesis changes.
 
 The initial entries were independently source-checked; [review notes and correction](../../.scratch/dioxus-frontend-v1/evidence/planning/refactor-review.md) retain the reasoning and the keycap-engine discovery.
+
+
+## First-tranche ticket audit — 2026-10-02
+
+The [source-backed ticket proposal](../../.scratch/dioxus-frontend-tranche-1/PROPOSAL.md)
+adds evidence to existing findings; it does not approve structural refactoring or
+claim these behaviors fixed. Exact source locations and proposed current fixes
+are retained in the [source notes](../../.scratch/dioxus-frontend-tranche-1/SOURCE-NOTES.md)
+and machine register.
+
+- **RF-005 — interaction policy:** React computes anchored rectangular matrix
+  selection; the current Dioxus caller/Session path selects a flat interval and
+  advances the anchor. Matrix/row/column context also differs from real part-ID
+  selection. Reproduce the mismatch before repair; keep one selected-part
+  authority with a proven private UI adapter. Later, review explicit ownership
+  of semantic context, anchors and membership with paired selection traces.
+- **RF-008 — lifecycle intent:** fixture opening currently passes through archive
+  import without changing the parsed project ID; React demo creation allocates
+  a fresh ID. This is a source-supported copy-identity risk, not yet a browser
+  reproduction. The demo ticket must preserve prior edited copies while leaving
+  ordinary archive import unchanged. Later, distinguish open/import/demo-copy
+  intent and identity ownership while sharing validation and asset transport.
+- **RF-009 — accounting:** the reference offers 19 demos, while Dioxus exposes
+  two fixture buttons. Every family now has an explicit proposed delivery and
+  open oracle. Outline navigation also needs accurate side effects: version
+  activation edits the document; bridge navigation fits the camera. Missing UI
+  alone is not poor design, but broad inventory labels were insufficient to
+  establish parity. Retain catalogue-to-action and side-effect evidence after
+  the port.
