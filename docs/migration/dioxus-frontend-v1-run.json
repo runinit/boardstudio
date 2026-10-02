@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Six workbench streams active; all 62 canonical parents retained. New/setup guide, physical setup, Keycaps settings/disclosures, matrix field ownership, Case model delivery/picking and MatrixSetup are integrated. Browser qualification and remaining frontend functionality remain open.",
+  "status": "Six workbench streams remain active; all 62 canonical parents, all 62 parent joins and RF-001–RF-014 are retained. Current served candidate is frontend-inspector-idb-integrated-20261002 from 71a144ec at 34729 root/subpath (22/22 commands, 1,291 source hashes, zero drift, 145 assets per route). Paired same-Sofle Inspector wheel receipts show React scrollTop 288 and Dioxus 515; real Find a key keyboard flow selects left-thumbs-SW5. This is bounded scroll/keyboard navigation evidence only, with no edit/Undo/save qualification. Source HEAD 8cd53167 includes newer Case issues 09e+0c+e72, Firmware 192+c98+ff+af and Objects heading 830, which are not in the served package. Strict WASM all-target checks pass for the new wave. Native suite is blocked by the page lifecycle harness missing required on_export; Sol is repairing the harness, with no false-green claim. Browser qualification and parent acceptance remain open. Reviewed camera-centering sources e600+b153 are now integrated at 4185a6a6+f782fc08; standalone paired 34728 proof is green, while integrated public proof remains pending and the zoom delta (React 755 vs Dioxus 461) remains open. Paired React keyboard run also selects left-thumbs-SW5 via Find a key, typing, Tab, ArrowDown, Enter; this proves selection/reachability parity only, not edit or persistence.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "Six workbench streams active; all 62 canonical parents retained. New/setup guide, physical setup, Keycaps settings/disclosures, matrix field ownership, Case model delivery/picking and MatrixSetup are integrated. Browser qualification and remaining frontend functionality remain open.",
+    "status": "Six workbench streams remain active; all 62 canonical parents, all 62 parent joins and RF-001–RF-014 are retained. Current served candidate is frontend-inspector-idb-integrated-20261002 from 71a144ec at 34729 root/subpath (22/22 commands, 1,291 source hashes, zero drift, 145 assets per route). Paired same-Sofle Inspector wheel receipts show React scrollTop 288 and Dioxus 515; real Find a key keyboard flow selects left-thumbs-SW5. This is bounded scroll/keyboard navigation evidence only, with no edit/Undo/save qualification. Source HEAD 8cd53167 includes newer Case issues 09e+0c+e72, Firmware 192+c98+ff+af and Objects heading 830, which are not in the served package. Strict WASM all-target checks pass for the new wave. Native suite is blocked by the page lifecycle harness missing required on_export; Sol is repairing the harness, with no false-green claim. Browser qualification and parent acceptance remain open. Reviewed camera-centering sources e600+b153 are now integrated at 4185a6a6+f782fc08; standalone paired 34728 proof is green, while integrated public proof remains pending and the zoom delta (React 755 vs Dioxus 461) remains open. Paired React keyboard run also selects left-thumbs-SW5 via Find a key, typing, Tab, ArrowDown, Enter; this proves selection/reachability parity only, not edit or persistence.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -27,7 +27,7 @@
         "source_commit": "98188448",
         "status": "Keys/Macros/Encoders tabs and accepted outline/board contour implemented and mounted; targeted selected-option remount regression green at 92db0b8f/34691; full paired public/F6K acceptance open",
         "build": "Regression-green build frontend-matrix-keycaps-20261002 at92db0b8f/34691; later Matrix CSS-only build frontend-matrix-keycaps-styled-20261002 at a896cd49/34693 reuses same Rust behavior.",
-        "paired_status": "Targeted regression green: after filter SW7, selected matrix/left-keys/r1c0 survives Macros\u2192Keys and Encoders\u2192Keys; retained same-fixture React reference agrees. Clear-filter SW8 canvas selection and Function\u2192Main labels pass. Full Keymap/F6K and canonical parent acceptance remain open."
+        "paired_status": "Targeted regression green: after filter SW7, selected matrix/left-keys/r1c0 survives Macros→Keys and Encoders→Keys; retained same-fixture React reference agrees. Clear-filter SW8 canvas selection and Function→Main labels pass. Full Keymap/F6K and canonical parent acceptance remain open."
       },
       "keymap_visual_refresh": {
         "source_commit": "fc5e17e3526afe8a2c55efe9afdbc0f0faff3efa",
@@ -98,24 +98,41 @@
         "outline_join": "Full native suite, strict WASM all-targets Clippy, formatting and independent join review passed; paired browser pending."
       },
       "build": {
-        "id": "frontend-outline-integrated-20261002",
-        "source_commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
-        "url": "http://127.0.0.1:34727/",
-        "subpath": "http://127.0.0.1:34727/boardstudio/",
-        "commands": 8,
-        "source_hashes": 1289,
+        "id": "frontend-inspector-idb-integrated-20261002",
+        "source_commit": "71a144ec3a58c8e7fe8169fae5fbe8429f995f6a",
+        "url": "http://127.0.0.1:34729/",
+        "subpath": "http://127.0.0.1:34729/boardstudio/",
+        "commands": 22,
+        "source_hashes": 1291,
         "source_mismatches": 0,
         "assets_per_site": {
           "root": 145,
           "subpath": 145
         },
-        "provider_reuse": "Exact unchanged provider inputs and route assets verified against full22-command d425 build; reviewed page-only inputs rebuilt.",
-        "scope": "Outline source/joins and Matrix focus repair integrated; paired public acceptance still open."
+        "provenance": "web/target/builds/frontend-inspector-idb-integrated-20261002/provenance.json",
+        "scope": "Fresh full build with reviewed IndexedDB observer/shared Inspector integrated. Paired Sofle fixture wheel receipt: React inspector scrollTop 288, Dioxus inspector scrollTop 515; bounded Inspector scroll acceptance only. Real keyboard Find a key flow selects left-thumbs-SW5 after typing, Tab, ArrowDown, Enter. No edit/Undo/save qualification.",
+        "status": "Served current verified candidate. Source HEAD is 8cd53167; this package predates the newly integrated Case issues 09e+0c+e72 and Firmware 192+c98+ff+af and Objects heading 830, so those changes are not attributed to this build."
       },
       "next_build": {
-        "status": "Full provider/package rebuild queued for reviewed IndexedDB observer d5eaafaf + shared Inspector8ed9ffa2; current public34727 remains unchanged until freshpackage verified."
+        "status": "Source HEAD 8cd53167 contains the reviewed Case/Firmware/Objects integrations; package and verify a fresh build before attributing them to a served candidate."
       },
-      "paired_browser_acceptance": "Bounded source-specific numeric/history, Align anchors and Project guide receipts retained. Full integrated Case90/90/picking, MatrixSetup, Keycaps disclosures, and parents remain open."
+      "paired_browser_acceptance": "Bounded Inspector scroll and Find a key keyboard-navigation receipts are retained at .scratch/dioxus-frontend-v1/evidence/inspector-wheel-20261002/. These do not qualify editing, Undo/Redo, save/reopen, or full Keycaps workflow. Case 90/90/picking, MatrixSetup, Keycaps disclosures, full workflow behavior and all parent acceptance remain open. React and Dioxus both select left-thumbs-SW5 using the same Find a key keyboard sequence; selection/reachability only, without edit/persistence qualification.",
+      "build_history": [
+        {
+          "id": "frontend-outline-integrated-20261002",
+          "source_commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
+          "url": "http://127.0.0.1:34727/",
+          "subpath": "http://127.0.0.1:34727/boardstudio/",
+          "commands": 8,
+          "source_hashes": 1289,
+          "source_mismatches": 0,
+          "assets_per_site": {
+            "root": 145,
+            "subpath": 145
+          },
+          "status": "Superseded as current served candidate by frontend-inspector-idb-integrated-20261002; retained historical provenance."
+        }
+      ]
     },
     "agent_parallelism": {
       "user_concurrency_ceiling": 30,
@@ -124,17 +141,17 @@
       "effective_run_cap": 11
     },
     "implementation_wave_20261002": {
-      "status": "Six workbench streams active; all 62 canonical parents retained. New/setup guide, physical setup, Keycaps settings/disclosures, matrix field ownership, Case model delivery/picking and MatrixSetup are integrated. Browser qualification and remaining frontend functionality remain open.",
+      "status": "Six workbench streams remain active; all 62 canonical parents, all 62 parent joins and RF-001–RF-014 are retained. Current served candidate is frontend-inspector-idb-integrated-20261002 from 71a144ec at 34729 root/subpath (22/22 commands, 1,291 source hashes, zero drift, 145 assets per route). Paired same-Sofle Inspector wheel receipts show React scrollTop 288 and Dioxus 515; real Find a key keyboard flow selects left-thumbs-SW5. This is bounded scroll/keyboard navigation evidence only, with no edit/Undo/save qualification. Source HEAD 8cd53167 includes newer Case issues 09e+0c+e72, Firmware 192+c98+ff+af and Objects heading 830, which are not in the served package. Strict WASM all-target checks pass for the new wave. Native suite is blocked by the page lifecycle harness missing required on_export; Sol is repairing the harness, with no false-green claim. Browser qualification and parent acceptance remain open. Reviewed camera-centering sources e600+b153 are now integrated at 4185a6a6+f782fc08; standalone paired 34728 proof is green, while integrated public proof remains pending and the zoom delta (React 755 vs Dioxus 461) remains open. Paired React keyboard run also selects left-thumbs-SW5 via Find a key, typing, Tab, ArrowDown, Enter; this proves selection/reachability parity only, not edit or persistence.",
       "source_review_targets": {
         "pcb_physical_setup_proposals": "0dd1f3ce904dc11ba62d175dba078729d5263472",
         "pcb_firmware_position_handoff": "6fe8fb875585fca7fba4636cf1a9696e55b5406f",
         "keycaps_fit_findings": "448c3274693b611ad747d0461de1b18d88245fb8"
       },
-      "layout": "Outline navigation/version lifecycle/activation integrated and independently reviewed; paired34727 journey running. Matrix focus repair integrated; historical repeated IndexedDB failure retained under Astra diagnosis, fresh12-create stress green.",
-      "pcb": "Generic contextual Part Inspector source4f1338d9 frozen, independent review queued; next approved mode/Apply slice implementing.",
+      "layout": "Outline navigation/version lifecycle/activation, Matrix focus and reviewed IndexedDB observer are integrated; fresh 12-create Matrix stress passes. The historical repeated IndexedDB failure remains recorded. Bounded Inspector scroll and keyboard-navigation checks pass against the current packaged candidate; broader Outline/focus acceptance remains open.",
+      "pcb": "Generic contextual Part Inspector source4f1338d9 frozen, independent review queued; next approved mode/Apply slice implementing. Reviewed camera centering e600+b153 integrated at 4185a6a6+f782fc08; standalone 34728 pairing is green, integrated public check pending; zoom remains discrepant (React 755, Dioxus 461).",
       "keymap": "Selected-owner query/tab repair integrated and paired; firmware adapter418076ae frozen, production Runtime/MIME join implementing.",
-      "keycaps": "Size/reflow source candidate frozen for review; shared Inspector repair independently reviewed/integrated8ed9ffa2, actual packaged wheel acceptance pending. Mirror actual ReplaceDocument gate remains open.",
-      "case": "Packaged adapter9e286 source review requires terminal failure-owner guards to prevent repeated failed import retries/stale report; existing override regression restoration also required. Independent fresh-Matrix producer mapping diagnosis proven; bounded child refinement underway.",
+      "keycaps": "Reviewed shared Inspector repair is integrated in the served candidate. Same-fixture paired native-wheel evidence reaches React scrollTop 288 and Dioxus 515; this qualifies Inspector scrolling only. Mirror actual ReplaceDocument, edit/history/save and full Keycaps acceptance remain open. React and Dioxus Find a key keyboard selection/reachability both pass for left-thumbs-SW5; editing/persistence remains unqualified.",
+      "case": "Packaged adapter9e286 source review requires terminal failure-owner guards to prevent repeated failed import retries/stale report; existing override regression restoration also required. Independent fresh-Matrix producer mapping diagnosis proven; bounded child refinement underway. Case issue11→issue10 model-delivery join remains blocked: PcbModel emits `${KIPRJMOD}/assets/...` while the adapter expects a relative key; Sol is verifying a repair, so Case public proof is held open.",
       "parts_project": "Portable option integrated3c0cd7de: real fresh React archive yields0 versus6 embedded assets with digest verification. Parts Name nesting corrected to React Edit footprint disclosure before source review; controller placement18 implementing.",
       "source_reviews": {
         "spec": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md",
@@ -150,23 +167,42 @@
         "acceptance": "Source integration only. Full browser workbench parity remains open."
       },
       "current_build": {
-        "id": "frontend-outline-integrated-20261002",
-        "source_commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
-        "url": "http://127.0.0.1:34727/",
-        "subpath": "http://127.0.0.1:34727/boardstudio/",
-        "commands": 8,
-        "source_hashes": 1289,
+        "id": "frontend-inspector-idb-integrated-20261002",
+        "source_commit": "71a144ec3a58c8e7fe8169fae5fbe8429f995f6a",
+        "url": "http://127.0.0.1:34729/",
+        "subpath": "http://127.0.0.1:34729/boardstudio/",
+        "commands": 22,
+        "source_hashes": 1291,
         "source_mismatches": 0,
         "assets_per_site": {
           "root": 145,
           "subpath": 145
         },
-        "provider_reuse": "Exact unchanged provider inputs and route assets verified against full22-command d425 build; reviewed page-only inputs rebuilt.",
-        "scope": "Outline source/joins and Matrix focus repair integrated; paired public acceptance still open."
+        "provenance": "web/target/builds/frontend-inspector-idb-integrated-20261002/provenance.json",
+        "scope": "Fresh full build with reviewed IndexedDB observer/shared Inspector integrated. Paired Sofle fixture wheel receipt: React inspector scrollTop 288, Dioxus inspector scrollTop 515; bounded Inspector scroll acceptance only. Real keyboard Find a key flow selects left-thumbs-SW5 after typing, Tab, ArrowDown, Enter. No edit/Undo/save qualification.",
+        "status": "Served current verified candidate. Source HEAD is 8cd53167; this package predates the newly integrated Case issues 09e+0c+e72 and Firmware 192+c98+ff+af and Objects heading 830, so those changes are not attributed to this build."
       },
       "next_build": {
-        "status": "Full provider/package rebuild queued for reviewed IndexedDB observer d5eaafaf + shared Inspector8ed9ffa2; current public34727 remains unchanged until freshpackage verified."
-      }
+        "status": "Source HEAD 8cd53167 contains the reviewed Case/Firmware/Objects integrations; package and verify a fresh build before attributing them to a served candidate."
+      },
+      "build_history": [
+        {
+          "id": "frontend-outline-integrated-20261002",
+          "source_commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
+          "url": "http://127.0.0.1:34727/",
+          "subpath": "http://127.0.0.1:34727/boardstudio/",
+          "commands": 8,
+          "source_hashes": 1289,
+          "source_mismatches": 0,
+          "assets_per_site": {
+            "root": 145,
+            "subpath": 145
+          },
+          "status": "Superseded as current served candidate by frontend-inspector-idb-integrated-20261002; retained historical provenance."
+        }
+      ],
+      "source_head_status": "Current source HEAD is 8cd53167 plus reviewed camera-centering integration 4185a6a6+f782fc08; the served 34729 candidate remains source 71a144ec and predates these integrations. Case Issue11→Issue10 join mismatch is under repair; public Case proof is held open pending verification.",
+      "preserved_large_fixture": "The 1.4 GB inactive generated target remediation was preserved via home symlink; receipt retained at /home/chris/.local/share/boardstudio/retained-tmp/keymap-inactive-target-preservation.json. No profile or source was discarded."
     },
     "react_oracle_current": {
       "url": "http://127.0.0.1:5173/",
@@ -182,7 +218,7 @@
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
     "F1": {
-      "status": "verified first increment; full parity remains F2\u2013F9",
+      "status": "verified first increment; full parity remains F2–F9",
       "ticket": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md",
       "depends_on": "M1 implementation"
     },
@@ -265,7 +301,7 @@
       ]
     },
     "F7": {
-      "status": "Case viewport 32695555 compact/44px-control public check and root/subpath offline reload pass; Case issue02 continues the first viewer slice, and four new Layout/Keymap/Keycaps/Parts-sample issues 03\u201306 are published. All start at F7.1; INT.2/BND.1 remain F7.3 acceptance joins and F7.8 remains later. Model delivery/consumer proof remain open. Case mechanical mount/controller are integrated in 0cad7577 and pass strict WASM/native Clippy plus 34 native checks; fresh build frontend-mechanical-settings-20261002 passes seven commands and 965 source hashes, served at 34675; bounded public mechanical semantic packet is green (including split-scope preservation, Disable, Undo/Redo, archive equality/reload); draft/layout remain underway, authored mesh/STEP and full F7 acceptance remain open.",
+      "status": "Case viewport 32695555 compact/44px-control public check and root/subpath offline reload pass; Case issue02 continues the first viewer slice, and four new Layout/Keymap/Keycaps/Parts-sample issues 03–06 are published. All start at F7.1; INT.2/BND.1 remain F7.3 acceptance joins and F7.8 remains later. Model delivery/consumer proof remain open. Case mechanical mount/controller are integrated in 0cad7577 and pass strict WASM/native Clippy plus 34 native checks; fresh build frontend-mechanical-settings-20261002 passes seven commands and 965 source hashes, served at 34675; bounded public mechanical semantic packet is green (including split-scope preservation, Disable, Undo/Redo, archive equality/reload); draft/layout remain underway, authored mesh/STEP and full F7 acceptance remain open.",
       "ticket": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
       "planning_status": "planned and independently reviewed; implementation open",
@@ -315,7 +351,7 @@
   "production_cutover": false,
   "executable_source": "6509f557c2a16df0a1f5ce19296eeb635df68256",
   "build": "frontend-keymap-bindings-20261002",
-  "demo_url": "http://127.0.0.1:34721/",
+  "demo_url": "http://127.0.0.1:34729/",
   "handoff": ".scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/README.md",
   "planning_revision": "2026-10-02",
   "planning_baseline": "c827c4e69389a77b1f0e8d647ce86a4c41529611",
@@ -407,19 +443,20 @@
   "bounded_ticket_count": 44,
   "non_superseded_bounded_ticket_count": 43,
   "latest_demo": {
-    "id": "frontend-layout-align-wave-20261002",
-    "source_commit": "14d1bfeb5228c7a82f3be7ac7fa322ea61b30b02",
-    "url": "http://127.0.0.1:34721/",
-    "subpath": "http://127.0.0.1:34721/boardstudio/",
+    "id": "frontend-inspector-idb-integrated-20261002",
+    "source_commit": "71a144ec3a58c8e7fe8169fae5fbe8429f995f6a",
+    "url": "http://127.0.0.1:34729/",
+    "subpath": "http://127.0.0.1:34729/boardstudio/",
     "commands": 22,
-    "source_hashes": 1255,
+    "source_hashes": 1291,
     "source_mismatches": 0,
     "assets_per_site": {
       "root": 145,
       "subpath": 145
     },
-    "scope": "Source/asset-verified build, public smoke and paired Align author journey in progress; no parent acceptance.",
-    "warnings": "Release page emitted unused RSX key variables; exact release identity behavior under independent audit; do not conflate debug strict Clippy with release warning-free qualification."
+    "provenance": "web/target/builds/frontend-inspector-idb-integrated-20261002/provenance.json",
+    "scope": "Fresh full build with reviewed IndexedDB observer/shared Inspector integrated. Paired Sofle fixture wheel receipt: React inspector scrollTop 288, Dioxus inspector scrollTop 515; bounded Inspector scroll acceptance only. Real keyboard Find a key flow selects left-thumbs-SW5 after typing, Tab, ArrowDown, Enter. No edit/Undo/save qualification.",
+    "status": "Served current verified candidate. Source HEAD is 8cd53167; this package predates the newly integrated Case issues 09e+0c+e72 and Firmware 192+c98+ff+af and Objects heading 830, so those changes are not attributed to this build."
   },
   "mechanical_clearance_ticket": {
     "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
@@ -473,7 +510,7 @@
     "mounted": true,
     "checks": "strict WASM/native Clippy and 34 native checks pass, including six closure and four feedback tests",
     "public_build": "complete: frontend-mechanical-settings-20261002; seven commands and 965 source hashes verified",
-    "public_acceptance": "Bounded public semantic packet green: Configure\u2192four NPTH, CNC materials, Undo/Redo around Disable, full archive equality/reload; genuine React Sofle split import Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions. Do not redispatch the completed settings editor/controller path. Draft-state/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
+    "public_acceptance": "Bounded public semantic packet green: Configure→four NPTH, CNC materials, Undo/Redo around Disable, full archive equality/reload; genuine React Sofle split import Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions. Do not redispatch the completed settings editor/controller path. Draft-state/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
     "compiled": true,
     "evidence": ".scratch/dioxus-case-workspace/evidence/mechanical-feedback-regression",
     "integration_snapshot": "0cad7577",
@@ -482,7 +519,7 @@
       "http://127.0.0.1:34675/",
       "http://127.0.0.1:34675/boardstudio/"
     ],
-    "public_qa": "Bounded public results verify Configure\u21924 NPTH, CNC material mapping, Undo/Redo around Disable, and full archive equality. Genuine React Sofle split import: Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions; Undo/Redo, archive equality and reload pass. Do not redispatch the completed editor/controller path. Draft/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
+    "public_qa": "Bounded public results verify Configure→4 NPTH, CNC material mapping, Undo/Redo around Disable, and full archive equality. Genuine React Sofle split import: Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions; Undo/Redo, archive equality and reload pass. Do not redispatch the completed editor/controller path. Draft/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
     "evidence_public_qa": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
   },
   "current_case_viewport": {
@@ -499,7 +536,7 @@
       ".scratch/dioxus-case-workspace/evidence/compact-focus-resize-final-public/resize-settlement/ASSESSMENT.md",
       ".scratch/dioxus-case-workspace/evidence/preview-generator-worker-packaging/RESULTS.md"
     ],
-    "compact_follow_up": "Bounded compact/focus/resize packet is green on the final combined candidate. Immediate read may capture queued panel state before the independent drawer updates render; six read-only runs measured resize-event-to-uncovered settlement at 3.1\u20133.6ms with 30/30 unobscured compact rAF samples each. Treat timings as observations, not a new threshold. Broader workflow, assistive-technology, and F7/INT.2 acceptance remain open.",
+    "compact_follow_up": "Bounded compact/focus/resize packet is green on the final combined candidate. Immediate read may capture queued panel state before the independent drawer updates render; six read-only runs measured resize-event-to-uncovered settlement at 3.1–3.6ms with 30/30 unobscured compact rAF samples each. Treat timings as observations, not a new threshold. Broader workflow, assistive-technology, and F7/INT.2 acceptance remain open.",
     "containment_candidate": {
       "source": "b6d2af49e519b282abaf8e026dcaca1232a0fd19",
       "build": "frontend-case-compact-containment-20261002",
@@ -531,7 +568,7 @@
     "parent": "F7.3",
     "status": "Two model-delivery children independently Spec/Standards cleared and published; implementation/public verification open.",
     "incremental_new_tickets": 6,
-    "counting_note": "Existing issue02 is a continuation and is not recounted; new issues03\u201308 add six children, moving the published frontier from 35 to 41.",
+    "counting_note": "Existing issue02 is a continuation and is not recounted; new issues03–08 add six children, moving the published frontier from 35 to 41.",
     "issues": [
       {
         "path": ".scratch/dioxus-shared-viewer/issues/02-private-shared-viewer-case-slice.md",

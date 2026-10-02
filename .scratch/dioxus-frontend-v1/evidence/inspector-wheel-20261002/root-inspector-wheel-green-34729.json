@@ -1,0 +1,231 @@
+{
+  "expected": "scroll",
+  "before": {
+    "url": "http://127.0.0.1:34729/boardstudio/",
+    "viewport": [
+      1280,
+      940
+    ],
+    "elements": [
+      {
+        "selector": "m1-editor-body",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "hidden",
+        "rect": {
+          "x": 0,
+          "y": 44,
+          "width": 1280,
+          "height": 833.609375,
+          "top": 44,
+          "right": 1280,
+          "bottom": 877.609375,
+          "left": 0
+        }
+      },
+      {
+        "selector": "m1-object-slot m1-panel-slot compact-closed",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "visible",
+        "rect": {
+          "x": 0,
+          "y": 44,
+          "width": 235,
+          "height": 833.609375,
+          "top": 44,
+          "right": 235,
+          "bottom": 877.609375,
+          "left": 0
+        }
+      },
+      {
+        "selector": "m1-workspace-content",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "auto",
+        "rect": {
+          "x": 235,
+          "y": 44,
+          "width": 725,
+          "height": 833.609375,
+          "top": 44,
+          "right": 960,
+          "bottom": 877.609375,
+          "left": 235
+        }
+      },
+      {
+        "selector": "m1-panel-content",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "visible",
+        "rect": {
+          "x": 960,
+          "y": 44,
+          "width": 320,
+          "height": 833.609375,
+          "top": 44,
+          "right": 1280,
+          "bottom": 877.609375,
+          "left": 960
+        }
+      },
+      {
+        "selector": "m1-inspector-body",
+        "height": 792,
+        "scrollHeight": 1307,
+        "top": 0,
+        "overflow": "auto",
+        "rect": {
+          "x": 960,
+          "y": 86,
+          "width": 320,
+          "height": 791.609375,
+          "top": 86,
+          "right": 1280,
+          "bottom": 877.609375,
+          "left": 960
+        }
+      },
+      {
+        "selector": "m1-keycaps-inspector",
+        "height": 1307,
+        "scrollHeight": 1307,
+        "top": 0,
+        "overflow": "visible",
+        "rect": {
+          "x": 960,
+          "y": 86,
+          "width": 320,
+          "height": 1306.5,
+          "top": 86,
+          "right": 1280,
+          "bottom": 1392.5,
+          "left": 960
+        }
+      }
+    ]
+  },
+  "after": {
+    "url": "http://127.0.0.1:34729/boardstudio/",
+    "viewport": [
+      1280,
+      940
+    ],
+    "elements": [
+      {
+        "selector": "m1-editor-body",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "hidden",
+        "rect": {
+          "x": 0,
+          "y": 44,
+          "width": 1280,
+          "height": 833.609375,
+          "top": 44,
+          "right": 1280,
+          "bottom": 877.609375,
+          "left": 0
+        }
+      },
+      {
+        "selector": "m1-object-slot m1-panel-slot compact-closed",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "visible",
+        "rect": {
+          "x": 0,
+          "y": 44,
+          "width": 235,
+          "height": 833.609375,
+          "top": 44,
+          "right": 235,
+          "bottom": 877.609375,
+          "left": 0
+        }
+      },
+      {
+        "selector": "m1-workspace-content",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "auto",
+        "rect": {
+          "x": 235,
+          "y": 44,
+          "width": 725,
+          "height": 833.609375,
+          "top": 44,
+          "right": 960,
+          "bottom": 877.609375,
+          "left": 235
+        }
+      },
+      {
+        "selector": "m1-panel-content",
+        "height": 834,
+        "scrollHeight": 834,
+        "top": 0,
+        "overflow": "visible",
+        "rect": {
+          "x": 960,
+          "y": 44,
+          "width": 320,
+          "height": 833.609375,
+          "top": 44,
+          "right": 1280,
+          "bottom": 877.609375,
+          "left": 960
+        }
+      },
+      {
+        "selector": "m1-inspector-body",
+        "height": 792,
+        "scrollHeight": 1307,
+        "top": 515,
+        "overflow": "auto",
+        "rect": {
+          "x": 960,
+          "y": 86,
+          "width": 320,
+          "height": 791.609375,
+          "top": 86,
+          "right": 1280,
+          "bottom": 877.609375,
+          "left": 960
+        }
+      },
+      {
+        "selector": "m1-keycaps-inspector",
+        "height": 1307,
+        "scrollHeight": 1307,
+        "top": 0,
+        "overflow": "visible",
+        "rect": {
+          "x": 960,
+          "y": -429,
+          "width": 320,
+          "height": 1306.5,
+          "top": -429,
+          "right": 1280,
+          "bottom": 877.5,
+          "left": 960
+        }
+      }
+    ]
+  },
+  "nativeWheel": {
+    "x": 1120,
+    "y": 244,
+    "deltaY": 1400
+  },
+  "moved": true
+}
