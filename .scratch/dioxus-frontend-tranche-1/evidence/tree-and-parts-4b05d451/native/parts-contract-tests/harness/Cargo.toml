@@ -1,0 +1,14 @@
+[package]
+name = "parts-contract-tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+boardstudio_core = { path = "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = { version = "=0.11.0", default-features = false }
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "=0.4.79"
+js-sys = "=0.3.106"
+serde-wasm-bindgen = "=0.6.5"
