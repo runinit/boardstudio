@@ -131,6 +131,12 @@
           "evidence": ".scratch/dioxus-frontend-v1/integration-handoff-template.md",
           "observation": "Six private workbench lanes submit exact mount/callback/scope contracts and scoped CSS fragments; root serially integrates declared shared paths and freezes packaging inputs. This mitigates concurrent-write conflicts but does not remove shared presentation/Runtime coupling.",
           "status": "process mitigation implemented; module-boundary effectiveness and public parity remain open"
+        },
+        {
+          "source": "packaging author transfer after69159aa7",
+          "evidence": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/packaging-author-transfer.json",
+          "observation": "An author interpreted the named integration checkout as isolated and edited its packaging script. Root stopped writes, preserved exact bytes and patch, created a distinct worktree, verified transferred hashes, and restored only acknowledged owned root script bytes to HEAD. No work discarded.",
+          "status": "corrected; handoff now requires actual git-top-level/branch/HEAD proof before edits; broader ownership enforcement remains post-port opportunity"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

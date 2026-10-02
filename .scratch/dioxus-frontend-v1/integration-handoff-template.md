@@ -6,7 +6,8 @@ Use one record per bounded ready packet in its existing stream evidence folder. 
 packet_id: <existing child ID / packet ID>
 stream: <Layout | PCB | Keymap | Keycaps | Case/shared3D | Parts+Project>
 parents_and_preserved_joins: <canonical IDs and all applicable acceptance joins>
-private_workspace: <absolute isolated author worktree>
+private_workspace: <absolute isolated author worktree; must differ from root integration checkout>
+private_checkout_proof: <git rev-parse --show-toplevel + branch + HEAD; verify before editing>
 private_commit_and_paths: <frozen commit + exact private paths; dirty hashes if any>
 integration_baseline: <root HEAD + dirty-diff hash>
 mount:
