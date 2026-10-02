@@ -375,6 +375,13 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keymap-panel button:hover { background: var(--wb-raised); }
 .m1-keymap-panel button[aria-pressed="true"] { border-color: var(--wb-accent); background: var(--wb-selection-surface); }
 .m1-keymap-panel :is(input, select, button):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-keymap-encoder-editor { display: grid; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--wb-rule); }
+.m1-keymap-encoder-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m1-keymap-encoder-editor > header h3, .m1-keymap-encoder-row > h4 { margin: 0; }
+.m1-keymap-encoder-editor > header span { color: var(--wb-muted); }
+.m1-keymap-encoder-row { display: grid; gap: 8px; }
+.m1-keymap-encoder-row > details { min-width: 0; padding: 8px; border: 1px solid var(--wb-rule); border-radius: 4px; }
+.m1-keymap-encoder-row > details > summary { min-height: 36px; cursor: pointer; font-weight: 600; }
 .m1-keymap-layer { display: flex; align-items: center; gap: 10px; width: 100%; }
 .m1-keymap-layer-index { flex: none; min-width: 1.25rem; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
 .m1-keymap-search-label, .m1-keymap-select-label { color: var(--wb-muted); }
@@ -387,6 +394,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keymap-layout .m1-keymap-key text { pointer-events: none; }
 @media (max-width: 820px) {
   .m1-keymap-panel :is(input, select, button) { min-height: 44px; }
+  .m1-keymap-encoder-row > details > summary { min-height: 44px; }
 }
 
 .m1-shared-viewer { display: flex; flex-direction: column; gap: 10px; min-width: 0; color: var(--wb-ink); }

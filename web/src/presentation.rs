@@ -718,10 +718,15 @@ fn Editor() -> Element {
             }
         },
     ));
+    let encoder_input_actions = keymap::use_encoder_inputs(runtime.clone(), layer_source.clone());
     let binding_actions = keymap::use_binding_operations(
         runtime.clone(),
-        layer_source.clone(),
-        keymap_projection(),
+        keymap::BindingProjectionSources {
+            source: layer_source.clone(),
+            view: keymap_projection(),
+            encoder_projection: encoder_input_actions.projection,
+            current_encoder_projection: encoder_input_actions.current,
+        },
         keymap_layer_id,
         workspace,
         adapter.generation,
@@ -2160,13 +2165,26 @@ fn Editor() -> Element {
                                             admission_token: snapshot.token,
                                             admission_revision: snapshot.document.revision,
                                             active_layer_id: binding.effective_layer_id.clone(),
-                                            key_id: key_id.clone(),
+                                            target: keymap::BindingTarget::Key { key_id: key_id.clone() },
+                                            input_identity: None,
                                             key_label: binding.key_label.clone(),
                                             editor_instance_id: binding_actions.editor_instance_id,
                                             request_sequence: binding_actions.request_sequence,
                                             value: binding.binding.clone(),
                                             layers: binding.layers.clone(),
                                             macros: binding.macros.clone(),
+                                            enabled: binding_actions.enabled,
+                                            feedback: binding_actions.feedback.clone(),
+                                            on_change: binding_actions.on_change,
+                                        }
+                                    }
+                                    if let Some(projection) = binding_actions.encoder_projection.as_ref() {
+                                        keymap::EncoderEditor {
+                                            // Input lineage resets drafts; binding-only token advances preserve them.
+                                            key: "{render_scope:?}:encoders:{projection.effective_layer_id}:{projection.input_identity.projection_generation}:{binding_actions.editor_instance_id}",
+                                            projection: projection.clone(),
+                                            editor_instance_id: binding_actions.editor_instance_id,
+                                            request_sequence: binding_actions.request_sequence,
                                             enabled: binding_actions.enabled,
                                             feedback: binding_actions.feedback.clone(),
                                             on_change: binding_actions.on_change,

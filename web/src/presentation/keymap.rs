@@ -2,6 +2,8 @@
 mod binding_controller;
 mod binding_editor;
 mod canvas;
+mod encoder_editor;
+mod encoder_inputs;
 mod layer_controller;
 mod layer_edit;
 mod macro_controller;
@@ -9,9 +11,13 @@ mod macro_editor;
 mod panel;
 mod view;
 
-pub(in crate::presentation) use binding_controller::use_binding_operations;
-pub(in crate::presentation) use binding_editor::BindingEditor;
+pub(in crate::presentation) use binding_controller::{
+    BindingProjectionSources, use_binding_operations,
+};
+pub(in crate::presentation) use binding_editor::{BindingEditor, BindingTarget};
 pub(super) use canvas::KeymapCanvas;
+pub(in crate::presentation) use encoder_editor::EncoderEditor;
+pub(in crate::presentation) use encoder_inputs::use_encoder_inputs;
 pub(in crate::presentation) use layer_controller::{LayerSource, use_layer_operations};
 pub(in crate::presentation) use macro_controller::use_macro_operations;
 pub(in crate::presentation) use macro_editor::MacroEditor;
