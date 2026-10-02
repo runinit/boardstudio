@@ -37,7 +37,6 @@ impl CaseSelection {
     }
 
     pub(super) fn select_layer(mut self, scope: Scope, id: String) {
-        self.body.set(None);
         self.layer.set(Some(LayerSelection { scope, id }));
     }
 }

@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[component]
-pub fn CasePanel(mechanical_settings: crate::presentation::MechanicalSettingsMount) -> Element {
+pub fn CasePanel(generation_ready: bool) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<crate::presentation::InstanceSelection>();
     let _ = use_context::<Signal<u64>>()();
@@ -37,17 +37,8 @@ pub fn CasePanel(mechanical_settings: crate::presentation::MechanicalSettingsMou
         section { class: "m1-case-panel", "aria-label": "Case assembly",
             div { class: "m1-case-header",
                 h2 { "Case assembly" }
-                button { disabled: !mechanical_settings.generation_ready, onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Generate case" }
+                button { disabled: !generation_ready, onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Generate case" }
                 button { disabled: !matches!(model.generation, GenerationStatus::Preparing {..} | GenerationStatus::Running {..}), onclick: move |_| cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() }), "Cancel generation" }
-                details { class: "m1-case-settings",
-                    summary { "Case settings" }
-                    div { class: "m1-case-settings-body",
-                        if let Some(props) = mechanical_settings.props {
-                            {crate::presentation::MechanicalSettings(props)}
-                        }
-                        p { "PCB reference is unpopulated; case bodies use exact CAD geometry." }
-                    }
-                }
             }
             p { role: "status", "aria-live": "polite", "{title}" }
             if let Some(scene) = scene {
