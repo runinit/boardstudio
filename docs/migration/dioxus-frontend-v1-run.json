@@ -6,7 +6,22 @@
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "six stream-specific first slices are being prepared in isolated worktrees; private composition preparation is implementing against reviewed contract v3; no feature or canonical parent acceptance is inferred",
+    "status": "private composition preparation and Case contextual-workspace child are implementing against independently reviewed contracts in isolated worktrees; other stream contracts are in prep/review; no feature or canonical parent acceptance is inferred",
+    "active_feature_contracts": {
+      "composition": {
+        "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
+        "contract_sha256": "c6550ab551734340be7c58683494925f4087941b9f598f0fd10131396a2f395f",
+        "status": "implementation in progress; preparation only"
+      },
+      "case_contextual_workspace": {
+        "ticket": ".scratch/dioxus-case-workspace/issues/09-case-contextual-objects-inspector.md",
+        "contract": ".scratch/dioxus-case-workspace/evidence/contextual-workspace-issue09/implementation-contract-reviewed.md",
+        "contract_sha256": "3a701acb2dc75bc72f5753fc4bf8b639ebbdd908482c0bd0455a88f17b845c88",
+        "review": ".scratch/dioxus-case-workspace/evidence/contextual-workspace-issue09/review.md",
+        "review_sha256": "8512f8e709ff3c1b383451fd4f3ee6c80bb9642358b33cce241aae7e4766dc68",
+        "status": "implementation in progress; public paired acceptance open"
+      }
+    },
     "canonical_parent_count": 62,
     "canonical_graph_changed": false,
     "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved"

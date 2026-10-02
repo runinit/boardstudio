@@ -8,7 +8,7 @@
 
 ## Confirmed six-stream execution refinement
 
-The user confirmed a six-workspace persistent execution model and narrowly approved proven capability-level starts. The full paired-parity spec and current worktree/ticket mapping are in [six-stream Workbench parity](../dioxus-workbench-parity/spec.md) and [stream reconciliation](../dioxus-workbench-parity/stream-reconciliation.md). These are execution details: all 62 canonical rows, start rationale, original criteria and final `acceptance_after` joins remain authoritative and unchanged. The composition preparation associated with accepted INT.1 is in progress against a reviewed private contract; it does not complete INT.1 or any feature parent. Current child counts remain 48 published records / 47 non-superseded records.
+The user confirmed a six-workspace persistent execution model and narrowly approved proven capability-level starts. The full paired-parity spec and current worktree/ticket mapping are in [six-stream Workbench parity](../dioxus-workbench-parity/spec.md) and [stream reconciliation](../dioxus-workbench-parity/stream-reconciliation.md). These are execution details: all 62 canonical rows, start rationale, original criteria and final `acceptance_after` joins remain authoritative and unchanged. The composition preparation associated with accepted INT.1 and Case issue09 are implementing against reviewed private contracts; neither closes a parent. Current child counts remain 48 published records / 47 non-superseded records.
 
 ## Full portfolio
 
