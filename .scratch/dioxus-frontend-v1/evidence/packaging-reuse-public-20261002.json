@@ -1,0 +1,29 @@
+{
+  "build": "frontend-layout-pill-css-reuse-20261002",
+  "source_commit": "792e88afecefa032d17b7540fa316e24b709c5ae",
+  "url": "http://127.0.0.1:34731/",
+  "executed_commands": 8,
+  "inherited_full_build_commands": 22,
+  "source_hashes": 1313,
+  "assets_per_route": 145,
+  "unchanged_provider_assets_per_route": 126,
+  "hash_mismatches": 0,
+  "full_build_seconds": 535.29,
+  "reuse_seconds": 88.55,
+  "offline_checks": {
+    "root": {
+      "editor": "Sofle v2, Revision 9, Saved",
+      "svg_paths": 21,
+      "service_worker_controlled": true
+    },
+    "subpath": {
+      "editor": "Sofle v2, Revision 9, Saved",
+      "svg_paths": 21,
+      "service_worker_controlled": true
+    }
+  },
+  "limits": [
+    "Comparison candidate only; full frontend parity gates remain open.",
+    "Desktop collapsed Inspector defect reproduced on this build; later source fix awaits review and a new joined build."
+  ]
+}
