@@ -254,10 +254,8 @@ fn keycap_size(
         .envelope_source
         .as_ref()
         .is_none_or(|source| source.keycap == Some(EnvelopeOrigin::Authored));
-    if authored {
-        if let Some(saved) = saved {
-            return Some(saved);
-        }
+    if authored && let Some(saved) = saved {
+        return Some(saved);
     }
 
     let parameters = definition
