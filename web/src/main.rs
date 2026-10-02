@@ -25,6 +25,10 @@ mod renderer_host_source_sync;
 #[path = "presentation/case_display.rs"]
 mod case_display;
 
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+#[path = "presentation/closure_clearance.rs"]
+mod closure_clearance;
+
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
     dioxus::launch(app);

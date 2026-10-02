@@ -432,6 +432,6 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 @media (max-width: 760px) {
   .m1-workspace-content:has(> .m1-case-panel) { height: calc(100svh - 140px); min-height: 390px; }
   .m1-case-panel { min-height: 0; }
-  .m1-case-header > button, .m1-case-settings > summary, .m1-case-panel .m1-case-view-toolbar summary { min-height: 44px; }
+  .m1-case-header > button, .m1-case-settings > summary, .m1-case-settings-body :is(button, input, select), .m1-case-panel .m1-case-view-toolbar summary { min-height: 44px; }
   .m1-case-panel .m1-case-view-settings-body { top: 52px; max-height: calc(100% - 60px); }
 }
