@@ -53,10 +53,10 @@ impl Default for LayoutSnapSettings {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::presentation) enum LayoutSnapIntent {
-    SetFraction(f64),
-    SetGeometrySnap(bool),
-    SetGapSnap(bool),
-    SetGapOverride(String),
+    Fraction(f64),
+    GeometrySnap(bool),
+    GapSnap(bool),
+    GapOverride(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -212,8 +212,10 @@ mod tests {
 
     #[test]
     fn gesture_gap_uses_live_matrix_then_one_millimeter_and_respects_toggles() {
-        let mut settings = LayoutSnapSettings::default();
-        settings.gap_override = "not a number".to_owned();
+        let mut settings = LayoutSnapSettings {
+            gap_override: "not a number".to_owned(),
+            ..LayoutSnapSettings::default()
+        };
         assert_eq!(
             gesture_snap_inputs(&settings, None, Some(1.4)).gap,
             Some(1.4)
@@ -451,7 +453,7 @@ pub(in crate::presentation) fn LayoutSelectionSnapToolbar(
                                     && value.is_finite()
                                     && SNAP_STEPS.iter().any(|(step, _, _)| *step == value)
                                 {
-                                    on_snap_intent.call(LayoutSnapIntent::SetFraction(value));
+                                    on_snap_intent.call(LayoutSnapIntent::Fraction(value));
                                 }
                             },
                             for (fraction, value, label) in SNAP_STEPS {
@@ -464,7 +466,7 @@ pub(in crate::presentation) fn LayoutSelectionSnapToolbar(
                             r#type: "checkbox",
                             checked: settings.geometry_snap,
                             onchange: move |event: FormEvent| {
-                                on_snap_intent.call(LayoutSnapIntent::SetGeometrySnap(event.checked()));
+                                on_snap_intent.call(LayoutSnapIntent::GeometrySnap(event.checked()));
                             },
                         }
                         "Geometry snap"
@@ -475,7 +477,7 @@ pub(in crate::presentation) fn LayoutSelectionSnapToolbar(
                             checked: settings.gap_snap,
                             disabled: !settings.geometry_snap,
                             onchange: move |event: FormEvent| {
-                                on_snap_intent.call(LayoutSnapIntent::SetGapSnap(event.checked()));
+                                on_snap_intent.call(LayoutSnapIntent::GapSnap(event.checked()));
                             },
                         }
                         "Envelope gap"
@@ -488,7 +490,7 @@ pub(in crate::presentation) fn LayoutSelectionSnapToolbar(
                             "aria-label": "Snap gap",
                             value: "{settings.gap_override}",
                             oninput: move |event: FormEvent| {
-                                on_snap_intent.call(LayoutSnapIntent::SetGapOverride(event.value()));
+                            on_snap_intent.call(LayoutSnapIntent::GapOverride(event.value()));
                             },
                         }
                     }

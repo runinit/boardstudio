@@ -978,8 +978,8 @@ fn Editor() -> Element {
     let workspace = use_context::<WorkspaceState>().0;
     let active_workspace = workspace();
     let render_generation = (adapter.generation)();
-    let mut layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
-    let mut layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
+    let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
+    let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
@@ -1448,7 +1448,6 @@ fn Editor() -> Element {
     let on_layout_selection_kind = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
-        let workspace = workspace;
         let owner = layout_owner.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let mut objects_open = objects_open;
@@ -1508,7 +1507,6 @@ fn Editor() -> Element {
     let on_layout_snap_intent = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
-        let workspace = workspace;
         let owner = layout_owner.clone();
         let mut snap_settings = layout_snap_settings;
         move |intent: objects::LayoutSnapIntent| {
@@ -1517,21 +1515,21 @@ fn Editor() -> Element {
             }
             let mut settings = snap_settings.read().clone();
             match intent {
-                objects::LayoutSnapIntent::SetFraction(value)
+                objects::LayoutSnapIntent::Fraction(value)
                     if [0.0, 0.125, 0.25, 0.5, 1.0, -1.0, -0.5, -0.1].contains(&value) =>
                 {
                     settings.snap_fraction = value;
                 }
-                objects::LayoutSnapIntent::SetGeometrySnap(enabled) => {
+                objects::LayoutSnapIntent::GeometrySnap(enabled) => {
                     settings.geometry_snap = enabled;
                 }
-                objects::LayoutSnapIntent::SetGapSnap(enabled) => {
+                objects::LayoutSnapIntent::GapSnap(enabled) => {
                     settings.gap_snap = enabled;
                 }
-                objects::LayoutSnapIntent::SetGapOverride(value) => {
+                objects::LayoutSnapIntent::GapOverride(value) => {
                     settings.gap_override = value;
                 }
-                objects::LayoutSnapIntent::SetFraction(_) => return,
+                objects::LayoutSnapIntent::Fraction(_) => return,
             }
             snap_settings.set(settings);
         }
@@ -2334,7 +2332,6 @@ fn Editor() -> Element {
         let drag = drag.clone();
         let adapter = adapter.clone();
         let render_scope = render_scope.clone();
-        let workspace = workspace;
         let owner = layout_owner.clone();
         let snap_settings = layout_snap_settings;
         let tree_cell_anchor = tree_cell_anchor.clone();
@@ -2907,26 +2904,28 @@ fn Editor() -> Element {
         "Layout" => {
             let footprints_pressed = (layer_visibility.footprints)()
                 && !(layer_visibility.hidden)().contains("Footprints");
-            workspace_composition::WorkspaceToolbarInput::Layout(layout_workspace::ToolbarInput {
-                selection_indicator: context_summary
-                    .as_ref()
-                    .map(|summary| summary.indicator.clone()),
-                document_name: document.name.clone(),
-                save_failure: match &model.durability {
-                    Durability::Failed { reason, .. } => Some(reason.clone()),
-                    _ => None,
+            workspace_composition::WorkspaceToolbarInput::Layout(Box::new(
+                layout_workspace::ToolbarInput {
+                    selection_indicator: context_summary
+                        .as_ref()
+                        .map(|summary| summary.indicator.clone()),
+                    document_name: document.name.clone(),
+                    save_failure: match &model.durability {
+                        Durability::Failed { reason, .. } => Some(reason.clone()),
+                        _ => None,
+                    },
+                    recovery_required: model.lifecycle
+                        == boardstudio_application::Lifecycle::RecoveryRequired,
+                    footprints_pressed,
+                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    on_retry_save: workspace_callbacks.retry_save,
+                    on_recover_saved: workspace_callbacks.recover_saved,
+                    selection_kind: layout_selection_kind(),
+                    snap_settings: layout_snap_settings.read().clone(),
+                    on_selection_kind: workspace_callbacks.layout_selection_kind,
+                    on_snap_intent: workspace_callbacks.layout_snap_intent,
                 },
-                recovery_required: model.lifecycle
-                    == boardstudio_application::Lifecycle::RecoveryRequired,
-                footprints_pressed,
-                on_toggle_footprints: workspace_callbacks.toggle_footprints,
-                on_retry_save: workspace_callbacks.retry_save,
-                on_recover_saved: workspace_callbacks.recover_saved,
-                selection_kind: layout_selection_kind(),
-                snap_settings: layout_snap_settings.read().clone(),
-                on_selection_kind: workspace_callbacks.layout_selection_kind,
-                on_snap_intent: workspace_callbacks.layout_snap_intent,
-            })
+            ))
         }
         "PCB" => workspace_composition::WorkspaceToolbarInput::Pcb,
         "Keymap" => workspace_composition::WorkspaceToolbarInput::Keymap,
@@ -3164,7 +3163,6 @@ fn Editor() -> Element {
                                             let range_ids = visible_ids.clone();
                                             let selection_kind = layout_selection_kind;
                                             let owner = layout_owner.clone();
-                                            let workspace = workspace;
                                             let tree_cell_anchor = tree_cell_anchor.clone();
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
@@ -3222,7 +3220,6 @@ fn Editor() -> Element {
                                 let range_ids = visible_ids.clone();
                                 let selection_kind = layout_selection_kind;
                                 let owner = layout_owner.clone();
-                                let workspace = workspace;
                                 let tree_cell_anchor = tree_cell_anchor.clone();
                                 rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
