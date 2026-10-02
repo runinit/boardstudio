@@ -19,7 +19,7 @@ pub(super) enum CatalogueSource {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct CatalogEntry {
-    pub definition: PartDefinition,
+    pub definition: Rc<PartDefinition>,
     pub source: CatalogueSource,
 }
 
@@ -146,13 +146,13 @@ fn merge_bundled_sources(
         for definition in definitions {
             if let Some(index) = positions.get(&definition.id).copied() {
                 entries[index] = CatalogEntry {
-                    definition: definition.clone(),
+                    definition: Rc::new(definition.clone()),
                     source,
                 };
             } else {
                 positions.insert(definition.id.clone(), entries.len());
                 entries.push(CatalogEntry {
-                    definition: definition.clone(),
+                    definition: Rc::new(definition.clone()),
                     source,
                 });
             }
@@ -173,13 +173,13 @@ pub(super) fn merge_project_overrides(
     for definition in project {
         if let Some(index) = positions.get(&definition.id).copied() {
             entries[index] = CatalogEntry {
-                definition: definition.clone(),
+                definition: Rc::new(definition.clone()),
                 source: CatalogueSource::Project,
             };
         } else {
             positions.insert(definition.id.clone(), entries.len());
             entries.push(CatalogEntry {
-                definition: definition.clone(),
+                definition: Rc::new(definition.clone()),
                 source: CatalogueSource::Project,
             });
         }
@@ -368,20 +368,23 @@ fn is_assembly_snapshot(definition: &PartDefinition) -> bool {
     if definition.kicad_source.is_some() {
         return false;
     }
-    let Some((prefix, tail)) = definition.id.split_once('/') else {
+    const MARKER: &[u8] = b"/definition/";
+    let Some(marker_position) = definition
+        .id
+        .as_bytes()
+        .windows(MARKER.len())
+        .position(|candidate| candidate.eq_ignore_ascii_case(MARKER))
+    else {
         return false;
     };
-    let Some((marker, _)) = tail.split_once('/') else {
+    let Some(prefix) = definition.id.get(..marker_position) else {
         return false;
     };
-    if !marker.eq_ignore_ascii_case("definition") {
-        return false;
-    }
     (prefix
         .get(.."assembly-".len())
         .is_some_and(|start| start.eq_ignore_ascii_case("assembly-"))
         && prefix.len() > "assembly-".len())
-        || is_uuid(prefix)
+        || (marker_position == 36 && is_uuid(prefix))
 }
 
 fn is_uuid(value: &str) -> bool {
@@ -445,12 +448,32 @@ mod tests {
     }
 
     #[test]
+    fn overlay_and_selected_handle_share_untouched_bundled_definitions() {
+        let definitions = imported_definitions();
+        let mut overridden = definitions[0].clone();
+        overridden.name = "Bundled value".into();
+        let untouched = definitions[1].clone();
+        let bundled = merge_bundled_sources(&[overridden.clone(), untouched], &[]);
+        let untouched_definition = Rc::clone(&bundled[1].definition);
+
+        let mut project_override = overridden;
+        project_override.name = "Project value".into();
+        let merged = merge_project_overrides(&bundled, &[project_override]);
+        assert!(Rc::ptr_eq(&untouched_definition, &merged[1].definition));
+        let selected_handle = merged[1].clone();
+        assert!(Rc::ptr_eq(
+            &untouched_definition,
+            &selected_handle.definition
+        ));
+    }
+
+    #[test]
     fn category_remains_searchable_alongside_special_search_aliases() {
         let mut led = imported_definitions().remove(0);
         led.id = "ergogen:ceoloide/led_sk6812mini-e".into();
         led.kind = PartKind::Passive;
         let entry = CatalogEntry {
-            definition: led,
+            definition: Rc::new(led),
             source: CatalogueSource::Ergogen,
         };
         assert!(entry.matches("passives & leds", "Passives & LEDs"));
@@ -458,11 +481,11 @@ mod tests {
         assert!(entry.matches("rgb led reverse mount", "Passives & LEDs"));
         assert!(entry.matches_library_search("rgb led reverse mount"));
 
-        let mut switch = entry.definition.clone();
+        let mut switch = (*entry.definition).clone();
         switch.id = "ergogen:ceoloide/switch_mx".into();
         switch.kind = PartKind::Switch;
         let entry = CatalogEntry {
-            definition: switch,
+            definition: Rc::new(switch),
             source: CatalogueSource::Ergogen,
         };
         assert!(entry.matches("switches", "Switches"));
@@ -502,6 +525,11 @@ mod tests {
         uppercase_snapshot.kicad_source = None;
         uppercase_snapshot.generator = None;
         definitions.push(uppercase_snapshot);
+        let mut nested_snapshot = definitions[0].clone();
+        nested_snapshot.id = "ASSEMBLY-parent/child/DEFINITION/switch".into();
+        nested_snapshot.kicad_source = None;
+        nested_snapshot.generator = None;
+        definitions.push(nested_snapshot);
         let mut uppercase_uuid_snapshot = definitions[0].clone();
         uppercase_uuid_snapshot.id =
             "A1B2C3D4-E5F6-A1B2-C3D4-E5F6A1B2C3D4/DEFINITION/switch".into();
@@ -520,7 +548,7 @@ mod tests {
         let entries = definitions
             .into_iter()
             .map(|definition| CatalogEntry {
-                definition,
+                definition: Rc::new(definition),
                 source: CatalogueSource::Project,
             })
             .collect::<Vec<_>>();
@@ -535,6 +563,7 @@ mod tests {
                 *id,
                 "assembly-preset-mx-rgb-south-matrix-0/definition/switch"
                     | "ASSEMBLY-x/DEFINITION/switch"
+                    | "ASSEMBLY-parent/child/DEFINITION/switch"
                     | "A1B2C3D4-E5F6-A1B2-C3D4-E5F6A1B2C3D4/DEFINITION/switch"
             )
         }));
