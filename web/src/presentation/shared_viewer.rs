@@ -496,8 +496,9 @@ fn SharedViewer(
     use_effect(use_reactive((&projection,), {
         let pointer = pointer.clone();
         let canvas = canvas.clone();
-        move |(projection,)| {
-            cancel_superseded_pointer(&pointer, &canvas, &projection.identity);
+        let owner = owner.clone();
+        move |(_projection,)| {
+            cancel_superseded_pointer(&pointer, &canvas, &owner);
         }
     }));
 
@@ -868,9 +869,9 @@ fn SharedViewer(
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         let handles = projection.handles.clone();
+        let applied_identity = applied_identity.clone();
         let mut status = status;
         move |event: PointerEvent| {
-            cancel_superseded_pointer(&pointer, &canvas, &projection.identity);
             if !owner_is_current(&owner, &projection.identity) || pointer.borrow().is_some() {
                 return;
             }
@@ -879,7 +880,9 @@ fn SharedViewer(
             let Some(host) = host.borrow().as_ref() else {
                 return;
             };
-            let picked = if (current_source.0)() {
+            let picked = if (current_source.0)()
+                && applied_identity.borrow().as_ref() == Some(&projection.identity)
+            {
                 match host.pick_at_client(x, y) {
                     Ok(id) => id.filter(|id| !id.is_empty()),
                     Err(error) => {
@@ -995,12 +998,12 @@ fn SharedViewer(
         let host = host.clone();
         let owner = owner.clone();
         let current_source = current_source.clone();
+        let applied_identity = applied_identity.clone();
         let on_signal = on_signal;
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         let mut status = status;
         move |event: PointerEvent| {
-            cancel_superseded_pointer(&pointer, &canvas, &projection.identity);
             if !owner_is_current(&owner, &projection.identity) {
                 return;
             }
@@ -1008,13 +1011,11 @@ fn SharedViewer(
                 return;
             };
             let (x, y) = pointer_point(&event);
-            let Some(active) = take_pointer_for_event(&pointer, event.pointer_id()) else {
+            let Some(active) =
+                take_pointer_for_event(&pointer, event.pointer_id(), &projection.identity)
+            else {
                 return;
             };
-            if active.identity() != &projection.identity {
-                release_pointer_capture(&canvas, active.pointer_id());
-                return;
-            }
             let identity = active.identity().clone();
             match active {
                 PointerOwner::Orbit {
@@ -1058,7 +1059,9 @@ fn SharedViewer(
                     z,
                     id,
                 } if pointer_id == event.pointer_id() => {
-                    if !(current_source.0)() {
+                    if !(current_source.0)()
+                        || applied_identity.borrow().as_ref() != Some(&identity)
+                    {
                         release_pointer_capture(&canvas, pointer_id);
                         return;
                     }
@@ -1114,17 +1117,21 @@ fn SharedViewer(
         let owner = owner.clone();
         let runtime = runtime.clone();
         let current_source = current_source.clone();
+        let applied_identity = applied_identity.clone();
         let on_signal = on_signal;
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         move |event: PointerEvent| {
-            let active = take_pointer_for_event(&pointer, event.pointer_id());
-            release_pointer_capture(&canvas, event.pointer_id());
+            if !owner_is_current(&owner, &projection.identity) {
+                return;
+            }
+            let active = take_pointer_for_event(&pointer, event.pointer_id(), &projection.identity);
             let Some(active) = active else {
                 return;
             };
+            release_pointer_capture(&canvas, event.pointer_id());
             let identity = active.identity().clone();
-            if identity != projection.identity || !owner_is_current(&owner, &identity) {
+            if identity != projection.identity {
                 return;
             }
             match active {
@@ -1136,6 +1143,7 @@ fn SharedViewer(
                 } if pointer_id == event.pointer_id() => {
                     if !moved
                         && (current_source.0)()
+                        && applied_identity.borrow().as_ref() == Some(&identity)
                         && runtime.scope().as_ref() == Some(&projection.identity.scope)
                         && let Some(id) = picked
                     {
@@ -1145,7 +1153,9 @@ fn SharedViewer(
                 PointerOwner::Handle {
                     pointer_id, z, id, ..
                 } if pointer_id == event.pointer_id() => {
-                    if !(current_source.0)() {
+                    if !(current_source.0)()
+                        || applied_identity.borrow().as_ref() != Some(&identity)
+                    {
                         return;
                     }
                     if let Some(host) = host.borrow().as_ref() {
@@ -1202,16 +1212,20 @@ fn SharedViewer(
         let on_signal = on_signal;
         let pointer = pointer.clone();
         let canvas = canvas.clone();
+        let applied_identity = applied_identity.clone();
         move |event: PointerEvent| {
-            let active = take_pointer_for_event(&pointer, event.pointer_id());
-            release_pointer_capture(&canvas, event.pointer_id());
+            if !owner_is_current(&owner, &projection.identity) {
+                return;
+            }
+            let active = take_pointer_for_event(&pointer, event.pointer_id(), &projection.identity);
             let Some(active) = active else {
                 return;
             };
+            release_pointer_capture(&canvas, event.pointer_id());
             let identity = active.identity().clone();
             if identity != projection.identity
-                || !owner_is_current(&owner, &identity)
                 || !(current_source.0)()
+                || applied_identity.borrow().as_ref() != Some(&identity)
             {
                 return;
             }
@@ -1475,11 +1489,12 @@ fn owner_is_current(owner: &ViewerOwner, identity: &ViewerIdentity) -> bool {
 fn take_pointer_for_event(
     pointer: &Rc<RefCell<Option<PointerOwner>>>,
     pointer_id: i32,
+    identity: &ViewerIdentity,
 ) -> Option<PointerOwner> {
     let mut active = pointer.borrow_mut();
     if active
         .as_ref()
-        .is_some_and(|active| active.pointer_id() == pointer_id)
+        .is_some_and(|active| active.pointer_id() == pointer_id && active.identity() == identity)
     {
         active.take()
     } else {
@@ -1490,14 +1505,16 @@ fn take_pointer_for_event(
 fn cancel_superseded_pointer(
     pointer: &Rc<RefCell<Option<PointerOwner>>>,
     canvas: &Rc<RefCell<Option<HtmlCanvasElement>>>,
-    identity: &ViewerIdentity,
+    owner: &Rc<ViewerOwner>,
 ) {
     let stale_pointer = {
         let mut active = pointer.borrow_mut();
-        if active
-            .as_ref()
-            .is_some_and(|active| active.identity() != identity)
-        {
+        let current_identity = owner.identity.borrow();
+        if active.as_ref().is_some_and(|active| {
+            current_identity
+                .as_ref()
+                .is_none_or(|identity| active.identity() != identity)
+        }) {
             active.take().map(|active| active.pointer_id())
         } else {
             None
@@ -1680,6 +1697,32 @@ mod tests {
             viewer_instance: started.viewer_instance,
         };
         assert!(!owner_is_current(&owner, pointer.identity()));
+    }
+
+    #[test]
+    fn pointer_event_cannot_take_reused_id_from_another_projection() {
+        let started = identity();
+        let mut current = started.clone();
+        current.projection_generation += 1;
+        current.renderer_sequence += 1;
+        let pointer = Rc::new(RefCell::new(Some(PointerOwner::Orbit {
+            identity: current.clone(),
+            pointer_id: 9,
+            last_x: 10.0,
+            last_y: 20.0,
+            start_x: 10.0,
+            start_y: 20.0,
+            moved: false,
+            picked: Some("body-1".to_owned()),
+        })));
+
+        assert!(take_pointer_for_event(&pointer, 9, &started).is_none());
+        assert_eq!(
+            pointer.borrow().as_ref().map(PointerOwner::identity),
+            Some(&current)
+        );
+        assert!(take_pointer_for_event(&pointer, 9, &current).is_some());
+        assert!(pointer.borrow().is_none());
     }
 
     #[test]
