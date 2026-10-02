@@ -63,6 +63,17 @@ pub(in crate::presentation) struct EncoderEditorProjection {
     pub(in crate::presentation) macros: Rc<[BindingMacroChoice]>,
 }
 
+/// The accepted canvas and encoder projections that define one Keymap read
+/// surface. Encoder display data is memoized; the live getter is reserved for
+/// request admission and current feedback checks.
+pub(in crate::presentation) struct BindingProjectionSources {
+    pub(in crate::presentation) source: Option<LayerSource>,
+    pub(in crate::presentation) view: Option<Rc<KeymapView>>,
+    pub(in crate::presentation) encoder_projection: Memo<Option<EncoderInputProjection>>,
+    pub(in crate::presentation) current_encoder_projection:
+        Rc<dyn Fn() -> Option<EncoderInputProjection>>,
+}
+
 #[derive(Clone)]
 struct PendingBindingEdit {
     request: BindingEditRequest,
@@ -80,6 +91,24 @@ struct BindingFeedbackState {
     admission_field_value: AcceptedFieldValue,
     failure_snapshot_token: Option<SnapshotToken>,
     status: BindingEditStatus,
+}
+
+#[derive(Clone, Copy)]
+enum EncoderIdentityCheck {
+    ExactAdmission,
+    StableLineage,
+}
+
+/// Inputs for reading one current binding. Grouping these keeps the accepted
+/// source and the target's identity policy together at each read site.
+struct BindingReadContext<'a> {
+    snapshot: &'a AcceptedSnapshot,
+    active_layer_id: &'a str,
+    source: Option<&'a LayerSource>,
+    view: Option<&'a KeymapView>,
+    encoder_inputs: Option<&'a EncoderInputProjection>,
+    choices: &'a BindingReferenceChoices,
+    encoder_identity_check: EncoderIdentityCheck,
 }
 
 /// Editor-lifetime state and the narrow current projection passed to the panel.
@@ -453,17 +482,20 @@ fn legacy_base_binding(snapshot: &AcceptedSnapshot, board_id: &str, key_id: &str
 /// Keymap panel is hidden. Fresh event admission is repeated in the callback.
 pub(in crate::presentation) fn use_binding_operations(
     runtime: Rc<Runtime>,
-    source: Option<LayerSource>,
-    view: Option<Rc<KeymapView>>,
-    encoder_inputs: Memo<Option<EncoderInputProjection>>,
-    current_encoder_inputs: Rc<dyn Fn() -> Option<EncoderInputProjection>>,
+    projections: BindingProjectionSources,
     active_layer: Signal<String>,
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
     admission_current: Rc<dyn Fn() -> bool>,
 ) -> BindingActions {
+    let BindingProjectionSources {
+        source,
+        view,
+        encoder_projection,
+        current_encoder_projection,
+    } = projections;
     let version = use_context::<Signal<u64>>()();
-    let encoder_inputs_value = encoder_inputs();
+    let encoder_inputs_value = encoder_projection();
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
         move || runtime.operation().0
@@ -482,7 +514,7 @@ pub(in crate::presentation) fn use_binding_operations(
         let mut feedback = feedback;
         let source = outcome_source;
         let view = outcome_view;
-        let current_encoder_inputs = current_encoder_inputs.clone();
+        let current_encoder_inputs = current_encoder_projection.clone();
         move |_| {
             let Some(waiting) = pending.read().clone() else {
                 return;
@@ -522,14 +554,16 @@ pub(in crate::presentation) fn use_binding_operations(
                     }
                     let choices = project_binding_choices(snapshot);
                     let current = current_binding_for_request(
-                        snapshot,
                         &waiting.request,
-                        &waiting.request.active_layer_id,
-                        view.as_deref(),
-                        current_inputs.as_ref(),
-                        source.as_ref(),
-                        &choices,
-                        false,
+                        BindingReadContext {
+                            snapshot,
+                            active_layer_id: &waiting.request.active_layer_id,
+                            source: source.as_ref(),
+                            view: view.as_deref(),
+                            encoder_inputs: current_inputs.as_ref(),
+                            choices: &choices,
+                            encoder_identity_check: EncoderIdentityCheck::StableLineage,
+                        },
                     );
                     pending.set(None);
                     let Some(current) = current else {
@@ -561,14 +595,16 @@ pub(in crate::presentation) fn use_binding_operations(
                     pending.set(None);
                     let choices = project_binding_choices(snapshot);
                     if current_binding_for_request(
-                        snapshot,
                         &waiting.request,
-                        &waiting.request.active_layer_id,
-                        view.as_deref(),
-                        current_inputs.as_ref(),
-                        source.as_ref(),
-                        &choices,
-                        false,
+                        BindingReadContext {
+                            snapshot,
+                            active_layer_id: &waiting.request.active_layer_id,
+                            source: source.as_ref(),
+                            view: view.as_deref(),
+                            encoder_inputs: current_inputs.as_ref(),
+                            choices: &choices,
+                            encoder_identity_check: EncoderIdentityCheck::StableLineage,
+                        },
                     )
                     .is_some()
                     {
@@ -587,14 +623,16 @@ pub(in crate::presentation) fn use_binding_operations(
                     pending.set(None);
                     let choices = project_binding_choices(snapshot);
                     if current_binding_for_request(
-                        snapshot,
                         &waiting.request,
-                        &waiting.request.active_layer_id,
-                        view.as_deref(),
-                        current_inputs.as_ref(),
-                        source.as_ref(),
-                        &choices,
-                        false,
+                        BindingReadContext {
+                            snapshot,
+                            active_layer_id: &waiting.request.active_layer_id,
+                            source: source.as_ref(),
+                            view: view.as_deref(),
+                            encoder_inputs: current_inputs.as_ref(),
+                            choices: &choices,
+                            encoder_identity_check: EncoderIdentityCheck::StableLineage,
+                        },
                     )
                     .is_some()
                     {
@@ -695,7 +733,7 @@ pub(in crate::presentation) fn use_binding_operations(
                     &snapshot,
                     source.as_ref()?,
                     inputs.as_ref()?,
-                    layer_id,
+                    &layer_id,
                     choices.as_deref()?,
                 )
                 .map(Rc::new)
@@ -706,7 +744,7 @@ pub(in crate::presentation) fn use_binding_operations(
         .as_ref()
         .and_then(|_| encoder_projection_memo.read().clone())
         .filter(|projection| {
-            current_encoder_inputs()
+            current_encoder_projection()
                 .is_some_and(|current| current.identity == projection.input_identity)
         });
     let admission_snapshot = current_saved_source(
@@ -731,15 +769,18 @@ pub(in crate::presentation) fn use_binding_operations(
         {
             return None;
         }
+        let current_inputs = current_encoder_projection();
         let projection = current_binding_for_request(
-            snapshot,
             request,
-            &active_layer_id,
-            view.as_deref(),
-            current_encoder_inputs().as_ref(),
-            Some(source),
-            choices,
-            false,
+            BindingReadContext {
+                snapshot,
+                active_layer_id: &active_layer_id,
+                source: Some(source),
+                view: view.as_deref(),
+                encoder_inputs: current_inputs.as_ref(),
+                choices,
+                encoder_identity_check: EncoderIdentityCheck::StableLineage,
+            },
         )?;
         if request.active_layer_id != projection.effective_layer_id
             || matches!(
@@ -761,7 +802,7 @@ pub(in crate::presentation) fn use_binding_operations(
         let mut feedback = feedback;
         let source = source.clone();
         let view = view.clone();
-        let current_encoder_inputs = current_encoder_inputs.clone();
+        let current_encoder_inputs = current_encoder_projection.clone();
         let choices = choices.clone();
         move |mut request: BindingEditRequest| {
             if pending.read().is_some() {
@@ -802,14 +843,16 @@ pub(in crate::presentation) fn use_binding_operations(
             }
             let live_layer_id = active_layer();
             let Some(current) = current_binding_for_request(
-                &snapshot,
                 &request,
-                &live_layer_id,
-                view.as_deref(),
-                current_inputs.as_ref(),
-                Some(expected_source),
-                choices,
-                true,
+                BindingReadContext {
+                    snapshot: &snapshot,
+                    active_layer_id: &live_layer_id,
+                    source: Some(expected_source),
+                    view: view.as_deref(),
+                    encoder_inputs: current_inputs.as_ref(),
+                    choices,
+                    encoder_identity_check: EncoderIdentityCheck::ExactAdmission,
+                },
             ) else {
                 return;
             };
@@ -943,15 +986,18 @@ fn current_display_source(
 }
 
 fn current_binding_for_request(
-    snapshot: &AcceptedSnapshot,
     request: &BindingEditRequest,
-    active_layer_id: &str,
-    view: Option<&KeymapView>,
-    encoder_inputs: Option<&EncoderInputProjection>,
-    source: Option<&LayerSource>,
-    choices: &BindingReferenceChoices,
-    require_exact_input_identity: bool,
+    context: BindingReadContext<'_>,
 ) -> Option<BindingEditorProjection> {
+    let BindingReadContext {
+        snapshot,
+        active_layer_id,
+        source,
+        view,
+        encoder_inputs,
+        choices,
+        encoder_identity_check,
+    } = context;
     if request.scope.session_epoch != snapshot.session_epoch
         || request.scope.document_id != snapshot.document.id
     {
@@ -998,7 +1044,7 @@ fn current_binding_for_request(
                 source?,
                 encoder_inputs?,
                 snapshot,
-                require_exact_input_identity,
+                encoder_identity_check,
             ) {
                 return None;
             }
@@ -1024,7 +1070,7 @@ fn current_binding_for_request(
                 source?,
                 encoder_inputs?,
                 snapshot,
-                require_exact_input_identity,
+                encoder_identity_check,
             ) {
                 return None;
             }
@@ -1058,7 +1104,7 @@ fn encoder_request_matches_projection(
     source: &LayerSource,
     inputs: &EncoderInputProjection,
     snapshot: &AcceptedSnapshot,
-    require_exact_input_identity: bool,
+    check: EncoderIdentityCheck,
 ) -> bool {
     let Some(captured) = request.input_identity.as_ref() else {
         return false;
@@ -1068,10 +1114,9 @@ fn encoder_request_matches_projection(
     {
         return false;
     }
-    if require_exact_input_identity {
-        captured == &inputs.identity
-    } else {
-        same_input_lineage(captured, &inputs.identity)
+    match check {
+        EncoderIdentityCheck::ExactAdmission => captured == &inputs.identity,
+        EncoderIdentityCheck::StableLineage => same_input_lineage(captured, &inputs.identity),
     }
 }
 
