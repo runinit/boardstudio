@@ -1,0 +1,18 @@
+{
+  "candidate": "http://127.0.0.1:34729/",
+  "source": "71a144ec3a58c8e7fe8169fae5fbe8429f995f6a",
+  "fixture": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/dioxus-34726-fixture-models-false.boardstudio",
+  "fixture_sha256": "c6ea3c0f72f999ee6736d1e65b6b2c36105b52c5a8d511285ffdc01695aa9d7e",
+  "journey": [
+    "import retained archive and wait for editor",
+    "Keycaps find/select left-thumbs-SW5 with keyboard",
+    "set legend ROOT34729 and blur; Saved locally",
+    "Undo; legend becomes empty and Saved locally",
+    "Redo and reload",
+    "wait for restored editor, reopen Keycaps, select same key",
+    "legend ROOT34729 persisted; browser errors empty"
+  ],
+  "scope": "Bounded integrated IndexedDB edit/history/reopen smoke; additional retained derived fixture, not same archive as paired Inspector wheel journey. All broader workflow acceptance gates remain open.",
+  "screenshot": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/root-idb-edit-reopen-green-34729.png",
+  "fixture_limit": "Original transient /tmp/keycaps-fit-fixture.boardstudio is now unavailable; old imported paired-profile evidence retained. Fresh root-route probe uses this explicitly distinct retained archive."
+}
