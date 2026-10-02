@@ -148,8 +148,15 @@ pub(super) struct PartPlacementMount {
     pub(super) on_cancel: EventHandler<()>,
 }
 
+impl PartPlacementMount {
+    pub(super) fn owns_canvas(&self) -> bool {
+        self.busy || self.projection.is_some()
+    }
+}
+
 pub(super) struct PartPlacementHost {
-    pub(super) runtime: Rc<Runtime>,
+    pub(super) runtime: Rc<dyn PlacementRuntime>,
+    pub(super) load_definition: DefinitionLoader,
     pub(super) workspace: Signal<&'static str>,
     pub(super) generation: Signal<u64>,
     pub(super) version: Signal<u64>,
@@ -164,6 +171,81 @@ pub(super) struct PartPlacementHost {
     pub(super) inspect_open: Signal<bool>,
 }
 
+pub(super) type DefinitionLoader = Rc<
+    dyn Fn(
+        ProjectDoc,
+        String,
+    )
+        -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>,
+>;
+
+pub(super) trait PlacementRuntime {
+    fn model(&self) -> boardstudio_application::ReadModel;
+    fn scope(&self) -> Option<Scope>;
+    fn operation(&self) -> boardstudio_application::OperationId;
+    fn observe_operation(
+        &self,
+        operation: boardstudio_application::OperationId,
+    ) -> crate::operation_outcomes::OutcomeSlot;
+    fn submit(&self, event: Event);
+}
+
+impl<T: PlacementRuntime + ?Sized> PlacementRuntime for Rc<T> {
+    fn model(&self) -> boardstudio_application::ReadModel {
+        self.as_ref().model()
+    }
+
+    fn scope(&self) -> Option<Scope> {
+        self.as_ref().scope()
+    }
+
+    fn operation(&self) -> boardstudio_application::OperationId {
+        self.as_ref().operation()
+    }
+
+    fn observe_operation(
+        &self,
+        operation: boardstudio_application::OperationId,
+    ) -> crate::operation_outcomes::OutcomeSlot {
+        self.as_ref().observe_operation(operation)
+    }
+
+    fn submit(&self, event: Event) {
+        self.as_ref().submit(event);
+    }
+}
+
+struct RuntimePlacementAdapter(Rc<Runtime>);
+
+impl PlacementRuntime for RuntimePlacementAdapter {
+    fn model(&self) -> boardstudio_application::ReadModel {
+        self.0.model()
+    }
+
+    fn scope(&self) -> Option<Scope> {
+        self.0.scope()
+    }
+
+    fn operation(&self) -> boardstudio_application::OperationId {
+        self.0.operation()
+    }
+
+    fn observe_operation(
+        &self,
+        operation: boardstudio_application::OperationId,
+    ) -> crate::operation_outcomes::OutcomeSlot {
+        self.0.observe_operation(operation)
+    }
+
+    fn submit(&self, event: Event) {
+        self.0.submit(event);
+    }
+}
+
+pub(super) fn runtime_adapter(runtime: Rc<Runtime>) -> Rc<dyn PlacementRuntime> {
+    Rc::new(RuntimePlacementAdapter(runtime))
+}
+
 struct PlacementAdmission {
     scope: Option<Scope>,
     generation: u64,
@@ -174,7 +256,7 @@ struct PlacementAdmission {
 
 impl PlacementAdmission {
     fn capture(
-        runtime: &Runtime,
+        runtime: &dyn PlacementRuntime,
         generation: u64,
         workspace: &'static str,
         expected_workspace: &'static str,
@@ -193,6 +275,7 @@ impl PlacementAdmission {
 pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let PartPlacementHost {
         runtime,
+        load_definition,
         workspace,
         generation,
         version,
@@ -260,6 +343,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let runtime = runtime.clone();
         let mut active = active;
         let query = parts_query;
+        let load_definition = load_definition.clone();
         let mut preparing = preparing;
         let mut error = error;
         let alive = alive.clone();
@@ -353,7 +437,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             preparing.set(Some(owner.clone()));
             error.set(None);
             let accepted = snapshot.clone();
-            let reversible_document = snapshot.document.clone();
+            let reversible_document = (*snapshot.document).clone();
             let runtime = runtime.clone();
             let mut workspace = workspace;
             let mut active = active;
@@ -363,12 +447,9 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             let guide = guide_preferences;
             let mut query = query;
             let mut preparing = preparing;
+            let load_definition = load_definition.clone();
             spawn_local(async move {
-                let definition = crate::presentation::parts::load_controller_definition(
-                    &reversible_document,
-                    &definition_id,
-                )
-                .await;
+                let definition = load_definition(reversible_document, definition_id).await;
                 if !alive.get() {
                     return;
                 }
@@ -763,7 +844,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
 
 fn owner_is_live(
     owner: &PlacementOwner,
-    runtime: &Runtime,
+    runtime: &dyn PlacementRuntime,
     model: &boardstudio_application::ReadModel,
     admission: PlacementAdmission,
 ) -> bool {
@@ -848,6 +929,10 @@ pub(super) fn canvas_world_center(
         x: (min_x + max_x) * 0.5 + camera_pan.x,
         y: (min_y + max_y) * 0.5 + camera_pan.y,
     }
+}
+
+pub(super) fn pointer_release_commits(button: i16) -> bool {
+    button == 0
 }
 
 fn document_with_pending_definition(
@@ -1104,9 +1189,15 @@ mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken};
+    use boardstudio_application::{
+        Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken,
+    };
     use boardstudio_core::model::{Board, OutlineSettings};
-    use std::sync::Arc;
+    use std::{
+        cell::{Cell, RefCell},
+        sync::Arc,
+        task::{Context, Waker},
+    };
 
     fn controller_definition(id: &str) -> PartDefinition {
         serde_json::from_value(serde_json::json!({
@@ -1169,6 +1260,351 @@ mod tests {
                 },
             }),
         }
+    }
+
+    #[derive(Default)]
+    struct HookRuntime {
+        model: RefCell<ReadModel>,
+        outcomes: crate::operation_outcomes::OperationOutcomes,
+        events: RefCell<Vec<SessionEvent>>,
+        next_operation: Cell<u64>,
+        settle_edit_on_submit: Cell<bool>,
+        registered_before_submit: Cell<Option<bool>>,
+    }
+
+    impl PlacementRuntime for HookRuntime {
+        fn model(&self) -> ReadModel {
+            self.model.borrow().clone()
+        }
+
+        fn scope(&self) -> Option<Scope> {
+            let model = self.model.borrow();
+            let snapshot = model.accepted.as_ref()?;
+            Some(Scope {
+                session_epoch: snapshot.session_epoch,
+                document_id: snapshot.document.id.clone(),
+                board_id: model.active_board_id.clone(),
+                instance_id: model.active_instance_id.clone(),
+            })
+        }
+
+        fn operation(&self) -> OperationId {
+            let next = self.next_operation.get() + 1;
+            self.next_operation.set(next);
+            OperationId(next)
+        }
+
+        fn observe_operation(
+            &self,
+            operation: OperationId,
+        ) -> crate::operation_outcomes::OutcomeSlot {
+            self.outcomes.observe(operation)
+        }
+
+        fn submit(&self, event: SessionEvent) {
+            if let SessionEvent::Edit { operation_id, .. } = &event
+                && self.settle_edit_on_submit.get()
+            {
+                self.registered_before_submit.set(Some(
+                    self.outcomes
+                        .settle(*operation_id, TerminalOutcome::Completed),
+                ));
+            }
+            self.events.borrow_mut().push(event);
+        }
+    }
+
+    #[derive(Clone)]
+    struct HookProbe {
+        runtime: Rc<HookRuntime>,
+        latest: Rc<RefCell<Option<PartPlacementMount>>>,
+        workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
+        guide: Rc<RefCell<Option<Signal<Option<SetupGuidePreferences>>>>>,
+        version: Rc<Cell<u64>>,
+        loader_reply: Rc<RefCell<Option<Result<PartDefinition, String>>>>,
+        loader_waker: Rc<RefCell<Option<Waker>>>,
+    }
+
+    fn hook_host() -> Element {
+        let probe = use_context::<HookProbe>();
+        let workspace = use_signal(|| "Layout");
+        let guide = use_signal(|| {
+            Some(SetupGuidePreferences {
+                project_id: "project".into(),
+                open: true,
+                current_stage: SetupGuideStage::Wiring,
+            })
+        });
+        let mut version = use_signal(|| 0u64);
+        let current_version = probe.version.get();
+        if *version.peek() != current_version {
+            version.set(current_version);
+        }
+        *probe.workspace.borrow_mut() = Some(workspace);
+        *probe.guide.borrow_mut() = Some(guide);
+        let selected_context = use_signal(|| None);
+        let anchor_scope = use_signal(|| None);
+        let generation = use_signal(|| 4u64);
+        let adapter = SelectionAdapter::new(selected_context, anchor_scope, generation);
+        let loader_reply = probe.loader_reply.clone();
+        let loader_waker = probe.loader_waker.clone();
+        let mount = use_controller_placement(PartPlacementHost {
+            runtime: probe.runtime.clone(),
+            load_definition: Rc::new(move |_, _| {
+                let reply = loader_reply.clone();
+                let waker = loader_waker.clone();
+                Box::pin(std::future::poll_fn(move |context| {
+                    match reply.borrow_mut().take() {
+                        Some(value) => std::task::Poll::Ready(value),
+                        None => {
+                            *waker.borrow_mut() = Some(context.waker().clone());
+                            std::task::Poll::Pending
+                        }
+                    }
+                }))
+            }),
+            workspace,
+            generation,
+            version,
+            adapter,
+            guide_preferences: guide,
+            parts_query: use_signal(String::new),
+            parts_selection: use_signal(|| None),
+            snap_settings: use_signal(LayoutSnapSettings::default),
+            layout_target: use_signal(|| None),
+            canvas_center: Vec2::default(),
+            objects_open: use_signal(|| false),
+            inspect_open: use_signal(|| false),
+        });
+        *probe.latest.borrow_mut() = Some(mount.clone());
+        rsx! { div {} }
+    }
+
+    fn hook_mounted() -> (HookProbe, VirtualDom) {
+        let document = fixture();
+        let snapshot = accepted(document.clone(), 11);
+        let runtime = Rc::new(HookRuntime::default());
+        *runtime.model.borrow_mut() = ReadModel {
+            lifecycle: Lifecycle::Ready,
+            durability: Durability::Saved {
+                revision: document.revision,
+            },
+            accepted: Some(snapshot),
+            active_board_id: "board-main".into(),
+            ..ReadModel::default()
+        };
+        let probe = HookProbe {
+            runtime,
+            latest: Rc::default(),
+            workspace: Rc::default(),
+            guide: Rc::default(),
+            version: Rc::new(Cell::new(0)),
+            loader_reply: Rc::new(RefCell::new(None)),
+            loader_waker: Rc::default(),
+        };
+        let mut dom = VirtualDom::new(hook_host);
+        dom.provide_root_context(probe.clone());
+        dom.rebuild_to_vec();
+        flush_hook(&mut dom);
+        (probe, dom)
+    }
+
+    fn flush_hook(dom: &mut VirtualDom) {
+        dom.mark_dirty(ScopeId::APP);
+        for _ in 0..5 {
+            dom.render_immediate_to_vec();
+            let mut work = std::pin::pin!(dom.wait_for_work());
+            let _ = work.as_mut().poll(&mut Context::from_waker(Waker::noop()));
+        }
+    }
+
+    fn workspace(probe: &HookProbe) -> &'static str {
+        probe.workspace.borrow().as_ref().unwrap()()
+    }
+
+    async fn let_hook_tasks_run() {
+        gloo_timers::future::TimeoutFuture::new(20).await;
+    }
+
+    fn resolve_loader(probe: &HookProbe, value: Result<PartDefinition, String>) {
+        *probe.loader_reply.borrow_mut() = Some(value);
+        if let Some(waker) = probe.loader_waker.borrow_mut().take() {
+            waker.wake();
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_owns_canvas_during_definition_preparation_and_escape_restores_guide() {
+        let (probe, mut dom) = hook_mounted();
+        let mount = probe.latest.borrow().as_ref().unwrap().clone();
+        mount.on_choose_controller.call(());
+        flush_hook(&mut dom);
+        assert_eq!(workspace(&probe), "Parts");
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_controller
+            .call("catalog:controller".into());
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let preparing = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(preparing.busy);
+        assert!(preparing.owns_canvas());
+        assert!(preparing.projection.is_none());
+        assert!(
+            !probe
+                .runtime
+                .events
+                .borrow()
+                .iter()
+                .any(|event| matches!(event, SessionEvent::Edit { .. }))
+        );
+
+        resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let active = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(
+            active.projection.is_some(),
+            "busy={} error={:?} workspace={}",
+            active.busy,
+            active.error,
+            workspace(&probe)
+        );
+        assert!(active.owns_canvas());
+        active.on_cancel.call(());
+        flush_hook(&mut dom);
+        assert_eq!(workspace(&probe), "PCB");
+        assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_registers_before_submit_and_retains_outcome_after_unmount() {
+        let (probe, mut dom) = hook_mounted();
+        resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
+        let mount = probe.latest.borrow().as_ref().unwrap().clone();
+        mount.on_choose_controller.call(());
+        flush_hook(&mut dom);
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_controller
+            .call("catalog:controller".into());
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let active = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(active.projection.is_some());
+        active.on_commit.call(Vec2 { x: 4.0, y: -3.0 });
+        let operation = probe
+            .runtime
+            .events
+            .borrow()
+            .iter()
+            .find_map(|event| match event {
+                SessionEvent::Edit { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            })
+            .expect("placement submits an Edit");
+        probe.latest.borrow_mut().take();
+        drop(dom);
+        assert!(
+            probe
+                .runtime
+                .outcomes
+                .settle(operation, TerminalOutcome::Completed)
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_registers_the_observer_before_synchronous_submit_settlement() {
+        let (probe, mut dom) = hook_mounted();
+        probe.runtime.settle_edit_on_submit.set(true);
+        resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_choose_controller
+            .call(());
+        flush_hook(&mut dom);
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_controller
+            .call("catalog:controller".into());
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_commit
+            .call(Vec2 { x: 2.0, y: 1.0 });
+        assert_eq!(probe.runtime.registered_before_submit.get(), Some(true));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_retires_stale_preparation_and_accepts_a_fresh_place_request() {
+        let (probe, mut dom) = hook_mounted();
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_choose_controller
+            .call(());
+        flush_hook(&mut dom);
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_controller
+            .call("catalog:controller".into());
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert!(probe.latest.borrow().as_ref().unwrap().owns_canvas());
+
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            let accepted = model.accepted.as_mut().unwrap();
+            let mut next = (*accepted.document).clone();
+            next.revision += 1;
+            accepted.document = Arc::new(next.clone());
+            accepted.token = SnapshotToken(12);
+            model.durability = Durability::Saved {
+                revision: next.revision,
+            };
+        }
+        probe.version.set(probe.version.get() + 1);
+        flush_hook(&mut dom);
+        assert!(!probe.latest.borrow().as_ref().unwrap().owns_canvas());
+
+        resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_controller
+            .call("catalog:controller".into());
+        let_hook_tasks_run().await;
+        resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert!(probe.latest.borrow().as_ref().unwrap().projection.is_some());
     }
 
     fn part(definition_id: &str, id: &str, reference: &str) -> Part {
@@ -1360,6 +1796,13 @@ mod tests {
             canvas_world_center(-40.0, 60.0, -20.0, 80.0, Vec2 { x: 13.0, y: -7.0 }),
             Vec2 { x: 23.0, y: 23.0 }
         );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn placement_commits_only_on_primary_pointer_release() {
+        assert!(pointer_release_commits(0));
+        assert!(!pointer_release_commits(1));
+        assert!(!pointer_release_commits(2));
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

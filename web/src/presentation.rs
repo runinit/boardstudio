@@ -2772,7 +2772,12 @@ fn Editor() -> Element {
         part_placement::canvas_world_center(min_x, max_x, min_y, max_y, model.camera.center);
     let part_placement =
         part_placement::use_controller_placement(part_placement::PartPlacementHost {
-            runtime: runtime.clone(),
+            runtime: part_placement::runtime_adapter(runtime.clone()),
+            load_definition: Rc::new(|document, definition_id| {
+                Box::pin(async move {
+                    parts::load_controller_definition(&document, &definition_id).await
+                })
+            }),
             workspace,
             generation: adapter.generation,
             version,
@@ -3080,8 +3085,10 @@ fn Editor() -> Element {
                 }
                 return;
             }
-            if let Some(active) = placement.projection.clone() {
-                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+            if placement.owns_canvas() {
+                if let Some(active) = placement.projection.clone()
+                    && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                {
                     let model = runtime.model();
                     let at = model.accepted.as_ref().map_or(point, |_snapshot| {
                         part_placement::snap_placement_at(
@@ -3236,9 +3243,14 @@ fn Editor() -> Element {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
-            if placement.projection.is_some() {
+            if placement.owns_canvas() {
                 pointer.prevent_default();
                 pointer.stop_propagation();
+                if placement.projection.is_none()
+                    || !part_placement::pointer_release_commits(pointer.button())
+                {
+                    return;
+                }
                 if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
                     let at = runtime
                         .model()
