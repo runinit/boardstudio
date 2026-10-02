@@ -511,7 +511,11 @@
           "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
         }
       ],
-      "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open."
+      "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",
+      "current_diagnosis_20261002": {
+        "indexeddb": "Actual Chromium production transaction_completion duplicate-key \u2192 error \u2192 abort reproduces closure invoked recursively or after being dropped. Astra repair active; original repeated Matrix save abort cause remains unknown. Fresh34726 stress12 creations/history/reloads has no JS errors. Historical failed session preserved.",
+        "outline": "Current34727 paired Bridge selection blanks canvas at755% while React461% renders selected bridge. Isolated regression/camera repair assigned; copy/delete/Undo/reopen bounded journey green, full outline acceptance open."
+      }
     },
     {
       "id": "RF-007",
@@ -765,7 +769,8 @@
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
-      "build_cli_takeaway_20261002": "Confirmed tooling gap: build-m1.py treats --help as a valid build ID because hyphens are stripped before alphanumeric validation, starting expensive builds. Multiple authors hit it; preserved incomplete --help directories are not acceptance artifacts. Fix conventional help/invalid-leading-option handling after active source-stamped build, with focused CLI regression; do not mutate script during running provenance guard."
+      "build_cli_takeaway_20261002": "Confirmed tooling gap: build-m1.py treats --help as a valid build ID because hyphens are stripped before alphanumeric validation, starting expensive builds. Multiple authors hit it; preserved incomplete --help directories are not acceptance artifacts. Fix conventional help/invalid-leading-option handling after active source-stamped build, with focused CLI regression; do not mutate script during running provenance guard.",
+      "temporary_storage_preservation_20261002": "At99% tmpfs use, preserved only inactive generated web/target trees from two old worktrees under retained home, with original-path symlinks; checked /proc references and >2h inactivity, no source/history/browser data discarded. /tmp restored3.6GBfree. Manifest retained-tmp/20261002/inactive-target-preservation.json."
     },
     {
       "id": "RF-010",
