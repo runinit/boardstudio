@@ -784,11 +784,9 @@ impl Runtime {
                     }
                 }
                 Ok(Some(_)) => {}
-                Ok(None) if this.open_sequence.get() == sequence => {
-                    this.report(
-                        "The saved keyboard is unavailable. Choose an available copy from the library.",
-                    )
-                }
+                Ok(None) if this.open_sequence.get() == sequence => this.report(
+                    "The saved keyboard is unavailable. Choose an available copy from the library.",
+                ),
                 Err(error) if this.open_sequence.get() == sequence => {
                     this.report(format!("Could not open the saved keyboard: {error}"))
                 }

@@ -1043,7 +1043,10 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
     });
     assert!(export_effects.iter().any(|effect| matches!(
         effect,
-        Effect::RunExport { operation_id: OperationId(12), .. }
+        Effect::RunExport {
+            operation_id: OperationId(12),
+            ..
+        }
     )));
 
     let effects = session.submit(Event::Navigate {
@@ -1057,7 +1060,9 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
     )));
     assert!(effects.iter().any(|effect| matches!(
         effect,
-        Effect::CancelExport { operation_id: OperationId(12) }
+        Effect::CancelExport {
+            operation_id: OperationId(12)
+        }
     )));
     assert!(effects.iter().any(|effect| matches!(
         effect,
