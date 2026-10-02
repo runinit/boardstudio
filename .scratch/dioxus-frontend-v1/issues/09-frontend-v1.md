@@ -22,3 +22,14 @@ No required placeholder or React UI island; every inventory row disposed and wor
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
 scope; never silently remove a frontend behavior when an adapter is missing.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- All 63 production TSX entries and the 18 stylesheets in the inventory; all UI hooks/controllers and fonts/assets
+
+Existing regression coverage to transfer or retain:
+
+- All 15 TSX test entries and the workbench benchmark, with explicit retained/replaced coverage dispositions

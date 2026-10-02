@@ -1,12 +1,17 @@
 # BoardStudio frontend migration roadmap
 
-Inventory is read-only against React `dev` at `5a472a94`; Rust integration is `f0ac0a19`. Machine-readable file ledger: `/tmp/boardstudio-frontend-inventory.json`.
+Inventory is read-only against React `dev` at `5a472a94`; Rust integration is `f0ac0a19`. Machine-readable file ledger: [tsx-inventory.json](tsx-inventory.json).
 
 The scope is now entirely the frontend migration. Port every production TSX view/component to Dioxus/Rust, including the full React theme and responsive behavior. Continue to use the existing document engine, application session, host/storage, renderer, CAD, generator and export service boundaries. Do not rewrite those service implementations as part of this UI roadmap. Any React hook that currently owns user-visible navigation, selection, panel, theme or workflow coordination must be expressed as Dioxus presentation state or use the existing Rust session/host service; it must not survive as a hidden TS coordinator in production.
 
 The source ledger accounts for all **79 TSX files**: **63 production presentation files**, **15 test TSX files**, and **one workbench bench/demo harness**. Every production TSX is assigned once to a milestone; tests and bench are listed separately with their owning milestone. The ledger also lists 18 source CSS files, 10 production `use*` hook files (the additional `use*` test is accounted for under verification), two source font assets, and selected visual references. Export has no standalone React TSX: its route is composed inside `Workbench.tsx` and callbacks in `main.tsx`, and is explicitly covered in the Export milestone.
 
-## Ordered milestones
+## Inventory groups (mapped to canonical F1–F9)
+
+These eight source groups preceded the split of shell F1 and shared product UI F2.
+The [roadmap](../../../docs/migration/DIOXUS-FRONTEND-V1.md) and each ledger group’s
+`frontend_milestones` field define the current nine milestones; the group numbers
+below are inventory categories, not a competing execution order.
 
 1. **Shell and project** (`01-shell-project-and-topbar`): reproduce the React topbar and project menu, six workspace tabs in their existing order (Layout, PCB, Keymap, Keycaps, Case, Parts), plus the separate Export action, save/undo affordances, project start/library, setup guide, theme choices, workbench frame, panel drawers and compact behavior. Keep current Rust Layout and Case screens connected; make the other four tabs clearly labeled, keyboard-reachable placeholders with no fake editing actions. This is the first visible progress checkpoint. **Exit:** paired screenshots and DOM review against React at desktop and compact sizes; matching tab order/selected/focus behavior; no placeholder changes the document; zero new axe violations and manual keyboard/focus review pass.
 

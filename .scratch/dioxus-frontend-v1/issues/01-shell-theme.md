@@ -26,3 +26,14 @@ scope; never silently remove a frontend behavior when an adapter is missing.
 ## First-increment requirements
 
 Use exact labels Layout, PCB, Keymap, Keycaps, Case, Parts and separate Export. Project menu retains fixture/saved/import controls; initial no-document state remains usable. Objects contains board/instance and keyboard component navigation; Inspect contains position editing. Preserve stable selection IDs, pointer callbacks, numeric drafts and history. Include Light/Dark/System with reference tokens and browser preference. Layout, Case and existing exports stay functional; other workspaces show honest placeholders and a return path. Desktop uses viewport panels and footer; compact uses reachable navigation/panels without horizontal page overflow. No new public Rust visibility or document/schema changes.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- `app/src/main.tsx`
+- `app/src/ui/Workbench.tsx`
+
+F1 covers shell composition/navigation/themes only. Project management remains F2;
+Workbench tree/canvas/inspector and workspace orchestration continue in F3–F8.

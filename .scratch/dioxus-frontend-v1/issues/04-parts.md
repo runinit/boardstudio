@@ -22,3 +22,26 @@ All supported library actions and states; asset/ID preservation, same service in
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
 scope; never silently remove a frontend behavior when an adapter is missing.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- `app/src/ui/AssemblyEditor.tsx`
+- `app/src/ui/Ergogen2DPreview.tsx`
+- `app/src/ui/GeneratorFields.tsx`
+- `app/src/ui/InputProfileEditor.tsx`
+- `app/src/ui/LibraryWorkspace.tsx`
+- `app/src/ui/ModuleInspector.tsx`
+- `app/src/ui/ModulePreview.tsx`
+- `app/src/ui/ModuleProfileEditor.tsx`
+- `app/src/ui/PartMechanicalProfileEditor.tsx`
+- `app/src/ui/PartsInspectorPanel.tsx`
+- `app/src/ui/PartsLibrary.tsx`
+
+Existing regression coverage to transfer or retain:
+
+- `app/src/ui/Ergogen2DPreview.test.tsx`
+- `app/src/ui/libraryDisplay.test.tsx`
+- `app/src/ui/partsCatalog.test.tsx`

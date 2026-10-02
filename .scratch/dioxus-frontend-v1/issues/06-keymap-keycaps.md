@@ -22,3 +22,16 @@ Every reference-supported control and draft/history state, legacy saved settings
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
 scope; never silently remove a frontend behavior when an adapter is missing.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- `app/src/ui/FirmwareKeymapPanel.tsx`
+- `app/src/ui/KeyBindingEditor.tsx`
+- `app/src/ui/KeySizeControls.tsx`
+- `app/src/ui/KeycapPanel.tsx`
+- `app/src/ui/KeymapLayout.tsx`
+- `app/src/ui/KeymapPanel.tsx`
+- `app/src/ui/createKeymapWorkspace.tsx`
