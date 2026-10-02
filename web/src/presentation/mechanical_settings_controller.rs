@@ -810,17 +810,19 @@ fn normalize_processes(
         let valid_material = material_options(&process.part_id, &method)
             .iter()
             .any(|material| *material == process.material.as_str());
-        if method_changed || !valid_material {
-            process.material = default_material(&process.part_id, &method).into();
+        if is_standard {
+            if method_changed || !valid_material {
+                process.material = default_material(&process.part_id, &method).into();
+            }
+            process.method = method;
+            process.thickness = match process.part_id.as_str() {
+                "plate" => configuration.plate_thickness,
+                "plate-foam" => configuration.plate_foam_thickness,
+                "bottom-foam" => configuration.bottom_foam_thickness,
+                "bottom" => configuration.bottom_thickness,
+                _ => process.thickness,
+            };
         }
-        process.method = method;
-        process.thickness = match process.part_id.as_str() {
-            "plate" => configuration.plate_thickness,
-            "plate-foam" => configuration.plate_foam_thickness,
-            "bottom-foam" => configuration.bottom_foam_thickness,
-            "bottom" => configuration.bottom_thickness,
-            _ => process.thickness,
-        };
     }
 }
 
