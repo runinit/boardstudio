@@ -115,6 +115,7 @@ struct Probe {
     scope: Rc<RefCell<Scope>>,
     selected: Rc<RefCell<Option<String>>>,
     calls: Rc<RefCell<Vec<String>>>,
+    export_calls: Rc<RefCell<usize>>,
     layer: Rc<RefCell<String>>,
     feedback: Rc<RefCell<Option<layer_edit::KeymapLayerFeedback>>>,
 }
@@ -143,12 +144,15 @@ fn host() -> Element {
     let layer_feedback = probe.feedback.borrow().clone();
     let selected = probe.selected.clone();
     let calls = probe.calls.clone();
+    let export_calls = probe.export_calls.clone();
     rsx! { panel::KeymapPanel {
         view:keymap_view(&scope), scope, active_layer_id, selected_key_id,
         layer_operations_enabled:true, layer_feedback,
         on_layer: move |id| *probe.layer.borrow_mut()=id,
         on_layer_operation: |_| {},
         on_select_key: move |id: String| { calls.borrow_mut().push(id.clone()); *selected.borrow_mut()=Some(id); },
+        on_export: move |_| *export_calls.borrow_mut() += 1,
+        firmware_export_enabled: true,
         keys_editor: rsx!{ div { "Key editor" } },
         macros_editor: rsx!{ div { "Macro editor" } },
         encoders_editor: rsx!{ div { "Encoder editor" } },
@@ -225,6 +229,7 @@ fn mounted() -> (Probe, VirtualDom, DomState) {
         })),
         selected: Rc::default(),
         calls: Rc::default(),
+        export_calls: Rc::default(),
         layer: Rc::new(RefCell::new("base".into())),
         feedback: Rc::default(),
     };
@@ -239,6 +244,27 @@ fn event(dom: &VirtualDom, id: ElementId, name: &str, value: &str) {
     let data: Rc<dyn Any> = Rc::new(PlatformEventData::new(Box::new(value.to_owned())));
     dom.runtime()
         .handle_event(name, Event::new(data, false), id);
+}
+#[test]
+fn export_calls_the_supplied_handler_once_and_preserves_panel_state() {
+    let (probe, mut dom, mut state) = mounted();
+    *probe.selected.borrow_mut() = Some("SW17".into());
+    *probe.layer.borrow_mut() = "fn".into();
+    flush(&mut dom, &mut state);
+    event(&dom, state.input.unwrap(), "input", "SW17");
+    flush(&mut dom, &mut state);
+    assert_eq!(*probe.export_calls.borrow(), 0);
+
+    // The static Export button's listener mounts before the dynamic layer
+    // controls and editor tabs. The callback assertion verifies that target.
+    event(&dom, *state.clicks.first().unwrap(), "click", "");
+    flush(&mut dom, &mut state);
+
+    assert_eq!(*probe.export_calls.borrow(), 1);
+    assert_eq!(state.query(), "SW17");
+    assert_eq!(state.selected(), "SW17");
+    assert_eq!(*probe.layer.borrow(), "fn");
+    assert!(probe.calls.borrow().is_empty());
 }
 #[test]
 fn selected_key_change_clears_the_search_from_the_previous_selection() {
