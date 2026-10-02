@@ -210,7 +210,7 @@
     ],
     "status": "two drafts independently reviewed and automatically published; concrete contracts required"
   },
-  "bounded_ticket_count": 25,
+  "bounded_ticket_count": 29,
   "canonical_parent_count": 62,
   "pending_api_decision": {
     "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
@@ -279,6 +279,26 @@
     "demo_urls": [
       "http://127.0.0.1:34663/",
       "http://127.0.0.1:34663/boardstudio/"
+    ]
+  },
+  "keymap_next_tickets": {
+    "issues": [
+      "../dioxus-keymap-layers/issues/03-binding-editor.md",
+      "../dioxus-keymap-layers/issues/04-macro-editor.md",
+      "../dioxus-keymap-layers/issues/05-encoder-firmware-handoff.md"
+    ],
+    "status": "publishedaftercorrectedindependentreview; canonicalstarts/acceptancejoinsretained; HighunlessprovenScope/token/outcomeseam",
+    "source_implementation": "notstarted; layer02 privateworkerimplementednext"
+  },
+  "default_instance_repair": {
+    "issue": "../dioxus-case-workspace/issues/02-default-instance-selection-repair.md",
+    "status": "sourceimplemented and independentlyreviewed;20nativepage +strictnative/WASMpass; freshpublicverificationrunning",
+    "gates": "fullF7.7 canonicalstartandacceptancejoins preserved; parentopen",
+    "source_commit": "ed242c02",
+    "build": "frontend-instance-defaults-20261002 complete; sourcehashesverified",
+    "demo_urls": [
+      "http://127.0.0.1:34665/",
+      "http://127.0.0.1:34665/boardstudio/"
     ]
   }
 }

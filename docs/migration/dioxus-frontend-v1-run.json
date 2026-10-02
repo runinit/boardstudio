@@ -177,7 +177,7 @@
   "automatic_ticket_frontier": true,
   "implementation_authority": "2026-10-02 user requested implementation and automatic agent-created next tickets",
   "bounded_ticket_tracking": {
-    "published_bounded_tickets": 25,
+    "published_bounded_tickets": 29,
     "canonical_parent_tasks": 62,
     "new_publication_folders": [
       ".scratch/dioxus-shared-viewer",

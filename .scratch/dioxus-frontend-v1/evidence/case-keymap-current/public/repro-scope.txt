@@ -1,0 +1,4 @@
+Candidate URL http://127.0.0.1:34663/
+React URL http://127.0.0.1:5173/
+Candidate Reviung session case-body-candidate; React Reviung session case-body-reference.
+Initial candidate Physical instance is Canonical board; authored New case body is visible despite Reviung hardware.instances[main].mechanical + sharedConstruction being populated. React chooses Main case assembly on the same archive. Publicly selecting candidate Physical instance=main hides Add case settings and New case body; case generation controls remain. Switching is an in-memory UI scope choice; no saved project data changed.

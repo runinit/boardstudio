@@ -257,6 +257,12 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
           "observation": "Case draft source review found target reuse, clean Undo refresh, repeated rejection retry, overlapping pending feedback and scope-change busy-state defects. Scoped subtree key and request-specific terminal observations correct these in source; browser acceptance remains pending.",
           "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+        },
+        {
+          "source": "dc81237c and pinnedReactInspectorControls; exactdiagnosishashes retained",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/escape-diagnosis/diagnosis.md",
+          "observation": "Inherited native positive numeric constraints min0.001+step0.1 mark valid saved thickness3 as stepMismatch in both implementations. Core validation and saved values remain correct; this is a confirmed browser/input semantics gap for post-port review, not a newlyintroduced cancellation defect. Six correctly invoked Escape checks restore accepted 0, focus and unchanged storage. The original blank observation used invalid `press @ref Escape` driver syntax and is retired as application evidence; no application cancellation regression or source fix was found.",
+          "status": "recorded; no speculative Escape sourcepatch or silent sharedparity change"
         }
       ]
     },

@@ -1,0 +1,18 @@
+- heading "BoardStudio" [level=1, ref=e1]
+- tab "Layout" [selected, ref=e5]
+- tab "PCB" [ref=e6]
+- tab "Keymap" [ref=e7]
+- tab "Keycaps" [ref=e8]
+- tab "Case" [ref=e9]
+- tab "Parts" [ref=e10]
+- button "Export" [ref=e2]
+- combobox "Theme" [expanded=false, ref=e11]: System
+  - option "System" [selected, ref=e16]
+  - option "Light" [ref=e17]
+  - option "Dark" [ref=e18]
+- heading "Open a keyboard" [level=1, ref=e3]
+- region "Your keyboards" [ref=e4]
+  - heading "Your keyboards0" [level=2, ref=e14]
+  - button "REVIUNG41 copy" [ref=e12]
+  - button "Sofle v2 copy" [ref=e13]
+  - button "Import .boardstudio" [ref=e15]: No file chosen
