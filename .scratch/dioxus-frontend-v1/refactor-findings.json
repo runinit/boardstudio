@@ -96,6 +96,15 @@
           "post_port_follow_up": "After parity, evaluate one shared, tested Runtime read-query lifecycle boundary covering accepted-source/scope admission, worker identity/epoch, cancellation and stale-reply suppression. Measure a real benefit and preserve feature-specific typed inputs before consolidating.",
           "validation": "Exercise mechanical and electrical source changes, executor restart/reopen ABA and late worker replies through the real Runtime; prove current accepted inputs are returned and stale results suppressed without duplicate authority.",
           "status": "bounded source adapter implemented; shared lifecycle refactor deferred; compiler/browser/public gates remain open"
+        },
+        {
+          "source": "Unintegrated Keycaps448c3274 and firmware handoff6fe8fb87; independent Astra source review against42b9fdef",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md; .scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md",
+          "observation": "Keycaps effect tracks sequence/state reads it writes and repeatedly restarts assessment; F5 firmware edit observer watches stable Signal identity instead of numeric Runtime version and can miss asynchronous outcomes. Native pure tests and builds did not exercise these mounted WASM lifetimes. Targetless terminal firmware feedback also loses session/board/instance ownership. Required correctness repairs are active; no acceptance or performance result is inferred.",
+          "current_mitigation": "Fix exact effect dependencies/nonreactive bookkeeping, retain stable feedback target, and add mounted asynchronous lifecycle regressions plus paired browser proof before source integration.",
+          "post_port_follow_up": "Assess shared tested owner/lifecycle seams only after parity; explicitly distinguish pure projection tests from mounted Runtime effect coverage.",
+          "validation": "Mount source/retry assessment and delayed operation settlement; prove bounded requests, saved/failed transitions, hidden-panel survival, and context-scoped feedback. Retain red-before-fix and exact built-browser proof.",
+          "status": "Concrete bugs under current repair; broader lifecycle/test architecture proposal deferred."
         }
       ]
     },
@@ -340,6 +349,12 @@
           "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md",
           "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
           "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
+        },
+        {
+          "source": "Reviewed Layout planning packetfb8f776d; published exact childrenee10407a",
+          "evidence": ".scratch/dioxus-layout-authoring/evidence/transform-align/rf-handoff.md",
+          "observation": "Normal Event::Edit Preview lacks gesture-generation cancellation/clear-preview authority. Fields-only transform and one-shot alignment can use existing commit authority; pointer Stagger/Splay/Origin remain separately gated. Align AABB policy uses accepted courtyard/keycap corners and matrix-local operations.",
+          "status": "Source-backed lifecycle prerequisite retained; no pointer-tool or parent parity claim."
         }
       ]
     },
@@ -677,6 +692,15 @@
           "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md",
           "observation": "A private board-scoped Core ResolveElectrical adapter and read-only Wiring/switch-terminal Inspector are implemented. Follow-up includes executor-epoch invalidation and reviewed no-controller/diagnostic display corrections. The source is not yet mounted or compiler/public verified; root owns composition, build, paired fixture evidence and all F5.2/F5.3/INT.2 joins.",
           "status": "private source implementation only; exact current file hashes and unrun checks are recorded in handoff; no acceptance claim"
+        },
+        {
+          "source": "Unintegrated Keycaps448c3274 and firmware handoff6fe8fb87; independent Astra source review against42b9fdef",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md; .scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md",
+          "observation": "Keycaps effect tracks sequence/state reads it writes and repeatedly restarts assessment; F5 firmware edit observer watches stable Signal identity instead of numeric Runtime version and can miss asynchronous outcomes. Native pure tests and builds did not exercise these mounted WASM lifetimes. Targetless terminal firmware feedback also loses session/board/instance ownership. Required correctness repairs are active; no acceptance or performance result is inferred.",
+          "current_mitigation": "Fix exact effect dependencies/nonreactive bookkeeping, retain stable feedback target, and add mounted asynchronous lifecycle regressions plus paired browser proof before source integration.",
+          "post_port_follow_up": "Assess shared tested owner/lifecycle seams only after parity; explicitly distinguish pure projection tests from mounted Runtime effect coverage.",
+          "validation": "Mount source/retry assessment and delayed operation settlement; prove bounded requests, saved/failed transitions, hidden-panel survival, and context-scoped feedback. Retain red-before-fix and exact built-browser proof.",
+          "status": "Concrete bugs under current repair; broader lifecycle/test architecture proposal deferred."
         }
       ]
     },

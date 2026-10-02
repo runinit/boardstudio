@@ -398,3 +398,11 @@ RF-005/RF-009: the same Matrix→Keycaps→SW7 journey exposes a shared selectio
 #### Keycaps selection diagnosis resolved
 
 RF-005/RF-006/RF-009: [independent paired diagnosis](../../.scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/keycaps-selection-diagnosis/DIAGNOSIS.md) confirms a legacy React stale-closure defect, rather than intended matrix selection. Its Key-mode reset is overwritten by a callback using the previous Matrix mode. Preserve the correct Dioxus single-key result under the confirmed Q1 bug exception, retain both original mismatch and intended-behavior oracle, and leave wider refactoring/full acceptance open.
+
+### RF-001/RF-009 mounted reactive lifetime review
+
+Independent Astra review of unintegrated Keycaps `448c3274` and firmware handoff `6fe8fb87` found current correctness bugs missed by native pure tests: a Keycaps effect reads sequence/state signals it writes and repeatedly schedules assessment, while the firmware observer compares a stable Signal handle rather than the Runtime version value and can miss delayed outcomes. Firmware feedback also loses its captured board/instance/session target after settlement. These require repair and mounted/browser regressions now; the later refactor may assess a shared tested lifecycle boundary. The [Spec](../../.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md) and [Standards](../../.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md) reports preserve exact source and verification limits. No feature or parent acceptance is granted.
+
+### RF-005 Layout pointer-preview prerequisite
+
+The [reviewed Transform/Align handoff](../../.scratch/dioxus-layout-authoring/evidence/transform-align/rf-handoff.md) records that ordinary Edit previews do not acquire GestureCancel generation suppression or clear-preview authority. Fields-only transforms and one-shot alignment use existing commits; pointer Stagger/Splay/Origin remain gated on a proven cancellation protocol. This is a current capability limitation and a later lifecycle-design question, not permission to add public Session APIs or waive gesture parity.
