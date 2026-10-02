@@ -1061,10 +1061,10 @@ pub(super) fn context_label(
             column,
             assembly_id,
         } => {
-            if let Some(part_id) = part_id {
-                if let Some(part) = document.parts.iter().find(|part| part.id == *part_id) {
-                    return Some(part.reference.clone());
-                }
+            if let Some(part_id) = part_id
+                && let Some(part) = document.parts.iter().find(|part| part.id == *part_id)
+            {
+                return Some(part.reference.clone());
             }
             if let (Some(_), Some(row), Some(column), Some(assembly_id)) =
                 (matrix_id, row, column, assembly_id)

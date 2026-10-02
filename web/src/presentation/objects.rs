@@ -68,9 +68,9 @@ pub(super) fn Objects(
     let active_scope = runtime.scope();
     let board_scope = active_scope.clone();
     let instance_scope = active_scope.clone();
-    let navigate_board = on_navigate.clone();
-    let navigate_instance = on_navigate.clone();
-    let mut expanded = use_signal(BTreeSet::<String>::new);
+    let navigate_board = on_navigate;
+    let navigate_instance = on_navigate;
+    let expanded = use_signal(BTreeSet::<String>::new);
     let mut grouping = use_signal(|| Grouping::from_storage(read_tree_grouping()));
     let visible_count = document
         .boards
@@ -166,9 +166,9 @@ pub(super) fn Objects(
                                 },
                                 item.label
                             );
-                            let select_on_click = on_select.clone();
-                            let select_on_key = on_select.clone();
-                            let nudge_on_key = on_nudge.clone();
+                            let select_on_click = on_select;
+                            let select_on_key = on_select;
+                            let nudge_on_key = on_nudge;
                             let click_scope = active_scope.clone();
                             let key_scope = active_scope.clone();
                             rsx! {
