@@ -140,7 +140,13 @@
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
-      "parts_name_draft_20261002": "Source comparison found Dioxus token/revision-keyed Name draft resets on unrelated accepted edits while React DraftInput resets only accepted value changes. Required parity repair splits stable target/value draft identity from current accepted capture; no stale admission waiver. Independent review and mounted regression remain open."
+      "parts_name_draft_20261002": "Source comparison found Dioxus token/revision-keyed Name draft resets on unrelated accepted edits while React DraftInput resets only accepted value changes. Required parity repair splits stable target/value draft identity from current accepted capture; no stale admission waiver. Independent review and mounted regression remain open.",
+      "shared_join_checkpoint_20261002": {
+        "source": "94480901a2dcabaa6085416e29116c620017a385",
+        "observation": "PCB07 and PCB08 isolated authors each correctly implemented a generic-part Inspector, but the initial serial join duplicated its heading and moved Ergogen bindings ahead of Board details/Connections. Independent review reproduced the composition mismatch; a single contextual host heading and a private Element slot now preserve both controllers and reference order. Source review clear; actual paired DOM qualification remains open.",
+        "during_port": "One root integration owner, isolated leaf authors, exact shared handoff patches and source-specific independent review; source clearance never substitutes for paired browser acceptance.",
+        "later_question": "Can workbench composition interfaces express ordered contextual sections explicitly enough to prevent semantically wrong but compilable joins?"
+      }
     },
     {
       "id": "RF-002",
@@ -797,7 +803,14 @@
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
       "build_cli_takeaway_20261002": "Confirmed tooling gap: build-m1.py treats --help as a valid build ID because hyphens are stripped before alphanumeric validation, starting expensive builds. Multiple authors hit it; preserved incomplete --help directories are not acceptance artifacts. Fix conventional help/invalid-leading-option handling after active source-stamped build, with focused CLI regression; do not mutate script during running provenance guard.",
-      "temporary_storage_preservation_20261002": "At99% tmpfs use, preserved only inactive generated web/target trees from two old worktrees under retained home, with original-path symlinks; checked /proc references and >2h inactivity, no source/history/browser data discarded. /tmp restored3.6GBfree. Manifest retained-tmp/20261002/inactive-target-preservation.json."
+      "temporary_storage_preservation_20261002": "At99% tmpfs use, preserved only inactive generated web/target trees from two old worktrees under retained home, with original-path symlinks; checked /proc references and >2h inactivity, no source/history/browser data discarded. /tmp restored3.6GBfree. Manifest retained-tmp/20261002/inactive-target-preservation.json.",
+      "packaging_reuse_checkpoint_20261002": {
+        "source": "4d08ac9b",
+        "observation": "Full frontend builds repeat CAD optimization even when providers are unchanged. Reviewed guarded reuse now accepts only three explicitly proven page/CSS inputs. Review found root Cargo configuration changes and unexpected staged provider files escaped initial guards; both reproduced gaps are fixed with production-path regressions, including optimized Python execution.",
+        "checks": "13 normal + 13 optimized reuse tests and existing source inventory test pass after integration; full helper-matched baseline currently building. Real eligible eight-command reuse and root/subpath/offline proof remain open.",
+        "later_question": "Extend reviewed dependency ownership proofs to more page leaves without weakening consumed-input, tool/config or exact provider-artifact inventories.",
+        "thread_limit": "Saved concurrency ceiling is30; this live session rejects new threads and some completed-reviewer reactivation at its11-slot limit. Reuse existing active slots and retain queued stream ownership; do not claim a live limit change."
+      }
     },
     {
       "id": "RF-010",

@@ -14,6 +14,8 @@ At frontend v1, F9 produces a refactoring handoff grouped by architectural bound
 
 ## Current port checkpoint — 2026-10-02
 
+The current served build is 34730/d320, with paired same-archive Case 90/90. PCB07+08 now has a reviewed single-header/ordered-section source join at 94480901; its initial duplicate-header and section-order regression is retained under RF-001. The guarded page-only packaging helper is integrated at 4d08ac9b; its reproduced root-config and extra-provider-file guard defects and remaining real-build qualification are retained under RF-009. The full helper-matched baseline is building from e3566700, while all parent gates stay open.
+
 The source-specific machine register now retains the paired34727 bridge-camera blank-canvas defect, confirmed production IndexedDB error/abort callback-lifetime regression, and shared Inspector clipping. Required fixes remain in the port; neither parent acceptance nor the future refactor absorbs these blockers. The original repeated Matrix save's abort cause remains unknown despite12 fresh successful creates/history/reloads. Reviewers are keeping the callback defect and its trigger distinct.
 
 Temporary storage pressure also exposed an execution reliability cost: inactive generated build targets filled tmpfs during parallel browser/build work. The coordinator preserved two inactive generated target trees on disk with original-path symlinks after checking process references and inactivity; source, Git history and failed browser state were retained. This adds operational evidence to RF-009 without claiming a product architecture defect.
