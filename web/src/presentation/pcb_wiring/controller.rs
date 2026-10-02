@@ -1,5 +1,6 @@
 //! Editor-lifetime owner for automatic, board-scoped electrical plan resolution.
 //! The selected part is intentionally absent from this controller's request identity.
+use super::part_net_admission::{part_net_owner_context_is_current, use_part_net_owner_lifetime};
 use super::{
     FirmwarePositionEditRequest, FirmwarePositionFeedback, FirmwarePositionFeedbackState,
     PcbWiringResolution, WiringPlanIdentity, firmware_position_projection,
@@ -289,6 +290,7 @@ pub(in crate::presentation) fn use_pcb_part_net_edits(
 ) -> PartNetActions {
     let pending = use_signal(|| None::<PendingPartNetEdit>);
     let feedback = use_signal(|| None::<PartNetFeedback>);
+    let alive = use_part_net_owner_lifetime();
     let generation = scope_generation();
     let observed_version = version();
 
@@ -417,8 +419,8 @@ pub(in crate::presentation) fn use_pcb_part_net_edits(
             let mut pending = pending;
             let mut feedback = feedback;
             let instance_is_current = instance_is_current.clone();
+            let alive = alive.clone();
             let generation = request.identity.generation;
-            let workspace = workspace();
             spawn_local(async move {
                 let is_ergogen_source = match source.as_deref() {
                     Some(source) => {
@@ -430,14 +432,22 @@ pub(in crate::presentation) fn use_pcb_part_net_edits(
                     }
                     None => false,
                 };
+                // This callback can outlive the Editor. Check the hook lifetime before reading
+                // any Dioxus signals or invoking the selection predicate it captured.
+                if !part_net_owner_context_is_current(
+                    &alive,
+                    workspace,
+                    scope_generation,
+                    generation,
+                ) {
+                    return;
+                }
                 let Some(current_identity) =
                     current_part_net_identity(&runtime, generation, instance_is_current())
                 else {
                     return;
                 };
-                if workspace != "PCB"
-                    || scope_generation() != generation
-                    || pending.peek().is_some()
+                if pending.peek().is_some()
                     || !request_matches_current_part(&request.identity, &current_identity)
                 {
                     return;

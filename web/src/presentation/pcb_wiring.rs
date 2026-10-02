@@ -12,6 +12,7 @@ use std::{rc::Rc, sync::Arc};
 
 mod controller;
 mod part_connections;
+mod part_net_admission;
 use crate::firmware_position_projection;
 pub(in crate::presentation) use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
