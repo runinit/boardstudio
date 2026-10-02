@@ -44,6 +44,12 @@ pub(in crate::presentation) fn LayoutTransformToolbar(
                 "Transform"
             }
             div { id: "m1-layout-transform-menu", class: "m1-layout-transform-popover",
+                super::layout_toolbar::LayoutCommandMenuHeader {
+                    label: "Transform".to_owned(),
+                    close_label: "Close Transform".to_owned(),
+                    open_menu,
+                    menu: LayoutCommandMenu::Transform,
+                }
                 if mount.properties_available {
                     button {
                         r#type: "button",

@@ -469,6 +469,26 @@ pub(in crate::presentation) fn close_layout_command_menu(
     restore_layout_command_focus(menu);
 }
 
+#[component]
+pub(in crate::presentation) fn LayoutCommandMenuHeader(
+    label: String,
+    close_label: String,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    menu: LayoutCommandMenu,
+) -> Element {
+    rsx! {
+        div { class: "m1-layout-command-menu-header",
+            strong { "{label}" }
+            button {
+                r#type: "button",
+                aria_label: "{close_label}",
+                onclick: move |_| close_layout_command_menu(open_menu, menu),
+                "×"
+            }
+        }
+    }
+}
+
 fn restore_layout_command_focus(menu: LayoutCommandMenu) {
     if let Some(trigger) = web_sys::window()
         .and_then(|window| window.document())
@@ -611,6 +631,12 @@ fn LayoutSelectMenu(
                 "Select: {selection_kind.label()}"
             }
             div { id: "m1-layout-select-menu", class: "m1-layout-select-popover", role: "group", aria_label: "Selection scope",
+                LayoutCommandMenuHeader {
+                    label: format!("Select: {}", selection_kind.label()),
+                    close_label: format!("Close Select: {}", selection_kind.label()),
+                    open_menu,
+                    menu: LayoutCommandMenu::Select,
+                }
                 for kind in LayoutSelectionKind::ALL {
                     button {
                         r#type: "button",
@@ -657,6 +683,12 @@ fn LayoutSnapMenu(
                 "Snap"
             }
             div { id: "m1-layout-snap-menu", class: "m1-layout-snap-popover",
+                LayoutCommandMenuHeader {
+                    label: "Snap".to_owned(),
+                    close_label: "Close Snap".to_owned(),
+                    open_menu,
+                    menu: LayoutCommandMenu::Snap,
+                }
                 label { "Snap increment"
                     select {
                         "aria-label": "Snap increment",

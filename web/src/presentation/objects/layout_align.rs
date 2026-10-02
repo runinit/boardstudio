@@ -78,6 +78,12 @@ pub(in crate::presentation) fn LayoutAlignToolbar(
                 "Align"
             }
             div { id: "m1-layout-align-menu", class: "m1-layout-align-popover",
+                super::layout_toolbar::LayoutCommandMenuHeader {
+                    label: "Align".to_owned(),
+                    close_label: "Close Align".to_owned(),
+                    open_menu,
+                    menu: LayoutCommandMenu::Align,
+                }
                 label { "Reference part"
                     select {
                         "aria-label": "Alignment reference",
