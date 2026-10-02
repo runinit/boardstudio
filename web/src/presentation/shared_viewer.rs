@@ -2,9 +2,10 @@
 //!
 //! Case is the first consumer. Its wrapper owns the Case-to-renderer projection;
 //! this module owns only renderer controls, transient view state and host lifetime.
-use crate::renderer_host_page::{RendererModelSource, RendererPageHost};
-use crate::{cad_jobs::captured_case_document, runtime::CadScene};
+use crate::renderer_host_page::{RendererModelSource, RendererPageHost, RendererSceneUpdate};
+use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_web::cad_jobs::captured_case_document;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
@@ -19,17 +20,17 @@ use web_sys::{HtmlCanvasElement, PointerEvent};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct CaseDisplay {
-    pub hidden: Vec<String>,
-    pub colors: BTreeMap<String, String>,
+    pub(crate) hidden: Vec<String>,
+    pub(crate) colors: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ViewerIdentity {
-    pub scope: Scope,
-    pub snapshot_token: SnapshotToken,
-    pub viewer_instance: u64,
-    pub projection_generation: u64,
-    pub renderer_sequence: u64,
+    pub(crate) scope: Scope,
+    pub(crate) snapshot_token: SnapshotToken,
+    pub(crate) viewer_instance: u64,
+    pub(crate) projection_generation: u64,
+    pub(crate) renderer_sequence: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,14 +66,14 @@ pub(crate) enum ViewerSignalKind {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ScopedViewerSignal {
-    pub identity: ViewerIdentity,
-    pub kind: ViewerSignalKind,
+    pub(crate) identity: ViewerIdentity,
+    pub(crate) kind: ViewerSignalKind,
     owner: Weak<ViewerOwner>,
 }
 
 impl ScopedViewerSignal {
     /// Check the live viewer owner, not merely the identity copied into this event.
-    pub fn is_current(&self) -> bool {
+    pub(crate) fn is_current(&self) -> bool {
         self.owner.upgrade().is_some_and(|owner| {
             owner.active.get() && owner.identity.borrow().as_ref() == Some(&self.identity)
         })
@@ -81,13 +82,13 @@ impl ScopedViewerSignal {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ScopedDisplayChange {
-    pub identity: ViewerIdentity,
-    pub display: CaseDisplay,
+    pub(crate) identity: ViewerIdentity,
+    pub(crate) display: CaseDisplay,
     owner: Weak<ViewerOwner>,
 }
 
 impl ScopedDisplayChange {
-    pub fn is_current(&self) -> bool {
+    pub(crate) fn is_current(&self) -> bool {
         self.owner.upgrade().is_some_and(|owner| {
             owner.active.get() && owner.identity.borrow().as_ref() == Some(&self.identity)
         })
@@ -175,7 +176,8 @@ fn next_viewer_instance() -> Result<u64, String> {
 
 struct RendererSceneProjection {
     identity: ViewerIdentity,
-    input: JsValue,
+    initial_input: JsValue,
+    update: RendererSceneUpdate,
     models: Vec<RendererModelSource>,
     layers: Vec<(String, String)>,
     handles: Vec<ViewerHandle>,
@@ -201,14 +203,13 @@ pub(crate) fn CaseSharedViewer(
     scene: Rc<CadScene>,
     selected_layer: String,
     display: CaseDisplay,
+    resolved_theme: String,
     on_signal: EventHandler<ScopedViewerSignal>,
     on_display_change: EventHandler<ScopedDisplayChange>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let _ = use_context::<Signal<u64>>()();
-    let theme_state = use_context::<super::ThemeState>().0;
-    let preference = theme_state();
-    let theme = effective_theme(preference);
+    let theme = resolved_theme;
     let owner = match use_hook(ViewerOwner::new) {
         Ok(owner) => owner,
         Err(error) => {
@@ -334,7 +335,7 @@ fn project_case_scene(
         bodies.push(&value);
     }
     Reflect::set(&input, &"bodies".into(), &bodies).map_err(js_error)?;
-    let mut layers = vec![("PCB".to_owned(), "PCB".to_owned())];
+    let mut layers = vec![("pcb".to_owned(), "PCB".to_owned())];
     for body in &scene.result.bodies {
         if !layers.iter().any(|(id, _)| id == &body.id) {
             layers.push((body.id.clone(), body.name.clone()));
@@ -342,26 +343,12 @@ fn project_case_scene(
     }
     Ok(RendererSceneProjection {
         identity,
-        input,
+        initial_input: input.clone(),
+        update: RendererSceneUpdate::Full(input),
         models: Vec::new(),
         layers,
         handles: Vec::new(),
     })
-}
-
-fn effective_theme(preference: &'static str) -> String {
-    if preference == "dark" {
-        return "dark".to_owned();
-    }
-    if preference == "light" {
-        return "light".to_owned();
-    }
-    web_sys::window()
-        .and_then(|window| window.document())
-        .and_then(|document| document.document_element())
-        .and_then(|element| element.get_attribute("data-theme"))
-        .filter(|value| value == "dark")
-        .unwrap_or_else(|| "light".to_owned())
 }
 
 fn js_error(value: JsValue) -> String {
@@ -450,6 +437,7 @@ impl Default for TransientView {
 #[derive(Clone)]
 enum PointerOwner {
     Orbit {
+        identity: ViewerIdentity,
         pointer_id: i32,
         last_x: f64,
         last_y: f64,
@@ -459,10 +447,25 @@ enum PointerOwner {
         picked: Option<String>,
     },
     Handle {
+        identity: ViewerIdentity,
         pointer_id: i32,
         z: f32,
         id: String,
     },
+}
+
+impl PointerOwner {
+    fn identity(&self) -> &ViewerIdentity {
+        match self {
+            Self::Orbit { identity, .. } | Self::Handle { identity, .. } => identity,
+        }
+    }
+
+    fn pointer_id(&self) -> i32 {
+        match self {
+            Self::Orbit { pointer_id, .. } | Self::Handle { pointer_id, .. } => *pointer_id,
+        }
+    }
 }
 
 #[component]
@@ -479,42 +482,55 @@ fn SharedViewer(
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let host = use_hook(|| Rc::new(RefCell::new(None::<RendererPageHost>)));
     let canvas = use_hook(|| Rc::new(RefCell::new(None::<HtmlCanvasElement>)));
+    let live_projection = use_hook(|| Rc::new(RefCell::new(projection.clone())));
+    *live_projection.borrow_mut() = projection.clone();
+    let live_source = use_hook(|| Rc::new(RefCell::new(current_source.clone())));
+    *live_source.borrow_mut() = current_source.clone();
     let mounted = use_signal(|| false);
     let mut status = use_signal(|| "Starting 3D preview…".to_owned());
     let mut transient = use_signal(TransientView::default);
     let pointer = use_hook(|| Rc::new(RefCell::new(None::<PointerOwner>)));
     let applied_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
+    let applied_identity = use_hook(|| Rc::new(RefCell::new(None::<ViewerIdentity>)));
+
+    use_effect(use_reactive((&projection,), {
+        let pointer = pointer.clone();
+        let canvas = canvas.clone();
+        move |(projection,)| {
+            cancel_superseded_pointer(&pointer, &canvas, &projection.identity);
+        }
+    }));
 
     use_drop({
         let host = host.clone();
         let owner = owner.clone();
-        let on_signal = on_signal;
+        let pointer = pointer.clone();
+        let canvas = canvas.clone();
         move || {
-            if let Some(host) = host.borrow_mut().take() {
-                if let Err(error) = host.dispose()
-                    && let Some(identity) = owner.identity.borrow().clone()
-                {
-                    on_signal.call(ScopedViewerSignal {
-                        identity,
-                        kind: ViewerSignalKind::Failed(error),
-                        owner: Rc::downgrade(&owner),
-                    });
-                }
-            }
             owner.active.set(false);
+            if let Some(pointer_id) = pointer
+                .borrow_mut()
+                .take()
+                .map(|active| active.pointer_id())
+            {
+                release_pointer_capture(&canvas, pointer_id);
+            }
+            if let Some(host) = host.borrow_mut().take() {
+                let _ = host.dispose();
+            }
         }
     });
 
     use_effect(use_reactive((&projection, &mounted()), {
         let host = host.clone();
         let applied_sequence = applied_sequence.clone();
+        let applied_identity = applied_identity.clone();
         let owner = owner.clone();
-        let runtime = runtime.clone();
         let current_source = current_source.clone();
         let on_signal = on_signal;
         let mut status = status;
         move |(projection, mounted)| {
-            if !mounted || !owner.active.get() {
+            if !mounted || !owner.active.get() || !(current_source.0)() {
                 return;
             }
             let identity = projection.identity.clone();
@@ -529,26 +545,44 @@ fn SharedViewer(
                 .as_ref()
                 .ok_or_else(|| "3D renderer is not mounted".to_owned())
                 .and_then(|host| {
-                    host.update_scene_checked(projection.input.clone(), &projection.models)
+                    host.submit_scene(
+                        projection.update.clone(),
+                        &projection.models,
+                        identity.renderer_sequence,
+                    )
                 });
             match result {
                 Ok(accepted) => {
+                    applied_sequence.set(identity.renderer_sequence);
                     if accepted {
-                        applied_sequence.set(identity.renderer_sequence);
+                        *applied_identity.borrow_mut() = Some(identity.clone());
                     }
-                    status.set(if accepted {
-                        "3D preview updated.".to_owned()
-                    } else {
-                        "A stale 3D scene update was ignored.".to_owned()
-                    });
-                    emit_signal(&owner, on_signal, ViewerSignalKind::SceneAccepted(accepted));
+                    if owner_is_current(&owner, &identity) && (current_source.0)() {
+                        status.set(if accepted {
+                            "3D preview updated.".to_owned()
+                        } else {
+                            "A stale 3D scene update was ignored.".to_owned()
+                        });
+                        emit_signal(
+                            &owner,
+                            on_signal,
+                            &identity,
+                            ViewerSignalKind::SceneAccepted(accepted),
+                        );
+                    }
                 }
                 Err(error) => {
-                    status.set(error.clone());
-                    emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
+                    if owner_is_current(&owner, &identity) && (current_source.0)() {
+                        status.set(error.clone());
+                        emit_signal(
+                            &owner,
+                            on_signal,
+                            &identity,
+                            ViewerSignalKind::Failed(error),
+                        );
+                    }
                 }
             }
-            let _ = (&runtime, &current_source);
         }
     }));
 
@@ -564,13 +598,14 @@ fn SharedViewer(
         {
             let host = host.clone();
             let owner = owner.clone();
+            let current_source = current_source.clone();
             let on_signal = on_signal;
             let mut status = status;
             move |(projection, selected_layer, display, theme, transient, mounted)| {
-                if !mounted || !owner.active.get() {
-                    return;
-                }
-                if owner.identity.borrow().as_ref() != Some(&projection.identity) {
+                if !mounted
+                    || !owner.active.get()
+                    || owner.identity.borrow().as_ref() != Some(&projection.identity)
+                {
                     return;
                 }
                 let result =
@@ -581,8 +616,15 @@ fn SharedViewer(
                             .and_then(|host| host.set_display_state(state))
                     });
                 if let Err(error) = result {
-                    status.set(error.clone());
-                    emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
+                    if owner_is_current(&owner, &projection.identity) && (current_source.0)() {
+                        status.set(error.clone());
+                        emit_signal(
+                            &owner,
+                            on_signal,
+                            &projection.identity,
+                            ViewerSignalKind::Failed(error),
+                        );
+                    }
                 }
             }
         },
@@ -591,13 +633,15 @@ fn SharedViewer(
     use_effect(use_reactive((&projection, &mounted()), {
         let host = host.clone();
         let owner = owner.clone();
+        let current_source = current_source.clone();
         let on_signal = on_signal;
         let mut status = status;
         move |(projection, mounted)| {
-            if !mounted || !owner.active.get() {
-                return;
-            }
-            if owner.identity.borrow().as_ref() != Some(&projection.identity) {
+            if !mounted
+                || !owner.active.get()
+                || !(current_source.0)()
+                || owner.identity.borrow().as_ref() != Some(&projection.identity)
+            {
                 return;
             }
             let result = handles_value(&projection.handles).and_then(|handles| {
@@ -607,8 +651,15 @@ fn SharedViewer(
                     .and_then(|host| host.set_handles(handles).map(|_| ()))
             });
             if let Err(error) = result {
-                status.set(error.clone());
-                emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
+                if owner_is_current(&owner, &projection.identity) && (current_source.0)() {
+                    status.set(error.clone());
+                    emit_signal(
+                        &owner,
+                        on_signal,
+                        &projection.identity,
+                        ViewerSignalKind::Failed(error),
+                    );
+                }
             }
         }
     }));
@@ -618,6 +669,9 @@ fn SharedViewer(
         let canvas_state = canvas.clone();
         let owner = owner.clone();
         let runtime = runtime.clone();
+        let live_projection = live_projection.clone();
+        let live_source = live_source.clone();
+        let applied_identity = applied_identity.clone();
         let on_signal = on_signal;
         let mut status = status;
         let mut mounted = mounted;
@@ -628,98 +682,179 @@ fn SharedViewer(
                 .try_as_web_event()
                 .and_then(|value| value.dyn_into::<HtmlCanvasElement>().ok())
             else {
-                status.set("3D canvas could not be attached.".to_owned());
-                emit_signal(
-                    &owner,
-                    on_signal,
-                    ViewerSignalKind::Failed("3D canvas could not be attached.".to_owned()),
-                );
+                let identity = projection.identity.clone();
+                if owner_is_current(&owner, &identity) && (live_source.borrow().0)() {
+                    status.set("3D canvas could not be attached.".to_owned());
+                    emit_signal(
+                        &owner,
+                        on_signal,
+                        &identity,
+                        ViewerSignalKind::Failed("3D canvas could not be attached.".to_owned()),
+                    );
+                }
                 return;
             };
             *canvas_state.borrow_mut() = Some(element.clone());
             let host = host.clone();
             let owner = owner.clone();
             let runtime = runtime.clone();
+            let live_projection = live_projection.clone();
+            let live_source = live_source.clone();
+            let applied_identity = applied_identity.clone();
             let on_signal = on_signal;
             let mut status = status;
             let mut mounted = mounted;
-            let identity = projection.identity.clone();
-            let input = projection.input.clone();
-            let models = projection.models.clone();
-            let mount_scope = identity.scope.clone();
-            let source_is_current = Rc::new(move || {
-                owner.active.get() && runtime.scope().as_ref() == Some(&mount_scope)
-            });
-            let current: Rc<dyn Fn() -> bool> = source_is_current;
-            emit_signal(
-                &owner,
-                on_signal,
-                ViewerSignalKind::Lifecycle(ViewerLifecycle::Starting),
-            );
-            status.set("Starting the 3D renderer…".to_owned());
+            let initial_projection = projection.clone();
+            if owner_is_current(&owner, &initial_projection.identity) && (live_source.borrow().0)()
+            {
+                emit_signal(
+                    &owner,
+                    on_signal,
+                    &initial_projection.identity,
+                    ViewerSignalKind::Lifecycle(ViewerLifecycle::Starting),
+                );
+                status.set("Starting the 3D renderer…".to_owned());
+            }
             spawn_local(async move {
-                let report_owner = owner.clone();
-                let report_runtime = runtime.clone();
-                let report_status = status;
-                let status_callback = Rc::new(move |message: String| {
-                    let Some(identity) = report_owner.identity.borrow().clone() else {
-                        return;
-                    };
-                    if !report_owner.active.get()
-                        || report_runtime.scope().as_ref() != Some(&identity.scope)
+                let mut request = initial_projection;
+                loop {
+                    if !owner.active.get()
+                        || runtime.scope().as_ref() != Some(&request.identity.scope)
                     {
-                        return;
+                        break;
                     }
-                    let mut report_status = report_status;
-                    report_status.set(message.clone());
-                    let kind = if message.to_ascii_lowercase().contains("context lost") {
-                        ViewerSignalKind::Lifecycle(ViewerLifecycle::ContextLost)
-                    } else if message.contains("initialized") {
-                        ViewerSignalKind::Lifecycle(ViewerLifecycle::Ready)
-                    } else if message.to_ascii_lowercase().contains("failed") {
-                        ViewerSignalKind::Failed(message)
-                    } else {
-                        return;
-                    };
-                    on_signal.call(ScopedViewerSignal {
-                        identity,
-                        kind,
-                        owner: Rc::downgrade(&report_owner),
+                    if !owner_is_current(&owner, &request.identity) {
+                        request = live_projection.borrow().clone();
+                        continue;
+                    }
+                    let request_identity = request.identity.clone();
+                    let request_owner = owner.clone();
+                    let request_runtime = runtime.clone();
+                    let guard_identity = request_identity.clone();
+                    let is_current = Rc::new(move || {
+                        owner_is_current(&request_owner, &guard_identity)
+                            && request_runtime.scope().as_ref() == Some(&guard_identity.scope)
                     });
-                });
-                match RendererPageHost::mount(element, input, &models, status_callback, current)
+                    let mount_guard: Rc<dyn Fn() -> bool> = is_current.clone();
+                    let report_owner = owner.clone();
+                    let report_runtime = runtime.clone();
+                    let report_source = live_source.clone();
+                    let report_applied = applied_identity.clone();
+                    let report_request_identity = request.identity.clone();
+                    let report_status = status;
+                    let status_callback =
+                        Rc::new(move |message: String| {
+                            let identity = report_applied
+                                .borrow()
+                                .clone()
+                                .unwrap_or_else(|| report_request_identity.clone());
+                            if !owner_is_current(&report_owner, &identity)
+                                || report_runtime.scope().as_ref() != Some(&identity.scope)
+                                || !(report_source.borrow().0)()
+                                || !report_runtime.model().accepted.as_ref().is_some_and(
+                                    |snapshot| snapshot.token == identity.snapshot_token,
+                                )
+                            {
+                                return;
+                            }
+                            let kind = if message.to_ascii_lowercase().contains("context lost") {
+                                ViewerSignalKind::Lifecycle(ViewerLifecycle::ContextLost)
+                            } else if message.contains("initialized") {
+                                ViewerSignalKind::Lifecycle(ViewerLifecycle::Ready)
+                            } else if message.to_ascii_lowercase().contains("failed") {
+                                ViewerSignalKind::Failed(message.clone())
+                            } else {
+                                return;
+                            };
+                            let mut report_status = report_status;
+                            report_status.set(message);
+                            on_signal.call(ScopedViewerSignal {
+                                identity,
+                                kind,
+                                owner: Rc::downgrade(&report_owner),
+                            });
+                        });
+                    match RendererPageHost::mount(
+                        element.clone(),
+                        request.initial_input.clone(),
+                        request.update.clone(),
+                        &request.models,
+                        request.identity.renderer_sequence,
+                        status_callback,
+                        mount_guard,
+                    )
                     .await
-                {
-                    Ok(renderer)
-                        if owner.active.get()
-                            && runtime.scope().as_ref() == Some(&identity.scope) =>
                     {
-                        *host.borrow_mut() = Some(renderer);
-                        applied_sequence.set(identity.renderer_sequence);
-                        mounted.set(true);
-                        status.set("3D preview ready.".to_owned());
-                        if owner.identity.borrow().as_ref() == Some(&identity) {
-                            emit_signal(&owner, on_signal, ViewerSignalKind::SceneAccepted(true));
+                        Ok((renderer, accepted)) if is_current() => {
+                            *host.borrow_mut() = Some(renderer);
+                            applied_sequence.set(request.identity.renderer_sequence);
+                            if accepted {
+                                *applied_identity.borrow_mut() = Some(request.identity.clone());
+                            }
+                            mounted.set(true);
+                            if owner_is_current(&owner, &request.identity)
+                                && (live_source.borrow().0)()
+                            {
+                                status.set(if accepted {
+                                    "3D preview ready.".to_owned()
+                                } else {
+                                    "A stale 3D scene update was ignored.".to_owned()
+                                });
+                                emit_signal(
+                                    &owner,
+                                    on_signal,
+                                    &request.identity,
+                                    ViewerSignalKind::SceneAccepted(accepted),
+                                );
+                            }
+                            break;
+                        }
+                        Ok((renderer, _)) => {
+                            let _ = renderer.dispose();
+                            if !owner.active.get()
+                                || runtime.scope().as_ref() != Some(&request.identity.scope)
+                            {
+                                break;
+                            }
+                            request = live_projection.borrow().clone();
+                        }
+                        Err(_error) if !is_current() => {
+                            if !owner.active.get()
+                                || runtime.scope().as_ref() != Some(&request.identity.scope)
+                            {
+                                break;
+                            }
+                            request = live_projection.borrow().clone();
+                            if request.identity == request_identity {
+                                break;
+                            }
+                        }
+                        Err(error) => {
+                            if owner_is_current(&owner, &request.identity)
+                                && (live_source.borrow().0)()
+                                && runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+                                    snapshot.token == request.identity.snapshot_token
+                                })
+                            {
+                                status.set(format!(
+                                    "3D preview unavailable: {error}. Case forms and the 2D route remain available."
+                                ));
+                                emit_signal(
+                                    &owner,
+                                    on_signal,
+                                    &request.identity,
+                                    ViewerSignalKind::Failed(error),
+                                );
+                                emit_signal(
+                                    &owner,
+                                    on_signal,
+                                    &request.identity,
+                                    ViewerSignalKind::Lifecycle(ViewerLifecycle::Failed),
+                                );
+                            }
+                            break;
                         }
                     }
-                    Ok(renderer) => {
-                        let _ = renderer.dispose();
-                    }
-                    Err(error)
-                        if owner.active.get()
-                            && runtime.scope().as_ref() == Some(&identity.scope) =>
-                    {
-                        status.set(format!(
-                            "3D preview unavailable: {error}. Case forms and the 2D route remain available."
-                        ));
-                        emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            ViewerSignalKind::Lifecycle(ViewerLifecycle::Failed),
-                        );
-                    }
-                    Err(_) => {}
                 }
             });
         }
@@ -735,7 +870,8 @@ fn SharedViewer(
         let handles = projection.handles.clone();
         let mut status = status;
         move |event: PointerEvent| {
-            if !(current_source.0)() || !owner_is_current(&owner, &projection.identity) {
+            cancel_superseded_pointer(&pointer, &canvas, &projection.identity);
+            if !owner_is_current(&owner, &projection.identity) || pointer.borrow().is_some() {
                 return;
             }
             event.prevent_default();
@@ -743,13 +879,22 @@ fn SharedViewer(
             let Some(host) = host.borrow().as_ref() else {
                 return;
             };
-            let picked = match host.pick_at_client(x, y) {
-                Ok(id) => id.filter(|id| !id.is_empty()),
-                Err(error) => {
-                    status.set(error.clone());
-                    emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
-                    None
+            let picked = if (current_source.0)() {
+                match host.pick_at_client(x, y) {
+                    Ok(id) => id.filter(|id| !id.is_empty()),
+                    Err(error) => {
+                        status.set(error.clone());
+                        emit_signal(
+                            &owner,
+                            on_signal,
+                            &projection.identity,
+                            ViewerSignalKind::Failed(error),
+                        );
+                        None
+                    }
                 }
+            } else {
+                None
             };
             if let Some(handle) = picked
                 .as_ref()
@@ -759,14 +904,25 @@ fn SharedViewer(
                     Ok(point) => point,
                     Err(error) => {
                         status.set(error.clone());
-                        emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
+                        emit_signal(
+                            &owner,
+                            on_signal,
+                            &projection.identity,
+                            ViewerSignalKind::Failed(error),
+                        );
                         return;
                     }
                 };
-                emit_signal(&owner, on_signal, ViewerSignalKind::WorldPoint(point));
                 emit_signal(
                     &owner,
                     on_signal,
+                    &projection.identity,
+                    ViewerSignalKind::WorldPoint(point),
+                );
+                emit_signal(
+                    &owner,
+                    on_signal,
+                    &projection.identity,
                     ViewerSignalKind::HandleGesture {
                         phase: HandleGesturePhase::Start,
                         handle_id: handle.id.clone(),
@@ -774,12 +930,14 @@ fn SharedViewer(
                     },
                 );
                 *pointer.borrow_mut() = Some(PointerOwner::Handle {
+                    identity: projection.identity.clone(),
                     pointer_id: event.pointer_id(),
                     z: handle.z,
                     id: handle.id.clone(),
                 });
             } else {
                 *pointer.borrow_mut() = Some(PointerOwner::Orbit {
+                    identity: projection.identity.clone(),
                     pointer_id: event.pointer_id(),
                     last_x: x,
                     last_y: y,
@@ -797,25 +955,70 @@ fn SharedViewer(
         }
     };
 
+    let on_wheel = {
+        let host = host.clone();
+        let owner = owner.clone();
+        let current_source = current_source.clone();
+        let on_signal = on_signal;
+        let mut status = status;
+        move |event: WheelEvent| {
+            if !owner_is_current(&owner, &projection.identity) {
+                return;
+            }
+            let Some(wheel) = event.data().try_as_web_event() else {
+                return;
+            };
+            wheel.prevent_default();
+            let delta = wheel.delta_y();
+            let factor =
+                (f64::from(delta.signum()) * (f64::from(delta.abs()) * 0.001).min(1.0)).exp();
+            let result = host
+                .borrow()
+                .as_ref()
+                .ok_or_else(|| "3D renderer is not mounted".to_owned())
+                .and_then(|host| host.zoom(factor));
+            if let Err(error) = result {
+                status.set(error.clone());
+                if (current_source.0)() {
+                    emit_signal(
+                        &owner,
+                        on_signal,
+                        &projection.identity,
+                        ViewerSignalKind::Failed(error),
+                    );
+                }
+            }
+        }
+    };
+
     let on_pointer_move = {
         let host = host.clone();
         let owner = owner.clone();
         let current_source = current_source.clone();
         let on_signal = on_signal;
         let pointer = pointer.clone();
+        let canvas = canvas.clone();
         let mut status = status;
         move |event: PointerEvent| {
-            if !(current_source.0)() || !owner_is_current(&owner, &projection.identity) {
-                pointer.borrow_mut().take();
+            cancel_superseded_pointer(&pointer, &canvas, &projection.identity);
+            if !owner_is_current(&owner, &projection.identity) {
                 return;
             }
             let Some(host) = host.borrow().as_ref() else {
                 return;
             };
             let (x, y) = pointer_point(&event);
-            let active = pointer.borrow_mut().take();
+            let Some(active) = take_pointer_for_event(&pointer, event.pointer_id()) else {
+                return;
+            };
+            if active.identity() != &projection.identity {
+                release_pointer_capture(&canvas, active.pointer_id());
+                return;
+            }
+            let identity = active.identity().clone();
             match active {
-                Some(PointerOwner::Orbit {
+                PointerOwner::Orbit {
+                    identity: pointer_identity,
                     pointer_id,
                     last_x,
                     last_y,
@@ -823,15 +1026,23 @@ fn SharedViewer(
                     start_y,
                     mut moved,
                     picked,
-                }) if pointer_id == event.pointer_id() => {
+                } if pointer_id == event.pointer_id() => {
                     let delta_x = x - last_x;
                     let delta_y = y - last_y;
                     moved |= (x - start_x).abs() + (y - start_y).abs() > 4.0;
                     if let Err(error) = host.orbit(delta_x, delta_y) {
                         status.set(error.clone());
-                        emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
+                        if (current_source.0)() {
+                            emit_signal(
+                                &owner,
+                                on_signal,
+                                &identity,
+                                ViewerSignalKind::Failed(error),
+                            );
+                        }
                     }
                     *pointer.borrow_mut() = Some(PointerOwner::Orbit {
+                        identity: pointer_identity,
                         pointer_id,
                         last_x: x,
                         last_y: y,
@@ -841,32 +1052,59 @@ fn SharedViewer(
                         picked,
                     });
                 }
-                Some(PointerOwner::Handle { pointer_id, z, id })
-                    if pointer_id == event.pointer_id() =>
-                {
+                PointerOwner::Handle {
+                    identity: pointer_identity,
+                    pointer_id,
+                    z,
+                    id,
+                } if pointer_id == event.pointer_id() => {
+                    if !(current_source.0)() {
+                        release_pointer_capture(&canvas, pointer_id);
+                        return;
+                    }
                     let point = match host.point_on_plane_at_client(x, y, z) {
                         Ok(point) => point,
                         Err(error) => {
                             status.set(error.clone());
-                            emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
-                            *pointer.borrow_mut() =
-                                Some(PointerOwner::Handle { pointer_id, z, id });
+                            emit_signal(
+                                &owner,
+                                on_signal,
+                                &identity,
+                                ViewerSignalKind::Failed(error),
+                            );
+                            *pointer.borrow_mut() = Some(PointerOwner::Handle {
+                                identity: pointer_identity,
+                                pointer_id,
+                                z,
+                                id,
+                            });
                             return;
                         }
                     };
-                    emit_signal(&owner, on_signal, ViewerSignalKind::WorldPoint(point));
                     emit_signal(
                         &owner,
                         on_signal,
+                        &identity,
+                        ViewerSignalKind::WorldPoint(point),
+                    );
+                    emit_signal(
+                        &owner,
+                        on_signal,
+                        &identity,
                         ViewerSignalKind::HandleGesture {
                             phase: HandleGesturePhase::Move,
                             handle_id: id.clone(),
                             point,
                         },
                     );
-                    *pointer.borrow_mut() = Some(PointerOwner::Handle { pointer_id, z, id });
+                    *pointer.borrow_mut() = Some(PointerOwner::Handle {
+                        identity: pointer_identity,
+                        pointer_id,
+                        z,
+                        id,
+                    });
                 }
-                other => *pointer.borrow_mut() = other,
+                _ => {}
             }
         }
     };
@@ -880,39 +1118,51 @@ fn SharedViewer(
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         move |event: PointerEvent| {
-            let active = pointer.borrow_mut().take();
-            if !(current_source.0)() || !owner_is_current(&owner, &projection.identity) {
+            let active = take_pointer_for_event(&pointer, event.pointer_id());
+            release_pointer_capture(&canvas, event.pointer_id());
+            let Some(active) = active else {
+                return;
+            };
+            let identity = active.identity().clone();
+            if identity != projection.identity || !owner_is_current(&owner, &identity) {
                 return;
             }
-            if let Some(canvas) = canvas.borrow().as_ref() {
-                let _ = canvas.release_pointer_capture(event.pointer_id());
-            }
             match active {
-                Some(PointerOwner::Orbit {
+                PointerOwner::Orbit {
                     pointer_id,
                     moved,
                     picked,
                     ..
-                }) if pointer_id == event.pointer_id() => {
+                } if pointer_id == event.pointer_id() => {
                     if !moved
+                        && (current_source.0)()
                         && runtime.scope().as_ref() == Some(&projection.identity.scope)
                         && let Some(id) = picked
                     {
-                        emit_signal(&owner, on_signal, ViewerSignalKind::Picked(id));
+                        emit_signal(&owner, on_signal, &identity, ViewerSignalKind::Picked(id));
                     }
                 }
-                Some(PointerOwner::Handle { pointer_id, z, id })
-                    if pointer_id == event.pointer_id() =>
-                {
+                PointerOwner::Handle {
+                    pointer_id, z, id, ..
+                } if pointer_id == event.pointer_id() => {
+                    if !(current_source.0)() {
+                        return;
+                    }
                     if let Some(host) = host.borrow().as_ref() {
                         let (x, y) = pointer_point(&event);
                         let point = match host.point_on_plane_at_client(x, y, z) {
                             Ok(point) => point,
                             Err(error) => {
-                                emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
                                 emit_signal(
                                     &owner,
                                     on_signal,
+                                    &identity,
+                                    ViewerSignalKind::Failed(error),
+                                );
+                                emit_signal(
+                                    &owner,
+                                    on_signal,
+                                    &identity,
                                     ViewerSignalKind::HandleGesture {
                                         phase: HandleGesturePhase::Cancel,
                                         handle_id: id,
@@ -922,10 +1172,16 @@ fn SharedViewer(
                                 return;
                             }
                         };
-                        emit_signal(&owner, on_signal, ViewerSignalKind::WorldPoint(point));
                         emit_signal(
                             &owner,
                             on_signal,
+                            &identity,
+                            ViewerSignalKind::WorldPoint(point),
+                        );
+                        emit_signal(
+                            &owner,
+                            on_signal,
+                            &identity,
                             ViewerSignalKind::HandleGesture {
                                 phase: HandleGesturePhase::End,
                                 handle_id: id,
@@ -934,7 +1190,7 @@ fn SharedViewer(
                         );
                     }
                 }
-                other => *pointer.borrow_mut() = other,
+                _ => {}
             }
         }
     };
@@ -947,14 +1203,21 @@ fn SharedViewer(
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         move |event: PointerEvent| {
-            let active = pointer.borrow_mut().take();
-            if !(current_source.0)() || !owner_is_current(&owner, &projection.identity) {
+            let active = take_pointer_for_event(&pointer, event.pointer_id());
+            release_pointer_capture(&canvas, event.pointer_id());
+            let Some(active) = active else {
+                return;
+            };
+            let identity = active.identity().clone();
+            if identity != projection.identity
+                || !owner_is_current(&owner, &identity)
+                || !(current_source.0)()
+            {
                 return;
             }
-            if let Some(canvas) = canvas.borrow().as_ref() {
-                let _ = canvas.release_pointer_capture(event.pointer_id());
-            }
-            if let Some(PointerOwner::Handle { pointer_id, z, id }) = active
+            if let PointerOwner::Handle {
+                pointer_id, z, id, ..
+            } = active
                 && pointer_id == event.pointer_id()
             {
                 let point = if let Some(host) = host.borrow().as_ref() {
@@ -962,17 +1225,28 @@ fn SharedViewer(
                     match host.point_on_plane_at_client(x, y, z) {
                         Ok(point) => point,
                         Err(error) => {
-                            emit_signal(&owner, on_signal, ViewerSignalKind::Failed(error));
+                            emit_signal(
+                                &owner,
+                                on_signal,
+                                &identity,
+                                ViewerSignalKind::Failed(error),
+                            );
                             None
                         }
                     }
                 } else {
                     None
                 };
-                emit_signal(&owner, on_signal, ViewerSignalKind::WorldPoint(point));
                 emit_signal(
                     &owner,
                     on_signal,
+                    &identity,
+                    ViewerSignalKind::WorldPoint(point),
+                );
+                emit_signal(
+                    &owner,
+                    on_signal,
+                    &identity,
                     ViewerSignalKind::HandleGesture {
                         phase: HandleGesturePhase::Cancel,
                         handle_id: id,
@@ -993,7 +1267,12 @@ fn SharedViewer(
                 && runtime.scope().as_ref() == Some(&projection.identity.scope)
                 && owner_is_current(&owner, &projection.identity)
             {
-                emit_signal(&owner, on_signal, ViewerSignalKind::LayerSelected(id));
+                emit_signal(
+                    &owner,
+                    on_signal,
+                    &projection.identity,
+                    ViewerSignalKind::LayerSelected(id),
+                );
             }
         }
     };
@@ -1001,9 +1280,11 @@ fn SharedViewer(
     let change_display = {
         let owner = owner.clone();
         let runtime = runtime.clone();
+        let current_source = current_source.clone();
         move |next: CaseDisplay| {
             let identity = projection.identity.clone();
-            if !owner_is_current(&owner, &identity)
+            if !(current_source.0)()
+                || !owner_is_current(&owner, &identity)
                 || runtime.scope().as_ref() != Some(&identity.scope)
             {
                 return;
@@ -1062,11 +1343,11 @@ fn SharedViewer(
             if transient().assembly == AssemblyView::Exploded {
                 label { "Explode amount"
                     input {
-                        r#type: "range", min: "0", max: "2", step: "0.05",
+                        r#type: "range", min: "0", max: "10", step: "0.1",
                         value: "{transient().explode_amount}",
                         oninput: move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<f32>() {
-                                transient.with_mut(|state| state.explode_amount = value.clamp(0.0, 2.0));
+                                transient.with_mut(|state| state.explode_amount = value.clamp(0.0, 10.0));
                             }
                         }
                     }
@@ -1086,7 +1367,7 @@ fn SharedViewer(
                 }
                 label { "Section position"
                     input {
-                        r#type: "range", min: "-100", max: "100", step: "0.5",
+                        r#type: "range", min: "-100", max: "100", step: "1",
                         value: "{transient().section_position}",
                         oninput: move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<f32>() {
@@ -1113,6 +1394,8 @@ fn SharedViewer(
                 onpointermove: on_pointer_move,
                 onpointerup: on_pointer_up,
                 onpointercancel: on_pointer_cancel,
+                onlostpointercapture: on_pointer_cancel,
+                onwheel: on_wheel,
             }
             p { role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
             details {
@@ -1189,19 +1472,59 @@ fn owner_is_current(owner: &ViewerOwner, identity: &ViewerIdentity) -> bool {
     owner.active.get() && owner.identity.borrow().as_ref() == Some(identity)
 }
 
+fn take_pointer_for_event(
+    pointer: &Rc<RefCell<Option<PointerOwner>>>,
+    pointer_id: i32,
+) -> Option<PointerOwner> {
+    let mut active = pointer.borrow_mut();
+    if active
+        .as_ref()
+        .is_some_and(|active| active.pointer_id() == pointer_id)
+    {
+        active.take()
+    } else {
+        None
+    }
+}
+
+fn cancel_superseded_pointer(
+    pointer: &Rc<RefCell<Option<PointerOwner>>>,
+    canvas: &Rc<RefCell<Option<HtmlCanvasElement>>>,
+    identity: &ViewerIdentity,
+) {
+    let stale_pointer = {
+        let mut active = pointer.borrow_mut();
+        if active
+            .as_ref()
+            .is_some_and(|active| active.identity() != identity)
+        {
+            active.take().map(|active| active.pointer_id())
+        } else {
+            None
+        }
+    };
+    if let Some(pointer_id) = stale_pointer {
+        release_pointer_capture(canvas, pointer_id);
+    }
+}
+
+fn release_pointer_capture(canvas: &Rc<RefCell<Option<HtmlCanvasElement>>>, pointer_id: i32) {
+    if let Some(canvas) = canvas.borrow().as_ref() {
+        let _ = canvas.release_pointer_capture(pointer_id);
+    }
+}
+
 fn emit_signal(
     owner: &Rc<ViewerOwner>,
     on_signal: EventHandler<ScopedViewerSignal>,
+    identity: &ViewerIdentity,
     kind: ViewerSignalKind,
 ) {
-    let Some(identity) = owner.identity.borrow().clone() else {
-        return;
-    };
-    if !owner_is_current(owner, &identity) {
+    if !owner_is_current(owner, identity) {
         return;
     }
     on_signal.call(ScopedViewerSignal {
-        identity,
+        identity: identity.clone(),
         kind,
         owner: Rc::downgrade(owner),
     });
@@ -1327,6 +1650,36 @@ mod tests {
 
         owner.active.set(false);
         assert!(!signal.is_current());
+    }
+
+    #[test]
+    fn pointer_completion_keeps_its_starting_projection_identity() {
+        let started = identity();
+        let mut current = started.clone();
+        current.projection_generation += 1;
+        current.renderer_sequence += 1;
+        let pointer = PointerOwner::Orbit {
+            identity: started.clone(),
+            pointer_id: 9,
+            last_x: 10.0,
+            last_y: 20.0,
+            start_x: 10.0,
+            start_y: 20.0,
+            moved: false,
+            picked: Some("body-1".to_owned()),
+        };
+        assert_eq!(pointer.identity(), &started);
+        assert_ne!(pointer.identity(), &current);
+        let owner = ViewerOwner {
+            active: Cell::new(true),
+            identity: RefCell::new(Some(current)),
+            last_projection: Cell::new(1),
+            last_theme: RefCell::new("light".to_owned()),
+            projection_generation: Cell::new(5),
+            renderer_sequence: Cell::new(7),
+            viewer_instance: started.viewer_instance,
+        };
+        assert!(!owner_is_current(&owner, pointer.identity()));
     }
 
     #[test]

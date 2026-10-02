@@ -31,13 +31,14 @@ projection and advance generation for definition/companion/placement/side/
 rotation changes.
 
 The parent supplies selected mechanical layer/finding separately from
-Session-owned real-part selection, persisted `CaseDisplay` preferences
+Session-owned real-part selection, the resolved light/dark theme as a reactive
+input, persisted `CaseDisplay` preferences
 (`hidden: Vec<String>`, `colors: BTreeMap<String, String>`), and callbacks for
 current mapped picks and display changes. React's preference key is
 `boardstudio:case-display:{projectId}:{instanceId-or-boardId}`. The parent owns
-the in-memory fallback when browser storage is unavailable. The viewer reads
-the named `ThemeState` context and the root element's resolved `data-theme` for
-the renderer palette. Camera position, display mode, explosion and section
+the in-memory fallback when browser storage is unavailable. The root resolves
+system/light/dark preference and passes the renderer palette; the viewer does
+not sample DOM theme state. Camera position, display mode, explosion and section
 controls are transient viewer state; hidden IDs and color overrides are
 parent-owned persisted preferences.
 
@@ -81,13 +82,29 @@ Existing renderer `Renderer` exports are `setScene`, `setPreparedScene`,
 display state, handles, picking, point-on-plane, camera and disposal. Optional
 typed STL/WRL sources are decoded through the cached module only when supplied;
 Case currently supplies none. Prepared-scene and prepared-patch calls are
-verified exports but are not wired by this Case slice. The page-only wrapper
+represented by typed update variants and routed through the same checked
+submission path; Case currently submits full scenes only. The page-only wrapper
 retains the already imported ES-module namespace after a second cached dynamic
 import, without reinitializing the WASM module. Existing public host method
 signatures and behavior remain unchanged.
 
+Each renderer scene call consumes a sequence strictly greater than the prior
+upload. The baseline host's initial scene uses the immediately preceding
+sequence; the wrapper then performs the checked submission and returns the
+renderer’s actual boolean. Optional model sources are decoded before that
+checked upload. Case supplies no model sources, so model delivery/retry parity
+has not been demonstrated.
+
 The renderer host continues to own ResizeObserver/window/DPR listeners,
 one-shot frame scheduling, context-loss stop, WebGL cleanup and GPU disposal.
+Pointer captures retain their originating full viewer identity. Superseded
+captures are released on projection changes, pointer completion, cancellation
+and lost capture; stale picks are dropped. Camera orbit and zoom remain
+available for retained stale geometry, while pick, layer and persisted display
+outputs require the live source guard. Mount work reconciles to a newer
+same-scope projection before reporting, and status callbacks use the identity
+of the request or last accepted scene instead of reading a newer owner identity.
+
 Viewer callbacks check owner identity; no context-restoration or renderer
 retry flow is introduced. Existing Case controls, forms and 2D route remain
 owned by the root Case workspace.
