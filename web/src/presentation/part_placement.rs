@@ -696,6 +696,9 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 );
                 if terminal == Some(TerminalOutcome::Completed) {
                     for _ in 0..500 {
+                        if !alive.get() {
+                            break;
+                        }
                         let model = runtime.model();
                         if !placement_route_is_current(
                             &runtime,
@@ -1298,6 +1301,7 @@ mod tests {
     #[derive(Default)]
     struct HookRuntime {
         model: RefCell<ReadModel>,
+        model_reads: Cell<u64>,
         outcomes: crate::operation_outcomes::OperationOutcomes,
         events: RefCell<Vec<SessionEvent>>,
         next_operation: Cell<u64>,
@@ -1307,6 +1311,7 @@ mod tests {
 
     impl PlacementRuntime for HookRuntime {
         fn model(&self) -> ReadModel {
+            self.model_reads.set(self.model_reads.get() + 1);
             self.model.borrow().clone()
         }
 
@@ -1350,6 +1355,8 @@ mod tests {
     #[derive(Clone)]
     struct HookProbe {
         runtime: Rc<HookRuntime>,
+        mounted: Rc<Cell<bool>>,
+        unmounted: Rc<Cell<bool>>,
         latest: Rc<RefCell<Option<PartPlacementMount>>>,
         workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
         guide: Rc<RefCell<Option<Signal<Option<SetupGuidePreferences>>>>>,
@@ -1360,6 +1367,20 @@ mod tests {
 
     fn hook_host() -> Element {
         let probe = use_context::<HookProbe>();
+        if probe.mounted.get() {
+            rsx! { HookMounted {} }
+        } else {
+            rsx! { div {} }
+        }
+    }
+
+    #[component]
+    fn HookMounted() -> Element {
+        let probe = use_context::<HookProbe>();
+        use_drop({
+            let unmounted = probe.unmounted.clone();
+            move || unmounted.set(true)
+        });
         let workspace = use_signal(|| "Layout");
         let guide = use_signal(|| {
             Some(SetupGuidePreferences {
@@ -1428,6 +1449,8 @@ mod tests {
         };
         let probe = HookProbe {
             runtime,
+            mounted: Rc::new(Cell::new(true)),
+            unmounted: Rc::new(Cell::new(false)),
             latest: Rc::default(),
             workspace: Rc::default(),
             guide: Rc::default(),
@@ -1443,7 +1466,7 @@ mod tests {
     }
 
     fn flush_hook(dom: &mut VirtualDom) {
-        dom.mark_dirty(ScopeId::APP);
+        dom.mark_all_dirty();
         for _ in 0..5 {
             dom.render_immediate_to_vec();
             let mut work = std::pin::pin!(dom.wait_for_work());
@@ -1708,7 +1731,7 @@ mod tests {
             let (probe, mut dom) = hook_mounted();
             let active = start_hook_placement(&probe, &mut dom).await;
             active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-            let (operation_id, _) = submitted_edit(&probe);
+            let (operation_id, edit) = submitted_edit(&probe);
             let select_count_before = probe
                 .runtime
                 .events
@@ -1719,6 +1742,21 @@ mod tests {
             {
                 let mut model = probe.runtime.model.borrow_mut();
                 if stale_identity == "board" {
+                    let original = model.accepted.as_ref().unwrap().clone();
+                    let mut document = replacement(edit.clone());
+                    document.revision = original.document.revision + 1;
+                    let mut scene = (*original.scene).clone();
+                    scene.revision = document.revision;
+                    model.lifecycle = Lifecycle::Ready;
+                    model.durability = Durability::Saved {
+                        revision: document.revision,
+                    };
+                    model.accepted = Some(AcceptedSnapshot {
+                        token: SnapshotToken(original.token.0 + 1),
+                        session_epoch: original.session_epoch,
+                        document: Arc::new(document),
+                        scene: Arc::new(scene),
+                    });
                     model.active_board_id = "board-other".into();
                 } else {
                     let accepted = model.accepted.as_mut().unwrap();
@@ -1753,6 +1791,52 @@ mod tests {
                 "stale {stale_identity} completion selected a new owner"
             );
         }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state() {
+        let (probe, mut dom) = hook_mounted();
+        let active = start_hook_placement(&probe, &mut dom).await;
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        let (operation_id, _) = submitted_edit(&probe);
+        let accepted = probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .clone();
+        *probe.runtime.model.borrow_mut() = ReadModel {
+            lifecycle: Lifecycle::Saving,
+            durability: Durability::Saving { revision: 0 },
+            accepted: Some(accepted),
+            active_board_id: "board-main".into(),
+            ..ReadModel::default()
+        };
+        assert!(
+            probe
+                .runtime
+                .outcomes
+                .settle(operation_id, TerminalOutcome::Completed)
+        );
+        // Let the production observer see Completed and enter its Ready/Saved wait.
+        let_hook_tasks_run().await;
+        probe.mounted.set(false);
+        flush_hook(&mut dom);
+        assert!(
+            probe.unmounted.get(),
+            "mounted hook component was not dropped"
+        );
+        let model_reads_after_unmount = probe.runtime.model_reads.get();
+        drop(dom);
+        // Resume the observer after the component-owned Signals have been dropped.
+        let_hook_tasks_run().await;
+        assert_eq!(
+            probe.runtime.model_reads.get(),
+            model_reads_after_unmount,
+            "completed placement observer read runtime state after unmount"
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

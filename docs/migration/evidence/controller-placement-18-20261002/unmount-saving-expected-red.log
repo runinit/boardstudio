@@ -1,0 +1,123 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/controller-placement-18-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.58s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-894d1de18dfb270f.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:41091/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 1 test
+test presentation::part_placement::tests::production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state ... FAIL
+
+failures:
+
+---- presentation::part_placement::tests::production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state output ----
+    error output:
+        panicked at src/presentation/part_placement.rs:1832:9:
+        assertion `left == right` failed: completed placement observer read runtime state after unmount
+          left: 13
+         right: 12
+
+        Stack:
+
+        Error
+            at http://127.0.0.1:44545/wasm-bindgen-test:1364:25
+            at logError (http://127.0.0.1:44545/wasm-bindgen-test:2241:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:44545/wasm-bindgen-test:1363:57)
+            at boardstudio_web-894d1de18dfb270f.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[97028]:0x136458a)
+            at boardstudio_web-894d1de18dfb270f.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[56155]:0x11a47e5)
+            at boardstudio_web-894d1de18dfb270f.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[21131]:0xda7c77)
+            at boardstudio_web-894d1de18dfb270f.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[59064]:0x11d0dc0)
+            at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[17983]:0xcf8a8f)
+            at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[34971]:0xfd19d3)
+            at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98443]:0x1368963)
+
+
+
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98810]:0x136944c)
+            at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98752]:0x1369338)
+            at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[97312]:0x13655a5)
+            at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[17983]:0xcf8b02)
+            at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[34971]:0xfd19d3)
+            at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98443]:0x1368963)
+            at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[76657]:0x12afc6d)
+            at boardstudio_web-894d1de18dfb270f.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[58537]:0x11c9194)
+            at boardstudio_web-894d1de18dfb270f.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[15554]:0xc5b02b)
+            at boardstudio_web-894d1de18dfb270f.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<u64, u64> (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[62669]:0x1203e38)
+
+failures:
+
+    presentation::part_placement::tests::production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 26 filtered out; finished in 0.11s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::part_placement::tests::production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state
+    panicked at /home/chris/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-signals-0.7.10/src/read.rs:259:38:
+    called `Result::unwrap()` on an `Err` value: Dropped(ValueDroppedError { created_at: Location { file: "src/presentation/part_placement.rs", line: 1398, column: 26 } })
+
+    Stack:
+
+    Error
+        at http://127.0.0.1:44545/wasm-bindgen-test:1364:25
+        at logError (http://127.0.0.1:44545/wasm-bindgen-test:2241:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:44545/wasm-bindgen-test:1363:57)
+        at boardstudio_web-894d1de18dfb270f.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[97028]:0x136458a)
+        at boardstudio_web-894d1de18dfb270f.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[56155]:0x11a47e5)
+        at boardstudio_web-894d1de18dfb270f.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[21131]:0xda7c77)
+        at boardstudio_web-894d1de18dfb270f.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[59064]:0x11d0dc0)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[17983]:0xcf8a8f)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[34971]:0xfd19d3)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98443]:0x1368963)
+
+
+    wasm-bindgen: imported JS function that was not marked as `catch` threw an error:
+    unreachable
+
+    Stack:
+    RuntimeError: unreachable
+        at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98810]:0x136944c)
+        at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98752]:0x1369338)
+        at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[97312]:0x13655a5)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[17983]:0xcf8b02)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[34971]:0xfd19d3)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98443]:0x1368963)
+        at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[76657]:0x12afc6d)
+        at boardstudio_web-894d1de18dfb270f.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[58537]:0x11c9194)
+        at boardstudio_web-894d1de18dfb270f.wasm.core[f0fd674eaa06beef]::result::unwrap_failed (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[42097]:0x1095d84)
+        at boardstudio_web-894d1de18dfb270f.wasm.<dioxus_signals[b23d7e88c7793c32]::signal::Signal<u64> as dioxus_signals[b23d7e88c7793c32]::read::ReadableExt>::read (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[30926]:0xf4a2e2)
+    panicked at src/presentation/part_placement.rs:1832:9:
+    assertion `left == right` failed: completed placement observer read runtime state after unmount
+      left: 13
+     right: 12
+
+    Stack:
+
+    Error
+        at http://127.0.0.1:44545/wasm-bindgen-test:1364:25
+        at logError (http://127.0.0.1:44545/wasm-bindgen-test:2241:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:44545/wasm-bindgen-test:1363:57)
+        at boardstudio_web-894d1de18dfb270f.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[97028]:0x136458a)
+        at boardstudio_web-894d1de18dfb270f.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[56155]:0x11a47e5)
+        at boardstudio_web-894d1de18dfb270f.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[21131]:0xda7c77)
+        at boardstudio_web-894d1de18dfb270f.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[59064]:0x11d0dc0)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[17983]:0xcf8a8f)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[34971]:0xfd19d3)
+        at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:44545/wasm-bindgen-test_bg.wasm:wasm-function[98443]:0x1368963)
+
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/controller-placement-18-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-894d1de18dfb270f.wasm production_hook_does_not_read_signals_after_unmount` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "production_hook_does_not_read_signals_after_unmount"

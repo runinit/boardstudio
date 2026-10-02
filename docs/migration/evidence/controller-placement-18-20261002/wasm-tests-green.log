@@ -1,13 +1,13 @@
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.22s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.14s
 [INFO]: ⬇️  Installing wasm-bindgen...
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
      Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-894d1de18dfb270f.wasm)
-Running headless tests in Chrome on `http://127.0.0.1:46429/`
+Running headless tests in Chrome on `http://127.0.0.1:33847/`
 Try find `webdriver.json` for configure browser's capabilities:
 Not found
 Loading Wasm module...
 
-running 21 tests
+running 22 tests
 test presentation::part_placement::tests::terminal_cancellation_does_not_redirect_but_rejection_can_return_to_source_panel ... ok
 test presentation::part_placement::tests::production_hook_waits_through_saving_before_returning_to_wiring ... ok
 test presentation::part_placement::tests::production_hook_suppresses_actionable_failure_after_board_or_project_switch ... ok
@@ -18,6 +18,7 @@ test presentation::part_placement::tests::production_hook_registers_the_observer
 test presentation::part_placement::tests::production_hook_registers_before_submit_and_retains_outcome_after_unmount ... ok
 test presentation::part_placement::tests::production_hook_owns_canvas_during_definition_preparation_and_escape_restores_guide ... ok
 test presentation::part_placement::tests::production_hook_never_redirects_a_stale_board_or_project_owner ... ok
+test presentation::part_placement::tests::production_hook_does_not_read_signals_after_unmount_while_waiting_for_saved_state ... ok
 test presentation::part_placement::tests::placement_geometry_snap_uses_pending_definition_and_current_gap_preference ... ok
 test presentation::part_placement::tests::placement_commits_only_on_primary_pointer_release ... ok
 test presentation::part_placement::tests::only_the_exact_completed_operation_with_matching_ready_saved_document_can_return_to_wiring ... ok
@@ -30,5 +31,5 @@ test presentation::part_placement::tests::conflicting_definitions_and_missing_la
 test presentation::part_placement::tests::commit_observer_matches_exact_operation_slot_and_retains_terminal_after_owner_drop ... ok
 test presentation::part_placement::tests::captured_owner_rejects_changed_snapshot_scope_generation_or_guide_stage ... ok
 
-test result: ok. 21 passed; 0 failed; 0 ignored; 5 filtered out; finished in 0.62s
+test result: ok. 22 passed; 0 failed; 0 ignored; 5 filtered out; finished in 0.68s
 
