@@ -20,6 +20,15 @@ pub(super) struct TreeSelectRequest {
     pub mode: SelectionMode,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct TreeNudgeRequest {
+    pub scope: Scope,
+    pub part_id: String,
+    pub dx: i8,
+    pub dy: i8,
+    pub large_step: bool,
+}
+
 pub(super) fn resolve_selection(model: &ReadModel, context: &TreeContext) -> Option<Vec<String>> {
     tree::resolve_selection(model, context)
 }
@@ -46,6 +55,7 @@ pub(super) fn Objects(
     selected_context: Signal<Option<ScopedTreeContext>>,
     on_select: EventHandler<TreeSelectRequest>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
+    on_nudge: EventHandler<TreeNudgeRequest>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
@@ -149,6 +159,7 @@ pub(super) fn Objects(
                             let keyboard_item = item.clone();
                             let select_on_click = on_select.clone();
                             let select_on_key = on_select.clone();
+                            let nudge_on_key = on_nudge.clone();
                             let click_scope = active_scope.clone();
                             let key_scope = active_scope.clone();
                             rsx! {
@@ -197,6 +208,33 @@ pub(super) fn Objects(
                                                     }
                                                 } else if keyboard_item.expandable {
                                                     toggle_tree(expanded, &keyboard_item.id);
+                                                }
+                                            } else if let Some((dx, dy)) = match key.as_str() {
+                                                "ArrowLeft" => Some((-1, 0)),
+                                                "ArrowRight" => Some((1, 0)),
+                                                "ArrowUp" => Some((0, 1)),
+                                                "ArrowDown" => Some((0, -1)),
+                                                _ => None,
+                                            } {
+                                                let standalone = matches!(
+                                                    keyboard_item.context.as_ref(),
+                                                    Some(TreeContext::Component {
+                                                        matrix_id: None,
+                                                        ..
+                                                    })
+                                                );
+                                                if (keyboard_item.kind == TreeKind::Key || standalone)
+                                                    && let Some(part_id) = keyboard_item.primary_id.clone()
+                                                    && let Some(scope) = key_scope.clone()
+                                                {
+                                                    event.prevent_default();
+                                                    nudge_on_key.call(TreeNudgeRequest {
+                                                        scope,
+                                                        part_id,
+                                                        dx,
+                                                        dy,
+                                                        large_step: event.data().modifiers().shift(),
+                                                    });
                                                 }
                                             }
                                         },
