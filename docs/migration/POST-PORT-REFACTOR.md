@@ -406,3 +406,8 @@ Independent Astra review of unintegrated Keycaps `448c3274` and firmware handoff
 ### RF-005 Layout pointer-preview prerequisite
 
 The [reviewed Transform/Align handoff](../../.scratch/dioxus-layout-authoring/evidence/transform-align/rf-handoff.md) records that ordinary Edit previews do not acquire GestureCancel generation suppression or clear-preview authority. Fields-only transforms and one-shot alignment use existing commits; pointer Stagger/Splay/Origin remain gated on a proven cancellation protocol. This is a current capability limitation and a later lifecycle-design question, not permission to add public Session APIs or waive gesture parity.
+
+
+### RF-003 producer publication and transport review
+
+At Case producer `2bf5b534`, independent Spec review found that successful publication invalidates the snapshot’s own retained lease and default serde Value serialization creates JS Maps while the module worker reads object fields. Decoded-model delivery also remains unconsumed. Astra is fixing these as current correctness blockers with regressions. After parity, assess explicit producer publication/ownership and real transport conformance fixtures; source presence and isolated worker tests alone did not establish the mounted capability. Production build invocation of the packager is a separate required seam.

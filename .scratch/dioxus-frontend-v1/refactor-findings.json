@@ -220,6 +220,11 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md",
           "observation": "At revision 9 with Left PCB/left instance selected and the default plate added, TypeScript renders its 90/90 physical model assembly while the Dioxus canvas is blank, confirming the baseline physical-model projection gap. Before adding a body, React Update preview is disabled, while Dioxus Generate case is enabled and preparation_request rejects it. The exact archive has zero case bodies and no effective per-instance/shared mechanical config, so React generation success was not reproduced and is not claimed.",
           "status": "confirmed F7 Case public behavior blocker; separate viewer projection and UI readiness-predicate child slices required; not architectural acceptance"
+        },
+        {
+          "source": "Case producer2bf5b534 review 2026-10-02",
+          "observation": "Successful publication invalidates the same lease retained by snapshot; default Value serialization yields Maps while worker reads object fields; decoded model helper remains unconsumed. Required current fixes, not proof of a broad redesign.",
+          "status": "Astra regression-backed repair active; production packaging prerequisite separately recorded."
         }
       ]
     },

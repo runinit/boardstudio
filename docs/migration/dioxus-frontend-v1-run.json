@@ -111,7 +111,7 @@
       "effective_run_cap": 11
     },
     "implementation_wave_20261002": {
-      "status": "Six streams continuing. First source wave reviewed; concrete lifecycle/policy findings under repair. No parent acceptance closed.",
+      "status": "Six streams active; reviewed Keycaps source integrated. Paired browser acceptance remains open.",
       "source_review_targets": {
         "pcb_physical_setup_proposals": "0dd1f3ce904dc11ba62d175dba078729d5263472",
         "pcb_firmware_position_handoff": "6fe8fb875585fca7fba4636cf1a9696e55b5406f",
@@ -120,21 +120,21 @@
       "layout": "Exact reviewed issue07 Transform and issue08 Align now implementing in parallel isolated branches; issue09 command-pill integration follows working controls. Pointer-tools and parent acceptance open.",
       "pcb": "Ticket05 corrected tested prerequisite integrated83700272; ticket06 production activation+Case inspector controls implementing; guided Project placement waits on missing guide capability.",
       "keymap": "Corrected F5.2b source integrated83700272, with numeric notification subscription, feedback identity, Element slot and real Session/Core tests; F6K.4b mounted UI/browser implementing.",
-      "keycaps": "Corrected assessment loop4d candidate building; final source review requires unmount guard, bounded retry callback and test privacy/suppression repair before integration. Browser activation and paired acceptance open.",
-      "case": "Native pre-CadScene PcbPreview is required for Sofle baseline. Existing issue08 producer/issue07 provider contracts being refined to accepted physical document/contours; no duplicate producer.",
-      "parts_project": "Packaged opaque Ergogen byte provider prerequisite now assigned to Parts/Project for reviewed ticketing and implementation; capability01 owns private bool input; F8 checkbox is later integration join.",
+      "keycaps": "Final13533 source independently cleared and integrated236faebf;54 native tests and WASM all-targets strict pass.4d activation evidence bounded; final paired browser journey open.",
+      "case": "Producer2bf source review found lease publication, worker JS object serialization and missing decoded-model delivery blockers; Astra repair active. Consumer prerequisite unproven; independent contextual UI inventory continues.",
+      "parts_project": "Provider/archive3039423b and build packagingfc5d1929/8587da86 frozen for source review; New17 guide/document implementation active with PCB06 slot join.",
       "source_reviews": {
         "spec": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md",
         "standards": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md"
       },
       "source_integration": {
-        "commit": "837002729024475796cdc0fb99089ac86d6b33e7",
+        "commit": "236faebfdcca880c294e86c953ad108f8f16ddbd",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/integration-report.md",
         "checks": {
-          "native_page_tests": "12 library + 36 binary passed",
-          "strict_wasm_clippy": "all-targets -D warnings passed",
+          "native_page_tests": "54 passed at integrated Keycaps wave",
+          "strict_wasm_clippy": "True all-targets -D warnings passed after test-only repaira02dac; prior837 strict command did not include all-targets",
           "formatting": "cargo fmt --check and git diff --check passed",
-          "source_equivalence": "13 merged source blobs equal reviewed final PCB/F5 commits"
+          "source_equivalence": "Reviewed PCB/F5 and four Keycaps feature commits integrated; exact Keycaps blobs verified"
         },
         "acceptance": "Source integration only. PCB06 must activate test-scoped proposal path in production; F6 mounted asynchronous and full paired browser gates remain open."
       }
