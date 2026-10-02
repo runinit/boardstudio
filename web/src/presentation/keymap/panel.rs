@@ -16,9 +16,12 @@ pub(in crate::presentation) fn KeymapPanel(
     on_layer: EventHandler<String>,
     on_layer_operation: EventHandler<KeymapLayerOperation>,
     on_select_key: EventHandler<String>,
-    children: Element,
+    keys_editor: Element,
+    macros_editor: Element,
+    encoders_editor: Element,
 ) -> Element {
     let mut query = use_signal(String::new);
+    let mut selected_editor = use_signal(|| KeymapEditor::Keys);
     let active_layer = view
         .layers
         .iter()
@@ -35,7 +38,13 @@ pub(in crate::presentation) fn KeymapPanel(
         .count();
     let heading = selected.map_or_else(
         || "Select a key".to_owned(),
-        |key| key.reference.to_string(),
+        |key| {
+            format!(
+                "{} · {}",
+                key.reference,
+                active_layer.map_or("Base", |layer| layer.name.as_ref())
+            )
+        },
     );
     let no_matches = !search.is_empty() && matching_key_count == 0;
     let layer_count = view.layers.len();
@@ -89,50 +98,85 @@ pub(in crate::presentation) fn KeymapPanel(
                         }
                     }
                 }
+                p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
             }
-            section { class: "m1-keymap-key-selection", "aria-label": "Selected key",
-                h3 { "{heading}" }
-                label { class: "m1-keymap-search-label", "Find a key"
-                    input {
-                        class: "m1-keymap-search",
-                        type: "search",
-                        "aria-label": "Find a key",
-                        value: "{query}",
-                        oninput: move |event: FormEvent| query.set(event.value()),
-                    }
-                }
-                label { class: "m1-keymap-select-label", "Selected key"
-                    select {
-                        class: "m1-keymap-select",
-                        "aria-label": "Selected key",
-                        value: selected.map_or("", |key| key.id.as_ref()),
-                        onchange: move |event: FormEvent| on_select_key.call(event.value()),
-                        option { value: "", "Choose on the layout…" }
-                        for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
-                            option {
-                                key: "{key.id}",
-                                value: "{key.id}",
-                                "{key.reference} · {key.binding_title}"
+            div { class: "m1-keymap-actions", role: "group", "aria-label": "Keymap editors",
+                for (editor, label) in [
+                    (KeymapEditor::Keys, "Keys"),
+                    (KeymapEditor::Macros, "Macros"),
+                    (KeymapEditor::Encoders, "Encoders"),
+                ] {
+                    {
+                        let pressed = selected_editor() == editor;
+                        rsx! {
+                            button {
+                                class: if pressed { "m1-keymap-editor-tab is-active" } else { "m1-keymap-editor-tab" },
+                                r#type: "button",
+                                "aria-pressed": "{pressed}",
+                                onclick: move |_| selected_editor.set(editor),
+                                "{label}"
                             }
                         }
                     }
                 }
-                if key_count == 0 {
-                    p { class: "m1-keymap-empty", role: "status", "No keys are available on this board." }
-                } else if let Some(key) = selected {
-                    if no_matches {
-                        p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
-                    }
-                    p { class: "m1-keymap-selected-label", "{key.binding_title}" }
-                } else if no_matches {
-                    p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
-                } else {
-                    p { class: "m1-keymap-empty", role: "status", "Select a switch on the layout to inspect its binding." }
-                }
             }
-            {children}
+            if selected_editor() == KeymapEditor::Keys {
+                section { class: "m1-keymap-key-selection", "aria-label": "Selected key",
+                    h3 { "{heading}" }
+                    label { class: "m1-keymap-search-label", "Find a key"
+                        input {
+                            class: "m1-keymap-search",
+                            r#type: "search",
+                            "aria-label": "Find a key",
+                            value: "{query}",
+                            oninput: move |event: FormEvent| query.set(event.value()),
+                        }
+                    }
+                    label { class: "m1-keymap-select-label", "Selected key"
+                        select {
+                            class: "m1-keymap-select",
+                            "aria-label": "Selected key",
+                            value: selected.map_or("", |key| key.id.as_ref()),
+                            onchange: move |event: FormEvent| on_select_key.call(event.value()),
+                            option { value: "", "Choose on the layout…" }
+                            for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
+                                option {
+                                    key: "{key.id}",
+                                    value: "{key.id}",
+                                    "{key.reference} · {key.binding_title}"
+                                }
+                            }
+                        }
+                    }
+                    if key_count == 0 {
+                        p { class: "m1-keymap-empty", role: "status", "No keys are available on this board." }
+                    } else if let Some(key) = selected {
+                        if no_matches {
+                            p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
+                        }
+                        p { class: "m1-keymap-selected-label", "{key.binding_title}" }
+                    } else if no_matches {
+                        p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
+                    } else {
+                        p { class: "m1-keymap-empty", role: "status", "Select a switch on the layout to assign its behavior." }
+                    }
+                    {keys_editor}
+                }
+            } else if selected_editor() == KeymapEditor::Macros {
+                {macros_editor}
+            } else {
+                {encoders_editor}
+            }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum KeymapEditor {
+    #[default]
+    Keys,
+    Macros,
+    Encoders,
 }
 
 #[derive(Props, Clone, PartialEq)]
