@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "Reviewed a49bb798 startup restoration and physical-instance UI pass focused root online checks; application14/web12 and strict checks pass. Complete maintained rebuild passes; final offline/subpath/race checks in progress; five-session pointer pending. Reference timing failures/ineligible CAD and actual screen-reader blocker remain.",
+  "status": "Reviewed a49bb798 complete maintained build, exact-source checks and final root/subpath browser QA pass; all five paired public pointer sessions pass unchanged caps. Unchanged reference UI/live timing failures, ineligible frozen CAD comparison and actual screen-reader blocker keep acceptance open.",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -14,31 +14,31 @@
       "blocked_by": []
     },
     "02": {
-      "status": "14 public session tests pass, including physical/canonical navigation cancellation; durable storage and original UI checks retained. Updated presentation passes focused root online checks; actual root-close resource gate open.",
+      "status": "14 public session tests and final public startup/navigation/cancellation checks pass. Actual app-tab closure removes Core/CAD browser targets; Rust use_drop/GPU accounting remains unobserved.",
       "blocked_by": [
         "01"
       ]
     },
     "03": {
-      "status": "Final release8f509433 root/subpath scoped storage/cache install, update and offline reopen pass; cold and missing-asset failures observed; dependent overall acceptance remains open",
+      "status": "Final a49 root/subpath online/offline active restoration, empty/stale preference and same-origin scope isolation pass; full-fixture archive/storage evidence retained on unchanged modules. Overall M1 acceptance open.",
       "blocked_by": [
         "02"
       ]
     },
     "04": {
-      "status": "12 native web tests and nine actual TypeScript projections pass; real editor exact generation on both fixtures, DPR2, scope remount, cancel/retry and context-loss reporting pass on focused2040e23b; full resource accounting remains",
+      "status": "12 native web tests and actual TypeScript projections pass; both earlier fixture generations and current canonical/Left physical Sofle generation, delayed CAD cancellation and no stale canvas pass. Direct GPU/material attribution remains limited.",
       "blocked_by": [
         "02"
       ]
     },
     "05": {
-      "status": "STEP-only decoder regression repaired and reviewed; final release downloads and URL cleanup pass for both fixtures, stale-scope delivery suppressed; complete semantic/resource acceptance remains open",
+      "status": "STEP-only decoder repaired and reviewed; canonical REVIUNG/Sofle download/readback evidence retained on 8f/b974 artifacts. Final a49 configured Sofle physical-left STEP delivery, URL cleanup and held-export physical-to-canonical cancellation pass. Complete material/semantic/resource acceptance remains open.",
       "blocked_by": [
         "04"
       ]
     },
     "06": {
-      "status": "Reviewed story completion integrated at a49bb798; focused root online UI/compact/axe checks pass. Complete maintained build passes; offline/subpath/startup/case races pending; final five-session pointer pending. Reference UI/live frozen comparisons fail; CAD row limits pass but frozen environment/provider mismatch. Actual screen reader blocked.",
+      "status": "Reviewed source, maintained build and final browser QA pass. All five final paired pointer sessions pass unchanged caps. Reference UI/live frozen timing comparisons fail; CAD row limits pass but comparison is ineligible due identity mismatch. Actual screen reader blocked; direct use_drop/GPU/material accounting unperformed.",
       "blocked_by": [
         "03",
         "05"
@@ -79,5 +79,34 @@
     "cad": "executed \u2014 exit 0, five sessions, per-row limits pass",
     "frozen_cad_comparison": "ineligible \u2014 exit 1: OS and core/renderer WASM identities differ",
     "budgets_changed": false
+  },
+  "final_browser_qa": ".scratch/m1-production/evidence/integration/release-a49bb798-qa/record.json",
+  "final_pointer": {
+    "record": ".scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002-retry1/summary.json",
+    "status": "pass \u2014 five eligible paired sessions, 100 measured samples per scenario",
+    "key_counts": [
+      30,
+      100,
+      200
+    ],
+    "caps_ms": [
+      33,
+      50,
+      100
+    ],
+    "median_candidate_p95_ms": [
+      18.8,
+      24.4,
+      33.1
+    ],
+    "budgets_changed": false,
+    "startup_visibility": "incomplete \u2014 controls absent in 15/30 ancillary reload observations; no startup gate claimed"
+  },
+  "final_physical_step": {
+    "record": ".scratch/m1-production/evidence/integration/release-a49bb798-qa/physical-left-step-acceptance.json",
+    "status": "pass \u2014 configured Sofle left-half delivery and held-export scope cancellation",
+    "bytes": 6417795,
+    "sha256": "9b697043af32fc028cd7e52cfb93b9c778747318cf411f8555d9652646a4adec",
+    "scope": "online root owned no-service-worker origin; no offline or material-oracle claim"
   }
 }

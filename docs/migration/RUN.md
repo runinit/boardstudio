@@ -7,9 +7,9 @@ The reviewed implementation includes pointer allocation repairs at `b9748745`.
 Its complete maintained rebuild and bounded root/subpath smoke pass. Active-project
 startup restoration and physical-instance selection pass focused online root
 checks on reviewed source `a49bb798`; its complete rebuild and final race/offline
-checks are in progress. Earlier `8f509433` build and
+checks now pass. Earlier `8f509433` build and
 root/subpath browser checks pass, with scoped resource and same-input STEP
-geometry evidence retained. Final five-session timing remains pending; unchanged reference gates completed
+geometry evidence retained. All five final paired pointer sessions pass the unchanged caps; unchanged reference gates completed
 with UI/live failures and an ineligible frozen CAD comparison; relevant screen-reader testing is blocked. Earlier
 sections retain historical proposals, failures and accepted feasibility work.
 
@@ -1005,3 +1005,50 @@ options, canonical reset, keyboard selection and compact layouts; axe reports
 zero violations with SVG contrast incomplete. The focused artifact has no
 offline policy. A fresh maintained root/subpath build is running; actual offline
 restoration, delayed IDB/slow-worker startup and physical-case races remain open.
+
+
+### Final maintained story-completion release
+
+`m1-release-20261002-a49bb798` passes all 18 build commands, 925 source hashes,
+and both 47-file inventories with one current page WASM per prefix. The
+[exact-source command ledger](../../.scratch/m1-production/evidence/integration/final-story-source-checks/record.json)
+retains fresh application14/web12, fmt, strict lint, repository/contracts and
+boundary checks, all exiting zero; prior transient check reports are not reused
+as raw logs. The owned editable demo is [root](http://127.0.0.1:34285/) and
+[/boardstudio/](http://127.0.0.1:34285/boardstudio/).
+
+[Final browser QA](../../.scratch/m1-production/evidence/integration/release-a49bb798-qa/README.md)
+passes both-prefix online/offline active restoration, preference handling,
+same-origin storage isolation, actual delayed saved-read supersession and slow
+Core initialization. Canonical and configured Left physical case generation
+succeed; navigation during delayed CAD initialization terminates the old worker
+and prevents stale geometry. Actual app-tab closure removes Core/CAD browser
+targets and reopening restores saved work. This observes platform teardown,
+not Rust drop execution or GPU memory. Sofle Right PCB reports its unready input.
+All five fresh paired public pointer sessions pass the unchanged 33/50/100 ms
+caps at 30/100/200 keys, with median candidate p95 18.8/24.4/33.1 ms and
+100 measured samples per scenario. [Raw paired results](../../.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002-retry1/summary.json)
+retain every sample and endpoint/environment eligibility. Ancillary startup
+visibility observations are incomplete and establish no startup timing gate. Required screen-reader
+interaction remains blocked; frozen reference timing failures/ineligible CAD and
+material/GPU attribution limits remain in the acceptance ledger. No M1 closure,
+production cutover, push, deployment, main merge or React retirement is claimed.
+
+
+### Final physical STEP delivery and acceptance frontier
+
+The final a49 release passes configured Sofle Left PCB / left half STEP delivery
+on an owned online root origin. Its 6,417,795-byte download, URL revocation and
+physical-to-canonical navigation while the actual CAD worker WASM is held are
+recorded in [the changed-path check](../../.scratch/m1-production/evidence/integration/release-a49bb798-qa/physical-left-step-acceptance.md).
+Releasing unchanged bytes produces no stale download. This check uses no service
+worker and makes no offline or material-oracle claim. Older canonical REVIUNG/Sofle
+STEP/readback evidence retains its 8f/b974 artifact scope.
+
+Implementation and the documentation plan are retained on
+`codex/m1-production-20261001`; production source remains `a49bb798`.
+Ticket 06 remains open for actual screen-reader interaction, retained frozen
+UI/live failures, environment-ineligible frozen CAD comparison, and required
+material/direct resource attribution. The [handoff](../../.scratch/m1-production/HANDOFF.md#remaining-acceptance-work)
+records the continuation work. Original tracked checkout and stash identities
+remain preserved; unrelated untracked content was not hashed.

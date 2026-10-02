@@ -1,6 +1,6 @@
 # M1 reproducible build and staging
 
-Status: complete release `m1-release-20261002-a49bb798` passed all 18 build commands, 925 source hashes and both 47-file prefix inventories, with one current page WASM per prefix. [Portable provenance](evidence/integration/release-a49bb798-provenance.json) retains the exact inputs. It includes reviewed pointer repairs, startup restoration and physical-instance selection. Focused online root checks pass; final root/subpath/offline/race and five-session checks remain pending under [the ledger](ACCEPTANCE.md). Previous builds and failures remain retained; never overwrite earlier outputs.
+Status: complete release `m1-release-20261002-a49bb798` passed all 18 build commands, 925 source hashes and both 47-file prefix inventories, with one current page WASM per prefix. [Portable provenance](evidence/integration/release-a49bb798-provenance.json) retains the exact inputs. It includes reviewed pointer repairs, startup restoration and physical-instance selection. Focused online root checks pass; final root/subpath/offline/startup/case-race checks pass; all five paired pointer sessions pass the unchanged caps under [the ledger](ACCEPTANCE.md). Previous builds and failures remain retained; never overwrite earlier outputs.
 
 ## Toolchain and package layout
 

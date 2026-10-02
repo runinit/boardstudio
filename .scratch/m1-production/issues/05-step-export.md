@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** Implementation complete; real STEP-only reply regression repaired and reviewed, both final downloads and stale-scope suppression pass; complete independent semantic/resource acceptance remains open.
+**Status:** Implementation complete; real STEP-only reply regression repaired and reviewed, canonical REVIUNG/Sofle downloads pass on retained 8f/b974 component artifacts; final a49 configured Sofle physical-left delivery, URL cleanup and physical-to-canonical held-export suppression pass; complete independent semantic/resource acceptance remains open.
 
 **Category:** behavior-preserving migration; ticket 02 includes the already accepted recovery behavior.
 
@@ -15,4 +15,4 @@
 - [ ] Cancellation, changed scope, save recovery and worker failure prevent delivery and settle callers.
 - [x] Characterize CAD wide revisions and reject unsupported identity loss; complete integer parity requires explicit compatibility resolution.
 
-See [current acceptance evidence](../ACCEPTANCE.md#retained-evidence--release-8f509433-and-reviewed-overlays) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.
+See [current acceptance evidence](../ACCEPTANCE.md#current-release--a49bb798) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.

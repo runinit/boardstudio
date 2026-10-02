@@ -21,6 +21,6 @@ P1 core source defines text-frame identities and typed engine dispatch. P1 CAD s
 
 ## Explicit compatibility limits
 
-The current CAD JS boundary emits revision as f64 and accepts JS-valued inputs; P1 validated revision 7 only. A session envelope can preserve the caller's u64 identity and reject mismatched completion but cannot by itself prove the provider used an unrounded integer. Until resolved through an approved compatible transport, reject unsupported wide identities and record the limit. Do not change the existing output representation or expose private constructors without approval. This gate remains open for complete integer parity.
+The current CAD JS boundary emits revision as f64 and accepts JS-valued inputs. P1 originally validated revision 7; maintained M1 checks validate the safe-range edge and reject wider values before conversion. A session envelope can preserve the caller's u64 identity and reject mismatched completion but cannot by itself prove the provider used an unrounded integer. Until resolved through an approved compatible transport, reject unsupported wide identities and record the limit. Do not change the existing output representation or expose private constructors without approval. This gate remains open for complete integer parity.
 
 Storage representation must preserve existing project optional/null/absent fields and asset Uint8Array values. A new Rust serializer is not proven equivalent merely because it compiles. The actual reference import/save/load/archive adapter is the compatibility oracle.

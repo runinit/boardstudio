@@ -19,42 +19,71 @@ The implementation and completed checks below are attributable to the recorded s
 | Performance | Existing affected CAD/live/UI budgets and controls retained; startup/size/crossing measurements with reference variance, no invented threshold | 06 |
 | Exact integration | Locked builds, native/WASM fmt/strict lint/tests, contracts, repository/boundary, React tests/build/affected browser matrix; source/asset hashes and Standards/Spec reviews | 06 |
 
+## Current release — `a49bb798`
+
+The complete maintained artifact `m1-release-20261002-a49bb798` passes all 18
+build commands, 925 source hashes and both 47-file asset inventories. There is
+one current page WASM per prefix. [Build provenance](evidence/integration/release-a49bb798-provenance.json)
+and [latest-source checks](evidence/integration/final-story-source-checks/record.json)
+retain exact commands and outputs: 14 application tests, 12 web tests, formatting,
+strict application/page lint, repository/contracts/runtime contracts and boundaries
+all pass. Independent [Standards](evidence/review/standards-active-instance-final-e1e8606.md)
+and [Spec](evidence/review/spec-active-instance-final-b50ddbdd.md) reviews have no findings.
+
+[Final browser QA](evidence/integration/release-a49bb798-qa/README.md) passes
+root/subpath online and cached-offline active restoration, empty/stale preferences,
+same-origin storage separation, a real delayed stored-read versus newer explicit
+open, slow Core startup, filtered physical navigation, canonical and selected-left
+case generation, and cancellation during actual CAD initialization with no stale
+canvas. Injected preference API errors are caught; they are not real storage-denial
+proof. Closing the owned app tab removes its Core/CAD browser targets and reopening
+restores the saved document. This does not observe Rust `use_drop` or GPU memory.
+Sofle Right PCB reports its actual unready input; Left physical generation requires
+adding case settings through the public control.
+
+[Final physical STEP delivery](evidence/integration/release-a49bb798-qa/physical-left-step-acceptance.md)
+passes the public Left PCB / left half path on an owned online root origin with
+service workers disabled for the response gate. The 6,417,795-byte download has
+SHA-256 `9b697043af32fc028cd7e52cfb93b9c778747318cf411f8555d9652646a4adec`;
+its Blob URL is revoked. Holding the actual CAD worker WASM, changing to Canonical,
+and releasing unchanged bytes produces no additional URL or download. This is
+delivery/cancellation evidence, not an offline or material-oracle result.
+
+Focused source-equivalent keyboard/compact/axe checks pass, with SVG contrast
+incomplete. Actual screen-reader interaction remains blocked. All five fresh paired
+public pointer sessions pass the unchanged 33/50/100 ms caps at 30/100/200 keys,
+with 100 measured samples per scenario and no missing paint markers. Median
+candidate p95 values are 18.8/24.4/33.1 ms. See the
+[paired timing summary](evidence/performance/runs/paired-pointer-a49bb798-20261002-retry1/summary.json).
+The marker records a following animation-frame opportunity, not physical display.
+Ancillary startup visibility observations are incomplete in 15 of 30 reloads;
+no startup timing gate is claimed. The unchanged reference UI/live frozen
+comparisons fail; the five-session CAD run passes per-row limits but its frozen
+comparison is ineligible because OS/core/renderer identities differ. No baseline
+or budget changed. Complete renderer/STEP material attribution and direct GPU
+accounting remain unperformed; unchanged geometry/resource evidence below is reused
+only for its explicitly recorded scope. M1 acceptance remains open.
+
 ## Retained evidence — release `8f509433` and reviewed overlays
 
-| Gate | Current outcome and scope | Record |
+| Gate | Recorded outcome and scope | Record |
 | --- | --- | --- |
 | Provider reconciliation | Pass: approved transparent boxing, contracts and affected provider checks; ticket 01 closed | [Provider summary](evidence/providers/SUMMARY.md) |
 | Session and integer identity | Pass: 13 public native session tests, 12 native web tests; lossless core transport and explicit CAD safe-range rejection | [Final source checks](evidence/integration/final-source-checks/record.json), [decoder checks](evidence/integration/final-decoder-checks/record.json) |
 | Durable storage/archive exchange | Pass on recorded component artifacts: real IndexedDB abort/retry and full-fixture archive exchange; final release scoped databases and reload pass | [Final browser QA](evidence/browser-storage/release-8f509433-final-qa.md) |
 | Offline/deployment | Pass on final root/subpath assets: control, offline reload, cold/missing asset failure, scoped update and unrelated cache preservation | [Final offline record](evidence/offline/release-8f509433-browser.json) |
-| Case/renderer | Both final fixtures generate; focused DPR2, resize, remount, cancellation/retry and visible context-loss stop pass; scoped Worker/observer/listener/RAF/URL counts now recorded, late-import disposal now has a separate public race record; actual tab-close observation remains unperformed | [Focused renderer](evidence/renderer/focused-2040e23b/README.md), [final QA](evidence/browser-storage/release-8f509433-final-qa.md), [resource counts](evidence/cad-jobs/final-resource-summary-8f509433.json) |
+| Case/renderer | Both final fixtures generate; focused DPR2, resize, remount, cancellation/retry and visible context-loss stop pass; scoped Worker/observer/listener/RAF/URL counts now recorded, late-import disposal now has a separate public race record; actual tab-close observation was unperformed on this earlier artifact | [Focused renderer](evidence/renderer/focused-2040e23b/README.md), [final QA](evidence/browser-storage/release-8f509433-final-qa.md), [resource counts](evidence/cad-jobs/final-resource-summary-8f509433.json) |
 | STEP | Final downloads and URL cleanup pass for both fixtures, stale scope suppresses delivery; final REVIUNG mesh and independent BRep readback agree on volume/bounds; configured historical oracle is a different input, same-input default reference geometry now agrees at reader precision; exact STEP bytes differ by tiny decimal coefficient rounding | [Final exports](evidence/renderer/step-exports-8f509433.json), [geometry oracle](evidence/cad-jobs/step-geometry-oracle.json), [final readback](evidence/cad-jobs/readback-final-reviung41-summary.json) |
 | Presentation | Raw axe, contrast, keyboard/pointer and compact views recorded; actual screen-reader interaction blocked on this host | [Assistive technology limitation](#available-assistive-technology--2026-10-01) |
-| Performance | Fail on old8f 100/200-key public pointer caps; isolated range-ID fix improves but still fails. Second keyboard-list allocation repair passes one focused session18.6/24.1/33.3ms; complete rebuilt-release five sessions remain pending. Historical endpoint/environment mismatches remain ineligible; budgets unchanged | [Performance evidence](evidence/performance/) |
+| Performance | Fail on old8f 100/200-key public pointer caps; isolated range-ID fix improves but still fails. Second keyboard-list allocation repair passes one focused session18.6/24.1/33.3ms; the final a49 five-session result above passes. Historical endpoint/environment mismatches remain ineligible; budgets unchanged | [Performance evidence](evidence/performance/) |
 | Exact integration | Pass: complete locked build, source/asset verification, native/fmt/strict checks, repository/contracts/boundaries and independent source reviews | [Release provenance](evidence/integration/release-8f509433-provenance.json), [Standards](evidence/review/standards-step-decoder-5a0972a2.md), [Spec](evidence/review/spec-5a0972a2.md) |
 
-Runtime decoder source is `5a0972a2`; the latest completed maintained build is
-`b9748745`, including both pointer allocation repairs. Its bounded
-[root/subpath smoke](evidence/integration/final-browser-smoke-b9748745.md) passes.
-The wider `8f509433` observations above retain their exact source scope. Saved
-active-project restoration and physical-instance selection were gaps in that
-release. Reviewed source `a49bb798` now implements both; its
-[focused root online QA](evidence/integration/startup-restore-instance-focused-b50ddbdd-qa/record.json)
-passes restoration, stale preference, filtered options, keyboard selection and
-compact layout/axe checks. Fourteen session and twelve web tests pass on the
-updated candidate. The complete rebuild, offline/subpath and startup/case race
-checks remain pending; neither flow was established by the earlier bounded smoke. Failed paired
-performance attempts remain [recorded](evidence/performance/README.md); a valid
-five-session aggregate is still unperformed. The unchanged
-[reference gates](evidence/performance/runs/reference-gates-20261002T002536Z/assessment.md)
-completed: UI/live frozen worker/main-thread and interaction timing comparisons
-fail. CAD ran all five sessions with all per-row completion/paint/RSS budgets
-passing, but its frozen comparator rejects OS and core/renderer WASM identity
-mismatches. These are retained outcomes, with no changed baselines or budgets.
-Evidence/document commits do not
+Runtime decoder source is `5a0972a2`; pointer repairs are `e7d29ce6` and the
+startup/selector source is `b50ddbdd`. The latest complete maintained build is
+`a49bb798`. The `8f509433` and `b9748745` records retain their exact artifact scope;
+no earlier failure is replaced by a later result. Component evidence is reused
+only where relevant source inputs are unchanged. Evidence/document commits do not
 change production inputs.
-Component evidence is reused only where relevant source inputs are unchanged;
-final release observations are distinguished explicitly.
 
 ## Evidence record shape
 
