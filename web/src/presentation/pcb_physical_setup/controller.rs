@@ -471,11 +471,12 @@ fn finish_operation(
     let current_owner = activity.matches(identity, false);
     let accepted_proposal = crate::physical_setup::can_reconcile_primary(
         &TerminalOutcome::Completed,
-        current_owner,
+        true,
         accepted.map(|accepted| accepted.document.as_ref()),
         proposal,
     );
-    // Advance attribution only to this operation's accepted proposal, never an unrelated revision.
+    // A hidden owner still owns its exact accepted result. Visibility gates navigation,
+    // not attribution; projection will hide feedback until this owner is visible again.
     let mut feedback_owner = identity.clone();
     if accepted_proposal {
         let accepted = accepted.expect("accepted proposal checked above");
@@ -485,7 +486,7 @@ fn finish_operation(
     let message = match outcome {
         TerminalOutcome::Completed if accepted_proposal => {
             let accepted = accepted.expect("accepted proposal checked above");
-            if submitted.reconcile_primary
+            if current_owner && submitted.reconcile_primary
                 && let Some(explicit_id) = proposal.hardware.as_ref().and_then(|hardware| {
                     hardware.instances.iter().find(|instance| instance.board_id == identity.board_id).map(|instance| instance.id.clone())
                 }) {

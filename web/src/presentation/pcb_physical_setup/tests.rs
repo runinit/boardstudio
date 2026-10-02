@@ -301,3 +301,28 @@ fn detached_normalization_and_outcome_survive_unmount_without_signal_access() {
         }
     }
 }
+
+#[test]
+fn hidden_success_restores_feedback_for_its_exact_accepted_proposal() {
+    let (probe, mut dom) = mounted();
+    let mut proposal = probe.changed_proposal();
+    *probe.reply.borrow_mut() = Some(Ok(proposal.clone()));
+    send(&probe.mount());
+    crate::poll_detached();
+    probe.active.set(false);
+    flush(&mut dom);
+    let mut next = crate::runtime::model("A", 2, 2);
+    proposal.revision = 2;
+    next.accepted.as_mut().unwrap().document = std::sync::Arc::new(proposal);
+    *probe.runtime.model.borrow_mut() = next;
+    probe.settle(TerminalOutcome::Completed);
+    flush(&mut dom);
+    assert!(probe.mount().projection.project_feedback.is_none());
+    probe.active.set(true);
+    flush(&mut dom);
+    assert_eq!(
+        probe.mount().projection.project_feedback.as_deref(),
+        Some("Physical setup saved.")
+    );
+    assert_eq!(probe.edits(), 1);
+}

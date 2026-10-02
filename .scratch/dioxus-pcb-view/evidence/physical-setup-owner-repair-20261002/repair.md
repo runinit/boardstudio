@@ -27,3 +27,9 @@ Harness SHA256: `aaf0492fb5e292a3e54c9e77b3f70ae4d7aac1dc23a78b427a9145e58f72604
 ## Open gates and RF handoff
 
 Independent review of this repair is required; this author does not self-clear. Retain RF-001/RF-006/RF-009 attribution for the original owner/lifecycle/evidence findings. No new RF identity is needed. Real guide/Case browser journeys, packaged normalizer, durability/history/reopen, paired presentation and accessibility remain open. No ticket completion or current-demo claim follows from these source tests. Unrelated dirty PCB README and planning files were preserved and excluded from the repair commit.
+
+## Independent-review follow-up: hidden successful save
+
+Independent reviewer found that the first repair still gated exact accepted-proposal feedback attribution on guide visibility. Added `hidden_success_restores_feedback_for_its_exact_accepted_proposal` to the actual mounted production harness. At 203c9c86 it failed with missing feedback after hiding, accepting the exact proposal under a new token/revision, settling Completed and reopening. `hidden-success-red.log` retains that result.
+
+The correction separates exact accepted-document/session/proposal attribution from live owner visibility. Visibility still gates primary-instance navigation/reconciliation, and strict projection still prevents another scope from displaying the result. The same hidden owner's exact accepted success is retained and displayed on return. `hidden-success-green.log` now passes all 20 physical lifecycle/prerequisite tests. fmt/diff checks pass. No broad rebuild repeated for this bounded condition change; the previously recorded standalone strict/actual guide-join and browser gates remain open. Independent follow-up acknowledgment is still required.
