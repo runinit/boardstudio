@@ -133,7 +133,8 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 p { class: "m1-keymap-unavailable", role: "status", "Macro editor is unavailable for the current board." }
             }
         };
-        let encoders_editor = if let Some(projection) = binding_actions.encoder_projection.as_ref() {
+        let encoders_editor = if let Some(projection) = binding_actions.encoder_projection.as_ref()
+        {
             rsx! {
                 keymap::EncoderEditor {
                     key: "{render_scope:?}:encoders:{projection.effective_layer_id}:{projection.input_identity.projection_generation}:{binding_actions.editor_instance_id}",

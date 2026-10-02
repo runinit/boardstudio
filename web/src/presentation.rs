@@ -572,10 +572,7 @@ fn durability_label(durability: &Durability) -> &'static str {
     }
 }
 
-fn keymap_bounds(
-    view: &keymap::KeymapView,
-    contours: &[Contour],
-) -> Option<(f64, f64, f64, f64)> {
+fn keymap_bounds(view: &keymap::KeymapView, contours: &[Contour]) -> Option<(f64, f64, f64, f64)> {
     let mut bounds: Option<(f64, f64, f64, f64)> = None;
     let mut include = |x: f64, y: f64| {
         bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
@@ -781,9 +778,7 @@ fn Editor() -> Element {
         runtime.clone(),
         keymap::BindingProjectionSources {
             source: layer_source.clone(),
-            view: keymap_projection()
-                .as_ref()
-                .map(|(view, _)| view.clone()),
+            view: keymap_projection().as_ref().map(|(view, _)| view.clone()),
             encoder_projection: encoder_input_actions.projection,
             current_encoder_projection: encoder_input_actions.current,
         },
@@ -796,11 +791,8 @@ fn Editor() -> Element {
         },
     );
     let keymap_projection = keymap_projection.read().clone();
-    let keymap_view = keymap_projection
-        .as_ref()
-        .map(|(view, _)| view.clone());
-    let keymap_contours = keymap_projection
-        .map(|(_, contours)| contours);
+    let keymap_view = keymap_projection.as_ref().map(|(view, _)| view.clone());
+    let keymap_contours = keymap_projection.map(|(_, contours)| contours);
     // Keep macro operation observation alive when another workspace hides the panel.
     let macro_actions = keymap::use_macro_operations(
         runtime.clone(),
