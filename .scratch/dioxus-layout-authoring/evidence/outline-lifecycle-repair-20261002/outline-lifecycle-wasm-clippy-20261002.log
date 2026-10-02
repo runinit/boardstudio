@@ -1,0 +1,19 @@
+   Compiling num-traits v0.2.19
+   Compiling serde_json v1.0.151
+   Compiling wasm-bindgen-test-macro v0.3.79
+    Checking oorandom v11.1.5
+    Checking wasm-bindgen-test-shared v0.2.129
+    Checking nu-ansi-term v0.50.3
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-navigation-20261002/web)
+    Checking cast v0.3.0
+    Checking euclid v0.22.14
+    Checking rhai v1.26.1
+    Checking dioxus-devtools v0.7.10
+    Checking wasm-bindgen-test v0.3.79
+    Checking dioxus-html v0.7.10
+    Checking dioxus-document v0.7.10
+    Checking dioxus-web v0.7.10
+    Checking dioxus v0.7.10
+    Checking boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-navigation-20261002/core)
+    Checking boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-navigation-20261002/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 29.20s

@@ -1,0 +1,93 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/layout-outline-navigation-20261002/web)
+warning: unreachable pattern
+   --> tests/support/../../src/presentation/outline_lifecycle.rs:253:9
+    |
+251 | /         super::objects::TreeContext::Outline { board_id }
+252 | |         | super::objects::TreeContext::OutlineVersion { board_id, .. } => board_id.clone(),
+    | |______________________________________________________________________- matches all the relevant values
+253 |           _ => return None,
+    |           ^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `OutlineVersion` is never constructed
+ --> tests/support/outline_presentation.rs:8:9
+  |
+4 |     pub enum TreeContext {
+  |              ----------- variant in this enum
+...
+8 |         OutlineVersion {
+  |         ^^^^^^^^^^^^^^
+  |
+  = note: `TreeContext` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `boardstudio-web` (test "outline_lifecycle") generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.18s
+     Running tests/outline_lifecycle.rs (web/target/debug/deps/outline_lifecycle-1c24cc6e92e7f409)
+
+running 10 tests
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test presentation::outline_lifecycle::lifecycle_tests::admitted_outcome_survives_editor_unmount_until_terminal ... FAILED
+test presentation::outline_lifecycle::lifecycle_tests::completed_old_epoch_retires_before_replacement_readiness ... FAILED
+test presentation::outline_lifecycle::lifecycle_tests::completed_current_source_in_recovery_retires_with_failure ... FAILED
+test presentation::outline_lifecycle::lifecycle_tests::stale_rendered_copy_generation_is_rejected_after_callback_refresh ... FAILED
+test presentation::outline_lifecycle::lifecycle_tests::completed_without_accepted_snapshot_retires_before_reopen ... FAILED
+test presentation::outline_lifecycle::lifecycle_tests::exact_rejection_allows_fresh_operation_retry ... ok
+test presentation::outline_lifecycle::lifecycle_tests::hidden_inspector_retains_exact_success_until_same_owner_returns ... ok
+test presentation::outline_lifecycle::lifecycle_tests::stale_rendered_delete_generation_is_rejected_after_callback_refresh ... FAILED
+
+failures:
+
+---- presentation::outline_lifecycle::lifecycle_tests::admitted_outcome_survives_editor_unmount_until_terminal stdout ----
+
+thread 'presentation::outline_lifecycle::lifecycle_tests::admitted_outcome_survives_editor_unmount_until_terminal' (2638526) panicked at tests/support/../../src/presentation/outline_lifecycle_tests.rs:48:9:
+exact admitted observer must survive Editor unmount
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- presentation::outline_lifecycle::lifecycle_tests::completed_old_epoch_retires_before_replacement_readiness stdout ----
+
+thread 'presentation::outline_lifecycle::lifecycle_tests::completed_old_epoch_retires_before_replacement_readiness' (2638528) panicked at tests/support/../../src/presentation/outline_lifecycle_tests.rs:247:5:
+assertion `left == right` failed: exact old-epoch terminal must retire before evaluating replacement readiness
+  left: 1
+ right: 0
+
+---- presentation::outline_lifecycle::lifecycle_tests::completed_current_source_in_recovery_retires_with_failure stdout ----
+
+thread 'presentation::outline_lifecycle::lifecycle_tests::completed_current_source_in_recovery_retires_with_failure' (2638527) panicked at tests/support/../../src/presentation/outline_lifecycle_tests.rs:257:5:
+assertion `left == right` failed
+  left: "pending"
+ right: "recovery-required"
+
+---- presentation::outline_lifecycle::lifecycle_tests::stale_rendered_copy_generation_is_rejected_after_callback_refresh stdout ----
+
+thread 'presentation::outline_lifecycle::lifecycle_tests::stale_rendered_copy_generation_is_rejected_after_callback_refresh' (2638532) panicked at tests/support/../../src/presentation/outline_lifecycle_tests.rs:140:5:
+assertion `left == right` failed: old rendered Copy must not acquire the refreshed callback generation
+  left: 1
+ right: 0
+
+---- presentation::outline_lifecycle::lifecycle_tests::completed_without_accepted_snapshot_retires_before_reopen stdout ----
+
+thread 'presentation::outline_lifecycle::lifecycle_tests::completed_without_accepted_snapshot_retires_before_reopen' (2638529) panicked at tests/support/../../src/presentation/outline_lifecycle_tests.rs:172:5:
+closed exact terminal cannot block a newly accepted document
+
+---- presentation::outline_lifecycle::lifecycle_tests::stale_rendered_delete_generation_is_rejected_after_callback_refresh stdout ----
+
+thread 'presentation::outline_lifecycle::lifecycle_tests::stale_rendered_delete_generation_is_rejected_after_callback_refresh' (2638533) panicked at tests/support/../../src/presentation/outline_lifecycle_tests.rs:157:5:
+assertion `left == right` failed: old rendered Delete must not acquire the refreshed callback generation
+  left: 1
+ right: 0
+
+
+failures:
+    presentation::outline_lifecycle::lifecycle_tests::admitted_outcome_survives_editor_unmount_until_terminal
+    presentation::outline_lifecycle::lifecycle_tests::completed_current_source_in_recovery_retires_with_failure
+    presentation::outline_lifecycle::lifecycle_tests::completed_old_epoch_retires_before_replacement_readiness
+    presentation::outline_lifecycle::lifecycle_tests::completed_without_accepted_snapshot_retires_before_reopen
+    presentation::outline_lifecycle::lifecycle_tests::stale_rendered_copy_generation_is_rejected_after_callback_refresh
+    presentation::outline_lifecycle::lifecycle_tests::stale_rendered_delete_generation_is_rejected_after_callback_refresh
+
+test result: FAILED. 4 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test outline_lifecycle`

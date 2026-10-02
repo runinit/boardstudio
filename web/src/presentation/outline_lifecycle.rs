@@ -12,12 +12,14 @@ pub(super) enum OutlineAction {
         scope: Scope,
         token: boardstudio_application::SnapshotToken,
         revision: u64,
+        generation: u64,
         board_id: String,
     },
     Delete {
         scope: Scope,
         token: boardstudio_application::SnapshotToken,
         revision: u64,
+        generation: u64,
         board_id: String,
         version_id: String,
     },
@@ -70,6 +72,7 @@ pub(super) struct OutlineInspectorProjection {
     scope: Scope,
     token: boardstudio_application::SnapshotToken,
     revision: u64,
+    generation: u64,
 }
 
 pub(super) fn use_outline_lifecycle(
@@ -111,10 +114,11 @@ pub(super) fn use_outline_lifecycle(
             match outcome {
                 TerminalOutcome::Completed => {
                     let model = runtime.model();
-                    let Some(snapshot) = model.accepted.as_ref() else {
-                        return;
-                    };
-                    if snapshot.document.id != waiting.snapshot.document.id {
+                    let Some(snapshot) = model.accepted.as_ref().filter(|snapshot| {
+                        snapshot.document.id == waiting.snapshot.document.id
+                            && snapshot.session_epoch == waiting.snapshot.session_epoch
+                            && runtime.scope().as_ref() == Some(&waiting.scope)
+                    }) else {
                         pending.set(None);
                         feedback.set(Some(OutlineFeedback {
                             scope: waiting.scope.clone(),
@@ -122,15 +126,30 @@ pub(super) fn use_outline_lifecycle(
                             board_id: waiting.scope.board_id.clone(),
                             state: "source-changed",
                             message: Some(
-                                "The project changed before the outline result could be confirmed."
+                                "The outline source changed before its result could be confirmed."
                                     .into(),
                             ),
                         }));
                         return;
+                    };
+                    if matches!(model.durability, Durability::Failed { .. })
+                        || matches!(
+                            model.lifecycle,
+                            Lifecycle::RecoveryRequired | Lifecycle::Closed
+                        )
+                    {
+                        pending.set(None);
+                        feedback.set(Some(OutlineFeedback {
+                            scope: waiting.scope.clone(),
+                            generation: waiting.generation,
+                            board_id: waiting.scope.board_id.clone(),
+                            state: "recovery-required",
+                            message: Some("The outline operation completed, but the accepted document is not durably available. Retry after recovery.".into()),
+                        }));
+                        return;
                     }
-                    if snapshot.session_epoch == waiting.snapshot.session_epoch
-                        && (snapshot.token == waiting.snapshot.token
-                            || snapshot.document.revision <= waiting.snapshot.document.revision)
+                    if snapshot.token == waiting.snapshot.token
+                        || snapshot.document.revision <= waiting.snapshot.document.revision
                     {
                         return;
                     }
@@ -322,6 +341,7 @@ pub(super) fn use_outline_lifecycle(
         scope,
         token: snapshot.token,
         revision: snapshot.document.revision,
+        generation: captured_generation,
     })
 }
 
@@ -338,22 +358,26 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     {
         return;
     }
-    let (action_scope, expected_token, expected_revision, board_id) = match &action {
-        OutlineAction::Copy {
-            scope,
-            token,
-            revision,
-            board_id,
-        }
-        | OutlineAction::Delete {
-            scope,
-            token,
-            revision,
-            board_id,
-            ..
-        } => (scope, token, *revision, board_id),
-    };
-    if runtime.scope().as_ref() != Some(action_scope) {
+    let (action_scope, expected_token, expected_revision, expected_generation, board_id) =
+        match &action {
+            OutlineAction::Copy {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+            }
+            | OutlineAction::Delete {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            } => (scope, token, *revision, *generation, board_id),
+        };
+    if expected_generation != captured_generation || runtime.scope().as_ref() != Some(action_scope)
+    {
         return;
     }
     let model = runtime.model();
@@ -464,7 +488,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         snapshot: snapshot.clone(),
         generation: captured_generation,
         kind,
-        outcome,
+        outcome: outcome.clone(),
     }));
     feedback.set(Some(OutlineFeedback {
         scope: action_scope.clone(),
@@ -483,27 +507,45 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
             operation,
         },
     });
+    // Keep exact observation alive independently of the Editor's signal lifetime.
+    // This task never reads or writes a component signal after an await.
+    wasm_bindgen_futures::spawn_local(async move {
+        while outcome.borrow().is_none() {
+            gloo_timers::future::TimeoutFuture::new(16).await;
+        }
+    });
+}
+
+impl OutlineInspectorProjection {
+    fn copy_action(&self) -> OutlineAction {
+        OutlineAction::Copy {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+        }
+    }
+
+    fn delete_action(&self) -> Option<OutlineAction> {
+        self.active_version_id
+            .as_ref()
+            .map(|version_id| OutlineAction::Delete {
+                scope: self.scope.clone(),
+                token: self.token,
+                revision: self.revision,
+                generation: self.generation,
+                board_id: self.board_id.clone(),
+                version_id: version_id.clone(),
+            })
+    }
 }
 
 #[component]
 pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Element {
     let contour_view = contour_preview(&projection.contours);
-    let copy = OutlineAction::Copy {
-        scope: projection.scope.clone(),
-        token: projection.token,
-        revision: projection.revision,
-        board_id: projection.board_id.clone(),
-    };
-    let delete = projection
-        .active_version_id
-        .as_ref()
-        .map(|version_id| OutlineAction::Delete {
-            scope: projection.scope.clone(),
-            token: projection.token,
-            revision: projection.revision,
-            board_id: projection.board_id.clone(),
-            version_id: version_id.clone(),
-        });
+    let copy = projection.copy_action();
+    let delete = projection.delete_action();
     let copy_handler = projection.on_action;
     let delete_handler = projection.on_action;
     rsx! {
@@ -576,3 +618,7 @@ fn contour_preview(contours: &[Contour]) -> Option<(String, Vec<(String, bool)>)
         .collect();
     Some((view_box, paths))
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "outline_lifecycle_tests.rs"]
+mod lifecycle_tests;
