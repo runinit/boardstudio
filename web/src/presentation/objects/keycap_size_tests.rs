@@ -3,7 +3,7 @@ use super::super::{TreeContext, keycap_size::KeySizeControls};
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core::model::Vec2;
-use boardstudio_core::model::{Part, Side};
+use boardstudio_core::model::{Part, Pose2, Side};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -91,6 +91,7 @@ fn projection(owner: KeySizeOwner, ids: &[&str], sizes: &[f64]) -> KeySizeProjec
         mixed: mixed_x,
         mixed_x,
         mixed_y: false,
+        overlap_references: Vec::new(),
     }
 }
 
@@ -279,12 +280,12 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
 
 #[wasm_bindgen_test]
 fn mixed_size_draft_uses_react_visible_document_part_order() {
-    let make_part = |id: &str| Part {
+    let make_part = |id: &str, reference: &str| Part {
         keycap: None,
         outline: None,
         id: id.into(),
         definition_id: "switch".into(),
-        reference: id.into(),
+        reference: reference.into(),
         pose: boardstudio_core::model::Pose2 {
             at: Vec2 { x: 0.0, y: 0.0 },
             rotation: 0.0,
@@ -303,7 +304,7 @@ fn mixed_size_draft_uses_react_visible_document_part_order() {
         rotation: 0.0,
         size: Vec2 { x: width, y: 18.0 },
     };
-    let document_parts = vec![make_part("part-a"), make_part("part-b")];
+    let document_parts = vec![make_part("part-a", "A"), make_part("part-b", "B")];
     // Matrix traversal is deliberately opposite to the TypeScript visibleParts order.
     let mut accepted_placements = vec![
         make_placement("part-b", 18.0, "matrix-b"),
@@ -324,4 +325,96 @@ fn mixed_size_draft_uses_react_visible_document_part_order() {
     assert_eq!(first.id, "part-a");
     assert_eq!(first_units, 2.0, "Wide/Tall drafts from React's first item");
     assert_eq!(selected_items.len(), 2);
+}
+
+#[wasm_bindgen_test]
+async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
+    let references = [
+        "Selected",
+        "Duplicate",
+        "Duplicate",
+        "Ref 3",
+        "Ref 4",
+        "Ref 5",
+        "Ref 6",
+        "Ref 7",
+        "Ref 8",
+        "Ref 9",
+        "Ref 10",
+    ];
+    let parts: Vec<_> = references
+        .iter()
+        .enumerate()
+        .map(|(index, reference)| Part {
+            keycap: None,
+            outline: None,
+            id: format!("part-{index}"),
+            definition_id: "switch".into(),
+            reference: (*reference).into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        })
+        .collect();
+    let mut placements: Vec<_> = parts
+        .iter()
+        .enumerate()
+        .map(|(index, part)| KeycapPlacement {
+            id: part.id.clone(),
+            matrix_id: format!("matrix-{}", index % 3),
+            row: 0,
+            column: index as u32,
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+            size: Vec2 { x: 18.0, y: 18.0 },
+        })
+        .collect();
+    // Matrix traversal interleaves ownership; document order is the stable React tie-breaker.
+    placements.reverse();
+    super::order_placements_by_document_parts(&parts, &mut placements);
+    let selected = BTreeSet::from(["part-0".to_owned()]);
+    let labels = super::overlap_references(&parts, &placements, &selected);
+    assert_eq!(
+        labels,
+        [
+            "Selected",
+            "Duplicate",
+            "Ref 3",
+            "Ref 4",
+            "Ref 5",
+            "Ref 6",
+            "Ref 7",
+            "Ref 8",
+            "Ref 9",
+            "Ref 10",
+        ]
+    );
+
+    let current_owner = owner(
+        TreeContext::Key {
+            matrix_id: "matrix-0".into(),
+            row: 0,
+            column: 0,
+        },
+        &["part-0"],
+        1,
+    );
+    let mut initial = projection(current_owner, &["part-0"], &[18.0]);
+    initial.overlap_references = labels;
+    let (_probe, root) = mounted(initial, None);
+    rendered(20).await;
+    assert_eq!(
+        element(&root, ".m1-key-size-warning[role='status']")
+            .text_content()
+            .as_deref(),
+        Some(
+            "Keycaps overlap: Selected, Duplicate, Ref 3, Ref 4, Ref 5, Ref 6, Ref 7, Ref 8 and 2 more. Adjust their rows or columns to clear the overlap."
+        )
+    );
+    root.remove();
 }

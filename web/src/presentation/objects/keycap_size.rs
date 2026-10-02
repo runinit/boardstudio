@@ -50,6 +50,16 @@ pub(in crate::presentation) fn KeySizeControls(props: KeySizeControlsProps) -> E
     let mixed_x = projection.mixed_x;
     let mixed_y = projection.mixed_y;
     let items = projection.items.clone();
+    let overlap_warning = (!projection.overlap_references.is_empty()).then(|| {
+        let references = projection.overlap_references[..projection.overlap_references.len().min(8)]
+            .join(", ");
+        let remaining = projection.overlap_references.len().saturating_sub(8);
+        if remaining > 0 {
+            format!("Keycaps overlap: {references} and {remaining} more. Adjust their rows or columns to clear the overlap.")
+        } else {
+            format!("Keycaps overlap: {references}. Adjust their rows or columns to clear the overlap.")
+        }
+    });
     let snapshot_token = projection.snapshot_token;
     let revision = projection.revision;
     let owner_for_effect = projection.owner.clone();
@@ -256,6 +266,9 @@ pub(in crate::presentation) fn KeySizeControls(props: KeySizeControlsProps) -> E
             }
             if let Some(status) = status { p { role: "status", class: "m1-key-size-status", "{status}" } }
             if let Some(error) = error { p { role: "alert", class: "m1-key-size-error", "{error}" } }
+        }
+        if let Some(warning) = overlap_warning {
+            p { class: "m1-key-size-warning", role: "status", "{warning}" }
         }
     }
 }

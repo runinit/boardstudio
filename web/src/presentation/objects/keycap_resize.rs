@@ -25,6 +25,92 @@ pub(super) struct KeycapResizePlan {
     pub(in crate::presentation) target_ids: Vec<String>,
 }
 
+/// Returns overlapping oriented keycap-envelope pairs in input order.
+/// The accepted placements are preordered by `ProjectDoc.parts`, matching the React workbench.
+pub(super) fn overlapping_pairs(placements: &[KeycapPlacement]) -> Vec<(String, String)> {
+    let mut bounds: Vec<_> = placements
+        .iter()
+        .map(|placement| {
+            let polygon = corners(placement);
+            let min_x = polygon
+                .iter()
+                .map(|point| point.x)
+                .fold(f64::INFINITY, f64::min);
+            let max_x = polygon
+                .iter()
+                .map(|point| point.x)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let min_y = polygon
+                .iter()
+                .map(|point| point.y)
+                .fold(f64::INFINITY, f64::min);
+            let max_y = polygon
+                .iter()
+                .map(|point| point.y)
+                .fold(f64::NEG_INFINITY, f64::max);
+            (placement, polygon, min_x, max_x, min_y, max_y)
+        })
+        .collect();
+    // Rust's slice sort is stable; equal min-X bounds retain accepted document-parts order.
+    bounds.sort_by(|first, second| {
+        first
+            .2
+            .partial_cmp(&second.2)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut overlaps = Vec::new();
+    for index in 0..bounds.len() {
+        let first = &bounds[index];
+        for second in bounds
+            .iter()
+            .skip(index + 1)
+            .take_while(|second| second.2 < first.3 - 1e-7)
+        {
+            if first.5 <= second.4 + 1e-7 || second.5 <= first.4 + 1e-7 {
+                continue;
+            }
+            if overlaps_on_axes(&first.1, &second.1, &first.1)
+                && overlaps_on_axes(&first.1, &second.1, &second.1)
+            {
+                overlaps.push((first.0.id.clone(), second.0.id.clone()));
+            }
+        }
+    }
+    overlaps
+}
+
+fn overlaps_on_axes(first: &[Vec2; 4], second: &[Vec2; 4], source: &[Vec2; 4]) -> bool {
+    for index in 0..source.len() {
+        let start = source[index];
+        let end = source[(index + 1) % source.len()];
+        let edge_x = end.x - start.x;
+        let edge_y = end.y - start.y;
+        let length = edge_x.hypot(edge_y);
+        if length == 0.0 {
+            continue;
+        }
+        let axis = Vec2 {
+            x: -edge_y / length,
+            y: edge_x / length,
+        };
+        let (first_min, first_max) = project_polygon(first, axis);
+        let (second_min, second_max) = project_polygon(second, axis);
+        if first_max <= second_min + 1e-7 || second_max <= first_min + 1e-7 {
+            return false;
+        }
+    }
+    true
+}
+
+fn project_polygon(points: &[Vec2; 4], axis: Vec2) -> (f64, f64) {
+    let mut projections = points.iter().map(|point| dot(*point, axis));
+    let first = projections.next().unwrap_or_default();
+    projections.fold((first, first), |(min, max), value| {
+        (min.min(value), max.max(value))
+    })
+}
+
 pub(in crate::presentation) struct KeycapResizeInput<'a> {
     pub document: &'a ProjectDoc,
     pub matrices: &'a [Matrix],
@@ -632,6 +718,66 @@ mod tests {
                 size: point(18.0, 18.0),
             })
             .collect()
+    }
+
+    fn overlap_placement(
+        id: &str,
+        matrix_id: &str,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+        rotation: f64,
+    ) -> KeycapPlacement {
+        KeycapPlacement {
+            id: id.into(),
+            matrix_id: matrix_id.into(),
+            row: 0,
+            column: 0,
+            at: point(x, y),
+            rotation,
+            size: point(width, height),
+        }
+    }
+
+    #[test]
+    fn overlap_query_ignores_edge_contact_and_keeps_cross_matrix_pairs() {
+        let touching = vec![
+            overlap_placement("a", "m1", 0.0, 0.0, 18.0, 18.0, 0.0),
+            overlap_placement("b", "m2", 18.0, 0.0, 18.0, 18.0, 0.0),
+        ];
+        assert!(overlapping_pairs(&touching).is_empty());
+
+        let crossing = vec![
+            overlap_placement("a", "m1", 0.0, 0.0, 18.0, 18.0, 0.0),
+            overlap_placement("b", "m2", 17.999, 0.0, 18.0, 18.0, 0.0),
+        ];
+        assert_eq!(overlapping_pairs(&crossing), vec![("a".into(), "b".into())]);
+    }
+
+    #[test]
+    fn overlap_query_uses_oriented_rectangles_and_stable_equal_min_x_order() {
+        // These thin rotated envelopes have overlapping axis-aligned bounds, but
+        // their oriented rectangles are separated along the short axis.
+        let separated = vec![
+            overlap_placement("upper", "m1", 0.0, 0.0, 18.0, 4.0, 45.0),
+            overlap_placement("lower", "m2", -5.656854, 5.656854, 18.0, 4.0, 45.0),
+        ];
+        assert!(overlapping_pairs(&separated).is_empty());
+
+        let placements = vec![
+            overlap_placement("first", "m2", 0.0, 0.0, 18.0, 4.0, 45.0),
+            overlap_placement("second", "m1", 0.0, 0.0, 18.0, 4.0, 45.0),
+            overlap_placement("third", "m3", 0.0, 0.0, 18.0, 4.0, 45.0),
+        ];
+        assert_eq!(
+            overlapping_pairs(&placements),
+            vec![
+                ("first".into(), "second".into()),
+                ("first".into(), "third".into()),
+                ("second".into(), "third".into()),
+            ]
+        );
     }
 
     #[test]

@@ -39,6 +39,7 @@ pub(in crate::presentation) struct KeySizeProjection {
     pub mixed: bool,
     pub mixed_x: bool,
     pub mixed_y: bool,
+    pub overlap_references: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -367,6 +368,8 @@ fn project_for(
         &scope.board_id,
     );
     let selected_set: BTreeSet<_> = selected_ids.into_iter().collect();
+    let overlap_references =
+        overlap_references(&snapshot.document.parts, &placement_list, &selected_set);
     let items: Vec<_> = placement_list
         .iter()
         .filter(|placement| selected_set.contains(&placement.id))
@@ -427,6 +430,7 @@ fn project_for(
             mixed,
             mixed_x,
             mixed_y,
+            overlap_references,
         },
         editable,
     ))
@@ -510,6 +514,32 @@ fn order_placements_by_document_parts(
 
 fn quarter(value: f64) -> f64 {
     (value * 4.0).round() / 4.0
+}
+
+fn overlap_references(
+    parts: &[boardstudio_core::model::Part],
+    placements: &[KeycapPlacement],
+    selected_ids: &BTreeSet<String>,
+) -> Vec<String> {
+    let references: std::collections::HashMap<_, _> = parts
+        .iter()
+        .map(|part| (part.id.as_str(), part.reference.as_str()))
+        .collect();
+    let mut shown = BTreeSet::new();
+    let mut result = Vec::new();
+    for (first, second) in keycap_resize::overlapping_pairs(placements) {
+        if !selected_ids.contains(&first) && !selected_ids.contains(&second) {
+            continue;
+        }
+        for id in [first, second] {
+            if let Some(reference) = references.get(id.as_str())
+                && shown.insert(*reference)
+            {
+                result.push((*reference).to_owned());
+            }
+        }
+    }
+    result
 }
 
 fn settle(
