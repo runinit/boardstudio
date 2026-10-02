@@ -1,5 +1,9 @@
 # Six-stream queue and first-slice reconciliation
 
+Current execution checkpoint (2026-10-02): Six workbench streams remain active; all 62 canonical parents, their acceptance joins and RF-001–RF-014 are retained. Current served candidate frontend-case-firmware-parity-integrated-20261002 is source d320b6ecadbea5ad6f337c3a650bea7cb528e74b at 34730 root/subpath: full 22/22 commands, 1296 source hashes, 145 assets per route, zero mismatches; 224 native tests and strict page WASM checks passed. Paired same layered Sofle archive visibly renders 90/90 Case models in React and Dioxus. Case fit scale, contextual selected-component Inspector and per-model visibility remain gaps; identity/pick/portable archive qualification remains open. Newer root PCB07/Parts12 source at 2394b996 passed 229 native tests and strict WASM; not yet packaged. PCB08 shared integration is under independent review. Controller placement and mirrored-pair repairs, Keycaps overlap warning, and page-only packaging reuse remain active; reuse review reproduced root-config and extra-provider-file guard gaps. Review defaults are Sol 6.1 High; configured agent ceiling 30, live session ceiling 11. No ticket/parent acceptance follows from source-only proof.
+
+Earlier checkpoints below retain historical evidence and blockers; the current served build is 34730.
+
 **Status:** coordinator working map; feature contracts are being prepared and reviewed in their owner worktrees. Do not use this table as a parent acceptance report.
 **Decision authority:** user-confirmed Q1–Q6 (`evidence/confirmed-decisions-20261002.json`).
 **Canonical graph:** `.scratch/dioxus-frontend-v1/tasks.json` remains 62 parents with all criteria, start rationale, and `acceptance_after` joins unchanged.
@@ -18,7 +22,7 @@ Current editable candidate: [Dioxus34727](http://127.0.0.1:34727/), build `front
 | Case/shared3D | Packaged path/descriptor/verified-byte adapter `9e286d38` frozen for review; separate fresh-Matrix safe-path diagnosis | Contextual panes/model delivery/picking wired. Full90/90/root/subpath/offline/pick/reopen acceptance still open. |
 | Parts+Project | Parts Name12 exact React disclosure refinement/review; Controller placement18 implementing; Parts authoring inventory | New/setup guide wired. Portable option real fresh React archive verifies0 versus6 assets; broader menus/library/custom geometry and export parents open. |
 
-Independent Sol 6.1 High reviewers own new source reviews; prior Astra review evidence is retained and its authorized debugger role remains available. Luna authors remain isolated. User/configured ceiling30 is bounded by the current observed live11-slot limit including coordinator. All62 parents, blocker history and RF001–013 remain preserved. Root source integrations use the [bounded handoff/lease](../dioxus-frontend-v1/integration-handoff-template.md) serially; compilation does not substitute for paired browser acceptance.
+Independent Sol 6.1 High reviewers own new source reviews; prior Astra review evidence is retained and its authorized debugger role remains available. Luna authors remain isolated. User/configured ceiling 30 is bounded by the current observed live11-slot limit including coordinator. All62 parents, blocker history and RF001–013 remain preserved. Root source integrations use the [bounded handoff/lease](../dioxus-frontend-v1/integration-handoff-template.md) serially; compilation does not substitute for paired browser acceptance.
 
 ## Historical first-slice checkpoint
 
