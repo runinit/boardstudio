@@ -1,4 +1,6 @@
+use super::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use super::view::KeymapView;
+use boardstudio_application::Scope;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -6,9 +8,13 @@ use std::rc::Rc;
 #[component]
 pub(in crate::presentation) fn KeymapPanel(
     view: Rc<KeymapView>,
+    scope: Scope,
     active_layer_id: String,
     selected_key_id: Option<String>,
+    layer_operations_enabled: bool,
+    layer_feedback: Option<KeymapLayerFeedback>,
     on_layer: EventHandler<String>,
+    on_layer_operation: EventHandler<KeymapLayerOperation>,
     on_select_key: EventHandler<String>,
 ) -> Element {
     let mut query = use_signal(String::new);
@@ -33,6 +39,8 @@ pub(in crate::presentation) fn KeymapPanel(
     let no_matches = !search.is_empty() && matching_key_count == 0;
     let layer_count = view.layers.len();
     let key_count = view.keys.len();
+    let layer_controls_key =
+        active_layer.map(|layer| format!("{:?}:{}:{}", scope, layer.id, layer.name));
 
     rsx! {
         section { class: "m1-keymap-panel", "aria-label": "Keymap",
@@ -57,6 +65,25 @@ pub(in crate::presentation) fn KeymapPanel(
                                     span { class: "m1-keymap-layer-index", "{index}" }
                                     "{layer.name}"
                                 }
+                            }
+                        }
+                    }
+                }
+                if let (Some(layer), Some(layer_controls_key)) = (active_layer, layer_controls_key) {
+                    {
+                        let layer_id = layer.id.to_string();
+                        let layer_name = layer.name.to_string();
+                        let is_base = view.layers.first().is_some_and(|base| base.id == layer.id);
+                        rsx! {
+                            KeymapLayerControls {
+                                key: "{layer_controls_key}",
+                                layer_id,
+                                layer_name,
+                                is_base,
+                                layer_count,
+                                enabled: layer_operations_enabled,
+                                feedback: layer_feedback.clone(),
+                                on_operation: on_layer_operation,
                             }
                         }
                     }
@@ -97,6 +124,89 @@ pub(in crate::presentation) fn KeymapPanel(
                     p { class: "m1-keymap-selected-label", "{key.binding_title}" }
                 } else {
                     p { class: "m1-keymap-empty", role: "status", "Select a switch on the layout to inspect its binding." }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct KeymapLayerControlsProps {
+    layer_id: String,
+    layer_name: String,
+    is_base: bool,
+    layer_count: usize,
+    enabled: bool,
+    feedback: Option<KeymapLayerFeedback>,
+    on_operation: EventHandler<KeymapLayerOperation>,
+}
+
+#[component]
+fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
+    let mut name_draft = use_signal(|| props.layer_name.clone());
+    let add_disabled = !props.enabled || props.layer_count >= 32;
+    let remove_disabled = !props.enabled || props.is_base;
+    let layer_id = props.layer_id.clone();
+    let accepted_name = props.layer_name.clone();
+
+    rsx! {
+        div { class: "m1-keymap-layer-controls", role: "group", "aria-label": "Layer operations",
+            button {
+                r#type: "button",
+                disabled: add_disabled,
+                onclick: move |_| props.on_operation.call(KeymapLayerOperation::Add),
+                "Add layer"
+            }
+            label { class: "m1-keymap-layer-name-label", "Layer name"
+                input {
+                    class: "m1-keymap-layer-name",
+                    r#type: "text",
+                    "aria-label": "Layer name",
+                    maxlength: 32,
+                    value: "{name_draft}",
+                    disabled: !props.enabled,
+                    oninput: move |event: FormEvent| name_draft.set(event.value()),
+                    onblur: {
+                        let mut name_draft = name_draft;
+                        let on_operation = props.on_operation;
+                        let layer_id = layer_id.clone();
+                        let accepted_name = accepted_name.clone();
+                        move |_| {
+                            let name = name_draft();
+                            if name != accepted_name && props.enabled {
+                                on_operation.call(KeymapLayerOperation::Rename {
+                                    layer_id: layer_id.clone(),
+                                    name,
+                                });
+                            }
+                        }
+                    },
+                }
+            }
+            if !props.is_base {
+                button {
+                    r#type: "button",
+                    disabled: remove_disabled,
+                    onclick: {
+                        let on_operation = props.on_operation;
+                        let layer_id = props.layer_id.clone();
+                        move |_| on_operation.call(KeymapLayerOperation::Remove {
+                            layer_id: layer_id.clone(),
+                        })
+                    },
+                    "Remove layer"
+                }
+            } else {
+                p { class: "m1-keymap-layer-protected", role: "status", "The first layer cannot be removed." }
+            }
+            if !props.enabled && props.feedback.is_none() {
+                p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
+            }
+            if let Some(feedback) = props.feedback.as_ref() {
+                match feedback {
+                    KeymapLayerFeedback::Pending => p { role: "status", "Saving layer changes…" },
+                    KeymapLayerFeedback::Saved => p { role: "status", "Layer changes saved." },
+                    KeymapLayerFeedback::Failed(message) => p { role: "alert", "{message}" },
                 }
             }
         }
