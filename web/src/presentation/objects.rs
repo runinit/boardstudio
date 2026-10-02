@@ -84,6 +84,7 @@ pub(super) fn Objects(
     on_select: EventHandler<TreeSelectRequest>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
     on_nudge: EventHandler<TreeNudgeRequest>,
+    matrix_setup: Option<MatrixSetupMount>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
@@ -156,6 +157,9 @@ pub(super) fn Objects(
     rsx! {
         aside { class: "m1-objects", "aria-label": "Objects",
             header { h2 { "Objects" } }
+            if let Some(mount) = matrix_setup {
+                LayoutAddObjectEntry { mount }
+            }
             div { class: "m1-object-navigation",
                 label { "Board"
                     select { "aria-label": "Board", value: "{board_id}", onchange: move |event: FormEvent| {
@@ -330,6 +334,46 @@ pub(super) fn Objects(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+fn LayoutAddObjectEntry(mount: MatrixSetupMount) -> Element {
+    let mut menu_open = use_signal(|| false);
+    let open_menu = menu_open();
+    rsx! {
+        div { class: "m1-layout-add-object",
+            button {
+                r#type: "button",
+                aria_expanded: open_menu,
+                onclick: move |_| menu_open.set(!menu_open()),
+                "Add object"
+            }
+            if open_menu {
+                div { role: "dialog", "aria-label": "Add", class: "m1-layout-add-menu",
+                    section { "aria-label": "Layouts",
+                        h3 { "Layouts" }
+                        button {
+                            r#type: "button",
+                            disabled: !mount.can_open,
+                            onclick: move |_| {
+                                menu_open.set(false);
+                                mount.on_open.call(());
+                            },
+                            "Matrix…"
+                            small { "Rows, columns & key assemblies" }
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(projection) = mount.projection.clone() {
+            MatrixSetup {
+                projection,
+                on_cancel: mount.on_cancel,
+                on_create: mount.on_create,
             }
         }
     }

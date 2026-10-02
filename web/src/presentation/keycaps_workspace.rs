@@ -40,6 +40,7 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
             on_select: input.on_select,
             on_navigate: input.on_navigate,
             on_nudge: input.on_nudge,
+            matrix_setup: None,
         }
     }
 }
