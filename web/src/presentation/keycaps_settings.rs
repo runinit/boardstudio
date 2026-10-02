@@ -431,8 +431,10 @@ pub(super) fn use_keycaps_settings_actions(
             ) {
                 return;
             }
-            if pending.read().is_some() {
-                if current_accepted_noop(&runtime, source.as_ref(), &request) {
+            if let Some(waiting) = pending.read().clone() {
+                if !changes_overlap(&waiting.request.change, &request.change)
+                    && current_accepted_noop(&runtime, source.as_ref(), &request)
+                {
                     remove_retry_draft_through(
                         &mut retry_drafts,
                         &request.change.field(),
@@ -800,6 +802,17 @@ fn change_is_noop(document: &ProjectDoc, key_id: &str, change: &KeycapKeyChange)
         KeycapKeyChange::Color { value } => current.color == *value,
         KeycapKeyChange::Row { value } => current.row == *value,
         KeycapKeyChange::Units { value } => current.units == *value,
+    }
+}
+
+fn changes_overlap(left: &KeycapEditChange, right: &KeycapEditChange) -> bool {
+    use KeycapEditChange::{ClearUnits, UnitsDepth, UnitsWidth};
+    match (left, right) {
+        (
+            UnitsWidth(_) | UnitsDepth(_) | ClearUnits(_),
+            UnitsWidth(_) | UnitsDepth(_) | ClearUnits(_),
+        ) => true,
+        _ => left.field() == right.field(),
     }
 }
 
@@ -1547,6 +1560,26 @@ mod tests {
         assert!(legend_change_required("A", None));
         assert!(legend_blur_requires_reconciliation("", None, true));
         assert!(!legend_blur_requires_reconciliation("", None, false));
+    }
+
+    #[test]
+    fn pending_overlap_retains_a_reverted_user_intent() {
+        assert!(changes_overlap(
+            &KeycapEditChange::Color(Some("#222222".into())),
+            &KeycapEditChange::Color(Some("#111111".into()))
+        ));
+        assert!(!changes_overlap(
+            &KeycapEditChange::Color(Some("#222222".into())),
+            &KeycapEditChange::Legend(None)
+        ));
+        assert!(changes_overlap(
+            &KeycapEditChange::UnitsWidth(2.0),
+            &KeycapEditChange::UnitsDepth(1.5)
+        ));
+        assert!(changes_overlap(
+            &KeycapEditChange::ClearUnits(KeycapEditField::UnitsWidth),
+            &KeycapEditChange::UnitsDepth(1.5)
+        ));
     }
 
     #[test]
