@@ -68,6 +68,7 @@ pub(in crate::presentation) struct BindingEditorProps {
     pub(in crate::presentation) key_id: String,
     pub(in crate::presentation) key_label: String,
     pub(in crate::presentation) editor_instance_id: u64,
+    pub(in crate::presentation) request_sequence: Signal<u64>,
     pub(in crate::presentation) value: KeyBinding,
     pub(in crate::presentation) layers: Rc<[BindingLayerChoice]>,
     pub(in crate::presentation) macros: Rc<[BindingMacroChoice]>,
@@ -395,7 +396,7 @@ const KEYCODE_CHOICES: &[(&str, &str)] = &[
 /// Edits a single projected binding and reports typed, target-correlated intents.
 #[component]
 pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Element {
-    let mut request_sequence = use_signal(|| 0_u64);
+    let request_sequence = props.request_sequence;
     let context = EditContext::from(&props);
     let value = props.value.clone();
     let behavior = Behavior::from_binding(&value);
@@ -412,18 +413,21 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
             && feedback.key_id == props.key_id
             && feedback.editor_instance_id == props.editor_instance_id
             && field_exists(&value, feedback.field)
-            && (!matches!(feedback.status, BindingEditStatus::Pending)
-                || (feedback.admission_token == props.admission_token
-                    && feedback.admission_revision == props.admission_revision))
     });
     let pending =
         feedback.is_some_and(|feedback| matches!(feedback.status, BindingEditStatus::Pending));
     let saved =
         feedback.is_some_and(|feedback| matches!(feedback.status, BindingEditStatus::Saved));
-    let error = feedback.and_then(|feedback| match &feedback.status {
-        BindingEditStatus::Failed(message) => Some(message.as_str()),
+    let failed_field = feedback.and_then(|feedback| match &feedback.status {
+        BindingEditStatus::Failed(message) => Some((feedback.field, message.as_str())),
         BindingEditStatus::Pending | BindingEditStatus::Saved => None,
     });
+    let code_error = failed_field
+        .filter(|(field, _)| matches!(field, BindingField::Keycode | BindingField::Tap))
+        .map(|(_, message)| message.to_owned());
+    let error = failed_field
+        .filter(|(field, _)| !matches!(field, BindingField::Keycode | BindingField::Tap))
+        .map(|(_, message)| message);
     let disabled = !props.enabled;
     let key_label = props.key_label.clone();
     let mut behavior_sequence = request_sequence;
@@ -491,6 +495,7 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
                             field_label: field_label.to_string(),
                             accepted_value: accepted_value.to_string(),
                             datalist_id: datalist_id.clone(),
+                            error: code_error.clone(),
                             disabled,
                         }
                     }
@@ -623,7 +628,12 @@ struct KeycodeFieldProps {
     field_label: String,
     accepted_value: String,
     datalist_id: String,
+    error: Option<String>,
     disabled: bool,
+}
+
+fn code_draft_failure_visible(draft: &str, accepted_value: &str) -> bool {
+    draft.trim() != accepted_value
 }
 
 #[component]
@@ -637,6 +647,10 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
     let on_change = props.on_change;
     let request_field = field;
     let datalist_id = props.datalist_id.clone();
+    let show_error = props
+        .error
+        .as_ref()
+        .is_some_and(|_| code_draft_failure_visible(&draft(), &props.accepted_value));
 
     rsx! {
         label { class: "m1-keymap-binding-field", "{props.field_label}"
@@ -662,6 +676,11 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
                         }
                     }
                 },
+            }
+        }
+        if show_error {
+            if let Some(message) = props.error.as_ref() {
+                p { class: "m1-keymap-binding-error", role: "alert", "{message}" }
             }
         }
     }
@@ -719,5 +738,12 @@ mod tests {
             }
         );
         assert_ne!(KeyBinding::Transparent, KeyBinding::None);
+    }
+
+    #[test]
+    fn accepted_value_reversion_hides_a_stale_code_error_without_a_request() {
+        assert!(!code_draft_failure_visible("A", "A"));
+        assert!(!code_draft_failure_visible(" A ", "A"));
+        assert!(code_draft_failure_visible("LC(A)", "A"));
     }
 }

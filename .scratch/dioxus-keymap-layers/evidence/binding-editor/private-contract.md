@@ -17,7 +17,8 @@ Keymap state.
 Each edit request contains the captured full Scope, admission token/revision,
 active layer ID, key ID, field identity (`Behavior`, `Keycode`, `Tap`,
 `HoldModifier`, `Layer`, or `Macro`), editor-lifetime ID, a monotonically
-increasing component request ID, and the complete typed `KeyBinding` value.
+increasing request ID allocated from a controller-owned `Signal<u64>` shared
+across component unmount/remounts, and the complete typed `KeyBinding` value.
 The component does not parse or validate ZMK expressions and has no Runtime or
 Core access. The root callback must re-read current accepted state and validate
 all captured identity before submitting the existing `EditKeymap` /
@@ -25,11 +26,15 @@ all captured identity before submitting the existing `EditKeymap` /
 the same request identity and existing private operation outcome handling.
 
 Feedback carries the same Scope, admission token/revision, target layer/key,
-field, editor ID and request ID, plus Pending/Saved/Failed status. The view
-requires exact target/editor/request correlation. Pending feedback additionally
-requires the original accepted token/revision; Saved and Failed can outlive the
-admission token only while the root controller still considers that feedback
-relevant to the current accepted field.
+field, editor ID and request ID, plus Pending/Saved/Failed status. The component
+checks Scope, layer/key, editor lifetime, and field compatibility. The root
+controller supplies feedback only for the exact active admitted request ID;
+the component does not compare against the latest allocated request sequence,
+since a later ignored event must not hide an earlier active request. Pending
+remains visible while that admitted operation is persisting even if accepted
+props advance. Saved and Failed can outlive the admission token only while the
+root controller still considers the feedback relevant to the current accepted
+field.
 
 ## Draft and interaction behavior
 
@@ -40,8 +45,9 @@ its draft; an unrelated token/revision advance with the same accepted value
 keeps a dirty rejected draft. Each emitted edit still captures the latest
 token/revision from current props, and the root callback revalidates that
 admission. A rejected blur leaves the same draft editable while the root
-supplies its validation message. Blur trims and emits only a changed keycode;
-no Enter handler is added. Curated datalist values match the pinned React choices while
+supplies its validation message. If the user reverts a failed draft to the
+accepted value, its stale error hides locally without requiring a new request.
+Blur trims and emits only a changed keycode; no Enter handler is added. Curated datalist values match the pinned React choices while
 the text input remains free-form for Core-accepted expressions.
 
 The behavior selector exposes Key press, Mod tap, Layer tap, Momentary layer,
