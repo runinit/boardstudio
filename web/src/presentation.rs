@@ -92,6 +92,28 @@ struct PointerLocation {
     y_fraction: f64,
 }
 
+#[derive(Clone, Copy)]
+struct WorkspaceCallbackSlots {
+    select_tree: EventHandler<objects::TreeSelectRequest>,
+    navigate: EventHandler<(Scope, String, Option<String>)>,
+    nudge_tree: EventHandler<objects::TreeNudgeRequest>,
+    parts_select: EventHandler<()>,
+    toggle_footprints: EventHandler<()>,
+    retry_save: EventHandler<()>,
+    recover_saved: EventHandler<()>,
+    canvas_mount: EventHandler<MountedEvent>,
+    canvas_start_pan: EventHandler<PointerEvent>,
+    canvas_move_pointer: EventHandler<PointerEvent>,
+    canvas_end_pointer: EventHandler<PointerEvent>,
+    canvas_cancel_pointer: EventHandler<PointerEvent>,
+    canvas_keyboard: EventHandler<KeyboardEvent>,
+    canvas_key_up: EventHandler<KeyboardEvent>,
+    canvas_wheel: EventHandler<WheelEvent>,
+    keymap_select: EventHandler<String>,
+    keymap_layer: EventHandler<String>,
+    show_configured_board: EventHandler<String>,
+}
+
 #[allow(non_snake_case)]
 pub fn App() -> Element {
     let runtime = use_hook(Runtime::new);
@@ -591,6 +613,26 @@ fn durability_state(durability: &Durability) -> &'static str {
 
 #[component]
 fn Editor() -> Element {
+    let mut workspace_callbacks = use_hook(|| WorkspaceCallbackSlots {
+        select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
+        navigate: EventHandler::new(|_: (Scope, String, Option<String>)| {}),
+        nudge_tree: EventHandler::new(|_: objects::TreeNudgeRequest| {}),
+        parts_select: EventHandler::new(|_: ()| {}),
+        toggle_footprints: EventHandler::new(|_: ()| {}),
+        retry_save: EventHandler::new(|_: ()| {}),
+        recover_saved: EventHandler::new(|_: ()| {}),
+        canvas_mount: EventHandler::new(|_: MountedEvent| {}),
+        canvas_start_pan: EventHandler::new(|_: PointerEvent| {}),
+        canvas_move_pointer: EventHandler::new(|_: PointerEvent| {}),
+        canvas_end_pointer: EventHandler::new(|_: PointerEvent| {}),
+        canvas_cancel_pointer: EventHandler::new(|_: PointerEvent| {}),
+        canvas_keyboard: EventHandler::new(|_: KeyboardEvent| {}),
+        canvas_key_up: EventHandler::new(|_: KeyboardEvent| {}),
+        canvas_wheel: EventHandler::new(|_: WheelEvent| {}),
+        keymap_select: EventHandler::new(|_: String| {}),
+        keymap_layer: EventHandler::new(|_: String| {}),
+        show_configured_board: EventHandler::new(|_: String| {}),
+    });
     let runtime = use_context::<Rc<Runtime>>();
     let adapter = use_context::<SelectionAdapter>();
     let version = use_context::<Signal<u64>>();
@@ -1748,70 +1790,6 @@ fn Editor() -> Element {
             }
         }
     };
-    let undo = runtime.clone();
-    let redo = runtime.clone();
-    let retry = runtime.clone();
-    let recover = runtime.clone();
-    let shared_objects = workspace_composition::SharedObjectsInput {
-        selected_context: adapter.selected_context,
-        on_select: EventHandler::new(select_tree),
-        on_navigate: EventHandler::new(navigate.clone()),
-        on_nudge: EventHandler::new(nudge_tree),
-    };
-    let objects_input = match active_workspace {
-        "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(shared_objects),
-        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
-        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
-        "Case" => workspace_composition::WorkspaceObjectsInput::Case(shared_objects),
-        "Parts" => {
-            workspace_composition::WorkspaceObjectsInput::Parts(parts_workspace::ObjectsInput {
-                snapshot: snapshot.clone(),
-                scope: current_scope.clone(),
-                query: parts_query,
-                selected: parts_selection,
-                on_select: EventHandler::new(on_parts_select),
-            })
-        }
-        _ => workspace_composition::WorkspaceObjectsInput::Layout(shared_objects),
-    };
-    let toolbar_input = match active_workspace {
-        "Layout" => {
-            let footprints_pressed = (layer_visibility.footprints)()
-                && !(layer_visibility.hidden)().contains("Footprints");
-            let retry = retry.clone();
-            let recover = recover.clone();
-            workspace_composition::WorkspaceToolbarInput::Layout(layout_workspace::ToolbarInput {
-                selection_indicator: context_summary
-                    .as_ref()
-                    .map(|summary| summary.indicator.clone()),
-                document_name: document.name.clone(),
-                save_failure: match &model.durability {
-                    Durability::Failed { reason, .. } => Some(reason.clone()),
-                    _ => None,
-                },
-                recovery_required: model.lifecycle
-                    == boardstudio_application::Lifecycle::RecoveryRequired,
-                footprints_pressed,
-                on_toggle_footprints: EventHandler::new(move |_| {
-                    let mut footprints = layer_visibility.footprints;
-                    footprints.set(!footprints());
-                }),
-                on_retry_save: EventHandler::new(move |_| {
-                    retry.submit(Event::RetrySave {
-                        operation_id: retry.operation(),
-                    });
-                }),
-                on_recover_saved: EventHandler::new(move |_| recover.recover_saved()),
-            })
-        }
-        "PCB" => workspace_composition::WorkspaceToolbarInput::Pcb,
-        "Keymap" => workspace_composition::WorkspaceToolbarInput::Keymap,
-        "Keycaps" => workspace_composition::WorkspaceToolbarInput::Keycaps,
-        "Case" => workspace_composition::WorkspaceToolbarInput::Case,
-        "Parts" => workspace_composition::WorkspaceToolbarInput::Parts,
-        "Export" => workspace_composition::WorkspaceToolbarInput::Export,
-        _ => workspace_composition::WorkspaceToolbarInput::Other,
-    };
     use_effect(use_reactive((&active_workspace,), {
         let runtime = runtime.clone();
         let drag = drag.clone();
@@ -1970,15 +1948,131 @@ fn Editor() -> Element {
             });
         }
     };
+    let undo = runtime.clone();
+    let redo = runtime.clone();
+    let retry = runtime.clone();
+    let recover = runtime.clone();
+    workspace_callbacks
+        .select_tree
+        .replace(Box::new(select_tree));
+    workspace_callbacks.navigate.replace(Box::new(navigate));
+    workspace_callbacks.nudge_tree.replace(Box::new(nudge_tree));
+    workspace_callbacks
+        .parts_select
+        .replace(Box::new(on_parts_select));
+    workspace_callbacks
+        .keymap_select
+        .replace(Box::new(on_keymap_select.clone()));
+    workspace_callbacks
+        .keymap_layer
+        .replace(Box::new(on_keymap_layer));
+    workspace_callbacks
+        .show_configured_board
+        .replace(Box::new(on_show_configured_board));
+    workspace_callbacks
+        .toggle_footprints
+        .replace(Box::new(move |_| {
+            let mut footprints = layer_visibility.footprints;
+            footprints.set(!footprints());
+        }));
+    {
+        let retry = retry.clone();
+        workspace_callbacks.retry_save.replace(Box::new(move |_| {
+            retry.submit(Event::RetrySave {
+                operation_id: retry.operation(),
+            });
+        }));
+    }
+    {
+        let recover = recover.clone();
+        workspace_callbacks
+            .recover_saved
+            .replace(Box::new(move |_| recover.recover_saved()));
+    }
+    workspace_callbacks
+        .canvas_mount
+        .replace(Box::new(mount.clone()));
+    workspace_callbacks
+        .canvas_start_pan
+        .replace(Box::new(start_pan.clone()));
+    workspace_callbacks
+        .canvas_move_pointer
+        .replace(Box::new(move_pointer.clone()));
+    workspace_callbacks
+        .canvas_end_pointer
+        .replace(Box::new(end_pointer.clone()));
+    workspace_callbacks
+        .canvas_cancel_pointer
+        .replace(Box::new(cancel_pointer.clone()));
+    workspace_callbacks
+        .canvas_keyboard
+        .replace(Box::new(keyboard.clone()));
+    workspace_callbacks
+        .canvas_key_up
+        .replace(Box::new(key_up.clone()));
+    workspace_callbacks
+        .canvas_wheel
+        .replace(Box::new(wheel.clone()));
+    let shared_objects = workspace_composition::SharedObjectsInput {
+        selected_context: adapter.selected_context,
+        on_select: workspace_callbacks.select_tree,
+        on_navigate: workspace_callbacks.navigate,
+        on_nudge: workspace_callbacks.nudge_tree,
+    };
+    let objects_input = match active_workspace {
+        "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(shared_objects),
+        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
+        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
+        "Case" => workspace_composition::WorkspaceObjectsInput::Case(shared_objects),
+        "Parts" => {
+            workspace_composition::WorkspaceObjectsInput::Parts(parts_workspace::ObjectsInput {
+                snapshot: snapshot.clone(),
+                scope: current_scope.clone(),
+                query: parts_query,
+                selected: parts_selection,
+                on_select: workspace_callbacks.parts_select,
+            })
+        }
+        _ => workspace_composition::WorkspaceObjectsInput::Layout(shared_objects),
+    };
+    let toolbar_input = match active_workspace {
+        "Layout" => {
+            let footprints_pressed = (layer_visibility.footprints)()
+                && !(layer_visibility.hidden)().contains("Footprints");
+            workspace_composition::WorkspaceToolbarInput::Layout(layout_workspace::ToolbarInput {
+                selection_indicator: context_summary
+                    .as_ref()
+                    .map(|summary| summary.indicator.clone()),
+                document_name: document.name.clone(),
+                save_failure: match &model.durability {
+                    Durability::Failed { reason, .. } => Some(reason.clone()),
+                    _ => None,
+                },
+                recovery_required: model.lifecycle
+                    == boardstudio_application::Lifecycle::RecoveryRequired,
+                footprints_pressed,
+                on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                on_retry_save: workspace_callbacks.retry_save,
+                on_recover_saved: workspace_callbacks.recover_saved,
+            })
+        }
+        "PCB" => workspace_composition::WorkspaceToolbarInput::Pcb,
+        "Keymap" => workspace_composition::WorkspaceToolbarInput::Keymap,
+        "Keycaps" => workspace_composition::WorkspaceToolbarInput::Keycaps,
+        "Case" => workspace_composition::WorkspaceToolbarInput::Case,
+        "Parts" => workspace_composition::WorkspaceToolbarInput::Parts,
+        "Export" => workspace_composition::WorkspaceToolbarInput::Export,
+        _ => workspace_composition::WorkspaceToolbarInput::Other,
+    };
     let canvas_handlers = workspace_composition::CanvasEventHandlers {
-        mount: EventHandler::new(mount.clone()),
-        start_pan: EventHandler::new(start_pan.clone()),
-        move_pointer: EventHandler::new(move_pointer.clone()),
-        end_pointer: EventHandler::new(end_pointer.clone()),
-        cancel_pointer: EventHandler::new(cancel_pointer.clone()),
-        keyboard: EventHandler::new(keyboard.clone()),
-        key_up: EventHandler::new(key_up.clone()),
-        wheel: EventHandler::new(wheel.clone()),
+        mount: workspace_callbacks.canvas_mount,
+        start_pan: workspace_callbacks.canvas_start_pan,
+        move_pointer: workspace_callbacks.canvas_move_pointer,
+        end_pointer: workspace_callbacks.canvas_end_pointer,
+        cancel_pointer: workspace_callbacks.canvas_cancel_pointer,
+        keyboard: workspace_callbacks.canvas_keyboard,
+        key_up: workspace_callbacks.canvas_key_up,
+        wheel: workspace_callbacks.canvas_wheel,
     };
     let canvas_input = match active_workspace {
         "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(
@@ -1994,7 +2088,7 @@ fn Editor() -> Element {
                 view_box: view_box.clone(),
                 selected_ids: model.selected_part_ids.iter().cloned().collect(),
                 handlers: canvas_handlers,
-                on_select_key: EventHandler::new(on_keymap_select.clone()),
+                on_select_key: workspace_callbacks.keymap_select,
             }),
         )),
         "Keycaps" => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
@@ -2034,8 +2128,8 @@ fn Editor() -> Element {
                 layer_actions,
                 active_layer_id: keymap_layer_id(),
                 selected_key_id: model.selected_part_ids.first().cloned(),
-                on_layer: EventHandler::new(on_keymap_layer),
-                on_select_key: EventHandler::new(on_keymap_select),
+                on_layer: workspace_callbacks.keymap_layer,
+                on_select_key: workspace_callbacks.keymap_select,
                 binding_actions,
                 macro_actions,
                 admission_token: snapshot.token,
@@ -2045,7 +2139,7 @@ fn Editor() -> Element {
         )),
         "Case" => {
             workspace_composition::WorkspaceInspectorInput::Case(case_workspace::InspectorInput {
-                on_show_configured_board: EventHandler::new(on_show_configured_board),
+                on_show_configured_board: workspace_callbacks.show_configured_board,
                 instance_scope_pending,
             })
         }
