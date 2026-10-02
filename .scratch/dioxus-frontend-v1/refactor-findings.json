@@ -374,6 +374,12 @@
           "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/parts-projects/source-spec-review.md",
           "observation": "The first private preview draft mutated plain Cell/RefCell values returned through use_hook, so request-generation ownership did not persist across renders and an A\u2192B\u2192A scope cycle could alias an old owner. The reviewed correction retained shared hook state. The first geometry draft also inverted the already-Y-up graphic coordinates when computing bounds; the correction aligns bounds with rendered coordinates. These are candidate-source corrections, not integrated or paired-verified Parts behavior; exact React fixture framing remains open.",
           "status": "Original lifecycle and coordinate-frame defects closed in source review through 05a1dac4; preview remains unmounted in integration and public/build verification is pending. No new RF or broad scope abstraction is proposed."
+        },
+        {
+          "source": "Keymap selected-option remount correction deba7087; immutable public candidate 92db0b8f",
+          "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/README.md; /tmp/frontend-parity-reset-20261002/keymap/paired/react-return-keys.txt",
+          "observation": "The previously red filtered SW7 return-to-Keys path now retains the same accepted selection identity after both Macros\u2192Keys and Encoders\u2192Keys remounts; the selected option and layer projection agree with the retained same-fixture React reference. Clearing the query and selecting SW8 on canvas also retains its identity over Function\u2192Main while presenting Transparent then Unassigned.",
+          "status": "Targeted public selection-lineage regression passes at immutable candidate 34691; read-only project revision/hash unchanged. Full Keymap/F6K and parent acceptance remain open; retained under RF-006 without a new register ID."
         }
       ]
     },
@@ -580,6 +586,12 @@
           "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/parts-projects/source-spec-review.md",
           "observation": "The reviewed preview loader initially requested generator parameters absent from generated assets/layout-generators.js; the narrow export correction bf797f4 passed a packaged Node check. The Parts preview remains unmounted in the current integration and its full public browser gate remains open.",
           "status": "Packaged Node check passes after bf797f4; preview browser acceptance and feature integration remain open. No end-to-end preview pass claimed."
+        },
+        {
+          "source": "Keymap candidate correction deba7087; immutable browser build 92db0b8f",
+          "evidence": "/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/assertions.txt; /tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/screenshots/; prior red/reference: /tmp/frontend-parity-reset-20261002/keymap/paired/",
+          "observation": "A fresh public DOM run on the same imported archive verified the previously red selected-option remount after both Macros\u2192Keys and Encoders\u2192Keys, plus clear-filter canvas selection and layer changes. The persisted project revision and serialized record hash were identical before/after; Undo/Redo control DOM state, browser errors, and console output were unchanged/empty. This is a targeted browser evidence loop, not full Keymap/F6K acceptance.",
+          "status": "The exact remount regression is publicly green at candidate 34691 after deba7087; full feature and canonical-parent evidence remains open. Retain under RF-009 with RF-006 selection lineage; no new RF ID."
         }
       ]
     },
