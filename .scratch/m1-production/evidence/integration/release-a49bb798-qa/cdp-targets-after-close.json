@@ -1,0 +1,18 @@
+{
+  "browser": "Chrome/154.0.8037.92",
+  "endpoint": "http://127.0.0.1:43063/json/version",
+  "targets": [
+    {
+      "targetId": "4891CF65C2B231D8E5ECA9931A7F14F2",
+      "type": "page",
+      "url": "chrome://newtab/",
+      "title": "New Tab"
+    },
+    {
+      "targetId": "610FFEC5402984EC0CC75EB4B4C0E229",
+      "type": "page",
+      "url": "http://127.0.0.1:44125/__qa/status",
+      "title": "127.0.0.1:44125/__qa/status"
+    }
+  ]
+}
