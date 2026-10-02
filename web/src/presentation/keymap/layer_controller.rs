@@ -25,6 +25,10 @@ impl LayerEditIntent {
         }
     }
 
+    fn target_exists(&self, map: Option<&boardstudio_core::model::KeymapConfiguration>) -> bool {
+        map.is_some_and(|map| map.layers.iter().any(|layer| layer.id == self.layer_id()))
+    }
+
     fn change(&self) -> KeymapChange {
         match self {
             Self::Add { layer_id, name } => KeymapChange::AddLayer {
@@ -41,8 +45,8 @@ impl LayerEditIntent {
         }
     }
 
-    fn is_applied_to(&self, document: &boardstudio_core::model::ProjectDoc) -> bool {
-        let Some(map) = document.keymap.as_ref() else {
+    fn is_applied_to(&self, map: Option<&boardstudio_core::model::KeymapConfiguration>) -> bool {
+        let Some(map) = map else {
             return false;
         };
         if map.layers.is_empty() {
@@ -54,6 +58,22 @@ impl LayerEditIntent {
                 .iter()
                 .any(|layer| layer.id == *layer_id && layer.name == *name),
             Self::Remove { layer_id } => map.layers.iter().all(|layer| layer.id != *layer_id),
+        }
+    }
+
+    fn failure_is_still_relevant(
+        &self,
+        map: Option<&boardstudio_core::model::KeymapConfiguration>,
+    ) -> bool {
+        let target =
+            map.and_then(|map| map.layers.iter().find(|layer| layer.id == self.layer_id()));
+        match self {
+            Self::Add { .. } => target.is_none(),
+            Self::Rename { layer_id, name } => {
+                target.is_some_and(|layer| layer.name != *name)
+                    || (map.is_none() && layer_id == "base" && name != "Base")
+            }
+            Self::Remove { .. } => target.is_some(),
         }
     }
 }
@@ -77,6 +97,7 @@ struct LayerFeedbackState {
     scope_generation: u64,
     operation_id: OperationId,
     request: LayerEditIntent,
+    failure_snapshot_token: Option<SnapshotToken>,
     feedback: KeymapLayerFeedback,
 }
 
@@ -166,12 +187,16 @@ pub(in crate::presentation) fn use_layer_operations(
                     }
 
                     pending.set(None);
-                    if waiting.request.is_applied_to(&snapshot.document) {
+                    if waiting
+                        .request
+                        .is_applied_to(snapshot.document.keymap.as_ref())
+                    {
                         feedback.set(Some(feedback_state(&waiting, KeymapLayerFeedback::Saved)));
                     } else {
                         feedback.set(Some(failed_feedback(
                             feedback_state(&waiting, KeymapLayerFeedback::Pending),
                             "The saved Keymap no longer contains this layer change. Review the current layer and retry.".into(),
+                            Some(snapshot.token),
                         )));
                     }
                 }
@@ -183,6 +208,7 @@ pub(in crate::presentation) fn use_layer_operations(
                     feedback.set(Some(failed_feedback(
                         feedback_state(&waiting, KeymapLayerFeedback::Pending),
                         message,
+                        None,
                     )));
                 }
                 TerminalOutcome::Superseded
@@ -192,6 +218,7 @@ pub(in crate::presentation) fn use_layer_operations(
                     feedback.set(Some(failed_feedback(
                         feedback_state(&waiting, KeymapLayerFeedback::Pending),
                         "The Keymap edit did not complete in the active session.".into(),
+                        None,
                     )));
                 }
             }
@@ -215,7 +242,11 @@ pub(in crate::presentation) fn use_layer_operations(
             && state.scope_generation == captured_generation
             && scope_generation() == state.scope_generation
             && workspace() == "Keymap"
-            && active_layer() == state.request.layer_id())
+            && feedback_targets_current_layer(
+                &state.request,
+                snapshot.document.keymap.as_ref(),
+                &active_layer(),
+            ))
         .then(|| (state, snapshot))
     });
     let visible_feedback = visible_feedback.and_then(|(state, snapshot)| match &state.feedback {
@@ -230,10 +261,20 @@ pub(in crate::presentation) fn use_layer_operations(
             })
             .then_some(KeymapLayerFeedback::Pending),
         KeymapLayerFeedback::Saved => (snapshot.token != state.snapshot_token
-            && state.request.is_applied_to(&snapshot.document))
+            && state
+                .request
+                .is_applied_to(snapshot.document.keymap.as_ref()))
         .then_some(KeymapLayerFeedback::Saved),
-        KeymapLayerFeedback::Failed(message) => (snapshot.token == state.snapshot_token)
-            .then(|| KeymapLayerFeedback::Failed(message.clone())),
+        KeymapLayerFeedback::Failed(message) => {
+            let current_failure_snapshot = state
+                .failure_snapshot_token
+                .is_none_or(|token| token == snapshot.token);
+            (current_failure_snapshot
+                && state
+                    .request
+                    .failure_is_still_relevant(snapshot.document.keymap.as_ref()))
+            .then(|| KeymapLayerFeedback::Failed(message.clone()))
+        }
     });
 
     let on_operation = EventHandler::new({
@@ -264,6 +305,7 @@ pub(in crate::presentation) fn use_layer_operations(
                 return;
             }
             let layer_count = existing_map.map_or(1, |map| map.layers.len());
+            let active_display_layer = resolve_display_layer_id(existing_map, &active_layer());
             match request {
                 KeymapLayerOperation::Add => {
                     if layer_count >= 32 {
@@ -300,7 +342,7 @@ pub(in crate::presentation) fn use_layer_operations(
                     );
                 }
                 KeymapLayerOperation::Rename { layer_id, name } => {
-                    if active_layer() != layer_id {
+                    if active_display_layer != Some(layer_id.as_str()) {
                         return;
                     }
                     let exists = match existing_map {
@@ -325,7 +367,7 @@ pub(in crate::presentation) fn use_layer_operations(
                     );
                 }
                 KeymapLayerOperation::Remove { layer_id } => {
-                    if active_layer() != layer_id {
+                    if active_display_layer != Some(layer_id.as_str()) {
                         return;
                     }
                     let Some(map) = existing_map else { return };
@@ -461,11 +503,124 @@ fn feedback_state(waiting: &PendingLayerEdit, feedback: KeymapLayerFeedback) -> 
         scope_generation: waiting.scope_generation,
         operation_id: waiting.operation_id,
         request: waiting.request.clone(),
+        failure_snapshot_token: None,
         feedback,
     }
 }
 
-fn failed_feedback(mut identity: LayerFeedbackState, message: String) -> LayerFeedbackState {
+fn resolve_display_layer_id<'a>(
+    map: Option<&'a boardstudio_core::model::KeymapConfiguration>,
+    requested_layer_id: &str,
+) -> Option<&'a str> {
+    let Some(map) = map.filter(|map| !map.layers.is_empty()) else {
+        return Some("base");
+    };
+    map.layers
+        .iter()
+        .find(|layer| layer.id == requested_layer_id)
+        .or_else(|| map.layers.first())
+        .map(|layer| layer.id.as_str())
+}
+
+fn feedback_targets_current_layer(
+    request: &LayerEditIntent,
+    map: Option<&boardstudio_core::model::KeymapConfiguration>,
+    active_layer_id: &str,
+) -> bool {
+    if resolve_display_layer_id(map, active_layer_id) == Some(request.layer_id()) {
+        return true;
+    }
+    active_layer_id == request.layer_id()
+        && !request.target_exists(map)
+        && matches!(
+            request,
+            LayerEditIntent::Add { .. } | LayerEditIntent::Remove { .. }
+        )
+}
+
+fn failed_feedback(
+    mut identity: LayerFeedbackState,
+    message: String,
+    failure_snapshot_token: Option<SnapshotToken>,
+) -> LayerFeedbackState {
+    identity.failure_snapshot_token = failure_snapshot_token;
     identity.feedback = KeymapLayerFeedback::Failed(message);
     identity
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_core::model::{KeymapConfiguration, KeymapLayer};
+    use std::collections::BTreeMap;
+
+    fn keymap(ids: &[&str]) -> KeymapConfiguration {
+        KeymapConfiguration {
+            layers: ids
+                .iter()
+                .map(|id| KeymapLayer {
+                    id: (*id).into(),
+                    name: (*id).into(),
+                    bindings: BTreeMap::new(),
+                    sensors: BTreeMap::new(),
+                })
+                .collect(),
+            macros: vec![],
+        }
+    }
+
+    #[test]
+    fn retained_removed_id_resolves_then_restores_by_stable_identity() {
+        let with_child = keymap(&["custom-primary", "layer-a"]);
+        let after_remove = keymap(&["custom-primary"]);
+
+        assert_eq!(
+            resolve_display_layer_id(Some(&with_child), "layer-a"),
+            Some("layer-a")
+        );
+        assert_eq!(
+            resolve_display_layer_id(Some(&after_remove), "layer-a"),
+            Some("custom-primary")
+        );
+        assert_eq!(
+            resolve_display_layer_id(Some(&with_child), "layer-a"),
+            Some("layer-a")
+        );
+    }
+
+    #[test]
+    fn fallback_rename_and_terminal_feedback_follow_the_resolved_layer() {
+        let map = keymap(&["custom-primary"]);
+        let rename = LayerEditIntent::Rename {
+            layer_id: "custom-primary".into(),
+            name: "Primary renamed".into(),
+        };
+        let removed = LayerEditIntent::Remove {
+            layer_id: "layer-a".into(),
+        };
+        let failed_add = LayerEditIntent::Add {
+            layer_id: "layer-new".into(),
+            name: "Layer 2".into(),
+        };
+
+        assert_eq!(
+            resolve_display_layer_id(Some(&map), "layer-a"),
+            Some("custom-primary")
+        );
+        assert!(feedback_targets_current_layer(
+            &rename,
+            Some(&map),
+            "layer-a"
+        ));
+        assert!(feedback_targets_current_layer(
+            &removed,
+            Some(&map),
+            "layer-a"
+        ));
+        assert!(feedback_targets_current_layer(
+            &failed_add,
+            Some(&map),
+            "layer-new"
+        ));
+    }
 }
