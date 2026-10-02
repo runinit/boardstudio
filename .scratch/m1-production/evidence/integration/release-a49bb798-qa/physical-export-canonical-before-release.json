@@ -1,0 +1,176 @@
+{
+  "downloads": [
+    {
+      "at": 53611.5,
+      "download": "keyboard.step",
+      "href": "blob:http://127.0.0.1:44126/9e2c74cc-dd71-4632-a71f-c8763dabf5d7",
+      "hrefKind": "blob"
+    }
+  ],
+  "resources": {
+    "animationFrames": {
+      "cancelled": 0,
+      "fired": 2,
+      "pending": [],
+      "requested": 2
+    },
+    "at": 73434.09999999404,
+    "events": [],
+    "label": "canonical-after-physical-export-held",
+    "listeners": {
+      "added": 13,
+      "removed": 3,
+      "trackedActive": {
+        "div:change": 1,
+        "div:click": 1,
+        "div:keydown": 1,
+        "div:keyup": 1,
+        "div:lostpointercapture": 1,
+        "div:pointercancel": 1,
+        "div:pointerdown": 1,
+        "div:pointermove": 1,
+        "div:pointerup": 1,
+        "div:wheel": 1
+      }
+    },
+    "objectUrls": {
+      "active": [],
+      "created": 1,
+      "revoked": 1
+    },
+    "observers": {
+      "IntersectionObserver": {
+        "activeTargets": 0,
+        "created": 0,
+        "disconnectCalls": 0,
+        "observeCalls": 0,
+        "unobserveCalls": 0
+      },
+      "MutationObserver": {
+        "activeTargets": 0,
+        "created": 0,
+        "disconnectCalls": 0,
+        "observeCalls": 0,
+        "unobserveCalls": 0
+      },
+      "PerformanceObserver": {
+        "activeTargets": 0,
+        "created": 0,
+        "disconnectCalls": 0,
+        "observeCalls": 0,
+        "unobserveCalls": 0
+      },
+      "ResizeObserver": {
+        "activeTargets": 0,
+        "created": 1,
+        "disconnectCalls": 1,
+        "observeCalls": 1,
+        "unobserveCalls": 0
+      }
+    },
+    "workerReplies": [
+      {
+        "at": 22899.79999999702,
+        "bodies": [
+          {
+            "id": "plate",
+            "meshVolumeMm3": 14219.949082381094,
+            "positionsFloat32": 11304
+          },
+          {
+            "id": "bottom",
+            "meshVolumeMm3": 52810.14149551081,
+            "positionsFloat32": 14904
+          },
+          {
+            "id": "plate-foam",
+            "meshVolumeMm3": 23728.16818194156,
+            "positionsFloat32": 21636
+          },
+          {
+            "id": "bottom-foam",
+            "meshVolumeMm3": 27462.915685681193,
+            "positionsFloat32": 9612
+          }
+        ],
+        "bodyCount": 4,
+        "jobId": "case-1",
+        "operation": "preview",
+        "outcome": "completed",
+        "requestId": "case-1-Preview",
+        "resultKeys": [
+          "revision",
+          "bodies"
+        ],
+        "stepBytes": null
+      },
+      {
+        "at": 24008.59999999404,
+        "bodies": [
+          {
+            "id": "plate",
+            "meshVolumeMm3": 14219.949082381094,
+            "positionsFloat32": 11304
+          },
+          {
+            "id": "bottom",
+            "meshVolumeMm3": 52810.14149551081,
+            "positionsFloat32": 14904
+          },
+          {
+            "id": "plate-foam",
+            "meshVolumeMm3": 23728.16818194156,
+            "positionsFloat32": 21636
+          },
+          {
+            "id": "bottom-foam",
+            "meshVolumeMm3": 27462.915685681193,
+            "positionsFloat32": 9612
+          }
+        ],
+        "bodyCount": 4,
+        "jobId": "case-1",
+        "operation": "exact",
+        "outcome": "completed",
+        "requestId": "case-1-Exact",
+        "resultKeys": [
+          "revision",
+          "step",
+          "mesh",
+          "bodies"
+        ],
+        "stepBytes": 5915509
+      },
+      {
+        "at": 53602.09999999404,
+        "bodies": null,
+        "bodyCount": null,
+        "jobId": "step-5",
+        "operation": "export-step",
+        "outcome": "completed",
+        "requestId": "step-5",
+        "resultKeys": [
+          "revision",
+          "step"
+        ],
+        "stepBytes": 6417795
+      }
+    ],
+    "workers": {
+      "created": 4,
+      "createdByScript": {
+        "http://127.0.0.1:44126/assets/cad-worker/entry.js": 3,
+        "http://127.0.0.1:44126/assets/core-worker/entry.js": 1
+      },
+      "live": [
+        {
+          "id": 1,
+          "script": "http://127.0.0.1:44126/assets/core-worker/entry.js",
+          "terminateCalls": 0,
+          "type": "module"
+        }
+      ],
+      "terminated": 3
+    }
+  }
+}
