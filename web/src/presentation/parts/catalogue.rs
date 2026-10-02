@@ -240,6 +240,60 @@ async fn load_ergogen_module() -> Result<JsValue, String> {
     import_ergogen_module(&url).await
 }
 
+/// Normalize a matrix-owned generator clone with the exact packaged Ergogen implementation.
+/// The clone is passed as a JSON object so generator parameters have the plain-object shape
+/// expected by the TypeScript normalizer (serde-wasm-bindgen's default Map is not compatible).
+pub(super) async fn normalize_matrix_definition(
+    definition: PartDefinition,
+) -> Result<PartDefinition, String> {
+    let module = load_ergogen_module().await?;
+    normalize_matrix_definition_with_module(definition, &module)
+}
+
+fn normalize_matrix_definition_with_module(
+    mut definition: PartDefinition,
+    module: &JsValue,
+) -> Result<PartDefinition, String> {
+    let Some(generator) = definition.generator.as_mut() else {
+        return Err(format!(
+            "Matrix component {} has no generator definition.",
+            definition.id
+        ));
+    };
+    let source = generator.source.clone();
+    let is_ergogen = function(module, "isErgogen")?
+        .call1(module, &source.clone().into())
+        .map_err(js_error)?
+        .as_bool()
+        .unwrap_or(false);
+    if !is_ergogen {
+        return Err(format!(
+            "Matrix component {} does not use a supported Ergogen generator.",
+            definition.id
+        ));
+    }
+    let plain = json_plain_value(&definition)
+        .map_err(|error| format!("Could not prepare {source} for matrix creation: {error}"))?;
+    let normalized = function(module, "normalizeDefinition")?
+        .call1(module, &plain)
+        .map_err(js_error)?;
+    let normalized: PartDefinition = serde_wasm_bindgen::from_value(normalized)
+        .map_err(|error| format!("Could not decode normalized {source} definition: {error}"))?;
+    if normalized.id != definition.id
+        || normalized
+            .generator
+            .as_ref()
+            .map(|item| item.source.as_str())
+            != Some(source.as_str())
+    {
+        return Err(format!(
+            "Normalizing matrix component {} changed its identity or generator source.",
+            definition.id
+        ));
+    }
+    Ok(normalized)
+}
+
 async fn import_ergogen_module(url: &str) -> Result<JsValue, String> {
     let import = js_sys::Function::new_with_args("url", "return import(url)");
     let promise = import
@@ -446,6 +500,40 @@ mod wasm_tests {
             proposal.parameters.get("reversibleLayout"),
             Some(&json!(true))
         );
+
+        let mut matrix_switch = call_catalogue(&module)
+            .unwrap()
+            .into_iter()
+            .find(|definition| {
+                definition
+                    .generator
+                    .as_ref()
+                    .is_some_and(|generator| generator.source == "ceoloide/switch_mx")
+            })
+            .expect("packaged catalogue contains MX switch");
+        matrix_switch.id = "assembly-preset-mx-solder-south-matrix-test-0/definition/switch".into();
+        let generator = matrix_switch.generator.as_mut().unwrap();
+        generator.parameters.insert("hotswap".into(), json!(true));
+        generator.parameters.insert("solder".into(), json!(false));
+        generator
+            .parameters
+            .insert("include_keycap".into(), json!(true));
+        generator.parameters.insert("side".into(), json!("B"));
+        let normalized = normalize_matrix_definition_with_module(matrix_switch, &module)
+            .expect("matrix definition clone normalizes through the packaged generator");
+        assert_eq!(
+            normalized.id,
+            "assembly-preset-mx-solder-south-matrix-test-0/definition/switch"
+        );
+        let generator = normalized.generator.as_ref().unwrap();
+        assert_eq!(generator.parameters.get("hotswap"), Some(&json!(true)));
+        assert_eq!(generator.parameters.get("solder"), Some(&json!(false)));
+        assert_eq!(
+            generator.parameters.get("include_keycap"),
+            Some(&json!(true))
+        );
+        assert!(!normalized.pads.is_empty());
+        assert!(!normalized.courtyard.is_empty());
     }
 }
 

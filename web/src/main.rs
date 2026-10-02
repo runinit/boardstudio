@@ -70,6 +70,9 @@ mod closure_clearance;
 mod matrix_transform_operation;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod matrix_setup_operation;
+
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod matrix_transform_lifecycle;
 
 fn main() {

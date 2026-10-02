@@ -70,6 +70,24 @@ pub(super) async fn prepare_physical_setup_proposal(
     catalogue::prepare_physical_setup_proposal_from_package(&accepted, intent).await
 }
 
+/// Normalize a matrix-owned clone through the same packaged Ergogen path used by Parts.
+pub(super) async fn normalize_matrix_definition(
+    definition: boardstudio_core::model::PartDefinition,
+) -> Result<boardstudio_core::model::PartDefinition, String> {
+    catalogue::normalize_matrix_definition(definition).await
+}
+
+pub(super) async fn load_matrix_templates(
+    reversible: bool,
+) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {
+    let entries = catalogue::load_bundled(reversible).await?;
+    Ok(entries
+        .iter()
+        .filter(|entry| entry.source == catalogue::CatalogueSource::Ergogen)
+        .map(|entry| (*entry.definition).clone())
+        .collect())
+}
+
 /// Place inside the existing Objects panel when Parts is the active workspace.
 #[component]
 pub(super) fn PartsLibraryPanel(
