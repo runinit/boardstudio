@@ -1,7 +1,7 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Six workbench streams remain active; all 62 canonical parents, their acceptance joins and RF-001\u2013RF-014 are retained. Current served candidate frontend-case-firmware-parity-integrated-20261002 is source d320b6ecadbea5ad6f337c3a650bea7cb528e74b at 34730 root/subpath: full 22/22 commands, 1296 source hashes, 145 assets per route, zero mismatches; 224 native tests and strict page WASM checks passed. Paired same layered Sofle archive visibly renders 90/90 Case models in React and Dioxus. Case fit scale, contextual selected-component Inspector and per-model visibility remain gaps; identity/pick/portable archive qualification remains open. Newer root PCB07/Parts12 source at 2394b996 passed 229 native tests and strict WASM; not yet packaged. PCB07+08 shared composition is independently source-clear at 94480901, with 229 native tests and strict page WASM checks passing; public title/order/edit qualification is still required. Controller placement and mirrored-pair repairs, Keycaps overlap warning, and page-only packaging reuse remain active; the reproduced root-config and extra-provider-file reuse guard gaps are fixed and independently source-clear at 4d08ac9b. Its 13 normal and 13 optimized guard tests pass; a real matching full baseline is building from e3566700, with actual reuse/offline qualification still open. Review defaults are Sol 6.1 High; configured agent ceiling 30, live session ceiling 11. No ticket/parent acceptance follows from source-only proof.",
+  "status": "Six workbench streams active; all 62 canonical parents and RF-001\u2013RF-014 retained. Current served comparison is frontend-layout-pill-css-reuse-20261002 at 34731, source792e88af: 8 executed/22 inherited commands,1313 source hashes,145 assets and126 unchanged providers per route,zero mismatches. Actual full535.29s/reuse88.55s; root/subpath offline editor and geometry verified. Sol6.1 High reviews; configured30/live11 agents. Desktop Inspector reveal and Close controls integrated in newer source; mirrored pair source joins now integrated, strict checks underway; new package/public qualification pending. Keycaps current-selection defect under repair; Controller lifetime/test and Parts14 saved-gap/owner repairs active. Parts13 author and Case16 source review active. No parent completion from source-only proof.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
@@ -750,5 +750,13 @@
       "Keymap current public qualification"
     ],
     "next_packaging_improvement": "Bounded contextual page-leaf reuse expansion draft under independent planning review; no wildcard or applied change."
+  },
+  "current_comparison_build": {
+    "build_id": "frontend-layout-pill-css-reuse-20261002",
+    "source_commit": "792e88afecefa032d17b7540fa316e24b709c5ae",
+    "root_url": "http://127.0.0.1:34731/",
+    "subpath_url": "http://127.0.0.1:34731/boardstudio/",
+    "receipt": ".scratch/dioxus-frontend-v1/evidence/packaging-reuse-public-20261002.json",
+    "acceptance": "partial comparison; full workbench gates remain open"
   }
 }
