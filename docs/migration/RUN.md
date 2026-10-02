@@ -1,5 +1,7 @@
 # BoardStudio milestone continuation
 
+Current priority: **100% frontend Dioxus migration**. See [frontend v1 roadmap](DIOXUS-FRONTEND-V1.md), [task graph](../../.scratch/dioxus-frontend-v1/PLAN.md) and [current run](dioxus-frontend-v1-run.json). The 2026-10-01 clarification prioritizes porting all existing TSX, themes and interface behavior. F1 implements the reference shell/themes first; later phases complete every workspace. Existing engines/providers remain underneath. The prior M1 run below is retained foundation/evidence, with its acceptance limits unchanged.
+
 Active run: [remaining M1 production plan](../../.scratch/m1-production/PLAN.md),
 [canonical state](m1-production-run.json) and
 [editable candidate handoff](../../.scratch/m1-production/HANDOFF.md).

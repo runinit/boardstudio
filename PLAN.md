@@ -1,5 +1,9 @@
 # Generation and edit performance plan
 
+## Current priority: frontend Dioxus migration
+
+The latest user clarification makes this run 100% frontend: port all existing TSX, theming and interaction/responsive behavior. The [frontend v1 roadmap](docs/migration/DIOXUS-FRONTEND-V1.md), [spec](.scratch/dioxus-frontend-v1/spec.md) and [task graph](.scratch/dioxus-frontend-v1/PLAN.md) govern the continuation. F1 delivers the reference workbench shell/themes now; remaining phases complete projects and every workspace. Backend engine/generator/CAD rewrite work is outside this active plan. Earlier session restrictions and plans below remain historical; current user authority and applicable constraints govern.
+
 ## Current run: finish milestone specifications and bound the first probe
 
 Continue the approved six-capability map and accepted ADR 0003; do not reopen
