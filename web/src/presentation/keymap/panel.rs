@@ -138,11 +138,12 @@ pub(in crate::presentation) fn KeymapPanel(
                             "aria-label": "Selected key",
                             value: selected.map_or("", |key| key.id.as_ref()),
                             onchange: move |event: FormEvent| on_select_key.call(event.value()),
-                            option { value: "", "Choose on the layout…" }
+                            option { value: "", selected: selected.is_none(), "Choose on the layout…" }
                             for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
                                 option {
                                     key: "{key.id}",
                                     value: "{key.id}",
+                                    selected: selected.is_some_and(|current| current.id == key.id),
                                     "{key.reference} · {key.binding_title}"
                                 }
                             }
