@@ -97,6 +97,229 @@ impl PartialEq for NativePreviewSnapshot {
 
 impl Eq for NativePreviewSnapshot {}
 
+/// Resolve a renderer-picked preview reference to the unique Part on the
+/// preview's accepted board. Decoded mesh ownership stays keyed by model ID;
+/// the renderer emits its model reference for picks.
+pub(crate) fn part_for_native_preview_reference(
+    document: &ProjectDoc,
+    board_id: &str,
+    preview: &PcbPreview,
+    model_reference: &str,
+) -> Option<String> {
+    if preview.revision != document.revision {
+        return None;
+    }
+    if !preview
+        .models
+        .iter()
+        .any(|model| model.reference == model_reference)
+    {
+        return None;
+    }
+    let board = document.boards.iter().find(|board| board.id == board_id)?;
+    let mut parts = document.parts.iter().filter(|part| {
+        part.reference == model_reference && board.part_ids.iter().any(|id| id == &part.id)
+    });
+    let part = parts.next()?;
+    parts.next().is_none().then(|| part.id.clone())
+}
+
+/// Validate the producer-owned source/renderer identity before resolving a
+/// native-preview pick to an accepted board Part. `model_reference` is the
+/// renderer pick ID; renderer-sequence freshness is checked by its scoped
+/// signal owner and is a distinct identity domain from the producer lease.
+pub(crate) fn native_preview_pick_part_id(
+    preview: &NativePreviewSnapshot,
+    scope: &Scope,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    model_reference: &str,
+) -> Option<String> {
+    let owner = &preview.owner;
+    if !preview.lease.matches(owner)
+        || owner.scope != *scope
+        || owner.snapshot_token != snapshot_token
+        || owner.accepted_revision != revision
+        || preview.accepted_document.id != scope.document_id
+        || preview.accepted_document.revision != revision
+    {
+        return None;
+    }
+    part_for_native_preview_reference(
+        &preview.accepted_document,
+        &owner.scope.board_id,
+        &preview.preview,
+        model_reference,
+    )
+}
+
+#[cfg(test)]
+mod native_preview_pick_tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+    use boardstudio_core::model::{Board, Part, PcbModel, Pose2, Side, Vec2, Vec3};
+
+    fn source() -> (ProjectDoc, PcbPreview) {
+        let mut document = ProjectDoc::empty("doc", "Sofle");
+        document.revision = 12;
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: "left/U1".into(),
+            definition_id: "controller".into(),
+            reference: "left-U1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document.boards.push(Board {
+            id: "left".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec!["left/U1".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let preview = PcbPreview {
+            revision: 12,
+            thickness: 1.6,
+            contours: vec![],
+            surfaces: vec![],
+            holes: vec![],
+            models: vec![PcbModel {
+                id: "left-U1:0".into(),
+                reference: "left-U1".into(),
+                path: "models/mcu.step".into(),
+                pose: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                side: Side::Front,
+                offset: Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                rotation: Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                scale: Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            }],
+            diagnostics: vec![],
+        };
+        (document, preview)
+    }
+
+    #[test]
+    fn picked_renderer_reference_resolves_to_board_part_and_not_asset_or_mesh_id() {
+        let (document, preview) = source();
+        assert_eq!(
+            part_for_native_preview_reference(&document, "left", &preview, "left-U1"),
+            Some("left/U1".into())
+        );
+        assert!(
+            part_for_native_preview_reference(&document, "left", &preview, "left-U1:0").is_none(),
+            "renderer picks carry references, not model IDs or asset IDs"
+        );
+        let mut repeated_model_reference = preview.clone();
+        repeated_model_reference.models.push(PcbModel {
+            id: "left-U1:1".into(),
+            ..repeated_model_reference.models[0].clone()
+        });
+        assert_eq!(
+            part_for_native_preview_reference(
+                &document,
+                "left",
+                &repeated_model_reference,
+                "left-U1"
+            ),
+            Some("left/U1".into()),
+            "a component may have multiple rendered models for one reference"
+        );
+        let mut duplicate_reference = document.clone();
+        duplicate_reference.parts.push(Part {
+            id: "left/other".into(),
+            ..duplicate_reference.parts[0].clone()
+        });
+        duplicate_reference.boards[0]
+            .part_ids
+            .push("left/other".into());
+        assert!(
+            part_for_native_preview_reference(&duplicate_reference, "left", &preview, "left-U1")
+                .is_none(),
+            "ambiguous board references must not select an arbitrary Part"
+        );
+    }
+
+    #[test]
+    fn native_pick_requires_the_current_preview_owner_source_identity() {
+        let (document, board_preview) = source();
+        let scope = Scope {
+            session_epoch: SessionEpoch(2),
+            document_id: document.id.clone(),
+            board_id: "left".into(),
+            instance_id: Some("left-half".into()),
+        };
+        let owner = CasePreviewOwnerIdentity {
+            scope: scope.clone(),
+            snapshot_token: SnapshotToken(43),
+            accepted_revision: 12,
+            accepted_scene_identity: 1,
+            viewer_instance: 4,
+            projection_generation: 5,
+            batch_generation: 6,
+            core_executor_epoch: 7,
+            core_worker_identity: 8,
+            request_token: "request-9".into(),
+        };
+        let lease = CasePreviewOwnerLease::new(owner.clone());
+        let preview = NativePreviewSnapshot {
+            owner,
+            lease,
+            accepted_document: document,
+            contours: vec![],
+            path_assets: BTreeMap::new(),
+            preview: board_preview,
+        };
+
+        assert_eq!(
+            native_preview_pick_part_id(&preview, &scope, SnapshotToken(43), 12, "left-U1"),
+            Some("left/U1".into())
+        );
+        let mut stale_scope = scope.clone();
+        stale_scope.instance_id = Some("right-half".into());
+        assert!(
+            native_preview_pick_part_id(&preview, &stale_scope, SnapshotToken(43), 12, "left-U1")
+                .is_none()
+        );
+        assert!(
+            native_preview_pick_part_id(&preview, &scope, SnapshotToken(44), 12, "left-U1")
+                .is_none()
+        );
+        assert!(
+            native_preview_pick_part_id(&preview, &scope, SnapshotToken(43), 13, "left-U1")
+                .is_none()
+        );
+        assert!(
+            native_preview_pick_part_id(&preview, &scope, SnapshotToken(43), 12, "another-model")
+                .is_none()
+        );
+    }
+}
+
 /// One owner for pending, accepted and failed native preview state.
 #[derive(Default)]
 pub(crate) struct NativePreviewState {

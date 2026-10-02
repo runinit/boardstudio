@@ -1831,6 +1831,8 @@ mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
 
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
     fn identity() -> ViewerIdentity {
         ViewerIdentity {
             scope: Scope {
@@ -1846,7 +1848,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn viewer_events_reject_changed_owner_identity_and_unmount() {
         let identity = identity();
         let owner = Rc::new(ViewerOwner {
@@ -1864,11 +1866,13 @@ mod tests {
         };
         assert!(signal.is_current());
 
-        let mut changed = identity;
+        let mut changed = identity.clone();
         changed.renderer_sequence += 1;
         *owner.identity.borrow_mut() = Some(changed);
         assert!(!signal.is_current());
 
+        *owner.identity.borrow_mut() = Some(identity);
+        assert!(signal.is_current());
         owner.active.set(false);
         assert!(!signal.is_current());
     }

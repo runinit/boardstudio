@@ -3,7 +3,7 @@ use super::shared_viewer::{
     CaseDisplay, CaseSharedViewer, ScopedDisplayChange, ScopedViewerSignal, ViewerIdentity,
     ViewerSignalKind,
 };
-use super::{InstanceSelection, ResolvedTheme};
+use super::{InstanceSelection, ResolvedTheme, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::Scope;
 use boardstudio_web::cad_jobs::captured_case_document;
@@ -67,6 +67,7 @@ pub(crate) fn CaseViewer(
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<InstanceSelection>();
+    let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
     let key = display_key(&scene.scope);
@@ -102,10 +103,24 @@ pub(crate) fn CaseViewer(
     let on_signal = {
         let runtime = runtime.clone();
         let scene = scene.clone();
+        let preview = preview.clone();
         let mut selection = selection;
         move |event: super::shared_viewer::ScopedViewerSignal| {
             if !event.is_current()
                 || !source_is_current(&runtime, instance_selection, &scene, &event.identity)
+            {
+                return;
+            }
+            if let ViewerSignalKind::Picked(id) = &event.kind
+                && let Some(preview) = preview.as_ref()
+                && select_native_preview_model(
+                    &runtime,
+                    instance_selection,
+                    &selection_adapter,
+                    preview,
+                    &event.identity,
+                    id,
+                )
             {
                 return;
             }
@@ -182,6 +197,8 @@ pub(crate) fn CasePreviewViewer(
     model_rows: Option<super::model_delivery::ModelDeliveryRows>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let instance_selection = use_context::<InstanceSelection>();
+    let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
     let key = display_key(&preview.owner.scope);
@@ -208,8 +225,19 @@ pub(crate) fn CasePreviewViewer(
             {
                 return;
             }
-            if let ViewerSignalKind::Failed(message) = event.kind {
-                runtime.report(message);
+            match event.kind {
+                ViewerSignalKind::Picked(id) => {
+                    select_native_preview_model(
+                        &runtime,
+                        instance_selection,
+                        &selection_adapter,
+                        &preview,
+                        &event.identity,
+                        &id,
+                    );
+                }
+                ViewerSignalKind::Failed(message) => runtime.report(message),
+                _ => {}
             }
         }
     };
@@ -242,6 +270,70 @@ pub(crate) fn CasePreviewViewer(
             on_display_change,
         }
     }
+}
+
+fn select_native_preview_model(
+    runtime: &Rc<Runtime>,
+    instance_selection: InstanceSelection,
+    adapter: &SelectionAdapter,
+    preview: &Rc<crate::case_preview::NativePreviewSnapshot>,
+    identity: &ViewerIdentity,
+    model_reference: &str,
+) -> bool {
+    let owner = &preview.owner;
+    if identity.scope != owner.scope
+        || identity.snapshot_token != owner.snapshot_token
+        || runtime.scope().as_ref() != Some(&owner.scope)
+    {
+        return false;
+    }
+    let model = runtime.model();
+    if !instance_selection.is_current(&model)
+        || model.active_board_id != owner.scope.board_id
+        || model.active_instance_id != owner.scope.instance_id
+    {
+        return false;
+    }
+    let Some(accepted) = model.accepted.as_ref() else {
+        return false;
+    };
+    if accepted.token != owner.snapshot_token
+        || accepted.session_epoch != owner.scope.session_epoch
+        || accepted.document.id != owner.scope.document_id
+        || accepted.document.revision != owner.accepted_revision
+    {
+        return false;
+    }
+    if runtime.native_case_preview().is_none_or(|current| {
+        current.owner != *owner || !Rc::ptr_eq(&current.lease, &preview.lease)
+    }) {
+        return false;
+    }
+    // Renderer event freshness is validated by ScopedViewerSignal::is_current.
+    // Its instance/generation counters are independently allocated from the
+    // producer lease and must not be compared across these identity domains.
+    let Some(part_id) = crate::case_preview::native_preview_pick_part_id(
+        preview,
+        &identity.scope,
+        identity.snapshot_token,
+        accepted.document.revision,
+        model_reference,
+    ) else {
+        return false;
+    };
+    let Some(context) = super::objects::context_for_part(&model, &part_id) else {
+        return false;
+    };
+    super::selection::submit_context(
+        runtime,
+        adapter,
+        super::objects::TreeSelectRequest {
+            scope: owner.scope.clone(),
+            context,
+            mode: boardstudio_application::SelectionMode::Replace,
+        },
+    );
+    true
 }
 
 fn source_is_current(
