@@ -1,6 +1,6 @@
 # Parts13/Parts14 matching blank-project browser journey — 2026-10-02
 
-This bounded cross-frontend journey used the same newly created blank-project fixture, named `Parts13 Browser Proof Native`, in both clients. It is a matched fixture, not a shared imported archive: each app has an independent local store. It does not claim public acceptance or Parts15 parity.
+This is a preliminary author observation of a bounded cross-frontend journey using newly created blank projects named `Parts13 Browser Proof Native` in both clients. The apps had independent local stores; no shared imported archive was used. This note does not include pinned React build SHA, project/archive IDs, screenshots, or persisted browser artifacts, so it is not a qualified public receipt. It does not claim public acceptance or Parts15 parity.
 
 ## Builds and sessions
 
@@ -16,7 +16,7 @@ In both apps, created a blank project with the same name, opened Parts, created 
 
 In both apps, selected the Choc V1/V2 switch, opened Define profile, edited the profile, and saved. Undo reverted the accepted profile to Define profile, Redo restored Edit profile, and reload/reselection retained Edit profile.
 
-The operations were bounded to what the integrated builds offered: Dioxus saved a manual 2.2 mm gap plus one cutout, while React selected Choc v1 and loaded its standard cutout before saving. The Dioxus build predates issue15, so the different standard-family workflow is not a parity claim. Both paths exercised accepted edit, history, and persistence on the same blank-project fixture.
+The operations were bounded to what the integrated builds offered: Dioxus saved a manual 2.2 mm gap plus one cutout, while React selected Choc v1 and loaded its standard cutout before saving. The Dioxus build predates issue15, so the different standard-family workflow is not a parity claim. This author observation reports accepted edit, history, and reload behavior on separately created blank projects; without persisted artifacts, treat it as preliminary rather than qualified evidence.
 
 ## Reviewed context references
 
