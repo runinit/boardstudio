@@ -610,7 +610,7 @@ struct DimensionFieldProps {
     identity: MechanicalSettingsIdentity,
     request_sequence: Signal<u64>,
     on_request: EventHandler<MechanicalSettingsRequest>,
-    feedback: Option<MechanicalSettingsFeedback>,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
     field: MechanicalDimension,
     label: &'static str,
     value: f64,
@@ -759,7 +759,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                                 if let Some(input) = event
                                     .data()
                                     .try_as_web_event()
-                                    .and_then(|event| event.current_target())
+                                    .and_then(|event| event.target())
                                     .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
                                 {
                                     let _ = input.blur();
