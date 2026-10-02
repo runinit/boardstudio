@@ -807,6 +807,14 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
           "observation": "Release RSX identity is established by the first template root key; nested component keys were ineffective in Matrix fields and debug hot reload obscured static behavior. Actual mounted production owner switch regression repaired3aac941c and integratedbbab7e05. Source stamps, active serving process and live React oracle must be verified separately: old5175 cached sessions are not live acceptance.",
           "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+        },
+        {
+          "source": "packaging leaf expansion1bdaaf0e",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/packaging-expansion-source-review-1bdaaf0e-20261002.md",
+          "observation": "Line-oriented Rust registration signature scanning accepted valid split declarations, comments, nested modules, macro-emitted modules and spaced include invocations. Existing15 guards passed; independent actual production eligibility probes exposed seven bypasses.",
+          "current_mitigation": "Expansion remains unintegrated; repair fail-closed token handling with production negative regressions and fresh independent review. Existing narrow helper remains in use.",
+          "post_port_follow_up": "Evaluate a maintained Rust syntax/dependency audit seam instead of ad hoc Python syntax approximations; retain exact source/provider lineage.",
+          "status": "confirmed tooling correctness gap under repair; no actual worker/provider output corruption inferred"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",

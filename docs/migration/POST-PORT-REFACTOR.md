@@ -469,3 +469,7 @@ Sol reproduced a Keycaps defect where warning and size-control projection used t
 ### RF-009: measured provider reuse, 2026-10-02
 
 The actual matching full build took535.29 seconds and the guarded page-only reuse88.55 seconds. Both route packages retain145 assets including126 unchanged providers, with zero hash mismatches; root/subpath offline editor geometry verified. Explicit partial comparison source792e88af at34731. Broader leaf reuse remains separately reviewed work; shared module/Runtime changes still require a new full baseline.
+
+### RF-009: syntax-aware reuse eligibility
+
+The unintegrated leaf-reuse expansion used line-based Rust registration detection. Independent production eligibility probes found valid module, macro and include changes that its passing guard suite missed. The expansion remains held while token handling and negative coverage are corrected. Later refactoring should evaluate a maintained syntax/dependency audit boundary; no changed provider output has been observed.
