@@ -77,6 +77,10 @@ pub(super) async fn normalize_matrix_definition(
     catalogue::normalize_matrix_definition(definition).await
 }
 
+pub(super) async fn is_ergogen_source(source: String) -> Result<bool, String> {
+    catalogue::is_ergogen_source(source).await
+}
+
 pub(super) async fn load_matrix_templates(
     reversible: bool,
 ) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {

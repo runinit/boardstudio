@@ -19,6 +19,7 @@ pub(super) fn propose(
     document: &ProjectDoc,
     board_id: &str,
     part_id: &str,
+    is_ergogen_source: bool,
     intent: PartNetIntent,
 ) -> Result<ProjectDoc, String> {
     let board = document
@@ -50,6 +51,7 @@ pub(super) fn propose(
                 .values()
                 .any(|terminal_pads| terminal_pads == &pad_ids);
             let standalone_pad = pad_ids.len() == 1
+                && !is_ergogen_source
                 && definition.pads.iter().any(|pad| {
                     pad.id == pad_ids[0]
                         && pad.plated != Some(false)
@@ -218,6 +220,7 @@ mod tests {
             &before,
             "left",
             "left-J2",
+            false,
             PartNetIntent::AssignPads {
                 pad_ids: vec!["r1".into(), "r2".into()],
                 net_id: Some("net-power".into()),
@@ -258,6 +261,7 @@ mod tests {
             &before,
             "left",
             "left-J2",
+            false,
             PartNetIntent::CreateNet {
                 net_id: "new-net".into(),
                 name: "  Audio return  ".into(),
@@ -279,6 +283,7 @@ mod tests {
                     &before,
                     "left",
                     "left-J2",
+                    false,
                     PartNetIntent::AssignPads {
                         pad_ids: vec![pad_id.into()],
                         net_id: Some("net-rx".into()),
@@ -292,12 +297,59 @@ mod tests {
                 &before,
                 "left",
                 "left-SW1",
+                false,
                 PartNetIntent::AssignPads {
                     pad_ids: vec!["r1".into()],
                     net_id: Some("net-rx".into()),
                 },
             )
             .is_err()
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn standalone_pad_eligibility_uses_generator_source_not_definition_id() {
+        let mut document = fixture();
+        document.definitions[0].id = "project-owned-connector".into();
+        document.definitions[0].generator = Some(
+            serde_json::from_value(json!({
+                "source":"ceoloide/trrs_pj320a", "version":"bundled-1", "parameters":{}
+            }))
+            .unwrap(),
+        );
+        document.parts[0].definition_id = "project-owned-connector".into();
+
+        assert!(
+            propose(
+                &document,
+                "left",
+                "left-J2",
+                true,
+                PartNetIntent::AssignPads {
+                    pad_ids: vec!["signal".into()],
+                    net_id: Some("net-power".into()),
+                },
+            )
+            .is_err(),
+            "recognized generator source hides standalone pads even with a project-owned ID"
+        );
+
+        document.definitions[0].id = "ergogen:project-connector".into();
+        document.definitions[0].generator = None;
+        document.parts[0].definition_id = "ergogen:project-connector".into();
+        assert!(
+            propose(
+                &document,
+                "left",
+                "left-J2",
+                false,
+                PartNetIntent::AssignPads {
+                    pad_ids: vec!["signal".into()],
+                    net_id: Some("net-power".into()),
+                },
+            )
+            .is_ok(),
+            "an Ergogen-looking ID without a supported generator source keeps ordinary pads editable"
         );
     }
 
@@ -309,6 +361,7 @@ mod tests {
                 &before,
                 "left",
                 "left-J2",
+                false,
                 PartNetIntent::AssignPads {
                     pad_ids: vec!["signal".into()],
                     net_id: Some("right-net".into()),
@@ -327,6 +380,7 @@ mod tests {
                 &before,
                 "left",
                 "left-J2",
+                false,
                 PartNetIntent::AssignPads {
                     pad_ids: vec!["signal".into()],
                     net_id: Some("net-power".into()),

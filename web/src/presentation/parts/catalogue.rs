@@ -240,6 +240,21 @@ async fn load_ergogen_module() -> Result<JsValue, String> {
     import_ergogen_module(&url).await
 }
 
+/// Ask the packaged Ergogen catalogue whether a source is actually supported. Definition IDs
+/// are project-owned identities and are not a reliable proxy for generator membership.
+pub(super) async fn is_ergogen_source(source: String) -> Result<bool, String> {
+    let module = load_ergogen_module().await?;
+    is_ergogen_source_with_module(source, &module)
+}
+
+fn is_ergogen_source_with_module(source: String, module: &JsValue) -> Result<bool, String> {
+    function(module, "isErgogen")?
+        .call1(module, &source.into())
+        .map_err(js_error)?
+        .as_bool()
+        .ok_or_else(|| "Ergogen source classification returned a non-boolean value.".to_owned())
+}
+
 /// Normalize a matrix-owned generator clone with the exact packaged Ergogen implementation.
 /// The clone is passed as a JSON object so generator parameters have the plain-object shape
 /// expected by the TypeScript normalizer (serde-wasm-bindgen's default Map is not compatible).
@@ -430,6 +445,25 @@ mod wasm_tests {
     use boardstudio_core::model::HardwareConfiguration;
     use serde_json::json;
     use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    async fn generator_recognition_uses_packaged_source_membership() {
+        let module_url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
+            Some(url) => url,
+            None => panic!("run the packaged-layout-generator WASM test harness"),
+        };
+        let module = import_ergogen_module(module_url)
+            .await
+            .expect("import generated layout-generator asset");
+        assert!(
+            is_ergogen_source_with_module("ceoloide/trrs_pj320a".into(), &module)
+                .expect("classify packaged TRRS generator")
+        );
+        assert!(
+            !is_ergogen_source_with_module("ergogen:not-a-generator".into(), &module)
+                .expect("classify unknown source")
+        );
+    }
 
     #[wasm_bindgen_test]
     async fn reversible_proposal_uses_the_packaged_gateron_normalizer() {

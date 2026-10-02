@@ -208,6 +208,7 @@ struct ConnectionRow {
     label: String,
     pad_ids: Vec<String>,
     selected_net_id: Option<String>,
+    standalone_pad: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -284,6 +285,26 @@ pub(in crate::presentation) fn firmware_position_projection(
 #[component]
 pub(in crate::presentation) fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
     let new_net_name = use_signal(String::new);
+    let generator_source = props.source.active_part_id.as_ref().and_then(|part_id| {
+        let part = props
+            .source
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == *part_id)?;
+        let definition = definition(&props.source.document, &part.definition_id)?;
+        definition
+            .generator
+            .as_ref()
+            .map(|generator| generator.source.clone())
+    });
+    let ergogen_source = use_resource(use_reactive((&generator_source,), |(source,)| async move {
+        match source {
+            Some(source) => crate::presentation::parts::is_ergogen_source(source).await,
+            None => Ok(false),
+        }
+    }));
+    let standalone_pads_allowed = matches!(ergogen_source.read().as_ref(), Some(Ok(false)));
     let display = use_memo(use_reactive((&props.source,), move |(source,)| {
         project_display(&source)
     }));
@@ -320,6 +341,7 @@ pub(in crate::presentation) fn PcbWiringInspector(props: PcbWiringInspectorProps
             assigned_pins: *assigned_pins,
             connections,
             nets,
+            standalone_pads_allowed,
             new_net_name,
         }),
         SelectionView::Unsupported => rsx! {},
@@ -426,6 +448,7 @@ fn project_display(source: &PcbWiringSource) -> Option<WiringDisplayProjection> 
                             label: format!("{name} terminal"),
                             pad_ids: pad_ids.clone(),
                             selected_net_id: unique_assigned_net(&nets, part_id, pad_ids),
+                            standalone_pad: false,
                         })
                         .chain(
                             definition
@@ -434,7 +457,6 @@ fn project_display(source: &PcbWiringSource) -> Option<WiringDisplayProjection> 
                                 .filter(|pad| {
                                     pad.plated != Some(false)
                                         && !pad.number.is_empty()
-                                        && !is_ergogen_definition(definition)
                                         && !definition
                                             .terminals
                                             .values()
@@ -448,6 +470,7 @@ fn project_display(source: &PcbWiringSource) -> Option<WiringDisplayProjection> 
                                         part_id,
                                         std::slice::from_ref(&pad.id),
                                     ),
+                                    standalone_pad: true,
                                 }),
                         )
                         .collect();
@@ -509,12 +532,6 @@ fn unique_assigned_net(nets: &[&Net], part_id: &str, pad_ids: &[String]) -> Opti
         .flatten()
 }
 
-// Ergogen catalogue source IDs are serialized as definition IDs. The full package-defined
-// source classification remains owned by the Parts/generator slices.
-fn is_ergogen_definition(definition: &PartDefinition) -> bool {
-    definition.id.starts_with("ergogen:")
-}
-
 struct GenericPartWiringProps<'a> {
     props: &'a PcbWiringInspectorProps,
     source: &'a PcbWiringSource,
@@ -525,6 +542,7 @@ struct GenericPartWiringProps<'a> {
     assigned_pins: usize,
     connections: &'a [ConnectionRow],
     nets: &'a [NetChoice],
+    standalone_pads_allowed: bool,
     new_net_name: Signal<String>,
 }
 
@@ -539,6 +557,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
         assigned_pins,
         connections,
         nets,
+        standalone_pads_allowed,
         mut new_net_name,
     } = input;
     let actions = props.part_net_actions.clone();
@@ -583,7 +602,9 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 if connections.is_empty() {
                     p { class: "m1-pcb-wiring-empty", "This part has no assignable terminals or pads." }
                 } else {
-                    for row in connections {
+                    for row in connections.iter().filter(|row| {
+                        !row.standalone_pad || standalone_pads_allowed
+                    }) {
                         {
                             let on_edit = actions.on_edit;
                             let identity = actions.identity.clone();

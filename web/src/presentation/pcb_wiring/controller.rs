@@ -352,8 +352,6 @@ pub(in crate::presentation) fn use_pcb_part_net_edits(
 
     let on_edit = use_callback({
         let runtime = runtime.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
         let instance_is_current = instance_is_current.clone();
         move |request: PartNetEditRequest| {
             if pending.peek().is_some()
@@ -394,48 +392,136 @@ pub(in crate::presentation) fn use_pcb_part_net_edits(
             {
                 return;
             }
-            let operation_id = runtime.operation();
-            let intent = match request.action {
-                PartNetEditAction::AssignPads { pad_ids, net_id } => {
-                    PartNetIntent::AssignPads { pad_ids, net_id }
-                }
-                PartNetEditAction::CreateNet { name } => PartNetIntent::CreateNet {
-                    net_id: fresh_net_id(&accepted.document, operation_id.0),
-                    name,
-                },
-            };
-            let proposal = match part_connections::propose(
-                &accepted.document,
-                &request.identity.board_id,
-                &request.identity.part_id,
-                intent,
-            ) {
-                Ok(proposal) => proposal,
-                Err(_) => return,
-            };
-            if proposal == *accepted.document {
+            let Some(part) = accepted
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == request.identity.part_id)
+            else {
                 return;
-            }
-            let outcome = runtime.observe_operation(operation_id);
-            let base_revision = accepted.document.revision;
-            pending.set(Some(PendingPartNetEdit {
-                identity: request.identity.clone(),
-                proposal: proposal.clone(),
-                base_revision,
-                outcome,
-            }));
-            feedback.set(None);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision,
-                    transaction_id: format!("pcb-part-net-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![request.identity.board_id, request.identity.part_id],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(proposal),
+            };
+            let Some(definition) = accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+            else {
+                return;
+            };
+            let source = definition
+                .generator
+                .as_ref()
+                .map(|generator| generator.source.clone());
+            let captured_document = (*accepted.document).clone();
+            let runtime = runtime.clone();
+            let mut pending = pending;
+            let mut feedback = feedback;
+            let instance_is_current = instance_is_current.clone();
+            let generation = request.identity.generation;
+            let workspace = workspace();
+            spawn_local(async move {
+                let is_ergogen_source = match source.as_deref() {
+                    Some(source) => {
+                        match crate::presentation::parts::is_ergogen_source(source.to_owned()).await
+                        {
+                            Ok(is_ergogen_source) => is_ergogen_source,
+                            Err(_) => return,
+                        }
+                    }
+                    None => false,
+                };
+                let Some(current_identity) =
+                    current_part_net_identity(&runtime, generation, instance_is_current())
+                else {
+                    return;
+                };
+                if workspace != "PCB"
+                    || scope_generation() != generation
+                    || pending.peek().is_some()
+                    || !request_matches_current_part(&request.identity, &current_identity)
+                {
+                    return;
+                }
+                let model = runtime.model();
+                let Some(accepted) = model.accepted.as_ref() else {
+                    return;
+                };
+                if model.lifecycle != Lifecycle::Ready
+                    || model.display_preview.is_some()
+                    || model.gesture.is_some()
+                    || !matches!(model.durability, Durability::Saved { .. })
+                    || model.active_board_id != request.identity.ui_scope.board_id
+                    || model.active_instance_id != request.identity.ui_scope.instance_id
+                    || model.selected_part_ids.as_slice() != [request.identity.part_id.as_str()]
+                    || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
+                    || accepted.token != request.identity.token
+                    || accepted.document.revision != request.identity.revision
+                    || *accepted.document != captured_document
+                {
+                    return;
+                }
+                let Some(part) = accepted
+                    .document
+                    .parts
+                    .iter()
+                    .find(|part| part.id == request.identity.part_id)
+                else {
+                    return;
+                };
+                let current_source = accepted
+                    .document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == part.definition_id)
+                    .and_then(|definition| definition.generator.as_ref())
+                    .map(|generator| generator.source.as_str());
+                if current_source != source.as_deref() {
+                    return;
+                }
+                let operation_id = runtime.operation();
+                let intent = match request.action {
+                    PartNetEditAction::AssignPads { pad_ids, net_id } => {
+                        PartNetIntent::AssignPads { pad_ids, net_id }
+                    }
+                    PartNetEditAction::CreateNet { name } => PartNetIntent::CreateNet {
+                        net_id: fresh_net_id(&accepted.document, operation_id.0),
+                        name,
                     },
-                },
+                };
+                let proposal = match part_connections::propose(
+                    &accepted.document,
+                    &request.identity.board_id,
+                    &request.identity.part_id,
+                    is_ergogen_source,
+                    intent,
+                ) {
+                    Ok(proposal) => proposal,
+                    Err(_) => return,
+                };
+                if proposal == *accepted.document {
+                    return;
+                }
+                let outcome = runtime.observe_operation(operation_id);
+                let base_revision = accepted.document.revision;
+                pending.set(Some(PendingPartNetEdit {
+                    identity: request.identity.clone(),
+                    proposal: proposal.clone(),
+                    base_revision,
+                    outcome,
+                }));
+                feedback.set(None);
+                runtime.submit(Event::Edit {
+                    operation_id,
+                    command: EditCommand {
+                        base_revision,
+                        transaction_id: format!("pcb-part-net-{}", operation_id.0),
+                        phase: EditPhase::Commit,
+                        target_ids: vec![request.identity.board_id, request.identity.part_id],
+                        operation: EditOperation::ReplaceDocument {
+                            document: Box::new(proposal),
+                        },
+                    },
+                });
             });
         }
     });
