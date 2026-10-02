@@ -9,6 +9,10 @@ use web_sys::{Document, HtmlElement, MediaQueryList, Node, PointerEvent};
 
 mod policy;
 
+type OutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(PointerEvent)>)>>>;
+type MediaChangeListener =
+    Rc<RefCell<Option<(MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>>>;
+
 pub(super) fn use_panel_settings(side: PanelSide) -> Signal<PanelSettings> {
     let settings = use_signal(|| read_settings(side));
     use_effect(use_reactive((&settings(),), {
@@ -82,11 +86,7 @@ fn panel_frame(
     let hovered = use_signal(|| false);
     let focus_rail_after_render = use_signal(|| false);
     let hide_timer = use_hook(|| Rc::new(RefCell::new(None::<Timeout>)));
-    let outside_listener = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<(Document, Closure<dyn FnMut(PointerEvent)>)>,
-        ))
-    });
+    let outside_listener = use_hook(OutsideListener::default);
 
     let ids = PanelIds::for_side(side);
     let current = settings();
@@ -349,13 +349,8 @@ impl PanelSide {
 
 fn use_compact_viewport() -> Signal<bool> {
     let compact = use_signal(|| media_query().is_some_and(|query| query.matches()));
-    let listener = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<(MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>,
-        ))
-    });
+    let listener = use_hook(MediaChangeListener::default);
     use_effect({
-        let compact = compact;
         let listener = listener.clone();
         move || {
             if let Some(query) = media_query() {
@@ -470,9 +465,7 @@ fn focus_element(id: &str) {
     }
 }
 
-fn remove_outside_listener(
-    listener: &Rc<RefCell<Option<(Document, Closure<dyn FnMut(PointerEvent)>)>>>,
-) {
+fn remove_outside_listener(listener: &OutsideListener) {
     if let Some((document, callback)) = listener.borrow_mut().take() {
         let _ = document
             .remove_event_listener_with_callback("pointerdown", callback.as_ref().unchecked_ref());
