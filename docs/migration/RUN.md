@@ -1420,3 +1420,7 @@ Firmware-position source and its bounded browser packet are independently clear 
 ### 2026-10-02 resumed frontend wave
 
 Reviewed numeric Layout fields, firmware positions and the archive/model provider are integrated through9b700800; Align lifecycle fixes and the actual toolbar are integrated at14d1bfeb. Current full package build `frontend-layout-align-wave-20261002` is running from that source. The served34720 package still namesbd671ae8 until a new verified package is served. Root subpath smoke opened Sofle Layout/Keycaps/Keymap without browser errors; edit/Undo/reopen, offline and parent acceptance remain open. Top-level machine status was reconciled with this distinction. Six workbench queues and all62 parent criteria remain; architectural takeaways are preserved in the source-wave reconciliation handoff.
+
+### Reviewed wave demo now served
+
+`frontend-layout-align-wave-20261002` completed22/22 commands from14d1bfeb, with1255 source hashes and145 assets in each root/subpath package verified without mismatches. Served athttp://127.0.0.1:34721/. Root opened Sofle, expanded/selected its matrix and observed real numeric Matrix/Position Inspector controls and mounted Select/Snap/Align toolbar. This is smoke evidence; same-fixture Align journeys are running independently. Release page reports unused RSX key-variable warnings; exact owner-key behavior is queued for audit rather than suppressed. New17 repaired source clears both independent axes, real owner joins/browser still pending.

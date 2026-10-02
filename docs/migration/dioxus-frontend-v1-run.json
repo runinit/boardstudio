@@ -97,17 +97,24 @@
         "align_join": "10 mounted lifecycle tests, strict WASM all-targets, WASM page binary, fmt/diff passed at14d1bfeb"
       },
       "build": {
-        "current_served": "frontend-keycaps-integrated-20261002",
-        "source_commit": "bd671ae8db8897388d26ebf973380c69efb9bffd",
-        "commands": 18,
-        "verified_source_hashes": 994,
-        "url": "http://127.0.0.1:34720/",
-        "subpath": "http://127.0.0.1:34720/boardstudio/"
+        "id": "frontend-layout-align-wave-20261002",
+        "source_commit": "14d1bfeb5228c7a82f3be7ac7fa322ea61b30b02",
+        "url": "http://127.0.0.1:34721/",
+        "subpath": "http://127.0.0.1:34721/boardstudio/",
+        "commands": 22,
+        "source_hashes": 1255,
+        "source_mismatches": 0,
+        "assets_per_site": {
+          "root": 145,
+          "subpath": 145
+        },
+        "scope": "Source/asset-verified build, public smoke and paired Align author journey in progress; no parent acceptance.",
+        "warnings": "Release page emitted unused RSX key variables; exact release identity behavior under independent audit; do not conflate debug strict Clippy with release warning-free qualification."
       },
       "next_build": {
         "id": "frontend-layout-align-wave-20261002",
         "source_commit": "14d1bfeb5228c7a82f3be7ac7fa322ea61b30b02",
-        "status": "running; acceptance pending"
+        "status": "complete; served; paired acceptance in progress"
       },
       "paired_browser_acceptance": "Only source-specific bounded receipts apply. Root current served subpath smoke passed Layout/Keycaps/Keymap opening without browser errors. Numeric/Align and integrated provider public journeys remain pending; no parent closed."
     },
@@ -144,25 +151,31 @@
         "acceptance": "Source integration only. Full browser workbench parity remains open."
       },
       "current_build": {
-        "id": "frontend-keycaps-integrated-20261002",
-        "source_commit": "bd671ae8db8897388d26ebf973380c69efb9bffd",
-        "url": "http://127.0.0.1:34720/",
-        "commands": 18,
-        "source_hashes": 994,
+        "id": "frontend-layout-align-wave-20261002",
+        "source_commit": "14d1bfeb5228c7a82f3be7ac7fa322ea61b30b02",
+        "url": "http://127.0.0.1:34721/",
+        "subpath": "http://127.0.0.1:34721/boardstudio/",
+        "commands": 22,
+        "source_hashes": 1255,
         "source_mismatches": 0,
-        "scope": "Paired Keycaps clean/populated findings display only; broader frontend acceptance remains open."
+        "assets_per_site": {
+          "root": 145,
+          "subpath": 145
+        },
+        "scope": "Source/asset-verified build, public smoke and paired Align author journey in progress; no parent acceptance.",
+        "warnings": "Release page emitted unused RSX key variables; exact release identity behavior under independent audit; do not conflate debug strict Clippy with release warning-free qualification."
       },
       "next_build": {
         "id": "frontend-layout-align-wave-20261002",
         "source_commit": "14d1bfeb5228c7a82f3be7ac7fa322ea61b30b02",
-        "status": "running; acceptance pending"
+        "status": "complete; served; paired acceptance in progress"
       }
     }
   },
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "Build current reviewed UI wave, perform paired TypeScript/Dioxus journeys, integrate reviewed contextual workbench slices, and continuously refine ready child tickets with architectural takeaways.",
+  "current_milestone": "Verify served14d1bfeb Align/numeric/F6/provider wave at34721 and integrate reviewed contextual UI successors. Six streams and all62 parents remain open.",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
@@ -300,7 +313,7 @@
   "production_cutover": false,
   "executable_source": "6509f557c2a16df0a1f5ce19296eeb635df68256",
   "build": "frontend-keymap-bindings-20261002",
-  "demo_url": "http://127.0.0.1:34673/",
+  "demo_url": "http://127.0.0.1:34721/",
   "handoff": ".scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/README.md",
   "planning_revision": "2026-10-02",
   "planning_baseline": "c827c4e69389a77b1f0e8d647ce86a4c41529611",
@@ -392,13 +405,19 @@
   "bounded_ticket_count": 44,
   "non_superseded_bounded_ticket_count": 43,
   "latest_demo": {
-    "build": "frontend-keymap-bindings-20261002",
-    "source": "6509f557c2a16df0a1f5ce19296eeb635df68256",
-    "root": "http://127.0.0.1:34673/",
-    "subpath": "http://127.0.0.1:34673/boardstudio/",
-    "status": "Seven packaging commands and 961 source hashes pass; the focused public packet is complete. The programmatic driver-select red is retired because React reproduces the same event ordering. Native Tab during blur-save reveals a candidate focus-continuity difference (BODY vs React Hold); after-idle native selection preserves and saves both Tap and Hold. This is not data loss or acceptance. Full F6 legacy/malformed/stale-race, broad semantic and actual AT gates remain open.",
-    "build_evidence": ".scratch/dioxus-keymap-layers/evidence/public-binding-editor/provenance.json",
-    "interaction_diagnosis": ".scratch/dioxus-keymap-layers/evidence/public-binding-editor/sibling-diagnosis/README.md"
+    "id": "frontend-layout-align-wave-20261002",
+    "source_commit": "14d1bfeb5228c7a82f3be7ac7fa322ea61b30b02",
+    "url": "http://127.0.0.1:34721/",
+    "subpath": "http://127.0.0.1:34721/boardstudio/",
+    "commands": 22,
+    "source_hashes": 1255,
+    "source_mismatches": 0,
+    "assets_per_site": {
+      "root": 145,
+      "subpath": 145
+    },
+    "scope": "Source/asset-verified build, public smoke and paired Align author journey in progress; no parent acceptance.",
+    "warnings": "Release page emitted unused RSX key variables; exact release identity behavior under independent audit; do not conflate debug strict Clippy with release warning-free qualification."
   },
   "mechanical_clearance_ticket": {
     "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
