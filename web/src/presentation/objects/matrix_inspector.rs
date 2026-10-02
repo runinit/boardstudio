@@ -114,6 +114,8 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
     let columns_key = owner_key(&projection.owner, MatrixEditField::Columns);
     let pitch_x_key = owner_key(&projection.owner, MatrixEditField::PitchX);
     let pitch_y_key = owner_key(&projection.owner, MatrixEditField::PitchY);
+    // Each field needs its own template root: nested component keys do not
+    // create an identity boundary in Dioxus static templates.
     rsx! {
         section { class: "m1-matrix-inspector", aria_label: "Matrix inspector",
             header { class: "m1-matrix-inspector-heading",
@@ -121,6 +123,7 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                 span { "{projection.matrix_label}" }
             }
             div { class: "m1-matrix-inspector-fields",
+                {rsx! {
                 MatrixFieldEditor {
                     key: "{name_key}",
                     owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
@@ -130,6 +133,8 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
                     feedback: name_feedback, on_edit: props.on_edit,
                 }
+                }}
+                {rsx! {
                 MatrixFieldEditor {
                     key: "{rows_key}",
                     owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
@@ -139,6 +144,8 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
                     feedback: rows_feedback, on_edit: props.on_edit,
                 }
+                }}
+                {rsx! {
                 MatrixFieldEditor {
                     key: "{columns_key}",
                     owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
@@ -148,6 +155,8 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
                     feedback: columns_feedback, on_edit: props.on_edit,
                 }
+                }}
+                {rsx! {
                 MatrixFieldEditor {
                     key: "{pitch_x_key}",
                     owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
@@ -157,6 +166,8 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
                     feedback: pitch_x_feedback, on_edit: props.on_edit,
                 }
+                }}
+                {rsx! {
                 MatrixFieldEditor {
                     key: "{pitch_y_key}",
                     owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
@@ -166,6 +177,7 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                     request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
                     feedback: pitch_y_feedback, on_edit: props.on_edit,
                 }
+                }}
             }
             if props.busy {
                 p { class: "m1-matrix-edit-status", role: "status", "Saving matrix change…" }

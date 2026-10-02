@@ -1,0 +1,27 @@
+
+running 4 tests
+test presentation::unrelated_revision_keeps_the_same_owners_uncommitted_draft ... ok
+test presentation::layout_name_target_switch_resets_the_name_draft ... FAILED
+test presentation::dirty_fields_do_not_follow_an_equal_baseline_to_another_matrix ... FAILED
+test presentation::same_owner_pending_and_saved_feedback_settle_the_actual_field ... ok
+
+failures:
+
+---- presentation::layout_name_target_switch_resets_the_name_draft stdout ----
+
+thread 'presentation::layout_name_target_switch_resets_the_name_draft' (2573294) panicked at tests/matrix_field_lifecycle/harness.rs:245:5:
+assertion failed: probe.requests.borrow().is_empty()
+
+---- presentation::dirty_fields_do_not_follow_an_equal_baseline_to_another_matrix stdout ----
+
+thread 'presentation::dirty_fields_do_not_follow_an_equal_baseline_to_another_matrix' (2573293) panicked at tests/matrix_field_lifecycle/harness.rs:198:9:
+A's dirty Matrix name must not submit to B: [MatrixEditRequest { owner: MatrixInspectorOwner { editor_instance_id: 1, context_generation: 1, scope_generation: 1, scope: Scope { session_epoch: SessionEpoch(1), document_id: "project", board_id: "board", instance_id: None }, matrix_id: "B", name_target: Matrix }, request_id: 1, snapshot_token: SnapshotToken(1), revision: 1, field: Name, baseline: Name(Some("Same")), value: Name(Some("Draft A")) }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    presentation::dirty_fields_do_not_follow_an_equal_baseline_to_another_matrix
+    presentation::layout_name_target_switch_resets_the_name_draft
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
