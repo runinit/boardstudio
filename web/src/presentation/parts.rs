@@ -4,7 +4,7 @@ mod details;
 
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::ProjectDoc;
-use catalogue::{CatalogEntry, group_choices, preferred_label};
+use catalogue::{CatalogEntry, catalogue_choices, group_choices, preferred_label};
 use details::SelectedDefinition;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -77,10 +77,7 @@ pub(super) fn PartsWorkspace(snapshot: AcceptedSnapshot, scope: Option<Scope>) -
         };
     };
     let choices = group_choices(&entries);
-    let listed_entries = choices
-        .iter()
-        .flat_map(|group| group.entries.iter().copied())
-        .collect::<Vec<_>>();
+    let listed_entries = catalogue_choices(&entries);
     let search = query().trim().to_lowercase();
     let groups = choices
         .iter()
@@ -109,13 +106,16 @@ pub(super) fn PartsWorkspace(snapshot: AcceptedSnapshot, scope: Option<Scope>) -
                 listed_entries
                     .iter()
                     .find(|entry| entry.definition.id == "ergogen:ceoloide/switch_mx")
-                    .map(|entry| entry.definition.id.clone())
             } else {
+                None
+            }
+            .or_else(|| {
                 listed_entries
                     .iter()
-                    .find(|entry| entry.matches(&search, entry.category_label()))
-                    .map(|entry| entry.definition.id.clone())
-            }
+                    .find(|entry| entry.matches_library_search(&search))
+            })
+            .or_else(|| listed_entries.first())
+            .map(|entry| entry.definition.id.clone())
         });
     let selected_entry = selected_id
         .as_deref()

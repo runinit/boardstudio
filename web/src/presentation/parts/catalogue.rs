@@ -41,26 +41,30 @@ enum CatalogKind {
 }
 
 impl CatalogEntry {
-    pub fn category_label(&self) -> &'static str {
-        category_label(&self.definition.kind)
+    pub fn matches_library_search(&self, query: &str) -> bool {
+        query.is_empty() || self.library_search_text().to_lowercase().contains(query)
     }
 
     pub fn matches(&self, query: &str, category_label: &'static str) -> bool {
         query.is_empty()
-            || format!(
-                "{} {} {} {} {}",
-                preferred_label(&self.definition),
-                self.definition.name,
-                kind_search_label(&self.definition.kind),
-                self.definition
-                    .generator
-                    .as_ref()
-                    .map(|generator| generator.source.as_str())
-                    .unwrap_or_default(),
-                search_aliases(&self.definition, category_label),
-            )
-            .to_lowercase()
-            .contains(query)
+            || format!("{} {category_label}", self.library_search_text())
+                .to_lowercase()
+                .contains(query)
+    }
+
+    fn library_search_text(&self) -> String {
+        format!(
+            "{} {} {} {} {}",
+            preferred_label(&self.definition),
+            self.definition.name,
+            kind_search_label(&self.definition.kind),
+            self.definition
+                .generator
+                .as_ref()
+                .map(|generator| generator.source.as_str())
+                .unwrap_or_default(),
+            search_aliases(&self.definition),
+        )
     }
 }
 
@@ -183,6 +187,13 @@ pub(super) fn merge_project_overrides(
     entries
 }
 
+pub(super) fn catalogue_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
+    entries
+        .iter()
+        .filter(|entry| is_catalogue_choice(entry))
+        .collect()
+}
+
 pub(super) fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
     let groups = [
         ("Switches", CatalogKind::Switch),
@@ -196,9 +207,8 @@ pub(super) fn group_choices(entries: &[CatalogEntry]) -> Vec<CatalogGroup<'_>> {
     groups
         .into_iter()
         .filter_map(|(label, kind)| {
-            let entries = entries
-                .iter()
-                .filter(|entry| is_catalogue_choice(entry))
+            let entries = catalogue_choices(entries)
+                .into_iter()
                 .filter(|entry| catalog_kind(&entry.definition.kind) == kind)
                 .collect::<Vec<_>>();
             (!entries.is_empty()).then_some(CatalogGroup { label, entries })
@@ -271,13 +281,23 @@ fn construction_definition(
             .insert("solder".into(), serde_json::Value::Bool(true));
     }
 
-    let definition = serde_wasm_bindgen::to_value(&definition)
+    // Generator code spreads `generator.parameters` as a plain JS object. The
+    // default serde-wasm-bindgen Map representation is not compatible with it.
+    let definition = json_plain_value(&definition)
         .map_err(|error| format!("Could not prepare {source} for construction: {error}"))?;
     let normalized = function(module, "normalizeDefinition")?
         .call1(module, &definition)
         .map_err(js_error)?;
     serde_wasm_bindgen::from_value(normalized)
         .map_err(|error| format!("Could not decode normalized {source} definition: {error}"))
+}
+
+fn json_text<T: serde::Serialize>(value: &T) -> Result<String, String> {
+    serde_json::to_string(value).map_err(|error| error.to_string())
+}
+
+fn json_plain_value<T: serde::Serialize>(value: &T) -> Result<JsValue, String> {
+    js_sys::JSON::parse(&json_text(value)?).map_err(js_error)
 }
 
 fn function(module: &JsValue, name: &str) -> Result<js_sys::Function, String> {
@@ -327,11 +347,11 @@ fn category_label(kind: &PartKind) -> &'static str {
     }
 }
 
-fn search_aliases(definition: &PartDefinition, category_label: &'static str) -> &'static str {
+fn search_aliases(definition: &PartDefinition) -> &'static str {
     match definition.id.as_str() {
         "ergogen:ceoloide/led_sk6812mini-e" => "RGB LED reverse mount",
         _ if matches!(&definition.kind, PartKind::Switch) => "solder hotswap",
-        _ => category_label,
+        _ => "",
     }
 }
 
@@ -348,10 +368,20 @@ fn is_assembly_snapshot(definition: &PartDefinition) -> bool {
     if definition.kicad_source.is_some() {
         return false;
     }
-    let Some((prefix, _)) = definition.id.split_once("/definition/") else {
+    let Some((prefix, tail)) = definition.id.split_once('/') else {
         return false;
     };
-    (prefix.starts_with("assembly-") && prefix.len() > "assembly-".len()) || is_uuid(prefix)
+    let Some((marker, _)) = tail.split_once('/') else {
+        return false;
+    };
+    if !marker.eq_ignore_ascii_case("definition") {
+        return false;
+    }
+    (prefix
+        .get(.."assembly-".len())
+        .is_some_and(|start| start.eq_ignore_ascii_case("assembly-"))
+        && prefix.len() > "assembly-".len())
+        || is_uuid(prefix)
 }
 
 fn is_uuid(value: &str) -> bool {
@@ -415,6 +445,51 @@ mod tests {
     }
 
     #[test]
+    fn category_remains_searchable_alongside_special_search_aliases() {
+        let mut led = imported_definitions().remove(0);
+        led.id = "ergogen:ceoloide/led_sk6812mini-e".into();
+        led.kind = PartKind::Passive;
+        let entry = CatalogEntry {
+            definition: led,
+            source: CatalogueSource::Ergogen,
+        };
+        assert!(entry.matches("passives & leds", "Passives & LEDs"));
+        assert!(!entry.matches_library_search("passives & leds"));
+        assert!(entry.matches("rgb led reverse mount", "Passives & LEDs"));
+        assert!(entry.matches_library_search("rgb led reverse mount"));
+
+        let mut switch = entry.definition.clone();
+        switch.id = "ergogen:ceoloide/switch_mx".into();
+        switch.kind = PartKind::Switch;
+        let entry = CatalogEntry {
+            definition: switch,
+            source: CatalogueSource::Ergogen,
+        };
+        assert!(entry.matches("switches", "Switches"));
+        assert!(!entry.matches_library_search("switches"));
+        assert!(entry.matches("solder hotswap", "Switches"));
+        assert!(entry.matches_library_search("solder hotswap"));
+    }
+
+    #[test]
+    fn typed_generator_parameters_serialize_as_plain_json_objects() {
+        let mut definition = imported_definitions().remove(0);
+        let mut parameters = std::collections::BTreeMap::new();
+        parameters.insert("reversible".into(), serde_json::Value::Bool(true));
+        parameters.insert("hotswap".into(), serde_json::Value::Bool(false));
+        definition.generator = Some(boardstudio_core::model::PartGenerator {
+            source: "ceoloide/switch_gateron_ks27_ks33".into(),
+            version: "test".into(),
+            parameters,
+        });
+        let json = json_text(&definition).expect("serialize typed definition");
+        let json: serde_json::Value = serde_json::from_str(&json).expect("definition JSON");
+        assert!(json["generator"]["parameters"].is_object());
+        assert_eq!(json["generator"]["parameters"]["reversible"], true);
+        assert_eq!(json["generator"]["parameters"]["hotswap"], false);
+    }
+
+    #[test]
     fn catalog_hides_retired_generator_and_unassigned_assembly_snapshots() {
         let mut definitions = imported_definitions();
         let mut snapshot = definitions[0].clone();
@@ -422,6 +497,17 @@ mod tests {
         snapshot.kicad_source = None;
         snapshot.generator = None;
         definitions.push(snapshot);
+        let mut uppercase_snapshot = definitions[0].clone();
+        uppercase_snapshot.id = "ASSEMBLY-x/DEFINITION/switch".into();
+        uppercase_snapshot.kicad_source = None;
+        uppercase_snapshot.generator = None;
+        definitions.push(uppercase_snapshot);
+        let mut uppercase_uuid_snapshot = definitions[0].clone();
+        uppercase_uuid_snapshot.id =
+            "A1B2C3D4-E5F6-A1B2-C3D4-E5F6A1B2C3D4/DEFINITION/switch".into();
+        uppercase_uuid_snapshot.kicad_source = None;
+        uppercase_uuid_snapshot.generator = None;
+        definitions.push(uppercase_uuid_snapshot);
         let mut retired = definitions[0].clone();
         retired.id = "legacy-nice-nano".into();
         retired.generator = Some(boardstudio_core::model::PartGenerator {
@@ -439,15 +525,29 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let choices = group_choices(&entries);
+        let visible = choices
+            .iter()
+            .flat_map(|group| &group.entries)
+            .map(|entry| entry.definition.id.as_str())
+            .collect::<Vec<_>>();
+        assert!(!visible.iter().any(|id| {
+            matches!(
+                *id,
+                "assembly-preset-mx-rgb-south-matrix-0/definition/switch"
+                    | "ASSEMBLY-x/DEFINITION/switch"
+                    | "A1B2C3D4-E5F6-A1B2-C3D4-E5F6A1B2C3D4/DEFINITION/switch"
+            )
+        }));
         assert!(
             choices
                 .iter()
                 .flat_map(|group| &group.entries)
                 .all(|entry| {
-                    !entry.definition.id.contains("/definition/")
-                        && entry.definition.generator.as_ref().is_none_or(|generator| {
-                            generator.source != "infused-kim/nice_nano_pretty"
-                        })
+                    entry
+                        .definition
+                        .generator
+                        .as_ref()
+                        .is_none_or(|generator| generator.source != "infused-kim/nice_nano_pretty")
                 })
         );
     }
