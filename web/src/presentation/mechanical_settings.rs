@@ -176,6 +176,9 @@ pub(crate) struct MechanicalSettingsFeedback {
 #[derive(Props, Clone, PartialEq)]
 pub(crate) struct MechanicalSettingsProps {
     pub(crate) identity: MechanicalSettingsIdentity,
+    /// Editor-lifetime sequence shared with the page owner, so an unmount/remount cannot reuse
+    /// request IDs while retaining the same editor identity.
+    pub(crate) request_sequence: Signal<u64>,
     pub(crate) values: Option<MechanicalSettingsValues>,
     pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
     pub(crate) layers: Rc<[MechanicalLayerRow]>,
@@ -195,7 +198,7 @@ pub(crate) struct MechanicalSettingsProps {
 
 #[component]
 pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
-    let mut request_sequence = use_signal(|| 0_u64);
+    let request_sequence = props.request_sequence;
     let identity = &props.identity;
     let configuration_matches = props
         .values
@@ -639,6 +642,19 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         move |(feedback_entries, accepted)| {
             if *previous_accepted.read() != accepted {
                 previous_accepted.set(accepted);
+                let waiting = submitted_copy.read().as_ref().is_some_and(|request| {
+                    feedback_entries.iter().any(|feedback| {
+                        feedback.identity == request.identity
+                            && feedback.request_id == request.request_id
+                            && feedback.field_id == request.field_id
+                            && feedback.state == MechanicalSettingsFeedbackState::Pending
+                    })
+                });
+                if waiting {
+                    // The accepted token can advance before persistence settles. Keep this
+                    // field's submitted draft until its exact request receives Saved or Failed.
+                    return;
+                }
                 draft_for_ack.set(accepted.to_string());
                 dirty_for_ack.set(false);
                 error_for_ack.set(None);
