@@ -119,8 +119,8 @@
       },
       "layout": "Exact reviewed issue07 Transform and issue08 Align now implementing in parallel isolated branches; issue09 command-pill integration follows working controls. Pointer-tools and parent acceptance open.",
       "pcb": "Ticket05 corrected tested prerequisite integrated83700272; ticket06 production activation+Case inspector controls implementing; guided Project placement waits on missing guide capability.",
-      "keymap": "Corrected F5.2b source integrated83700272, with numeric notification subscription, feedback identity, Element slot and real Session/Core tests; F6K.4b mounted UI/browser implementing.",
-      "keycaps": "Final13533 source independently cleared and integrated236faebf;54 native tests and WASM all-targets strict pass.4d activation evidence bounded; final paired browser journey open.",
+      "keymap": "F6K.4b source32dd07c0/evidencee4366bdb independently clear and integrateddd79af5b; paired SW1edit/history/reopen/delay/failure recovery bounded green. Auxiliary bindings, coexistence/switching/theme/compact and parent joins open.",
+      "keycaps": "Integratedbd671ae8 candidate34720 shows exact same-project clean0/Cherry24findings matchingReact. Wrong-project prior4d activation claim withdrawn and preserved. Boarddefault/matrixprofile children reviewed and implementing; fullhistory/delay/editacceptanceopen.",
       "case": "Producer2bf source review found lease publication, worker JS object serialization and missing decoded-model delivery blockers; Astra repair active. Consumer prerequisite unproven; independent contextual UI inventory continues.",
       "parts_project": "Provider/archive3039423b and build packagingfc5d1929/8587da86 frozen for source review; New17 guide/document implementation active with PCB06 slot join.",
       "source_reviews": {
@@ -128,15 +128,24 @@
         "standards": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md"
       },
       "source_integration": {
-        "commit": "236faebfdcca880c294e86c953ad108f8f16ddbd",
+        "commit": "dd79af5ba6bc2af304c1412b29e62f2de8b3f8a8",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/integration-report.md",
         "checks": {
-          "native_page_tests": "54 passed at integrated Keycaps wave",
+          "native_page_tests": "55 passed at integrated F6 wave",
           "strict_wasm_clippy": "True all-targets -D warnings passed after test-only repaira02dac; prior837 strict command did not include all-targets",
           "formatting": "cargo fmt --check and git diff --check passed",
           "source_equivalence": "Reviewed PCB/F5 and four Keycaps feature commits integrated; exact Keycaps blobs verified"
         },
         "acceptance": "Source integration only. PCB06 must activate test-scoped proposal path in production; F6 mounted asynchronous and full paired browser gates remain open."
+      },
+      "current_build": {
+        "id": "frontend-keycaps-integrated-20261002",
+        "source_commit": "bd671ae8db8897388d26ebf973380c69efb9bffd",
+        "url": "http://127.0.0.1:34720/",
+        "commands": 18,
+        "source_hashes": 994,
+        "source_mismatches": 0,
+        "scope": "Paired Keycaps clean/populated findings display only; broader frontend acceptance remains open."
       }
     }
   },
