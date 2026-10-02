@@ -487,7 +487,25 @@ fn placements(
             });
         }
     }
+    order_placements_by_document_parts(&document.parts, &mut result);
     result
+}
+
+fn order_placements_by_document_parts(
+    parts: &[boardstudio_core::model::Part],
+    placements: &mut [KeycapPlacement],
+) {
+    let order: std::collections::HashMap<_, _> = parts
+        .iter()
+        .enumerate()
+        .map(|(index, part)| (part.id.as_str(), index))
+        .collect();
+    placements.sort_by_key(|placement| {
+        order
+            .get(placement.id.as_str())
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
 }
 
 fn quarter(value: f64) -> f64 {

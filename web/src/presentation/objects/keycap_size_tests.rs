@@ -7,6 +7,7 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Event, HtmlInputElement, KeyboardEvent};
+use boardstudio_core::model::{Part, Side};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -274,4 +275,51 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
         "feedback from the displayed owner must remain visible"
     );
     root.remove();
+}
+
+#[wasm_bindgen_test]
+fn mixed_size_draft_uses_react_visible_document_part_order() {
+    let make_part = |id: &str| Part {
+        keycap: None,
+        outline: None,
+        id: id.into(),
+        definition_id: "switch".into(),
+        reference: id.into(),
+        pose: boardstudio_core::model::Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: None,
+        properties: None,
+        generator_parameters: None,
+    };
+    let make_placement = |id: &str, width: f64, matrix_id: &str| KeycapPlacement {
+        id: id.into(),
+        matrix_id: matrix_id.into(),
+        row: 0,
+        column: 0,
+        at: Vec2 { x: 0.0, y: 0.0 },
+        rotation: 0.0,
+        size: Vec2 { x: width, y: 18.0 },
+    };
+    let document_parts = vec![make_part("part-a"), make_part("part-b")];
+    // Matrix traversal is deliberately opposite to the TypeScript visibleParts order.
+    let mut accepted_placements = vec![
+        make_placement("part-b", 18.0, "matrix-b"),
+        make_placement("part-a", 37.0, "matrix-a"),
+    ];
+
+    super::order_placements_by_document_parts(&document_parts, &mut accepted_placements);
+
+    let selected: BTreeSet<_> = ["part-a", "part-b"].into_iter().collect();
+    let selected_items: Vec<_> = accepted_placements
+        .iter()
+        .filter(|placement| selected.contains(placement.id.as_str()))
+        .collect();
+    let first = selected_items.first().expect("both selected caps are projected");
+    let first_units = ((first.size.x + 1.0) / 19.0 * 4.0).round() / 4.0;
+    assert_eq!(first.id, "part-a");
+    assert_eq!(first_units, 2.0, "Wide/Tall drafts from React's first item");
+    assert_eq!(selected_items.len(), 2);
 }
