@@ -122,6 +122,7 @@ pub(super) fn binding_schema(
 pub(super) struct PartInputInspectorProps {
     pub source: PcbWiringSource,
     pub actions: PartInputActions,
+    pub board_details_and_connections: Element,
 }
 
 #[component]
@@ -157,10 +158,6 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
         .clone()
         .filter(|feedback| feedback.identity == identity);
     let read_only = !props.actions.editable || projection.part.locked == Some(true);
-    let part_title = format!(
-        "{} · {}",
-        projection.part.reference, projection.definition.name
-    );
     let on_edit = props.actions.on_edit;
     let scan_mode = projection.press_mode;
     let matrix_enabled = projection.matrix_mode_enabled;
@@ -183,10 +180,6 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
 
     rsx! {
         section { class: "m1-pcb-wiring m1-pcb-part-input",
-            header { class: "m1-pcb-part-input-head",
-                h2 { "{part_title}" }
-                span { class: "m1-pcb-part-input-tag", "{projection.board_name} / PCB" }
-            }
             if let Some(scan_mode) = scan_mode {
                 details { class: "m1-pcb-wiring-section", open: true,
                     summary { "Press input" }
@@ -205,6 +198,7 @@ pub(super) fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                     p { class: "m1-pcb-part-input-note", "Rotation uses separate GPIOs. Apply the board wiring plan after changing the press connection." }
                 }
             }
+            {props.board_details_and_connections}
             match schema_state {
                 Some(Ok(schema)) => {
                     let terminals = projection.definition.terminals.keys().cloned().collect::<BTreeSet<_>>();

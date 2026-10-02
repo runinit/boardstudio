@@ -616,7 +616,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
             part_input_settings::PartInputInspector {
                 source: source.clone(),
                 actions: props.part_input_actions.clone(),
-            }
+                board_details_and_connections: rsx! {
             details { class: "m1-pcb-wiring-section",
                 summary { "Board details" }
                 ul {
@@ -665,6 +665,8 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                         }
                     }
                 }
+            }
+                },
             }
             form { class: "m1-pcb-wiring-assignment m1-pcb-new-net", onsubmit: add_net,
                 input {
