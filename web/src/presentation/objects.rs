@@ -4,6 +4,12 @@ use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
 mod tree;
+mod matrix_inspector;
+mod matrix_inspector_controller;
+pub(in crate::presentation) use matrix_inspector::MatrixInspector;
+pub(in crate::presentation) use matrix_inspector_controller::{
+    MatrixInspectorMount, use_matrix_inspector,
+};
 pub(in crate::presentation) use tree::TreeContext;
 use tree::{Grouping, TreeKind};
 

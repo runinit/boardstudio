@@ -18,6 +18,7 @@ pub(super) struct InspectorInput {
     pub(super) context_title: Option<String>,
     pub(super) context_detail: Option<String>,
     pub(super) show_position_inspector: bool,
+    pub(super) matrix_inspector: objects::MatrixInspectorMount,
 }
 
 pub(super) fn objects(input: SharedObjectsInput) -> Element {
@@ -64,5 +65,15 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             }
         }
         if input.show_position_inspector { super::inspector::Inspector {} }
+        if let Some(projection) = input.matrix_inspector.projection.clone() {
+            objects::MatrixInspector {
+                projection,
+                request_sequence: input.matrix_inspector.request_sequence,
+                editable: input.matrix_inspector.editable,
+                busy: input.matrix_inspector.busy,
+                feedback: input.matrix_inspector.feedback.clone(),
+                on_edit: input.matrix_inspector.on_edit,
+            }
+        }
     }
 }

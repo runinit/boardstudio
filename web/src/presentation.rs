@@ -666,6 +666,13 @@ fn Editor() -> Element {
         display: case_display,
     });
     let workspace = use_context::<WorkspaceState>().0;
+    let matrix_inspector = objects::use_matrix_inspector(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+    );
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
@@ -2191,6 +2198,7 @@ fn Editor() -> Element {
                     .as_ref()
                     .and_then(|summary| summary.detail.clone()),
                 show_position_inspector,
+                matrix_inspector,
             },
         ),
     };
