@@ -274,3 +274,6 @@ RF-002 gains the [tolerant discovery proposal](../../.scratch/dioxus-frontend-tr
 ### Cards and panel review handoff
 
 RF-001 gains a concrete immutable-ownership observation from the [cards/panels Standards review](../../.scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/cards-panels-standards.md): Library copied complete accepted and saved documents during Runtime repaints. The bounded correction retains shared `Arc<ProjectDoc>` snapshots and borrows the saved signal; strict WASM Clippy passes, independent review/browser verification remain pending. Repaint allocation cost is unmeasured and stays a post-port validation question. The two new panel regressions remain current correctness work, with no deferred-refactoring waiver.
+
+
+RF-009 gains the panel repair lesson: strict compilation did not establish browser boolean-attribute semantics or responsive cascade behavior. Actual DOM/accessibility and supported-viewport red/green checks caught inert="false" disabling visible controls and legacy fixed-grid overrides. Corrected source47cf655b and [evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json) retain the failures and fixes. Broader shared DOM attribute/cascade conformance assessment is a post-port proposal, not a new current gate.

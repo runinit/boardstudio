@@ -1,0 +1,18 @@
+{
+  "source_commit": "a3a0224f1b4e4694a431725016e6f0c72a1c6f6e",
+  "build": "frontend-panels-a3a0224f-20261002",
+  "status": "two source findings repaired; public green and timer defect open",
+  "checks": {
+    "strict_wasm_clippy": "passed -D warnings",
+    "fresh_build": "root/subpath page and offline completed"
+  },
+  "independent_reviews": [
+    "panels-first-repair-standards.md",
+    "panels-first-repair-spec.md"
+  ],
+  "repairs": [
+    "remove HTML inert attribute when interactive",
+    "preserve mode/width grid variables at narrow and short desktop"
+  ],
+  "retained_join": "unmasked actual auto-hide timer red followed by separate repair"
+}

@@ -14,7 +14,7 @@ Keep list_documents() and load_document() unchanged. Add one exported discovery 
 
 ```rust
 pub enum SavedDocumentEntry {
-    Document(ProjectDoc),
+    Document(Box<ProjectDoc>),
     PreviewUnavailable { id: String, name: Option<String> },
     IdentityUnavailable { name: Option<String> },
 }
@@ -28,7 +28,7 @@ impl BrowserStore {
 
 The third variant makes genuinely unusable identities explicit instead of fabricating IDs or silently dropping records. It is included in this approval request; if the owner prefers a different treatment, settle that exact behavior before code. A raw schema can contain a numeric IndexedDB key despite the normal ProjectDoc string-id format. The existing open_saved(String) cannot faithfully open an arbitrary numeric key; converting it to a string changes lookup meaning. Expanding open to arbitrary IDB keys is out of scope.
 
-Implementation stays beside list_documents and reuses the existing private list_values and database_name. One read-only list transaction and one linear pass, no per-card database loads. For each record: attempt current serde_wasm_bindgen typed decode; on success return Document without projecting geometry at the provider; on failure extract only id/name via safe string field access. A nonblank string id yields PreviewUnavailable. A missing/nonstring/empty unusable id yields IdentityUnavailable. Optional malformed name yields None; preserve a nonblank string's original whitespace and let private presentation apply the reference blank-name fallback. A field-access failure is a record classification, not a dropped row. Transaction/open/request errors still return PersistError for the whole list and drive Try again. Existing write/strict-open behavior is untouched. No arbitrary raw JS values or full malformed JSON escape the provider.
+Implementation stays beside list_documents and reuses the existing private list_values and database_name. One read-only list transaction and one linear pass, no per-card database loads. For each record: attempt current serde_wasm_bindgen typed decode; on success return Document without projecting geometry at the provider; on failure extract only id/name via safe string field access. Any string id yields PreviewUnavailable and is preserved exactly, including empty/whitespace strings because load_document(String) can address those IndexedDB keys. A missing/nonstring id yields IdentityUnavailable. Optional malformed name yields None; preserve a string's original whitespace and let private presentation apply the reference blank-name fallback. A field-access failure is a record classification, not a dropped row. Transaction/open/request errors still return PersistError for the whole list and drive Try again. Existing write/strict-open behavior is untouched. No arbitrary raw JS values or full malformed JSON escape the provider.
 
 Caller: Library handles Document with its pure thumbnail projection and name ordering, PreviewUnavailable with the existing Preview unavailable / Open to check this keyboard card and existing runtime.open_saved(id), and IdentityUnavailable as the same fallback presentation without an enabled open action (it has no supported project identity). Do not claim that last case matches a supported React open workflow; it is an explicit edge disposition in this proposal. Current-document dedup and stable list keys use usable IDs; unusable-identity entries need request-local stable positional keys only, not invented domain IDs.
 
@@ -46,3 +46,5 @@ This adds a Rust host-library public API consumed by the page binary. AUTHORITY/
 6. Native/WASM affected checks, public reference/candidate evidence and independent integrated review. Additive API proposal alone does not satisfy those gates.
 
 RF: extend RF-002 with BrowserStore/page-binary boundary and tolerant discovery example; preserve exact source evidence. No broad architecture redesign is requested.
+
+Concrete unapplied implementation: `unapplied-tolerant-listing.patch`, prepared against cb8203fc. Document is boxed to keep the public enum compact; no Clippy pass is claimed. Updated exact string-ID handling avoids inventing identity validation absent from existing load_document.

@@ -1,0 +1,16 @@
+{
+  "status": "unapproved-unapplied",
+  "baseline": "cb8203fc",
+  "files": {
+    "web/src/host/storage.rs": {
+      "before_sha256": "c691444b6a822ed6cea77e61a288a688fa759e4006959a464a9a071f0e228556",
+      "proposed_sha256": "19f0c10e9fef3e4d82770fc799a5411ab31d02f846bd00da63d85c0363e7679a"
+    },
+    "web/src/host/mod.rs": {
+      "before_sha256": "b9674cdc395dcae9fd7b94f703025409434903c27d87448f3303662cec19415f",
+      "proposed_sha256": "76c77bd90fb9437112a0c101c1a88e2c4b1e4657d2bdce91145e7ec0000b1b80"
+    }
+  },
+  "patch_sha256": "28fced8e56078ee2f5bae63b0760348e611c5553081cd917bba9012783d838da",
+  "builds_or_tests_run": false
+}

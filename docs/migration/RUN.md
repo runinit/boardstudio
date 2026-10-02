@@ -1119,3 +1119,10 @@ The tree hierarchy is committed in its worker at `33177652`; private shared sele
 
 
 Agents automatically published independently reviewed [Keycaps physical 2D](../../.scratch/dioxus-keycaps-projection/README.md) and [private keycap CAD bridge proof](../../.scratch/dioxus-keycap-cad-bridge/README.md) tickets. There are now 20 bounded tickets, refining the unchanged 62-parent graph. Dispatch still requires concrete private seams; publication does not imply implementation or parent acceptance. No new refactoring takeaway observed during this source/dependency review.
+
+
+### Desktop panel repairs verified
+
+Source `47cf655b` fixes the interactive-panel inert attribute, responsive grid overrides, and compact-to-desktop auto-hide timer. The [exact build, independent source reviews and public evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json) pass both red/green browser loops, independent panel modes and hover/focus, reload/workspace preference retention, malformed/unavailable optional storage, camera/revision neutrality, mounted long-content retention, themes/keyboard and axe (zero violations in tested states). Actual AT remains separately required; no AT pass or full F2.3 closure is claimed. The fresh editable candidate is [root](http://127.0.0.1:34651/) and [subpath](http://127.0.0.1:34651/boardstudio/).
+
+Tree integration `547b0762` is source-reviewed and strict WASM checks pass in its worker; merged public scope/gesture tests remain pending. Private Parts catalogue source is under review/correction. The exact tolerant-listing public API patch is reviewed but unapplied, with an explicit user decision pending; frontend work continues independently.

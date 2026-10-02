@@ -396,6 +396,14 @@
           "post_port_follow_up": "Keep per-action source/accounting and private boundary proofs alongside maintained conformance evidence.",
           "validation": "Dispatch concrete reviewed contracts and integrated public workflows before accepting each parent."
         }
+      ],
+      "handoff_evidence": [
+        {
+          "source": "47cf655b",
+          "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json",
+          "observation": "Actual browser semantics caught inert=false still disabling panel controls and old media declarations replacing variable tracks despite strict compile success; preserve red/green semantics and cascade proof.",
+          "confidence": "confirmed corrected browser defects; future shared-conformance proposal needs assessment"
+        }
       ]
     },
     {
