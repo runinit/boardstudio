@@ -4,8 +4,8 @@
 //! controlled view over the accepted document and emits stable part IDs only.
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{
-    KeyBinding, KeycapBoardSettings, KeycapKeySettings, Matrix, Part, PartDefinition, PartKind,
-    Pose2, ProjectDoc, Vec2,
+    KeyBinding, KeycapBoardSettings, KeycapKeySettings, Part, PartDefinition, PartKind, Pose2,
+    ProjectDoc, Vec2,
 };
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -467,7 +467,7 @@ mod tests {
     use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{
         Board, KeyBinding, KeycapConfiguration, KeycapKeySettings, KeymapConfiguration,
-        KeymapLayer, SceneDelta, Transform,
+        KeymapLayer, Matrix, SceneDelta, Transform,
     };
     use std::{collections::BTreeMap, sync::Arc};
 
