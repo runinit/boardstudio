@@ -11,7 +11,7 @@ pub(super) struct SharedObjectsInput {
 }
 
 pub(super) enum WorkspaceObjectsInput<'a> {
-    Layout(SharedObjectsInput),
+    Layout(Box<super::layout_workspace::ObjectsInput>),
     Pcb(SharedObjectsInput),
     Keymap(SharedObjectsInput),
     Keycaps(SharedObjectsInput),
@@ -67,7 +67,7 @@ pub(super) enum WorkspaceInspectorInput {
 
 pub(super) fn objects(input: WorkspaceObjectsInput<'_>) -> Element {
     match input {
-        WorkspaceObjectsInput::Layout(input) => super::layout_workspace::objects(input),
+        WorkspaceObjectsInput::Layout(input) => super::layout_workspace::objects(*input),
         WorkspaceObjectsInput::Pcb(input) => super::pcb_workspace::objects(input),
         WorkspaceObjectsInput::Keymap(input) => super::keymap_workspace::objects(input),
         WorkspaceObjectsInput::Keycaps(input) => super::keycaps_workspace::objects(input),

@@ -3,6 +3,11 @@ use super::objects;
 use super::workspace_composition::SharedObjectsInput;
 use dioxus::prelude::*;
 
+pub(super) struct ObjectsInput {
+    pub(super) shared: SharedObjectsInput,
+    pub(super) matrix_setup: objects::MatrixSetupMount,
+}
+
 pub(super) struct ToolbarInput {
     pub(super) selection_indicator: Option<String>,
     pub(super) document_name: String,
@@ -27,13 +32,29 @@ pub(super) struct InspectorInput {
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
 }
 
-pub(super) fn objects(input: SharedObjectsInput) -> Element {
+pub(super) fn objects(input: ObjectsInput) -> Element {
     rsx! {
-        objects::Objects {
-            selected_context: input.selected_context,
-            on_select: input.on_select,
-            on_navigate: input.on_navigate,
-            on_nudge: input.on_nudge,
+        div { class: "m1-layout-objects-content",
+            objects::Objects {
+                selected_context: input.shared.selected_context,
+                on_select: input.shared.on_select,
+                on_navigate: input.shared.on_navigate,
+                on_nudge: input.shared.on_nudge,
+            }
+            button {
+                class: "m1-add-matrix",
+                r#type: "button",
+                disabled: !input.matrix_setup.can_open,
+                onclick: move |_| input.matrix_setup.on_open.call(()),
+                "Add key matrix"
+            }
+            if let Some(projection) = input.matrix_setup.projection.clone() {
+                objects::MatrixSetup {
+                    projection,
+                    on_cancel: input.matrix_setup.on_cancel,
+                    on_create: input.matrix_setup.on_create,
+                }
+            }
         }
     }
 }

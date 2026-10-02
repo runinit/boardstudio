@@ -1195,6 +1195,14 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
+    let matrix_setup = objects::use_matrix_setup(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        adapter.anchor_scope,
+        workspace,
+        adapter.generation,
+    );
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
@@ -3211,7 +3219,12 @@ fn Editor() -> Element {
                 on_select: workspace_callbacks.parts_select,
             })
         }
-        _ => workspace_composition::WorkspaceObjectsInput::Layout(shared_objects),
+        _ => workspace_composition::WorkspaceObjectsInput::Layout(Box::new(
+            layout_workspace::ObjectsInput {
+                shared: shared_objects,
+                matrix_setup: matrix_setup.clone(),
+            },
+        )),
     };
     let toolbar_input = match active_workspace {
         "Layout" => {
