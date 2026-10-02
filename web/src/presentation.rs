@@ -1039,7 +1039,7 @@ fn durability_state(durability: &Durability) -> &'static str {
     }
 }
 
-fn pin_outline_inspector_on_desktop(mut settings: Signal<PanelSettings>) {
+fn pin_inspector_on_desktop(mut settings: Signal<PanelSettings>) {
     let compact = web_sys::window()
         .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
         .is_some_and(|query| query.matches());
@@ -1975,7 +1975,7 @@ fn Editor() -> Element {
             if outline_route {
                 workspace.set("Layout");
                 fit_selected_bridge(&runtime, bridge_id.as_deref());
-                pin_outline_inspector_on_desktop(inspector_settings);
+                pin_inspector_on_desktop(inspector_settings);
             }
             if close_objects {
                 objects_open.set(false);
@@ -2040,6 +2040,7 @@ fn Editor() -> Element {
                 },
             );
             if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                pin_inspector_on_desktop(inspector_settings);
                 objects_open.set(false);
                 inspect_open.set(true);
             }
@@ -3512,6 +3513,7 @@ fn Editor() -> Element {
                     if !properties_available {
                         return;
                     }
+                    pin_inspector_on_desktop(inspector_settings);
                     objects_open.set(false);
                     inspect_open.set(true);
                 }
