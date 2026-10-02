@@ -461,3 +461,11 @@ Retain this ownership rule for the later host lifecycle audit without assuming o
 RF-001 now records the private-stream handoff template at `ae232927`: exact mount/callback/scope contracts and scoped styles go through one coordinator. This is a process mitigation; shared presentation/Runtime coupling still needs post-port assessment.
 
 RF-009 records the configured 30-agent ceiling versus the observed 11 active slots, and temporary-disk exhaustion from generated targets. Inactive build targets were preserved on larger storage with original-path symlinks; source, browser profiles and failed-project evidence were preserved. Exact-source page-only provider reuse is being specified; provider changes still require full packaging. These observations do not close parity or release gates.
+
+### RF-001: accepted selection and Inspector anchor, 2026-10-02
+
+Sol reproduced a Keycaps defect where warning and size-control projection used the last tree context rather than accepted Add/Toggle/Range selection IDs. Immediate correctness repair is active; later refactoring should clarify navigation-anchor versus editing-selection semantics across Inspector controllers. This does not waive production refresh, paired history or persistence gates.
+
+### RF-009: measured provider reuse, 2026-10-02
+
+The actual matching full build took535.29 seconds and the guarded page-only reuse88.55 seconds. Both route packages retain145 assets including126 unchanged providers, with zero hash mismatches; root/subpath offline editor geometry verified. Explicit partial comparison source792e88af at34731. Broader leaf reuse remains separately reviewed work; shared module/Runtime changes still require a new full baseline.

@@ -4,7 +4,7 @@
 
 **Blocked by:** Independent Spec/Standards clearance of this expansion contract and concrete page-only dependency proof for every proposed leaf. The existing helper source is integrated and clear; its real full-build/reuse qualification stays required. No whole workbench parent blocks this narrowly scoped optimization.
 
-**Status:** planning-review-pending
+**Status:** implementing; independent planning clearance retained in packaging-contextual-leaf-planning-review-b2c5cc99-20261002.md; exact leaf dependency audit remains required
 
 **Parent acceptance joins:** Existing packaging root/subpath/offline/provider provenance and relevant feature paired behavior/history/save-reopen gates remain unchanged. All62 canonical parents remain open according to their own criteria.
 

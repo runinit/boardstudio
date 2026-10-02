@@ -137,6 +137,14 @@
           "evidence": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/packaging-author-transfer.json",
           "observation": "An author interpreted the named integration checkout as isolated and edited its packaging script. Root stopped writes, preserved exact bytes and patch, created a distinct worktree, verified transferred hashes, and restored only acknowledged owned root script bytes to HEAD. No work discarded.",
           "status": "corrected; handoff now requires actual git-top-level/branch/HEAD proof before edits; broader ownership enforcement remains post-port opportunity"
+        },
+        {
+          "source": "Keycaps warning6c6c133e independent review",
+          "evidence": "/home/chris/.local/share/boardstudio/reviews/keycaps-overlap-source-review-sol-20261002.md",
+          "observation": "Inspector tree context is a navigation anchor; accepted ReadModel.selected_part_ids is Add/Toggle/Range selection authority. Context-derived extent incorrectly filtered overlap warnings and size controls under multi-selection. Confirmed correctness defect; immediate fix in progress.",
+          "current_mitigation": "Use accepted selection IDs for editing/warnings while retaining contextual validity checks; production selection mutation regressions required.",
+          "post_port_follow_up": "Clarify and consolidate context-anchor versus accepted-selection projection semantics across Inspector controllers after parity.",
+          "status": "confirmed defect under repair; broader selection model consolidation deferred"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
