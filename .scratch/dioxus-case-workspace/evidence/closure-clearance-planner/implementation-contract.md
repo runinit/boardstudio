@@ -31,8 +31,9 @@ The projection follows `app/src/closureClearance.ts::withClosureClearance`:
 
 - Include canonical mechanical configuration and all configured physical
   instances. Reflect X for flipped instances before deduplication.
-- Deduplicate by board and formatted five-decimal XY coordinates, retaining
-  the first position and the largest required diameter. Bosses use
+- Deduplicate by board and JavaScript-compatible five-decimal XY keys,
+  retaining the latest exact position and the largest required diameter while
+  preserving the key's first insertion order. Bosses use
   `bossDiameter ?? holeDiameter` plus twice configuration clearance; screws
   use their hole diameter.
 - Replace only old `case-closure/` parts and
@@ -62,13 +63,14 @@ defines one circular non-plated pad whose size and drill follow those two
 parameters. The Rust helper consumes the pre-normalized catalogue definition
 and preserves its metadata while updating that source-derived pad and bounds.
 
-Two native unit tests are included in the unmounted module: canonical plus
-flipped-instance deduplication with unequal boss diameters and reference
-allocation, and screw-diameter / explicit-empty cleanup behavior. They were not
-run here because the root task is the sole compiler and is coordinating a
-build freeze. This file has not yet been mounted or compiled. Those checks do
-not establish controller admission, session transaction, persistence, Undo /
-Redo, archive reopen, browser visibility, or public workflow acceptance.
+Native unit tests cover canonical plus flipped-instance deduplication with
+unequal boss diameters and latest-position retention, JavaScript rounding and
+negative-zero behavior, five-decimal boundary handling, non-plated normalized
+definition fields, large valid MH reference allocation, and screw-diameter /
+explicit-empty cleanup. The root task owns compilation and test execution; this
+evidence records no passing test claim. Those checks
+do not establish controller admission, session transaction, persistence, Undo
+/ Redo, archive reopen, browser visibility, or public workflow acceptance.
 
 ## RF-005 handoff
 
