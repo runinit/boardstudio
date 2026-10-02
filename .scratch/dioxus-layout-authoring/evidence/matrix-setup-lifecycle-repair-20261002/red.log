@@ -1,0 +1,131 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling libc v0.2.189
+   Compiling slab v0.4.12
+   Compiling parking_lot_core v0.9.12
+   Compiling scopeguard v1.2.0
+   Compiling once_cell v1.21.4
+   Compiling slotmap v1.1.1
+   Compiling anyhow v1.0.104
+   Compiling unicode-xid v0.2.6
+   Compiling konst_macro_rules v0.2.19
+   Compiling libloading v0.8.9
+   Compiling fnv v1.0.7
+   Compiling ident_case v1.0.1
+   Compiling unicode-segmentation v1.13.3
+   Compiling lock_api v0.4.14
+   Compiling proc-macro2-diagnostics v0.10.1
+   Compiling futures-channel v0.3.34
+   Compiling rustc-hash v2.1.3
+   Compiling futures-util v0.3.34
+   Compiling dioxus-core-types v0.7.10
+   Compiling longest-increasing-subsequence v0.1.0
+   Compiling konst v0.2.20
+   Compiling keyboard-types v0.7.0
+   Compiling tracing-core v0.1.36
+   Compiling ahash v0.8.12
+   Compiling euclid v0.22.14
+   Compiling bytes v1.12.1
+   Compiling dioxus-config-macros v0.7.10
+   Compiling convert_case v0.8.0
+   Compiling quote v1.0.47
+   Compiling syn v2.0.119
+   Compiling syn v3.0.6
+   Compiling const_format_proc_macros v0.2.34
+   Compiling dioxus-config-macro v0.7.10
+   Compiling memmap2 v0.9.11
+   Compiling parking_lot v0.12.5
+   Compiling const_format v0.2.36
+   Compiling serde_json v1.0.151
+   Compiling darling_core v0.21.3
+   Compiling wasm-bindgen-macro-support v0.2.129
+   Compiling dioxus-rsx v0.7.10
+   Compiling tracing-attributes v0.1.31
+   Compiling pin-project-internal v1.1.13
+   Compiling warnings-macro v0.2.0
+   Compiling rhai_codegen v3.2.0
+   Compiling dioxus-html-internal-macro v0.7.10
+   Compiling dioxus-stores-macro v0.7.10
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling async-trait v0.1.92
+   Compiling pin-project v1.1.13
+   Compiling dioxus-core-macro v0.7.10
+   Compiling rhai v1.26.1
+   Compiling tracing v0.1.44
+   Compiling thiserror v2.0.21
+   Compiling generational-box v0.7.10
+   Compiling warnings v0.2.1
+   Compiling kiutils_sexpr v0.1.1
+   Compiling darling_macro v0.21.3
+   Compiling darling v0.21.3
+   Compiling enumset_derive v0.15.0
+   Compiling enumset v1.1.14
+   Compiling subsecond-types v0.7.10
+   Compiling boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/contracts/rust)
+   Compiling subsecond v0.7.10
+   Compiling wasm-bindgen-macro v0.2.129
+   Compiling dioxus-core v0.7.10
+   Compiling wasm-bindgen v0.2.129
+   Compiling js-sys v0.3.106
+   Compiling dioxus-signals v0.7.10
+   Compiling dioxus-hooks v0.7.10
+   Compiling dioxus-stores v0.7.10
+   Compiling dioxus-html v0.7.10
+   Compiling dioxus v0.7.10
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/core)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/application)
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 33.82s
+     Running tests/matrix_setup_lifecycle.rs (web/target/debug/deps/matrix_setup_lifecycle-702265f2bd02eb57)
+
+running 8 tests
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test presentation::tests::admitted_outcome_survives_editor_unmount_until_exact_terminal ... FAILED
+test presentation::tests::completed_creation_without_accepted_snapshot_releases_its_slot ... FAILED
+test presentation::tests::completed_old_project_retires_before_replacement_revision_checks ... FAILED
+test presentation::tests::configured_board_instance_can_open_matrix_setup ... FAILED
+test presentation::tests::detached_normalization_after_editor_unmount_never_touches_disposed_signals ... FAILED
+test presentation::tests::changed_accepted_token_during_normalization_never_submits ... ok
+
+failures:
+
+---- presentation::tests::admitted_outcome_survives_editor_unmount_until_exact_terminal stdout ----
+
+thread 'presentation::tests::admitted_outcome_survives_editor_unmount_until_exact_terminal' (2561095) panicked at tests/support/matrix_setup_presentation.rs:58:13:
+exact admitted observer must survive hidden/unmounted owner
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- presentation::tests::completed_creation_without_accepted_snapshot_releases_its_slot stdout ----
+
+thread 'presentation::tests::completed_creation_without_accepted_snapshot_releases_its_slot' (2561097) panicked at tests/support/matrix_setup_presentation.rs:140:9:
+assertion failed: probe.mount().can_open
+
+---- presentation::tests::completed_old_project_retires_before_replacement_revision_checks stdout ----
+
+thread 'presentation::tests::completed_old_project_retires_before_replacement_revision_checks' (2561098) panicked at tests/support/matrix_setup_presentation.rs:129:9:
+completed A must not block lower-revision B
+
+---- presentation::tests::configured_board_instance_can_open_matrix_setup stdout ----
+
+thread 'presentation::tests::configured_board_instance_can_open_matrix_setup' (2561099) panicked at tests/support/matrix_setup_presentation.rs:117:9:
+a current configured physical instance must admit logical board creation
+
+---- presentation::tests::detached_normalization_after_editor_unmount_never_touches_disposed_signals stdout ----
+
+thread 'presentation::tests::detached_normalization_after_editor_unmount_never_touches_disposed_signals' (2561100) panicked at tests/support/../../src/presentation/objects/matrix_setup_controller.rs:239:22:
+called `Result::unwrap()` on an `Err` value: Dropped(ValueDroppedError { created_at: Location { file: "tests/support/../../src/presentation/objects/matrix_setup_controller.rs", line: 44, column: 21 } })
+
+
+failures:
+    presentation::tests::admitted_outcome_survives_editor_unmount_until_exact_terminal
+    presentation::tests::completed_creation_without_accepted_snapshot_releases_its_slot
+    presentation::tests::completed_old_project_retires_before_replacement_revision_checks
+    presentation::tests::configured_board_instance_can_open_matrix_setup
+    presentation::tests::detached_normalization_after_editor_unmount_never_touches_disposed_signals
+
+test result: FAILED. 3 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test matrix_setup_lifecycle`

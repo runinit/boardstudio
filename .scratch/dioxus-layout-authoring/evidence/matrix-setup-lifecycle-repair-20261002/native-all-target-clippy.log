@@ -1,0 +1,190 @@
+   Compiling unicode-ident v1.0.26
+    Checking cfg-if v1.0.5
+    Checking pin-project-lite v0.2.17
+    Checking smallvec v1.16.2
+    Checking futures-core v0.3.34
+    Checking slab v0.4.12
+    Checking futures-task v0.3.34
+    Checking portable-atomic v1.15.0
+    Checking serde_core v1.0.229
+    Checking libc v0.2.189
+    Checking scopeguard v1.2.0
+    Checking typenum v1.20.1
+    Checking num-traits v0.2.19
+    Checking bitflags v2.13.2
+    Checking konst_macro_rules v0.2.19
+    Checking libloading v0.8.9
+   Compiling getrandom v0.2.17
+    Checking libm v0.2.16
+   Compiling proc-macro2 v1.0.107
+    Checking lock_api v0.4.14
+   Compiling wasm-bindgen-shared v0.2.129
+    Checking futures-util v0.3.34
+    Checking konst v0.2.20
+    Checking futures-channel v0.3.34
+    Checking anyhow v1.0.104
+    Checking zerocopy v0.8.59
+   Compiling const-random-macro v0.1.16
+    Checking hashbrown v0.17.1
+    Checking rustc-hash v2.1.3
+    Checking memchr v2.8.3
+    Checking static_assertions v1.1.0
+    Checking zlib-rs v0.6.8
+    Checking equivalent v1.0.2
+    Checking longest-increasing-subsequence v0.1.0
+    Checking dioxus-core-types v0.7.10
+    Checking once_cell v1.21.4
+    Checking smartstring v1.0.1
+    Checking crc32fast v1.5.2
+   Compiling zmij v1.0.23
+    Checking const-random v0.1.18
+    Checking tracing-core v0.1.36
+    Checking typed-path v0.12.3
+    Checking thin-vec v0.2.20
+   Compiling quote v1.0.47
+    Checking i_key_sort v0.11.0
+    Checking itoa v1.0.18
+    Checking cpufeatures v0.3.1
+    Checking i_tree v0.19.0
+    Checking euclid v0.22.14
+   Compiling syn v2.0.119
+   Compiling syn v3.0.6
+    Checking indexmap v2.14.2
+    Checking keyboard-types v0.7.0
+   Compiling serde_json v1.0.151
+   Compiling const_format_proc_macros v0.2.34
+    Checking bytes v1.12.1
+    Checking i_float v5.0.0
+    Checking hybrid-array v0.4.15
+    Checking parking_lot_core v0.9.12
+    Checking memmap2 v0.9.11
+    Checking parking_lot v0.12.5
+   Compiling dioxus-config-macro v0.7.10
+    Checking i_shape v5.0.0
+    Checking dioxus-config-macros v0.7.10
+    Checking flate2 v1.1.10
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking const_format v0.2.36
+    Checking i_overlay v9.0.0
+    Checking zip v8.6.0
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/web)
+    Checking digest v0.11.3
+    Checking sha2 v0.11.0
+    Checking ahash v0.8.12
+   Compiling darling_core v0.21.3
+   Compiling proc-macro2-diagnostics v0.10.1
+   Compiling wasm-bindgen-macro-support v0.2.129
+   Compiling dioxus-rsx v0.7.10
+   Compiling tracing-attributes v0.1.31
+   Compiling pin-project-internal v1.1.13
+   Compiling warnings-macro v0.2.0
+   Compiling rhai_codegen v3.2.0
+   Compiling dioxus-html-internal-macro v0.7.10
+   Compiling dioxus-stores-macro v0.7.10
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling async-trait v0.1.92
+   Compiling dioxus-core-macro v0.7.10
+    Checking pin-project v1.1.13
+    Checking rhai v1.26.1
+    Checking tracing v0.1.44
+    Checking thiserror v2.0.21
+    Checking generational-box v0.7.10
+    Checking warnings v0.2.1
+    Checking kiutils_sexpr v0.1.1
+   Compiling darling_macro v0.21.3
+   Compiling darling v0.21.3
+   Compiling enumset_derive v0.15.0
+    Checking serde v1.0.229
+    Checking subsecond-types v0.7.10
+    Checking slotmap v1.1.1
+    Checking boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/contracts/rust)
+    Checking enumset v1.1.14
+    Checking subsecond v0.7.10
+    Checking dioxus-core v0.7.10
+   Compiling wasm-bindgen-macro v0.2.129
+    Checking wasm-bindgen v0.2.129
+    Checking dioxus-signals v0.7.10
+    Checking js-sys v0.3.106
+    Checking dioxus-hooks v0.7.10
+    Checking dioxus-stores v0.7.10
+    Checking dioxus-html v0.7.10
+    Checking dioxus v0.7.10
+    Checking boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/core)
+    Checking boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/frontend-layout-transform-fields-20261002/application)
+error: constant `PITCH_MM` is never used
+ --> src/matrix_setup_operation.rs:5:7
+  |
+5 | const PITCH_MM: f64 = 19.05;
+  |       ^^^^^^^^
+  |
+  = note: `-D dead-code` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: constant `MAX_MATRIX_CELLS` is never used
+ --> src/matrix_setup_operation.rs:6:7
+  |
+6 | const MAX_MATRIX_CELLS: u32 = 4096;
+  |       ^^^^^^^^^^^^^^^^
+
+error: enum `MatrixSetupPreset` is never used
+ --> src/matrix_setup_operation.rs:9:17
+  |
+9 | pub(crate) enum MatrixSetupPreset {
+  |                 ^^^^^^^^^^^^^^^^^
+
+error: struct `MatrixSetupRequest` is never constructed
+  --> src/matrix_setup_operation.rs:21:19
+   |
+21 | pub(crate) struct MatrixSetupRequest {
+   |                   ^^^^^^^^^^^^^^^^^^
+
+error: methods `as_str` and `config` are never used
+  --> src/matrix_setup_operation.rs:28:19
+   |
+27 | impl MatrixSetupPreset {
+   | ---------------------- methods in this implementation
+28 |     pub(crate) fn as_str(self) -> &'static str {
+   |                   ^^^^^^
+...
+41 |     fn config(self) -> PresetConfig {
+   |        ^^^^^^
+
+error: struct `PresetConfig` is never constructed
+  --> src/matrix_setup_operation.rs:95:8
+   |
+95 | struct PresetConfig {
+   |        ^^^^^^^^^^^^
+
+error: struct `PreparedMatrix` is never constructed
+   --> src/matrix_setup_operation.rs:102:19
+    |
+102 | pub(crate) struct PreparedMatrix {
+    |                   ^^^^^^^^^^^^^^
+
+error: function `next_matrix_id` is never used
+   --> src/matrix_setup_operation.rs:107:15
+    |
+107 | pub(crate) fn next_matrix_id(
+    |               ^^^^^^^^^^^^^^
+
+error: function `prepare_matrix` is never used
+   --> src/matrix_setup_operation.rs:142:15
+    |
+142 | pub(crate) fn prepare_matrix(
+    |               ^^^^^^^^^^^^^^
+
+error: function `required_catalogue_definition` is never used
+   --> src/matrix_setup_operation.rs:320:4
+    |
+320 | fn required_catalogue_definition<'a>(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: function `snapshot_definition` is never used
+   --> src/matrix_setup_operation.rs:337:4
+    |
+337 | fn snapshot_definition(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 11 previous errors

@@ -14,7 +14,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 use dioxus::prelude::*;
-use std::rc::Rc;
+use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
@@ -38,6 +38,11 @@ pub(in crate::presentation) fn use_matrix_setup(
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
         move || runtime.operation().0
+    });
+    let alive = use_hook(|| Rc::new(Cell::new(true)));
+    use_drop({
+        let alive = alive.clone();
+        move || alive.set(false)
     });
     let open_id = use_signal(|| 0u64);
     let open = use_signal(|| None::<MatrixSetupOwner>);
@@ -144,6 +149,7 @@ pub(in crate::presentation) fn use_matrix_setup(
 
     let on_create = use_callback({
         let runtime = runtime.clone();
+        let alive = alive.clone();
         let mut preparing = preparing;
         let mut error = error;
         let mut status = status;
@@ -211,10 +217,17 @@ pub(in crate::presentation) fn use_matrix_setup(
             let mut status = status;
             let mut pending = pending;
             let mut open = open;
+            let alive = alive.clone();
             spawn_local(async move {
+                if !alive.get() {
+                    return;
+                }
                 let result = async {
                     let templates =
                         crate::presentation::parts::load_matrix_templates(reversible).await?;
+                    if !alive.get() {
+                        return Err("Matrix Setup owner closed.".into());
+                    }
                     let mut prepared = prepare_matrix(
                         matrix_id.clone(),
                         board_id.clone(),
@@ -231,10 +244,16 @@ pub(in crate::presentation) fn use_matrix_setup(
                             definition.clone(),
                         )
                         .await?;
+                        if !alive.get() {
+                            return Err("Matrix Setup owner closed.".into());
+                        }
                     }
                     Ok::<_, String>((prepared.matrix, prepared.definitions))
                 }
                 .await;
+                if !alive.get() {
+                    return;
+                }
                 if !preparing
                     .read()
                     .as_ref()
@@ -304,7 +323,7 @@ pub(in crate::presentation) fn use_matrix_setup(
                 pending.set(Some(PendingSetup {
                     owner: owner.clone(),
                     operation_id,
-                    outcome,
+                    outcome: outcome.clone(),
                     matrix_id: matrix.id.clone(),
                 }));
                 preparing.set(None);
@@ -322,6 +341,11 @@ pub(in crate::presentation) fn use_matrix_setup(
                         },
                     },
                 });
+                // The exact observer outlives the Editor signals until its terminal result.
+                // Settlement may update the mounted owner; this retention never accesses it.
+                while outcome.borrow().is_none() {
+                    gloo_timers::future::TimeoutFuture::new(16).await;
+                }
             });
         }
     });
@@ -386,7 +410,7 @@ fn setup_source<'a>(
         return None;
     }
     let scope = scope?.clone();
-    if runtime.scope().as_ref() != Some(&scope) || scope.instance_id.is_some() {
+    if runtime.scope().as_ref() != Some(&scope) {
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
@@ -394,6 +418,13 @@ fn setup_source<'a>(
         || snapshot.document.id != scope.document_id
         || model.active_board_id != scope.board_id
         || model.active_instance_id != scope.instance_id
+        || scope.instance_id.as_ref().is_some_and(|instance_id| {
+            !snapshot.document.hardware.as_ref().is_some_and(|hardware| {
+                hardware.instances.iter().any(|instance| {
+                    &instance.id == instance_id && instance.board_id == scope.board_id
+                })
+            })
+        })
         || model.lifecycle != Lifecycle::Ready
         || model.durability
             != (Durability::Saved {
@@ -434,6 +465,21 @@ fn settle_pending(
         return;
     };
     let model = runtime.model();
+    // Terminal ownership is resolved before inspecting a replacement snapshot's revision.
+    // A hidden or departed owner cannot reconcile selection or publish feedback there.
+    if workspace != "Layout"
+        || scope_generation != waiting.owner.scope_generation
+        || runtime.scope().as_ref() != Some(&waiting.owner.scope)
+        || model.accepted.as_ref().is_none_or(|snapshot| {
+            snapshot.session_epoch != waiting.owner.scope.session_epoch
+                || snapshot.document.id != waiting.owner.scope.document_id
+        })
+    {
+        finish_pending(signals.pending, signals.status, &waiting);
+        signals.open.set(None);
+        signals.error.set(None);
+        return;
+    }
     match outcome {
         TerminalOutcome::Completed => {
             let Some(snapshot) = model.accepted.as_ref() else {
