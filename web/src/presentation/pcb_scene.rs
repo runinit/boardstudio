@@ -1,7 +1,7 @@
 //! Read-only host scene projection for the currently accepted PCB board.
 use crate::presentation::footprint_graphics::FootprintGraphics;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{PadShape, Part, PartDefinition, PartKind, Side, Vec2};
+use boardstudio_core::model::{PadShape, PartDefinition, Side, Vec2};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::collections::BTreeSet;
@@ -60,7 +60,6 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
         .unwrap_or_default();
     let member_ids: BTreeSet<&str> = board.part_ids.iter().map(String::as_str).collect();
     let scene_transforms = snapshot.scene.transforms.as_slice();
-    let matrix_scenes = snapshot.scene.matrix_scenes.as_slice();
 
     rsx! {
         g { class: "m1-pcb-scene", "data-board-id": board_id, "data-scene-status": "ready",
@@ -97,7 +96,6 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     let courtyard_points = definition.map(|definition| definition.courtyard.as_slice()).unwrap_or_default();
                     let courtyard = points(courtyard_points);
                     let hit_bounds = courtyard_bounds(courtyard_points);
-                    let keycap = part_keycap(document, matrix_scenes, board_id, part, definition);
                     let generator_parameters = part.generator_parameters.clone();
                     rsx! {
                         g {
@@ -181,19 +179,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                                     }
                                 }
                             }
-                            if let Some(size) = keycap {
-                                {
-                                    let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0);
-                                    rsx! {
-                                        g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
-                                            rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
-                                            rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
-                                        }
-                                    }
-                                }
-                            } else {
-                                text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
-                            }
+                            text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
                             rect {
                                 class: "m1-part-hit-area",
                                 style: "cursor: pointer",
@@ -208,60 +194,6 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
             }
         }
     }
-}
-
-fn part_keycap(
-    document: &boardstudio_core::model::ProjectDoc,
-    matrix_scenes: &[boardstudio_core::model::MatrixScene],
-    board_id: &str,
-    part: &Part,
-    definition: Option<&PartDefinition>,
-) -> Option<Vec2> {
-    let is_encoder = definition.is_some_and(|definition| {
-        matches!(&definition.kind, PartKind::Encoder)
-            || definition
-                .input_profile
-                .as_ref()
-                .is_some_and(|profile| profile.rotary.is_some())
-    });
-    if is_encoder {
-        return None;
-    }
-    let is_switch =
-        definition.is_some_and(|definition| matches!(&definition.kind, PartKind::Switch));
-    let matrix_key = document.matrices.iter().find_map(|matrix| {
-        if matrix.board_id.as_deref().is_some_and(|id| id != board_id) {
-            return None;
-        }
-        let scene = matrix_scenes
-            .iter()
-            .find(|scene| scene.matrix_id == matrix.id)?;
-        let has_enabled_cell = scene
-            .cells
-            .iter()
-            .any(|cell| cell.enabled && cell.member_id.as_deref() == Some(part.id.as_str()));
-        has_enabled_cell.then_some(matrix)
-    });
-    if !is_switch && matrix_key.is_none() {
-        return None;
-    }
-    part.keycap
-        .or_else(|| definition.and_then(|definition| definition.keycap))
-        .or_else(|| {
-            matrix_key.map(|matrix| {
-                document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == matrix.definition_id)
-                    .and_then(|definition| definition.keycap)
-                    .unwrap_or(Vec2 {
-                        x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0))
-                            .max(1.0),
-                        y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0))
-                            .max(1.0),
-                    })
-            })
-        })
 }
 
 fn points(points: &[Vec2]) -> String {
