@@ -154,6 +154,10 @@ impl PartPlacementMount {
     }
 }
 
+pub(super) fn canvas_pointer_start_allowed(placement: &PartPlacementMount) -> bool {
+    !placement.owns_canvas()
+}
+
 pub(super) struct PartPlacementHost {
     pub(super) runtime: Rc<dyn PlacementRuntime>,
     pub(super) load_definition: DefinitionLoader,
@@ -1433,6 +1437,46 @@ mod tests {
         }
     }
 
+    async fn start_hook_placement(probe: &HookProbe, dom: &mut VirtualDom) -> PartPlacementMount {
+        resolve_loader(probe, Ok(controller_definition("catalog:controller")));
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_choose_controller
+            .call(());
+        flush_hook(dom);
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_controller
+            .call("catalog:controller".into());
+        let_hook_tasks_run().await;
+        flush_hook(dom);
+        let mount = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(mount.projection.is_some());
+        mount
+    }
+
+    fn submitted_edit(probe: &HookProbe) -> (OperationId, EditOperation) {
+        probe
+            .runtime
+            .events
+            .borrow()
+            .iter()
+            .find_map(|event| match event {
+                SessionEvent::Edit {
+                    operation_id,
+                    command,
+                } => Some((*operation_id, command.operation.clone())),
+                _ => None,
+            })
+            .expect("placement submits an Edit")
+    }
+
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_owns_canvas_during_definition_preparation_and_escape_restores_guide() {
         let (probe, mut dom) = hook_mounted();
@@ -1452,6 +1496,7 @@ mod tests {
         let preparing = probe.latest.borrow().as_ref().unwrap().clone();
         assert!(preparing.busy);
         assert!(preparing.owns_canvas());
+        assert!(!canvas_pointer_start_allowed(&preparing));
         assert!(preparing.projection.is_none());
         assert!(
             !probe
@@ -1549,6 +1594,118 @@ mod tests {
             .on_commit
             .call(Vec2 { x: 2.0, y: 1.0 });
         assert_eq!(probe.runtime.registered_before_submit.get(), Some(true));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_returns_to_wiring_only_after_matching_ready_saved_commit() {
+        let (probe, mut dom) = hook_mounted();
+        let active = start_hook_placement(&probe, &mut dom).await;
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        let (operation_id, edit) = submitted_edit(&probe);
+        let mut document = replacement(edit);
+        document.revision += 1;
+        let scene = probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .scene
+            .clone();
+        *probe.runtime.model.borrow_mut() = ReadModel {
+            lifecycle: Lifecycle::Ready,
+            durability: Durability::Saved {
+                revision: document.revision,
+            },
+            accepted: Some(AcceptedSnapshot {
+                token: SnapshotToken(12),
+                session_epoch: SessionEpoch(7),
+                scene,
+                document: Arc::new(document),
+            }),
+            active_board_id: "board-main".into(),
+            ..ReadModel::default()
+        };
+        assert!(
+            probe
+                .runtime
+                .outcomes
+                .settle(operation_id, TerminalOutcome::Completed)
+        );
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert_eq!(workspace(&probe), "PCB");
+        assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
+        assert!(
+            probe
+                .runtime
+                .events
+                .borrow()
+                .iter()
+                .any(|event| matches!(event, SessionEvent::SelectParts { .. }))
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_routes_persistence_failure_back_but_terminal_cancel_does_not_redirect()
+    {
+        for (outcome, expected_workspace, expected_error) in [
+            (
+                TerminalOutcome::PersistenceFailed("disk full".into()),
+                "Parts",
+                Some("disk full"),
+            ),
+            (TerminalOutcome::Cancelled, "Layout", None),
+        ] {
+            let (probe, mut dom) = hook_mounted();
+            let active = start_hook_placement(&probe, &mut dom).await;
+            active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+            let (operation_id, _) = submitted_edit(&probe);
+            assert!(probe.runtime.outcomes.settle(operation_id, outcome));
+            let_hook_tasks_run().await;
+            flush_hook(&mut dom);
+            assert_eq!(workspace(&probe), expected_workspace);
+            assert_eq!(
+                probe.latest.borrow().as_ref().unwrap().error.as_deref(),
+                expected_error
+            );
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_never_redirects_a_stale_board_or_project_owner() {
+        for stale_identity in ["board", "project"] {
+            let (probe, mut dom) = hook_mounted();
+            let active = start_hook_placement(&probe, &mut dom).await;
+            active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+            let (operation_id, _) = submitted_edit(&probe);
+            {
+                let mut model = probe.runtime.model.borrow_mut();
+                if stale_identity == "board" {
+                    model.active_board_id = "board-other".into();
+                } else {
+                    let accepted = model.accepted.as_mut().unwrap();
+                    let mut document = (*accepted.document).clone();
+                    document.id = "replacement-project".into();
+                    accepted.document = Arc::new(document);
+                    accepted.token = SnapshotToken(12);
+                }
+            }
+            assert!(
+                probe
+                    .runtime
+                    .outcomes
+                    .settle(operation_id, TerminalOutcome::Cancelled)
+            );
+            let_hook_tasks_run().await;
+            flush_hook(&mut dom);
+            assert_eq!(
+                workspace(&probe),
+                "Layout",
+                "stale {stale_identity} route redirected"
+            );
+        }
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

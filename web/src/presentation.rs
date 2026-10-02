@@ -3369,8 +3369,10 @@ fn Editor() -> Element {
         let placement = part_placement.clone();
         let render_scope = render_scope.clone();
         move |event: PointerEvent| {
-            if placement.projection.is_some() {
-                placement.on_cancel.call(());
+            if placement.owns_canvas() {
+                if placement.projection.is_some() {
+                    placement.on_cancel.call(());
+                }
                 return;
             }
             let pointer_id = event
@@ -3478,35 +3480,42 @@ fn Editor() -> Element {
                 mirrored_pair.on_cancel.call(form.owner.clone());
                 return;
             }
-            if let Some(active) = placement.projection.as_ref() {
-                if key == "Escape" {
+            if placement.owns_canvas() {
+                if let Some(active) = placement.projection.as_ref() {
+                    if key == "Escape" {
+                        event.prevent_default();
+                        placement.on_cancel.call(());
+                    } else if key == "Enter" {
+                        event.prevent_default();
+                        placement.on_commit.call(active.pending.at);
+                    } else if matches!(
+                        key.as_str(),
+                        "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
+                    ) {
+                        event.prevent_default();
+                        let mut at = active.pending.at;
+                        let fraction = snap_settings.read().snap_fraction;
+                        let step = if fraction < 0.0 {
+                            -fraction
+                        } else if fraction > 0.0 {
+                            19.05 * fraction
+                        } else {
+                            0.1
+                        };
+                        match key.as_str() {
+                            "ArrowUp" => at.y += step,
+                            "ArrowDown" => at.y -= step,
+                            "ArrowLeft" => at.x -= step,
+                            "ArrowRight" => at.x += step,
+                            _ => {}
+                        }
+                        placement.on_move.call(at);
+                    }
+                } else if key == "Escape" {
                     event.prevent_default();
                     placement.on_cancel.call(());
-                } else if key == "Enter" {
+                } else {
                     event.prevent_default();
-                    placement.on_commit.call(active.pending.at);
-                } else if matches!(
-                    key.as_str(),
-                    "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
-                ) {
-                    event.prevent_default();
-                    let mut at = active.pending.at;
-                    let fraction = snap_settings.read().snap_fraction;
-                    let step = if fraction < 0.0 {
-                        -fraction
-                    } else if fraction > 0.0 {
-                        19.05 * fraction
-                    } else {
-                        0.1
-                    };
-                    match key.as_str() {
-                        "ArrowUp" => at.y += step,
-                        "ArrowDown" => at.y -= step,
-                        "ArrowLeft" => at.x -= step,
-                        "ArrowRight" => at.x += step,
-                        _ => {}
-                    }
-                    placement.on_move.call(at);
                 }
                 return;
             }
@@ -3578,7 +3587,7 @@ fn Editor() -> Element {
             if mirrored_pair.owns_canvas {
                 return;
             }
-            if placement.projection.is_some()
+            if !part_placement::canvas_pointer_start_allowed(&placement)
                 || !space_down.get()
                 || pointer.button() != 0
                 || runtime.scope().as_ref() != Some(&scope)
@@ -4424,10 +4433,12 @@ fn Editor() -> Element {
                                             let selection_kind = layout_selection_kind;
                                             let owner = layout_owner.clone();
                                             let tree_cell_anchor = tree_cell_anchor.clone();
+                                            let placement = part_placement.clone();
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
                                                     if pair_placement_active { return; }
                                                     let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                                    if !part_placement::canvas_pointer_start_allowed(&placement) { pointer.prevent_default(); pointer.stop_propagation(); return; }
                                                     if pointer.button() != 0 { return; }
                                                     if space_down.get() { return; }
                                                     pointer.prevent_default();
@@ -4488,7 +4499,7 @@ fn Editor() -> Element {
                                         if pair_placement_active { return; }
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
-                                        if placement.projection.is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
+                                        if !part_placement::canvas_pointer_start_allowed(&placement) { pointer.prevent_default(); pointer.stop_propagation(); return; }
                                         if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }
                                         if drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
                                         pointer.prevent_default(); pointer.stop_propagation();
