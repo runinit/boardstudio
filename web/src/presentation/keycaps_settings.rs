@@ -249,8 +249,6 @@ pub(super) fn use_keycaps_settings_actions(
         let mut feedback = feedback;
         let mut retry_drafts = retry_drafts;
         let owner_tracker = owner_tracker.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         move |_| {
             let Some(waiting) = pending.read().clone() else {
                 return;
@@ -399,8 +397,6 @@ pub(super) fn use_keycaps_settings_actions(
     let on_change = use_callback({
         let runtime = runtime.clone();
         let source = active_source.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         let owner_tracker = owner_tracker.clone();
         let mut pending = pending;
         let mut feedback = feedback;
@@ -501,11 +497,8 @@ pub(super) fn use_keycaps_settings_actions(
         let mut request_sequence = request_sequence;
         let retry_drafts = retry_drafts;
         let source = active_source.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         let owner_tracker = owner_tracker.clone();
         let runtime = runtime.clone();
-        let on_change = on_change;
         move |identity: KeycapsRetryIdentity| {
             let Some(draft) = retry_drafts.read().get(&identity.field).cloned() else {
                 return;
@@ -569,8 +562,6 @@ pub(super) fn use_keycaps_settings_actions(
         let mut feedback = feedback;
         let runtime = runtime.clone();
         let owner_tracker = owner_tracker.clone();
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         move |identity: KeycapsRetryIdentity| {
             let live_key_id = live_selected_key_id(&runtime);
             let live_scope = runtime.scope();
@@ -607,13 +598,11 @@ pub(super) fn use_keycaps_settings_actions(
         }
     });
 
-    let Some(source) = source.filter(|source| {
+    let source = source.filter(|source| {
         current_workspace == "Keycaps"
             && current_scope.as_ref() == Some(&source.scope)
             && selected_key_id.is_some()
-    }) else {
-        return None;
-    };
+    })?;
     let key_id = selected_key_id?;
     let drafts: Vec<_> = retry_drafts.read().values().cloned().collect();
     Some(KeycapsSettingsActions {
