@@ -39,6 +39,7 @@ pub(super) fn PartsLibraryPanel(
     scope: Option<Scope>,
     mut query: PartsQuery,
     mut selected: PartsSelection,
+    on_select: EventHandler<()>,
 ) -> Element {
     let catalogue = use_catalogue(&snapshot, &scope);
     let Some(entries) = catalogue.entries else {
@@ -114,7 +115,10 @@ pub(super) fn PartsLibraryPanel(
                                             role: "option",
                                             "aria-selected": "{is_selected}",
                                             title: "{entry.definition.generator.as_ref().map(|generator| generator.source.as_str()).unwrap_or("")}",
-                                            onclick: move |_| selected.set(Some((scope.clone(), id.clone()))),
+                                            onclick: move |_| {
+                                                selected.set(Some((scope.clone(), id.clone())));
+                                                on_select.call(());
+                                            },
                                             "{preferred_label(&entry.definition)}"
                                         }
                                       }
