@@ -5,14 +5,44 @@
 extern crate self as wasm_bindgen_futures;
 
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-use boardstudio_core::model::KeycapResolution;
+use boardstudio_core::model::ProjectDoc;
 use dioxus::prelude::*;
-use std::{cell::Cell, future::Future, rc::Rc, task::Context};
+use std::{
+    cell::Cell,
+    future::Future,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
-// The production WASM executor schedules the same future on the browser microtask queue.
-// The mounted native test schedules it on the VirtualDom so it can drain deterministically.
+thread_local! {
+    // Model the production browser executor: request tasks are detached from the component
+    // lifetime and may complete after the mounted VirtualDom has been dropped.
+    static DETACHED: std::cell::RefCell<Vec<Pin<Box<dyn Future<Output = ()>>>>> =
+        std::cell::RefCell::new(Vec::new());
+}
+
 pub fn spawn_local(future: impl Future<Output = ()> + 'static) {
-    spawn(future);
+    DETACHED.with(|tasks| tasks.borrow_mut().push(Box::pin(future)));
+}
+
+fn poll_detached() {
+    DETACHED.with(|tasks| {
+        let pending = std::mem::take(&mut *tasks.borrow_mut());
+        let waker = std::task::Waker::noop();
+        let mut context = Context::from_waker(waker);
+        let mut keep = Vec::new();
+        for mut task in pending {
+            if task.as_mut().poll(&mut context).is_pending() {
+                keep.push(task);
+            }
+        }
+        tasks.borrow_mut().extend(keep);
+    });
+}
+
+fn detached_count() -> usize {
+    DETACHED.with(|tasks| tasks.borrow().len())
 }
 
 mod runtime {
@@ -22,6 +52,7 @@ mod runtime {
     #[derive(Default)]
     pub struct Runtime {
         pub requests: Cell<usize>,
+        pub hold: Cell<bool>,
     }
 
     impl Runtime {
@@ -32,6 +63,15 @@ mod runtime {
             revision: u64,
         ) -> Result<KeycapResolution, String> {
             self.requests.set(self.requests.get() + 1);
+            std::future::poll_fn(|context| {
+                if self.hold.get() {
+                    context.waker().wake_by_ref();
+                    Poll::Pending
+                } else {
+                    Poll::Ready(())
+                }
+            })
+            .await;
             Ok(KeycapResolution {
                 revision,
                 specs: Vec::new(),
@@ -42,7 +82,6 @@ mod runtime {
 }
 
 #[path = "../src/presentation/keycaps_fit.rs"]
-#[allow(dead_code)] // The imported module also contains inspector UI outside this hook test.
 mod keycaps_fit;
 
 #[derive(Clone)]
@@ -56,8 +95,14 @@ fn mounted_fit() -> Element {
     let probe = use_context::<Probe>();
     probe.renders.set(probe.renders.get() + 1);
     let fit = keycaps_fit::use_keycaps_fit(probe.runtime, probe.source);
-    // Observe the actual hook output just as Editor does, keeping its signal subscription.
-    rsx! { div { "{fit.state.is_some()}" } }
+    let document = Rc::new(ProjectDoc::empty("document", "Test document"));
+    rsx! {
+        keycaps_fit::KeycapsFitInspector {
+            document,
+            state: fit.state,
+            on_retry: fit.on_retry,
+        }
+    }
 }
 
 fn assert_settles(source: Option<keycaps_fit::KeycapsFitSource>, expected_requests: usize) {
@@ -72,13 +117,15 @@ fn assert_settles(source: Option<keycaps_fit::KeycapsFitSource>, expected_reques
     let mut settled = false;
     for _ in 0..16 {
         dom.render_immediate_to_vec();
+        poll_detached();
+        dom.render_immediate_to_vec();
         let mut pending = std::pin::pin!(dom.wait_for_work());
         if pending
             .as_mut()
             .poll(&mut Context::from_waker(std::task::Waker::noop()))
             .is_pending()
         {
-            settled = true;
+            settled = detached_count() == 0;
             break;
         }
     }
@@ -129,69 +176,32 @@ fn source(revision: u64) -> keycaps_fit::KeycapsFitSource {
 }
 
 #[test]
-fn same_source_retry_and_failure_keep_retained_result_stale() {
-    let mut accepted = keycaps_fit::KeycapsFitState::begin(source(1), None);
-    accepted.finish(Ok(KeycapResolution {
-        revision: 1,
-        specs: vec![],
-        findings: vec![],
-    }));
-    assert!(accepted.is_current());
+fn pending_browser_request_does_not_touch_signals_after_inspector_unmounts() {
+    let probe = Probe {
+        runtime: Rc::new(runtime::Runtime::default()),
+        source: Some(source(1)),
+        renders: Rc::default(),
+    };
+    probe.runtime.hold.set(true);
+    let mut dom = VirtualDom::new(mounted_fit);
+    dom.provide_root_context(probe.clone());
+    dom.rebuild_to_vec();
+    dom.render_immediate_to_vec();
+    poll_detached();
+    assert_eq!(probe.runtime.requests.get(), 1);
+    assert_eq!(
+        detached_count(),
+        1,
+        "resolution must still be pending before unmount"
+    );
 
-    let mut retrying = keycaps_fit::KeycapsFitState::begin(source(1), Some(&accepted));
-    assert!(
-        !retrying.is_current(),
-        "same-source retry is pending, so prior result is stale"
-    );
-    retrying.finish(Err("worker unavailable".into()));
-    assert!(
-        !retrying.is_current(),
-        "failed retry cannot make retained result current"
-    );
+    drop(dom);
+    probe.runtime.hold.set(false);
+    poll_detached();
+    assert_eq!(detached_count(), 0);
 }
 
 #[test]
-fn findings_are_deduplicated_severity_sorted_and_grouped_like_react() {
-    use boardstudio_core::model::{Board, Finding, ProjectDoc, Scope as FindingScope, Severity};
-
-    let mut document = ProjectDoc::empty("doc", "Project");
-    document.boards.push(Board {
-        id: "board-1".into(),
-        name: "Left PCB".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    let warning = Finding {
-        id: "board:board-1:feature:clearance:near-key".into(),
-        severity: Severity::Warning,
-        scope: FindingScope::Layout,
-        message: "Keycaps are close".into(),
-        target_ids: vec!["board-1".into()],
-    };
-    let duplicate = Finding {
-        id: "other-board:board-1:feature:clearance:near-key".into(),
-        ..warning.clone()
-    };
-    let error = Finding {
-        id: "worker:error".into(),
-        severity: Severity::Error,
-        scope: FindingScope::Layout,
-        message: "Worker failed".into(),
-        target_ids: vec![],
-    };
-    let groups = keycaps_fit::grouped_findings(&[warning, duplicate, error], &document);
-    assert_eq!(groups.len(), 2);
-    assert_eq!(groups[0].label, "Layout review");
-    assert_eq!(groups[0].findings.len(), 1);
-    assert_eq!(groups[0].findings[0].severity, Severity::Error);
-    assert_eq!(groups[1].label, "Left PCB");
-    assert_eq!(
-        groups[1].findings.len(),
-        1,
-        "same feature/message/geometry collapses"
-    );
+fn completed_browser_request_settles_against_mounted_inspector() {
+    assert_settles(Some(source(2)), 1);
 }

@@ -5,7 +5,7 @@ use boardstudio_core::model::{
     Finding, KeycapResolution, ProjectDoc, Scope as FindingScope, Severity,
 };
 use dioxus::prelude::*;
-use std::rc::Rc;
+use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -45,7 +45,7 @@ pub(super) struct KeycapsFitActions {
 }
 
 impl KeycapsFitState {
-    pub(super) fn begin(source: KeycapsFitSource, previous: Option<&Self>) -> Self {
+    fn begin(source: KeycapsFitSource, previous: Option<&Self>) -> Self {
         let accepted = previous
             .filter(|previous| {
                 previous
@@ -62,7 +62,7 @@ impl KeycapsFitState {
         }
     }
 
-    pub(super) fn finish(&mut self, result: Result<KeycapResolution, String>) {
+    fn finish(&mut self, result: Result<KeycapResolution, String>) {
         self.refreshing = false;
         match result {
             Ok(result) if result.revision == self.source.revision => {
@@ -81,7 +81,7 @@ impl KeycapsFitState {
         }
     }
 
-    pub(super) fn is_current(&self) -> bool {
+    fn is_current(&self) -> bool {
         !self.refreshing
             && self.error.is_none()
             && self
@@ -100,9 +100,15 @@ pub(super) fn use_keycaps_fit(
     let mut state = use_signal(|| None::<KeycapsFitState>);
     let mut sequence = use_signal(|| 0_u64);
     let mut retry_generation = use_signal(|| 0_u64);
+    let alive = use_hook(|| Rc::new(Cell::new(true)));
+    use_drop({
+        let alive = alive.clone();
+        move || alive.set(false)
+    });
 
     use_effect(use_reactive((&source, &retry_generation()), {
         let runtime = runtime.clone();
+        let alive = alive.clone();
         move |(source, _retry_generation)| {
             // Bookkeeping must not subscribe this effect to the signals it updates.
             let current = (*sequence.peek()).saturating_add(1);
@@ -118,11 +124,14 @@ pub(super) fn use_keycaps_fit(
             )));
             let mut state = state;
             let runtime = runtime.clone();
+            let alive = alive.clone();
             spawn_local(async move {
                 let result = runtime
                     .resolve_keycaps_preview(source.scope.clone(), source.token, source.revision)
                     .await;
-                if *sequence.peek() != current {
+                // Browser-local tasks outlive this component's scope. Check the mount guard
+                // before touching any signal after await; stale scopes must never be read/written.
+                if !alive.get() || *sequence.peek() != current {
                     return;
                 }
                 let mut current = state.write();
@@ -135,7 +144,7 @@ pub(super) fn use_keycaps_fit(
         }
     }));
 
-    let on_retry = EventHandler::new(move |()| {
+    let on_retry = use_callback(move |()| {
         retry_generation.set(retry_generation().saturating_add(1));
     });
     KeycapsFitActions {
@@ -248,14 +257,14 @@ fn KeycapsFitFinding(finding: Finding, document: Rc<ProjectDoc>) -> Element {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct FindingGroup {
-    pub label: String,
-    pub findings: Vec<Finding>,
+struct FindingGroup {
+    label: String,
+    findings: Vec<Finding>,
 }
 
 /// Mirror the established React FindingList oracle: collapse duplicate feature wrappers,
 /// severity-sort the stable result, and group by the first resolved target label.
-pub(super) fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
+fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
     let findings = presented_findings(findings, document);
     let mut groups: Vec<FindingGroup> = Vec::new();
     for finding in findings {
@@ -403,4 +412,91 @@ fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<Stri
         .and_then(|matrix| matrix.name.clone())
         .or_else(|| body.map(|body| body.name.clone()))
         .or_else(|| board.map(|board| board.name.clone()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::{Board, KeycapResolution};
+
+    fn source(revision: u64) -> KeycapsFitSource {
+        KeycapsFitSource {
+            scope: Scope {
+                session_epoch: SessionEpoch(1),
+                document_id: "document".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            token: SnapshotToken(revision),
+            revision,
+            case_preview_current: false,
+        }
+    }
+
+    #[test]
+    fn same_source_retry_and_failure_keep_retained_result_stale() {
+        let mut accepted = KeycapsFitState::begin(source(1), None);
+        accepted.finish(Ok(KeycapResolution {
+            revision: 1,
+            specs: vec![],
+            findings: vec![],
+        }));
+        assert!(accepted.is_current());
+
+        let mut retrying = KeycapsFitState::begin(source(1), Some(&accepted));
+        assert!(
+            !retrying.is_current(),
+            "same-source retry is pending, so prior result is stale"
+        );
+        retrying.finish(Err("worker unavailable".into()));
+        assert!(
+            !retrying.is_current(),
+            "failed retry cannot make retained result current"
+        );
+    }
+
+    #[test]
+    fn findings_are_deduplicated_severity_sorted_and_grouped_like_react() {
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board-1".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let warning = Finding {
+            id: "board:board-1:feature:clearance:near-key".into(),
+            severity: Severity::Warning,
+            scope: FindingScope::Layout,
+            message: "Keycaps are close".into(),
+            target_ids: vec!["board-1".into()],
+        };
+        let duplicate = Finding {
+            id: "other-board:board-1:feature:clearance:near-key".into(),
+            ..warning.clone()
+        };
+        let error = Finding {
+            id: "worker:error".into(),
+            severity: Severity::Error,
+            scope: FindingScope::Layout,
+            message: "Worker failed".into(),
+            target_ids: vec![],
+        };
+        let groups = grouped_findings(&[warning, duplicate, error], &document);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].label, "Layout review");
+        assert_eq!(groups[0].findings.len(), 1);
+        assert_eq!(groups[0].findings[0].severity, Severity::Error);
+        assert_eq!(groups[1].label, "Left PCB");
+        assert_eq!(
+            groups[1].findings.len(),
+            1,
+            "same feature/message/geometry collapses"
+        );
+    }
 }
