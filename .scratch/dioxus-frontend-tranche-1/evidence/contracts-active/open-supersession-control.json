@@ -1,0 +1,74 @@
+{
+  "source": "598b2c026941130f9b95ff4fee57353f8eefcb0d (coordinator supplied artifact)",
+  "url": "http://127.0.0.1:34645/",
+  "session": "frontend-contract-race",
+  "seed": {
+    "id": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+    "name": "REVIUNG41",
+    "revision": 3
+  },
+  "before": {
+    "active": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+    "footer": "REVIUNG41 \u00b7 Revision 3 \u00b7 Saved100%",
+    "name": "REVIUNG41",
+    "status": "main-diode-5-thumbs\nmain-stabilizer-5-thumbs\nmain-diode-3-thumbs\nmain-diode-1-thumbs\nmain-U1\nmain-RST\nLayers\nInspect\nPosition\n\nSelect a component to edit its position.\n\nREVIUNG41 \u00b7 Revision 3 \u00b7 Saved\n100%\n\nSaved locally."
+  },
+  "A_pending": {
+    "active": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+    "footer": "REVIUNG41 \u00b7 Revision 3 \u00b7 Saved100%",
+    "name": "REVIUNG41",
+    "status": "main-diode-5-thumbs\nmain-stabilizer-5-thumbs\nmain-diode-3-thumbs\nmain-diode-1-thumbs\nmain-U1\nmain-RST\nLayers\nInspect\nPosition\n\nSelect a component to edit its position.\n\nREVIUNG41 \u00b7 Revision 3 \u00b7 Saved\n100%\n\nSaved locally.",
+    "trace": [
+      {
+        "event": "provider-get",
+        "id": "race-a"
+      },
+      {
+        "documentId": "race-a",
+        "event": "hold-A-after-session-submit",
+        "requestId": "m1-2"
+      }
+    ]
+  },
+  "B_unavailable": {
+    "active": "edbec892-9952-4b6b-a7ba-cb6b0a514ac4",
+    "footer": "REVIUNG41 \u00b7 Revision 3 \u00b7 Saved100%",
+    "name": "REVIUNG41",
+    "status": "main-diode-5-thumbs\nmain-stabilizer-5-thumbs\nmain-diode-3-thumbs\nmain-diode-1-thumbs\nmain-U1\nmain-RST\nLayers\nInspect\nPosition\n\nSelect a component to edit its position.\n\nREVIUNG41 \u00b7 Revision 3 \u00b7 Saved\n100%\n\nSaved locally.",
+    "trace": [
+      {
+        "event": "provider-get",
+        "id": "race-a"
+      },
+      {
+        "documentId": "race-a",
+        "event": "hold-A-after-session-submit",
+        "requestId": "m1-2"
+      }
+    ]
+  },
+  "after_A_release": {
+    "active": "race-a",
+    "footer": "Race A \u00b7 Revision 3 \u00b7 Saved100%",
+    "name": "Race A",
+    "status": "bs\nmain-diode-5-thumbs\nmain-stabilizer-5-thumbs\nmain-diode-3-thumbs\nmain-diode-1-thumbs\nmain-U1\nmain-RST\nLayers\nInspect\nPosition\n\nSelect a component to edit its position.\n\nRace A \u00b7 Revision 3 \u00b7 Saved\n100%\n\nSaved locally.",
+    "trace": [
+      {
+        "event": "provider-get",
+        "id": "race-a"
+      },
+      {
+        "documentId": "race-a",
+        "event": "hold-A-after-session-submit",
+        "requestId": "m1-2"
+      },
+      {
+        "event": "release-A"
+      }
+    ]
+  },
+  "expected": "A opens successfully when no B intent supersedes it",
+  "control": true,
+  "hold_reply": false,
+  "pass": true
+}

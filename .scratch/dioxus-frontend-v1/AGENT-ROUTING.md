@@ -35,7 +35,7 @@ INT.1 first proves private module reachability in the actual page binary/library
 
 ## Team shape and review cadence
 
-Respect the current four-slot limit: coordinator plus at most three agents. The steady-state recommendation is two Luna feature authors plus one Luna verifier. When evidence is ready, free that slot for Astra High review. After INT.1 is reviewed, the first visible tranche may use three authors on F2.1/F2.3/F3.1 briefly; rotate a completed author slot to verification/review before starting more work. Do not fill all slots with new features while review or integration waits.
+The resumed runtime exposes eleven total slots (coordinator plus up to ten agents), replacing the earlier four-slot host limit. Use only capacity with disjoint ownership and concrete work. The current visible frontier may run three Luna authors for F2.1/F2.3/F3.1, one independent Luna verifier, and Astra contract/bug review; reserve room for the two independent final review axes. Automatic next-ticket preparation may use another Luna slot. Shared integration and heavy builds remain serial. Do not fill all slots with new features while review or integration waits.
 
 The coordinator serializes shared presentation/runtime/global CSS/build/ledger edits, preserves unrelated work and integrates a frozen candidate. Routine integration can use Luna High. Semantic merge conflicts or changed ownership/snapshot behavior go to Astra; mechanical merges do not justify an always-on Astra coordinator.
 
