@@ -43,7 +43,7 @@ pub(super) fn toolbar() -> Element {
     rsx! {}
 }
 
-pub(super) fn canvas(input: PlaceholderInput) -> Element {
+pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
     rsx! {
         section { class: "m1-placeholder-workspace",
             h1 { "{input.name}" }
