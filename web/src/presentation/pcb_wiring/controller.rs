@@ -56,7 +56,6 @@ pub(in crate::presentation) fn use_pcb_wiring_controller(
         let runtime = runtime.clone();
         let latest_request = latest_request.clone();
         let alive = alive.clone();
-        let mut resolution = resolution;
         move |()| {
             start_resolution(
                 runtime.clone(),

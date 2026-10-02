@@ -11,7 +11,7 @@ use dioxus::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
 mod controller;
-pub(in crate::presentation) use controller::{PcbWiringMount, use_pcb_wiring_controller};
+pub(in crate::presentation) use controller::use_pcb_wiring_controller;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct WiringPlanIdentity {
@@ -381,6 +381,12 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let free_pins = matching_plan
         .map(|plan| plan.free_pins.as_slice())
         .unwrap_or(&[]);
+    let plan_ready = matching_plan.is_some_and(|plan| {
+        !plan
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == "error")
+    });
     let on_resolve = props.on_resolve;
     rsx! {
         section { class: "m1-pcb-wiring",
@@ -402,10 +408,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 if pending { "Resolving…" } else { "Resolve automatically" }
             }
             if let Some(plan) = matching_plan {
-                let plan_ready = !plan
-                    .diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.severity == "error");
                 div { class: "m1-pcb-wiring-pin-summary",
                     div { strong { "Used pins" }
                         p { if used_pins.is_empty() { "None assigned" } else { "{used_pins.join(\" · \")}" } }
