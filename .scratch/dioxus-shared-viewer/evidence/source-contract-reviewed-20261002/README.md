@@ -37,4 +37,3 @@ retry remain runtime checks. The review says performance, accessibility and
 actual assistive-technology gates remain unproven. INT.2 and BND.1 remain
 acceptance joins. This source packet supplies none of that integrated or
 browser evidence and does not change the existing RF ledger.
-

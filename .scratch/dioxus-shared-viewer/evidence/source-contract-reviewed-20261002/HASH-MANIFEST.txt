@@ -35,4 +35,3 @@ SHA-256 of packet files:
 7a15f3f7aa67f31e6e9334d0bde1a1ebc7215ef45352ccb063deac47433d1b1a  reviewed-contract.md
 183613a5ce784f5544411d785a7d805cad4f35963eaee94aa01ee16a934e1109  reviewed-dispatch.md
 977dd769808df5662605a0a322e8f57143a759877c01cb0ee6d67fe0aac56776  final-standards-review.md
-
