@@ -150,7 +150,7 @@ pub(crate) fn CaseAssemblyLayers(
                     div { class: "m1-case-assembly-layer-group", role: "group", "aria-label": "Assembly",
                         div { class: "m1-case-assembly-layer-heading", "Assembly" }
                         for layer in assembly {
-                            { let toggle = toggle.clone(); rsx! { CaseLayerButton { layer, display: display.clone(), on_toggle: move |id| toggle(id) } } }
+                            { let toggle = toggle.clone(); rsx! { CaseLayerButton { layer, display: display.clone(), on_toggle: toggle } } }
                         }
                     }
                 }
@@ -158,7 +158,7 @@ pub(crate) fn CaseAssemblyLayers(
                     div { class: "m1-case-assembly-layer-group", role: "group", "aria-label": "Components",
                         div { class: "m1-case-assembly-layer-heading", "Components" }
                         for layer in components {
-                            { let toggle = toggle.clone(); rsx! { ComponentLayerButton { layer, display: display.clone(), on_toggle: move |id| toggle(id) } } }
+                            { let toggle = toggle.clone(); rsx! { ComponentLayerButton { layer, display: display.clone(), on_toggle: toggle } } }
                         }
                     }
                 }
