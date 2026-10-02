@@ -206,6 +206,9 @@ The packaging review also found that the generated service entrypoint omitted
 its already-existing `parameters(source)` export. The private builder now
 forwards and provenance-hashes that export, and self-checks the generated MX
 defaults before success; root/subpath/offline delivery remains unverified.
+The preview's projected-graphic bounds fixture does not yet compare React's
+additional raw-form extents (which include hidden/reference text); that paired
+MX framing check remains open.
 
 ### RF-009 encoder initial-value regression evidence
 

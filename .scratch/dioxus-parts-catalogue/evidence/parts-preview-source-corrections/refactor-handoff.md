@@ -14,6 +14,12 @@ The identity remains page-local and read-only. It carries the existing accepted 
 
 The same bounded source tests cover React's authored-keycap precedence, retained Ergogen width/height and `include_keycap` defaults, and the `is-mechanical` class for unplated drills. These are regression fixtures in source only. No Cargo/native/WASM/browser check was run in this worker; those gates remain with the integration owner.
 
+The asymmetric bounds fixture covers projected graphics that the Dioxus renderer
+actually draws. React's `ergogenPreviewPoints` additionally scans raw forms,
+including hidden/reference text, before rendering. This correction does not
+claim full raw-form framing parity; the paired MX fixture's raw-form extent
+comparison remains open.
+
 ## RF-002/RF-009 — packaged service reachability and provenance
 
 The preview loader needs the retained `parameters(source)` function from
