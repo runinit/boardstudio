@@ -29,6 +29,11 @@
         "build": "Regression-green build frontend-matrix-keycaps-20261002 at92db0b8f/34691; later Matrix CSS-only build frontend-matrix-keycaps-styled-20261002 at a896cd49/34693 reuses same Rust behavior.",
         "paired_status": "Targeted regression green: after filter SW7, selected matrix/left-keys/r1c0 survives Macros\u2192Keys and Encoders\u2192Keys; retained same-fixture React reference agrees. Clear-filter SW8 canvas selection and Function\u2192Main labels pass. Full Keymap/F6K and canonical parent acceptance remain open."
       },
+      "keymap_visual_refresh": {
+        "source_commit": "fc5e17e3526afe8a2c55efe9afdbc0f0faff3efa",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/keymap-paired-refresh-20261002/RESULTS.md",
+        "status": "Fresh side-by-side Sofle v2 screenshots confirm the Dioxus 2D contour and Keys/Macros/Encoders tabs are present; left Objects tree still lacks the React Outline row and Column 1-6 grouping, and generic instance/group controls/layout differ. Initial visual inventory only; edits/history/save-reopen acceptance remains open."
+      },
       "layout_matrix_inspector": {
         "source_commit": "1ad8c478",
         "compiler_corrections": [
