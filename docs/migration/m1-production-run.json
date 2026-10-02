@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "Reviewed b9748745 complete release and bounded root/subpath smoke pass; active-project startup restoration and physical-instance selector are being completed. Final five-session/reference gates remain pending; screen-reader acceptance blocked.",
+  "status": "Reviewed b9748745 complete release and bounded root/subpath smoke pass; active-project startup restoration and physical-instance selector are undergoing checks. Final five-session pointer gate pending; unchanged reference UI/live comparisons fail and frozen CAD comparison is ineligible; screen-reader acceptance blocked.",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -38,7 +38,7 @@
       ]
     },
     "06": {
-      "status": "Reviewed pointer repairs pass focused and partial rebuilt-release caps; paired attempts stopped on harness failures. Active-project restoration and physical-instance UI gaps under repair; five-session and unchanged reference gates pending; actual screen reader blocked.",
+      "status": "Source reviews for active restoration and physical-instance UI pass; execution/browser verification pending. Pointer repairs pass focused/partial caps; final five-session gate pending. Reference UI/live frozen comparisons fail; CAD completes five sessions with passing row limits but frozen environment/provider identity mismatch. Actual screen reader blocked.",
       "blocked_by": [
         "03",
         "05"
@@ -71,5 +71,12 @@
     "subpath": "http://127.0.0.1:46890/boardstudio/"
   },
   "decoder_source": "5a0972a2889a702051e9a7ab53b2727db07126e0",
-  "previous_verified_release": "m1-release-20261001-8f509433"
+  "previous_verified_release": "m1-release-20261001-8f509433",
+  "reference_performance": {
+    "record": ".scratch/m1-production/evidence/performance/runs/reference-gates-20261002T002536Z/record.json",
+    "ui_live": "executed \u2014 exit 1 on unchanged frozen timing comparisons",
+    "cad": "executed \u2014 exit 0, five sessions, per-row limits pass",
+    "frozen_cad_comparison": "ineligible \u2014 exit 1: OS and core/renderer WASM identities differ",
+    "budgets_changed": false
+  }
 }

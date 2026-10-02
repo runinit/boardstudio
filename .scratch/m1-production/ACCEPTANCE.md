@@ -40,7 +40,13 @@ The wider `8f509433` observations above retain their exact source scope. Saved
 active-project restoration and physical-instance selection are implementation
 gaps under repair; neither is accepted by the bounded smoke. Failed paired
 performance attempts remain [recorded](evidence/performance/README.md); a valid
-five-session aggregate is still unperformed. Evidence/document commits do not
+five-session aggregate is still unperformed. The unchanged
+[reference gates](evidence/performance/runs/reference-gates-20261002T002536Z/assessment.md)
+completed: UI/live frozen worker/main-thread and interaction timing comparisons
+fail. CAD ran all five sessions with all per-row completion/paint/RSS budgets
+passing, but its frozen comparator rejects OS and core/renderer WASM identity
+mismatches. These are retained outcomes, with no changed baselines or budgets.
+Evidence/document commits do not
 change production inputs.
 Component evidence is reused only where relevant source inputs are unchanged;
 final release observations are distinguished explicitly.

@@ -1,6 +1,8 @@
 # Remaining M1 production workflow
 
 **Status:** candidate implementation under final story completion; acceptance open. **Category:** behavior-preserving vertical migration, with the accepted save-failure recovery behavior from ADR 0003.
+**Triage:** ready-for-agent
+
 **Authority:** user request of 2026-10-01 to plan the remaining M1 documentation with to-spec and then implement. Existing six module specifications, capability map, constraints and accepted P1/P2/P3 evidence remain authoritative. This specification bounds M1 only.
 
 ## Problem Statement
@@ -64,6 +66,7 @@ Deliver an isolated static Dioxus editor with Rust session and browser policy. R
 - Characterize observable reference behavior first. Red-green tests cover each delivered session behavior rather than private functions or mirrored implementation calculations.
 - Native session cases cover durable ordering, abort/retry, one-step history, final sample/cancellation, reopen at equal ID/revision, stale completions, executor failures and close.
 - Real Chromium checks cover workers, IndexedDB abort/retry, byte hashes and Uint8Array storage, reference archive exchange, root/subpath release assets, cached/cold offline, invalid import and service-worker update separation.
+- Startup restoration is verified through the saved-project library, scoped active preference and actual reload at each prefix, including absent/stale preferences, slow worker startup and a newer explicit open superseding a delayed saved read. Physical navigation uses canonical and valid board-filtered instances; public session effects and browser case disposal verify cancellation and stale-scope suppression.
 - Case/STEP comparisons use independent cached/uncached provider lifetimes, prepared-input/readiness parity and reopened geometry/material/bounds oracles. Pixels alone cannot prove STEP correctness.
 - Run affected fmt, strict native/WASM Clippy, locked tests/builds, contracts, repository/boundary checks and reference suites. Preserve all existing assertions and frozen budgets. Record failed/unperformed gates honestly.
 - Final acceptance includes paired desktop/compact visual interaction evidence, keyboard/focus and relevant screen-reader checks, raw axe/contrast, resource lifecycle and existing applicable performance checks. Measurements without an approved comparator are observations.

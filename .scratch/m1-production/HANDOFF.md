@@ -54,8 +54,11 @@ stops rendering; reopening/remounting the preview recovers it. Screen-reader
 interaction is blocked on this host because no screen reader is installed.
 Axe and contrast checks do not substitute for that gate. Scoped resource and same-input geometry evidence is recorded; exact STEP bytes
 differ only at tiny decimal coefficient rounding. One focused pointer session
-passes all caps; full rebuilt-release and eligible reference comparisons remain
-required where the ledger says open.
+passes all caps; final rebuilt-release five-session timing remains required. The unchanged
+[reference run](evidence/performance/runs/reference-gates-20261002T002536Z/assessment.md)
+completed with UI/live timing failures and an ineligible frozen CAD comparison
+(OS and provider identities differ); no budgets were changed. Actual root/tab
+close and complete material parity still lack direct browser evidence.
 
 The original checkout, stashes and historical worktrees are retained. Worker
 worktrees also retain ignored build/evidence inputs, so cleanup must preserve

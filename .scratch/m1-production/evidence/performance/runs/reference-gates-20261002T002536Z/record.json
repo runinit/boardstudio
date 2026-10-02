@@ -1,0 +1,87 @@
+{
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+  "started_at": "2026-10-02T00:25:36.368530+00:00",
+  "source_commit": "41b21c22ba65f73a5fa7d05a0396b3bce8706c54",
+  "production_build": {
+    "release_id": "b9748745",
+    "source_commit": "b9748745ec444416136a97d4befd075670ef49b7",
+    "build_record_path": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/integration/release-b9748745.json",
+    "build_record_sha256": "47d53bc73e9cd28936044b56a1827d718f67467b109b768b66c68ffe0185726a",
+    "provenance_path": "release-b9748745-provenance.json",
+    "provenance_sha256": "67b4d9644484477f17f1f827ffc84dfc920bdbdee31715a7f14be6162aef6485"
+  },
+  "commands": [
+    {
+      "label": "reference-ui-live",
+      "argv": [
+        "pnpm",
+        "--dir",
+        "app",
+        "test:perf"
+      ],
+      "started_at": "2026-10-02T00:25:36.387316+00:00",
+      "environment": {
+        "BOARDSTUDIO_PERF_REPORT": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/reference-gates-20261002T002536Z/ui-live.json",
+        "BOARDSTUDIO_TEST_PORT": "46883"
+      },
+      "exit": 1,
+      "finished_at": "2026-10-02T00:29:00.523510+00:00",
+      "log": "reference-ui-live.log"
+    },
+    {
+      "label": "reference-cad",
+      "argv": [
+        "pnpm",
+        "run",
+        "bench:cad",
+        "--",
+        "--output",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/reference-gates-20261002T002536Z/cad",
+        "--port",
+        "46884"
+      ],
+      "started_at": "2026-10-02T00:29:00.523883+00:00",
+      "environment": {},
+      "exit": 0,
+      "finished_at": "2026-10-02T00:33:01.626867+00:00",
+      "log": "reference-cad.log"
+    },
+    {
+      "label": "frozen-cad-compare",
+      "argv": [
+        "node",
+        "cad/bench/compare.mjs",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/reference-gates-20261002T002536Z/cad"
+      ],
+      "started_at": "2026-10-02T00:33:01.627183+00:00",
+      "environment": {},
+      "exit": 1,
+      "finished_at": "2026-10-02T00:33:01.881008+00:00",
+      "log": "frozen-cad-compare.log"
+    }
+  ],
+  "scope": "Unchanged reference regression gates; never substitute for an eligible M1 public-page comparison.",
+  "input_sha256": {
+    "app/scripts/run-performance.mjs": "0ff893192311c3431b0b1bb62e085bf5db455acb2cc829d645232255e189d839",
+    "app/performance-baseline.json": "4557e604d0c7207fdd05c4e8dc1dae8dc1ca4f8e2dc36927cae23028c3ba4b91",
+    "app/scripts/run-cad-benchmark.mjs": "e510b80ac66861131047e4ed16abd1ae19b8bdf6ebbb563c4f045b05b281fa79",
+    "cad/bench/compare.mjs": "a0a15d5dd054d88f6422b461220210a15cfd95b5d687382c6a4637dcc9029a4a",
+    "cad/bench/budgets.json": "80ab5b1d2db6cc842c9210204817b03df49ebbe4b1cc514af34d32a1a9a3b3fe",
+    "cad/bench/results/baseline/summary.json": "b527f0a5eb1ff339fc6c94d21c459533dbe70a356ad3b7d762945474d9762797",
+    "core/pkg/boardstudio_core_bg.wasm": "bc3a091122da2ebcb4eb55d3f0967d2b1943611105068f287c2fc6f0e17aa186",
+    "renderer/pkg/boardstudio_renderer_wasm_bg.wasm": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+    "cad/wasm/pkg/boardstudio_cadrum_wasm_bg.wasm": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719"
+  },
+  "finished_at": "2026-10-02T00:33:01.881559+00:00",
+  "unchanged_inputs": {
+    "app/scripts/run-performance.mjs": true,
+    "app/performance-baseline.json": true,
+    "app/scripts/run-cad-benchmark.mjs": true,
+    "cad/bench/compare.mjs": true,
+    "cad/bench/budgets.json": true,
+    "cad/bench/results/baseline/summary.json": true,
+    "core/pkg/boardstudio_core_bg.wasm": true,
+    "renderer/pkg/boardstudio_renderer_wasm_bg.wasm": true,
+    "cad/wasm/pkg/boardstudio_cadrum_wasm_bg.wasm": true
+  }
+}

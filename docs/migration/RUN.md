@@ -7,8 +7,8 @@ The reviewed implementation includes pointer allocation repairs at `b9748745`.
 Its complete maintained rebuild and bounded root/subpath smoke pass. Active-project
 startup restoration and physical-instance selection are being completed. Earlier `8f509433` build and
 root/subpath browser checks pass, with scoped resource and same-input STEP
-geometry evidence retained. Final five-session timing and unchanged reference
-gates remain pending; relevant screen-reader testing is blocked. Earlier
+geometry evidence retained. Final five-session timing remains pending; unchanged reference gates completed
+with UI/live failures and an ineligible frozen CAD comparison; relevant screen-reader testing is blocked. Earlier
 sections retain historical proposals, failures and accepted feasibility work.
 
 Initial specification-run base: `96dd51d3e790c28f5554a8c9888a147c8814e2a7`.
@@ -979,3 +979,16 @@ reuse the existing scoped preference and sequenced saved-open path; an
 accessible Physical instance selector will use the existing Navigate event,
 including an explicit canonical-board choice. No schema or public API change
 is needed. Earlier bounded smoke did not cover these two requirements.
+
+
+### Unchanged reference performance gates
+
+The [exact reference run](../../.scratch/m1-production/evidence/performance/runs/reference-gates-20261002T002536Z/assessment.md)
+completed serial UI/live, CAD and frozen comparison commands, recording the
+`b9748745` candidate provenance as context. UI/live exits 1 on existing frozen
+worker/main-thread and numeric/Undo/gasket timing comparisons. CAD generation
+exits 0 after five sessions; all per-row completion/paint/RSS comparisons pass.
+Its frozen comparator exits 1 because OS and core/renderer WASM identities
+differ from the baseline, so baseline-comparable acceptance is ineligible.
+All nine pinned inputs remain byte-identical. This reference-only run does not
+substitute for final public M1 pointer timing. No budget or baseline changed.

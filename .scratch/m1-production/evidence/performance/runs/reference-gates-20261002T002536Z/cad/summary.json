@@ -1,0 +1,975 @@
+{
+  "metadata": {
+    "schemaVersion": 1,
+    "revision": "c6085a55fa5bdaa3e3c0c62e2414d6c28a831053",
+    "dirty": true,
+    "sourceDiffSha256": "e661b98527f25921888fedf017e16cc5697fb9d7f27bd8633c0b46da5113ae29",
+    "wasmSha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+    "coreWasmSha256": "bc3a091122da2ebcb4eb55d3f0967d2b1943611105068f287c2fc6f0e17aa186",
+    "rendererWasmSha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+    "sources": {
+      "cad/src/index.ts": "53f9b048f3257746c7847d047baad9d328f6ab94aa1b7a8b296efcf2b1507d2b",
+      "cad/src/kernel.ts": "90d39e48739e9249fba671c51ba86c5c49677ead9f87d4fbc4bbf9dc10f53125",
+      "cad/src/metrics.ts": "bf98f8ad8ffa607a249e93b8ad29d7d1d965fdbe0c25aa6ad0ddb0f316f60715",
+      "cad/src/node-fs.d.ts": "e02a95b8eaf657d910e101de70d94bd7032f91bdb1369bfe6fbda0779cd5df43",
+      "cad/src/preview.ts": "53643206b0b28e3ace82a042e5609c4b588d3a3ab7cd5090865e7dbb306bb11b",
+      "cad/src/wasm.d.ts": "f861a22602a8721a176edbd3893835bac677812f5d286f2a9404b6285108865a",
+      "cad/wasm/src/lib.rs": "23e2799e2a0ebe9d88d246efdcc1ab627e41597ee8085fdbd720ff9e53d0b919",
+      "cad/wasm/src/model/construction/cache.rs": "debfa0fce367697ddc5e4defa6ac5e00392e2702f7e6b1987a19bfcd4e02ea23",
+      "cad/wasm/src/model/construction/equivalence.rs": "5b9560c0c4757efffd3e9e5c39fb0063852b7728d5dd7af91cedab9a713c0e3d",
+      "cad/wasm/src/model/construction/gasket_features.rs": "3519dbf2bd29fa9ffe35c536585ab28b44ac2ca9fdf79cd1f864183fc5df7699",
+      "cad/wasm/src/model/construction/planar_mesh.rs": "75e282fd7d566476a357dac00a046d1ea6396abc2dcaf6f344c7785e55f09a88",
+      "cad/wasm/src/model/construction.rs": "51821ab7915e50bc3b70d8e0309cc7a8dc487cd0c00fa4934e7250d444b6f22d",
+      "cad/wasm/src/model/keycaps/lettering.rs": "ff8ed6532193b5589b055fab4bca69a6fedf163108c1c17186ec9e9cf7bc1515",
+      "cad/wasm/src/model/keycaps.rs": "dea6192e9da4194fd42c44e56dd6ddbd80228fdc88fc2ca54c6cfc6c69d82a04",
+      "cad/wasm/src/model/metrics.rs": "2beb27626c9e6032800a588394e0b83a9ed069e0c48c5a0b47eed820f14145d7",
+      "cad/wasm/src/model.rs": "3a2bec7df76be4bb518e2d74d3c16775546459db2ee35b5ef28d39b09283f45e",
+      "app/src/assemblyPreview.test.ts": "a702bb3ac4587c5fdcea72eebfe308f906c81dca2269dcea9424525f4312357e",
+      "app/src/assemblyPreview.ts": "1a530930423b66a36caaccd2600e34ad4bf2a9b7acc6251c2719f923532e512f",
+      "app/src/assets/fonts/README.md": "ede022134c114a9fb138450a301d10be2d529a033b1cf494feef55ebf0f83783",
+      "app/src/assets/fonts/source-code-pro-upright.woff2": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792",
+      "app/src/assets/fonts/source-sans-3-upright.woff2": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8",
+      "app/src/bench-cad.ts": "02958e90641ac77cf7ef5ef8db785cecd55a2a6b0d5c9226a45eda55b5abcd1c",
+      "app/src/bench-workbench.tsx": "1bb63d0014163ef8d1135a2f9b2bc3a769b880e36527b4d74cce9cf6809d852d",
+      "app/src/bench.ts": "a43af9489ae1f1a4e3822ac5c2ae8decc2fbc42dc83c0a772eb6bc49a28b0066",
+      "app/src/bundledModels.ts": "9a61d03dc237e03f55b8799521e98ca3e4fbb2021a6846ba92d142a73e6079e8",
+      "app/src/cadPerformance.test.ts": "ea8062475ead002dc5b8dbbae59e5bae872d53429989e828793e09dfbe7e5b4f",
+      "app/src/cadPerformance.ts": "19fa55ab3319600f32098a31bccd4745d30e55c59d40156a7a6536754cf27330",
+      "app/src/cadPreviewScheduling.test.ts": "82bdd784a28b81dd41b378e22bf04aa0b02dd19521afa99011b288551207fac8",
+      "app/src/case.worker.test.ts": "fa78ed79d48df5eb513d09868fbd9e11e0e5030636cb1d2eb3953a021092e294",
+      "app/src/case.worker.ts": "c6e96b1f876dcb105977a40f4afc569d6691b7cb7097c07b05266808dbb6a84c",
+      "app/src/caseAssembly.ts": "a3030b910d932716dcaab998930a5f4b768526aa83c599f34f5ab35eb66fb0b5",
+      "app/src/CaseClient.test.ts": "c3446bbd6dc6bf804391e36f985121d04fab0b7b19a057665ce0c52a28fd4374",
+      "app/src/CaseClient.ts": "b7ab7e789224799748a0dc22c63ba0d5a45fb5efbd2404b02fe0b245d33e8e11",
+      "app/src/caseEditing.test.ts": "f1e4683303f4c2885c99e25701ba3fb103b245bb6ac056ef403671b3f6d62926",
+      "app/src/caseEditing.ts": "1b9c89b66c4dab6094d2fba7722058fb90d246f0c43ee087ed9152be558a924f",
+      "app/src/casePreviewContext.test.ts": "987be0d0c38c99f599172b6b2a356d9e855b15cbab3248fadbe2eaa24a326004",
+      "app/src/casePreviewContext.ts": "300fccfd9733ca3aa9a2daa6875fb10f100bbfc9bb7664972772a1900681dfb6",
+      "app/src/closureClearance.test.ts": "f3ef5fc4f6a8e04330e0d686b037f2c58c936ead22d3fc4c5fd008bc7d2912d8",
+      "app/src/closureClearance.ts": "e383870517123e8e8d34d7b727bca5d440eebe932cdbd27138b1c2a23ad82660",
+      "app/src/core.worker.test.ts": "320e4ad8c39c4af70a62d445d03ebca5811446d73c94250dab17d64869bbd006",
+      "app/src/core.worker.ts": "3288b213b4a14c1e569a94fab75c293038dd96ef2ef62e94c6711e895792baf1",
+      "app/src/CoreClient.test.ts": "cead9402bfe7903c81c64ae1522c725f7ca88b4d5472e74bacd87918470eded7",
+      "app/src/CoreClient.ts": "d68d40acc76a3294e95955e7b92155824d026a3fa28110a3a4abd156f7027a15",
+      "app/src/createProjectActions.test.ts": "39c31b64570d868230c60cb9ea34479ce64ce43c562cde362e5fb9decf8aa0a0",
+      "app/src/createProjectActions.ts": "11a7cd85745d9fc960680668773b96ec65a68283f9db8dba4a41413132b5ec0f",
+      "app/src/createProjectExporter.test.ts": "710a33e0fc8b0cc2508ac47bce62ec63002ee45900a967ca608e8c50b022f87e",
+      "app/src/createProjectExporter.ts": "b680e6bfb0cac78d9775cdf7b6a147f560b69cb78a44e79f88eeba2c7d4f60a3",
+      "app/src/demo.ts": "6c244766d08ef4102a28ff28e8700d5ce13b0f16fc4184dd7f05be9c008f818f",
+      "app/src/demos/keyboard-layouts.json": "c292a5bdef43db4c8fcefce56224b55a3ea0329602e3c646fdb004783ed0cacc",
+      "app/src/demos/keyboardPreviews.test.ts": "da567e32d12a0fb19168aafde82a5ba4c2985b7d34d0fcbe98054b63cccb593d",
+      "app/src/demos/keyboardPreviews.ts": "b073b66a8a17be20fd4976278a0c856e42e52ed160b10ccadca6991280af13b0",
+      "app/src/demos/keyboards.test.ts": "1e361b3c25a28ab818efc39e678e1d735b0ff4de4e24053b97ffdc078dd0cf01",
+      "app/src/demos/keyboards.ts": "8139ad903b81868a4a2f12f441473d53f8baa6f34a6f652b1b2d690fe2092157",
+      "app/src/demos/licenses/cantor.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "app/src/demos/licenses/chocofi.txt": "6e471d647db50527d0c75ee5f1a55a74012ab177c73282bef0bdc7f6562b7ded",
+      "app/src/demos/licenses/corne.txt": "96535dd7db17bbb6243ee0756cb28c6fb6324d212793d85a4762d3bd73a98680",
+      "app/src/demos/licenses/discipline.txt": "4d6056e3a883dcb71132b99b2f4875141defb03f7d0cf3d44d3feb3efa996013",
+      "app/src/demos/licenses/klor.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "app/src/demos/licenses/lily58.txt": "d30e24e5e29bd5f296699f92b450dde67d9f8b65ce571a471a9e41ada66f6f6a",
+      "app/src/demos/licenses/lumberjack.txt": "62ad6f3456a06d63d9cb92fffcff86155914b7e697df707f1f81f5fdf348a052",
+      "app/src/demos/licenses/mysterium.txt": "605e9047a563c5c8396ffb18232aa4304ec56586aee537c45064c6fb425e44ad",
+      "app/src/demos/licenses/plaid.txt": "3f232f91610944f1881e611f4daae32cb12b9ca946b94b06796c7754955ea6f9",
+      "app/src/demos/licenses/reviung41.txt": "05fdd16396026ab0e4807b07b1f900d57b273488fff18e20d224c70c039d041b",
+      "app/src/demos/licenses/sweep.txt": "a155a0b888388be6de7e4d4393fb2db671eb7dd865d3cdcde9606f12a7cf448b",
+      "app/src/demos/licenses/totem.txt": "0b62e9939e67f2e4020385073fd196e185b2b57391f7630e54adb947237624b6",
+      "app/src/demos/licenses/voyager104.txt": "e45dd6daf694cdaf642425339e80bf08c2c34aa70c9215f936b08b939add7b33",
+      "app/src/demos/licenses/voyager97.txt": "e45dd6daf694cdaf642425339e80bf08c2c34aa70c9215f936b08b939add7b33",
+      "app/src/demos/moduleReview.test.ts": "0b47f3958863a47cdcd14a67c0f7bb101f60d3d849741e5ab695bb2200f7ca6b",
+      "app/src/demos/moduleReview.ts": "fee7c8515ae5a6ac9e87f7f28251a7339fe683d0f3994255c1e936638223e43c",
+      "app/src/demos/physicalLayout.ts": "bf9b57d12af57bb3ea3709f28a4ec01c28f592be3ed9e9a8a66a61e85f284e9c",
+      "app/src/demos/README.md": "df42e0c01d54f1acccd9bd01f9b13bf2d10132c60a76900bd72a86257a309783",
+      "app/src/demos/sofle-layouts.json": "a568fe3c5191e71ff90f815521be22cf9ee2007ff1d629ace9a9a9cb26a00571",
+      "app/src/demos/SOFLE-LICENSE": "adf1ae4f6308dd0123cf505333f04b5adab16753b076d279dcb6b8a660fc213d",
+      "app/src/demos/sofle.test.ts": "515e648d39cdbf870b186fe9c61ac5892a826047f879afdf0171e18767756115",
+      "app/src/demos/sofle.ts": "4cafb598e281af7397a06152728d25ccdd7e7b8e11be3dc1233516f3ae325fa8",
+      "app/src/demos/stabilizerCase.test.ts": "173bc66886ab305c1983946d79fe22a03fa8a42dc61dc657ff7839ee9f0fbd37",
+      "app/src/demos/test/outlineHelpers.ts": "aabe71d26cafe16df81b28dbb88b51a1ca95569d1e664b3755c2049d16b7d610",
+      "app/src/demos/workflow.test.ts": "fb8750412b232ed68ba2f18cd1d8456c8c9043d908c8e7f96fc469a2ff6734ff",
+      "app/src/electricalHandoff.test.ts": "5bd42d48a145d40293bc843763d21ec58dde15b76e63c381ab86b7de4b6ef85f",
+      "app/src/electricalHandoff.ts": "2d9787f78c8d783dec70572e40ca00e3b1e30cd30ce0264f660f4ef4c99639b8",
+      "app/src/electricalPlanContext.test.ts": "81c2f7e31c304fa43b6baa213a071ba60d15564a5bfdec42d4e2b3d5a51e1949",
+      "app/src/electricalPlanContext.ts": "115c58c296bd52d1707557f8c3becee2aa36372b9dcaf3cef3675a0ba2651325",
+      "app/src/electricalWorkflow.test.ts": "27a0f8fe67e54115ce7f00aeb8c88001e35abfa1b7eff07231d2af71dc25887f",
+      "app/src/export.worker.test.ts": "934250539c741cdd7bf81195bb70e97bb8bd517aeded6bdfd987f9eeec106cfd",
+      "app/src/export.worker.ts": "4d918c6e2600480444f3e733706e04b49eee99fe039971c2efce796f16a9074e",
+      "app/src/ExportClient.test.ts": "374ee065cfe8919606ccba1611d19863b7b7306b2349554c3f1ff84e7ad82a66",
+      "app/src/ExportClient.ts": "28e851fdcad480ae2179e3b4addc0194b4a0a45e86c0196a36e9f31f74dac578",
+      "app/src/exportMechanicalAssembly.test.ts": "b761f722b8dd9db6571adddaab4ac251a9fca348f7133bd7a05fb5b3a6f4b338",
+      "app/src/exportMechanicalAssembly.ts": "e6c05aae436f7952164c07ad89ff825a7eeffa25f067a0ce8b0ed320e8249158",
+      "app/src/exports/assets.ts": "13f305afe0790f8e764a86efaf9d2e4151c703b9407c3b8d60c04f5ae0daaab7",
+      "app/src/exports/cases.ts": "eef54bfaf02e1116ed1ae5874cd86cf7c62ae214ab9f41dfd30e6a6bc157e2b4",
+      "app/src/exports/context.ts": "49f5f7cf608a561277bdcc08230c447bda600c71da1b542350764dc6da498d22",
+      "app/src/exports/documents.ts": "a7eee9d3e02b668987a087bc7fe80b810f4d6a019951363d6f3e9bfa6c35dea2",
+      "app/src/exports/firmware.ts": "c4ed4eec75fa5c10a3372a049f46841a1d71f88388d92b94e1a9d7ba5623f88c",
+      "app/src/exports/keycaps.ts": "df65ed01141f204dbb23ced2a7f79b2663ecbbaee89b88af7cbefca5648aaa1a",
+      "app/src/exports/pcb.ts": "fbf2a86a1a2fa72e21ee4892ae135b7980deade47424d67681a10a0f9bd06f56",
+      "app/src/firmwareHandoff.test.ts": "a0ff28ffe85b818a618fe9c7c558404e6500669beae23f2d23897e53c10a7848",
+      "app/src/firmwareHandoff.ts": "8ea6032bc58ae252eeecb5d02a2c39c33cfb0375843f576ed722ed6f16ce7e5a",
+      "app/src/firmwarePeripherals.test.ts": "1fc70a4d64e640134076b5627dd51193e3c48751ba61e5107a3c20b8cf662ffe",
+      "app/src/firmwarePeripherals.ts": "b08f024b55c77a1b27da50f71a6a0ccf81a29275efaf705e570b8be802c56839",
+      "app/src/gasketEditing.test.ts": "85e3dc6b4ed28a5f459b1bda8731c3167e262bd37f9fafd83442c8df0c87bc49",
+      "app/src/gasketEditing.ts": "7745b561b01a47a3a8cfd07a9a9485312d1708a7e0f36a38b4aec39799b7c0fa",
+      "app/src/generationState.ts": "bb0de886b947879e5136d21500046e4e4a85a71a6655f8195da8508ba09581fa",
+      "app/src/hardwareInstances.test.ts": "3ad993adef3515a04fd7502943f69cee4df98b5f43f77369a1139f85e60128b1",
+      "app/src/hardwareInstances.ts": "3d79515245989616c3b542875c1afc5a40ca5f771a345abbbcca91b627208b83",
+      "app/src/keycapSettings.ts": "5a2c3d569f1d1066241815974f91136490ca89d11ce7860ddec513a737895ff2",
+      "app/src/livePreviewScheduler.test.ts": "e15a48ff9a895ec60e0b5d52cb422c72bd63beaca666630ef9e59073e809a89f",
+      "app/src/livePreviewScheduler.ts": "14344416e47e962b8fa397e65b2fff0aa524865072aba73bbb4ace2c439f3df8",
+      "app/src/main.tsx": "a71e3e64bf301737a3c1e701542889f784ad12a165b108a45414006877d2695d",
+      "app/src/mechanicalDefaults.test.ts": "f1bf18d2877f8d1e7be0b6c841f4728798b9ddff1f759234d2eac27b7c33f096",
+      "app/src/mechanicalDefaults.ts": "172a27d212732975774f1ba0f84a0bfa2827e9730386abc2046002d4127709b2",
+      "app/src/mechanicalFabricationNotes.test.ts": "4ec67fc5043d8fafe469f6e5a84dcb4185a06c8faddda86b14b1e441faf68a6d",
+      "app/src/mechanicalFabricationNotes.ts": "404b51f6f2d11d9eb51a907d98b5cb81a49f8f92daaf3707ace56da718bd1a18",
+      "app/src/mechanicalPresets.test.ts": "695f091c108b971a04e068feca3b6925ad508a6d2fdce9cdf8676ba64db0cb87",
+      "app/src/mechanicalPresets.ts": "a380bbf390a0f9bbda3e534a6248b6b82389d483a766b18266b786188eb1e6a7",
+      "app/src/modelMesh.test.ts": "ae61dc209a47bd00eec1a5422b1a688628dc66a218030acbdfa753def658a045",
+      "app/src/modelMesh.ts": "85828ea3aae8540605f85a6eef8337df0629db3c068e0e5ec7e4ca02467dbf25",
+      "app/src/modules/asset-ledger.json": "96e92fe02d1e216fa9484ced22e7f2c41c16ff50bcf8ce63822346e64d34945a",
+      "app/src/modules/catalogue.test.ts": "29050380e1083130bee4e1b77b984fc36b11004724bfca77e07a97167712c000",
+      "app/src/modules/catalogue.ts": "35273748686b7fc034d4a10c1b34a67aa458514aa3870cda9b8a2e812913c906",
+      "app/src/modules/hostConnector.test.ts": "87f55b3b73328a9bfdf9c6313f6c2ba09fc391d76e78ed3a88080cfb073269c7",
+      "app/src/modules/hostConnector.ts": "9999781c26939d3ed79cb09472dffa34e2ab42d25fce98009b1e29fbada048c2",
+      "app/src/modules/import-manifest.json": "04c8b5cc5fc3c110d2e63b084ad2563c2b426b3b2a488b198e0d63ba079c3821",
+      "app/src/modules/imported-modules.json": "dce6dba69eb7f8d672f7ba499442c9e86f656a473016be56943425915d9724b8",
+      "app/src/modules/sources/Aleblazer-VIK-Solenoid/ExtraSmallVIK/VIK-Solenoid.kicad_pcb": "c0e852c50987932006d43fe1293541281a47d80d9914670d4aff0a3a34908aa4",
+      "app/src/modules/sources/Aleblazer-VIK-Solenoid/LICENSE": "83d7f3f7caa77fce4742544df8067a5973caa427538991a29fa1b1049662ad28",
+      "app/src/modules/sources/Aleblazer-VIK-Solenoid/VIK-Solenoid.kicad_pcb": "efb550da1c6d65bef2e9bbc0c84ea03704e661ca3ff2d293a0c52bd606c64271",
+      "app/src/modules/sources/Ariamelon-Crenshaw/LICENSE.txt": "0019eb67bd9987603a210c1792601bc3703aecce443b5bca92fbe9354709333d",
+      "app/src/modules/sources/Ariamelon-Crenshaw/PCB/Crenshaw.kicad_pcb": "b7b9ffc8ba0b9b1bc1f1288ef07943ced21814d6a4b9784cbe68d68b0e8abd02",
+      "app/src/modules/sources/Ariamelon-Crenshaw/README.md": "11c46c5cf5064cfc8aab3af4ed7ce29def943c84a087a476615c8fe8deeadd1e",
+      "app/src/modules/sources/Ariamelon-Kiwano/LICENSE.txt": "0019eb67bd9987603a210c1792601bc3703aecce443b5bca92fbe9354709333d",
+      "app/src/modules/sources/Ariamelon-Kiwano/PCB/Kiwano.kicad_pcb": "788cec3270cc48fa6b0d437fc0fec38509e11e16818294094e3b822a0f94359e",
+      "app/src/modules/sources/Ariamelon-Kiwano/README.md": "100d12c70608b60a26e713ab69eb9f9622aed584c69c671bac45f650c10e7225",
+      "app/src/modules/sources/christrotter-shift-register-spi-breakout-pcb/LICENSE": "4b29b63bd61d0352d32ef7053c0c01b99cd036cc03f7a4bd037bee0606284f2d",
+      "app/src/modules/sources/christrotter-shift-register-spi-breakout-pcb/README.md": "60d84a4e390d4688548226ff46b68547232a6fd1588596e15695930c9dfe1bf2",
+      "app/src/modules/sources/christrotter-shift-register-spi-breakout-pcb/shift-register-breakout-pcb.kicad_pcb": "86b9f7fbc6f7cea4f07a95448169f4eb4724c7f55063051ffad08039f988b31d",
+      "app/src/modules/sources/george-norton-peacock/case/readme.md": "25f4a4bcea330b0b1c716bbab80f72bff6b87763f28f57ceab560b514b429be6",
+      "app/src/modules/sources/george-norton-peacock/LICENSE": "d6475a84171f0cf7ff52667dea714df268fc65cea42f0bf328b0b70d4cd0ebab",
+      "app/src/modules/sources/george-norton-peacock/README.md": "9c5a7aef3985dce28c718e87769a34f21500a9885ed85a3c5eea1b6293e4b4e7",
+      "app/src/modules/sources/george-norton-peacock/trackpad.kicad_pcb": "11dd920bc3f701603fbd84f3c1b7e6402d07bc7621848e15ac2a87056b10600f",
+      "app/src/modules/sources/george-norton-procyon/42x50/procyon_42x50.kicad_pcb": "f6b3e8466a6050df0a14812d92a47932f2250cc4b105322cf542de417697aff8",
+      "app/src/modules/sources/george-norton-procyon/57x80/procyon_57x80.kicad_pcb": "48eafdd789ed55979b982ab52bf9ed9fe509c109fef7e1716b481b8d896076ca",
+      "app/src/modules/sources/george-norton-procyon/LICENSE": "d6475a84171f0cf7ff52667dea714df268fc65cea42f0bf328b0b70d4cd0ebab",
+      "app/src/modules/sources/george-norton-procyon/README.md": "b9e4b1f1ed22e93c35ddce0d8e0c4ffe25ed15ac6ba336200132d5f9b5da2af2",
+      "app/src/modules/sources/sadekbaroudi-vik/LICENSE.md": "b01f00ae213578d3da2a93297048dd40a26d6732a8707c7e4a0a93b0f4dc2805",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/azoteq-tps/horizontal-fpc/azoteq-tps.kicad_pcb": "42fddaddb301de14cc9a5c44e3eaad1dee0824108f25da2250fc6aaaadad1887",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/azoteq-tps/README.md": "65cbd83fba166084f3df8e52d7c98aaa6905594fab6e73615528eb4b21653f8b",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/azoteq-tps/vertical-fpc/azoteq-tps.kicad_pcb": "dbb135c52ed4dd1ab3af6f02703c3c447bae702668ebe0176cdfd1ceceaf43b8",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/ec11-evqwgd001/ec11-evqwgd001.kicad_pcb": "2b22c0f0b2b99206ac25029b8acd05c75146d9246cb8e3d9ceec5deacae4e033",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/ec11-evqwgd001/README.md": "1b8a2eb60d11382edba11249b1140931aef1479d29e3550430d2d691b2dbc8cb",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/gc9a01/gc9a01.kicad_pcb": "acd2a77dfcd3af48a67f4cc8048cb7a7151eb7e68dd97d05be7726b402a6f9c4",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/gc9a01/README.md": "ea0699b640c9101ce4da68ad3441b84fadae513f7c17fb3835b6e0bf7ef8fcf1",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/haptic/haptic.kicad_pcb": "e73b2d573064d23ad56647b60c492c972cd014876d0df4d888a2080e57d4f838",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/haptic/README.md": "890470aa1ede1aa3350f497d03267421b55e42bbc19388f764f7e2d56dc6dc7f",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb": "a00cc6dadd021241d3460e5173bd9af0750f5948a4986297afa07e18bd8f15e2",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/README.md": "8bfe7645ed0632570b89058d17c0a2ce2a6b6f97d6bf4d9799f4157a16357718",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/ili9341v/ili9341v.kicad_pcb": "45515559adfc8df5174de21097f04070da5e311a5fed9d6a717b22aaf1ba1b30",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/ili9341v/README.md": "fc5655d7b9dbc8f62a3450835ed7e41f3b09c56f8434d7020f0f57c856fa7648",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/joysticks/joysticks.kicad_pcb": "7d29ba3623956469ea669064268762fbb935f12cb20d2682277a51afc0b69e00",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/joysticks/README.md": "354deb32a9c7813d6ae5577dbdbad55397ebc91019e8afe7a5667ab69b203cba",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/LICENSE.md": "2275adb27f73891afd7130aabf455786923816dd75736d36f22cddb4b38f4796",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/niceview/horizontal-fpc/niceview.kicad_pcb": "106482c7bbb55aeb868b6951df7608bb4a75c89f4759397d40120565cbc2efee",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/niceview/README.md": "5003f457fa4c7fa52b6a82d94c11caf1c74b01e790311e9f13441689038192ff",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/niceview/vertical-fpc/niceview.kicad_pcb": "f152d45b48f16a3ecddfa9e279e8fa3a8a11c67bae4541a1246922e11286818d",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/per56-cirque-leds/README.md": "5bd71129a3aa8b885575c874d82e91c98c7369549e716e7b5ae914d723d99cc0",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/per56-cirque-leds/scroll-wheel-trackpad.kicad_pcb": "8aeacea9b801562bf888f63e383e9e2102dcd2cad1d82c37ee56b6cc19806c3b",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/per56-pmw3360-leds/README.md": "5597e2242a810edb9d3cf165046c615e55f0dd44c8a115a943849535b4dd87dd",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/per56-pmw3360-leds/scroll-wheel-trackball.kicad_pcb": "8b53d52f4dca9c5319738ce8a125dc5457d2e7be35f59d67b74cfa15c33c578e",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3360/pmw3360.kicad_pcb": "e56f672c16a5ed929af35d58fe607025d32892b356ec63968003aeab5eafb1c3",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3360/README.md": "dcc0edbe7a482b46fd59b0ae892aef78362f4fad441a8b7cccfef323509a44c4",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3610/pmw3610.kicad_pcb": "54567a3f1f398e04a6f800b9741f0bcddeec837b34ff66679a7cfdf2cb06ce15",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3610/README.md": "7c66dc7ee5c0247e7a9d0be6bd8bb900ac56d5d18d287a6ae2324ad690a79da9",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3610-xs/pmw3610.kicad_pcb": "77a6fbf53db692edd94dfe39c1dd198bca7aa5817a54fb4151d7c9f1b59c0041",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3610-xs/README.md": "a378574830a9291c6e9f15a95f3a0658fcc6064846201bf0f1053549b2185319",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3610-xxs/pmw3610_xxs.kicad_pcb": "dd6ec374e30628cb7bdba72e445efa81040865da27a17164da2bb8b25cf16b02",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/pmw3610-xxs/README.md": "d80d2eec6fb7b472fcb5456ccc1e571ee3818cc8b97ef39c0ca7634962bd4114",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/solenoid/README.md": "b463904563fcc4a3c6440a9695db47a9abfcadb9bd05fdc44903cccb957015ce",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/solenoid/solenoid.kicad_pcb": "d50f9ce89af7e46152bba350488d88a16359c27276b98b3e5da119f2854086fa",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/trackpoint-2-piece/README.md": "a9fc57afa71e4a8c2e0e52013e6408f73296a8cac2f3d35db8c17ec77ba3b0d6",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/trackpoint-2-piece/trackpoint_2_piece.kicad_pcb": "511610dde40b95391fa45ef9a440a374a9fb4a269e2ffa76ea343bc077e31d92",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-playground/README.md": "5a37dd98c45221449a6b2501f79838241e56f4f13398f59a5c42ff79e511ec59",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-playground/vik-playground.kicad_pcb": "89169a1404c15a2bc3a8eadb9463d286e1b19f7e71b37b3544ff1e895f00ee91",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/README.md": "9ea6e1891f2e5e7438e0aa9624e5993562b4470a8016d752246e4b7d52f0aa5f",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-splitter/vik-splitter.kicad_pcb": "5f0ae2b03b296d7edae170a11d44920095c89d02eaff6819ad0470d2627b9a26",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-universal/breadboard/README.md": "d809a8c2290fd5cd1364a535497d4ba715b5816b5cf9649a59aa17906dbca5a1",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-universal/breadboard/vik-universal.kicad_pcb": "9ebeac505d2693ac4a082ca516b313cb7c04ead4e4683caab4b2163662c2ae6a",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-universal/handwire/README.md": "129a133c5a27a1fc6aefffc3327328fd313a664168a1987857000b2fbe9340e7",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-universal/handwire/vik-universal.kicad_pcb": "08879db41902a19d26b7ba6e2f2c1bf48ce69e924efa96d65d9c5d6ca6f6a8b5",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-universal/jumper-input-output-matrix/README.md": "df9822823953695588fc18cbccd5ab4469221938d0fef05e4dc5cdeb40df1883",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vik-universal/jumper-input-output-matrix/vik-universal.kicad_pcb": "fc70c001bcb7746259addd3d841ba44e5260dc22971bc0bd698c6aeff82678e2",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vikropad/README.md": "f946587b86c26f62df60f01b4af0c57f225753cc5610e844f718f168a2842685",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/vikropad/vikropad.kicad_pcb": "b7741c3cf7a0b06a903eff1afced70eea90f996bc070a5d379e55f379bc65516",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/waveshare-22224/README.md": "7dbe352b5374ce0cbfd5dd3011de403d20c93ecbb054d193319c629c08e5ef08",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/waveshare-22224/waveshare-22224.kicad_pcb": "f2facc0d24c5f5e6a6d40661bf22ab462d6b8bfd31388ddca6988b9f90ece21c",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/weact-st7735/README.md": "bb0b9d01de8c9be735154c348b5790d62c3ecee83f7d38c590c746d43c1591dc",
+      "app/src/modules/sources/sadekbaroudi-vik/pcb/weact-st7735/weact-st7735.kicad_pcb": "b51ca5d1c4146fe4612bc642811f2663b128b5c394e01979b5d43a6bcc0f54a1",
+      "app/src/modules/sources/zzeneg-vik-display-adapter/LICENSE": "5b3d7d25e8689a2479baa570856ec6c39149829fc473b82a43743aefc9f3676d",
+      "app/src/modules/sources/zzeneg-vik-display-adapter/pcb/1.28inch-round/pcb.kicad_pcb": "94a7161c20c692713d771115fca79727a162663443ddfaaba9a329b37cd932dc",
+      "app/src/modules/sources/zzeneg-vik-display-adapter/pcb/1.47inch/pcb.kicad_pcb": "ca9c4b36d42798ba4ae2b927c1a7958a9caf9aecc85182f0fe62885af33b9de9",
+      "app/src/modules/sources/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/pcb.kicad_pcb": "a36d1c666d1c90f18b08efd1c7546fa01526f958b2ba7dd2b8e51ff65f9d3258",
+      "app/src/modules/sources/zzeneg-vik-display-adapter/README.md": "20ff5499be119a5c627bed26185f879e7e62a8b71c16ce804b3d0d6a2315ee53",
+      "app/src/parts/catalogue.test.ts": "bf99d07a33c3260024c62a819c02d8a4970c8d9050fde3c760812e816cc4e210",
+      "app/src/parts/catalogue.ts": "04f4552c2baa0b1832e0a5b19592457bb0b49c4796e3498a7baae240593162fc",
+      "app/src/parts/import-manifest.json": "4ed737b03a1bca2dab1e65610c61b80884ef42fd87c80f0716a8de3e097c8ab4",
+      "app/src/parts/imported-parts.json": "000f4ba13114305c33e1378806c25840d903fa335da559b88c9d9404731acd7f",
+      "app/src/parts/README.md": "d4dea2f98d5c3b39a636882f2100ccb78ea254cf59d4307234f043f562879b6d",
+      "app/src/parts/sources/LICENSE": "6e471d647db50527d0c75ee5f1a55a74012ab177c73282bef0bdc7f6562b7ded",
+      "app/src/parts/sources/STAB_MX_2u.kicad_mod": "e6dbfefba073f23abe8a003656cee4d54d051cb21535850f3332c651f54c9bfc",
+      "app/src/parts/sources/STAB_MX_6.25u.kicad_mod": "c0ddbafba01affa537638cd7ddec12c17ec0ea15c1e1436886f0a3d7b67a2d4d",
+      "app/src/parts/sources/thqwgd001/ATTRIBUTION.md": "83f8bf6c0854653eef328238abebb3891f32ddd55158e073b2e32ab563d83c56",
+      "app/src/parts/sources/thqwgd001/Slit [Drill].kicad_mod": "516101ff459ef42144c355758116d5b6b7475376b099c61d0f7a5fc649e8e46e",
+      "app/src/parts/sources/thqwgd001/Slit.kicad_mod": "df0ff8eea2189d8fd27025075c327c81d8b81978b134eeb8f166d31e7c82e324",
+      "app/src/parts/sources/thqwgd001/SlitC [Drill].kicad_mod": "16518d689f7e3ff7c8ce9ffe070544f7ebc2805c3d8cfbbb3104835a121ec14a",
+      "app/src/parts/sources/thqwgd001/SlitC.kicad_mod": "c7bc07ba3b5fc651672aef18a8fb14a50b351ea2e0814b6308a0c3264ea059ef",
+      "app/src/parts/sources/thqwgd001/THQWGD001 [Reversible].kicad_mod": "b8e6b2d19c1a2e8fd741582e45ed27aaf6f8a79ac2c76605a8ec8172845c9eae",
+      "app/src/parts/sources/thqwgd001/THQWGD001C [2pin] [Reversible].kicad_mod": "8968592eb16178eb07cf7d5aa3c0035a37f382f39bd8806fadf7823ce2c3f86c",
+      "app/src/parts/sources/thqwgd001/THQWGD001C [4pin] [Reversible].kicad_mod": "eaa7eccad4b5467dbaa4e36298f4e39b1c90a496ec98eb6d5db310623ea4b4e5",
+      "app/src/parts/sources/thqwgd001/UPSTREAM-README.md": "e92d0cb4a064eb5bd1cf45df53cc47ea8abffd1d38bcad8ff18d783cc34b7fe4",
+      "app/src/prepareCase.test.ts": "bb743b4dfd91864053b223153742f3a1fe0df68d0640f6d14594383d185b8fce",
+      "app/src/prepareCase.ts": "b7286d65442c921750d1b46eb3bbdb7b074b4cec34bef225724dc6812002570d",
+      "app/src/projectConstruction.test.ts": "8ff586b6921221d769ca7c2efd1d28af0225e0cad917948e2d82c2bd7a253c7e",
+      "app/src/projectConstruction.ts": "02bd2e17a201b4889e6c4eef8bb4aa47fb14e13649f5ebda2f25dbac9cc23415",
+      "app/src/renderClient.test.ts": "4d42e2ccb85e00efca8d8a47aa8f07fc9d05110913fd67d879a6096362c05d5b",
+      "app/src/renderClient.ts": "1e6ebb99b4b3e7ca34570dd6dd39d094e514bc7a56100f52cfac6ef5639216bf",
+      "app/src/resolveMechanical.test.ts": "05b51a7dbd6f4224c3f4e9e6cf1c2061610c825139ff0a883d169545c96accaf",
+      "app/src/resolveMechanical.ts": "21a770b748b43140179dcae9be547a6ef2ca7eee9883201771b0bb6864c2aa27",
+      "app/src/scene.worker.ts": "a08926633b227ce371033e3a0cdc11b05a8c7ac05bf58e18aa1dc0bceabeab4c",
+      "app/src/sceneBodies.test.ts": "9ff42300e1e7f72d4943ea649e9c72f59509cd7c994a53b7603b9893f2022b5f",
+      "app/src/sceneBodies.ts": "035ee87c75bda5e39116dec156db6d041f78ad53247a09cb4e6340298de21d7c",
+      "app/src/startup.css": "73d9266337c962d50f556a59c6096bdc3d81285a1f0f88cca9cc4a289767ac3d",
+      "app/src/storage.test.ts": "b3c9624ad7b49f5e43f7833bb2f75ef6fed9358183da3615dcd449d32b1bcc98",
+      "app/src/storage.ts": "15664582c6770f0002d88a19be680fec5dd32ab003bd2250b3cadcb36216e282",
+      "app/src/storageReset.test.ts": "589131378db356dce3007ca920c50e984dc42a6130f562b3a12850c7d27012bf",
+      "app/src/test/nativeArchive.ts": "5b208fe800f3e32c8a7788af21b62645bcb49acad765d52282c1d3bc4646c627",
+      "app/src/ui/assembly-preview.css": "bb4acb468fa8ffda207787e5a6d57af0a7af945d85883fa3a0b75845d20e0d5c",
+      "app/src/ui/assemblyCatalog.ts": "d20e5fa3c109900449985d62514dbd5817fbfea01c8bfb7b51c797819a4702f5",
+      "app/src/ui/AssemblyEditor.tsx": "404352159a377689df076edaa0c6ca2b483071d7b27e3a7fa6d50bad9e1a940c",
+      "app/src/ui/assemblyEditorController.test.ts": "9ab1665539fa5a8c1835f3862a6bfa031135f5a930e7df466864517aaf55475b",
+      "app/src/ui/assemblyEditorController.ts": "e38dfbd7210a996369659af43285f90b0140643ea5d13e23a94331f71e3b5f39",
+      "app/src/ui/assemblyPlacement.ts": "765bfbd98053e2bf9f745d64feb90ed79e692ae2a6c99331678bae14279998f3",
+      "app/src/ui/assemblyPresets.test.ts": "1a5f86db3c33fe34f5708c7a7f1c80e10158b39bc660cce63eedbd50f09c2d22",
+      "app/src/ui/assemblyPresets.ts": "bfb637d220533340ead1618f06d90fa4e388b739d3cc5c6f95d79f79aefaa3a5",
+      "app/src/ui/AssemblyScene.mounts.test.tsx": "be06531c409c9d0aa341c55802b386c88eb90ae30bd0ca0b5ca70318ab845ece",
+      "app/src/ui/AssemblyScene.test.tsx": "a527d6cc114434246e6f69fdc90a0e150b8eb231d8f7fe9a254c92aca72936a2",
+      "app/src/ui/AssemblyScene.tsx": "f0cb88c22e26c9788cfd9b10452ff40e88ff89d6944a6bba618068d247340416",
+      "app/src/ui/AssemblyViewer.tsx": "40bd398d6b2e9dad397e26ed0bfedf1f1dcf0ae7709a85efccbe57bf0cb980cd",
+      "app/src/ui/boardOutlines.ts": "20f6b158c84fc7c074cc7d9c44e9c2342d51bbfe384194b141c0e908c2e85970",
+      "app/src/ui/BoardReferencePanel.tsx": "4d5ffc4207030d183b5a7ddabedee82defde19d2bf8619cd76dca91e8fd9715e",
+      "app/src/ui/canvas-layers.css": "dfe2b6fdb1dc75d9fe302d57970905247b5576e2971288906037360a7a5cb6be",
+      "app/src/ui/canvasBounds.test.ts": "2bf946eca8e0bf7ec693faf38299755ddd8f9a5027300135fbecd4e60a1752f9",
+      "app/src/ui/canvasBounds.ts": "4ec0d3c8f9b6cba41fa163769d2a83f4333a3e3954534615db7647a450f3e47a",
+      "app/src/ui/CanvasLayers.tsx": "e1b41a10094b0006dacd21dda5a58b827926afc1d9ec9192097395073c2ba0eb",
+      "app/src/ui/CanvasObjects.tsx": "dfd094d9a0941bc6aa6e64d6aa1368797f3a4b6f55985e0f9a9d4a7e65c34f8f",
+      "app/src/ui/CaseChoice.tsx": "65486b463f0cd10bd6cf1d7c1eb784f64f104cf13e93a87cc90cfb95d70b7ed8",
+      "app/src/ui/caseDisplay.ts": "ab7b76ab603aedb1ac82b37633e7a6fcd906add396b324f7830b24a55329db44",
+      "app/src/ui/CaseGenerationControls.tsx": "7152a00ee04be3a7f15d10768aee63d69903766b8837e96dc0b5ac47671e7e73",
+      "app/src/ui/CaseInspectorPanel.tsx": "051396a0e97254886fc9853d5d922f5e7409ee41a34876b57472fb02869d3eca",
+      "app/src/ui/caseReadiness.test.ts": "3983073a85f4ed78e03936a5bd7c5fe2ffe86e5c2f07dcdbd4470e4bb49cdc4b",
+      "app/src/ui/caseReadiness.ts": "f73d80b94e6d583bc5b350a37d354ce281f132809735d343269f9f510fae63d4",
+      "app/src/ui/CommandMenu.tsx": "45e3fe234f1e88642fbde5c7c12831af19063ae5014b022e491b3f8a6705480d",
+      "app/src/ui/compileLatest.test.ts": "46d7b6566cc659048543c034fe3cb9b576d3ac48af8a9bc3434ece7ec786f8c3",
+      "app/src/ui/compileLatest.ts": "7837caf6ec54a4d3a100d5e93197af968dafa4c8c286375b33819fddfd9a585b",
+      "app/src/ui/componentPreview.test.ts": "50930b689d80cc22a594307be392023e1cbf8133d382c8ae05f02d604188df5e",
+      "app/src/ui/componentPreview.ts": "0e438a52c583fa54c81b711c22cf7c375fdc562478767ff6a0ae59dd7e61ea1f",
+      "app/src/ui/ConstraintEditor.tsx": "eff7c2f709459a789fc6315a817bacf2dbc4d61782450d70de605170c8ef8328",
+      "app/src/ui/createCanvasCamera.ts": "14236ef13a09a9b90fe3687aba9b43633e9f2aa4fc1de7b0ede0eece127d4c30",
+      "app/src/ui/createCanvasInteractions.test.ts": "6be024358a7e1ad06d95a1a658506b8b633b188e20320210b922997310b6461d",
+      "app/src/ui/createCanvasInteractions.ts": "caa2620dc4b84c96eb8083834809756607e427b713563ad9e775c2e758487e30",
+      "app/src/ui/createKeymapWorkspace.tsx": "4afc3fe232614154fdf687e8a270bc8251b7a17a770566e593d68423095015f5",
+      "app/src/ui/createLibraryActions.ts": "2d397531709cbb0fef2442b537e814ce8390fa38e53b0893ac82e667513e8815",
+      "app/src/ui/createWorkbenchEditActions.ts": "c9d6764c6742b0086c880303fbba1e8c4d17662faf53d86faa81a8690154cf05",
+      "app/src/ui/createWorkbenchPlacementActions.ts": "dbdb48ffd287e63d54f5347bfd619e3fdf63049c4e79b3c3027d6b13ce7cfd52",
+      "app/src/ui/Ergogen2DPreview.test.tsx": "a35114fdbe377bb7c4334f2d33a75e7017812fb08a63d57790a8da2688d79489",
+      "app/src/ui/Ergogen2DPreview.tsx": "90464298a1f6bfb239192d5abe11862ac74bfb15e8f1093fce51218b33d37d26",
+      "app/src/ui/existingHalf.test.ts": "a09ad45306258ef04e1e861b242011076117226c5391cdb0c574c88c4df95fb7",
+      "app/src/ui/existingHalf.ts": "4027de5b32fd4ef64158fcb0545e4471a09b9934e1d9c11fb26202982129d86a",
+      "app/src/ui/ExistingHalfSetup.tsx": "ba55efbef1c4ba70d3dac7f87ddc9236567b0576ee3dcc4f8b1eaf4bb74df0f6",
+      "app/src/ui/FindingList.tsx": "63254e5e7c22a4a043a67123645c0012f52e46ec7aab27a8f96529ca712d081c",
+      "app/src/ui/findings.test.ts": "3de6866d8a9c16bf4a6d450c7647cfe2c1772c14b55ccdf9b6ae05f8f40fd004",
+      "app/src/ui/findings.ts": "8de1532452aaee26333e62f53631d8b3bdc5180d184140d5c059973fa01d0db7",
+      "app/src/ui/firmware-keymap-panel.css": "5c77f916daa924a2fc5ea0833a85df8050052ce2cc8e84e14612d0f003edbbf0",
+      "app/src/ui/FirmwareKeymapPanel.tsx": "bb3db7db1705364c28b3f98ae3fa4c491161e5210daf89112fc2d370a609936b",
+      "app/src/ui/GeneratorFields.tsx": "5b33b92471f37e20b21cf2f93f5b49ced013c2967df7993ea9f065551e095d21",
+      "app/src/ui/generatorSettings.test.ts": "125312c8273674ec1de2cffe751380a015ffe8cdd4aa06f1e3c0e63d12245b05",
+      "app/src/ui/generatorSettings.ts": "5cbb4445a2d1c7a8f0af053a04679102b872647538c0830b101f04ef1e101431",
+      "app/src/ui/HardwareInstancesPanel.tsx": "eb82625d5546ed481aa91c897ac92b1bd74f846beb218ef47d4b0aa5308e857e",
+      "app/src/ui/HardwareReadiness.tsx": "30778f22579b33c95a93c98254be271ab5f3501be6766dd3af7f724e5bc05f94",
+      "app/src/ui/inputCapabilities.ts": "36d6985d3e3acd3e93ade3611f2c865ec84f27b3599b07820d3ad6401fcd210b",
+      "app/src/ui/InputProfileEditor.tsx": "44d9f87b913a4462cc8014a9fd151ecf19847bb87e67b9026fc49d249156a03f",
+      "app/src/ui/inspector.css": "b62df725f20e6b79fac48ba60b87b037f41fcf4c76cb53496bcb2444433a1aaa",
+      "app/src/ui/InspectorControls.tsx": "239b32a385dfaf34f6e4e72a8a76ab56db62316714e0e392aac0bae7a4d8cbc8",
+      "app/src/ui/InspectorSection.tsx": "2780bf4c1f7232f272ed892a4e60fa45fdbbef88037ca2ba57f99e80b80e95f9",
+      "app/src/ui/keyBindingChoices.ts": "dae3361256f508006ac2d1361f037d9fba18ac82aa303f9f34b6561697af2db2",
+      "app/src/ui/KeyBindingEditor.tsx": "b802b651d16841ba06f61bb68b7341d090f1c0ae717c6c559b48c2095eb2dee5",
+      "app/src/ui/KeycapPanel.tsx": "f04b1f062cd77bae48696c33bf5722bde0b251160ce5feda31bca3bd9c5e0466",
+      "app/src/ui/keycapReflow.test.ts": "f28c953926442514ab537b8c273a14e46b968a178dc89fc53ce56d323b49bc64",
+      "app/src/ui/keycapReflow.ts": "8ae7dfa571544f180e7dbec7e566e3af459c3284712a8eeb2ab0881403b6629b",
+      "app/src/ui/keymap.css": "08d44b552b12bb82f787edcd64d470f2569355356820798fac9059ac3aab8464",
+      "app/src/ui/KeymapLayout.tsx": "66ab460465d7e26342ee54fa9e47277baadb50d18c2897be8652eed942586707",
+      "app/src/ui/KeymapPanel.tsx": "2ddb320e7396925d715f0564457b06da1b3ca9402a1551eb83fa723c48a36de4",
+      "app/src/ui/KeySizeControls.tsx": "4e8adbf9ecc170ea8fc58ea03bb2fe21c60042d13c25e628e6b4c3d86bdf9718",
+      "app/src/ui/library-workspace.css": "e3a45ffe313ce618988e330771c6fb7712718a9b522ab0aeef13d190fae71712",
+      "app/src/ui/libraryDisplay.test.tsx": "a06d4355c129c96034426fb1ac52c4f1d08903df82cfc8b301e6a295de85ce90",
+      "app/src/ui/libraryPreview.test.ts": "ca67eb74d683d7a460ee44342a1163b8b64db457170849de14cde2fb5e3f9355",
+      "app/src/ui/libraryPreview.ts": "7c55ab30469bf541accfd4f1245ddeb141c762c2301502eb2f20a4fe7a58a37e",
+      "app/src/ui/libraryPreviewGeometry.ts": "f497210c74bd69f8467e8c10fd85419e8fcdc8d13a1a4bcf4bb74bf0a648cfc1",
+      "app/src/ui/LibraryWorkspace.tsx": "22b0cfe19a268236d77d3ad1e1a59684b4396e4883cef51e98b58fafa5b6482b",
+      "app/src/ui/matrixGeometry.test.ts": "cd59ed180e86d63629c90830adb50123ec9a03ef4ba4e51bd12af5365d77438f",
+      "app/src/ui/matrixGeometry.ts": "097a66b5237bed9e3396eb05dea3371f7218215736f09b8818c4c723fa45eaf8",
+      "app/src/ui/MatrixInspector.tsx": "f22a2ad8f384c6877e0890272ba484251b4b389bd6800506c89ea8881ec2132e",
+      "app/src/ui/MatrixInspectorPanel.tsx": "6016655034b755a772aeaea4a788e55ee253df58997870396b71636f5bd41174",
+      "app/src/ui/matrixPresets.test.ts": "c30e2809744c0679394eaa5795266bddee99888c231c0d28a97e3c8eef317e89",
+      "app/src/ui/matrixPresets.ts": "c5046b79e660a7706cba2181312f2b26d0a8d549f3fc7ecc41ca109ab2c7c4fa",
+      "app/src/ui/matrixResize.test.ts": "368b3f4c0e4e5cb293359f7c1844b785165e3516eac29aaa78ee962526186229",
+      "app/src/ui/matrixResize.ts": "9be62079df9ca485acee2811083f2a5be56116422d63dc4fe4ff0a5e7d07dcee",
+      "app/src/ui/MatrixSetupPreview.tsx": "b4015e0d166e2c7f107cf71ec1e2924841d5187486458a8f2a54129cd25a9339",
+      "app/src/ui/mechanical-assembly.css": "a2faecbd29a9d2858d52c2b77466dee904921ce7283bc5afb9202a26dcfb2fd8",
+      "app/src/ui/MechanicalAssemblyPanel.test.tsx": "1223b9c0cd101ae06c5fa38320221f30966594af0cb709f1d46470b9a0d7764f",
+      "app/src/ui/MechanicalAssemblyPanel.tsx": "89ef0de8e114fc4098df40ce175c31783850be27fcba4def0d0fd01a8d446ee4",
+      "app/src/ui/MechanicalAssemblyPending.test.tsx": "e077cb5643ae88fb0b2350e60a6ea30bff28b850cf81caf97d972eb5732e6809",
+      "app/src/ui/mechanicalDraft.test.ts": "d02ec6dcb15e4d523bbe1f232b5aa8eb5788fd50eaba1a6de68a9ef5a94f2851",
+      "app/src/ui/mechanicalDraft.ts": "3e5abec589f7e3f2380721f44b11a121769ea5485c9514ff9c8325e7ccf2be55",
+      "app/src/ui/mechanicalProfileController.test.ts": "ac46095fcb6314732ccd93feac68a9e423af511f7cda22955872692ba2a50c08",
+      "app/src/ui/mechanicalProfileController.ts": "7ce50638d86deaa8f38650c22660630d2d1f5378ad7741f6173076aadf4c23ff",
+      "app/src/ui/mirrored-layouts.css": "a4124501e7630db550f8b2519c45b48d878879376e849a18679a8c1619a6b431",
+      "app/src/ui/MirroredPairSetup.tsx": "106b227d9c44bbac60621f7f0779fda861d45c548e8fbcffce3a09af28999a65",
+      "app/src/ui/ModelPreviewBoundary.test.tsx": "d6f62d674421c9bbf42447429b47f8dff96903070e62af3cc7fe406c59555509",
+      "app/src/ui/ModelPreviewBoundary.tsx": "c72439220fb8087f47301ca14a4d4e15bf42b8d7e8fd45f4213ce10243561857",
+      "app/src/ui/module-workspace.css": "59f6e01ffed032e6d28cd662e8682b13415789cc2c1e4ec06d9e6e09c69480d1",
+      "app/src/ui/ModuleInspector.tsx": "2ca22b9d4b10af3f38c4fa995d42c972109c424934ea04ceba3af68758a7b4a7",
+      "app/src/ui/ModulePcbOverlay.test.tsx": "b071e4f6ca534fe8d7fc2000ed6fb1995028909d7e25472abd7566612417de13",
+      "app/src/ui/ModulePcbOverlay.tsx": "63bb74b24b204574c3e37d466b79d83da094cc230d13463d0657fde25eff9937",
+      "app/src/ui/ModulePreview.tsx": "d2a948fcfe58216b561d70cc198920bc0bc08bd3bcf81b858ccd290067b346fd",
+      "app/src/ui/ModuleProfileEditor.tsx": "264427b013215ac05179cbf963d8fc8880270ebef712c4a47b53c9eae98e4baf",
+      "app/src/ui/outline-editor.css": "ec3d7bfbe1c4ed34f84d643b533b0fec10141c70ae7413926bb8ca390a462acc",
+      "app/src/ui/OutlineControlOverlay.test.tsx": "9931dc2b847e9c8265de847cab0c9210e62dbf5b21d33af7234bc074537986e1",
+      "app/src/ui/OutlineControlOverlay.tsx": "ac7270529f9f3557e672560268e68ee274f2bc16362d710f1a55e2503325b782",
+      "app/src/ui/OutlineDraftPreview.tsx": "b1017716be27981fc0cac91b5ffb0af58c5d196930dc85e5e413b9efbee0e8d1",
+      "app/src/ui/outlineEditing.test.ts": "0f374726273b21adfa6d0649b39877e8466031e3eaa20089225779ef2d7f4ab9",
+      "app/src/ui/outlineEditing.ts": "6e876d239546083c06ff4f9f95fce655b15e8cf9e75fb5b42236b5d3b146a6c8",
+      "app/src/ui/OutlineFeatureEditor.tsx": "022d545627da36770ded7d33a0e96f018f4801a140c21c673d510f613c3f3b04",
+      "app/src/ui/OutlineInspector.tsx": "6315ced0811d8c92624b47896f63713b0178ceb592f4ec72ce964e9b046b286b",
+      "app/src/ui/OutlineSnapGuides.tsx": "9860fc5afa8bd94b8625e26d8f5b6d7f1dc8854bd1ce12de518221e012130964",
+      "app/src/ui/outlineSnapping.test.ts": "153898ea11f74fd67b1e80d70d7e5dbf35afc0b11380757e06bc9b6df4879913",
+      "app/src/ui/outlineSnapping.ts": "df6e25a4d974a77c7a04c0b670dd4b07ba4cc7792999333f11056981729d56d8",
+      "app/src/ui/OutlineTools.tsx": "c3259ad453e459e533e6f24387fc6e2e768e0e1bafc9fe59fcade231def2b8b0",
+      "app/src/ui/PartMechanicalProfileEditor.tsx": "ba0c49ae459c88af4bba2395e59c3c6bc37798de928118a292c161b6538cbe71",
+      "app/src/ui/partsCatalog.test.tsx": "51b1adf435fba98eef7bc142e3ebd984becbb32b672d90678fb8046e593b045a",
+      "app/src/ui/partsCatalog.ts": "6db31257a01a7d4485e3dae4d8a24d5679a5410b836228f91ca4809b470b3b33",
+      "app/src/ui/PartsInspectorPanel.tsx": "7ce08ec50426cb94d808df03cfed5140c11bd33f14105de35d6860af9b04449a",
+      "app/src/ui/PartsLibrary.tsx": "0acfa192b4141b51e7f5e1136f52ba5e4dda865e3afbfccfcec374a4a3cd1edb",
+      "app/src/ui/placementGeometry.test.ts": "e905c53184ea2165366d54f8e3c236473325f9ee49f4cbaada0d8a9b6e3c8fbe",
+      "app/src/ui/placementGeometry.ts": "c7c7230c8fa85929b163878a022ec2818d5a4be994cdff610853eea55efaefab",
+      "app/src/ui/placementState.ts": "91dcd88f2015ae8f5cac7a81f2ba71215313d1f11edcca41c71788788f6ac617",
+      "app/src/ui/planKeycapResize.test.ts": "ae9f6aa08297ee64e98a4fd0da551e8314b48a42546a92f989430d71cfc905e7",
+      "app/src/ui/planKeycapResize.ts": "759ec6d29dfb8ba465933b6334b540ed5e7282ad83a3a341ebc4089ed5377771",
+      "app/src/ui/project-library.css": "2cbc4b0b5ecbb7b705e4073633f34cd0afe0c1d205d1d81adca80faea0e38ecc",
+      "app/src/ui/ProjectLibrary.test.tsx": "ac8e6921d14fd16846cd7d6c0dc43edc1684bc50475622f018e0faeb975aee52",
+      "app/src/ui/ProjectLibrary.tsx": "41606dfcce957a7bf932cb874697623d3f144cd7b0e03e423ad1a97d4376100f",
+      "app/src/ui/ProjectStart.tsx": "6b7475890ae4806125540d9ef8bf3540056b2c96bdb816ec4aacdde2e5431053",
+      "app/src/ui/remapDefinitionNets.test.ts": "aff505642d4de7ee56aa656962d2244aa6cf5f2c5436acbf5f53025220e854e2",
+      "app/src/ui/remapDefinitionNets.ts": "e2eb99bb796544949382112e3a30f01438ed7a45b62ba68ab4927eee1fbf0a3d",
+      "app/src/ui/reversibleCatalog.test.ts": "515a85c2f59340a7366d95569be927eb54d674196aa5fd1857a2e582fc890c3e",
+      "app/src/ui/sampleAssembly.test.ts": "33fcc3e721fe2be951354207b90cce9c58b64db2609720baae384501c7c3126e",
+      "app/src/ui/sampleAssembly.ts": "5e97417910827bf83a3d9a10a832ba6ee2b001d3668e42bd6b9236688d7e84dc",
+      "app/src/ui/selectionOutline.ts": "33b10edf964ad049a194d5576f263086bc1ff649f1b70826c56776914b5b5236",
+      "app/src/ui/setup-guide.css": "7d6316adcf2e6631fe8ddb5ae7b2b754b97f9e4cd3717fac906731b873a7e8f9",
+      "app/src/ui/SetupChoice.tsx": "ecb82afcf1085d0584fe4f7ec46b2aa14320a61678bfc2a86d9b881a4b5364fc",
+      "app/src/ui/setupGuide.test.ts": "4c7a41bee6a107e9c81d03877974850bb4dba0bea81d735158f9553d08ee1b70",
+      "app/src/ui/setupGuide.ts": "cea2d5ebf327aa0b67a5ec369b119a937c7011e9cfb66102e666cef212c0e1fb",
+      "app/src/ui/SetupGuide.tsx": "7e686b5c5e2c080b8cb24c583e1f5d661c71737545e37c92c7c467353f157442",
+      "app/src/ui/unified-workbench.css": "e9e920df223bc77cc55605106c0d1dd8f66d3bf049a69dd1bc985e634e20a5f4",
+      "app/src/ui/useCaseWorkspace.tsx": "80cecb584fb2c6639fb5b7b7a11cd0b82aad13641e19139d5590fbca991c047e",
+      "app/src/ui/useOutlineEditor.tsx": "d37ca5ed08b873bac42f26e8fe2b68099f7bbd9b987b97bba906b1189fa60af4",
+      "app/src/ui/usePartsEditing.ts": "8b152eb1b6a66959c8962e8d2042b3811462ef0a8e2eb520e4ebba530c8d36c2",
+      "app/src/ui/usePcbWorkspace.tsx": "f66a97c030c2e747de454ab5ba1b520765b6d9259f09e556a78d026e4dd1bf23",
+      "app/src/ui/useScriptEditor.tsx": "2150dea6c81112f2cfb478843101c9cd44810d45377855396a2812a15b03c05a",
+      "app/src/ui/useSetupGuide.ts": "3b3688cd5e139588b6c131117a7a89eb08b5252392948db024d18f72212e896d",
+      "app/src/ui/useWorkbenchNavigation.test.tsx": "b1e6e94a3e45271a5ee2a6886b4c8b4c506b51241e5856be442f3ad0f57cd52e",
+      "app/src/ui/useWorkbenchNavigation.ts": "527cc50be410315a0168c3fa1d1f894359d97ead6125605205920bacced638fd",
+      "app/src/ui/useWorkbenchSelection.ts": "4a27d1d5096846f00b0a3edaee0b36b7115b11bd330ca5186486367db53a3536",
+      "app/src/ui/useWorkbenchTheme.ts": "9a788ba929d5ac61fa05265405b1a346c3302afb061670a2ef85833156df650d",
+      "app/src/ui/useWorkbenchTree.ts": "a7ca1d19472e27f674bf554875a565a671a641620a20b8c3e38e3f74968d1a27",
+      "app/src/ui/wiring-panel.css": "521a8e4b2e17fa5ddfc51b7cf5cf29078ba82bb54665f7988cdfe7e592ed81b5",
+      "app/src/ui/WiringPanel.tsx": "96c2c3cd6b6d740b44e53e2aa8a1ac041bbd4937d8bcb2e832b7e44e98dce488",
+      "app/src/ui/workbench.css": "0d4df2a5210b7d1915564e4ee30e20951001fc06b1088b176592b76ac281448e",
+      "app/src/ui/Workbench.performance.test.tsx": "85101aa31327f48a9efc1fc687d39ee3588a289cb1336b0cc88e13e7f54c8373",
+      "app/src/ui/Workbench.tsx": "8c85a0857550c5ba860a4151a1d0a5789b7bcfaf5dbd349f6eadf29e300e6220",
+      "app/src/ui/workbenchEditActions.test.ts": "69beb7ec725959c2d7f551f288e8e0214764f999682c215bc4d2ad5664ffa142",
+      "app/src/ui/workbenchGeometry.ts": "ce2e6634007d49b6047d97fd129260f8d9a7f561de39dd03a09e7542c57a52c0",
+      "app/src/ui/WorkbenchIcons.tsx": "93eb1f025cd6a662f0dd50ec1d61d2e80eac97182ab1dc96b86f04c23817d2d7",
+      "app/src/ui/WorkbenchLayers.test.tsx": "d379dd4895099d98d663d81b11a34e0ad375a0ae57f9025b14920c83c84ea645",
+      "app/src/ui/WorkbenchLayers.tsx": "1ff03a8ad230adbd9200b192d180be361c6d77af320c94e4e36bcb1feda32188",
+      "app/src/ui/WorkbenchTree.tsx": "b5a557f075e4777a9223c85b01d70ea4f5b1489c3d84da5482f78719994a62d3",
+      "app/src/ui/workbenchTypes.ts": "2bb92eda31bb3bc8a391c16732100074fefa03ee52f4be82b59a660ff7376781",
+      "app/src/ui/workflow.css": "6b2a5ac9f92f8a317c6f870d7e2ad08b02331f8002f8b3ab590979d7ec373e18",
+      "app/src/ui/WorkflowNavigation.tsx": "ef069d73ec55667d434243d37fb02f47896e2cb80034b97e3a9768ac199f2c54",
+      "app/src/ui/workspace-panels.css": "9a0049f11002f620e086fa103badab09e654b66e79df3250863e728bd70510c9",
+      "app/src/ui/WorkspacePanel.tsx": "78fc0765bf9851e4a9e813c1b97589e01049610553b4d2aae057cb0d21bafc0e",
+      "app/src/useAssemblyPreview.ts": "f6235b6fbcea2636aa6308d613276e7e43c8583c683b6bd710f5cdde36dbaca9",
+      "app/src/useCaseGeneration.live.test.tsx": "1f3abeaa96da21d5367722f716891107cf098c0c5baabe95e289fed577924f46",
+      "app/src/useCaseGeneration.test.ts": "829178511b803154ba667e5cdaad6442952ee92dcf409f6f11198e6d03287dfb",
+      "app/src/useCaseGeneration.ts": "f9efd448eb5b4d0fb0c3f99dcd8153cb45d0d6c37fe0f18865a6f3daffa7e479",
+      "app/src/useElectricalPlanning.ts": "9e4612a79feb4c3712b170a93190bed3f4e02df0d34a450d56d3909188ef1537",
+      "app/src/useProjectSession.ts": "0714e9c4f77526b3d3e593cc11a214899b3ed70b82586a952ad33f10a341bed6",
+      "cad/bench/fixtures/boss-tray.json": "8a1468ea4f998ddf87418c8a0011507f7afe009b162d7946d4c537917188c0dc",
+      "cad/bench/fixtures/concave-gasket.json": "6e5df8bb1ff364427f2eca1378eff02a1447689f15c5f92e2d03250344f76150",
+      "cad/bench/fixtures/followup-manifest.json": "b241bb30207233711a7d90f81953e6a1ef17593089be5d934ef2f23085956314",
+      "cad/bench/fixtures/four-trays.json": "f06fd4bd2493357772b7849f2e9174be97fe69ea86f8db37adcf738c66cafcb4",
+      "cad/bench/fixtures/gasketed-pair.json": "d63eccf442122c18235b63e8a0e3f80278539249bb679a1cba8319943b2ca324",
+      "cad/bench/fixtures/holed-plate.json": "f41faae6e341d15e91a6d932bd785393df1e874ea35c1048fa42ecdc1b45ca54",
+      "cad/bench/fixtures/internal-gasket-v1/countersunk.json": "c5be119a601e80052bc4eba32bf6cfe752e0db69f2226f27abb2b5aadfced7d8",
+      "cad/bench/fixtures/internal-gasket-v1/downward-boss.json": "36484a0d708b7b912e0bc8c81d3b87fd516bb3f068b51f2866a7ba232714e4b6",
+      "cad/bench/fixtures/internal-gasket-v1/rectangle.json": "223c0abc8e0dcda8c4fb76059a303b122adda2ce0ceed0aae776391f62a46df4",
+      "cad/bench/fixtures/internal-gasket-v1/rotated-concave.json": "af241f807ba919019328550e7e060fa00aac17e000b113a11cda0c7415910eaa",
+      "cad/bench/fixtures/internal-gasket-v1/sofle-outline.json": "cc505f07b104f1368df7c2c4ec7c488995fecb6fa864f97f96556636024623f1",
+      "cad/bench/fixtures/internal-gasket-v1/split.json": "160d0123140706990af2bf4094a79a3c2356b224e707e6a9af8e5819c4410f75",
+      "cad/bench/fixtures/large-plate.json": "fc3bcafb3a6ba677488dc6edb459ce4fe5457e9af3f8be4bdd99f6801339963a",
+      "cad/bench/fixtures/live-gasket-bottom-regression.json": "bf87bcd25e789c71b5457fb052d86b6e6dd20d6cfe647ecf74ce533c87c674f1",
+      "cad/bench/fixtures/live-numeric-plates-regression.json": "9ffa955e8e4fbbe4802c0809a2fcf49f569fdfea7f6ffcbcae5a9c12879fbd91",
+      "cad/bench/fixtures/manifest.json": "493584918ddd82994f99c11e7220de2f283c496fc87a9a0f581aa5b83fcc2466",
+      "cad/bench/fixtures/multi-cavity.json": "6c10a7ef15c98da6c456518330515518822e4ca0974c84ff73056ee685611fa1",
+      "cad/bench/fixtures/split-assembly.json": "3f29ba3b2e80f108aa527bd9f13cd8dcf700c8fbd82c08804f0d6467ee51b864",
+      "app/scripts/run-cad-benchmark.mjs": "e510b80ac66861131047e4ed16abd1ae19b8bdf6ebbb563c4f045b05b281fa79"
+    },
+    "host": "lappycachos",
+    "cpu": "AMD Ryzen 9 8945HS w/ Radeon 780M Graphics",
+    "os": "linux 7.2.8-1-cachyos",
+    "browserPath": "/usr/bin/chromium",
+    "acceptanceEligible": true,
+    "profiled": true,
+    "coldSamplesPerSession": 1,
+    "detailedMemory": false,
+    "hostObservations": false,
+    "scenarios": [
+      "cold",
+      "warm-uncached",
+      "cache-hit",
+      "region-edit",
+      "preview-export",
+      "direct-export",
+      "cancel-retry"
+    ],
+    "rotateScenarios": false,
+    "kernel": {
+      "cadrum": "0.8.20",
+      "occt": "8.0.1-rev2"
+    },
+    "sessions": 5,
+    "warmSamplesPerSession": 20,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "fixtures": [
+      {
+        "id": "holed-plate",
+        "kind": "assembly",
+        "file": "holed-plate.json",
+        "sha256": "f41faae6e341d15e91a6d932bd785393df1e874ea35c1048fa42ecdc1b45ca54",
+        "expectedBounds": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            120,
+            80,
+            2
+          ]
+        ],
+        "expectedSolids": 1,
+        "expectedVolume": 14400
+      },
+      {
+        "id": "boss-tray",
+        "kind": "assembly",
+        "file": "boss-tray.json",
+        "sha256": "8a1468ea4f998ddf87418c8a0011507f7afe009b162d7946d4c537917188c0dc",
+        "expectedBounds": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            120,
+            80,
+            10
+          ]
+        ],
+        "expectedSolids": 1
+      },
+      {
+        "id": "gasketed-pair",
+        "kind": "assembly",
+        "file": "gasketed-pair.json",
+        "sha256": "d63eccf442122c18235b63e8a0e3f80278539249bb679a1cba8319943b2ca324",
+        "expectedBounds": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            60,
+            40,
+            20
+          ]
+        ],
+        "expectedSolids": 2
+      },
+      {
+        "id": "split-assembly",
+        "kind": "assembly",
+        "file": "split-assembly.json",
+        "sha256": "3f29ba3b2e80f108aa527bd9f13cd8dcf700c8fbd82c08804f0d6467ee51b864",
+        "expectedBounds": [
+          [
+            0,
+            0,
+            -10
+          ],
+          [
+            120,
+            40,
+            2
+          ]
+        ],
+        "expectedSolids": 4
+      },
+      {
+        "id": "imported-multi-solid",
+        "kind": "step",
+        "file": "ergogen/library/vendor/infused-kim/3d_models/trackpoint/TP_Red_T460S_platform_z_offset_+0.0_pcb_offset_-2.0.step",
+        "sha256": "feb172578631b76c48a832e94c58b2ffccd73b2d3ae75adb57f4aa1266e97904",
+        "expectedBounds": [
+          [
+            -6.25,
+            -21.7,
+            -5.1
+          ],
+          [
+            37.8205,
+            12.5,
+            1.2
+          ]
+        ],
+        "expectedSolids": 63
+      }
+    ],
+    "memoryMethod": "sum of sampled descendant RSS; 10 ms target, 100 ms process census; shared pages may be double counted; driver/server excluded",
+    "limitations": [
+      "Headless software-rendered canvas paint-opportunity proxy, not physical display latency",
+      "Prepared input mutation scenarios are deterministic; STEP input has no geometry edit/cache/export scenarios",
+      "Cold sample count is explicit; warm and cold distributions aggregate across sessions",
+      "Unprofiled runs report completion only; paint is unavailable",
+      "Interaction traces in the canvas exercise worker workloads; full UI coverage is separate"
+    ],
+    "appAssetSha256": {
+      "AssemblyEditor-RfMmd5oy.js": "7ad177d56157687a57ccad5928c9ef8989b0b02d377625ceb317be8ddf4e6968",
+      "AssemblyViewer-D0MLDJvP.js": "2a298a80416efc1d34d44315ad1ec007f012fa3e442b00b222cd692c7f249e35",
+      "BoardReferencePanel-Ch4mNy-Y.js": "77ded32d47fd0c29050f55fccd294615af4b583416af3f77c4c80299dee33d25",
+      "BoardReferencePanel-CmKDknN0.js": "a80c4499d3ffb182cdef2b8bc98e655467025a7651359fcb445daeaed5756557",
+      "CanvasLayers--Itn3X1r.js": "b5fdb3c5ccdcf162de5a18956be3a412a4c24a3f658adb9a4ad6c922c1bde056",
+      "CaseClient-DS8MvnyZ.js": "a507f0f493d30e4efba69a4cfd90893f42388a4e8d03c36e5102ebeac9741ea0",
+      "CoreClient-BGvwIc9A.js": "ecfd115f33af33fa40552f13aa41c691f99261f9c83c978df74115375e9a3ebd",
+      "ExportClient-8VMUrVqZ.js": "712d21a72446a0c32d407270cdd9b959e3130f8ecc42295ffbdd94985940c9a8",
+      "Workbench-BgWJdInx.js": "a2a4ae2b05ef599dfc575494ee281fdec513695c2b1403b0ddfff66777e7e38a",
+      "__vite-browser-external-3JATZXEF.js": "692f94d5e00189a917531daf2763b84e681b717ddf7132f1eca502e7ddcb3e4f",
+      "bench-jbIN3mfQ.js": "8eef56bb43051ebe4d6961a9d0aeb2e294fe27819932d746df99da80738ccc32",
+      "boardstudio_cadrum_wasm-DNYsO-K1.js": "2f885c7d09707efca70d9d4a464001a6425137cb6f76f3de8194f8d89490dbfc",
+      "boardstudio_cadrum_wasm_bg-C9s84jsD.wasm": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+      "boardstudio_core_bg-DdC-qsWj.wasm": "bc3a091122da2ebcb4eb55d3f0967d2b1943611105068f287c2fc6f0e17aa186",
+      "boardstudio_renderer_wasm-BPdoulul.js": "243a8624931904a125248aee450a63a813ea6c99bd9d74e2bd84305c8b6f271c",
+      "boardstudio_renderer_wasm-D3pxPneX.js": "a53e5e901b86384e7abc4adbcfb88a962b7a8f7215e30d85b9306d1afbb4ac2f",
+      "boardstudio_renderer_wasm_bg-CDHMXehD.wasm": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+      "cadBench-DIqVVEit.js": "b1c478838d06017595802e56fceb85c3c56616c5ee9d9f3b3d36d4d38995f87b",
+      "case.worker-BxaUbwm6.js": "6a552630a0119f727cf6832eee0098da0cc8ea49ce714aa26642ac149c2568e8",
+      "core.worker-BQ79bxYp.js": "db69b6c00f766fbdb03319e2949d873b8ffa54d0ec20a20ebd89a8508a148293",
+      "demo-Ccl42utx.js": "475ad68b9d234cc8ca0052c5e33a36360c9b626e9978ee73d4b16b077eb2004f",
+      "export.worker-CFjf6qv9.js": "a0d332ac4fa87eda810016559fa2e71c8cf9a143b71f01305a7f83e114858b32",
+      "hostConnector-Cjul-5sD.js": "9d36d5442b25ca31685f6a33c30361aabb534d4b8e6fd1f2b36b153e2a753144",
+      "imported-modules-BH7hCXoH.js": "817c286be9f91da18dde98d68babb94b5cae281348f2401d1563edf1af8e6bde",
+      "imported-modules-q6xc49f1.js": "6f124db3f6a1072038b2c4e2626272a2481945e8dc3572a737450c7369c6e24e",
+      "jsx-runtime-BguMC-xa.js": "b33bc0e61225292570d8a8478a039f9a61ec5580387b5d3a114b83c83fea96ce",
+      "main-Cg5gNxou.js": "efd0a2f62b100156f7817a0fd7b8f5ef69a72e8e21fdd492b67cc5203d9e69c6",
+      "moduleReview-JurB4mPp.js": "74951b49f2059fdee8cba805b159cae6372abc18855f8d513cabd4c1cbdb08c2",
+      "modulepreload-polyfill-P2Xu9kJm.js": "418c206484b89b68ef5f067277831e583fc9193a62aadf4de269acaaeb12a85f",
+      "preload-helper-uBIymjUX.js": "e1a22f3f73566f21ff932e058d32243e4a118f3491b91e96893aa5ab7eb49a00",
+      "prepareCase-BZsHfZIF.js": "b3e9a049b6d86ff443af26b5088a82cb8b202b87d8cb2c9a6ab0526c2f38257d",
+      "renderClient-D68Rgdxu.js": "9101282d28107a413e030fdc8b50264150b5c426e9bb378d6cfe9223da91e151",
+      "sampleAssembly-BiD767Ck.js": "d24fcb47221565849701bb0d6e25d1ad814855c2ebdf10fb220587ce30c31378",
+      "scene.worker-BQSjon90.js": "11c7f01c6a0f5de2e5712bc9fa7eb64c1b139cb19e111d11de5e4280b267af8f",
+      "src-C1Ecu6uT.js": "8fc591acd0233f70b524f8d4c64fc8d5ba290bb92ab1938fb26e3c34ea73eb86",
+      "src-COpmSzR1.js": "1a8cf1194f17e67c1914acf2ac309826a59802d2738dd21b5b329ca0abbd1e81",
+      "workbenchBench-DBZIhLq3.js": "64d16aaef4420d064ee7246edc1fcee93c6d18a9ceed9eb13ccafa4e7cfaa9a0"
+    },
+    "benchmarkHtmlSha256": "465c9d5806d51f5149048eb8185628b1de028bc5706304c300c35c4826c8b1dd",
+    "browserVersion": "153.0.8010.52"
+  },
+  "summary": {
+    "holed-plate/cold": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 135.20000000298023,
+        "p95": 138.6000000089407
+      },
+      "paintedMs": {
+        "p50": 261.69999998807907,
+        "p95": 264.79999999701977
+      },
+      "sampledPeakRssBytes": 1179537408
+    },
+    "holed-plate/warm-uncached": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 9.299999997019768,
+        "p95": 11.700000002980232
+      },
+      "paintedMs": {
+        "p50": 30.399999991059303,
+        "p95": 31.100000008940697
+      },
+      "sampledPeakRssBytes": 1197887488
+    },
+    "holed-plate/cache-hit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 1.3999999910593033,
+        "p95": 1.7000000029802322
+      },
+      "paintedMs": {
+        "p50": 29.900000005960464,
+        "p95": 31.19999998807907
+      },
+      "sampledPeakRssBytes": 1218809856
+    },
+    "holed-plate/region-edit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 25.600000008940697,
+        "p95": 36.5
+      },
+      "paintedMs": {
+        "p50": 51.69999998807907,
+        "p95": 69.40000000596046
+      },
+      "sampledPeakRssBytes": 1243201536
+    },
+    "holed-plate/preview-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 30.599999994039536,
+        "p95": 49.20000000298023
+      },
+      "paintedMs": {
+        "p50": 62.70000000298023,
+        "p95": 68.79999999701977
+      },
+      "sampledPeakRssBytes": 1315422208
+    },
+    "holed-plate/direct-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 38.400000005960464,
+        "p95": 80.20000000298023
+      },
+      "paintedMs": {
+        "p50": 63.79999999701977,
+        "p95": 99.20000000298023
+      },
+      "sampledPeakRssBytes": 1346625536
+    },
+    "holed-plate/cancel-retry": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 120.09999999403954,
+        "p95": 125.40000000596046
+      },
+      "paintedMs": {
+        "p50": 134.79999999701977,
+        "p95": 141.5
+      },
+      "sampledPeakRssBytes": 1330659328
+    },
+    "boss-tray/cold": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 302.09999999403954,
+        "p95": 306
+      },
+      "paintedMs": {
+        "p50": 323.79999999701977,
+        "p95": 327
+      },
+      "sampledPeakRssBytes": 1323487232
+    },
+    "boss-tray/warm-uncached": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 69.79999999701977,
+        "p95": 86.79999999701977
+      },
+      "paintedMs": {
+        "p50": 91.69999998807907,
+        "p95": 106.59999999403954
+      },
+      "sampledPeakRssBytes": 1267249152
+    },
+    "boss-tray/cache-hit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 1.4000000059604645,
+        "p95": 1.9000000059604645
+      },
+      "paintedMs": {
+        "p50": 29.599999994039536,
+        "p95": 30.700000002980232
+      },
+      "sampledPeakRssBytes": 1246261248
+    },
+    "boss-tray/region-edit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 49.599999994039536,
+        "p95": 62.099999994039536
+      },
+      "paintedMs": {
+        "p50": 71.70000000298023,
+        "p95": 84.5
+      },
+      "sampledPeakRssBytes": 1281888256
+    },
+    "boss-tray/preview-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 85.09999999403954,
+        "p95": 109
+      },
+      "paintedMs": {
+        "p50": 106.20000000298023,
+        "p95": 129.40000000596046
+      },
+      "sampledPeakRssBytes": 1364058112
+    },
+    "boss-tray/direct-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 81.09999999403954,
+        "p95": 102.79999999701977
+      },
+      "paintedMs": {
+        "p50": 103.40000000596046,
+        "p95": 123.20000000298023
+      },
+      "sampledPeakRssBytes": 1375145984
+    },
+    "boss-tray/cancel-retry": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 354.70000000298023,
+        "p95": 361.79999999701977
+      },
+      "paintedMs": {
+        "p50": 374.70000000298023,
+        "p95": 383.3999999910593
+      },
+      "sampledPeakRssBytes": 1407479808
+    },
+    "gasketed-pair/cold": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 168.69999998807907,
+        "p95": 169.59999999403954
+      },
+      "paintedMs": {
+        "p50": 191.8999999910593,
+        "p95": 193.79999999701977
+      },
+      "sampledPeakRssBytes": 1300856832
+    },
+    "gasketed-pair/warm-uncached": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 18.5,
+        "p95": 25.599999994039536
+      },
+      "paintedMs": {
+        "p50": 39.900000005960464,
+        "p95": 61.20000000298023
+      },
+      "sampledPeakRssBytes": 1301757952
+    },
+    "gasketed-pair/cache-hit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 1.2000000029802322,
+        "p95": 1.6000000089406967
+      },
+      "paintedMs": {
+        "p50": 30.200000002980232,
+        "p95": 31.200000002980232
+      },
+      "sampledPeakRssBytes": 1277345792
+    },
+    "gasketed-pair/region-edit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 20.19999998807907,
+        "p95": 32.20000000298023
+      },
+      "paintedMs": {
+        "p50": 46.20000000298023,
+        "p95": 68.69999998807907
+      },
+      "sampledPeakRssBytes": 1304129536
+    },
+    "gasketed-pair/preview-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 26,
+        "p95": 38.900000005960464
+      },
+      "paintedMs": {
+        "p50": 54.80000001192093,
+        "p95": 73.5
+      },
+      "sampledPeakRssBytes": 1363668992
+    },
+    "gasketed-pair/direct-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 25.099999994039536,
+        "p95": 40.30000001192093
+      },
+      "paintedMs": {
+        "p50": 52.79999999701977,
+        "p95": 71.5
+      },
+      "sampledPeakRssBytes": 1370497024
+    },
+    "gasketed-pair/cancel-retry": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 191.3999999910593,
+        "p95": 198.5
+      },
+      "paintedMs": {
+        "p50": 215.09999999403954,
+        "p95": 221
+      },
+      "sampledPeakRssBytes": 1374326784
+    },
+    "split-assembly/cold": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 137.09999999403954,
+        "p95": 138
+      },
+      "paintedMs": {
+        "p50": 149.6000000089407,
+        "p95": 152.79999999701977
+      },
+      "sampledPeakRssBytes": 1282269184
+    },
+    "split-assembly/warm-uncached": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 10.199999988079071,
+        "p95": 15.399999991059303
+      },
+      "paintedMs": {
+        "p50": 30.30000001192093,
+        "p95": 31.200000002980232
+      },
+      "sampledPeakRssBytes": 1302118400
+    },
+    "split-assembly/cache-hit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 1.2000000029802322,
+        "p95": 1.5
+      },
+      "paintedMs": {
+        "p50": 29.900000005960464,
+        "p95": 31.299999997019768
+      },
+      "sampledPeakRssBytes": 1269649408
+    },
+    "split-assembly/region-edit": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 7.5,
+        "p95": 13
+      },
+      "paintedMs": {
+        "p50": 30.399999991059303,
+        "p95": 31.400000005960464
+      },
+      "sampledPeakRssBytes": 1319854080
+    },
+    "split-assembly/preview-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 17.30000001192093,
+        "p95": 28.599999994039536
+      },
+      "paintedMs": {
+        "p50": 30.799999997019768,
+        "p95": 56.1000000089407
+      },
+      "sampledPeakRssBytes": 1401307136
+    },
+    "split-assembly/direct-export": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 17.099999994039536,
+        "p95": 38.20000000298023
+      },
+      "paintedMs": {
+        "p50": 31.099999994039536,
+        "p95": 64.40000000596046
+      },
+      "sampledPeakRssBytes": 1403805696
+    },
+    "split-assembly/cancel-retry": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 190.20000000298023,
+        "p95": 230.29999999701977
+      },
+      "paintedMs": {
+        "p50": 202.29999999701977,
+        "p95": 245.29999999701977
+      },
+      "sampledPeakRssBytes": 1309061120
+    },
+    "imported-multi-solid/cold": {
+      "samples": 5,
+      "completedMs": {
+        "p50": 639.7000000029802,
+        "p95": 743.1000000089407
+      },
+      "paintedMs": {
+        "p50": 664.8000000119209,
+        "p95": 768.6000000089407
+      },
+      "sampledPeakRssBytes": 1481363456
+    },
+    "imported-multi-solid/warm-uncached": {
+      "samples": 100,
+      "completedMs": {
+        "p50": 294.09999999403954,
+        "p95": 319.40000000596046
+      },
+      "paintedMs": {
+        "p50": 298.1000000089407,
+        "p95": 330.90000000596046
+      },
+      "sampledPeakRssBytes": 1487622144
+    }
+  }
+}
