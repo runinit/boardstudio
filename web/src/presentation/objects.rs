@@ -3,9 +3,9 @@ use boardstudio_application::{ReadModel, Scope, SelectionMode};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
-mod tree;
 mod matrix_inspector;
 mod matrix_inspector_controller;
+mod tree;
 pub(in crate::presentation) use matrix_inspector::MatrixInspector;
 pub(in crate::presentation) use matrix_inspector_controller::{
     MatrixInspectorMount, use_matrix_inspector,
