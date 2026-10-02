@@ -361,7 +361,10 @@ pub(in crate::presentation) fn context_for_selection_kind(
                 anchor.column,
             ))
         }
-        TreeContext::Board { .. }
+        TreeContext::Outline { .. }
+        | TreeContext::OutlineVersion { .. }
+        | TreeContext::Bridge { .. }
+        | TreeContext::Board { .. }
         | TreeContext::LayoutGroup { .. }
         | TreeContext::Component { .. } => None,
     }?;

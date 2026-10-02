@@ -21,6 +21,7 @@ mod mechanical_settings_controller;
 mod mechanical_settings_mount;
 pub(crate) mod model_delivery;
 mod objects;
+mod outline_lifecycle;
 mod panels;
 mod parts;
 mod parts_workspace;
@@ -37,7 +38,9 @@ pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 use library::Library;
 pub(crate) use mechanical_settings::MechanicalSettings;
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
-use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
+use panels::{
+    InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide, use_panel_settings,
+};
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
 use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, SetupGuideStage};
@@ -1007,7 +1010,10 @@ fn matrix_snap_parameters(
             };
             &cell.matrix_id
         }
-        objects::TreeContext::Board { .. }
+        objects::TreeContext::Outline { .. }
+        | objects::TreeContext::OutlineVersion { .. }
+        | objects::TreeContext::Bridge { .. }
+        | objects::TreeContext::Board { .. }
         | objects::TreeContext::LayoutGroup { .. }
         | objects::TreeContext::Component { .. } => return (None, None),
     };
@@ -1029,6 +1035,111 @@ fn durability_state(durability: &Durability) -> &'static str {
         Durability::Failed { .. } => "failed",
         _ => "pending",
     }
+}
+
+fn pin_outline_inspector_on_desktop(mut settings: Signal<PanelSettings>) {
+    let compact = web_sys::window()
+        .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
+        .is_some_and(|query| query.matches());
+    if compact {
+        return;
+    }
+    let mut current = settings();
+    if current.mode != PanelMode::Pinned {
+        current.mode = PanelMode::Pinned;
+        settings.set(current);
+    }
+}
+
+fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
+    let Some(bridge_id) = bridge_id else { return };
+    let model = runtime.model();
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return;
+    };
+    let Some(bridge) = snapshot
+        .scene
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == model.active_board_id)
+        .and_then(|scene| scene.bridges.iter().find(|bridge| bridge.id == bridge_id))
+    else {
+        return;
+    };
+    let Some((min_x, max_x, min_y, max_y)) = bridge.points.iter().fold(None, |bounds, point| {
+        Some(bounds.map_or(
+            (point.x, point.x, point.y, point.y),
+            |(min_x, max_x, min_y, max_y): (f64, f64, f64, f64)| {
+                (
+                    min_x.min(point.x),
+                    max_x.max(point.x),
+                    min_y.min(point.y),
+                    max_y.max(point.y),
+                )
+            },
+        ))
+    }) else {
+        return;
+    };
+    let board_bounds = snapshot
+        .scene
+        .board_contours
+        .iter()
+        .filter(|board| board.board_id == model.active_board_id)
+        .flat_map(|board| &board.contours)
+        .flat_map(|contour| &contour.points)
+        .fold(None, |bounds, point| {
+            Some(bounds.map_or(
+                (point.x, point.x, point.y, point.y),
+                |(min_x, max_x, min_y, max_y): (f64, f64, f64, f64)| {
+                    (
+                        min_x.min(point.x),
+                        max_x.max(point.x),
+                        min_y.min(point.y),
+                        max_y.max(point.y),
+                    )
+                },
+            ))
+        })
+        .or_else(|| {
+            let board = snapshot
+                .document
+                .boards
+                .iter()
+                .find(|board| board.id == model.active_board_id)?;
+            let mut parts = snapshot
+                .document
+                .parts
+                .iter()
+                .filter(|part| board.part_ids.contains(&part.id));
+            let first = parts.next()?.pose.at;
+            Some(parts.fold(
+                (first.x, first.x, first.y, first.y),
+                |(min_x, max_x, min_y, max_y), part| {
+                    (
+                        min_x.min(part.pose.at.x),
+                        max_x.max(part.pose.at.x),
+                        min_y.min(part.pose.at.y),
+                        max_y.max(part.pose.at.y),
+                    )
+                },
+            ))
+        })
+        .unwrap_or((min_x, max_x, min_y, max_y));
+    let bridge_width = (max_x - min_x).max(bridge.width).max(1.0);
+    let bridge_height = (max_y - min_y).max(bridge.width).max(1.0);
+    let board_width = (board_bounds.1 - board_bounds.0).max(50.0) + 40.0;
+    let board_height = (board_bounds.3 - board_bounds.2).max(50.0) + 40.0;
+    let zoom =
+        (0.72 * (board_width / bridge_width).min(board_height / bridge_height)).clamp(0.15, 8.0);
+    runtime.submit(Event::SetCamera {
+        operation_id: runtime.operation(),
+        center: Vec2 {
+            x: (min_x + max_x) * 0.5,
+            y: (min_y + max_y) * 0.5,
+        },
+        zoom,
+    });
 }
 
 #[component]
@@ -1221,6 +1332,12 @@ fn Editor() -> Element {
         version,
         adapter.selected_context,
         adapter.anchor_scope,
+        workspace,
+        adapter.generation,
+    );
+    let outline_inspector = outline_lifecycle::use_outline_lifecycle(
+        runtime.clone(),
+        adapter.selected_context,
         workspace,
         adapter.generation,
     );
@@ -1745,6 +1862,8 @@ fn Editor() -> Element {
         let owner = layout_owner.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let generation = render_generation;
+        let mut workspace = workspace;
+        let inspector_settings = inspector_panel_settings;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |request: objects::TreeSelectRequest| {
@@ -1760,12 +1879,32 @@ fn Editor() -> Element {
             }
             let (close_objects, open_inspect) = match &request.context {
                 objects::TreeContext::Board { .. } => (false, false),
+                objects::TreeContext::Outline { .. }
+                | objects::TreeContext::OutlineVersion { .. }
+                | objects::TreeContext::Bridge { .. } => (true, true),
                 objects::TreeContext::LayoutGroup { .. } => (true, false),
                 objects::TreeContext::Matrix { .. }
                 | objects::TreeContext::Row { .. }
                 | objects::TreeContext::Column { .. }
                 | objects::TreeContext::Key { .. }
                 | objects::TreeContext::Component { .. } => (true, true),
+            };
+            let outline_route = matches!(
+                &request.context,
+                objects::TreeContext::Outline { .. }
+                    | objects::TreeContext::OutlineVersion { .. }
+                    | objects::TreeContext::Bridge { .. }
+            );
+            let bridge_id = match &request.context {
+                objects::TreeContext::Bridge { bridge_id, .. } => Some(bridge_id.clone()),
+                _ => None,
+            };
+            let activation = match &request.context {
+                objects::TreeContext::OutlineVersion {
+                    board_id,
+                    version_id,
+                } => Some((board_id.clone(), version_id.clone())),
+                _ => None,
             };
             let scope = request.scope.clone();
             update_tree_cell_anchor(
@@ -1777,6 +1916,52 @@ fn Editor() -> Element {
             selection::submit_context(&runtime, &adapter, request);
             if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
                 return;
+            }
+            if let Some((board_id, version_id)) = activation {
+                let current = runtime.model();
+                let Some(snapshot) = current.accepted.as_ref() else {
+                    return;
+                };
+                let active_version = if let Some(outline) = snapshot
+                    .document
+                    .board_outlines
+                    .iter()
+                    .find(|state| state.board_id == board_id)
+                {
+                    if version_id
+                        .as_ref()
+                        .is_some_and(|id| !outline.versions.iter().any(|version| version.id == *id))
+                    {
+                        return;
+                    }
+                    outline.active_version_id.clone()
+                } else {
+                    if version_id.is_some() {
+                        return;
+                    }
+                    None
+                };
+                if active_version != version_id {
+                    let operation_id = runtime.operation();
+                    runtime.submit(Event::Edit {
+                        operation_id,
+                        command: EditCommand {
+                            base_revision: snapshot.document.revision,
+                            transaction_id: format!("outline-select-{}", operation_id.0),
+                            phase: EditPhase::Commit,
+                            target_ids: vec![board_id.clone()],
+                            operation: EditOperation::SelectOutline {
+                                board_id,
+                                version_id,
+                            },
+                        },
+                    });
+                }
+            }
+            if outline_route {
+                workspace.set("Layout");
+                fit_selected_bridge(&runtime, bridge_id.as_deref());
+                pin_outline_inspector_on_desktop(inspector_settings);
             }
             if close_objects {
                 objects_open.set(false);
@@ -3460,9 +3645,25 @@ fn Editor() -> Element {
                 show_position_inspector,
                 matrix_inspector,
                 matrix_transform_inspector,
+                outline_inspector: outline_inspector.map(Box::new),
             },
         )),
     };
+    let selected_bridge = selected_tree_context.as_ref().and_then(|selected| {
+        let objects::TreeContext::Bridge {
+            board_id,
+            bridge_id,
+        } = &selected.context
+        else {
+            return None;
+        };
+        snapshot
+            .scene
+            .board_outline_scenes
+            .iter()
+            .find(|scene| scene.board_id == *board_id)
+            .and_then(|scene| scene.bridges.iter().find(|bridge| bridge.id == *bridge_id))
+    });
     let active_part_position = model.selected_part_ids.first().and_then(|selected_id| {
         visible
             .iter()
@@ -3679,6 +3880,9 @@ fn Editor() -> Element {
                             for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
                                 polygon { points: polygon_points(&contour.points), class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" } }
                             }
+                        }
+                        if let Some(bridge) = selected_bridge {
+                            polygon { points: polygon_points(&bridge.points), class: "m1-outline-bridge-selected", "data-outline-bridge": bridge.id.clone() }
                         }
                         if !(layer_visibility.hidden)().contains("Keys") {
                             for matrix in &matrices {

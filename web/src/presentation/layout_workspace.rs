@@ -30,6 +30,7 @@ pub(super) struct InspectorInput {
     pub(super) show_position_inspector: bool,
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
+    pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
@@ -79,11 +80,13 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
     rsx! {
+        if input.outline_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {
             section { class: "m1-selected-context", "aria-label": "Selected context",
                 h2 { "{title}" }
                 if let Some(detail) = input.context_detail.as_ref() { p { "{detail}" } }
             }
+        }
         }
         if input.show_position_inspector { super::inspector::Inspector {} }
         if let Some(projection) = input.matrix_inspector.projection.clone() {
@@ -100,6 +103,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             objects::MatrixTransformInspector {
                 mount: input.matrix_transform_inspector,
             }
+        }
+        if let Some(projection) = input.outline_inspector {
+            super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
         }
     }
 }

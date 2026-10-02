@@ -149,6 +149,7 @@ pub(super) fn Objects(
         grouping(),
         &current_expanded,
         snapshot.scene.matrix_scenes.as_slice(),
+        snapshot.scene.board_outline_scenes.as_slice(),
     );
     let current_context = selected_context.read().clone().filter(|selected| {
         active_scope.as_ref() == Some(&selected.scope)
@@ -431,6 +432,10 @@ fn tree_glyph(kind: TreeKind) -> Element {
                 rect { x: "2", y: "2", width: "8", height: "8", rx: "1" }
                 rect { x: "6", y: "6", width: "8", height: "8", rx: "1" }
                 path { d: "M4 4h4M8 8h4" }
+            } else if kind == TreeKind::Outline || kind == TreeKind::OutlineVersion {
+                path { d: "M3 3h10v10H3zM6 6h4M6 9h4" }
+            } else if kind == TreeKind::Bridge {
+                path { d: "M2 12c2-7 4-7 6 0s4 7 6 0" }
             } else {
                 path { d: "M2 2h8v3h4v9H2z" }
             }

@@ -79,6 +79,9 @@ pub(super) fn summarize(model: &ReadModel, context: &TreeContext) -> Option<Cont
         TreeContext::Component { .. } => ("Select: Part", label, None),
         TreeContext::Board { .. } => ("Selected: Board", label, None),
         TreeContext::LayoutGroup { .. } => ("Selected: Layout", label, None),
+        TreeContext::Outline { .. } => ("Selected: Outline", label, None),
+        TreeContext::OutlineVersion { .. } => ("Selected: Outline version", label, None),
+        TreeContext::Bridge { .. } => ("Selected: Bridge", label, None),
     };
     Some(ContextSummary {
         indicator: indicator.into(),

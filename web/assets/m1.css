@@ -215,6 +215,14 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-selected-context { padding: 14px 12px; border-bottom: 1px solid var(--wb-rule); }
 .m1-selected-context h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .m1-selected-context p { margin: 8px 0 0; color: var(--wb-muted); }
+.m1-outline-inspector { padding: 14px 16px; border-bottom: 1px solid var(--wb-rule); }
+.m1-outline-inspector-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m1-outline-inspector-heading h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.m1-outline-board-name { color: var(--wb-muted); font-size: 12px; }
+.m1-outline-inspector > p { margin: 8px 0; color: var(--wb-muted); }
+.m1-outline-preview { display: block; width: 100%; height: 150px; margin: 12px 0; border: 1px solid var(--wb-rule); background: var(--wb-canvas); }
+.m1-outline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.m1-outline-actions button { min-height: 36px; }
 .m1-parts-library { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 16px 12px; color: var(--wb-ink); }
 .m1-parts-library > h2 { margin: 0 0 16px; font-size: 20px; }
 .m1-parts-search-label { display: grid; gap: 6px; color: var(--wb-muted); font: 500 var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
@@ -293,6 +301,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-canvas { display: block; width: 100%; height: 100%; min-height: 250px; background: var(--wb-canvas); touch-action: none; }
 .m1-outline { fill: var(--wb-geometry-fill); stroke: var(--wb-geometry-board); stroke-width: .3; }
 .m1-outline.is-hole { fill: var(--wb-canvas); stroke: var(--wb-status-error); stroke-dasharray: .8 .55; }
+.m1-outline-bridge-selected { fill: none; stroke: var(--wb-accent); stroke-width: 1.25; pointer-events: none; }
 .m1-matrix-key { fill: color-mix(in srgb, var(--wb-geometry-fill-muted) 55%, transparent); stroke: var(--wb-geometry-outline); stroke-width: .28; pointer-events: none; }
 .m1-matrix-key.is-selected { fill: var(--wb-selection-surface); stroke: var(--wb-accent); stroke-width: .42; }
 .m1-part { fill: var(--wb-geometry-body); stroke: var(--wb-geometry-part); stroke-width: .4; cursor: grab; }

@@ -1,8 +1,21 @@
-use boardstudio_core::model::{Board, Layout, Matrix, MatrixScene, Part, ProjectDoc, SceneDelta};
+use boardstudio_core::model::{
+    Board, BoardOutlineScene, Layout, Matrix, MatrixScene, Part, ProjectDoc, SceneDelta,
+};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) enum TreeContext {
+    Outline {
+        board_id: String,
+    },
+    OutlineVersion {
+        board_id: String,
+        version_id: Option<String>,
+    },
+    Bridge {
+        board_id: String,
+        bridge_id: String,
+    },
     Board {
         board_id: String,
     },
@@ -37,6 +50,9 @@ pub(in crate::presentation) enum TreeContext {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum TreeKind {
+    Outline,
+    OutlineVersion,
+    Bridge,
     Board,
     Layout,
     Matrix,
@@ -119,6 +135,7 @@ pub(super) fn build_tree(
     grouping: Grouping,
     expanded: &BTreeSet<String>,
     matrix_scenes: &[MatrixScene],
+    outline_scenes: &[BoardOutlineScene],
 ) -> Vec<TreeItem> {
     let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
         return Vec::new();
@@ -177,6 +194,124 @@ pub(super) fn build_tree(
     });
     if !board_open {
         return tree;
+    }
+
+    let outline = document
+        .board_outlines
+        .iter()
+        .find(|state| state.board_id == board_id);
+    let active_version = outline.and_then(|state| state.active_version_id.as_deref());
+    let active_name = outline
+        .and_then(|state| {
+            state
+                .versions
+                .iter()
+                .find(|version| Some(version.id.as_str()) == active_version)
+        })
+        .map_or("Generated", |version| version.name.as_str());
+    let outline_key = format!("outline:{board_id}");
+    let outline_open = expanded.contains(&outline_key);
+    tree.push(TreeItem {
+        id: outline_key,
+        label: "Outline".into(),
+        detail: Some(active_name.into()),
+        level: 1,
+        kind: TreeKind::Outline,
+        context: Some(TreeContext::Outline {
+            board_id: board_id.into(),
+        }),
+        expanded: Some(outline_open),
+        primary_id: None,
+        expandable: true,
+    });
+    if outline_open {
+        tree.push(TreeItem {
+            id: format!("outline:{board_id}:generated"),
+            label: "Generated".into(),
+            detail: Some(
+                if active_version.is_none() {
+                    "Active"
+                } else {
+                    "Follows layout"
+                }
+                .into(),
+            ),
+            level: 2,
+            kind: TreeKind::OutlineVersion,
+            context: Some(TreeContext::OutlineVersion {
+                board_id: board_id.into(),
+                version_id: None,
+            }),
+            expanded: None,
+            primary_id: None,
+            expandable: false,
+        });
+        if let Some(outline) = outline {
+            for version in &outline.versions {
+                tree.push(TreeItem {
+                    id: format!("outline:{board_id}:version:{}", version.id),
+                    label: version.name.clone(),
+                    detail: Some(
+                        if active_version == Some(version.id.as_str()) {
+                            "Active"
+                        } else {
+                            "Fixed"
+                        }
+                        .into(),
+                    ),
+                    level: 2,
+                    kind: TreeKind::OutlineVersion,
+                    context: Some(TreeContext::OutlineVersion {
+                        board_id: board_id.into(),
+                        version_id: Some(version.id.clone()),
+                    }),
+                    expanded: None,
+                    primary_id: None,
+                    expandable: false,
+                });
+            }
+        }
+        if let Some(scene) = outline_scenes
+            .iter()
+            .find(|scene| scene.board_id == board_id)
+        {
+            for (index, bridge) in scene.bridges.iter().enumerate() {
+                let mut occurrences = Vec::new();
+                for matrix_id in &bridge.matrix_ids {
+                    if let Some(matrix) = matrices.iter().find(|matrix| matrix.id == *matrix_id) {
+                        occurrences.push(
+                            matrix
+                                .name
+                                .as_deref()
+                                .filter(|name| !name.trim().is_empty())
+                                .unwrap_or(&matrix.id)
+                                .to_owned(),
+                        );
+                    }
+                }
+                occurrences.sort();
+                occurrences.dedup();
+                let detail = if occurrences.is_empty() {
+                    "Bridge".to_owned()
+                } else {
+                    occurrences.join(", ")
+                };
+                tree.push(TreeItem {
+                    id: format!("outline:{board_id}:bridge:{}", bridge.id),
+                    label: format!("Bridge {}", index + 1),
+                    detail: Some(format!("{} mm · {detail}", bridge.width)),
+                    level: 2,
+                    kind: TreeKind::Bridge,
+                    context: Some(TreeContext::Bridge {
+                        board_id: board_id.into(),
+                        bridge_id: bridge.id.clone(),
+                    }),
+                    expanded: None,
+                    primary_id: None,
+                    expandable: false,
+                });
+            }
+        }
     }
 
     let matrix_part_ids: HashSet<&str> = matrices
@@ -763,6 +898,30 @@ pub(super) fn resolve_selection(
                 .collect()
         };
     match context {
+        TreeContext::Outline { board_id } => (board.id == *board_id).then(Vec::new),
+        TreeContext::OutlineVersion {
+            board_id,
+            version_id,
+        } => (board.id == *board_id
+            && version_id.as_ref().is_none_or(|id| {
+                document
+                    .board_outlines
+                    .iter()
+                    .find(|state| state.board_id == *board_id)
+                    .is_some_and(|state| state.versions.iter().any(|version| version.id == *id))
+            }))
+        .then(Vec::new),
+        TreeContext::Bridge {
+            board_id,
+            bridge_id,
+        } => (board.id == *board_id
+            && snapshot
+                .scene
+                .board_outline_scenes
+                .iter()
+                .find(|scene| scene.board_id == *board_id)
+                .is_some_and(|scene| scene.bridges.iter().any(|bridge| bridge.id == *bridge_id)))
+        .then(Vec::new),
         TreeContext::Board { board_id } if board_id == &model.active_board_id => Some(Vec::new()),
         TreeContext::LayoutGroup {
             board_id,
@@ -1023,6 +1182,10 @@ pub(super) fn context_label(
     let snapshot = model.accepted.as_ref()?;
     let document = &snapshot.document;
     match context {
+        TreeContext::Outline { .. } | TreeContext::OutlineVersion { .. } => {
+            Some("Board outline".into())
+        }
+        TreeContext::Bridge { bridge_id, .. } => Some(format!("Bridge {bridge_id}")),
         TreeContext::Board { board_id } => document
             .boards
             .iter()
