@@ -419,25 +419,50 @@ pub(in crate::presentation) fn use_binding_operations(
 
     let model = runtime.model();
     let selected_key_id = model.selected_part_ids.first().cloned();
+    let active_layer_id = active_layer();
     let display_snapshot = current_display_source(
         &runtime,
         source.as_ref(),
         captured_generation,
         scope_generation,
     );
-    let projection = display_snapshot.as_ref().and_then(|snapshot| {
-        let source = source.as_ref()?;
-        let view = view.as_deref()?;
-        let key_id = selected_key_id.as_deref()?;
-        project_binding_editor(
-            snapshot,
-            &source.scope,
-            &source.scope.board_id,
-            &active_layer(),
-            key_id,
-            view,
-        )
-    });
+    let source_key = source
+        .as_ref()
+        .map(|source| (source.scope.clone(), source.token, source.revision));
+    let binding_projection = use_memo(use_reactive(
+        (
+            &version,
+            &source_key,
+            &view,
+            &active_layer_id,
+            &selected_key_id,
+        ),
+        {
+            let runtime = runtime.clone();
+            let source = source.clone();
+            move |(_, _, view, layer_id, key_id)| {
+                let snapshot = current_display_source(
+                    &runtime,
+                    source.as_ref(),
+                    captured_generation,
+                    scope_generation,
+                )?;
+                let source = source.as_ref()?;
+                project_binding_editor(
+                    &snapshot,
+                    &source.scope,
+                    &source.scope.board_id,
+                    layer_id,
+                    key_id.as_deref()?,
+                    view.as_deref()?,
+                )
+                .map(Rc::new)
+            }
+        },
+    ));
+    let projection = display_snapshot
+        .as_ref()
+        .and_then(|_| binding_projection.read().clone());
     let admission_snapshot = current_saved_source(
         &runtime,
         source.as_ref(),
@@ -447,17 +472,11 @@ pub(in crate::presentation) fn use_binding_operations(
         admission_current.as_ref(),
     );
     let enabled = pending.read().is_none() && admission_snapshot.is_some() && projection.is_some();
-    let feedback_projection = current_feedback_projection(
-        &runtime,
-        source.as_ref(),
-        view.as_deref(),
-        &active_layer(),
-        selected_key_id.as_deref(),
-    );
     let feedback_guard = feedback.read();
     let visible_feedback = feedback_guard.as_ref().and_then(|state| {
         let source = source.as_ref()?;
-        let (snapshot, projection) = feedback_projection.as_ref()?;
+        let snapshot = display_snapshot.as_ref()?;
+        let projection = projection.as_deref()?;
         let request = &state.request;
         if request.editor_instance_id != editor_instance_id
             || request.scope != source.scope
@@ -564,7 +583,7 @@ pub(in crate::presentation) fn use_binding_operations(
         editor_instance_id,
         request_sequence,
         enabled,
-        projection: projection.map(Rc::new),
+        projection,
         feedback: visible_feedback,
         on_change,
     }
@@ -625,37 +644,6 @@ fn current_display_source(
         && snapshot.document.revision == expected_source.revision
         && generation() == expected_generation)
         .then_some(snapshot)
-}
-
-fn current_feedback_projection(
-    runtime: &Runtime,
-    source: Option<&LayerSource>,
-    view: Option<&KeymapView>,
-    active_layer_id: &str,
-    selected_key_id: Option<&str>,
-) -> Option<(AcceptedSnapshot, BindingEditorProjection)> {
-    let source = source?;
-    let view = view?;
-    let selected_key_id = selected_key_id?;
-    let model = runtime.model();
-    let snapshot = model.accepted?;
-    if runtime.scope().as_ref() != Some(&source.scope)
-        || source.scope.session_epoch != snapshot.session_epoch
-        || source.scope.document_id != snapshot.document.id
-        || source.scope.board_id != model.active_board_id
-        || source.scope.instance_id != model.active_instance_id
-    {
-        return None;
-    }
-    let projection = project_binding_editor(
-        &snapshot,
-        &source.scope,
-        &source.scope.board_id,
-        active_layer_id,
-        selected_key_id,
-        view,
-    )?;
-    Some((snapshot, projection))
 }
 
 fn current_binding_for_request(
