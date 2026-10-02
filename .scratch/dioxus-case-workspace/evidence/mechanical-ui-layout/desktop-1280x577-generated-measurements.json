@@ -1,0 +1,5895 @@
+{
+  "viewport": {
+    "w": 1280,
+    "h": 577
+  },
+  "doc": {
+    "w": 1280,
+    "h": 577
+  },
+  "body": {
+    "w": 1280,
+    "h": 577
+  },
+  "workspace": {
+    "x": 235,
+    "y": 44,
+    "w": 725,
+    "h": 470.609375,
+    "right": 960,
+    "bottom": 514.609375
+  },
+  "panel": {
+    "x": 235,
+    "y": 44,
+    "w": 725,
+    "h": 470.609375,
+    "right": 960,
+    "bottom": 514.609375
+  },
+  "panelScroll": {
+    "scrollH": 471,
+    "clientH": 471
+  },
+  "settings": {
+    "x": 608,
+    "y": 92,
+    "w": 340,
+    "h": 288.5,
+    "right": 948,
+    "bottom": 380.5
+  },
+  "settingsDetails": {
+    "scrollH": 14149,
+    "clientH": 287
+  },
+  "generate": {
+    "x": 613.21875,
+    "y": 56,
+    "w": 98.125,
+    "h": 36,
+    "right": 711.34375,
+    "bottom": 92
+  },
+  "preview": {
+    "rect": null,
+    "path": []
+  },
+  "canvases": [
+    {
+      "rect": {
+        "x": 247,
+        "y": 164.84375,
+        "w": 701,
+        "h": 266.078125,
+        "right": 948,
+        "bottom": 430.921875
+      },
+      "path": [
+        {
+          "tag": "CANVAS",
+          "cls": "",
+          "overflow": "clip",
+          "rect": {
+            "x": 247,
+            "y": 164.84375,
+            "w": 701,
+            "h": 266.078125,
+            "right": 948,
+            "bottom": 430.921875
+          },
+          "scrollH": 264,
+          "clientH": 264
+        },
+        {
+          "tag": "DIV",
+          "cls": "m1-case-view m1-shared-viewer",
+          "overflow": "hidden",
+          "rect": {
+            "x": 247,
+            "y": 122.84375,
+            "w": 701,
+            "h": 379.765625,
+            "right": 948,
+            "bottom": 502.609375
+          },
+          "scrollH": 380,
+          "clientH": 380
+        },
+        {
+          "tag": "SECTION",
+          "cls": "m1-case-panel",
+          "overflow": "hidden",
+          "rect": {
+            "x": 235,
+            "y": 44,
+            "w": 725,
+            "h": 470.609375,
+            "right": 960,
+            "bottom": 514.609375
+          },
+          "scrollH": 471,
+          "clientH": 471
+        },
+        {
+          "tag": "SECTION",
+          "cls": "m1-workspace-content",
+          "overflow": "hidden",
+          "rect": {
+            "x": 235,
+            "y": 44,
+            "w": 725,
+            "h": 470.609375,
+            "right": 960,
+            "bottom": 514.609375
+          },
+          "scrollH": 471,
+          "clientH": 471
+        },
+        {
+          "tag": "DIV",
+          "cls": "m1-editor-body",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 44,
+            "w": 1280,
+            "h": 470.609375,
+            "right": 1280,
+            "bottom": 514.609375
+          },
+          "scrollH": 471,
+          "clientH": 471
+        },
+        {
+          "tag": "MAIN",
+          "cls": "m1-workbench",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 577,
+            "right": 1280,
+            "bottom": 577
+          },
+          "scrollH": 577,
+          "clientH": 577
+        },
+        {
+          "tag": "BODY",
+          "cls": "",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 577,
+            "right": 1280,
+            "bottom": 577
+          },
+          "scrollH": 577,
+          "clientH": 577
+        }
+      ]
+    }
+  ],
+  "touchControls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Generate case",
+      "rect": {
+        "x": 613.21875,
+        "y": 56,
+        "w": 98.125,
+        "h": 36,
+        "right": 711.34375,
+        "bottom": 92
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Cancel generation",
+      "rect": {
+        "x": 717.34375,
+        "y": 56,
+        "w": 119.8125,
+        "h": 36,
+        "right": 837.15625,
+        "bottom": 92
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "name": "Plate method\nPCB FR-4\n3D printed\nCNC machined\nCut sheet",
+      "rect": {
+        "x": 621,
+        "y": 235.578125,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 271.578125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "name": "Mount style\nTray\nRigid mount\nGasket mount",
+      "rect": {
+        "x": 621,
+        "y": 306.421875,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 342.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "name": "Bottom construction\nTray shell\nFlat sheet",
+      "rect": {
+        "x": 621,
+        "y": 377.265625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 413.265625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "checkbox",
+      "name": "Integrate plate frame into case",
+      "rect": {
+        "x": 625,
+        "y": 426.265625,
+        "w": 13,
+        "h": 36,
+        "right": 638,
+        "bottom": 462.265625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "Plate thickness\nmm",
+      "rect": {
+        "x": 621,
+        "y": 688.828125,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 724.828125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "Plate foam\nmm",
+      "rect": {
+        "x": 621,
+        "y": 759.671875,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 795.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "PCB thickness\nmm",
+      "rect": {
+        "x": 621,
+        "y": 830.515625,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 866.515625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "Bottom foam\nmm",
+      "rect": {
+        "x": 621,
+        "y": 901.359375,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 937.359375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "Bottom thickness\nmm",
+      "rect": {
+        "x": 621,
+        "y": 972.203125,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 1008.203125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "Wall thickness\nmm",
+      "rect": {
+        "x": 621,
+        "y": 1043.046875,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 1079.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "Clearance\nmm",
+      "rect": {
+        "x": 621,
+        "y": 1113.890625,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 1149.890625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "name": "Radial opening allowance\nmm",
+      "rect": {
+        "x": 621,
+        "y": 1184.734375,
+        "w": 286.09375,
+        "h": 36,
+        "right": 907.09375,
+        "bottom": 1220.734375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Plate1.50 mmZ 3.50",
+      "rect": {
+        "x": 621,
+        "y": 1285.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1321.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Plate foam3.00 mmZ 0.00",
+      "rect": {
+        "x": 621,
+        "y": 1327.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1363.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "PCB1.60 mmZ -1.60",
+      "rect": {
+        "x": 621,
+        "y": 1369.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1405.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Bottom foam2.00 mmZ -3.60",
+      "rect": {
+        "x": 621,
+        "y": 1411.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1447.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Bottom3.00 mmZ -6.75",
+      "rect": {
+        "x": 621,
+        "y": 1453.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1489.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Top case4.75 mmZ 6.70",
+      "rect": {
+        "x": 621,
+        "y": 1495.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1531.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:0:lower1",
+      "rect": {
+        "x": 621,
+        "y": 1537.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1573.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:0:upper1",
+      "rect": {
+        "x": 621,
+        "y": 1579.765625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 1631.453125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:1:lower1",
+      "rect": {
+        "x": 621,
+        "y": 1637.453125,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1673.453125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:1:upper1",
+      "rect": {
+        "x": 621,
+        "y": 1679.453125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 1731.140625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:2:lower1",
+      "rect": {
+        "x": 621,
+        "y": 1737.140625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1773.140625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:2:upper1",
+      "rect": {
+        "x": 621,
+        "y": 1779.140625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 1830.828125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:3:lower1",
+      "rect": {
+        "x": 621,
+        "y": 1836.828125,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1872.828125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:3:upper1",
+      "rect": {
+        "x": 621,
+        "y": 1878.828125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 1930.515625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:4:lower1",
+      "rect": {
+        "x": 621,
+        "y": 1936.515625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 1972.515625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:4:upper1",
+      "rect": {
+        "x": 621,
+        "y": 1978.515625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2030.203125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:5:lower1",
+      "rect": {
+        "x": 621,
+        "y": 2036.203125,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 2072.203125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:5:upper1",
+      "rect": {
+        "x": 621,
+        "y": 2078.203125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2129.890625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:6:lower1",
+      "rect": {
+        "x": 621,
+        "y": 2135.890625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 2171.890625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:6:upper1",
+      "rect": {
+        "x": 621,
+        "y": 2177.890625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2229.578125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:7:lower1",
+      "rect": {
+        "x": 621,
+        "y": 2235.578125,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 2271.578125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:7:upper1",
+      "rect": {
+        "x": 621,
+        "y": 2277.578125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2329.265625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:8:lower1",
+      "rect": {
+        "x": 621,
+        "y": 2335.265625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 2371.265625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:8:upper1",
+      "rect": {
+        "x": 621,
+        "y": 2377.265625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2428.953125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:9:lower1",
+      "rect": {
+        "x": 621,
+        "y": 2434.953125,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 2470.953125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:9:upper1",
+      "rect": {
+        "x": 621,
+        "y": 2476.953125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2528.640625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:10:lower",
+      "rect": {
+        "x": 621,
+        "y": 2534.640625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2586.328125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:10:upper",
+      "rect": {
+        "x": 621,
+        "y": 2592.328125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2644.015625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:11:lower",
+      "rect": {
+        "x": 621,
+        "y": 2650.015625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2701.703125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:11:upper",
+      "rect": {
+        "x": 621,
+        "y": 2707.703125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2759.390625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:12:lower",
+      "rect": {
+        "x": 621,
+        "y": 2765.390625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2817.078125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:12:upper",
+      "rect": {
+        "x": 621,
+        "y": 2823.078125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2874.765625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:13:lower",
+      "rect": {
+        "x": 621,
+        "y": 2880.765625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2932.453125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:13:upper",
+      "rect": {
+        "x": 621,
+        "y": 2938.453125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 2990.140625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:14:lower",
+      "rect": {
+        "x": 621,
+        "y": 2996.140625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3047.828125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:14:upper",
+      "rect": {
+        "x": 621,
+        "y": 3053.828125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3105.515625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:15:lower",
+      "rect": {
+        "x": 621,
+        "y": 3111.515625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3163.203125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:15:upper",
+      "rect": {
+        "x": 621,
+        "y": 3169.203125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3220.890625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:16:lower",
+      "rect": {
+        "x": 621,
+        "y": 3226.890625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3278.578125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:16:upper",
+      "rect": {
+        "x": 621,
+        "y": 3284.578125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3336.265625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:17:lower",
+      "rect": {
+        "x": 621,
+        "y": 3342.265625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3393.953125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:17:upper",
+      "rect": {
+        "x": 621,
+        "y": 3399.953125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3451.640625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:18:lower",
+      "rect": {
+        "x": 621,
+        "y": 3457.640625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3509.328125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:18:upper",
+      "rect": {
+        "x": 621,
+        "y": 3515.328125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3567.015625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:19:lower",
+      "rect": {
+        "x": 621,
+        "y": 3573.015625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3624.703125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:19:upper",
+      "rect": {
+        "x": 621,
+        "y": 3630.703125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3682.390625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:20:lower",
+      "rect": {
+        "x": 621,
+        "y": 3688.390625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3740.078125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:20:upper",
+      "rect": {
+        "x": 621,
+        "y": 3746.078125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3797.765625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:21:lower",
+      "rect": {
+        "x": 621,
+        "y": 3803.765625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3855.453125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:21:upper",
+      "rect": {
+        "x": 621,
+        "y": 3861.453125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3913.140625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:22:lower",
+      "rect": {
+        "x": 621,
+        "y": 3919.140625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 3970.828125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:22:upper",
+      "rect": {
+        "x": 621,
+        "y": 3976.828125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 4028.515625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:23:lower",
+      "rect": {
+        "x": 621,
+        "y": 4034.515625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 4086.203125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:23:upper",
+      "rect": {
+        "x": 621,
+        "y": 4092.203125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 4143.890625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:24:lower",
+      "rect": {
+        "x": 621,
+        "y": 4149.890625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 4201.578125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:24:upper",
+      "rect": {
+        "x": 621,
+        "y": 4207.578125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 4259.265625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:25:lower",
+      "rect": {
+        "x": 621,
+        "y": 4265.265625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 4316.953125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Gasket:main right keys layout:25:upper",
+      "rect": {
+        "x": 621,
+        "y": 4322.953125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 935,
+        "bottom": 4374.640625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 4528.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 4564.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 4639.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 4675.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 4750.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 4786.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 4862.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 4898.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 4973.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5009.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5084.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5120.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5196.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5232.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5307.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5343.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5419.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5455.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5530.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5566.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5641.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5677.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5753.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5789.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5864.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 5900.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 5975.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6011.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6087.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6123.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6198.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6234.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6310.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6346.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6421.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6457.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6532.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6568.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6644.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6680.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6755.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6791.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6866.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 6902.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 6978.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7014.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7089.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7125.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7201.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7237.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7312.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7348.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7423.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7459.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7535.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7571.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7646.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7682.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7757.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7793.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7869.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 7905.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 7980.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8016.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8092.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8128.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8203.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8239.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8314.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8350.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8426.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8462.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8537.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8573.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8648.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8684.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8760.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8796.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8871.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 8907.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 8983.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9019.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9094.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9130.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9205.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9241.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9317.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9353.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9428.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9464.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9539.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9575.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9651.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9687.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9762.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9798.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9874.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 9910.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 9985.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10021.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10096.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10132.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10208.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10244.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10319.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10355.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10430.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10466.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10542.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10578.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10653.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10689.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10765.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10801.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10876.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 10912.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 10987.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11023.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11099.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11135.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11210.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11246.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11321.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11357.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11433.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11469.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11544.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11580.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11656.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11692.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11767.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11803.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11878.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 11914.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 11990.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12026.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12101.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12137.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12212.921875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12248.921875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12324.296875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12360.296875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12435.671875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12471.671875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12547.046875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12583.046875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12658.421875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12694.421875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12769.796875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12805.796875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12881.171875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 12917.171875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 12992.546875,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13028.546875
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 771.015625,
+        "y": 13066.234375,
+        "w": 48.359375,
+        "h": 36,
+        "right": 819.375,
+        "bottom": 13102.234375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 13177.609375,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13213.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 13288.984375,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13324.984375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 762.96875,
+        "y": 13343.828125,
+        "w": 48.359375,
+        "h": 36,
+        "right": 811.328125,
+        "bottom": 13379.828125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 13455.203125,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13491.203125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 13566.578125,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13602.578125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 13677.953125,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13713.953125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 13789.328125,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13825.328125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 13900.703125,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 13936.703125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 661,
+        "y": 14012.078125,
+        "w": 48.359375,
+        "h": 36,
+        "right": 709.359375,
+        "bottom": 14048.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Show",
+      "rect": {
+        "x": 853.546875,
+        "y": 14085.765625,
+        "w": 48.359375,
+        "h": 36,
+        "right": 901.90625,
+        "bottom": 14121.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "name": "Disable mechanical stack",
+      "rect": {
+        "x": 621,
+        "y": 14156.765625,
+        "w": 314,
+        "h": 36,
+        "right": 935,
+        "bottom": 14192.765625
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Fit case",
+      "rect": {
+        "x": 247,
+        "y": 122.84375,
+        "w": 62.859375,
+        "h": 36,
+        "right": 309.859375,
+        "bottom": 158.84375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Top view",
+      "rect": {
+        "x": 863.484375,
+        "y": 207.265625,
+        "w": 60.515625,
+        "h": 51.6875,
+        "right": 924,
+        "bottom": 258.953125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Bottom view",
+      "rect": {
+        "x": 863.484375,
+        "y": 266.953125,
+        "w": 60.515625,
+        "h": 51.6875,
+        "right": 924,
+        "bottom": 318.640625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Isometric view",
+      "rect": {
+        "x": 863.484375,
+        "y": 326.640625,
+        "w": 60.515625,
+        "h": 51.6875,
+        "right": 924,
+        "bottom": 378.328125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Rotate left",
+      "rect": {
+        "x": 863.484375,
+        "y": 386.328125,
+        "w": 60.515625,
+        "h": 51.6875,
+        "right": 924,
+        "bottom": 438.015625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Rotate right",
+      "rect": {
+        "x": 863.484375,
+        "y": 446.015625,
+        "w": 60.515625,
+        "h": 51.6875,
+        "right": 924,
+        "bottom": 497.703125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Zoom in",
+      "rect": {
+        "x": 863.484375,
+        "y": 505.703125,
+        "w": 60.515625,
+        "h": 51.6875,
+        "right": 924,
+        "bottom": 557.390625
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Zoom out",
+      "rect": {
+        "x": 863.484375,
+        "y": 565.390625,
+        "w": 60.515625,
+        "h": 51.6875,
+        "right": 924,
+        "bottom": 617.078125
+      },
+      "under44x44": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "shaded",
+      "rect": {
+        "x": 863.484375,
+        "y": 625.078125,
+        "w": 60.515625,
+        "h": 36,
+        "right": 924,
+        "bottom": 661.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "wireframe",
+      "rect": {
+        "x": 863.484375,
+        "y": 669.078125,
+        "w": 60.515625,
+        "h": 36,
+        "right": 924,
+        "bottom": 705.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "hybrid",
+      "rect": {
+        "x": 863.484375,
+        "y": 713.078125,
+        "w": 57.265625,
+        "h": 36,
+        "right": 920.75,
+        "bottom": 749.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "assembled",
+      "rect": {
+        "x": 863.484375,
+        "y": 757.078125,
+        "w": 60.515625,
+        "h": 36,
+        "right": 924,
+        "bottom": 793.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "exploded",
+      "rect": {
+        "x": 863.484375,
+        "y": 801.078125,
+        "w": 60.515625,
+        "h": 36,
+        "right": 924,
+        "bottom": 837.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "section",
+      "rect": {
+        "x": 863.484375,
+        "y": 845.078125,
+        "w": 60.515625,
+        "h": 36,
+        "right": 924,
+        "bottom": 881.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "checkbox",
+      "name": "",
+      "rect": {
+        "x": 867.484375,
+        "y": 892.078125,
+        "w": 13,
+        "h": 36,
+        "right": 880.484375,
+        "bottom": 928.078125
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select PCB",
+      "rect": {
+        "x": 258,
+        "y": 499.609375,
+        "w": 80.375,
+        "h": 36,
+        "right": 338.375,
+        "bottom": 535.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for PCB",
+      "rect": {
+        "x": 344.375,
+        "y": 499.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 401.875,
+        "bottom": 535.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 486.078125,
+        "y": 499.609375,
+        "w": 44,
+        "h": 36,
+        "right": 530.078125,
+        "bottom": 535.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 536.078125,
+        "y": 499.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 618.125,
+        "bottom": 535.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select plate",
+      "rect": {
+        "x": 258,
+        "y": 560.609375,
+        "w": 85.515625,
+        "h": 36,
+        "right": 343.515625,
+        "bottom": 596.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for plate",
+      "rect": {
+        "x": 349.515625,
+        "y": 560.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 407.015625,
+        "bottom": 596.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 496.359375,
+        "y": 560.609375,
+        "w": 44,
+        "h": 36,
+        "right": 540.359375,
+        "bottom": 596.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 546.359375,
+        "y": 560.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 628.40625,
+        "bottom": 596.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select bottom",
+      "rect": {
+        "x": 258,
+        "y": 621.609375,
+        "w": 98.140625,
+        "h": 36,
+        "right": 356.140625,
+        "bottom": 657.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for bottom",
+      "rect": {
+        "x": 362.140625,
+        "y": 621.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 419.640625,
+        "bottom": 657.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 521.59375,
+        "y": 621.609375,
+        "w": 44,
+        "h": 36,
+        "right": 565.59375,
+        "bottom": 657.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 571.59375,
+        "y": 621.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 653.640625,
+        "bottom": 657.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select plate-foam",
+      "rect": {
+        "x": 258,
+        "y": 682.609375,
+        "w": 117.5625,
+        "h": 36,
+        "right": 375.5625,
+        "bottom": 718.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for plate-foam",
+      "rect": {
+        "x": 381.5625,
+        "y": 682.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 439.0625,
+        "bottom": 718.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 560.4375,
+        "y": 682.609375,
+        "w": 44,
+        "h": 36,
+        "right": 604.4375,
+        "bottom": 718.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 610.4375,
+        "y": 682.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 692.484375,
+        "bottom": 718.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select bottom-foam",
+      "rect": {
+        "x": 258,
+        "y": 743.609375,
+        "w": 130.046875,
+        "h": 36,
+        "right": 388.046875,
+        "bottom": 779.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for bottom-foam",
+      "rect": {
+        "x": 394.046875,
+        "y": 743.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 451.546875,
+        "bottom": 779.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 585.40625,
+        "y": 743.609375,
+        "w": 44,
+        "h": 36,
+        "right": 629.40625,
+        "bottom": 779.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 635.40625,
+        "y": 743.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 717.453125,
+        "bottom": 779.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select Top case",
+      "rect": {
+        "x": 258,
+        "y": 804.609375,
+        "w": 105.171875,
+        "h": 36,
+        "right": 363.171875,
+        "bottom": 840.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for Top case",
+      "rect": {
+        "x": 369.171875,
+        "y": 804.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 426.671875,
+        "bottom": 840.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 535.65625,
+        "y": 804.609375,
+        "w": 44,
+        "h": 36,
+        "right": 579.65625,
+        "bottom": 840.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 585.65625,
+        "y": 804.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 667.703125,
+        "bottom": 840.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 0",
+      "rect": {
+        "x": 258,
+        "y": 865.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 901.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 0 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 865.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 901.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 865.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 901.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 907.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 943.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 0",
+      "rect": {
+        "x": 258,
+        "y": 968.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 1004.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 0 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 968.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 1004.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 968.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 1004.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1010.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1046.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 1071.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 1107.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 1 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 1071.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 1107.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 1071.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 1107.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1113.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1149.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 1174.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 1210.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 1 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 1174.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 1210.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 1174.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 1210.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1216.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1252.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 1277.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 1313.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 2 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 1277.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 1313.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 1277.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 1313.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1319.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1355.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 1380.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 1416.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 2 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 1380.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 1416.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 1380.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 1416.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1422.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1458.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 3",
+      "rect": {
+        "x": 258,
+        "y": 1483.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 1519.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 3 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 1483.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 1519.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 1483.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 1519.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1525.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1561.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 3",
+      "rect": {
+        "x": 258,
+        "y": 1586.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 1622.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 3 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 1586.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 1622.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 1586.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 1622.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1628.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1664.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 4",
+      "rect": {
+        "x": 258,
+        "y": 1689.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 1725.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 4 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 1689.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 1725.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 1689.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 1725.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1731.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1767.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 4",
+      "rect": {
+        "x": 258,
+        "y": 1792.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 1828.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 4 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 1792.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 1828.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 1792.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 1828.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1834.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1870.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 5",
+      "rect": {
+        "x": 258,
+        "y": 1895.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 1931.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 5 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 1895.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 1931.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 1895.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 1931.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 1937.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 1973.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 5",
+      "rect": {
+        "x": 258,
+        "y": 1998.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 2034.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 5 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 1998.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 2034.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 1998.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 2034.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2040.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2076.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 6",
+      "rect": {
+        "x": 258,
+        "y": 2101.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 2137.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 6 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 2101.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 2137.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 2101.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 2137.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2143.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2179.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 6",
+      "rect": {
+        "x": 258,
+        "y": 2204.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 2240.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 6 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 2204.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 2240.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 2204.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 2240.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2246.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2282.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 7",
+      "rect": {
+        "x": 258,
+        "y": 2307.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 2343.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 7 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 2307.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 2343.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 2307.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 2343.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2349.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2385.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 7",
+      "rect": {
+        "x": 258,
+        "y": 2410.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 2446.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 7 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 2410.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 2446.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 2410.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 2446.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2452.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2488.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 8",
+      "rect": {
+        "x": 258,
+        "y": 2513.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 2549.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 8 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 2513.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 2549.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 2513.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 2549.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2555.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2591.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 8",
+      "rect": {
+        "x": 258,
+        "y": 2616.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 2652.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 8 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 2616.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 2652.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 2616.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 2652.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2658.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2694.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 9",
+      "rect": {
+        "x": 258,
+        "y": 2719.609375,
+        "w": 261.953125,
+        "h": 36,
+        "right": 519.953125,
+        "bottom": 2755.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 9 lower",
+      "rect": {
+        "x": 525.953125,
+        "y": 2719.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 583.453125,
+        "bottom": 2755.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 849.234375,
+        "y": 2719.609375,
+        "w": 44,
+        "h": 36,
+        "right": 893.234375,
+        "bottom": 2755.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2761.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2797.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 9",
+      "rect": {
+        "x": 258,
+        "y": 2822.609375,
+        "w": 263.84375,
+        "h": 36,
+        "right": 521.84375,
+        "bottom": 2858.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 9 upper",
+      "rect": {
+        "x": 527.84375,
+        "y": 2822.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 585.34375,
+        "bottom": 2858.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 853.015625,
+        "y": 2822.609375,
+        "w": 44,
+        "h": 36,
+        "right": 897.015625,
+        "bottom": 2858.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2864.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 2900.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 2925.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 2961.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 10 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 2925.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 2961.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 2925.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 2961.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 2967.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3003.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3028.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 3064.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 10 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 3028.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 3064.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 3028.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 3064.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3070.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3106.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3131.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 3167.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 11 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 3131.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 3167.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 3131.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 3167.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3173.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3209.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3234.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 3270.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 11 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 3234.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 3270.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 3234.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 3270.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3276.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3312.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3337.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 3373.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 12 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 3337.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 3373.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 3337.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 3373.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3379.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3415.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3440.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 3476.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 12 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 3440.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 3476.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 3440.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 3476.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3482.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3518.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3543.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 3579.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 13 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 3543.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 3579.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 3543.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 3579.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3585.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3621.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3646.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 3682.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 13 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 3646.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 3682.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 3646.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 3682.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3688.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3724.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3749.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 3785.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 14 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 3749.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 3785.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 3749.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 3785.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3791.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3827.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3852.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 3888.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 14 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 3852.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 3888.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 3852.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 3888.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3894.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 3930.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 3955.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 3991.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 15 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 3955.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 3991.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 3955.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 3991.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 3997.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4033.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4058.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 4094.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 15 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 4058.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 4094.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 4058.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 4094.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4100.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4136.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4161.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 4197.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 16 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 4161.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 4197.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 4161.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 4197.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4203.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4239.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4264.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 4300.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 16 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 4264.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 4300.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 4264.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 4300.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4306.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4342.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4367.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 4403.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 17 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 4367.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 4403.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 4367.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 4403.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4409.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4445.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4470.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 4506.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 17 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 4470.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 4506.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 4470.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 4506.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4512.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4548.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4573.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 4609.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 18 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 4573.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 4609.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 4573.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 4609.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4615.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4651.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4676.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 4712.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 18 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 4676.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 4712.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 4676.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 4712.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4718.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4754.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4779.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 4815.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 19 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 4779.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 4815.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 4779.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 4815.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4821.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4857.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 1",
+      "rect": {
+        "x": 258,
+        "y": 4882.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 4918.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 19 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 4882.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 4918.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 4882.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 4918.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 4924.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 4960.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 4985.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 5021.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 20 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 4985.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 5021.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 4985.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 5021.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5027.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5063.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5088.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 5124.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 20 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 5088.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 5124.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 5088.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 5124.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5130.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5166.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5191.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 5227.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 21 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 5191.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 5227.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 5191.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 5227.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5233.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5269.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5294.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 5330.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 21 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 5294.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 5330.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 5294.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 5330.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5336.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5372.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5397.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 5433.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 22 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 5397.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 5433.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 5397.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 5433.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5439.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5475.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5500.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 5536.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 22 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 5500.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 5536.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 5500.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 5536.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5542.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5578.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5603.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 5639.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 23 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 5603.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 5639.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 5603.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 5639.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5645.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5681.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5706.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 5742.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 23 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 5706.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 5742.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 5706.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 5742.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5748.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5784.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5809.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 5845.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 24 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 5809.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 5845.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 5809.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 5845.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5851.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5887.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 5912.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 5948.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 24 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 5912.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 5948.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 5912.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 5948.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 5954.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 5990.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 6015.609375,
+        "w": 268.421875,
+        "h": 36,
+        "right": 526.421875,
+        "bottom": 6051.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 25 lower",
+      "rect": {
+        "x": 532.421875,
+        "y": 6015.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 589.921875,
+        "bottom": 6051.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 862.15625,
+        "y": 6015.609375,
+        "w": 44,
+        "h": 36,
+        "right": 906.15625,
+        "bottom": 6051.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 6057.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 6093.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Select gasket main-right-keys-layout 2",
+      "rect": {
+        "x": 258,
+        "y": 6118.609375,
+        "w": 270.3125,
+        "h": 36,
+        "right": 528.3125,
+        "bottom": 6154.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Toggle visibility for gasket main-right-keys-layout 25 upper",
+      "rect": {
+        "x": 534.3125,
+        "y": 6118.609375,
+        "w": 57.5,
+        "h": 36,
+        "right": 591.8125,
+        "bottom": 6154.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "rect": {
+        "x": 865.9375,
+        "y": 6118.609375,
+        "w": 44,
+        "h": 36,
+        "right": 909.9375,
+        "bottom": 6154.609375
+      },
+      "under44x44": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "name": "Reset color",
+      "rect": {
+        "x": 258,
+        "y": 6160.609375,
+        "w": 82.046875,
+        "h": 36,
+        "right": 340.046875,
+        "bottom": 6196.609375
+      },
+      "under44x44": true
+    }
+  ],
+  "active": {
+    "tag": "BUTTON",
+    "aria": null
+  }
+}

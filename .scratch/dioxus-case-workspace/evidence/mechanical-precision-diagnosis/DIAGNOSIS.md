@@ -1,0 +1,11 @@
+# Mechanical precision observation — no application defect
+
+Candidate source0cad7577 at http://127.0.0.1:34675/, original verifier session mechanical-ui-layout-0cad7577. Same public-export archive SHA-256 `28fb3f3b989ea2eb6d3a7bb6f09e6997794696a0576dd98f99bb38a5e3dca324`; accepted archive contains physical configuration PCB thickness1.6 and clearance0.3. Retained React same-archive DOM also reports1.6/0.3.
+
+Read-only direct candidate DOM inspection proves `input.value` is `"1.6"` and `"0.3"`, and `valueAsNumber` is1.6/0.3. No aria-valuenow override exists. The same session's agent-browser accessibility snapshot reports1.600000023841858 and0.30000001192092896 instead. Both snapshot numbers exactly equal widening the corresponding IEEE754 float32 value, independently checked with Python struct and browser Math.fround. These are accessibility/snapshot observation values, not the rendered input's DOM value or persisted/effective application value. The installed browser identifies as Chrome154.0.8037.92.
+
+Retained files: actual same-session DOM readout, AX snapshot, accepted/DOM/float32 comparison. Original evidence mobile-after-escape.json also already reported candidate DOM0.3; the original comparison mixed candidate AX snapshot with reference DOM, which cannot establish UI precision parity failure. The verifier subsequently confirmed all eight direct candidate DOM inputs use short expected values and the paired React same-archive DOM matches.
+
+Disposition: no private UI formatter, rounding, f32 cast, default policy, accepted-state or persistence change. No application red reproduction exists; no bug fix or new RF item is warranted. The observed exact float32 signature locates the discrepancy in accessibility/snapshot representation; this review does not claim a completed source-level Chromium serialization trace. Attempts to retrieve exact-version Chromium source through the web tool were unavailable and did not change the direct DOM conclusion.
+
+No source edits, Cargo, input changes, browser navigation, or storage writes. Original session is preserved. Two other named sessions returned no current number inputs during this read; they were not treated as fresh paired controls or changed. Any future numeric-display parity check should compare actual DOM values on both sides, with accepted record checks separately.

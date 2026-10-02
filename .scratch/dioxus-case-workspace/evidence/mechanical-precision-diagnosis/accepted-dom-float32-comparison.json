@@ -1,0 +1,16 @@
+[
+  {
+    "field": "pcbThickness",
+    "accepted": 1.6,
+    "DOM": "1.6",
+    "valueAsNumber": 1.6,
+    "float32_widened": 1.600000023841858
+  },
+  {
+    "field": "clearance",
+    "accepted": 0.3,
+    "DOM": "0.3",
+    "valueAsNumber": 0.3,
+    "float32_widened": 0.30000001192092896
+  }
+]

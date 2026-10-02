@@ -1,0 +1,522 @@
+[
+  {
+    "document": [
+      390,
+      844
+    ],
+    "viewport": [
+      390,
+      844
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 419.46875,
+        "bottom": 707.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 781.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 815.609375
+      }
+    ],
+    "objects": false,
+    "inspect": false,
+    "diagnostic_css_only": true
+  },
+  {
+    "document": [
+      390,
+      844
+    ],
+    "viewport": [
+      390,
+      844
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 0,
+        "y": 87,
+        "width": 220,
+        "height": 694.609375,
+        "bottom": 781.609375
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 419.46875,
+        "bottom": 707.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 781.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 815.609375
+      }
+    ],
+    "objects": true,
+    "inspect": false,
+    "diagnostic_css_only": true
+  },
+  {
+    "document": [
+      390,
+      844
+    ],
+    "viewport": [
+      390,
+      844
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 0,
+        "y": 87,
+        "width": 220,
+        "height": 694.609375,
+        "bottom": 781.609375
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 419.46875,
+        "bottom": 707.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 90,
+        "y": 87,
+        "width": 300,
+        "height": 694.609375,
+        "bottom": 781.609375
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 781.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 815.609375
+      }
+    ],
+    "objects": true,
+    "inspect": true,
+    "diagnostic_css_only": true
+  },
+  {
+    "document": [
+      390,
+      844
+    ],
+    "viewport": [
+      390,
+      844
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 419.46875,
+        "bottom": 707.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 90,
+        "y": 87,
+        "width": 300,
+        "height": 694.609375,
+        "bottom": 781.609375
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 781.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 815.609375
+      }
+    ],
+    "objects": false,
+    "inspect": true,
+    "diagnostic_css_only": true
+  },
+  {
+    "document": [
+      390,
+      640
+    ],
+    "viewport": [
+      390,
+      640
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 215.46875,
+        "bottom": 503.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 577.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 611.609375
+      }
+    ],
+    "objects": false,
+    "inspect": false,
+    "diagnostic_css_only": true
+  },
+  {
+    "document": [
+      390,
+      640
+    ],
+    "viewport": [
+      390,
+      640
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 0,
+        "y": 87,
+        "width": 220,
+        "height": 490.609375,
+        "bottom": 577.609375
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 215.46875,
+        "bottom": 503.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 577.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 611.609375
+      }
+    ],
+    "objects": true,
+    "inspect": false,
+    "diagnostic_css_only": true
+  },
+  {
+    "document": [
+      390,
+      640
+    ],
+    "viewport": [
+      390,
+      640
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 0,
+        "y": 87,
+        "width": 220,
+        "height": 490.609375,
+        "bottom": 577.609375
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 215.46875,
+        "bottom": 503.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 90,
+        "y": 87,
+        "width": 300,
+        "height": 490.609375,
+        "bottom": 577.609375
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 577.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 611.609375
+      }
+    ],
+    "objects": true,
+    "inspect": true,
+    "diagnostic_css_only": true
+  },
+  {
+    "document": [
+      390,
+      640
+    ],
+    "viewport": [
+      390,
+      640
+    ],
+    "rects": [
+      {
+        "cls": "m1-compact-panel-controls",
+        "tag": "NAV",
+        "display": "flex",
+        "x": 0,
+        "y": 44,
+        "width": 390,
+        "height": 43,
+        "bottom": 87
+      },
+      {
+        "cls": "m1-object-slot m1-panel-slot compact-closed",
+        "tag": "DIV",
+        "display": "none",
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "bottom": 0
+      },
+      {
+        "cls": "",
+        "tag": "CANVAS",
+        "display": "block",
+        "x": 12,
+        "y": 287.84375,
+        "width": 366,
+        "height": 215.46875,
+        "bottom": 503.3125
+      },
+      {
+        "cls": "m1-inspector-slot m1-panel-slot compact-open",
+        "tag": "DIV",
+        "display": "block",
+        "x": 90,
+        "y": 87,
+        "width": 300,
+        "height": 490.609375,
+        "bottom": 577.609375
+      },
+      {
+        "cls": "m1-editor-footer",
+        "tag": "FOOTER",
+        "display": "flex",
+        "x": 0,
+        "y": 577.609375,
+        "width": 390,
+        "height": 34,
+        "bottom": 611.609375
+      }
+    ],
+    "objects": false,
+    "inspect": true,
+    "diagnostic_css_only": true
+  }
+]

@@ -1,0 +1,27 @@
+diff --git a/web/assets/m1.css b/web/assets/m1.css
+index 89a8ffe4..f0bf14bb 100644
+--- a/web/assets/m1.css
++++ b/web/assets/m1.css
+@@ -430,7 +430,21 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
+ .m1-case-panel .m1-case-view-settings-body label { display: flex; flex-wrap: wrap; gap: 6px; }
+ .m1-case-panel > .m1-shared-viewer > details { flex: none; max-height: 35%; overflow: auto; }
+ @media (max-width: 760px) {
+-  .m1-workspace-content:has(> .m1-case-panel) { height: calc(100svh - 140px); min-height: 390px; }
++  /* Compact Case keeps panel navigation and footer outside the shared viewport row. */
++  #main:has(.m1-case-panel), .m1-workbench:has(.m1-case-panel) { height: 100svh; min-height: 0; }
++  .m1-workbench:has(.m1-case-panel) { overflow: hidden; }
++  .m1-editor:has(.m1-case-panel) > .m1-compact-panel-controls { flex: none; }
++  .m1-editor-body:has(.m1-case-panel) { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
++  .m1-workspace-content:has(> .m1-case-panel) { grid-area: 1 / 1 / 2 / -1; height: auto; min-height: 0; }
++  .m1-editor-body:has(.m1-case-panel) > .m1-panel-slot { grid-area: 1 / 1; align-self: stretch; max-width: 100%; z-index: 7; }
++  .m1-editor-body:has(.m1-case-panel) > .m1-object-slot { justify-self: start; width: var(--m1-left-panel-width); }
++  .m1-editor-body:has(.m1-case-panel) > .m1-inspector-slot { justify-self: end; width: var(--m1-right-panel-width); }
++  /* Independent toggles may open both panels; give each an unobscured column. */
++  .m1-editor-body:has(.m1-case-panel):has(> .m1-object-slot.compact-open):has(> .m1-inspector-slot.compact-open) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
++  .m1-editor-body:has(.m1-case-panel):has(> .m1-object-slot.compact-open):has(> .m1-inspector-slot.compact-open) > .m1-panel-slot { width: 100%; }
++  .m1-editor-body:has(.m1-case-panel):has(> .m1-object-slot.compact-open):has(> .m1-inspector-slot.compact-open) > .m1-inspector-slot { grid-column: 2; }
++  .m1-editor-body:has(.m1-case-panel) .m1-panel-content { overflow: auto; overscroll-behavior: contain; background: var(--wb-panel); }
++  .m1-editor-body:has(.m1-case-panel) :is(.m1-objects, .m1-inspector) { max-height: none; overflow: auto; overscroll-behavior: contain; }
+   .m1-case-panel { min-height: 0; }
+   .m1-case-header > button, .m1-case-settings > summary, .m1-case-settings-body :is(button, input, select), .m1-case-panel .m1-case-view-toolbar summary { min-height: 44px; }
+   .m1-case-panel .m1-case-view-settings-body { top: 52px; max-height: calc(100% - 60px); }

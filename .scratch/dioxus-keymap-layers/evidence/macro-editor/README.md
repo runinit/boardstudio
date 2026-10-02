@@ -1,0 +1,5 @@
+# Macro editor source handoff
+
+Private editor/controller source is integrated at `96874be6` (worker `ac43980c`). Independent Spec and Standards review cleared the exact source blobs. The retained actual Core boundary test accepts 64 Wait steps and rejects 65.
+
+Root mounting and compiler corrections are reviewed and committed as `9ef5bc5c`. Native tests pass (34), native and WASM page Clippy pass with warnings denied, and formatting passes. Fresh packaging completed from `9ef5bc5cad09ab3064711b45fc348b4cc09a74d4`: seven commands and 967 source hashes, served at root/subpath port 34677. Public semantic authoring/history/save/reopen checks and the separate root/subpath offline/layout packet pass. Firmware-provider output remains unavailable in the visible UI, so firmware evidence, broader F6 acceptance and parent joins remain open. Paired React comparison found the same stale global validation error after reverting to the accepted value; retain under RF-006, with no candidate-only fix indicated.

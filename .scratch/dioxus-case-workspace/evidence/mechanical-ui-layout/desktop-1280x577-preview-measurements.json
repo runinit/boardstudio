@@ -1,0 +1,162 @@
+{
+  "viewport": {
+    "w": 1280,
+    "h": 577
+  },
+  "doc": {
+    "w": 1280,
+    "h": 577
+  },
+  "workspace": {
+    "x": 235,
+    "y": 44,
+    "w": 725,
+    "h": 470.609375,
+    "right": 960,
+    "bottom": 514.609375
+  },
+  "casePanel": {
+    "x": 235,
+    "y": 44,
+    "w": 725,
+    "h": 470.609375,
+    "right": 960,
+    "bottom": 514.609375
+  },
+  "caseView": {
+    "x": 247,
+    "y": 122.84375,
+    "w": 701,
+    "h": 379.765625,
+    "right": 948,
+    "bottom": 502.609375
+  },
+  "canvas": [
+    {
+      "rect": {
+        "x": 247,
+        "y": 164.84375,
+        "w": 701,
+        "h": 266.078125,
+        "right": 948,
+        "bottom": 430.921875
+      },
+      "path": [
+        {
+          "tag": "CANVAS",
+          "cls": "",
+          "overflow": "clip",
+          "rect": {
+            "x": 247,
+            "y": 164.84375,
+            "w": 701,
+            "h": 266.078125,
+            "right": 948,
+            "bottom": 430.921875
+          },
+          "sh": 264,
+          "ch": 264
+        },
+        {
+          "tag": "DIV",
+          "cls": "m1-case-view m1-shared-viewer",
+          "overflow": "hidden",
+          "rect": {
+            "x": 247,
+            "y": 122.84375,
+            "w": 701,
+            "h": 379.765625,
+            "right": 948,
+            "bottom": 502.609375
+          },
+          "sh": 380,
+          "ch": 380
+        },
+        {
+          "tag": "SECTION",
+          "cls": "m1-case-panel",
+          "overflow": "hidden",
+          "rect": {
+            "x": 235,
+            "y": 44,
+            "w": 725,
+            "h": 470.609375,
+            "right": 960,
+            "bottom": 514.609375
+          },
+          "sh": 471,
+          "ch": 471
+        },
+        {
+          "tag": "SECTION",
+          "cls": "m1-workspace-content",
+          "overflow": "hidden",
+          "rect": {
+            "x": 235,
+            "y": 44,
+            "w": 725,
+            "h": 470.609375,
+            "right": 960,
+            "bottom": 514.609375
+          },
+          "sh": 471,
+          "ch": 471
+        },
+        {
+          "tag": "DIV",
+          "cls": "m1-editor-body",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 44,
+            "w": 1280,
+            "h": 470.609375,
+            "right": 1280,
+            "bottom": 514.609375
+          },
+          "sh": 471,
+          "ch": 471
+        },
+        {
+          "tag": "MAIN",
+          "cls": "m1-workbench",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 577,
+            "right": 1280,
+            "bottom": 577
+          },
+          "sh": 577,
+          "ch": 577
+        },
+        {
+          "tag": "BODY",
+          "cls": "",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 1280,
+            "h": 577,
+            "right": 1280,
+            "bottom": 577
+          },
+          "sh": 577,
+          "ch": 577
+        }
+      ]
+    }
+  ],
+  "settingsOpen": false,
+  "generate": {
+    "x": 613.21875,
+    "y": 56,
+    "w": 98.125,
+    "h": 36,
+    "right": 711.34375,
+    "bottom": 92
+  }
+}

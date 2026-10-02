@@ -1,0 +1,93 @@
+[
+  {
+    "tag": "DIV",
+    "cls": "m1-keyboard-preview",
+    "role": null,
+    "aria": null,
+    "text": "",
+    "rect": {
+      "x": 147.328125,
+      "y": 132.28125,
+      "w": 28,
+      "h": 108
+    }
+  },
+  {
+    "tag": "SECTION",
+    "cls": "m1-case-panel",
+    "role": null,
+    "aria": "Case assembly",
+    "text": "Case assembly\nGenerate case\nCancel generation\nCase settings\nCase construction\n\nAuthored Ca",
+    "rect": {
+      "x": 235,
+      "y": 44,
+      "w": 725,
+      "h": 470.609375
+    }
+  },
+  {
+    "tag": "DIV",
+    "cls": "m1-case-header",
+    "role": null,
+    "aria": null,
+    "text": "Case assembly\nGenerate case\nCancel generation\nCase settings\nCase construction\n\nAuthored Ca",
+    "rect": {
+      "x": 247,
+      "y": 56,
+      "w": 701,
+      "h": 36
+    }
+  },
+  {
+    "tag": "DETAILS",
+    "cls": "m1-case-settings",
+    "role": null,
+    "aria": null,
+    "text": "Case settings\nCase construction\n\nAuthored Case bodies remain saved while the generated sta",
+    "rect": {
+      "x": 843.15625,
+      "y": 56,
+      "w": 104.84375,
+      "h": 36
+    }
+  },
+  {
+    "tag": "DIV",
+    "cls": "m1-case-settings-body",
+    "role": null,
+    "aria": null,
+    "text": "Case construction\n\nAuthored Case bodies remain saved while the generated stack is active. ",
+    "rect": {
+      "x": 608,
+      "y": 92,
+      "w": 340,
+      "h": 288.5
+    }
+  },
+  {
+    "tag": "SECTION",
+    "cls": "m1-case-bodies-generated",
+    "role": null,
+    "aria": "Authored case bodies",
+    "text": "Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical s",
+    "rect": {
+      "x": 960,
+      "y": 86,
+      "w": 320,
+      "h": 428.609375
+    }
+  },
+  {
+    "tag": "P",
+    "cls": "m1-case-bodies-note",
+    "role": "status",
+    "aria": null,
+    "text": "Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical s",
+    "rect": {
+      "x": 972,
+      "y": 102,
+      "w": 296,
+      "h": 58.5
+    }
+  }
+]

@@ -1,0 +1,263 @@
+- generic [ref=e1] clickable [onclick]
+  - alert [ref=e267] clickable [onclick]
+    - StaticText "Error: Macros require unique ids, a name, 1–128 steps and timings within 10000 ms"
+  - main
+    - sectionheader
+      - button "Project" [expanded=false, ref=e42]
+        - StaticText "Sofle v2"
+      - group
+        - DisclosureTriangle "Saved locally" [expanded=false]
+      - tablist "Board workflow"
+        - tab "Layout" [ref=e43]
+        - tab "PCB" [ref=e44]
+        - tab "Keymap" [selected, ref=e45]
+        - tab "Keycaps" [ref=e46]
+        - tab "Case" [ref=e47]
+        - tab "Parts" [ref=e48]
+      - button "Export" [ref=e32]
+        - StaticText "Export"
+    - status "Keyboard movement"
+    - generic
+      - complementary "Part inventory"
+        - StaticText "Objects"
+        - button "Objects options" [expanded=false, ref=e55]
+        - separator "Resize objects" [ref=e50] focusable [tabindex]: 235
+        - LabelText
+          - StaticText "Board"
+        - combobox "Selected board" [expanded=false, ref=e51]: Left PCB
+          - MenuListPopup
+            - option "Left PCB" [selected, ref=e67]
+            - option "Right PCB" [ref=e68]
+        - button "New board" [ref=e52]
+        - tree "CAD structure"
+          - generic
+            - generic
+              - button "Collapse Left PCB" [expanded=true, ref=e140]
+                - StaticText "⌄"
+              - treeitem "Left PCB 70 parts" [level=1, expanded=true, ref=e141]
+                - StaticText "Left PCB"
+                - StaticText "70 parts"
+            - generic
+              - button "Expand Outline" [expanded=false, ref=e142]
+                - StaticText "›"
+              - treeitem "Outline Generated" [level=2, expanded=false, ref=e143]
+                - StaticText "Outline"
+                - StaticText "Generated"
+            - generic
+              - button "Expand keys" [expanded=false, ref=e144]
+                - StaticText "›"
+              - treeitem "keys Independent" [level=2, expanded=false, ref=e145]
+                - StaticText "keys"
+                - StaticText "Independent"
+            - generic
+              - button "Expand thumbs" [expanded=false, ref=e146]
+                - StaticText "›"
+              - treeitem "thumbs Independent" [level=2, expanded=false, ref=e147]
+                - StaticText "thumbs"
+                - StaticText "Independent"
+        - strong
+          - StaticText "Left PCB"
+        - StaticText "Left PCB"
+        - StaticText " / "
+        - StaticText "Keymap"
+        - StaticText "Select an object to edit"
+      - region "Keymap canvas" [ref=e33]
+        - toolbar "Keymap commands"
+          - strong
+            - StaticText "Keymap"
+          - StaticText "Layers & key behaviors"
+        - group "Design view"
+          - button "2D" [ref=e60]
+          - button "3D assembly" [ref=e61]
+          - button "Footprints" [ref=e62]
+        - application "Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." [ref=e63] clickable [onclick, tabindex]
+          - button "Edit key left-keys-SW1" [ref=e179]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW1"
+          - button "Edit key left-keys-SW2" [ref=e180]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW2"
+          - button "Edit key left-keys-SW3" [ref=e181]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW3"
+          - button "Edit key left-keys-SW4" [ref=e182]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW4"
+          - button "Edit key left-keys-SW5" [ref=e183]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW5"
+          - button "Edit key left-keys-SW6" [ref=e184]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW6"
+          - button "Edit key left-keys-SW7" [ref=e185]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW7"
+          - button "Edit key left-keys-SW8" [ref=e186]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW8"
+          - button "Edit key left-keys-SW9" [ref=e187]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW9"
+          - button "Edit key left-keys-SW10" [ref=e188]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW10"
+          - button "Edit key left-keys-SW11" [ref=e189]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW11"
+          - button "Edit key left-keys-SW12" [ref=e190]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW12"
+          - button "Edit key left-keys-SW13" [ref=e191]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW13"
+          - button "Edit key left-keys-SW14" [ref=e192]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW14"
+          - button "Edit key left-keys-SW15" [ref=e193]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW15"
+          - button "Edit key left-keys-SW16" [ref=e194]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW16"
+          - button "Edit key left-keys-SW17" [ref=e195]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW17"
+          - button "Edit key left-keys-SW18" [ref=e196]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW18"
+          - button "Edit key left-keys-SW19" [ref=e197]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW19"
+          - button "Edit key left-keys-SW20" [ref=e198]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW20"
+          - button "Edit key left-keys-SW21" [ref=e199]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW21"
+          - button "Edit key left-keys-SW22" [ref=e200]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW22"
+          - button "Edit key left-keys-SW23" [ref=e201]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW23"
+          - button "Edit key left-keys-SW24" [ref=e202]
+            - StaticText "Unassigned"
+            - StaticText "left-keys-SW24"
+          - button "Edit key left-thumbs-SW1" [ref=e203]
+            - StaticText "Unassigned"
+            - StaticText "left-thumbs-SW1"
+          - button "Edit key left-thumbs-SW2" [ref=e204]
+            - StaticText "Unassigned"
+            - StaticText "left-thumbs-SW2"
+          - button "Edit key left-thumbs-SW3" [ref=e205]
+            - StaticText "Unassigned"
+            - StaticText "left-thumbs-SW3"
+          - button "Edit key left-thumbs-SW4" [ref=e206]
+            - StaticText "Unassigned"
+            - StaticText "left-thumbs-SW4"
+          - button "Edit key left-thumbs-SW5" [ref=e207]
+            - StaticText "Unassigned"
+            - StaticText "left-thumbs-SW5"
+      - complementary "Keymap inspector"
+        - StaticText "Inspect"
+        - button "Inspector options" [expanded=false, ref=e65]
+        - separator "Resize inspector" [ref=e53] focusable [tabindex]: 320
+        - heading "Keymap" [level=2, ref=e177]
+        - StaticText "2"
+        - StaticText " layers · "
+        - StaticText "29"
+        - StaticText " keys"
+        - group
+          - DisclosureTriangle "Layers" [expanded=true]
+            - StaticText "Layers"
+          - group "Keymap layers"
+            - button "0 Main" [ref=e212]
+              - StaticText "0"
+              - StaticText "Main"
+            - button "1 Function" [ref=e213]
+              - StaticText "1"
+              - StaticText "Function"
+          - button "Add layer" [ref=e208]
+          - LabelText
+            - StaticText "Layer name"
+            - textbox "Layer name" [ref=e214]: Main
+              - StaticText "Main"
+          - paragraph
+            - StaticText "Higher layers take precedence. Transparent keys fall through to the layer below."
+        - group "Keymap editors"
+          - button "Keys" [ref=e209]
+          - button "Macros" [ref=e210]
+          - button "Encoders" [ref=e211]
+        - group
+          - DisclosureTriangle "Macros" [expanded=true]
+            - StaticText "Macros"
+          - group "Reference Macro"
+            - Legend
+              - StaticText "Reference Macro"
+            - LabelText
+              - StaticText "Name"
+              - textbox "Macro name Reference Macro" [ref=e252]: Reference Macro
+                - StaticText "Reference Macro"
+            - LabelText
+              - StaticText "Tap duration (ms)"
+              - spinbutton "Reference Macro tapMs" [ref=e253]: 10001
+                - StaticText "10001"
+            - LabelText
+              - StaticText "Between actions (ms)"
+              - spinbutton "Reference Macro waitMs" [ref=e254]: 0
+                - StaticText "0"
+            - LabelText
+              - StaticText "Step 1"
+              - combobox "Reference Macro step 1" [expanded=false, ref=e255]: tap
+                - MenuListPopup
+                  - option "tap" [selected, ref=e259]
+                  - option "press" [ref=e260]
+                  - option "release" [ref=e261]
+                  - option "wait" [ref=e262]
+            - LabelText
+              - StaticText "Keycode"
+              - textbox "Keycode" [ref=e256]: A
+                - StaticText "A"
+            - button "Remove step 1" [ref=e248]
+              - StaticText "Remove step 1"
+            - LabelText
+              - StaticText "Step 2"
+              - combobox "Reference Macro step 2" [expanded=false, ref=e257]: press
+                - MenuListPopup
+                  - option "tap" [ref=e263]
+                  - option "press" [selected, ref=e264]
+                  - option "release" [ref=e265]
+                  - option "wait" [ref=e266]
+            - LabelText
+              - StaticText "Keycode"
+              - textbox "Keycode" [ref=e258]: B
+                - StaticText "B"
+            - button "Remove step 2" [ref=e249]
+              - StaticText "Remove step 2"
+            - button "Add step" [ref=e250]
+            - button "Remove macro" [ref=e251]
+          - button "Add macro" [ref=e247]
+        - button "Export ZMK source" [ref=e178]
+        - paragraph
+          - StaticText "Local source export. Configure controller and wiring in PCB before building firmware."
+    - sectionfooter
+      - button "Undo" [ref=e34]
+      - button "Redo" [ref=e35]
+      - StaticText "mm"
+      - StaticText "X "
+      - StaticText "0.00"
+      - StaticText "Y "
+      - StaticText "0.00"
+      - button "Grid ¼u" [disabled, ref=e36]
+        - StaticText "Grid ¼u"
+      - StaticText "Geometry snap on"
+      - button "Fit board" [ref=e37]
+      - button "Fit selection" [disabled, ref=e38]
+      - button "Zoom out" [ref=e39]
+        - StaticText "−"
+      - StaticText "100"
+      - StaticText "%"
+      - button "Zoom in" [ref=e40]
+        - StaticText "+"
+      - button "Layout findings: 2" [ref=e41]
+        - StaticText "Layout findings: 2"

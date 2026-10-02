@@ -1,0 +1,360 @@
+- main
+  - sectionheader
+    - heading "BoardStudio" [level=1, ref=e1]
+      - StaticText "BoardStudio"
+    - group
+      - DisclosureTriangle "Sofle v2" [expanded=false]
+    - StaticText "Saved"
+    - tablist "Board workflow"
+      - tab "Layout" [ref=e5]
+        - StaticText "Layout"
+      - tab "PCB" [ref=e6]
+      - tab "Keymap" [selected, ref=e7]
+        - StaticText "Keymap"
+      - tab "Keycaps" [ref=e8]
+      - tab "Case" [ref=e9]
+      - tab "Parts" [ref=e10]
+    - button "Export" [ref=e2]
+    - LabelText
+      - StaticText "Theme"
+      - combobox "Theme" [expanded=false, ref=e11]: System
+        - MenuListPopup
+          - option "System" [selected, ref=e16]
+          - option "Light" [ref=e17]
+          - option "Dark" [ref=e18]
+  - region "Keyboard editor" [ref=e19]
+    - generic
+      - generic
+        - sectionheader
+          - heading "Objects" [level=2, ref=e26]
+          - button "Objects options" [expanded=false, ref=e27]
+            - StaticText "Options"
+        - complementary "Objects"
+          - LabelText
+            - StaticText "Board"
+            - combobox "Board" [expanded=false, ref=e31]: Left PCB
+              - MenuListPopup
+                - option "Left PCB" [selected, ref=e43]
+                - option "Right PCB" [ref=e44]
+          - LabelText
+            - StaticText "Physical instance"
+            - combobox "Physical instance" [expanded=false, ref=e32]: left half
+              - MenuListPopup
+                - option "left half" [selected, ref=e45]
+          - LabelText
+            - StaticText "Group objects"
+            - combobox "Group objects" [expanded=false, ref=e33]: Columns
+              - MenuListPopup
+                - option "Columns" [selected, ref=e46]
+                - option "Rows" [ref=e47]
+          - StaticText "Sofle v2"
+          - StaticText "70 parts"
+          - tree "CAD structure"
+            - treeitem "Left PCB 70 parts" [level=1, expanded=true, ref=e34]
+              - button "Collapse Left PCB" [expanded=true, ref=e37]
+                - StaticText "⌄"
+              - button "Left PCB 70 parts" [ref=e38]
+                - StaticText "Left PCB"
+                - StaticText "70 parts"
+            - treeitem "keys Independent" [level=2, expanded=false, ref=e35]
+              - button "Expand keys" [expanded=false, ref=e39]
+                - StaticText "›"
+              - button "keys Independent" [ref=e40]
+                - StaticText "keys"
+                - StaticText "Independent"
+            - treeitem "thumbs Independent" [level=2, expanded=false, ref=e36]
+              - button "Expand thumbs" [expanded=false, ref=e41]
+                - StaticText "›"
+              - button "thumbs Independent" [ref=e42]
+                - StaticText "thumbs"
+                - StaticText "Independent"
+      - tabpanel "Keymap"
+        - group "Keymap layout; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom" [ref=e421] focusable [tabindex]
+          - button "Edit key left-keys-SW1" [ref=e422]
+            - StaticText "LC(LS(A))"
+            - StaticText "left-keys-SW1"
+          - button "Edit key left-keys-SW2" [ref=e423]
+            - StaticText "Reference Macro"
+            - StaticText "left-keys-SW2"
+          - button "Edit key left-keys-SW3" [ref=e424]
+            - StaticText "Tap Macro"
+            - StaticText "left-keys-SW3"
+          - button "Edit key left-keys-SW4" [ref=e425]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW4"
+          - button "Edit key left-keys-SW5" [ref=e426]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW5"
+          - button "Edit key left-keys-SW6" [ref=e427]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW6"
+          - button "Edit key left-keys-SW7" [ref=e428]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW7"
+          - button "Edit key left-keys-SW8" [ref=e429]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW8"
+          - button "Edit key left-keys-SW9" [ref=e430]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW9"
+          - button "Edit key left-keys-SW10" [ref=e431]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW10"
+          - button "Edit key left-keys-SW11" [ref=e432]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW11"
+          - button "Edit key left-keys-SW12" [ref=e433]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW12"
+          - button "Edit key left-keys-SW13" [ref=e434]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW13"
+          - button "Edit key left-keys-SW14" [ref=e435]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW14"
+          - button "Edit key left-keys-SW15" [ref=e436]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW15"
+          - button "Edit key left-keys-SW16" [ref=e437]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW16"
+          - button "Edit key left-keys-SW17" [ref=e438]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW17"
+          - button "Edit key left-keys-SW18" [ref=e439]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW18"
+          - button "Edit key left-keys-SW19" [ref=e440]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW19"
+          - button "Edit key left-keys-SW20" [ref=e441]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW20"
+          - button "Edit key left-keys-SW21" [ref=e442]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW21"
+          - button "Edit key left-keys-SW22" [ref=e443]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW22"
+          - button "Edit key left-keys-SW23" [ref=e444]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW23"
+          - button "Edit key left-keys-SW24" [ref=e445]
+            - StaticText "Transparent"
+            - StaticText "left-keys-SW24"
+          - button "Edit key left-thumbs-SW1" [ref=e446]
+            - StaticText "Transparent"
+            - StaticText "left-thumbs-SW1"
+          - button "Edit key left-thumbs-SW2" [ref=e447]
+            - StaticText "Transparent"
+            - StaticText "left-thumbs-SW2"
+          - button "Edit key left-thumbs-SW3" [ref=e448]
+            - StaticText "Transparent"
+            - StaticText "left-thumbs-SW3"
+          - button "Edit key left-thumbs-SW4" [ref=e449]
+            - StaticText "Transparent"
+            - StaticText "left-thumbs-SW4"
+          - button "Edit key left-thumbs-SW5" [ref=e450]
+            - StaticText "Transparent"
+            - StaticText "left-thumbs-SW5"
+      - generic
+        - sectionheader
+          - heading "Inspect" [level=2, ref=e452]
+          - button "Inspector options" [expanded=false, ref=e453]
+            - StaticText "Options"
+        - region "Keymap" [ref=e451]
+          - sectionheader
+            - heading "Keymap" [level=2, ref=e457]
+            - StaticText "2 layers · 29 keys"
+          - region "Layers" [ref=e454]
+            - heading "Layers" [level=3, ref=e458]
+            - group "Keymap layers"
+              - button "0 Main" [ref=e462]
+                - StaticText "0"
+                - StaticText "Main"
+              - button "1 Function" [ref=e463]
+                - StaticText "1"
+                - StaticText "Function"
+            - group "Layer operations"
+              - button "Add layer" [ref=e464]
+              - LabelText
+                - StaticText "Layer name"
+                - textbox "Layer name" [ref=e477]: Function
+                  - StaticText "Function"
+              - button "Remove layer" [ref=e465]
+          - region "Selected key" [ref=e455]
+            - heading "left-keys-SW3" [level=3, ref=e459]
+            - LabelText
+              - StaticText "Find a key"
+              - searchbox "Find a key" [ref=e466]
+            - LabelText
+              - StaticText "Selected key"
+              - combobox "Selected key" [expanded=false, ref=e467]: left-keys-SW3 · Tap Macro
+                - MenuListPopup
+                  - option "Choose on the layout…" [ref=e490]
+                  - option "left-keys-SW1 · LC(LS(A))" [ref=e491]
+                  - option "left-keys-SW2 · Reference Macro" [ref=e492]
+                  - option "left-keys-SW3 · Tap Macro" [selected, ref=e493]
+                  - option "left-keys-SW4 · Transparent" [ref=e494]
+                  - option "left-keys-SW5 · Transparent" [ref=e495]
+                  - option "left-keys-SW6 · Transparent" [ref=e496]
+                  - option "left-keys-SW7 · Transparent" [ref=e497]
+                  - option "left-keys-SW8 · Transparent" [ref=e498]
+                  - option "left-keys-SW9 · Transparent" [ref=e499]
+                  - option "left-keys-SW10 · Transparent" [ref=e500]
+                  - option "left-keys-SW11 · Transparent" [ref=e501]
+                  - option "left-keys-SW12 · Transparent" [ref=e502]
+                  - option "left-keys-SW13 · Transparent" [ref=e503]
+                  - option "left-keys-SW14 · Transparent" [ref=e504]
+                  - option "left-keys-SW15 · Transparent" [ref=e505]
+                  - option "left-keys-SW16 · Transparent" [ref=e506]
+                  - option "left-keys-SW17 · Transparent" [ref=e507]
+                  - option "left-keys-SW18 · Transparent" [ref=e508]
+                  - option "left-keys-SW19 · Transparent" [ref=e509]
+                  - option "left-keys-SW20 · Transparent" [ref=e510]
+                  - option "left-keys-SW21 · Transparent" [ref=e511]
+                  - option "left-keys-SW22 · Transparent" [ref=e512]
+                  - option "left-keys-SW23 · Transparent" [ref=e513]
+                  - option "left-keys-SW24 · Transparent" [ref=e514]
+                  - option "left-thumbs-SW1 · Transparent" [ref=e515]
+                  - option "left-thumbs-SW2 · Transparent" [ref=e516]
+                  - option "left-thumbs-SW3 · Transparent" [ref=e517]
+                  - option "left-thumbs-SW4 · Transparent" [ref=e518]
+                  - option "left-thumbs-SW5 · Transparent" [ref=e519]
+            - paragraph
+              - StaticText "Tap Macro"
+          - region "Key binding" [ref=e456]
+            - LabelText
+              - StaticText "Behavior"
+              - combobox "left-keys-SW3 behavior" [expanded=false, ref=e468]: Macro
+                - MenuListPopup
+                  - option "Key press" [ref=e520]
+                  - option "Mod tap" [ref=e521]
+                  - option "Layer tap" [ref=e522]
+                  - option "Momentary layer" [ref=e523]
+                  - option "Toggle layer" [ref=e524]
+                  - option "Go to layer" [ref=e525]
+                  - option "Sticky layer" [ref=e526]
+                  - option "Sticky key" [ref=e527]
+                  - option "Macro" [selected, ref=e528]
+                  - option "Transparent" [ref=e529]
+                  - option "Unassigned" [ref=e530]
+            - LabelText
+              - StaticText "Macro"
+              - combobox "left-keys-SW3 macro" [expanded=false, ref=e469]: Tap Macro
+                - MenuListPopup
+                  - option "Reference Macro" [ref=e531]
+                  - option "Tap Macro" [selected, ref=e532]
+            - status
+              - StaticText "Binding saved."
+          - generic
+            - heading "Macros" [level=3, ref=e460]
+            - status
+              - StaticText "Invalid keycode expression A)"
+            - group "Reference Macro"
+              - Legend
+                - StaticText "Reference Macro"
+              - LabelText
+                - StaticText "Name"
+                - textbox "Macro name Reference Macro" [ref=e478]: Reference Macro
+                  - StaticText "Reference Macro"
+              - LabelText
+                - StaticText "Tap duration (ms)"
+                - spinbutton "Reference Macro tapMs" [ref=e479]: 30
+                  - StaticText "30"
+              - LabelText
+                - StaticText "Between actions (ms)"
+                - spinbutton "Reference Macro waitMs" [ref=e480]: 0
+                  - StaticText "0"
+              - LabelText
+                - StaticText "Step 1"
+                - combobox "2110cfa6-98b3-429b-b5ff-d019722b7d4b step 1" [expanded=false, ref=e481]: tap
+                  - MenuListPopup
+                    - option "tap" [selected, ref=e533]
+                    - option "press" [ref=e534]
+                    - option "release" [ref=e535]
+                    - option "wait" [ref=e536]
+              - LabelText
+                - StaticText "Keycode"
+                - textbox "2110cfa6-98b3-429b-b5ff-d019722b7d4b step 1 keycode" [ref=e482]: A
+                  - StaticText "A"
+              - button "Remove step 1" [ref=e470]
+              - LabelText
+                - StaticText "Step 2"
+                - combobox "2110cfa6-98b3-429b-b5ff-d019722b7d4b step 2" [expanded=false, ref=e483]: press
+                  - MenuListPopup
+                    - option "tap" [ref=e537]
+                    - option "press" [selected, ref=e538]
+                    - option "release" [ref=e539]
+                    - option "wait" [ref=e540]
+              - LabelText
+                - StaticText "Keycode"
+                - textbox "2110cfa6-98b3-429b-b5ff-d019722b7d4b step 2 keycode" [ref=e484]: B
+                  - StaticText "B"
+              - button "Remove step 2" [ref=e471]
+              - button "Add step" [ref=e472]
+              - button "Remove macro" [ref=e473]
+            - group "Tap Macro"
+              - Legend
+                - StaticText "Tap Macro"
+              - LabelText
+                - StaticText "Name"
+                - textbox "Macro name Tap Macro" [ref=e485]: Tap Macro
+                  - StaticText "Tap Macro"
+              - LabelText
+                - StaticText "Tap duration (ms)"
+                - spinbutton "Tap Macro tapMs" [ref=e486]: 45
+                  - StaticText "45"
+              - LabelText
+                - StaticText "Between actions (ms)"
+                - spinbutton "Tap Macro waitMs" [ref=e487]: 120
+                  - StaticText "120"
+              - LabelText
+                - StaticText "Step 1"
+                - combobox "keymap-macro-4-131077 step 1" [expanded=false, ref=e488]: tap
+                  - MenuListPopup
+                    - option "tap" [selected, ref=e541]
+                    - option "press" [ref=e542]
+                    - option "release" [ref=e543]
+                    - option "wait" [ref=e544]
+              - LabelText
+                - StaticText "Keycode"
+                - textbox "keymap-macro-4-131077 step 1 keycode" [ref=e489]: A
+                  - StaticText "A"
+              - button "Remove step 1" [ref=e474]
+              - LabelText
+                - StaticText "Step 2"
+                - combobox "keymap-macro-4-131077 step 2" [expanded=false, ref=e546]: tap
+                  - MenuListPopup
+                    - option "tap" [selected, ref=e548]
+                    - option "press" [ref=e549]
+                    - option "release" [ref=e550]
+                    - option "wait" [ref=e551]
+              - LabelText
+                - StaticText "Keycode"
+                - textbox "keymap-macro-4-131077 step 2 keycode" [ref=e553]: A
+                  - StaticText "A"
+              - button "Remove step 2" [ref=e545]
+              - LabelText
+                - StaticText "Step 3"
+                - combobox "keymap-macro-4-131077 step 3" [expanded=false, ref=e555]: tap
+                  - MenuListPopup
+                    - option "tap" [selected, ref=e557]
+                    - option "press" [ref=e558]
+                    - option "release" [ref=e559]
+                    - option "wait" [ref=e560]
+              - LabelText
+                - StaticText "Keycode"
+                - textbox "keymap-macro-4-131077 step 3 keycode" [ref=e556]: A)
+                  - StaticText "A)"
+              - button "Remove step 3" [ref=e554]
+              - button "Add step" [ref=e475]
+              - button "Remove macro" [ref=e476]
+            - button "Add macro" [ref=e461]
+    - sectionfooter
+      - button "Undo" [ref=e20]
+      - button "Redo" [ref=e21]
+      - StaticText "Sofle v2 · Revision 42 · Saved"
+      - StaticText "100%"
+  - status
+    - StaticText "Invalid keycode expression A)"

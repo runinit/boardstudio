@@ -1,0 +1,644 @@
+{
+  "viewport": {
+    "w": 390,
+    "h": 844
+  },
+  "doc": {
+    "w": 390,
+    "h": 924
+  },
+  "body": {
+    "w": 390,
+    "h": 924
+  },
+  "workspace": {
+    "x": 0,
+    "y": 87,
+    "w": 390,
+    "h": 704,
+    "right": 390,
+    "bottom": 791
+  },
+  "panel": {
+    "x": 0,
+    "y": 87,
+    "w": 390,
+    "h": 704,
+    "right": 390,
+    "bottom": 791
+  },
+  "settings": {
+    "x": 38,
+    "y": 193,
+    "w": 340,
+    "h": 422,
+    "right": 378,
+    "bottom": 615
+  },
+  "settingsScroll": {
+    "sh": 15085,
+    "ch": 420
+  },
+  "generate": {
+    "rect": {
+      "x": 154.0625,
+      "y": 99,
+      "w": 98.125,
+      "h": 44,
+      "right": 252.1875,
+      "bottom": 143
+    },
+    "path": [
+      {
+        "tag": "SECTION",
+        "cls": "m1-case-panel",
+        "overflow": "hidden",
+        "rect": {
+          "x": 0,
+          "y": 87,
+          "w": 390,
+          "h": 704,
+          "right": 390,
+          "bottom": 791
+        },
+        "sh": 704,
+        "ch": 704
+      },
+      {
+        "tag": "SECTION",
+        "cls": "m1-workspace-content",
+        "overflow": "hidden",
+        "rect": {
+          "x": 0,
+          "y": 87,
+          "w": 390,
+          "h": 704,
+          "right": 390,
+          "bottom": 791
+        },
+        "sh": 704,
+        "ch": 704
+      },
+      {
+        "tag": "DIV",
+        "cls": "",
+        "overflow": "hidden auto",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 390,
+          "h": 924.390625,
+          "right": 390,
+          "bottom": 924.390625
+        },
+        "sh": 924,
+        "ch": 924
+      },
+      {
+        "tag": "BODY",
+        "cls": "",
+        "overflow": "hidden auto",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 390,
+          "h": 924.390625,
+          "right": 390,
+          "bottom": 924.390625
+        },
+        "sh": 924,
+        "ch": 924
+      },
+      {
+        "tag": "HTML",
+        "cls": "",
+        "overflow": "hidden auto",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 390,
+          "h": 924.390625,
+          "right": 390,
+          "bottom": 924.390625
+        },
+        "sh": 924,
+        "ch": 844
+      }
+    ]
+  },
+  "preview": {
+    "rect": null,
+    "path": []
+  },
+  "canv": [
+    {
+      "rect": {
+        "x": 12,
+        "y": 287.84375,
+        "w": 366,
+        "h": 419.46875,
+        "right": 378,
+        "bottom": 707.3125
+      },
+      "path": [
+        {
+          "tag": "CANVAS",
+          "cls": "",
+          "overflow": "clip",
+          "rect": {
+            "x": 12,
+            "y": 287.84375,
+            "w": 366,
+            "h": 419.46875,
+            "right": 378,
+            "bottom": 707.3125
+          },
+          "sh": 417,
+          "ch": 417
+        },
+        {
+          "tag": "DIV",
+          "cls": "m1-case-view m1-shared-viewer",
+          "overflow": "hidden",
+          "rect": {
+            "x": 12,
+            "y": 223.84375,
+            "w": 366,
+            "h": 555.15625,
+            "right": 378,
+            "bottom": 779
+          },
+          "sh": 555,
+          "ch": 555
+        },
+        {
+          "tag": "SECTION",
+          "cls": "m1-case-panel",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 87,
+            "w": 390,
+            "h": 704,
+            "right": 390,
+            "bottom": 791
+          },
+          "sh": 704,
+          "ch": 704
+        },
+        {
+          "tag": "SECTION",
+          "cls": "m1-workspace-content",
+          "overflow": "hidden",
+          "rect": {
+            "x": 0,
+            "y": 87,
+            "w": 390,
+            "h": 704,
+            "right": 390,
+            "bottom": 791
+          },
+          "sh": 704,
+          "ch": 704
+        },
+        {
+          "tag": "DIV",
+          "cls": "",
+          "overflow": "hidden auto",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 390,
+            "h": 924.390625,
+            "right": 390,
+            "bottom": 924.390625
+          },
+          "sh": 924,
+          "ch": 924
+        },
+        {
+          "tag": "BODY",
+          "cls": "",
+          "overflow": "hidden auto",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 390,
+            "h": 924.390625,
+            "right": 390,
+            "bottom": 924.390625
+          },
+          "sh": 924,
+          "ch": 924
+        },
+        {
+          "tag": "HTML",
+          "cls": "",
+          "overflow": "hidden auto",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 390,
+            "h": 924.390625,
+            "right": 390,
+            "bottom": 924.390625
+          },
+          "sh": 924,
+          "ch": 844
+        }
+      ]
+    }
+  ],
+  "touchControls": [
+    {
+      "tag": "BUTTON",
+      "name": "Generate case",
+      "rect": {
+        "x": 154.0625,
+        "y": 99,
+        "w": 98.125,
+        "h": 44,
+        "right": 252.1875,
+        "bottom": 143
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Cancel generation",
+      "rect": {
+        "x": 258.1875,
+        "y": 99,
+        "w": 119.8125,
+        "h": 44,
+        "right": 378,
+        "bottom": 143
+      },
+      "under44": false
+    },
+    {
+      "tag": "SELECT",
+      "name": "Plate method\nPCB FR-4\n3D printed\nCNC machined\nCut sheet",
+      "rect": {
+        "x": 51,
+        "y": 336.578125,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 380.578125
+      },
+      "under44": false
+    },
+    {
+      "tag": "SELECT",
+      "name": "Mount style\nTray\nRigid mount\nGasket mount",
+      "rect": {
+        "x": 51,
+        "y": 415.421875,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 459.421875
+      },
+      "under44": false
+    },
+    {
+      "tag": "SELECT",
+      "name": "Bottom construction\nTray shell\nFlat sheet",
+      "rect": {
+        "x": 51,
+        "y": 494.265625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 538.265625
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "Integrate plate frame into case",
+      "rect": {
+        "x": 55,
+        "y": 551.265625,
+        "w": 13,
+        "h": 44,
+        "right": 68,
+        "bottom": 595.265625
+      },
+      "under44": true
+    },
+    {
+      "tag": "INPUT",
+      "name": "Plate thickness\nmm",
+      "rect": {
+        "x": 51,
+        "y": 821.828125,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 865.828125
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "Plate foam\nmm",
+      "rect": {
+        "x": 51,
+        "y": 900.671875,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 944.671875
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "PCB thickness\nmm",
+      "rect": {
+        "x": 51,
+        "y": 979.515625,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 1023.515625
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "Bottom foam\nmm",
+      "rect": {
+        "x": 51,
+        "y": 1058.359375,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 1102.359375
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "Bottom thickness\nmm",
+      "rect": {
+        "x": 51,
+        "y": 1137.203125,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 1181.203125
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "Wall thickness\nmm",
+      "rect": {
+        "x": 51,
+        "y": 1216.046875,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 1260.046875
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "Clearance\nmm",
+      "rect": {
+        "x": 51,
+        "y": 1294.890625,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 1338.890625
+      },
+      "under44": false
+    },
+    {
+      "tag": "INPUT",
+      "name": "Radial opening allowance\nmm",
+      "rect": {
+        "x": 51,
+        "y": 1373.734375,
+        "w": 286.09375,
+        "h": 44,
+        "right": 337.09375,
+        "bottom": 1417.734375
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Plate1.50 mmZ 3.50",
+      "rect": {
+        "x": 51,
+        "y": 1482.765625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1526.765625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Plate foam3.00 mmZ 0.00",
+      "rect": {
+        "x": 51,
+        "y": 1532.765625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1576.765625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "PCB1.60 mmZ -1.60",
+      "rect": {
+        "x": 51,
+        "y": 1582.765625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1626.765625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Bottom foam2.00 mmZ -3.60",
+      "rect": {
+        "x": 51,
+        "y": 1632.765625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1676.765625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Bottom3.00 mmZ -6.75",
+      "rect": {
+        "x": 51,
+        "y": 1682.765625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1726.765625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Top case4.75 mmZ 6.70",
+      "rect": {
+        "x": 51,
+        "y": 1732.765625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1776.765625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 1782.765625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1826.765625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 1832.765625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 365,
+        "bottom": 1884.453125
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 1890.453125,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 1934.453125
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 1940.453125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 365,
+        "bottom": 1992.140625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 1998.140625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 2042.140625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 2048.140625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 365,
+        "bottom": 2099.828125
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 2105.828125,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 2149.828125
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 2155.828125,
+        "w": 314,
+        "h": 51.6875,
+        "right": 365,
+        "bottom": 2207.515625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 2213.515625,
+        "w": 314,
+        "h": 44,
+        "right": 365,
+        "bottom": 2257.515625
+      },
+      "under44": false
+    },
+    {
+      "tag": "BUTTON",
+      "name": "Gasket:main right keys lay",
+      "rect": {
+        "x": 51,
+        "y": 2263.515625,
+        "w": 314,
+        "h": 51.6875,
+        "right": 365,
+        "bottom": 2315.203125
+      },
+      "under44": false
+    }
+  ]
+}

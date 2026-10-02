@@ -1,0 +1,19 @@
+# Case-only compact containment repair
+
+Owned change: integration `web/assets/m1.css` only, SHA-256 `e5e310b22e74c10f0edc3ff15d90a7417c5cb7c082bfa1c59d9ba129a64d07d6`. Original CSS SHA-256 `0b50ba5e8c92e1325ee5fe344cd48442153402fe07aa46a01e0b7247b198f2d8`. The exact patch is `case-compact-containment.patch` beside this report. Macro and other existing styles are preserved. No commit, Cargo, build, public API, runtime, or persistence change.
+
+The prior real browser red is documented in DIAGNOSIS.md. This authorized repair replaces the compact Case viewport subtraction with actual remaining-height allocation. `#main` and workbench are bounded to100svh only when they contain Case. Existing editor flex keeps the real navigation/footer heights; the body becomes a single minmax grid row. Workspace and panels occupy the same row, with Objects aligned left and Inspector right. Widths use the existing preference variables capped at100%. Open panel contents scroll internally. The existing compact-closed display:none/inert behavior is unchanged.
+
+The nav is actually a sibling before editor-body, not a child. Therefore no artificial row or display:contents reparenting is needed: the nav remains outside that grid, reachable above both overlays. No140→149 substitution, minimum390px floor, or global body clipping is introduced. Other workspaces and desktop widths do not match the new compact Case selectors.
+
+`git diff --check -- web/assets/m1.css` passed. An explicitly labelled temporary CSS diagnostic probe against the isolated actual generated Case page passed eight combinations:390×844 and390×640, each with both panels closed, Objects only, both open, and Inspect only. Document dimensions matched viewport; canvas/footer/navigation had positive dimensions and stayed inside the viewport. `diagnostic-css-matrix.json` records rects. The temporary style was removed afterward, returning that page to the immutable served CSS. These results are causal diagnostics, not fresh-build acceptance or proof of mesh visibility through an overlay.
+
+Required next gates: independent Spec/Standards source review, root fresh production build, then the original actual document-fit oracle and genuine public mesh/control interaction checks on both sizes/all panel combinations. Verify panel internal scrolling reaches end controls, public pointer and keyboard toggles remain reachable, footer stays usable, no horizontal overflow, no new camera-state mutation, and workspace switching retains other workspace behavior. Complete compact drawer parity is not claimed.
+
+## Standards correction: both panels open
+
+Final CSS SHA-256 `ed3fcce8677e261167f247acf5304205f309cca62b593444d934bd089a0da009` supersedes e5e310b2. Independent Standards review identified130px overlap at390px because independent toggles can show both220px/300px panels. A temporary diagnostic of the original proposed CSS confirmed this actual overlap and failed its non-overlap assertion; `diagnostic-both-open-overlap-red.json` retains the rects. This was a proposed-source diagnostic, not a published build regression.
+
+When both actual slots have compact-open, Case's body now uses two equal minmax(0,1fr) columns. Objects occupies column1, Inspector column2, each width100%; workspace spans both beneath. Single-panel behavior retains the existing preferred width. This does not introduce state observers, auto-close policy, or presentation changes. Existing bounded scrolling keeps panel overflow within each column.
+
+Corrected temporary diagnostic passed all8 panel/size combinations again, with195px non-overlapping open panels at390px and bounded canvas/navigation/footer. Results: `diagnostic-css-matrix-corrected.json`. Diagnostic styles were removed; fresh production acceptance, including keyboard focus and all narrow panel controls being reachable through internal scrolling, remains required. Diff --check passes; patch file refreshed. No Cargo/build/commit.
