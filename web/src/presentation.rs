@@ -671,14 +671,33 @@ fn ExportPanel() -> Element {
     let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
     let archive = runtime.clone();
+    let preference = runtime.clone();
     let step = runtime.clone();
     rsx! {
         section { class: "m1-export-panel", "aria-label": "Export",
             h1 { "Export" }
             p { "Create files from the saved keyboard in the current board and instance scope." }
             div { class: "m1-export-actions",
-                button { disabled: model.accepted.is_none(), onclick: move |_| if let Some(scope) = archive.scope() { archive.submit(Event::StartExport { operation_id: archive.operation(), scope }); }, "Export archive" }
                 button { disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
+            }
+            section { class: "m1-export-portable", "aria-label": "Portable project",
+                h2 { "Portable project" }
+                p { "Keep an editable copy of the whole project, including all boards." }
+                label { class: "m1-export-option",
+                    input {
+                        r#type: "checkbox",
+                        aria_label: "Embed used models",
+                        checked: runtime.embed_used_models(),
+                        onchange: move |event: FormEvent| preference.set_embed_used_models(event.checked()),
+                    }
+                    span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
+                }
+                button {
+                    class: "m1-export-action",
+                    disabled: model.accepted.is_none(),
+                    onclick: move |_| archive.export_project_copy(),
+                    "Save .boardstudio project"
+                }
             }
             p { role: "status", "aria-live": "polite", "{runtime.status()}" }
         }

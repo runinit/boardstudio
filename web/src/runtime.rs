@@ -1,4 +1,5 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
+use crate::archive_export::{ArchiveOptionCaptures, archive_filename};
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
     SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
@@ -94,6 +95,7 @@ pub struct Runtime {
     native_model_delivery: RefCell<NativeModelDeliveryState>,
     native_model_jobs: RefCell<BTreeSet<String>>,
     preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
+    archive_option_captures: RefCell<ArchiveOptionCaptures>,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
@@ -127,6 +129,7 @@ impl Runtime {
             native_model_delivery: RefCell::new(Default::default()),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             preview_generator: RefCell::new(None),
+            archive_option_captures: RefCell::new(ArchiveOptionCaptures::default()),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
@@ -167,6 +170,14 @@ impl Runtime {
     }
     pub fn status(&self) -> String {
         self.status.borrow().clone()
+    }
+    pub(crate) fn embed_used_models(&self) -> bool {
+        self.embed_used_models.get()
+    }
+    pub(crate) fn set_embed_used_models(&self, value: bool) {
+        if self.embed_used_models.replace(value) != value {
+            self.changed();
+        }
     }
     pub fn subscribe(&self, notify: Notifier) {
         *self.notify.borrow_mut() = Some(notify);
@@ -723,6 +734,9 @@ impl Runtime {
                     .operation_outcomes
                     .settle(operation_id, outcome.clone());
                 self.step_exports.borrow_mut().remove(&operation_id);
+                self.archive_option_captures
+                    .borrow_mut()
+                    .remove(operation_id);
                 match outcome {
                     TerminalOutcome::Completed => self.report("Saved locally."),
                     TerminalOutcome::Rejected(reason)
@@ -800,56 +814,62 @@ impl Runtime {
                 operation_id,
                 scope,
                 snapshot,
-            } => match if self.step_exports.borrow().contains(&operation_id) {
-                self.step_bytes(operation_id, &snapshot, &scope).await
-            } else {
-                self.pack_archive(
-                    operation_id,
-                    &snapshot,
-                    &scope,
-                    self.embed_used_models.get(),
-                )
-                .await
-            } {
-                Ok(bytes) => {
-                    let current = self.export_current(operation_id, snapshot.token, &scope);
-                    let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
-                    if !current || cancelled {
-                        return self.complete(Completion::ExportFailed {
+            } => {
+                let is_step_export = self.step_exports.borrow().contains(&operation_id);
+                let embed_used_models = if is_step_export {
+                    None
+                } else {
+                    self.archive_option_captures.borrow_mut().take(operation_id)
+                };
+                let result = if is_step_export {
+                    self.step_bytes(operation_id, &snapshot, &scope).await
+                } else if let Some(embed_used_models) = embed_used_models {
+                    self.pack_archive(operation_id, &snapshot, &scope, embed_used_models)
+                        .await
+                } else {
+                    Err("Archive option was not captured for this export; try again.".into())
+                };
+                match result {
+                    Ok(bytes) => {
+                        let current = self.export_current(operation_id, snapshot.token, &scope);
+                        let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
+                        if !current || cancelled {
+                            return self.complete(Completion::ExportFailed {
+                                operation_id,
+                                reason: "Export scope changed before delivery.".into(),
+                            });
+                        }
+                        let artifact_id = format!("archive-{}", operation_id.0);
+                        let filename = if is_step_export {
+                            "keyboard.step".to_owned()
+                        } else {
+                            archive_filename(&snapshot.document.name)
+                        };
+                        self.artifacts.borrow_mut().insert(
+                            artifact_id.clone(),
+                            Artifact {
+                                bytes,
+                                filename,
+                                scope: scope.clone(),
+                                token: snapshot.token,
+                            },
+                        );
+                        self.complete(Completion::ExportFinished {
                             operation_id,
-                            reason: "Export scope changed before delivery.".into(),
-                        });
-                    }
-                    let artifact_id = format!("archive-{}", operation_id.0);
-                    self.artifacts.borrow_mut().insert(
-                        artifact_id.clone(),
-                        Artifact {
-                            bytes,
-                            filename: if self.step_exports.borrow().contains(&operation_id) {
-                                "keyboard.step"
-                            } else {
-                                "keyboard.boardstudio"
-                            }
-                            .into(),
-                            scope: scope.clone(),
                             token: snapshot.token,
-                        },
-                    );
-                    self.complete(Completion::ExportFinished {
-                        operation_id,
-                        token: snapshot.token,
-                        scope,
-                        artifact_id,
-                    })
+                            scope,
+                            artifact_id,
+                        })
+                    }
+                    Err(reason) => {
+                        self.cancelled_exports.borrow_mut().remove(&operation_id);
+                        self.complete(Completion::ExportFailed {
+                            operation_id,
+                            reason,
+                        })
+                    }
                 }
-                Err(reason) => {
-                    self.cancelled_exports.borrow_mut().remove(&operation_id);
-                    self.complete(Completion::ExportFailed {
-                        operation_id,
-                        reason,
-                    })
-                }
-            },
+            }
             Effect::DeliverExport {
                 artifact_id, token, ..
             } => {
@@ -887,6 +907,9 @@ impl Runtime {
             }
             Effect::CancelExport { operation_id } => {
                 self.cancelled_exports.borrow_mut().insert(operation_id);
+                self.archive_option_captures
+                    .borrow_mut()
+                    .remove(operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
@@ -1548,6 +1571,22 @@ impl Runtime {
         };
         let operation_id = self.operation();
         self.step_exports.borrow_mut().insert(operation_id);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+    pub(crate) fn export_project_copy(self: &Rc<Self>) {
+        if self.model().accepted.is_none() {
+            return;
+        }
+        let Some(scope) = self.scope() else {
+            return;
+        };
+        let operation_id = self.operation();
+        self.archive_option_captures
+            .borrow_mut()
+            .capture(operation_id, self.embed_used_models.get());
         self.submit(Event::StartExport {
             operation_id,
             scope,
