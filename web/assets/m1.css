@@ -170,6 +170,32 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-tree-label { overflow: hidden; min-width: 0; color: var(--wb-ink); font-size: var(--wb-type-body); line-height: var(--wb-leading-ui); text-overflow: ellipsis; white-space: nowrap; }
 .m1-tree-row .m1-object-kind { overflow: hidden; flex: 0 1 auto; min-width: 0; margin-left: auto; padding-left: 0; border: 0; font: var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); text-overflow: ellipsis; white-space: nowrap; }
 .m1-tree-row .m1-component.selected :is(.m1-tree-label, .m1-tree-glyph, .m1-object-kind) { color: var(--wb-selection-ink); }
+.m1-selected-context { padding: 14px 12px; border-bottom: 1px solid var(--wb-rule); }
+.m1-selected-context h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.m1-selected-context p { margin: 8px 0 0; color: var(--wb-muted); }
+.m1-parts-library { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 16px 12px; color: var(--wb-ink); }
+.m1-parts-library > h2 { margin: 0 0 16px; font-size: 20px; }
+.m1-parts-search-label { display: grid; gap: 6px; color: var(--wb-muted); font: 500 var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
+.m1-parts-search { box-sizing: border-box; width: 100%; min-height: 34px; padding: 7px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 3px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body); }
+.m1-parts-search:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 1px; }
+.m1-parts-search::placeholder { color: var(--wb-muted); opacity: 1; }
+.m1-parts-catalogue-scroll { overflow: auto; min-height: 0; margin-top: 12px; }
+.m1-parts-catalogue-scroll > summary { padding: 10px 0; color: var(--wb-ink); cursor: pointer; font-weight: 600; }
+.m1-parts-catalogue-scroll > summary small { margin-left: 6px; color: var(--wb-muted); }
+.m1-parts-category h3 { margin: 14px 0 4px; color: var(--wb-muted); font-size: var(--wb-type-label); }
+.m1-parts-catalogue-choice { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 34px; padding: 7px 8px; border: 1px solid transparent; border-radius: 3px; color: var(--wb-ink); background: transparent; text-align: left; cursor: pointer; font-size: var(--wb-type-body); }
+.m1-parts-catalogue-choice:hover { background: var(--wb-raised); }
+.m1-parts-catalogue-choice[aria-selected="true"] { border-color: var(--wb-accent); background: var(--wb-selection-surface); }
+.m1-parts-catalogue-choice:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
+.m1-parts-empty, .m1-parts-loading, .m1-parts-load-error { margin: 12px 0; color: var(--wb-muted); font-size: var(--wb-type-body); line-height: 1.5; }
+.m1-parts-load-error { color: var(--wb-status-error); }
+.m1-parts-inspector { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; padding: 16px; color: var(--wb-ink); }
+.m1-parts-details h2 { margin: 0; font-size: 18px; }
+.m1-parts-details > p { color: var(--wb-muted); font-size: var(--wb-type-label); }
+.m1-parts-detail-list { display: grid; grid-template-columns: minmax(90px, 0.8fr) minmax(0, 1.2fr); gap: 8px 12px; margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--wb-rule); font-size: var(--wb-type-label); line-height: 1.45; }
+.m1-parts-detail-list dt { color: var(--wb-muted); }
+.m1-parts-detail-list dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--wb-ink); }
+.m1-parts-detail-list code { font-family: var(--wb-mono); }
 .m1-workspace-content { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; background: var(--wb-canvas); container-type: inline-size; }
 .m1-canvas-toolbar { z-index: 1; position: absolute; top: 12px; left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; min-height: 42px; width: fit-content; max-width: calc(100% - 24px); padding: 4px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 8px; background: var(--wb-panel); box-shadow: 0 4px 16px #18233120; }
 .m1-canvas-toolbar span { padding: 0 8px; }

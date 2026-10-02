@@ -1,14 +1,17 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+mod context_summary;
 mod inspector;
 mod library;
 mod objects;
 mod panels;
+mod parts;
 mod selection;
 
 use inspector::Inspector;
 use library::Library;
 use objects::Objects;
 use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
+use parts::{PartsInspectorPanel, PartsLibraryPanel, PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
 mod footprint_graphics;
 
@@ -541,9 +544,19 @@ fn Editor() -> Element {
     let _ = use_context::<Signal<u64>>()();
     let workspace = use_context::<WorkspaceState>().0;
     let layer_visibility = use_context::<LayerVisibility>();
+    let parts_query: PartsQuery = use_signal(String::new);
+    let parts_selection: PartsSelection = use_signal(|| None);
     let active_workspace = workspace();
     let mut objects_open = use_signal(|| false);
     let mut inspect_open = use_signal(|| false);
+    let on_parts_select = {
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        move |_| {
+            objects_open.set(false);
+            inspect_open.set(true);
+        }
+    };
     let objects_panel_settings = use_panel_settings(PanelSide::Objects);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector);
     let objects_preferences = objects_panel_settings();
@@ -553,7 +566,7 @@ fn Editor() -> Element {
     } else {
         "32px"
     };
-    let right_track = if active_workspace != "Layout" {
+    let right_track = if active_workspace != "Layout" && active_workspace != "Parts" {
         "0px"
     } else if inspector_preferences.mode == PanelMode::Pinned {
         "min(var(--m1-right-panel-width), calc(55vw - 154px))"
@@ -572,7 +585,8 @@ fn Editor() -> Element {
         "--m1-left-track:{left_track};--m1-right-track:{right_track};{left_width}{right_width}"
     );
     let model = runtime.model();
-    let Some(render_scope) = runtime.scope() else {
+    let current_scope = runtime.scope();
+    let Some(render_scope) = current_scope.clone() else {
         return rsx! {};
     };
     let render_generation = (adapter.generation)();
@@ -898,6 +912,9 @@ fn Editor() -> Element {
         }) && (matches!(&selected.context, objects::TreeContext::Key { .. })
             || matches!(&selected.context, objects::TreeContext::Component { .. }))
     });
+    let context_summary = selected_tree_context
+        .as_ref()
+        .and_then(|selected| context_summary::summarize(&model, &selected.context));
     let mount = {
         let runtime = runtime.clone();
         let svg = svg.clone();
@@ -1301,17 +1318,26 @@ fn Editor() -> Element {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
                 button { "aria-controls": "m1-objects-panel", "aria-expanded": "{objects_open()}", onclick: move |_| objects_open.set(!objects_open()), "Objects" }
-                if active_workspace == "Layout" {
+                if active_workspace == "Layout" || active_workspace == "Parts" {
                     button { "aria-controls": "m1-inspector-panel", "aria-expanded": "{inspect_open()}", onclick: move |_| inspect_open.set(!inspect_open()), "Inspect" }
                 }
             }
             div { class: "m1-editor-body", style: "{panel_layout_style}",
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    Objects { selected_context: adapter.selected_context, on_select: select_tree, on_navigate: navigate, on_nudge: nudge_tree }
+                    if active_workspace == "Parts" {
+                        PartsLibraryPanel { snapshot: snapshot.clone(), scope: current_scope.clone(), query: parts_query, selected: parts_selection,
+                            on_select: on_parts_select
+                        }
+                    } else {
+                        Objects { selected_context: adapter.selected_context, on_select: select_tree, on_navigate: navigate, on_nudge: nudge_tree }
+                    }
                 }
                 section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
                     if active_workspace == "Layout" {
                         div { class: "m1-canvas-toolbar",
+                            if let Some(summary) = context_summary.as_ref() {
+                                span { class: "m1-selection-indicator", "{summary.indicator}" }
+                            }
                             span { "{document.name}" }
                             { let footprint_pressed = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints"); rsx! {
                                 button { class: "m1-footprints-toggle", aria_pressed: "{footprint_pressed}", onclick: move |_| { let mut footprints = layer_visibility.footprints; footprints.set(!footprints()); }, "Footprints" }
@@ -1482,14 +1508,19 @@ fn Editor() -> Element {
                         PlaceholderWorkspace { name: active_workspace }
                     }
                 }
-                if active_workspace == "Layout" {
+                if active_workspace == "Layout" || active_workspace == "Parts" {
                     InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                        if let Some(selected) = selected_tree_context.as_ref()
-                            && let Some(label) = objects::context_label(&model, &selected.context)
-                        {
-                            p { class: "m1-selected-context", "Selected: {label}" }
+                        if active_workspace == "Parts" {
+                            PartsInspectorPanel { snapshot: snapshot.clone(), scope: current_scope.clone(), query: parts_query, selected: parts_selection }
+                        } else {
+                            if let Some(summary) = context_summary.as_ref() {
+                                section { class: "m1-selected-context", "aria-label": "Selected context",
+                                    h2 { "{summary.title}" }
+                                    if let Some(detail) = summary.detail.as_ref() { p { "{detail}" } }
+                                }
+                            }
+                            if show_position_inspector { Inspector {} }
                         }
-                        if show_position_inspector { Inspector {} }
                     }
                 }
             }

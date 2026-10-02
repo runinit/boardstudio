@@ -342,18 +342,6 @@ fn kind_search_label(kind: &PartKind) -> &'static str {
     }
 }
 
-fn category_label(kind: &PartKind) -> &'static str {
-    match kind {
-        PartKind::Switch => "Switches",
-        PartKind::Controller => "Controllers",
-        PartKind::Connector => "Connectors & sockets",
-        PartKind::Encoder => "Encoders",
-        PartKind::Passive => "Passives & LEDs",
-        PartKind::Utility => "Utilities",
-        PartKind::Custom => "Custom",
-    }
-}
-
 fn search_aliases(definition: &PartDefinition) -> &'static str {
     match definition.id.as_str() {
         "ergogen:ceoloide/led_sk6812mini-e" => "RGB LED reverse mount",

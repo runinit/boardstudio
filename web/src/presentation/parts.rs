@@ -114,7 +114,7 @@ pub(super) fn PartsLibraryPanel(
                                             type: "button",
                                             role: "option",
                                             "aria-selected": "{is_selected}",
-                                            title: "{entry.definition.generator.as_ref().map(|generator| generator.source.as_str()).unwrap_or("")}",
+                                            title: entry.definition.generator.as_ref().map(|generator| generator.source.as_str()).unwrap_or(""),
                                             onclick: move |_| {
                                                 selected.set(Some((scope.clone(), id.clone())));
                                                 on_select.call(());
