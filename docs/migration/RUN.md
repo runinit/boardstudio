@@ -1109,3 +1109,20 @@ new UI features and parent acceptance need their own integrated evidence.
 Private Library/Objects/Inspector extraction is integrated at `598b2c02`. The [acceptance record](../../.scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/record.json) retains independent Standards/Spec reviews (zero findings), 14 native page tests, strict native/WASM checks, fresh root/subpath page/offline build provenance, public layers/keycaps/footprints regression, and matched Inspector numeric lifecycle traces. The editable fresh demo is [root](http://127.0.0.1:34645/) and [subpath](http://127.0.0.1:34645/boardstudio/).
 
 Two Luna High authors prepare saved-keyboard cards and desktop panel modes in isolated worktrees. Agents automatically generated and Astra reviewed six further children: [Parts catalogue](../../.scratch/dioxus-parts-catalogue/README.md), [PCB view](../../.scratch/dioxus-pcb-view/README.md), and [Keymap layers](../../.scratch/dioxus-keymap-layers/README.md). These refine three more parents; all 62 parent IDs and original joins remain. Feature-specific contracts remain required. No new refactoring takeaway observed; source reconciliation reinforces RF-009. Full frontend v1, actual AT, retained M1 gates and production cutover remain open.
+
+
+### Cards, panels and tree implementation frontier
+
+Private saved-keyboard cards and desktop panel composition are integrated at `2030c9a3`. The fresh root/subpath page and offline build, 14 native tests, four standalone panel-policy tests and strict native/WASM checks pass. [Independent review and build record](../../.scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/record.json) retains three open findings: responsive panel tracks, compact-to-desktop auto-hide, and unnecessary document copying. This candidate is not accepted. Astra handles the behavioral fixes after public red regressions; Luna handles immutable library ownership.
+
+The tree hierarchy is committed in its worker at `33177652`; private shared selection/context and scoped pointer integration are underway. Public tree acceptance remains open. Agents review further Keycaps/BND.1 children for automatic publication. All 62 parent milestones and their original acceptance joins remain. Saved-library malformed-record listing and confirmed post-submit open supersession are still unresolved; no public API change or production adoption is implied.
+
+
+Agents automatically published independently reviewed [Keycaps physical 2D](../../.scratch/dioxus-keycaps-projection/README.md) and [private keycap CAD bridge proof](../../.scratch/dioxus-keycap-cad-bridge/README.md) tickets. There are now 20 bounded tickets, refining the unchanged 62-parent graph. Dispatch still requires concrete private seams; publication does not imply implementation or parent acceptance. No new refactoring takeaway observed during this source/dependency review.
+
+
+### Desktop panel repairs verified
+
+Source `47cf655b` fixes the interactive-panel inert attribute, responsive grid overrides, and compact-to-desktop auto-hide timer. The [exact build, independent source reviews and public evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json) pass both red/green browser loops, independent panel modes and hover/focus, reload/workspace preference retention, malformed/unavailable optional storage, camera/revision neutrality, mounted long-content retention, themes/keyboard and axe (zero violations in tested states). Actual AT remains separately required; no AT pass or full F2.3 closure is claimed. The fresh editable candidate is [root](http://127.0.0.1:34651/) and [subpath](http://127.0.0.1:34651/boardstudio/).
+
+Tree integration `547b0762` is source-reviewed and strict WASM checks pass in its worker; merged public scope/gesture tests remain pending. Private Parts catalogue source is under review/correction. The exact tolerant-listing public API patch is reviewed but unapplied, with an explicit user decision pending; frontend work continues independently.

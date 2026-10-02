@@ -41,6 +41,14 @@
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
         "INT.1"
+      ],
+      "handoff_evidence": [
+        {
+          "source": "2030c9a3",
+          "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/cards-panels-standards.md",
+          "observation": "Saved Library presentation deep-copied accepted ProjectDoc and all saved documents on Runtime repaints. Bounded correction uses existing immutable Arc document snapshots and borrows saved-list signal. Strict WASM Clippy passes; browser review pending; allocation latency remains unmeasured.",
+          "status": "current correction under review; retain immutable presentation ownership/allocation follow-up"
+        }
       ]
     },
     {
@@ -387,6 +395,14 @@
           "current_mitigation": "Six corrected children published automatically with concrete feature contract gates and unchanged parent acceptance joins.",
           "post_port_follow_up": "Keep per-action source/accounting and private boundary proofs alongside maintained conformance evidence.",
           "validation": "Dispatch concrete reviewed contracts and integrated public workflows before accepting each parent."
+        }
+      ],
+      "handoff_evidence": [
+        {
+          "source": "47cf655b",
+          "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json",
+          "observation": "Actual browser semantics caught inert=false still disabling panel controls and old media declarations replacing variable tracks despite strict compile success; preserve red/green semantics and cascade proof.",
+          "confidence": "confirmed corrected browser defects; future shared-conformance proposal needs assessment"
         }
       ]
     },

@@ -1,0 +1,41 @@
+{
+  "source_commit": "2030c9a3",
+  "build": "frontend-cards-panels-2030c9a3-20261002",
+  "status": "review findings open; not accepted",
+  "checks": {
+    "native_page_tests": {
+      "passed": 14
+    },
+    "standalone_panel_policy_tests": {
+      "passed": 4,
+      "separate_harness": true
+    },
+    "native_clippy": "passed -D warnings",
+    "wasm_page_clippy": "passed -D warnings, no allowances",
+    "cargo_fmt": "passed after formatting",
+    "fresh_build": "root/subpath page and offline completed"
+  },
+  "reviews": {
+    "standards": "cards-panels-standards.md",
+    "spec": "cards-panels-spec.md"
+  },
+  "open_findings": [
+    "compact-to-desktop retained open state blocks auto-hide",
+    "responsive CSS replaces mode/width-dependent tracks",
+    "library repeatedly clones full documents"
+  ],
+  "retained_joins": [
+    "T1-02 malformed saved-record listing",
+    "T1-02 post-submit open supersession",
+    "T1-10 shared adapter and public verification"
+  ],
+  "browser_acceptance": "pending",
+  "library_copy_correction": {
+    "source_blob": "edd674ea829a94ae70e19e076f7fa5c28ad0086c",
+    "wasm_clippy": "passed -D warnings",
+    "standards": "library-copy-standards-review.md",
+    "spec": "library-copy-spec-review.md",
+    "source_finding": "resolved; public cards verification pending",
+    "allocation_latency": "unmeasured"
+  }
+}

@@ -30,11 +30,13 @@
       "id": "T1-02",
       "parent": "F2.1",
       "issue": "issues/02-saved-keyboards.md",
-      "status": "implementing cleared private presentation; full acceptance blocked on source-grounded listing/open joins",
+      "status": "private cards integrated at2030c9a3; copy finding being corrected; provider/session joins open",
       "agent_profile": "luna-high",
       "author_agent": "/root/saved_library_author",
       "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-library-20261002",
-      "baseline": "598b2c026941130f9b95ff4fee57353f8eefcb0d"
+      "baseline": "598b2c026941130f9b95ff4fee57353f8eefcb0d",
+      "source_commit": "2030c9a3",
+      "correction_agent": "/root/library_copy_fix"
     },
     {
       "id": "T1-03",
@@ -68,11 +70,14 @@
       "id": "T1-07",
       "parent": "F2.3",
       "issue": "issues/07-desktop-panel-modes.md",
-      "status": "implementing corrected Editor-owned preference contract",
+      "status": "implementation/public checks complete; actual AT evidence separately open",
       "agent_profile": "luna-high",
       "author_agent": "/root/desktop_panels_author",
       "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-panels-20261002",
-      "baseline": "598b2c026941130f9b95ff4fee57353f8eefcb0d"
+      "baseline": "598b2c026941130f9b95ff4fee57353f8eefcb0d",
+      "source_commit": "47cf655b",
+      "correction_agent": "/root/review_frontend_contracts",
+      "evidence": "evidence/panels-fixed-47cf655b/record.json"
     },
     {
       "id": "T1-08",
@@ -92,11 +97,13 @@
       "id": "T1-10",
       "parent": "F3.1",
       "issue": "issues/10-layout-object-tree.md",
-      "status": "implementing reviewed pure hierarchy; root semantic adapter join open",
+      "status": "worker547b0762 source reviewed and strict WASM passed; merge/public verification queued",
       "agent_profile": "luna-high",
       "author_agent": "/root/layout_tree_author",
       "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-tree-20261002",
-      "baseline": "5e5d3370"
+      "baseline": "5e5d3370",
+      "adapter_agent": "/root/tree_adapter_author",
+      "source_commit": "547b07627978e407ba5de6dbb73ce0c7740bbf4f"
     },
     {
       "id": "T1-11",
@@ -129,7 +136,9 @@
   "published_follow_on_features": [
     "dioxus-parts-catalogue",
     "dioxus-pcb-view",
-    "dioxus-keymap-layers"
+    "dioxus-keymap-layers",
+    "dioxus-keycaps-projection",
+    "dioxus-keycap-cad-bridge"
   ],
   "available_runtime_slots": 11,
   "verification_agent": {
@@ -140,12 +149,28 @@
       "T1-07",
       "T1-10"
     ],
-    "status": "settled React public reference captured; candidate UI pending"
+    "status": "full cards/panels public traces retained; tree public verification queued"
   },
   "active_contract_reviews": {
     "agent": "/root/review_frontend_contracts",
     "profile": "astra-high",
     "evidence": "evidence/contracts-active",
-    "status": "panel and pure card/tree contracts clear; concrete open/listing joins remain"
+    "status": "confirmed open race retained; Astra correcting panel regressions after public red"
+  },
+  "next_ticket_review": {
+    "agent": "/root/cards_panels_spec",
+    "profile": "astra-high",
+    "scope": [
+      "F6C.1",
+      "BND.1"
+    ],
+    "status": "two drafts independently reviewed and automatically published; concrete contracts required"
+  },
+  "bounded_ticket_count": 20,
+  "canonical_parent_count": 62,
+  "pending_api_decision": {
+    "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
+    "status": "explicit user API approval requested; unapplied",
+    "review": "evidence/contracts-active/tolerant-listing-independent-review.md"
   }
 }
