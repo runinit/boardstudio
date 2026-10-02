@@ -6,6 +6,10 @@
 
 `start_after` gates when implementation or fixture-backed preparation may be dispatched. `acceptance_after` names additional real integration joins before the parent can be accepted. A fixture can support preparation and evidence, but it cannot satisfy a real-provider acceptance join. The graph’s `depends_on` is their conservative union. Empty cells mean no graph dependency of that kind.
 
+## Confirmed six-stream execution refinement
+
+The user confirmed a six-workspace persistent execution model and narrowly approved proven capability-level starts. The full paired-parity spec and current worktree/ticket mapping are in [six-stream Workbench parity](../dioxus-workbench-parity/spec.md) and [stream reconciliation](../dioxus-workbench-parity/stream-reconciliation.md). These are execution details: all 62 canonical rows, start rationale, original criteria and final `acceptance_after` joins remain authoritative and unchanged. The composition preparation associated with accepted INT.1 is in progress against a reviewed private contract; it does not complete INT.1 or any feature parent. Current child counts remain 48 published records / 47 non-superseded records.
+
 ## Full portfolio
 
 | Workflow | Parent | Work package | start_after | acceptance_after | Published child ticket(s) |

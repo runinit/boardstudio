@@ -34,7 +34,7 @@ At frontend v1, F9 produces a refactoring handoff grouped by architectural bound
 
 **Shared presentation and Runtime are integration hotspots** — architecture / modularity. design risk supported by source.
 
-The current presentation spans 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules. The reference Workbench is 1,426 lines. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.
+At the recorded baseline `c827c4e6`, the presentation spanned 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules; the reference Workbench was 1,426 lines. These are historical measurements, not current line counts. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.
 
 **Impact:** Concurrent changes can conflict, and a one-to-one port could preserve broad coupling between workspace controls and service lifecycles.
 
@@ -45,6 +45,12 @@ The current presentation spans 1,399 lines and Runtime 960 lines, with shell, wo
 **Validate:** Measure cross-workflow files changed for a representative feature and show that isolated workflow edits/tests no longer require unrelated shell/runtime changes.
 
 Evidence: [presentation.rs](../../web/src/presentation.rs), [runtime.rs](../../web/src/runtime.rs), [Workbench.tsx](../../app/src/ui/Workbench.tsx).
+
+### RF-001 Case/shared-viewer composition evidence
+
+The paired Case exploration at integration source `89b1de8a` confirms the visible Case hierarchy/editor split at the current composition seam: Case still calls the generic Layout-oriented Objects tree, the authored editor is mounted in the Inspector, and mechanical settings remain in the central Case panel. Existing Case body/mechanical controllers are present, so the parity correction is a root-owned contextual composition around existing feature owners. This is current correctness work; it does not establish that composition modularity caused the mismatch or authorize a broad refactor. See the [source/UI audit](../../.scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md).
+
+The confirmed six-stream parity reset has dispatched a bounded private composition extraction against reviewed contract v3. It splits six feature render leaves from the root dispatcher while preserving existing feature-local lifecycle and Runtime ownership; this is a mitigation for the shared edit hotspot, not evidence that the hotspot is resolved. No new architectural takeaway was observed in the contract/review handoff beyond RF-001. See the [retained contract (current SHA-256 `c6550ab5…`)](../../.scratch/dioxus-workbench-parity/evidence/workbench-composition-contract-v3-reviewed.md) and [six-stream ticket (current SHA-256 `7279b6bf…`)](../../.scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md).
 
 ## RF-002
 
@@ -77,6 +83,8 @@ Rust WASM already exports build_keycaps, but the Dioxus host/worker operation se
 **Validate:** Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.
 
 Evidence: [keycaps.rs](../../cad/wasm/src/model/keycaps.rs), [lib.rs](../../cad/wasm/src/lib.rs), [index.ts](../../cad/src/index.ts), [CaseClient.ts](../../app/src/CaseClient.ts), [cad_jobs.rs](../../web/src/cad_jobs.rs), [cad_worker.rs](../../web/src/cad_worker.rs).
+
+The Case/shared-viewer audit provides a second capability-to-host example: a private model-delivery helper exists, but it is not registered/called by the page, and the current scene projection supplies empty model/surface/hole inputs. Generated CAD body meshes therefore do not demonstrate PCB model delivery. Keep implementation status distinct from source presence and public behavior; see the [audit](../../.scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md).
 
 ## RF-004
 
@@ -177,6 +185,10 @@ The original roadmap contained invented project/export controls and coarse depen
 **Validate:** From one commit, locate every required workflow scenario and produce its current result with exact source/build/fixture identity and explicit unavailable gates.
 
 Evidence: [tsx-inventory.json](../../.scratch/dioxus-frontend-v1/evidence/tsx-inventory.json), [CONSTRAINTS.md](../../CONSTRAINTS.md), [playwright.config.ts](../../app/playwright.config.ts), [ACCEPTANCE.md](../../.scratch/m1-production/ACCEPTANCE.md).
+
+### RF-009 Case/shared-viewer acceptance accounting
+
+The current F7.8 consumer list names five workflows while the confirmed migration scope has six, including PCB. PCB’s existing F5.8 acceptance is the proposed additional F7.8 join; the canonical 62-task graph remains unchanged until coordinator review. The exploratory audit deliberately does not claim same-archive paired parity. See the [Case/shared-viewer audit](../../.scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md) and [parity reset addendum](../../.scratch/dioxus-frontend-v1/issues/07-case-3d-parity-reset-addendum.md).
 
 ### RF-009 encoder initial-value regression evidence
 

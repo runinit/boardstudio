@@ -8,6 +8,11 @@
   },
   "baseline": "c827c4e6",
   "policy": "One accountable lead per source row; shared consumers do not count as additional migrated files. No full-production-file completion is claimed by planning. F9.1 audits remaining transitive UI TS imports and test dispositions before final release.",
+  "parity_execution_plan": {
+    "spec": ".scratch/dioxus-workbench-parity/spec.md",
+    "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
+    "status": "six-stream execution refinement; source inventory rows and all canonical parent criteria remain unchanged"
+  },
   "rows": [
     {
       "path": "app/src/main.tsx",

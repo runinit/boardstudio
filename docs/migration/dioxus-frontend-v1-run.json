@@ -2,6 +2,15 @@
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
   "status": "Parallel frontend implementation active: current Case compact/focus/resize build frontend-case-focus-resize-final-20261002 (e2a84d8b) has a bounded public green for its documented compact panel/keyboard/focus/resize states and root/subpath/offline delivery; broader workspace, actual AT and parent acceptance remain open. Keymap binding editor focused public packet is complete with a focus-continuity difference retained; encoder rotation issue06 implementation has started after independent private target-contract clearance. Case mechanical settings and Macro bounded public packets remain complete with their broader criteria/gates open. Full F2\u2013F9 and all canonical acceptance joins remain open.",
+  "six_stream_parity": {
+    "spec": ".scratch/dioxus-workbench-parity/spec.md",
+    "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
+    "confirmed_at": "2026-10-02",
+    "status": "six stream-specific first slices are being prepared in isolated worktrees; private composition preparation is implementing against reviewed contract v3; no feature or canonical parent acceptance is inferred",
+    "canonical_parent_count": 62,
+    "canonical_graph_changed": false,
+    "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved"
+  },
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
