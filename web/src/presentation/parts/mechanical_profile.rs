@@ -8,7 +8,8 @@ use boardstudio_core::model::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ProfileDefinitionSource {
-    Catalogue,
+    Ergogen,
+    Imported,
     Project,
 }
 
@@ -80,7 +81,7 @@ pub(crate) fn prepare_profile_edit(
             }
             definition.mechanical_profile = Some(profile);
         }
-        ProfileDefinitionSource::Catalogue => {
+        ProfileDefinitionSource::Ergogen | ProfileDefinitionSource::Imported => {
             if replacement
                 .definitions
                 .iter()
@@ -373,17 +374,33 @@ mod tests {
         let capture = ProfileEditCapture::new(
             &snapshot,
             scope.clone(),
-            ProfileDefinitionSource::Catalogue,
+            ProfileDefinitionSource::Ergogen,
             selected_definition.clone(),
         );
         let draft = profile("bundled-switch", "Parts library");
+
+        assert!(
+            prepare_profile_edit(
+                ProfileEditContext {
+                    snapshot: &snapshot,
+                    scope: scope.clone(),
+                    selection: Some((scope.clone(), "bundled-switch".into())),
+                    source: ProfileDefinitionSource::Imported,
+                    definition: &selected_definition,
+                },
+                &capture,
+                draft.clone(),
+                OperationId(3),
+            )
+            .is_none()
+        );
 
         let event = prepare_profile_edit(
             ProfileEditContext {
                 snapshot: &snapshot,
                 scope: scope.clone(),
                 selection: Some((scope, "bundled-switch".into())),
-                source: ProfileDefinitionSource::Catalogue,
+                source: ProfileDefinitionSource::Ergogen,
                 definition: &selected_definition,
             },
             &capture,

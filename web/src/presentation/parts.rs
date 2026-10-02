@@ -306,9 +306,8 @@ pub(super) fn PartsPreviewWorkspace(
     };
     let source = match entry.source {
         catalogue::CatalogueSource::Project => ProfileDefinitionSource::Project,
-        catalogue::CatalogueSource::Ergogen | catalogue::CatalogueSource::Imported => {
-            ProfileDefinitionSource::Catalogue
-        }
+        catalogue::CatalogueSource::Ergogen => ProfileDefinitionSource::Ergogen,
+        catalogue::CatalogueSource::Imported => ProfileDefinitionSource::Imported,
     };
 
     rsx! {
