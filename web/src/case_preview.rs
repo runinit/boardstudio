@@ -89,6 +89,14 @@ pub(crate) struct NativePreviewSnapshot {
     pub(crate) preview: PcbPreview,
 }
 
+impl PartialEq for NativePreviewSnapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.owner == other.owner && Rc::ptr_eq(&self.lease, &other.lease)
+    }
+}
+
+impl Eq for NativePreviewSnapshot {}
+
 /// One owner for pending, accepted and failed native preview state.
 #[derive(Default)]
 pub(crate) struct NativePreviewState {

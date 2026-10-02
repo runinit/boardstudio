@@ -1,5 +1,8 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
-use super::shared_viewer::{CaseDisplay, CaseSharedViewer, ViewerIdentity, ViewerSignalKind};
+use super::shared_viewer::{
+    CaseDisplay, CaseSharedViewer, ScopedDisplayChange, ScopedViewerSignal, ViewerIdentity,
+    ViewerSignalKind,
+};
 use super::{InstanceSelection, ResolvedTheme};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::Scope;
@@ -62,6 +65,10 @@ pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
     let instance_selection = use_context::<InstanceSelection>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
+    let preview = runtime.native_case_preview();
+    let model_rows = preview
+        .as_ref()
+        .and_then(|preview| runtime.native_model_delivery(preview));
     let key = display_key(&scene.scope);
     let initial_display = use_hook({
         let key = key.clone();
@@ -157,10 +164,81 @@ pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
     };
     rsx! {
         CaseSharedViewer {
-            scene,
+            scene: Some(scene),
+            preview,
+            model_rows,
             selected_layer,
             display,
             resolved_theme: theme().to_owned(),
+            on_signal,
+            on_display_change,
+        }
+    }
+}
+
+#[component]
+pub(crate) fn CasePreviewViewer(
+    preview: Rc<crate::case_preview::NativePreviewSnapshot>,
+    model_rows: Option<super::model_delivery::ModelDeliveryRows>,
+) -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let selection = use_context::<CaseSelection>();
+    let theme = use_context::<ResolvedTheme>().0;
+    let key = display_key(&preview.owner.scope);
+    let initial_display = use_hook({
+        let key = key.clone();
+        move || read_display(&key)
+    });
+    let display = selection
+        .display
+        .read()
+        .get(&key)
+        .cloned()
+        .unwrap_or(initial_display);
+    let on_signal = {
+        let runtime = runtime.clone();
+        let preview = preview.clone();
+        move |event: ScopedViewerSignal| {
+            if !event.is_current()
+                || runtime.native_case_preview().is_none_or(|current| {
+                    current.owner != preview.owner || !Rc::ptr_eq(&current.lease, &preview.lease)
+                })
+                || event.identity.scope != preview.owner.scope
+                || event.identity.snapshot_token != preview.owner.snapshot_token
+            {
+                return;
+            }
+            if let ViewerSignalKind::Failed(message) = event.kind {
+                runtime.report(message);
+            }
+        }
+    };
+    let on_display_change = {
+        let runtime = runtime.clone();
+        let preview = preview.clone();
+        let selection = selection;
+        let scope = preview.owner.scope.clone();
+        move |event: ScopedDisplayChange| {
+            if !event.is_current()
+                || runtime.native_case_preview().is_none_or(|current| {
+                    current.owner != preview.owner || !Rc::ptr_eq(&current.lease, &preview.lease)
+                })
+                || event.identity.scope != preview.owner.scope
+                || event.identity.snapshot_token != preview.owner.snapshot_token
+            {
+                return;
+            }
+            selection.save_display(&scope, event.display.clone());
+        }
+    };
+    rsx! {
+        CaseSharedViewer {
+            scene: None,
+            preview: Some(preview),
+            model_rows,
+            selected_layer: "pcb".to_owned(),
+            display,
+            resolved_theme: theme,
             on_signal,
             on_display_change,
         }

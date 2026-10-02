@@ -2,6 +2,8 @@
 //!
 //! Case is the first consumer. Its wrapper owns the Case-to-renderer projection;
 //! this module owns only renderer controls, transient view state and host lifetime.
+use super::model_delivery::ModelDeliveryRows;
+use crate::case_preview::NativePreviewSnapshot;
 use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
@@ -98,6 +100,7 @@ struct ViewerOwner {
     last_theme: RefCell<String>,
     projection_generation: Cell<u64>,
     renderer_sequence: Cell<u64>,
+    last_delivery_key: Cell<usize>,
     viewer_instance: u64,
 }
 
@@ -118,14 +121,37 @@ impl ViewerOwner {
             last_theme: RefCell::new(String::new()),
             projection_generation: Cell::new(0),
             renderer_sequence: Cell::new(0),
+            last_delivery_key: Cell::new(0),
             viewer_instance: next_viewer_instance()?,
         }))
     }
 
-    fn advance(&self, scene: &Rc<CadScene>, theme: &str) -> Result<ViewerIdentity, String> {
-        let projection_ptr = Rc::as_ptr(scene) as usize;
-        let changed =
-            self.last_projection.get() != projection_ptr || *self.last_theme.borrow() != theme;
+    fn advance_preview(
+        &self,
+        preview: &Rc<NativePreviewSnapshot>,
+        theme: &str,
+        delivery_key: usize,
+    ) -> Result<ViewerIdentity, String> {
+        self.advance_source(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            Rc::as_ptr(preview) as usize,
+            delivery_key,
+            theme,
+        )
+    }
+
+    fn advance_source(
+        &self,
+        scope: Scope,
+        token: SnapshotToken,
+        projection_ptr: usize,
+        delivery_key: usize,
+        theme: &str,
+    ) -> Result<ViewerIdentity, String> {
+        let changed = self.last_projection.get() != projection_ptr
+            || self.last_delivery_key.get() != delivery_key
+            || *self.last_theme.borrow() != theme;
         if changed {
             let generation = self
                 .projection_generation
@@ -141,11 +167,12 @@ impl ViewerOwner {
             self.projection_generation.set(generation);
             self.renderer_sequence.set(sequence);
             self.last_projection.set(projection_ptr);
+            self.last_delivery_key.set(delivery_key);
             *self.last_theme.borrow_mut() = theme.to_owned();
         }
         let identity = ViewerIdentity {
-            scope: scene.scope.clone(),
-            snapshot_token: scene.token,
+            scope,
+            snapshot_token: token,
             viewer_instance: self.viewer_instance,
             projection_generation: self.projection_generation.get(),
             renderer_sequence: self.renderer_sequence.get(),
@@ -194,7 +221,9 @@ impl PartialEq for RendererSceneProjection {
 
 #[component]
 pub(crate) fn CaseSharedViewer(
-    scene: Rc<CadScene>,
+    scene: Option<Rc<CadScene>>,
+    preview: Option<Rc<NativePreviewSnapshot>>,
+    model_rows: Option<ModelDeliveryRows>,
     selected_layer: String,
     display: CaseDisplay,
     resolved_theme: String,
@@ -210,29 +239,48 @@ pub(crate) fn CaseSharedViewer(
             return rsx! { p { role: "alert", "3D preview unavailable: {error}" } };
         }
     };
-    let projection_cache = use_hook(|| {
-        Rc::new(RefCell::new(
-            None::<(Rc<CadScene>, String, Rc<RendererSceneProjection>)>,
-        ))
-    });
-    let identity = match owner.advance(&scene, &theme) {
+    let Some(source) = scene
+        .map(ViewerSource::Cad)
+        .or_else(|| preview.clone().map(ViewerSource::Native))
+    else {
+        return rsx! { p { role: "alert", "3D preview source is unavailable." } };
+    };
+    let delivery_key = model_rows_key(model_rows.as_ref());
+    let identity = match source.identity(&owner, &theme, delivery_key) {
         Ok(identity) => identity,
         Err(error) => {
             return rsx! { p { role: "alert", "3D preview unavailable: {error}" } };
         }
     };
-    let projection = if let Some((cached_scene, cached_theme, projection)) =
+    let projection_cache = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(ViewerSource, String, usize, Rc<RendererSceneProjection>)>,
+        ))
+    });
+    let projection = if let Some((cached_source, cached_theme, cached_delivery, projection)) =
         projection_cache.borrow().as_ref()
-        && Rc::ptr_eq(cached_scene, &scene)
+        && cached_source.same(&source)
         && cached_theme == &theme
+        && *cached_delivery == delivery_key
     {
         projection.clone()
     } else {
-        match project_case_scene(scene.clone(), identity.clone(), &theme) {
+        let projection_preview = preview.clone().or_else(|| runtime.native_case_preview());
+        match project_source(
+            &source,
+            identity.clone(),
+            &theme,
+            projection_preview.as_deref(),
+            model_rows.as_ref(),
+        ) {
             Ok(projection) => {
                 let projection = Rc::new(projection);
-                *projection_cache.borrow_mut() =
-                    Some((scene.clone(), theme.clone(), projection.clone()));
+                *projection_cache.borrow_mut() = Some((
+                    source.clone(),
+                    theme.clone(),
+                    delivery_key,
+                    projection.clone(),
+                ));
                 projection
             }
             Err(error) => {
@@ -242,19 +290,8 @@ pub(crate) fn CaseSharedViewer(
     };
     let current_source = SourceGuard({
         let runtime = runtime.clone();
-        let scene = scene.clone();
-        Rc::new(move || {
-            runtime.scope().as_ref() == Some(&scene.scope)
-                && runtime
-                    .model()
-                    .accepted
-                    .as_ref()
-                    .is_some_and(|snapshot| snapshot.token == scene.token)
-                && runtime
-                    .cad_scene()
-                    .as_ref()
-                    .is_some_and(|current| Rc::ptr_eq(current, &scene))
-        })
+        let source = source.clone();
+        Rc::new(move || source.is_current(&runtime))
     });
     rsx! {
         SharedViewer {
@@ -270,10 +307,92 @@ pub(crate) fn CaseSharedViewer(
     }
 }
 
+#[derive(Clone)]
+enum ViewerSource {
+    Cad(Rc<CadScene>),
+    Native(Rc<NativePreviewSnapshot>),
+}
+
+impl ViewerSource {
+    fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Cad(left), Self::Cad(right)) => Rc::ptr_eq(left, right),
+            (Self::Native(left), Self::Native(right)) => Rc::ptr_eq(left, right),
+            _ => false,
+        }
+    }
+
+    fn identity(
+        &self,
+        owner: &ViewerOwner,
+        theme: &str,
+        delivery_key: usize,
+    ) -> Result<ViewerIdentity, String> {
+        match self {
+            Self::Cad(scene) => owner.advance_source(
+                scene.scope.clone(),
+                scene.token,
+                Rc::as_ptr(scene) as usize,
+                delivery_key,
+                theme,
+            ),
+            Self::Native(preview) => owner.advance_preview(preview, theme, delivery_key),
+        }
+    }
+
+    fn is_current(&self, runtime: &crate::runtime::Runtime) -> bool {
+        match self {
+            Self::Cad(scene) => {
+                runtime.scope().as_ref() == Some(&scene.scope)
+                    && runtime
+                        .model()
+                        .accepted
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.token == scene.token)
+                    && runtime
+                        .cad_scene()
+                        .as_ref()
+                        .is_some_and(|current| Rc::ptr_eq(current, scene))
+            }
+            Self::Native(preview) => runtime.native_case_preview().is_some_and(|current| {
+                current.owner == preview.owner && Rc::ptr_eq(&current.lease, &preview.lease)
+            }),
+        }
+    }
+}
+
+fn model_rows_key(rows: Option<&ModelDeliveryRows>) -> usize {
+    rows.map(|rows| {
+        rows.delivered.iter().fold(0usize, |key, model| {
+            key.rotate_left(5) ^ (Rc::as_ptr(&model.mesh) as usize) ^ model.id.len()
+        })
+    })
+    .unwrap_or_default()
+}
+
+fn project_source(
+    source: &ViewerSource,
+    identity: ViewerIdentity,
+    theme: &str,
+    preview: Option<&NativePreviewSnapshot>,
+    model_rows: Option<&ModelDeliveryRows>,
+) -> Result<RendererSceneProjection, String> {
+    match source {
+        ViewerSource::Cad(scene) => {
+            project_case_scene(scene.clone(), identity, theme, preview, model_rows)
+        }
+        ViewerSource::Native(preview) => {
+            project_native_preview(preview, identity, theme, model_rows)
+        }
+    }
+}
+
 fn project_case_scene(
     scene: Rc<CadScene>,
     identity: ViewerIdentity,
     theme: &str,
+    preview: Option<&NativePreviewSnapshot>,
+    model_rows: Option<&ModelDeliveryRows>,
 ) -> Result<RendererSceneProjection, String> {
     let document = captured_case_document(&scene.snapshot, &scene.scope)
         .map_err(|error| format!("Case scene projection failed: {error:?}"))?;
@@ -287,6 +406,24 @@ fn project_case_scene(
         .as_ref()
         .map(|assembly| assembly.stack.as_slice())
         .unwrap_or_default();
+    let physical_preview = preview.filter(|preview| {
+        preview.owner.scope == scene.scope && preview.owner.snapshot_token == scene.token
+    });
+    let thickness = physical_preview
+        .map(|preview| preview.preview.thickness)
+        .unwrap_or(board.thickness);
+    let contours = physical_preview
+        .map(|preview| preview.contours.as_slice())
+        .unwrap_or(scene.contours.as_slice());
+    let surfaces = physical_preview
+        .map(|preview| preview.preview.surfaces.as_slice())
+        .unwrap_or_default();
+    let holes = physical_preview
+        .map(|preview| preview.preview.holes.as_slice())
+        .unwrap_or_default();
+    let models = physical_preview
+        .map(|preview| preview.preview.models.as_slice())
+        .unwrap_or_default();
     let packet = serde_json::json!({
         "revision": identity.renderer_sequence,
         "kind": "assembly",
@@ -297,16 +434,18 @@ fn project_case_scene(
         "hidden": [],
         "board": {
             "revision": identity.renderer_sequence,
-            "thickness": board.thickness,
-            "contours": &scene.contours,
-            "surfaces": [],
-            "holes": [],
-            "models": []
+            "thickness": thickness,
+            "contours": contours,
+            "surfaces": surfaces,
+            "holes": holes,
+            "models": models
         },
         "models": [],
         "mechanicalStack": stack
     });
     let input = js_sys::JSON::parse(&packet.to_string()).map_err(js_error)?;
+    let loaded_models = loaded_model_inputs(model_rows);
+    Reflect::set(&input, &"models".into(), &loaded_models).map_err(js_error)?;
     let bodies = Array::new();
     for body in &scene.result.bodies {
         let value = Object::new();
@@ -341,6 +480,78 @@ fn project_case_scene(
         layers,
         handles: Vec::new(),
     })
+}
+
+fn project_native_preview(
+    preview: &NativePreviewSnapshot,
+    identity: ViewerIdentity,
+    theme: &str,
+    model_rows: Option<&ModelDeliveryRows>,
+) -> Result<RendererSceneProjection, String> {
+    if preview.owner.scope != identity.scope
+        || preview.owner.snapshot_token != identity.snapshot_token
+    {
+        return Err("Native PCB preview does not match the active Case viewer owner".into());
+    }
+    let packet = serde_json::json!({
+        "revision": identity.renderer_sequence,
+        "kind": "assembly",
+        "theme": theme,
+        "view": "assembled",
+        "keepCamera": true,
+        "selectedLayer": "",
+        "hidden": [],
+        "board": {
+            "revision": identity.renderer_sequence,
+            "thickness": preview.preview.thickness,
+            "contours": &preview.contours,
+            "surfaces": &preview.preview.surfaces,
+            "holes": &preview.preview.holes,
+            "models": &preview.preview.models
+        },
+        "models": [],
+        "mechanicalStack": []
+    });
+    let input = js_sys::JSON::parse(&packet.to_string()).map_err(js_error)?;
+    let models = loaded_model_inputs(model_rows);
+    Reflect::set(&input, &"models".into(), &models).map_err(js_error)?;
+    Ok(RendererSceneProjection {
+        identity,
+        input,
+        layers: vec![("pcb".to_owned(), "PCB".to_owned())],
+        handles: Vec::new(),
+    })
+}
+
+fn loaded_model_inputs(rows: Option<&ModelDeliveryRows>) -> Array {
+    let loaded = Array::new();
+    if let Some(rows) = rows {
+        for model in &rows.delivered {
+            let value = Object::new();
+            let mesh = Object::new();
+            let _ = Reflect::set(&value, &"id".into(), &model.id.clone().into());
+            let _ = Reflect::set(
+                &mesh,
+                &"positions".into(),
+                &Float32Array::from(model.mesh.positions.as_ref()),
+            );
+            let _ = Reflect::set(
+                &mesh,
+                &"normals".into(),
+                &Float32Array::from(model.mesh.normals.as_ref()),
+            );
+            if let Some(colors) = &model.mesh.colors {
+                let _ = Reflect::set(
+                    &mesh,
+                    &"colors".into(),
+                    &Float32Array::from(colors.as_ref()),
+                );
+            }
+            let _ = Reflect::set(&value, &"mesh".into(), &mesh);
+            loaded.push(&value);
+        }
+    }
+    loaded
 }
 
 fn js_error(value: JsValue) -> String {

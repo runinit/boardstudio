@@ -3,6 +3,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{Event, GenerationStatus};
 use dioxus::prelude::*;
 use std::rc::Rc;
+use wasm_bindgen_futures::spawn_local;
 
 #[component]
 pub fn CasePanel(generation_ready: bool) -> Element {
@@ -13,6 +14,21 @@ pub fn CasePanel(generation_ready: bool) -> Element {
         runtime.clone(),
         runtime.native_case_preview_key(),
     );
+    let accepted_preview = runtime.native_case_preview();
+    use_effect({
+        let runtime = runtime.clone();
+        let accepted_preview = accepted_preview.clone();
+        move || {
+            if let Some(preview) = accepted_preview.clone() {
+                let runtime = runtime.clone();
+                spawn_local(async move {
+                    if let Err(error) = runtime.deliver_native_case_models(preview).await {
+                        runtime.report(format!("Case model delivery failed: {error}"));
+                    }
+                });
+            }
+        }
+    });
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
@@ -51,6 +67,23 @@ pub fn CasePanel(generation_ready: bool) -> Element {
                 p { role: "alert", "The accepted PCB preview could not be prepared." }
             } else if runtime.native_case_preview().is_some() {
                 p { role: "status", "Accepted PCB preview is ready for the Case viewer." }
+            }
+            if let Some(preview) = accepted_preview.as_ref()
+                && let Some(rows) = runtime.native_model_delivery(&preview)
+            {
+                p { role: "status", "{rows.delivered.len()} of {preview.preview.models.len()} board models decoded." }
+                for failure in rows.failures.iter().take(3) {
+                    p { role: "status", "{failure.reference}: {failure.reason}" }
+                }
+            }
+            if scene.is_none()
+                && let Some(preview) = accepted_preview.clone()
+            {
+                crate::presentation::CasePreviewViewer {
+                    key: "{preview.owner.scope.session_epoch.0}:{preview.owner.scope.board_id}:{preview.owner.scope.instance_id:?}:preview",
+                    model_rows: runtime.native_model_delivery(&preview),
+                    preview,
+                }
             }
             if let Some(scene) = scene {
                 crate::presentation::CaseViewer { key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}", scene }
