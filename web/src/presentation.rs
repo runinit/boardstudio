@@ -3,10 +3,14 @@ mod case_bodies;
 mod case_controller;
 mod case_display;
 mod case_viewer;
+mod case_workspace;
 mod context_summary;
 mod inspector;
 mod instance_selection;
+mod keycaps_workspace;
 mod keymap;
+mod keymap_workspace;
+mod layout_workspace;
 mod library;
 mod mechanical_settings;
 mod mechanical_settings_controller;
@@ -14,23 +18,22 @@ mod mechanical_settings_mount;
 mod objects;
 mod panels;
 mod parts;
+mod parts_workspace;
+mod pcb_workspace;
 mod selection;
 mod shared_viewer;
+mod workspace_composition;
 
-use case_controller::CaseBodyInspector;
 pub(crate) use case_viewer::CaseViewer;
-use inspector::Inspector;
-use keymap::{KeymapCanvas, KeymapPanel};
 use library::Library;
 pub(crate) use mechanical_settings::MechanicalSettings;
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
-use objects::Objects;
 use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
-use parts::{PartsInspectorPanel, PartsLibraryPanel, PartsQuery, PartsSelection};
+use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
 mod footprint_graphics;
 
-use crate::{cad_presentation::CasePanel, runtime::Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Event, Scope, SelectionMode};
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
@@ -516,18 +519,6 @@ fn LibraryLanding() -> Element {
             Library {}
         }
     }
-}
-
-#[component]
-fn PlaceholderWorkspace(name: &'static str) -> Element {
-    let mut workspace = use_context::<WorkspaceState>().0;
-    let message = match name {
-        "PCB" => "PCB editing is not available yet in the Rust interface.",
-        "Keymap" => "Keymap editing is not available yet in the Rust interface.",
-        "Keycaps" => "Keycap editing is not available yet in the Rust interface.",
-        _ => "Parts library editing is not available yet in the Rust interface.",
-    };
-    rsx! { section { class: "m1-placeholder-workspace", h1 { "{name}" }, p { "{message}" }, button { onclick: move |_| workspace.set("Layout"), "Back to Layout" } } }
 }
 
 #[component]
@@ -1761,6 +1752,66 @@ fn Editor() -> Element {
     let redo = runtime.clone();
     let retry = runtime.clone();
     let recover = runtime.clone();
+    let shared_objects = workspace_composition::SharedObjectsInput {
+        selected_context: adapter.selected_context,
+        on_select: EventHandler::new(select_tree),
+        on_navigate: EventHandler::new(navigate.clone()),
+        on_nudge: EventHandler::new(nudge_tree),
+    };
+    let objects_input = match active_workspace {
+        "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(shared_objects),
+        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
+        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
+        "Case" => workspace_composition::WorkspaceObjectsInput::Case(shared_objects),
+        "Parts" => {
+            workspace_composition::WorkspaceObjectsInput::Parts(parts_workspace::ObjectsInput {
+                snapshot: snapshot.clone(),
+                scope: current_scope.clone(),
+                query: parts_query,
+                selected: parts_selection,
+                on_select: EventHandler::new(on_parts_select),
+            })
+        }
+        _ => workspace_composition::WorkspaceObjectsInput::Layout(shared_objects),
+    };
+    let toolbar_input = match active_workspace {
+        "Layout" => {
+            let footprints_pressed = (layer_visibility.footprints)()
+                && !(layer_visibility.hidden)().contains("Footprints");
+            let retry = retry.clone();
+            let recover = recover.clone();
+            workspace_composition::WorkspaceToolbarInput::Layout(layout_workspace::ToolbarInput {
+                selection_indicator: context_summary
+                    .as_ref()
+                    .map(|summary| summary.indicator.clone()),
+                document_name: document.name.clone(),
+                save_failure: match &model.durability {
+                    Durability::Failed { reason, .. } => Some(reason.clone()),
+                    _ => None,
+                },
+                recovery_required: model.lifecycle
+                    == boardstudio_application::Lifecycle::RecoveryRequired,
+                footprints_pressed,
+                on_toggle_footprints: EventHandler::new(move |_| {
+                    let mut footprints = layer_visibility.footprints;
+                    footprints.set(!footprints());
+                }),
+                on_retry_save: EventHandler::new(move |_| {
+                    retry.submit(Event::RetrySave {
+                        operation_id: retry.operation(),
+                    });
+                }),
+                on_recover_saved: EventHandler::new(move |_| recover.recover_saved()),
+            })
+        }
+        "PCB" => workspace_composition::WorkspaceToolbarInput::Pcb,
+        "Keymap" => workspace_composition::WorkspaceToolbarInput::Keymap,
+        "Keycaps" => workspace_composition::WorkspaceToolbarInput::Keycaps,
+        "Case" => workspace_composition::WorkspaceToolbarInput::Case,
+        "Parts" => workspace_composition::WorkspaceToolbarInput::Parts,
+        "Export" => workspace_composition::WorkspaceToolbarInput::Export,
+        _ => workspace_composition::WorkspaceToolbarInput::Other,
+    };
     use_effect(use_reactive((&active_workspace,), {
         let runtime = runtime.clone();
         let drag = drag.clone();
@@ -1919,6 +1970,107 @@ fn Editor() -> Element {
             });
         }
     };
+    let canvas_handlers = workspace_composition::CanvasEventHandlers {
+        mount: EventHandler::new(mount.clone()),
+        start_pan: EventHandler::new(start_pan.clone()),
+        move_pointer: EventHandler::new(move_pointer.clone()),
+        end_pointer: EventHandler::new(end_pointer.clone()),
+        cancel_pointer: EventHandler::new(cancel_pointer.clone()),
+        keyboard: EventHandler::new(keyboard.clone()),
+        key_up: EventHandler::new(key_up.clone()),
+        wheel: EventHandler::new(wheel.clone()),
+    };
+    let canvas_input = match active_workspace {
+        "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(
+            workspace_composition::PlaceholderInput {
+                workspace,
+                name: "PCB",
+                message: "PCB editing is not available yet in the Rust interface.",
+            },
+        )),
+        "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
+            Box::new(keymap_workspace::CanvasInput {
+                view: keymap_view.clone(),
+                view_box: view_box.clone(),
+                selected_ids: model.selected_part_ids.iter().cloned().collect(),
+                handlers: canvas_handlers,
+                on_select_key: EventHandler::new(on_keymap_select.clone()),
+            }),
+        )),
+        "Keycaps" => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
+            workspace_composition::PlaceholderInput {
+                workspace,
+                name: "Keycaps",
+                message: "Keycap editing is not available yet in the Rust interface.",
+            },
+        )),
+        "Case" => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
+            case_workspace::CanvasInput {
+                mechanical_settings: mechanical_settings.clone(),
+                instance_scope_pending,
+            },
+        ))),
+        "Parts" => Some(workspace_composition::WorkspaceCanvasInput::Parts(
+            workspace_composition::PlaceholderInput {
+                workspace,
+                name: "Parts",
+                message: "Parts library editing is not available yet in the Rust interface.",
+            },
+        )),
+        "Layout" | "Export" => None,
+        _ => Some(workspace_composition::WorkspaceCanvasInput::Other(
+            workspace_composition::PlaceholderInput {
+                workspace,
+                name: active_workspace,
+                message: "Parts library editing is not available yet in the Rust interface.",
+            },
+        )),
+    };
+    let inspector_input = match active_workspace {
+        "Keymap" => workspace_composition::WorkspaceInspectorInput::Keymap(Box::new(
+            keymap_workspace::InspectorInput {
+                view: keymap_view.clone(),
+                scope: render_scope.clone(),
+                layer_actions,
+                active_layer_id: keymap_layer_id(),
+                selected_key_id: model.selected_part_ids.first().cloned(),
+                on_layer: EventHandler::new(on_keymap_layer),
+                on_select_key: EventHandler::new(on_keymap_select),
+                binding_actions,
+                macro_actions,
+                admission_token: snapshot.token,
+                admission_revision: snapshot.document.revision,
+                scope_generation: (adapter.generation)(),
+            },
+        )),
+        "Case" => {
+            workspace_composition::WorkspaceInspectorInput::Case(case_workspace::InspectorInput {
+                on_show_configured_board: EventHandler::new(on_show_configured_board),
+                instance_scope_pending,
+            })
+        }
+        "Parts" => {
+            workspace_composition::WorkspaceInspectorInput::Parts(parts_workspace::InspectorInput {
+                snapshot: snapshot.clone(),
+                scope: current_scope.clone(),
+                query: parts_query,
+                selected: parts_selection,
+            })
+        }
+        "PCB" => workspace_composition::WorkspaceInspectorInput::Pcb,
+        "Keycaps" => workspace_composition::WorkspaceInspectorInput::Keycaps,
+        _ => workspace_composition::WorkspaceInspectorInput::Layout(
+            layout_workspace::InspectorInput {
+                context_title: context_summary
+                    .as_ref()
+                    .map(|summary| summary.title.clone()),
+                context_detail: context_summary
+                    .as_ref()
+                    .and_then(|summary| summary.detail.clone()),
+                show_position_inspector,
+            },
+        ),
+    };
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
@@ -1929,13 +2081,7 @@ fn Editor() -> Element {
             }
             div { class: "m1-editor-body", style: "{panel_layout_style}",
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    if active_workspace == "Parts" {
-                        PartsLibraryPanel { snapshot: snapshot.clone(), scope: current_scope.clone(), query: parts_query, selected: parts_selection,
-                            on_select: on_parts_select
-                        }
-                    } else {
-                        Objects { selected_context: adapter.selected_context, on_select: select_tree, on_navigate: navigate.clone(), on_nudge: nudge_tree }
-                    }
+                    {workspace_composition::objects(objects_input)}
                 }
                 section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
                     onfocusin: move |_| {
@@ -1953,22 +2099,7 @@ fn Editor() -> Element {
                         }
                     },
                     if active_workspace == "Layout" {
-                        div { class: "m1-canvas-toolbar",
-                            if let Some(summary) = context_summary.as_ref() {
-                                span { class: "m1-selection-indicator", "{summary.indicator}" }
-                            }
-                            span { "{document.name}" }
-                            { let footprint_pressed = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints"); rsx! {
-                                button { class: "m1-footprints-toggle", aria_pressed: "{footprint_pressed}", onclick: move |_| { let mut footprints = layer_visibility.footprints; footprints.set(!footprints()); }, "Footprints" }
-                            } }
-                            if let Durability::Failed { reason, .. } = &model.durability {
-                                p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
-                                button { onclick: move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() }), "Retry save" }
-                            }
-                            if model.lifecycle == boardstudio_application::Lifecycle::RecoveryRequired {
-                                button { onclick: move |_| recover.recover_saved(), "Reopen last saved version (discard pending changes)" }
-                            }
-                        }
+                        {workspace_composition::toolbar(toolbar_input)}
                         svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     g { transform: "scale(1,-1)",
@@ -2119,114 +2250,17 @@ fn Editor() -> Element {
                     }
                         }
                         CanvasLayers {}
-                    } else if active_workspace == "Keymap" {
-                        if let Some(view) = keymap_view.clone() {
-                            svg { class: "m1-canvas m1-keymap-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keymap layout; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom", onmounted: mount,
-                                onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
-                                g { transform: "scale(1,-1)",
-                                    KeymapCanvas { view, selected_ids: model.selected_part_ids.iter().cloned().collect::<BTreeSet<_>>(), on_select_key: on_keymap_select.clone() }
-                                }
-                            }
-                        } else {
-                            p { class: "m1-keymap-unavailable", role: "status", "Keymap is unavailable for the current board." }
-                        }
-                    } else if active_workspace == "Case" {
-                        if instance_scope_pending {
-                            p { role: "status", "Selecting physical assembly…" }
-                        } else {
-                            CasePanel { mechanical_settings: mechanical_settings.clone() }
-                        }
                     } else if active_workspace == "Export" {
                         ExportPanel {}
+                    } else if let Some(input) = canvas_input {
+                        {workspace_composition::canvas(input)}
                     } else {
-                        PlaceholderWorkspace { name: active_workspace }
+                        span {}
                     }
                 }
                 if has_inspector {
                     InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                        if active_workspace == "Parts" {
-                            PartsInspectorPanel { snapshot: snapshot.clone(), scope: current_scope.clone(), query: parts_query, selected: parts_selection }
-                        } else if active_workspace == "Keymap" {
-                            if let Some(view) = keymap_view.clone() {
-                                KeymapPanel {
-                                    view,
-                                    scope: render_scope.clone(),
-                                    layer_operations_enabled: layer_actions.enabled,
-                                    layer_feedback: layer_actions.feedback.clone(),
-                                    on_layer_operation: layer_actions.on_operation,
-                                    active_layer_id: keymap_layer_id(),
-                                    selected_key_id: model.selected_part_ids.first().cloned(),
-                                    on_layer: on_keymap_layer.clone(),
-                                    on_select_key: on_keymap_select.clone(),
-                                    if let (Some(binding), Some(key_id)) = (binding_actions.projection.as_ref(), model.selected_part_ids.first()) {
-                                        keymap::BindingEditor {
-                                            key: "{render_scope:?}:{binding.effective_layer_id}:{key_id}:{binding_actions.editor_instance_id}",
-                                            scope: render_scope.clone(),
-                                            admission_token: snapshot.token,
-                                            admission_revision: snapshot.document.revision,
-                                            active_layer_id: binding.effective_layer_id.clone(),
-                                            target: keymap::BindingTarget::Key { key_id: key_id.clone() },
-                                            input_identity: None,
-                                            key_label: binding.key_label.clone(),
-                                            editor_instance_id: binding_actions.editor_instance_id,
-                                            request_sequence: binding_actions.request_sequence,
-                                            value: binding.binding.clone(),
-                                            layers: binding.layers.clone(),
-                                            macros: binding.macros.clone(),
-                                            enabled: binding_actions.enabled,
-                                            feedback: binding_actions.feedback.clone(),
-                                            on_change: binding_actions.on_change,
-                                        }
-                                    }
-                                    if let Some(projection) = binding_actions.encoder_projection.as_ref() {
-                                        keymap::EncoderEditor {
-                                            // Input lineage resets drafts; binding-only token advances preserve them.
-                                            key: "{render_scope:?}:encoders:{projection.effective_layer_id}:{projection.input_identity.projection_generation}:{binding_actions.editor_instance_id}",
-                                            projection: projection.clone(),
-                                            editor_instance_id: binding_actions.editor_instance_id,
-                                            request_sequence: binding_actions.request_sequence,
-                                            enabled: binding_actions.enabled,
-                                            feedback: binding_actions.feedback.clone(),
-                                            on_change: binding_actions.on_change,
-                                        }
-                                    }
-                                    if let Some(source) = macro_actions.source.as_ref() {
-                                        keymap::MacroEditor {
-                                            key: "{render_scope:?}:macros:{macro_actions.editor_instance_id}",
-                                            scope: render_scope.clone(),
-                                            scope_generation: (adapter.generation)(),
-                                            source: source.clone(),
-                                            sequences: macro_actions.sequences.clone(),
-                                            editor_instance_id: macro_actions.editor_instance_id,
-                                            request_sequence: macro_actions.request_sequence,
-                                            enabled: macro_actions.enabled,
-                                            feedback: macro_actions.feedback.clone(),
-                                            on_change: macro_actions.on_change,
-                                        }
-                                    } else {
-                                        p { class: "m1-keymap-unavailable", role: "status", "Macro editor is unavailable for the current board." }
-                                    }
-                                }
-                            } else {
-                                section { class: "m1-keymap-panel", "aria-label": "Keymap",
-                                    p { class: "m1-keymap-unavailable", role: "status", "Keymap is unavailable for the current board." }
-                                }
-                            }
-                        } else if active_workspace == "Case" {
-                            if instance_scope_pending {
-                                p { role: "status", "Selecting physical assembly…" }
-                            } else {
-                                CaseBodyInspector { on_show_configured_board: on_show_configured_board.clone() }
-                            }
-                        } else {
-                            if let Some(summary) = context_summary.as_ref() {
-                                section { class: "m1-selected-context", "aria-label": "Selected context",
-                                    h2 { "{summary.title}" }
-                                    if let Some(detail) = summary.detail.as_ref() { p { "{detail}" } }
-                                }
-                            }
-                            if show_position_inspector { Inspector {} }
-                        }
+                        {workspace_composition::inspector(inspector_input)}
                     }
                 }
             }
