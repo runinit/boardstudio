@@ -51,6 +51,16 @@ GENERATED_SOURCE_PATHS = (
     "web/assets/preview-generator/",
     "web/assets/layout-generators.js",
 )
+ROOT_BUILD_INPUTS = frozenset({
+    ".cargo/config",
+    ".cargo/config.toml",
+    ".node-version",
+    ".npmrc",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "rust-toolchain.toml",
+})
 
 
 def digest(path):
@@ -79,7 +89,7 @@ def sources():
     return {name: digest(REPO / name) for name in paths if name and
             not name.startswith(GENERATED_SOURCE_PATHS) and
             not {"node_modules", "__pycache__", "target", "dist"}.intersection(Path(name).parts) and
-            (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/", "kicad/src/", "app/src/", "app/public/", "scripts/", "ergogen/")) or name in {"rust-toolchain.toml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"}) and (REPO / name).is_file()}
+            (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/", "kicad/src/", "app/src/", "app/public/", "scripts/", "ergogen/")) or name in ROOT_BUILD_INPUTS) and (REPO / name).is_file()}
 
 
 def valid_build_id(value):
@@ -387,17 +397,21 @@ def build_reuse(build_id, baseline_id):
         if mode == "subpath":
             destination /= "boardstudio"
         route = base_provenance[mode]
-        shutil.copytree(route["site"], destination)
+        destination.mkdir(parents=True, exist_ok=False)
         assets = destination / "assets"
-        # Remove every asset produced by a previous page/generator/offline run.
-        # Provider directories remain byte-for-byte from the verified baseline.
-        for name in ("layout-generators", "preview-generator"):
-            shutil.rmtree(assets / name, ignore_errors=True)
-        for name in ("layout-generators.js",):
-            (assets / name).unlink(missing_ok=True)
-        for path in assets.glob("boardstudio-web*"):
-            if path.is_file():
-                path.unlink()
+        assets.mkdir()
+        # Stage only the exact inherited providers from the validated baseline.
+        # The candidate site never starts as a copy of the prior site, so stale
+        # or unrelated baseline files cannot leak into this route.
+        inherited_providers = {
+            path: file_hash for path, file_hash in route["assets"].items()
+            if path.startswith(REUSED_PROVIDER_PREFIXES)
+        }
+        for relative in sorted(inherited_providers):
+            source = Path(route["site"]) / relative
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
         shutil.copytree(public, destination, dirs_exist_ok=True)
         shutil.copytree(WEB / "assets", assets, dirs_exist_ok=True, ignore=ignore_rebuilt_assets)
         shutil.copytree(output / "layout-generator-assets", assets, dirs_exist_ok=True)
@@ -409,10 +423,15 @@ def build_reuse(build_id, baseline_id):
         run(f"embed-offline-{mode}", ["node", REPO / "scripts/web/embed-worker-wasm.mjs", output / f"offline-{mode}", manifest, destination / "service-worker.js"])
         provenance[mode] = {"prefix": prefix, "site": str(destination), "assets": {
             str(path.relative_to(destination)): digest(path) for path in sorted(destination.rglob("*")) if path.is_file()}}
-        inherited_providers = {
-            path: file_hash for path, file_hash in route["assets"].items()
+        candidate_providers = {
+            path: file_hash for path, file_hash in provenance[mode]["assets"].items()
             if path.startswith(REUSED_PROVIDER_PREFIXES)
         }
+        if candidate_providers != inherited_providers:
+            provenance["status"] = "failed-reused-provider-drift"
+            provenance["reused_provider_error"] = mode
+            (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
+            raise SystemExit(f"Reused provider path set or bytes changed during staging: {mode}")
         for path, expected in inherited_providers.items():
             if provenance[mode]["assets"].get(path) != expected:
                 provenance["status"] = "failed-reused-provider-drift"
