@@ -1,0 +1,102 @@
+{
+  "classification": "bounded final-release browser smoke; no performance claims",
+  "release": {
+    "buildId": "m1-release-20261001-b9748745",
+    "sourceCommit": "b9748745ec444416136a97d4befd075670ef49b7",
+    "provenance": "web/target/builds/m1-release-20261001-b9748745/provenance.json",
+    "productionDiffFromReviewedE7Candidate": "empty (confirmed by release owner)",
+    "rootOrigin": "http://127.0.0.1:46890/",
+    "subpathOrigin": "http://127.0.0.1:46890/boardstudio/",
+    "releaseServer": "owner-operated pristine server; no overlay or file mutation"
+  },
+  "stagedHashes": {
+    "root": {
+      "index.html": "f14e2f4e3659058d375bb411ec0122ed1589ad15550961cd431c20185f96f77c",
+      "pageJs": "9cbed556202ffefba1e3c4ad98e0c60261853bb299c451b0f62b041a77e9497b",
+      "pageWasm": "7c366169254f69a9dcc780eee9873bf2fa060d1105388333e0988ab8f04d148b",
+      "serviceWorker": "b080e730b217564d38f5c7f56a83695c683a707f8e269909703bb1985b75f131",
+      "offlineWorkerGlue": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61"
+    },
+    "subpath": {
+      "index.html": "c6947406be81be6cf001c1b881ac3d8209bdb5d07f55202b6f4ad5176a96bd10",
+      "pageJs": "3810a97a82cec38c346c88898e5ae0a685cdf9cf04bb1e6f408bb95dd87e971d",
+      "pageWasm": "7c366169254f69a9dcc780eee9873bf2fa060d1105388333e0988ab8f04d148b",
+      "serviceWorker": "8aa3f319458f79b4bacc60973373ccd601385a479922beb196db43a432eccb6e",
+      "offlineWorkerGlue": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61"
+    }
+  },
+  "offline": {
+    "root": {
+      "registrationScope": "http://127.0.0.1:46890/",
+      "activeState": "activated",
+      "cacheNames": [
+        "boardstudio-m1-offline-path-2f-m1-release-20261001-b9748745-root"
+      ],
+      "controlledAfterOfflineReload": true,
+      "visibleLibraryAfterOfflineReload": true
+    },
+    "subpath": {
+      "registrationScope": "http://127.0.0.1:46890/boardstudio/",
+      "activeState": "activated",
+      "cacheNames": [
+        "boardstudio-m1-offline-path-2f626f61726473747564696f2f-m1-release-20261001-b9748745-subpath"
+      ],
+      "controlledAfterOfflineReload": true,
+      "visibleLibraryAfterOfflineReload": true
+    },
+    "namespaceObservation": "root and subpath registrations/cache names are distinct"
+  },
+  "rootUi": {
+    "fixture": "Sofle v2 copy",
+    "boardOnOpen": "Left PCB",
+    "keyboardSanity": {
+      "action": "focus first component and press ArrowDown",
+      "activeElementId": "m1-component-1",
+      "selectedComponent": "left-diode-24-keys \u00b7 Passive"
+    },
+    "generatedCase": "Generated case assembly canvas became visible",
+    "stepDownload": {
+      "path": "web/target/builds/m1-release-20261001-b9748745/qa-final-b974-sofle.step",
+      "bytes": 10334256,
+      "sha256": "582f343c9a9eabfedab5a8f69c2dc078c5ef31c0ade008d9de989a8d53b15195",
+      "prefix": "ISO-10303-21;\nHEADER;"
+    },
+    "scopeReplacement": {
+      "action": "open REVIUNG41 copy while Sofle case canvas was active",
+      "newBoard": "Keyboard PCB",
+      "oldCanvasConnected": false,
+      "oldCanvasState": "disposed",
+      "newCanvasCount": 0
+    },
+    "browserErrors": []
+  },
+  "subpathUi": {
+    "fixture": "Sofle v2 copy",
+    "boardOnOpen": "Left PCB",
+    "keyboardSanity": {
+      "action": "focus first component and press ArrowDown",
+      "activeElementId": "m1-component-1",
+      "selectedComponent": "left-diode-24-keys \u00b7 Passive"
+    },
+    "generatedCase": "Generated case assembly canvas became visible",
+    "stepDownload": {
+      "path": "web/target/builds/m1-release-20261001-b9748745/qa-final-b974-sofle-subpath.step",
+      "bytes": 10334256,
+      "sha256": "582f343c9a9eabfedab5a8f69c2dc078c5ef31c0ade008d9de989a8d53b15195",
+      "prefix": "ISO-10303-21;\nHEADER;"
+    },
+    "scopeReplacement": {
+      "action": "open REVIUNG41 copy while Sofle case canvas was active",
+      "newBoard": "Keyboard PCB",
+      "oldCanvasConnected": false,
+      "oldCanvasState": "disposed",
+      "newCanvasCount": 0
+    },
+    "browserErrors": []
+  },
+  "limits": [
+    "The export smoke compares the root and subpath STEP downloads with each other; it does not repeat the unchanged detailed geometry/readback comparison already retained for release 8f.",
+    "The stale-scope smoke switches away after the renderer is active. Delayed import invalidation was tested separately against immutable release 8f and is documented under evidence/renderer-lifecycle.",
+    "No CPU/performance measurements were taken."
+  ]
+}
