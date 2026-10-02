@@ -1,6 +1,18 @@
 # Proposed first frontend tickets
 
+**First wave only: 12 draft child tickets beneath four of the 62 existing work packages.**
 **Status: draft, awaiting your review of granularity and blockers.**
+
+| Planning level | Count | Meaning |
+| --- | --- | --- |
+| Full frontend work packages | 62 | All remain in the unchanged parent graph |
+| Parents expanded in this proposal | 4 | INT.1, F2.1, F2.3, F3.1 |
+| Draft child tickets for those parents | 12 | The numbered list below |
+| Other parents awaiting child-ticket decomposition | 58 | Still planned; not removed or replaced |
+
+See the [full backlog and parallel execution view](../dioxus-frontend-v1/PARALLEL-EXECUTION.md).
+The numbered list is a dependency-respecting index, not a serial execution order.
+There is no requirement to finish all twelve before unrelated work starts.
 
 This applies `to-tickets` to the first runnable tranche from the existing
 `to-spec` documents: INT.1, F2.1 project library, F2.3 panels/drawers and F3.1
@@ -39,7 +51,10 @@ Only ticket 01 is a preparatory refactor. No ticket is published as
 
 Start with ticket 01 using Luna High and a dedicated Astra High contract review.
 After it is accepted, saved keyboards (02), desktop panels (07) and Layout tree
-(10) are independent lanes. Use two Luna authors plus one Luna verifier; stagger
+(10) are independent lanes. The full graph also unlocks Parts, PCB, Keymap,
+Keycaps, Case, Export and shared adapter work; these do not wait for this entire
+tranche. Expand and review their next bounded tickets before dispatch as capacity
+frees, prioritizing useful frontend behavior over finishing one lane end to end. Use two Luna authors plus one Luna verifier; stagger
 the third lane and rotate a slot to Astra review. Shared shell/style/runtime
 edits remain coordinator-owned and serialized.
 

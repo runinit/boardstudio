@@ -19,6 +19,8 @@ Integration branch `codex/rust-v1-ui-parity-20261001`; planning baseline `c827c4
 | 4 — complete journeys | [F8 Export](issues/08-export.md) | Exact offered export rows, readiness, project-copy options, current-scope downloads and return paths | 6 |
 | 4 — frontend v1 | [F9 Qualification and adoption](issues/09-frontend-v1.md) | Complete coverage, paired visuals/interaction/AT, compatibility/offline/resources and reviewable adoption/rollback | 7 |
 
+**The full backlog still contains 62 work packages.** The [first ticket proposal](../dioxus-frontend-tranche-1/PROPOSAL.md) expands four of them into twelve draft children; it does not replace the other 58. The [full backlog and parallel execution view](PARALLEL-EXECUTION.md) shows every parent, exact start blockers, later acceptance joins and current child coverage. Work flows through the dependency frontier continuously; the first tranche is a visible priority, not a barrier holding unrelated workflows.
+
 The 58 workflow slices are supported by two small integration tasks and two early boundary tasks. They do not wait serially for whole preceding milestones. `start_after` in the graph gates dispatch; `acceptance_after` names later real integration joins. A conservative scheduler can use their union, `depends_on`. All workflow scopes require implementation and independent verification/review; planning review does not close them.
 
 ## Model allocation
