@@ -2098,8 +2098,8 @@ fn Editor() -> Element {
                             }
                         }
                     },
+                    {workspace_composition::toolbar(toolbar_input)}
                     if active_workspace == "Layout" {
-                        {workspace_composition::toolbar(toolbar_input)}
                         svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     g { transform: "scale(1,-1)",
