@@ -44,7 +44,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Scope, SelectionMode, SnapshotToken,
 };
 use boardstudio_core::model::{
-    Contour, EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
+    Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
+    PartDefinition, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -990,6 +991,15 @@ fn Editor() -> Element {
         adapter.selected_context,
         workspace,
         adapter.generation,
+    );
+    let matrix_splay_affect = use_signal(|| MatrixSplayAffect::Following);
+    let matrix_transform_inspector = objects::use_matrix_transform_inspector(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+        matrix_splay_affect,
     );
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
@@ -3140,7 +3150,7 @@ fn Editor() -> Element {
                 },
             ))
         }
-        _ => workspace_composition::WorkspaceInspectorInput::Layout(
+        _ => workspace_composition::WorkspaceInspectorInput::Layout(Box::new(
             layout_workspace::InspectorInput {
                 context_title: context_summary
                     .as_ref()
@@ -3150,8 +3160,9 @@ fn Editor() -> Element {
                     .and_then(|summary| summary.detail.clone()),
                 show_position_inspector,
                 matrix_inspector,
+                matrix_transform_inspector,
             },
-        ),
+        )),
     };
     let active_part_position = model.selected_part_ids.first().and_then(|selected_id| {
         visible

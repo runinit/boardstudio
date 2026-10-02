@@ -296,16 +296,23 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-inspector input { display: block; width: 100%; margin-top: 4px; color: var(--wb-ink); }
 .m1-inspector > button { margin-top: 4px; }
 .m1-matrix-inspector { display: grid; gap: 12px; min-width: 0; padding: 12px 16px 16px; color: var(--wb-ink); }
+.m1-matrix-transform-inspector { border-top: 1px solid var(--wb-rule); }
 .m1-matrix-inspector-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--wb-rule); }
 .m1-matrix-inspector-heading h2 { margin: 0; color: var(--wb-ink); font-size: var(--wb-type-body); font-weight: 650; }
 .m1-matrix-inspector-heading span { color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-matrix-inspector-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; min-width: 0; }
 .m1-matrix-field { display: grid; align-content: start; gap: 5px; min-width: 0; margin: 0; color: var(--wb-muted); font: 500 var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
+.m1-inspector .m1-matrix-field { display: grid; margin: 0; }
 .m1-matrix-field:first-child { grid-column: 1 / -1; }
 .m1-matrix-field-input { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .m1-matrix-field-input input { display: block; flex: 1; width: 100%; min-width: 0; min-height: 36px; margin: 0; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-label)/var(--wb-leading-ui) var(--wb-mono); }
 .m1-matrix-field:first-child .m1-matrix-field-input input { font-family: var(--wb-body); }
 .m1-matrix-field-input input:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-matrix-field select { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
+.m1-matrix-field select:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-matrix-transform-section { display: grid; gap: 10px; min-width: 0; padding-top: 10px; border-top: 1px solid var(--wb-rule); }
+.m1-matrix-transform-section h3 { margin: 0; color: var(--wb-ink); font-size: var(--wb-type-label); font-weight: 650; }
+.m1-matrix-transform-section p, .m1-matrix-field-context { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); line-height: var(--wb-leading-copy); }
 .m1-matrix-field-input small { flex: none; color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-matrix-field > small { color: var(--wb-muted); font-size: var(--wb-type-label); line-height: var(--wb-leading-copy); }
 .m1-matrix-field.has-error > small[role="alert"] { color: var(--wb-status-error); }

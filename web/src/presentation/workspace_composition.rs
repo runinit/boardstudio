@@ -57,7 +57,7 @@ pub(super) enum WorkspaceCanvasInput {
 }
 
 pub(super) enum WorkspaceInspectorInput {
-    Layout(super::layout_workspace::InspectorInput),
+    Layout(Box<super::layout_workspace::InspectorInput>),
     Pcb(Option<Box<super::pcb_wiring::PcbWiringInspectorProps>>),
     Keymap(Box<super::keymap_workspace::InspectorInput>),
     Keycaps(Box<super::keycaps_workspace::InspectorInput>),
@@ -103,7 +103,7 @@ pub(super) fn canvas(input: WorkspaceCanvasInput) -> Element {
 
 pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
     match input {
-        WorkspaceInspectorInput::Layout(input) => super::layout_workspace::inspector(input),
+        WorkspaceInspectorInput::Layout(input) => super::layout_workspace::inspector(*input),
         WorkspaceInspectorInput::Pcb(Some(input)) => rsx! {
             super::pcb_wiring::PcbWiringInspector {
                 source: input.source,

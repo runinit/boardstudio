@@ -6,6 +6,8 @@ use std::{collections::BTreeSet, rc::Rc};
 mod layout_toolbar;
 mod matrix_inspector;
 mod matrix_inspector_controller;
+mod matrix_transform_controller;
+mod matrix_transform_inspector;
 mod tree;
 pub(in crate::presentation) use layout_toolbar::{
     LayoutSelectionKind, LayoutSelectionSnapStatus, LayoutSelectionSnapToolbar, LayoutSnapIntent,
@@ -15,6 +17,10 @@ pub(in crate::presentation) use matrix_inspector::MatrixInspector;
 pub(in crate::presentation) use matrix_inspector_controller::{
     MatrixInspectorMount, use_matrix_inspector,
 };
+pub(in crate::presentation) use matrix_transform_controller::{
+    MatrixTransformInspectorMount, use_matrix_transform_inspector,
+};
+pub(in crate::presentation) use matrix_transform_inspector::MatrixTransformInspector;
 pub(in crate::presentation) use tree::TreeContext;
 use tree::{Grouping, TreeKind};
 
