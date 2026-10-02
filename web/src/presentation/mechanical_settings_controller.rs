@@ -389,8 +389,22 @@ impl MechanicalSettingsController {
                 if current.configuration.is_some() {
                     return Err("Mechanical settings are already configured for this board.".into());
                 }
+                // Physical Configure follows React's effectiveCaseDocument: it starts from fresh
+                // target-board defaults after Disable, even when canonical mechanical settings
+                // remain stored for the project-level case.
+                let physical_defaults;
+                let defaults_document = if instance_id.is_some() {
+                    physical_defaults = {
+                        let mut document = base_document.clone();
+                        document.mechanical = None;
+                        document
+                    };
+                    &physical_defaults
+                } else {
+                    base_document
+                };
                 Some(crate::case_settings::initial_settings(
-                    base_document,
+                    defaults_document,
                     &request.identity.active_board_id,
                 )?)
             }
@@ -430,6 +444,11 @@ impl MechanicalSettingsController {
         let mut configuration = next_configuration;
         if let Some(config) = configuration.as_mut() {
             if config.closure_mounts.is_none() && config.mount != MechanicalMount::Gasket {
+                let proposed_height = (
+                    config.plate_to_pcb,
+                    config.pcb_thickness,
+                    config.bottom_foam_thickness,
+                );
                 let proposed =
                     persist_configuration(base_document, instance_id, Some(config.clone()))?;
                 let assembly =
@@ -444,7 +463,11 @@ impl MechanicalSettingsController {
                         "Mechanical resolution returned settings for a different board.".into(),
                     );
                 }
-                config.closure_mounts = Some(closure_mounts(config, assembly.assembly));
+                config.closure_mounts = Some(closure_mounts(
+                    proposed_height,
+                    config.battery_height,
+                    assembly.assembly,
+                ));
             }
         }
 
@@ -663,7 +686,6 @@ fn closure_evidence(document: &ProjectDoc) -> ClosureEvidence {
     let layouts = document
         .layouts
         .iter()
-        .flatten()
         .map(|layout| {
             (
                 layout.id.clone(),
@@ -684,7 +706,12 @@ fn closure_evidence(document: &ProjectDoc) -> ClosureEvidence {
     }
 }
 
-fn closure_mounts(config: &MechanicalConfiguration, assembly: MechanicalAssembly) -> Vec<Mount> {
+fn closure_mounts(
+    proposed_height: (f64, f64, f64),
+    effective_battery_height: f64,
+    assembly: MechanicalAssembly,
+) -> Vec<Mount> {
+    let (plate_to_pcb, pcb_thickness, bottom_foam_thickness) = proposed_height;
     assembly
         .suggested_mounts
         .into_iter()
@@ -693,9 +720,7 @@ fn closure_mounts(config: &MechanicalConfiguration, assembly: MechanicalAssembly
             mount.kind = MountKind::Boss;
             mount.hole_diameter = 2.2;
             mount.height = Some(
-                config.plate_to_pcb
-                    + config.pcb_thickness
-                    + config.bottom_foam_thickness.max(config.battery_height),
+                plate_to_pcb + pcb_thickness + bottom_foam_thickness.max(effective_battery_height),
             );
             mount
         })
@@ -776,14 +801,18 @@ fn apply_patch(
 
     let family =
         profile_family(configuration).or_else(|| initial_switch_family(document, board_id));
-    if let MechanicalSettingsPatch::SetDimension {
-        field: MechanicalDimension::PlateThickness,
-        value,
-    } = patch
-    {
+    let new_plate_thickness = match patch {
+        MechanicalSettingsPatch::SetDimension {
+            field: MechanicalDimension::PlateThickness,
+            value,
+        } => Some(*value),
+        MechanicalSettingsPatch::SetSwitchFamily { .. } => Some(configuration.plate_thickness),
+        _ => None,
+    };
+    if let Some(new_plate_thickness) = new_plate_thickness {
         if let Some(family) = family {
             let previous_gap = mounting_datum(family) - previous.plate_thickness;
-            configuration.plate_to_pcb = mounting_datum(family) - *value;
+            configuration.plate_to_pcb = mounting_datum(family) - new_plate_thickness;
             for profile in &mut configuration.profiles {
                 if profile.switch_family == Some(family) {
                     profile.plate_to_pcb = configuration.plate_to_pcb;
