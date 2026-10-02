@@ -463,11 +463,6 @@ impl ModelMeshCache {
         current
     }
 
-    pub(crate) fn clear(&mut self) {
-        self.slots.clear();
-        self.recency.clear();
-    }
-
     fn allocate_task_token(&mut self) -> Result<u64, String> {
         let token = self.next_task_token;
         self.next_task_token = token
@@ -522,6 +517,19 @@ pub(crate) struct ModelDeliveryRows {
     pub(crate) delivered: Vec<DeliveredModel>,
     pub(crate) pending: Vec<String>,
     pub(crate) failures: Vec<ModelFailure>,
+}
+
+impl PartialEq for ModelDeliveryRows {
+    fn eq(&self, other: &Self) -> bool {
+        self.pending == other.pending
+            && self.failures == other.failures
+            && self.delivered.len() == other.delivered.len()
+            && self
+                .delivered
+                .iter()
+                .zip(&other.delivered)
+                .all(|(left, right)| left.id == right.id && Rc::ptr_eq(&left.mesh, &right.mesh))
+    }
 }
 
 /// Merge successful/error outcomes without substituting asset or reference
@@ -632,7 +640,9 @@ impl ModelDeliveryAdapter {
         batch: &ModelBatchIdentity,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Option<ModelDeliveryRows> {
-        if preview_revision != batch.accepted_revision || !is_current() {
+        if !batch.is_current(batch.owner(), preview_revision, batch.batch_generation)
+            || !is_current()
+        {
             return None;
         }
 
@@ -889,6 +899,18 @@ pub(crate) fn resolve_preview_assets(
         .collect()
 }
 
+/// Native preparation records paths by source asset ID because Core needs that
+/// direction when materializing export artifacts. `PcbPreview` rows point the
+/// other way (path -> model row), so invert only at this consumer boundary.
+pub(crate) fn native_model_path_assets(
+    source_paths_by_asset_id: &BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    source_paths_by_asset_id
+        .iter()
+        .map(|(asset_id, path)| (path.clone(), asset_id.clone()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1013,6 +1035,27 @@ mod tests {
             AssetSelection::MissingBundledProvider {
                 asset_id: "ergogen:model:vendor/missing.stl".into()
             }
+        );
+    }
+
+    #[test]
+    fn native_export_path_table_is_inverted_for_preview_model_rows() {
+        let source = BTreeMap::from([("asset-1".to_owned(), "models/hash.stl".to_owned())]);
+        let native = native_model_path_assets(&source);
+        assert_eq!(native["models/hash.stl"], "asset-1");
+        assert_eq!(
+            select_model_asset(
+                "models/hash.stl",
+                None,
+                &native,
+                &[asset("asset-1", "ab", "part.stl")],
+                |_| None
+            ),
+            AssetSelection::Archived(ResolvedModelAsset {
+                id: "asset-1".into(),
+                sha256: "ab".into(),
+                filename: "part.stl".into(),
+            })
         );
     }
 

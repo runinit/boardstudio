@@ -14,7 +14,7 @@ use boardstudio_core::{
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use boardstudio_web::{
     cad_jobs::{
-        CadJobError, CadOperation, CadRequest, CadResult, captured_case_scene,
+        CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity, captured_case_scene,
         prepare_captured_case, prepare_captured_step_assembly, validate_reply,
     },
     cad_worker::CadWorker,
@@ -90,6 +90,9 @@ pub struct Runtime {
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     embed_used_models: Cell<bool>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
+    case_model_delivery: crate::presentation::model_delivery::ModelDeliveryAdapter,
+    native_model_delivery: RefCell<NativeModelDeliveryState>,
+    native_model_jobs: RefCell<BTreeSet<String>>,
     preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
 }
 impl Runtime {
@@ -120,6 +123,9 @@ impl Runtime {
             export_workers: RefCell::new(BTreeMap::new()),
             embed_used_models: Cell::new(true),
             native_case_preview: RefCell::new(Default::default()),
+            case_model_delivery: Default::default(),
+            native_model_delivery: RefCell::new(Default::default()),
+            native_model_jobs: RefCell::new(BTreeSet::new()),
             preview_generator: RefCell::new(None),
         });
         // Reserve the startup open identity synchronously, before any explicit
@@ -192,6 +198,16 @@ impl Runtime {
 
     pub(crate) fn cancel_native_case_preview(&self) {
         self.native_case_preview.borrow_mut().cancel();
+        self.cancel_native_model_jobs();
+    }
+
+    fn cancel_native_model_jobs(&self) {
+        let jobs = std::mem::take(&mut *self.native_model_jobs.borrow_mut());
+        if let Some((_, worker)) = self.cad_worker.borrow().as_ref() {
+            for job in jobs {
+                let _ = worker.cancel(&job);
+            }
+        }
     }
     pub(crate) fn observe_operation(
         &self,
@@ -935,6 +951,293 @@ impl Runtime {
             .then_some((scope, accepted.token, accepted.document.revision))
     }
 
+    pub(crate) fn native_model_delivery(
+        &self,
+        preview: &crate::case_preview::NativePreviewSnapshot,
+    ) -> Option<crate::presentation::model_delivery::ModelDeliveryRows> {
+        self.native_model_delivery
+            .borrow()
+            .published
+            .as_ref()
+            .filter(|(owner, _)| owner == &preview.owner && preview.lease.matches(owner))
+            .map(|(_, rows)| rows.clone())
+    }
+
+    /// Decode all models for this exact accepted native preview. The published
+    /// rows replace the pending state only after the batch settles, preserving
+    /// React's board-first / Promise.all success behavior.
+    pub(crate) async fn deliver_native_case_models(
+        self: &Rc<Self>,
+        preview: Rc<crate::case_preview::NativePreviewSnapshot>,
+    ) -> Result<(), String> {
+        if !self.native_preview_snapshot_is_current(&preview) {
+            return Ok(());
+        }
+        {
+            let mut state = self.native_model_delivery.borrow_mut();
+            if state
+                .published
+                .as_ref()
+                .is_some_and(|(owner, _)| owner == &preview.owner)
+                || state.pending.as_ref() == Some(&preview.owner)
+            {
+                return Ok(());
+            }
+            state.published = None;
+            state.pending = Some(preview.owner.clone());
+        }
+        self.changed();
+
+        let owner = crate::presentation::model_delivery::ModelOwnerIdentity::new(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.owner.viewer_instance,
+            preview.owner.projection_generation,
+            &preview.lease,
+        );
+        let batch = crate::presentation::model_delivery::ModelBatchIdentity::new(
+            owner.clone(),
+            preview.owner.accepted_revision,
+            preview.owner.batch_generation,
+        );
+        let native_paths =
+            crate::presentation::model_delivery::native_model_path_assets(&preview.path_assets);
+        let selections = crate::presentation::model_delivery::resolve_preview_assets(
+            &preview.preview.models,
+            None,
+            &native_paths,
+            &preview.accepted_document,
+            |_| None,
+        )
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let source_is_current = {
+            let weak = Rc::downgrade(self);
+            let preview = preview.clone();
+            Rc::new(move || {
+                weak.upgrade()
+                    .is_some_and(|runtime| runtime.native_preview_snapshot_is_current(&preview))
+            }) as Rc<dyn Fn() -> bool>
+        };
+        let ports = self.native_model_delivery_ports(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.owner.accepted_revision,
+            preview.owner.viewer_instance,
+            preview.owner.projection_generation,
+            preview.lease.clone(),
+            source_is_current.clone(),
+        );
+        let results = self
+            .case_model_delivery
+            .deliver_models(
+                preview.preview.revision,
+                &preview.preview.models,
+                &selections,
+                &ports,
+                &batch,
+                source_is_current,
+            )
+            .await;
+        let mut state = self.native_model_delivery.borrow_mut();
+        if state.pending.as_ref() == Some(&preview.owner) {
+            state.pending = None;
+        }
+        let published = if let Some(rows) = results
+            && self.native_preview_snapshot_is_current(&preview)
+        {
+            state.published = Some((preview.owner.clone(), rows));
+            true
+        } else {
+            false
+        };
+        drop(state);
+        if published {
+            self.changed();
+        }
+        Ok(())
+    }
+
+    fn native_preview_snapshot_is_current(
+        &self,
+        expected: &crate::case_preview::NativePreviewSnapshot,
+    ) -> bool {
+        self.native_case_preview().is_some_and(|current| {
+            current.owner == expected.owner && Rc::ptr_eq(&current.lease, &expected.lease)
+        })
+    }
+
+    async fn read_case_step_model(
+        &self,
+        bytes: Vec<u8>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::presentation::model_delivery::MeshArrays, String> {
+        if !is_current() || self.scope().as_ref() != Some(&scope) {
+            return Err("Case STEP model request became stale before worker setup".into());
+        }
+        let worker = match self.cad_worker.borrow().as_ref() {
+            Some((worker_scope, worker)) if worker_scope == &scope && !worker.is_closed() => {
+                worker.clone()
+            }
+            _ => {
+                let worker = Rc::new(
+                    CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                        .map_err(|error| error.to_string())?,
+                );
+                *self.cad_worker.borrow_mut() = Some((scope.clone(), worker.clone()));
+                worker
+            }
+        };
+        worker.ready().await.map_err(|error| error.to_string())?;
+        if !is_current() || self.scope().as_ref() != Some(&scope) {
+            return Err("Case STEP model request became stale before dispatch".into());
+        }
+        let operation = self.operation().0;
+        let identity = CadSnapshotIdentity {
+            token: token.0,
+            session_epoch: scope.session_epoch.0,
+            document_id: scope.document_id.clone(),
+            board_id: scope.board_id.clone(),
+            instance_id: scope.instance_id.clone(),
+            revision,
+        };
+        let request = CadRequest {
+            request_id: format!("case-model-step-{revision}-{operation}"),
+            job_id: format!("case-model-step-{revision}-{operation}"),
+            identity: identity.clone(),
+            operation: CadOperation::ReadStep,
+            prepared: None,
+            input_bytes: bytes,
+        };
+        self.native_model_jobs
+            .borrow_mut()
+            .insert(request.job_id.clone());
+        let reply = worker.request(request.clone()).await;
+        self.native_model_jobs.borrow_mut().remove(&request.job_id);
+        let reply = reply.map_err(|error| error.to_string())?;
+        if !is_current() || self.scope().as_ref() != Some(&scope) {
+            return Err("Case STEP model request became stale after parsing".into());
+        }
+        let result =
+            validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
+        let mesh = result
+            .mesh
+            .ok_or_else(|| "STEP model reader returned no mesh".to_owned())?;
+        Ok(crate::presentation::model_delivery::MeshArrays {
+            positions: mesh.positions,
+            normals: mesh.normals,
+            colors: None,
+        })
+    }
+
+    fn native_model_delivery_ports(
+        self: &Rc<Self>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        viewer_instance: u64,
+        projection_generation: u64,
+        lease: Rc<crate::case_preview::CasePreviewOwnerLease>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
+        use crate::presentation::model_delivery::{
+            MeshArrays, ModelDeliveryPorts, ModelFuture, VerifiedModelBytes,
+        };
+        let weak = Rc::downgrade(self);
+        let scope_for_load = scope.clone();
+        let lease_for_load = lease.clone();
+        let current_for_load = is_current.clone();
+        let load_verified_bytes = Rc::new(
+            move |sha256: String| -> ModelFuture<Option<VerifiedModelBytes>> {
+                let weak = weak.clone();
+                let scope = scope_for_load.clone();
+                let lease = lease_for_load.clone();
+                let is_current = current_for_load.clone();
+                Box::pin(async move {
+                    let runtime = weak
+                        .upgrade()
+                        .ok_or_else(|| "Case runtime was closed".to_owned())?;
+                    if !is_current() || !lease.is_active() {
+                        return Err("Case model asset request became stale before loading".into());
+                    }
+                    let cached = runtime.assets.borrow().get(&sha256).cloned();
+                    let bytes = match cached {
+                        Some(bytes) => Some(bytes),
+                        None => runtime
+                            .store
+                            .load_asset(sha256.clone())
+                            .await
+                            .map_err(|error| error.to_string())?
+                            .map(|bytes| bytes.to_vec()),
+                    };
+                    if !is_current()
+                        || !lease.is_active()
+                        || runtime.scope().as_ref() != Some(&scope)
+                    {
+                        return Err("Case model asset request became stale after loading".into());
+                    }
+                    bytes
+                        .map(|bytes| VerifiedModelBytes::verify(bytes, &sha256))
+                        .transpose()
+                })
+            },
+        );
+        let decode_stl = Rc::new(|bytes: VerifiedModelBytes| -> ModelFuture<MeshArrays> {
+            Box::pin(
+                async move { crate::renderer_host_page::decode_stl(bytes.bytes().to_vec()).await },
+            )
+        });
+        let decode_wrl = Rc::new(|bytes: VerifiedModelBytes| -> ModelFuture<MeshArrays> {
+            Box::pin(
+                async move { crate::renderer_host_page::decode_wrl(bytes.bytes().to_vec()).await },
+            )
+        });
+        let weak = Rc::downgrade(self);
+        let read_step = Rc::new(
+            move |bytes: VerifiedModelBytes,
+                  owner: crate::presentation::model_delivery::ModelOwnerIdentity|
+                  -> ModelFuture<MeshArrays> {
+                let weak = weak.clone();
+                let scope = scope.clone();
+                let lease = lease.clone();
+                let is_current = is_current.clone();
+                Box::pin(async move {
+                    if !owner.is_current_owner(
+                        &scope,
+                        token,
+                        viewer_instance,
+                        projection_generation,
+                        &lease,
+                    ) || !is_current()
+                    {
+                        return Err("Case STEP model request became stale before reading".into());
+                    }
+                    let runtime = weak
+                        .upgrade()
+                        .ok_or_else(|| "Case runtime was closed".to_owned())?;
+                    runtime
+                        .read_case_step_model(
+                            bytes.bytes().to_vec(),
+                            scope,
+                            token,
+                            revision,
+                            is_current,
+                        )
+                        .await
+                })
+            },
+        );
+        ModelDeliveryPorts {
+            load_verified_bytes,
+            decode_stl,
+            decode_wrl,
+            read_step,
+        }
+    }
+
     pub(crate) async fn prepare_native_case_preview(
         self: &Rc<Self>,
         expected_scope: Scope,
@@ -1025,6 +1328,7 @@ impl Runtime {
         owner: crate::case_preview::CasePreviewOwnerIdentity,
         lease: Rc<crate::case_preview::CasePreviewOwnerLease>,
     ) {
+        self.cancel_native_model_jobs();
         self.native_case_preview.borrow_mut().begin(owner, lease);
         self.changed();
     }
@@ -1715,6 +2019,15 @@ impl Runtime {
             reply => Err(format!("Archive export rejected: {reply:?}")),
         }
     }
+}
+
+#[derive(Default)]
+struct NativeModelDeliveryState {
+    pending: Option<crate::case_preview::CasePreviewOwnerIdentity>,
+    published: Option<(
+        crate::case_preview::CasePreviewOwnerIdentity,
+        crate::presentation::model_delivery::ModelDeliveryRows,
+    )>,
 }
 
 fn validate_preview_worker_envelope(

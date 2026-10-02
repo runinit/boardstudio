@@ -19,7 +19,7 @@ mod library;
 mod mechanical_settings;
 mod mechanical_settings_controller;
 mod mechanical_settings_mount;
-mod model_delivery;
+pub(crate) mod model_delivery;
 mod objects;
 mod panels;
 mod parts;
@@ -33,7 +33,7 @@ mod setup_guide;
 mod shared_viewer;
 mod workspace_composition;
 
-pub(crate) use case_viewer::CaseViewer;
+pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 use library::Library;
 pub(crate) use mechanical_settings::MechanicalSettings;
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
