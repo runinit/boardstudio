@@ -92,7 +92,7 @@ pub(crate) fn assembly_layers_with_stack(
             availability: if generated_ids.contains(&id) || id == "pcb" {
                 LayerAvailability::Available
             } else {
-                LayerAvailability::Unavailable("No generated geometry".to_owned())
+                LayerAvailability::Unavailable("Not generated".to_owned())
             },
         });
     }
@@ -445,7 +445,7 @@ mod tests {
         assert_eq!(battery.label, "battery");
         assert_eq!(
             battery.availability,
-            LayerAvailability::Unavailable("No generated geometry".into())
+            LayerAvailability::Unavailable("Not generated".into())
         );
         let plate = layers.iter().find(|layer| layer.id == "plate").unwrap();
         assert_eq!(plate.label, "Plate");
