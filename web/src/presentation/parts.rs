@@ -6,8 +6,10 @@ mod mechanical_profile_ui;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod physical_setup;
 mod preview;
+mod standard_profile_lifetime;
 
 pub(in crate::presentation) use preview::PartsPreviewPanel;
+pub(super) use standard_profile_lifetime::PartsStandardProfileLifetime;
 
 use crate::parts_mechanical_profile::ProfileDefinitionSource;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};

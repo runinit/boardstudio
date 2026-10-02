@@ -119,6 +119,32 @@ pub(crate) fn standard_profile_source_and_gap(
     }
 }
 
+/// Keep the selector and the reusable built-in action's eligibility separate:
+/// any switch can select a family, while any saved family can reload its fit.
+pub(crate) fn standard_profile_controls(
+    definition: &PartDefinition,
+    profile: &MechanicalPartProfile,
+) -> (bool, bool) {
+    (
+        definition.kind == boardstudio_core::model::PartKind::Switch,
+        profile.switch_family.is_some(),
+    )
+}
+
+pub(crate) fn dispatch_standard_profile_family(
+    value: &str,
+    load_standard: impl FnOnce(MechanicalSwitchFamily),
+) -> bool {
+    let family = match value {
+        "mx" => MechanicalSwitchFamily::Mx,
+        "choc-v1" => MechanicalSwitchFamily::ChocV1,
+        "choc-v2" => MechanicalSwitchFamily::ChocV2,
+        _ => return false,
+    };
+    load_standard(family);
+    true
+}
+
 pub(crate) fn standard_profile_reply_matches(
     reply: CoreReply,
     request_id: &str,
@@ -995,5 +1021,44 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn standard_profile_selector_and_action_follow_distinct_issue15_predicates() {
+        let mut switch = definition("switch", "Project switch");
+        switch.kind = boardstudio_core::model::PartKind::Switch;
+        let mut family_profile = profile("switch", "saved fit");
+        family_profile.switch_family = Some(MechanicalSwitchFamily::ChocV1);
+        assert_eq!(
+            standard_profile_controls(&switch, &family_profile),
+            (true, true)
+        );
+
+        let mut non_switch = definition("controller", "Controller with saved switch fit");
+        non_switch.kind = boardstudio_core::model::PartKind::Controller;
+        assert_eq!(
+            standard_profile_controls(&non_switch, &family_profile),
+            (false, true)
+        );
+
+        family_profile.switch_family = None;
+        assert_eq!(
+            standard_profile_controls(&non_switch, &family_profile),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn standard_profile_family_selection_dispatches_a_load_request() {
+        let selected = std::cell::Cell::new(None);
+        assert!(dispatch_standard_profile_family("choc-v1", |family| {
+            selected.set(Some(family));
+        }));
+        assert_eq!(selected.get(), Some(MechanicalSwitchFamily::ChocV1));
+
+        assert!(!dispatch_standard_profile_family(
+            "unknown",
+            |_| unreachable!()
+        ));
     }
 }

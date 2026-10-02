@@ -1,10 +1,12 @@
 use super::super::{WorkspaceState, selection::SelectionAdapter};
 use super::PartsPreviewPanel;
 use super::PartsSelectionGeneration;
+use super::PartsStandardProfileLifetime;
 use crate::parts_mechanical_profile::{
     PendingProfileEdit, ProfileDefinitionSource, ProfileEditCapture, ProfileEditContext,
-    ProfileEditOwner, StandardProfileRequestCapture, displayed_mounting_gap, initial_profile,
-    merge_standard_profile, prepare_profile_edit, standard_profile_request_is_current,
+    ProfileEditOwner, StandardProfileRequestCapture, dispatch_standard_profile_family,
+    displayed_mounting_gap, initial_profile, merge_standard_profile, prepare_profile_edit,
+    standard_profile_controls, standard_profile_request_is_current,
     standard_profile_source_and_gap,
 };
 use crate::runtime::Runtime;
@@ -13,10 +15,7 @@ use boardstudio_core::model::{
     MechanicalPartProfile, MechanicalSwitchFamily, PartDefinition, Vec2,
 };
 use dioxus::prelude::*;
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Copy)]
@@ -138,7 +137,6 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
                 key: "{editor_key}",
                 definition: definition.clone(),
                 initial: definition.mechanical_profile.clone(),
-                source,
                 owner: owner.clone(),
                 snapshot: snapshot.clone(),
                 selection,
@@ -179,7 +177,6 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
 fn ManualProfileEditor(
     definition: PartDefinition,
     initial: Option<MechanicalPartProfile>,
-    source: ProfileDefinitionSource,
     owner: ProfileEditOwner,
     snapshot: AcceptedSnapshot,
     selection: Signal<Option<(Option<Scope>, String)>>,
@@ -193,7 +190,7 @@ fn ManualProfileEditor(
     let mut draft = use_signal(|| initial_profile(&definition, initial.as_ref()));
     let mut pending_standard = use_signal(|| None::<StandardProfileRequestCapture>);
     let mut standard_error = use_signal(String::new);
-    let alive = use_hook(|| Rc::new(Cell::new(true)));
+    let lifetime = use_hook(PartsStandardProfileLifetime::new);
     let current_view = use_hook(|| {
         Rc::new(RefCell::new((
             owner.clone(),
@@ -203,8 +200,8 @@ fn ManualProfileEditor(
     });
     *current_view.borrow_mut() = (owner.clone(), definition.clone(), snapshot.clone());
     use_drop({
-        let alive = alive.clone();
-        move || alive.set(false)
+        let lifetime = lifetime.clone();
+        move || lifetime.retire()
     });
     let profile = draft.read().clone();
     let family_details = profile.switch_family.map(|family| match family {
@@ -213,11 +210,13 @@ fn ManualProfileEditor(
         boardstudio_core::model::MechanicalSwitchFamily::ChocV1 => 1.3,
     });
     let gap_label = displayed_mounting_gap(&profile).unwrap_or_default();
-    let mut load_standard = {
+    let (show_family_selector, show_standard_action) =
+        standard_profile_controls(&definition, &profile);
+    let load_standard = Rc::new(std::cell::RefCell::new({
         let runtime = runtime.clone();
         let owner = owner.clone();
         let definition = definition.clone();
-        let alive = alive.clone();
+        let lifetime = lifetime.clone();
         move |family: MechanicalSwitchFamily| {
             if pending_standard.read().is_some() {
                 return;
@@ -242,7 +241,7 @@ fn ManualProfileEditor(
             let workspace = workspace;
             let scope_generation = scope_generation;
             let selection_generation = selection_generation;
-            let alive = alive.clone();
+            let lifetime = lifetime.clone();
             let mut pending_standard = pending_standard;
             let mut standard_error = standard_error;
             let mut draft = draft;
@@ -255,52 +254,57 @@ fn ManualProfileEditor(
                         plate_to_pcb,
                     )
                     .await;
-                let (current_owner, current_definition, current_snapshot) =
-                    current_view.borrow().clone();
-                let model = runtime.model();
-                let still_current = standard_profile_request_is_current(
-                    &request,
-                    pending_standard
-                        .read()
-                        .as_ref()
-                        .map(|pending| pending.operation_id),
-                    &current_owner,
-                    runtime.scope().as_ref(),
-                    &current_snapshot,
-                    &selection(),
-                    &current_definition,
-                    scope_generation(),
-                    selection_generation(),
-                    workspace(),
-                    alive.get()
-                        && model.accepted.as_ref().is_some_and(|accepted| {
+                let Some(()) = lifetime.run_if_mounted(|| {
+                    let (current_owner, current_definition, current_snapshot) =
+                        current_view.borrow().clone();
+                    let model = runtime.model();
+                    let still_current = standard_profile_request_is_current(
+                        &request,
+                        pending_standard
+                            .read()
+                            .as_ref()
+                            .map(|pending| pending.operation_id),
+                        &current_owner,
+                        runtime.scope().as_ref(),
+                        &current_snapshot,
+                        &selection(),
+                        &current_definition,
+                        scope_generation(),
+                        selection_generation(),
+                        workspace(),
+                        model.accepted.as_ref().is_some_and(|accepted| {
                             accepted.session_epoch == request.owner.session_epoch
                                 && accepted.document.id == request.owner.document_id
                         }),
-                );
-                if !still_current {
-                    if pending_standard
-                        .read()
-                        .as_ref()
-                        .is_some_and(|pending| pending.operation_id == request.operation_id)
-                    {
-                        pending_standard.set(None);
+                    );
+                    if !still_current {
+                        if pending_standard
+                            .read()
+                            .as_ref()
+                            .is_some_and(|pending| pending.operation_id == request.operation_id)
+                        {
+                            pending_standard.set(None);
+                        }
+                        return;
                     }
+                    pending_standard.set(None);
+                    match result {
+                        Ok(loaded) => merge_standard_profile(
+                            &mut draft.write(),
+                            loaded,
+                            request.family,
+                            request.plate_to_pcb,
+                        ),
+                        Err(message) => standard_error.set(message),
+                    }
+                }) else {
                     return;
-                }
-                pending_standard.set(None);
-                match result {
-                    Ok(loaded) => merge_standard_profile(
-                        &mut draft.write(),
-                        loaded,
-                        request.family,
-                        request.plate_to_pcb,
-                    ),
-                    Err(message) => standard_error.set(message),
-                }
+                };
             });
         }
-    };
+    }));
+    let selector_load_standard = load_standard.clone();
+    let action_load_standard = load_standard.clone();
     rsx! {
         section { class: "m1-parts-fit-editor", "aria-label": "Mechanical fit profile editor",
             header {
@@ -309,6 +313,25 @@ fn ManualProfileEditor(
                     p { "Save the fit with this part. Every case using it inherits the profile." }
                 }
                 button { class: "m1-secondary", r#type: "button", onclick: move |_| on_close.call(()), "Cancel" }
+            }
+            if show_family_selector {
+                label { class: "m1-parts-fit-field",
+                    span { "Switch fit family" }
+                    select {
+                        value: profile.switch_family.map(family_key).unwrap_or(""),
+                        disabled: pending_standard.read().is_some(),
+                        onchange: move |event| {
+                            let load_standard = selector_load_standard.clone();
+                            dispatch_standard_profile_family(&event.value(), move |family| {
+                                (load_standard.borrow_mut())(family);
+                            });
+                        },
+                        option { value: "", "Select a standard family" }
+                        option { value: "mx", "MX" }
+                        option { value: "choc-v1", "Choc v1" }
+                        option { value: "choc-v2", "Choc v2" }
+                    }
+                }
             }
             if let Some(thickness) = family_details {
                 p { "Mounting gap: {gap_label} mm with a {thickness:.2} mm plate. Case recalculates the gap for its plate thickness." }
@@ -329,30 +352,15 @@ fn ManualProfileEditor(
                     }
                 }
             }
-            if source == ProfileDefinitionSource::Ergogen
-                && definition.kind == boardstudio_core::model::PartKind::Switch {
-                label { class: "m1-parts-fit-field",
-                    span { "Switch fit family" }
-                    select {
-                        value: profile.switch_family.map(family_key).unwrap_or(""),
-                        disabled: pending_standard.read().is_some(),
-                        onchange: move |event| {
-                            if let Some(family) = family_from_key(&event.value()) {
-                                draft.with_mut(|profile| profile.switch_family = Some(family));
-                            }
-                        },
-                        option { value: "", "Select a standard family" }
-                        option { value: "mx", "MX" }
-                        option { value: "choc-v1", "Choc v1" }
-                        option { value: "choc-v2", "Choc v2" }
-                    }
-                }
+            if show_standard_action {
                 button {
                     class: "m1-secondary",
                     r#type: "button",
-                    disabled: profile.switch_family.is_none() || pending_standard.read().is_some(),
+                    disabled: pending_standard.read().is_some(),
                     onclick: move |_| {
-                        if let Some(family) = draft().switch_family { load_standard(family); }
+                        if let Some(family) = draft().switch_family {
+                            (action_load_standard.borrow_mut())(family);
+                        }
                     },
                     if pending_standard.read().is_some() { "Loading standard fit…" } else { "Use standard cutout" }
                 }
@@ -368,6 +376,7 @@ fn ManualProfileEditor(
             button {
                 class: "m1-primary",
                 r#type: "button",
+                disabled: pending_standard.read().is_some(),
                 onclick: move |_| { on_save.call(draft()); on_close.call(()); },
                 "Save fit profile"
             }
@@ -380,15 +389,6 @@ fn family_key(family: MechanicalSwitchFamily) -> &'static str {
         MechanicalSwitchFamily::Mx => "mx",
         MechanicalSwitchFamily::ChocV1 => "choc-v1",
         MechanicalSwitchFamily::ChocV2 => "choc-v2",
-    }
-}
-
-fn family_from_key(value: &str) -> Option<MechanicalSwitchFamily> {
-    match value {
-        "mx" => Some(MechanicalSwitchFamily::Mx),
-        "choc-v1" => Some(MechanicalSwitchFamily::ChocV1),
-        "choc-v2" => Some(MechanicalSwitchFamily::ChocV2),
-        _ => None,
     }
 }
 
