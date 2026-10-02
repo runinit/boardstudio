@@ -12,14 +12,16 @@ mod panel;
 mod view;
 
 pub(in crate::presentation) use binding_controller::{
-    BindingProjectionSources, use_binding_operations,
+    BindingActions, BindingProjectionSources, use_binding_operations,
 };
 pub(in crate::presentation) use binding_editor::{BindingEditor, BindingTarget};
 pub(super) use canvas::KeymapCanvas;
 pub(in crate::presentation) use encoder_editor::EncoderEditor;
 pub(in crate::presentation) use encoder_inputs::use_encoder_inputs;
-pub(in crate::presentation) use layer_controller::{LayerSource, use_layer_operations};
-pub(in crate::presentation) use macro_controller::use_macro_operations;
+pub(in crate::presentation) use layer_controller::{
+    LayerActions, LayerSource, use_layer_operations,
+};
+pub(in crate::presentation) use macro_controller::{MacroActions, use_macro_operations};
 pub(in crate::presentation) use macro_editor::MacroEditor;
 pub(in crate::presentation) use panel::KeymapPanel;
 pub(super) use view::{KeymapView, project};

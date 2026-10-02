@@ -1,4 +1,5 @@
 use super::view::KeymapView;
+use boardstudio_core::model::{Contour, Vec2};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -6,11 +7,21 @@ use std::{collections::BTreeSet, rc::Rc};
 #[component]
 pub(in crate::presentation) fn KeymapCanvas(
     view: Rc<KeymapView>,
+    contours: Rc<[Contour]>,
     selected_ids: BTreeSet<String>,
     on_select_key: EventHandler<String>,
 ) -> Element {
     rsx! {
         g { class: "m1-keymap-layout",
+            g { class: "m1-keymap-outline", "aria-hidden": "true", "pointer-events": "none",
+                for (index, contour) in contours.iter().enumerate() {
+                    polygon {
+                        key: "outline-{index}",
+                        points: contour_points(&contour.points),
+                        class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+                    }
+                }
+            }
             for key in &view.keys {
                 {
                     let id = key.id.clone();
@@ -74,6 +85,14 @@ pub(in crate::presentation) fn KeymapCanvas(
             }
         }
     }
+}
+
+fn contour_points(points: &[Vec2]) -> String {
+    points
+        .iter()
+        .map(|point| format!("{},{}", point.x, point.y))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn foreground_color(color: &str) -> &'static str {
