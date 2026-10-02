@@ -632,7 +632,13 @@ fn Editor() -> Element {
             matrix
                 .board_id
                 .as_deref()
-                .is_none_or(|id| id == model.active_board_id)
+                .is_some_and(|id| id == model.active_board_id)
+                || (matrix.board_id.is_none()
+                    && (matrix
+                        .part_ids
+                        .iter()
+                        .any(|id| board.is_some_and(|board| board.part_ids.contains(id)))
+                        || (matrix.part_ids.is_empty() && document.boards.len() <= 1)))
         })
         .collect();
     let matrix_scenes: std::collections::BTreeMap<_, _> = scene
