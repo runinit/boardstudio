@@ -1,6 +1,5 @@
 use boardstudio_core::model::{PartDefinition, PartKind};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -91,7 +90,8 @@ thread_local! {
 
 pub(super) async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, String> {
     let module = load_ergogen_module().await?;
-    let imported_source_hash = format!("{:x}", Sha256::digest(IMPORTED_PARTS_JSON.as_bytes()));
+    let imported_source_hash =
+        crate::persistence_contract::sha256_bytes(IMPORTED_PARTS_JSON.as_bytes());
     if let Some(entries) = BUNDLED_CACHE.with(|cache| {
         cache
             .borrow()
@@ -430,6 +430,14 @@ mod tests {
             .into_iter()
             .map(|part| part.definition)
             .collect()
+    }
+
+    #[test]
+    fn imported_source_hash_matches_the_existing_lowercase_sha256_contract() {
+        assert_eq!(
+            crate::persistence_contract::sha256_bytes(IMPORTED_PARTS_JSON.as_bytes()),
+            "000f4ba13114305c33e1378806c25840d903fa335da559b88c9d9404731acd7f"
+        );
     }
 
     #[test]
