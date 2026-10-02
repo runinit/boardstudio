@@ -3,7 +3,9 @@ mod footprint_graphics;
 
 use crate::{cad_presentation::CasePanel, runtime::Runtime};
 use boardstudio_application::{Durability, Event, SelectionMode};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Position, Vec2};
+use boardstudio_core::model::{
+    EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use footprint_graphics::FootprintGraphics;
@@ -991,11 +993,7 @@ fn Editor() -> Element {
                                         {
                                             let member = cell.member_id.as_deref().and_then(|id| visible.iter().find(|part| part.id == id));
                                             let member_definition = member.and_then(|part| definitions.get(part.definition_id.as_str()).copied());
-                                            let base_definition = definitions.get(matrix.definition_id.as_str()).copied();
-                                            let size = member.and_then(|part| part.keycap).or_else(|| member_definition.and_then(|definition| definition.keycap)).or_else(|| base_definition.and_then(|definition| definition.keycap)).unwrap_or(Vec2 {
-                                                x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
-                                                y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
-                                            });
+                                            let size = resolved_matrix_keycap(member, member_definition, matrix);
                                             let pose = cell.pose;
                                             let selected = cell.member_id.as_ref().is_some_and(|id| model.selected_part_ids.contains(id));
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}" } }
@@ -1021,10 +1019,7 @@ fn Editor() -> Element {
                                             if !is_matrix_key { return None; }
                                             matrices.iter().find_map(|matrix| {
                                                 let projected = matrix_scenes.get(matrix.id.as_str())?;
-                                                projected.cells.iter().find(|cell| cell.enabled && cell.member_id.as_deref() == Some(part.id.as_str())).map(|_| Vec2 {
-                                                    x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
-                                                    y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
-                                                })
+                                                projected.cells.iter().any(|cell| cell.enabled && cell.member_id.as_deref() == Some(part.id.as_str())).then(|| resolved_matrix_keycap(Some(&part), definition, matrix))
                                             })
                                         })
                                     } else { None }
@@ -1247,6 +1242,19 @@ fn Inspector() -> Element {
             if numeric_edit.borrow().is_some() { p { role: "status", "Preview only. Press Enter or Apply position to save, or Escape to cancel." } }
         } else { p { "Select a component to edit its position." } }
     }}
+}
+
+fn resolved_matrix_keycap(
+    part: Option<&Part>,
+    definition: Option<&PartDefinition>,
+    matrix: &Matrix,
+) -> Vec2 {
+    part.and_then(|part| part.keycap)
+        .or_else(|| definition.and_then(|definition| definition.keycap))
+        .unwrap_or(Vec2 {
+            x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
+            y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
+        })
 }
 
 fn polygon_points(points: &[Vec2]) -> String {
