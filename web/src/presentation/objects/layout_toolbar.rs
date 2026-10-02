@@ -608,6 +608,22 @@ fn LayoutSelectMenu(
     on_selection_kind: EventHandler<LayoutSelectionKind>,
 ) -> Element {
     let is_open = open_menu() == Some(LayoutCommandMenu::Select);
+    let (x, y, width, height, radius, path) = match selection_kind {
+        LayoutSelectionKind::Matrix => {
+            ("3", "3", "14", "14", "1", "M3 8h14M3 12h14M8 3v14M12 3v14")
+        }
+        LayoutSelectionKind::Row => ("2", "7", "16", "6", "1", "M7 7v6M13 7v6"),
+        LayoutSelectionKind::Column => ("7", "2", "6", "16", "1", "M7 7h6M7 13h6"),
+        LayoutSelectionKind::Key => ("3", "3", "14", "14", "3", "M6 13h8"),
+        LayoutSelectionKind::Part => (
+            "6",
+            "6",
+            "8",
+            "8",
+            "1",
+            "M7 2v4M13 2v4M7 14v4M13 14v4M2 7h4M2 13h4M14 7h4M14 13h4",
+        ),
+    };
     rsx! {
         details {
             class: "m1-layout-command-menu m1-layout-select-menu",
@@ -628,7 +644,11 @@ fn LayoutSelectMenu(
                     event.prevent_default();
                     toggle_layout_command_menu(open_menu, LayoutCommandMenu::Select);
                 },
-                "Select: {selection_kind.label()}"
+                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", aria_hidden: "true",
+                    rect { x, y, width, height, rx: radius }
+                    path { d: "{path}" }
+                }
+                span { "Select: {selection_kind.label()}" }
             }
             div { id: "m1-layout-select-menu", class: "m1-layout-select-popover", role: "group", aria_label: "Selection scope",
                 LayoutCommandMenuHeader {
@@ -680,7 +700,10 @@ fn LayoutSnapMenu(
                     event.prevent_default();
                     toggle_layout_command_menu(open_menu, LayoutCommandMenu::Snap);
                 },
-                "Snap"
+                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", aria_hidden: "true",
+                    path { d: "M4 3v7a6 6 0 0 0 12 0V3h-4v7a2 2 0 0 1-4 0V3ZM4 7h4M12 7h4" }
+                }
+                span { "Snap" }
             }
             div { id: "m1-layout-snap-menu", class: "m1-layout-snap-popover",
                 LayoutCommandMenuHeader {
