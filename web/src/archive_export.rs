@@ -73,11 +73,16 @@ impl ArchiveExportOptions {
         &self,
         operation: OperationId,
         is_step_export: bool,
+        is_firmware_export: bool,
         step: impl FnOnce() -> T,
         archive: impl FnOnce(bool) -> T,
+        firmware: impl FnOnce() -> T,
     ) -> Result<T, String> {
         if is_step_export {
             return Ok(step());
+        }
+        if is_firmware_export {
+            return Ok(firmware());
         }
         let embed_used_models = self.captures.borrow_mut().take(operation).ok_or_else(|| {
             "Archive option was not captured for this export; try again.".to_owned()
@@ -114,8 +119,10 @@ mod tests {
         let decision = options.dispatch(
             operation,
             false,
+            false,
             || "STEP path".to_owned(),
             |embed| format!("archive path, embed={embed}"),
+            || "firmware path".to_owned(),
         );
 
         assert_eq!(decision.unwrap(), "archive path, embed=true");
@@ -132,11 +139,13 @@ mod tests {
         let decision = options.dispatch(
             operation,
             false,
+            false,
             || "STEP path".to_owned(),
             |_| {
                 archive_called = true;
                 "archive path".to_owned()
             },
+            || "firmware path".to_owned(),
         );
 
         assert_eq!(
@@ -153,7 +162,14 @@ mod tests {
         options.begin_archive(operation);
         options.settle(operation);
 
-        let decision = options.dispatch(operation, false, || "STEP", |_| "archive");
+        let decision = options.dispatch(
+            operation,
+            false,
+            false,
+            || "STEP",
+            |_| "archive",
+            || "firmware",
+        );
 
         assert!(decision.is_err());
     }
@@ -168,11 +184,13 @@ mod tests {
         let decision = options.dispatch(
             operation,
             true,
+            false,
             || "STEP path".to_owned(),
             |_| {
                 archive_called = true;
                 "archive path".to_owned()
             },
+            || "firmware path".to_owned(),
         );
 
         assert_eq!(decision.unwrap(), "STEP path");
@@ -188,9 +206,11 @@ mod tests {
         options.set_embed_used_models(false);
         options.begin_archive(second);
 
-        let first_decision = options.dispatch(first, false, || false, |embed| embed);
-        let second_decision = options.dispatch(second, false, || false, |embed| embed);
-        let repeated = options.dispatch(first, false, || false, |embed| embed);
+        let first_decision =
+            options.dispatch(first, false, false, || false, |embed| embed, || false);
+        let second_decision =
+            options.dispatch(second, false, false, || false, |embed| embed, || false);
+        let repeated = options.dispatch(first, false, false, || false, |embed| embed, || false);
 
         assert!(first_decision.unwrap());
         assert!(!second_decision.unwrap());
@@ -198,6 +218,28 @@ mod tests {
             repeated.unwrap_err(),
             "Archive option was not captured for this export; try again."
         );
+    }
+
+    #[test]
+    fn production_dispatch_routes_firmware_without_consuming_project_archive_choice() {
+        let options = ArchiveExportOptions::default();
+        let operation = OperationId(51);
+        options.begin_archive(operation);
+        let mut archive_called = false;
+        let decision = options.dispatch(
+            operation,
+            false,
+            true,
+            || "STEP".to_owned(),
+            |_| {
+                archive_called = true;
+                "project archive".to_owned()
+            },
+            || "firmware package".to_owned(),
+        );
+        assert_eq!(decision.unwrap(), "firmware package");
+        assert!(!archive_called);
+        assert_eq!(options.captures.borrow_mut().take(operation), Some(true));
     }
 
     #[test]

@@ -7,9 +7,9 @@ use boardstudio_application::{
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::{
-        ArchiveReply, ArtifactReply, Board, CoreReply, CoreRequest, ErgogenJobResult,
-        FinishExportRequest, Material, MechanicalAssembly, MechanicalConfiguration, Operation,
-        OutlineFeature, OutlineSettings, ProjectDoc,
+        ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, Board, CoreReply, CoreRequest,
+        ErgogenJobResult, FinishExportRequest, HardwareTopology, Material, MechanicalAssembly,
+        MechanicalConfiguration, Operation, OutlineFeature, OutlineSettings, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -39,15 +39,23 @@ use std::{
 };
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
-use web_sys::{Blob, HtmlAnchorElement, SvgElement, Url};
+use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, SvgElement, Url};
 
 type Notifier = Rc<dyn Fn()>;
 type Frame = (i32, Closure<dyn FnMut(f64)>);
 struct Artifact {
     bytes: Vec<u8>,
     filename: String,
+    media_type: Option<String>,
     scope: Scope,
     token: SnapshotToken,
+}
+
+#[derive(Clone, Copy)]
+struct FirmwarePlanTarget<'a> {
+    board_id: &'a str,
+    instance_id: Option<&'a str>,
+    label: &'a str,
 }
 
 impl PartialEq for CadScene {
@@ -88,6 +96,7 @@ pub struct Runtime {
     cad_worker: RefCell<Option<(Scope, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     step_exports: RefCell<BTreeSet<OperationId>>,
+    firmware_exports: RefCell<BTreeSet<OperationId>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::presentation::model_delivery::ModelDeliveryAdapter,
@@ -121,6 +130,7 @@ impl Runtime {
             cad_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
             step_exports: RefCell::new(BTreeSet::new()),
+            firmware_exports: RefCell::new(BTreeSet::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
@@ -732,6 +742,7 @@ impl Runtime {
                     .operation_outcomes
                     .settle(operation_id, outcome.clone());
                 self.step_exports.borrow_mut().remove(&operation_id);
+                self.firmware_exports.borrow_mut().remove(&operation_id);
                 self.archive_export_options.settle(operation_id);
                 match outcome {
                     TerminalOutcome::Completed => self.report("Saved locally."),
@@ -812,10 +823,12 @@ impl Runtime {
                 snapshot,
             } => {
                 let is_step_export = self.step_exports.borrow().contains(&operation_id);
+                let is_firmware_export = self.firmware_exports.borrow_mut().remove(&operation_id);
                 let work: Result<ArchiveWorkFuture<'_>, String> =
                     self.archive_export_options.dispatch(
                         operation_id,
                         is_step_export,
+                        is_firmware_export,
                         || -> ArchiveWorkFuture<'_> {
                             Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
                         },
@@ -826,6 +839,9 @@ impl Runtime {
                                 &scope,
                                 embed_used_models,
                             ))
+                        },
+                        || -> ArchiveWorkFuture<'_> {
+                            Box::pin(self.firmware_bytes(operation_id, &snapshot, &scope))
                         },
                     );
                 let result = match work {
@@ -843,16 +859,22 @@ impl Runtime {
                             });
                         }
                         let artifact_id = format!("archive-{}", operation_id.0);
-                        let filename = if is_step_export {
-                            "keyboard.step".to_owned()
+                        let (filename, media_type) = if is_firmware_export {
+                            (
+                                format!("{}-zmk.zip", snapshot.document.name),
+                                Some("application/zip".to_owned()),
+                            )
+                        } else if is_step_export {
+                            ("keyboard.step".to_owned(), None)
                         } else {
-                            archive_filename(&snapshot.document.name)
+                            (archive_filename(&snapshot.document.name), None)
                         };
                         self.artifacts.borrow_mut().insert(
                             artifact_id.clone(),
                             Artifact {
                                 bytes,
                                 filename,
+                                media_type,
                                 scope: scope.clone(),
                                 token: snapshot.token,
                             },
@@ -885,7 +907,11 @@ impl Runtime {
                         .accepted
                         .as_ref()
                         .is_some_and(|s| s.token == token)
-                    && let Err(error) = deliver(&artifact.bytes, &artifact.filename)
+                    && let Err(error) = deliver(
+                        &artifact.bytes,
+                        &artifact.filename,
+                        artifact.media_type.as_deref(),
+                    )
                 {
                     self.report(error);
                 }
@@ -910,6 +936,7 @@ impl Runtime {
             }
             Effect::CancelExport { operation_id } => {
                 self.cancelled_exports.borrow_mut().insert(operation_id);
+                self.firmware_exports.borrow_mut().remove(&operation_id);
                 self.archive_export_options.cancel(operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
@@ -1627,6 +1654,22 @@ impl Runtime {
             scope,
         });
     }
+    pub(crate) fn export_firmware(self: &Rc<Self>) {
+        let Some(scope) = self.scope() else {
+            self.report("Select a board before exporting ZMK source.");
+            return;
+        };
+        if self.model().accepted.is_none() {
+            self.report("Firmware export requires a ready accepted snapshot.");
+            return;
+        }
+        let operation_id = self.operation();
+        self.firmware_exports.borrow_mut().insert(operation_id);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
     pub(crate) fn export_project_copy(self: &Rc<Self>) {
         if self.model().accepted.is_none() {
             return;
@@ -1851,6 +1894,306 @@ impl Runtime {
         self.export_workers.borrow_mut().remove(&operation_id);
         result
     }
+
+    async fn firmware_bytes(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<Vec<u8>, String> {
+        let document = snapshot.document.as_ref();
+        self.ensure_firmware_export_current(operation_id, snapshot, scope, None, None)?;
+        if !document
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
+        {
+            return Err("Select a board before export".into());
+        }
+        let hardware = document.hardware.as_ref();
+        let instances = hardware
+            .map(|hardware| hardware.instances.as_slice())
+            .unwrap_or(&[]);
+        let central = instances.iter().find(|instance| instance.role == "central");
+        let peripheral = instances
+            .iter()
+            .find(|instance| instance.role == "peripheral");
+        if hardware.is_some_and(|hardware| hardware.topology == HardwareTopology::Split)
+            && (instances.len() != 2
+                || central.is_none_or(|instance| instance.half != "left")
+                || peripheral.is_none_or(|instance| instance.half != "right"))
+        {
+            return Err(
+                "Split firmware requires a left central and a right peripheral assembly".into(),
+            );
+        }
+        let primary_board_id = central.map_or(scope.board_id.as_str(), |instance| {
+            instance.board_id.as_str()
+        });
+        let primary_instance_id = central.map_or(scope.instance_id.as_deref(), |instance| {
+            Some(instance.id.as_str())
+        });
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        self.ensure_firmware_export_current(
+            operation_id,
+            snapshot,
+            scope,
+            Some(&core),
+            Some(executor_epoch),
+        )?;
+        let primary = self
+            .resolve_firmware_plan(
+                operation_id,
+                snapshot,
+                scope,
+                &core,
+                executor_epoch,
+                FirmwarePlanTarget {
+                    board_id: primary_board_id,
+                    instance_id: primary_instance_id,
+                    label: "central",
+                },
+            )
+            .await?;
+        let secondary = if let Some(instance) = peripheral {
+            Some(
+                self.resolve_firmware_plan(
+                    operation_id,
+                    snapshot,
+                    scope,
+                    &core,
+                    executor_epoch,
+                    FirmwarePlanTarget {
+                        board_id: &instance.board_id,
+                        instance_id: Some(&instance.id),
+                        label: "peripheral",
+                    },
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
+        self.ensure_firmware_export_current(
+            operation_id,
+            snapshot,
+            scope,
+            Some(&core),
+            Some(executor_epoch),
+        )?;
+        let (request, _) = crate::firmware_request_adapter::firmware_request(
+            document,
+            &primary,
+            secondary.as_ref(),
+        )?;
+        let generate_id = format!("firmware-generate-{}", operation_id.0);
+        let request = CoreRequest::GenerateFirmware {
+            id: generate_id.clone(),
+            request,
+        };
+        let generated = core
+            .request(&generate_id, &executor_epoch.0.to_string(), &request)
+            .await;
+        self.ensure_firmware_export_current(
+            operation_id,
+            snapshot,
+            scope,
+            Some(&core),
+            Some(executor_epoch),
+        )?;
+        let generated =
+            generated.map_err(|error| format!("Firmware generation failed: {error}"))?;
+        let package = match generated {
+            CoreReply::FirmwareGenerated { id, package } if id == generate_id => package,
+            CoreReply::Error { id, message, .. } if id == generate_id => return Err(message),
+            CoreReply::FirmwareGenerated { .. } | CoreReply::Error { .. } => {
+                return Err("Core returned a firmware reply for another request.".into());
+            }
+            _ => return Err("Core returned an unexpected firmware-generation reply.".into()),
+        };
+        let mut files = package.files;
+        let mut plan_value = serde_json::Map::new();
+        plan_value.insert(
+            "central".into(),
+            serde_json::to_value(&primary).map_err(|error| error.to_string())?,
+        );
+        if let Some(peripheral) = &secondary {
+            plan_value.insert(
+                "peripheral".into(),
+                serde_json::to_value(peripheral).map_err(|error| error.to_string())?,
+            );
+        }
+        files.insert(
+            "electrical-plan.json".into(),
+            serde_json::to_string_pretty(&serde_json::Value::Object(plan_value))
+                .map_err(|error| format!("Could not serialize electrical plan: {error}"))?,
+        );
+        self.ensure_firmware_export_current(
+            operation_id,
+            snapshot,
+            scope,
+            Some(&core),
+            Some(executor_epoch),
+        )?;
+        let entries = files
+            .keys()
+            .enumerate()
+            .map(|(index, path)| {
+                Ok(ArchiveEntry {
+                    path: path.clone(),
+                    buffer_index: u32::try_from(index)
+                        .map_err(|_| "Too many firmware package files".to_owned())?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
+            .map_err(|error| format!("Could not prepare ZIP package request: {error}"))?;
+        let buffers = files
+            .values()
+            .map(|contents| Uint8Array::from(contents.as_bytes()))
+            .collect();
+        let pack_id = format!("firmware-pack-{}", operation_id.0);
+        let packed = core
+            .archive(&pack_id, &executor_epoch.0.to_string(), &metadata, buffers)
+            .await;
+        self.ensure_firmware_export_current(
+            operation_id,
+            snapshot,
+            scope,
+            Some(&core),
+            Some(executor_epoch),
+        )?;
+        let packed = packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
+        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
+            .map_err(|error| format!("Could not read firmware package result: {error}"))?
+        {
+            ArchiveReply::Packed => packed
+                .buffers
+                .first()
+                .map(Uint8Array::to_vec)
+                .ok_or_else(|| "Firmware package returned no ZIP bytes.".into()),
+            ArchiveReply::Error { message } => Err(format!("Firmware packaging failed: {message}")),
+            ArchiveReply::Unpacked { .. } => {
+                Err("Core returned an unexpected unpacked archive.".into())
+            }
+        }
+    }
+
+    async fn resolve_firmware_plan(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        core: &Rc<CoreWorker>,
+        executor_epoch: boardstudio_application::ExecutorEpoch,
+        target: FirmwarePlanTarget<'_>,
+    ) -> Result<ElectricalPlan, String> {
+        self.ensure_firmware_export_current(
+            operation_id,
+            snapshot,
+            scope,
+            Some(core),
+            Some(executor_epoch),
+        )?;
+        let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == target.board_id)
+        });
+        let controller_part_id = snapshot
+            .document
+            .hardware
+            .as_ref()
+            .and_then(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .find(|instance| Some(instance.id.as_str()) == target.instance_id)
+            })
+            .and_then(|instance| instance.controller_part_id.clone())
+            .or_else(|| {
+                configuration.and_then(|configuration| configuration.controller_part_id.clone())
+            });
+        let request_id = format!("firmware-electrical-{}-{}", operation_id.0, target.label);
+        let request = CoreRequest::ResolveElectrical {
+            id: request_id.clone(),
+            request: ElectricalPlanRequest {
+                document: (*snapshot.document).clone(),
+                instance_id: target.instance_id.map(str::to_owned),
+                mode: configuration
+                    .map_or(ElectricalMode::Matrix, |configuration| configuration.mode),
+                locks: configuration.map_or_else(Default::default, |configuration| {
+                    configuration.locks.clone()
+                }),
+                controller_profile: None,
+                board_id: Some(target.board_id.to_owned()),
+                controller_part_id,
+            },
+        };
+        let reply = core
+            .request(&request_id, &executor_epoch.0.to_string(), &request)
+            .await;
+        self.ensure_firmware_export_current(
+            operation_id,
+            snapshot,
+            scope,
+            Some(core),
+            Some(executor_epoch),
+        )?;
+        let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
+        let plan = match reply {
+            CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
+            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+            CoreReply::ElectricalResolved { .. } | CoreReply::Error { .. } => {
+                return Err("Core returned a wiring reply for another firmware plan.".into());
+            }
+            _ => {
+                return Err("Core returned an unexpected firmware wiring-resolution reply.".into());
+            }
+        };
+        if plan.revision != snapshot.document.revision
+            || plan.board_id.as_deref() != Some(target.board_id)
+            || plan.instance_id.as_deref() != target.instance_id
+        {
+            return Err(
+                "Core resolved firmware wiring for another board, instance, or revision.".into(),
+            );
+        }
+        Ok(plan)
+    }
+
+    fn ensure_firmware_export_current(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        core: Option<&Rc<CoreWorker>>,
+        executor_epoch: Option<boardstudio_application::ExecutorEpoch>,
+    ) -> Result<(), String> {
+        if !self.export_current(operation_id, snapshot.token, scope) {
+            return Err("Firmware export was cancelled or superseded.".into());
+        }
+        let model = self.model();
+        if model.accepted.as_ref().is_none_or(|current| {
+            current.session_epoch != snapshot.session_epoch
+                || current.document.id != snapshot.document.id
+                || current.document.revision != snapshot.document.revision
+                || current.scene.revision != snapshot.scene.revision
+                || current.scene.revision != current.document.revision
+        }) {
+            return Err("The accepted project or scene changed during firmware export.".into());
+        }
+        if let (Some(expected_core), Some(expected_epoch)) = (core, executor_epoch)
+            && (self.session.borrow().core_executor_epoch() != expected_epoch
+                || !Rc::ptr_eq(expected_core, &self.core.borrow().clone()))
+        {
+            return Err("The Core worker changed during firmware export.".into());
+        }
+        Ok(())
+    }
+
     fn cancel_frames(&self) {
         if let Some(window) = web_sys::window() {
             for (_, (handle, _)) in std::mem::take(&mut *self.frames.borrow_mut()) {
@@ -2315,10 +2658,17 @@ async fn fetch_bytes(path: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("{e:?}"))?;
     Ok(Uint8Array::new(&buffer).to_vec())
 }
-fn deliver(bytes: &[u8], filename: &str) -> Result<(), String> {
+fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(), String> {
     let parts = Array::new();
     parts.push(&Uint8Array::from(bytes));
-    let blob = Blob::new_with_u8_array_sequence(&parts).map_err(|e| format!("{e:?}"))?;
+    let blob = if let Some(media_type) = media_type {
+        let options = BlobPropertyBag::new();
+        options.set_type(media_type);
+        Blob::new_with_u8_array_sequence_and_options(&parts, &options)
+            .map_err(|e| format!("{e:?}"))?
+    } else {
+        Blob::new_with_u8_array_sequence(&parts).map_err(|e| format!("{e:?}"))?
+    };
     let url = Url::create_object_url_with_blob(&blob).map_err(|e| format!("{e:?}"))?;
     let result = (|| {
         let document = web_sys::window()

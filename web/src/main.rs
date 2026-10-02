@@ -21,6 +21,9 @@ mod renderer_host_page;
 mod runtime;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod firmware_request_adapter;
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod preview_generator;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]

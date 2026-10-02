@@ -164,6 +164,7 @@ struct WorkspaceCallbackSlots {
     case_action: EventHandler<case_workspace::TreeAction>,
     case_display: EventHandler<case_workspace::DisplayRequest>,
     keymap_layer: EventHandler<String>,
+    keymap_export: EventHandler<()>,
     show_configured_board: EventHandler<String>,
 }
 
@@ -1170,6 +1171,7 @@ fn Editor() -> Element {
         case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
         case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
+        keymap_export: EventHandler::new(|_: ()| {}),
         show_configured_board: EventHandler::new(|_: String| {}),
     });
     let runtime = use_context::<Rc<Runtime>>();
@@ -2417,6 +2419,35 @@ fn Editor() -> Element {
             }
         }
     };
+    let on_keymap_export = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let token = snapshot.token;
+        let revision = snapshot.document.revision;
+        let generation = render_generation;
+        move |_| {
+            if workspace() != "Keymap"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
+            {
+                return;
+            }
+            if model.accepted.as_ref().is_none_or(|accepted| {
+                accepted.token != token
+                    || accepted.document.revision != revision
+                    || accepted.scene.revision != revision
+            }) {
+                return;
+            }
+            runtime.export_firmware();
+        }
+    };
     let nudge_tree =
         {
             let runtime = runtime.clone();
@@ -3268,6 +3299,9 @@ fn Editor() -> Element {
         .keymap_layer
         .replace(Box::new(on_keymap_layer));
     workspace_callbacks
+        .keymap_export
+        .replace(Box::new(on_keymap_export));
+    workspace_callbacks
         .show_configured_board
         .replace(Box::new(on_show_configured_board));
     workspace_callbacks
@@ -3503,6 +3537,14 @@ fn Editor() -> Element {
                 active_layer_id: keymap_layer_id(),
                 selected_key_id: model.selected_part_ids.first().cloned(),
                 on_layer: workspace_callbacks.keymap_layer,
+                on_export: workspace_callbacks.keymap_export,
+                firmware_export_enabled: keymap_view
+                    .as_ref()
+                    .is_some_and(|view| !view.keys.is_empty())
+                    || binding_actions
+                        .encoder_projection
+                        .as_ref()
+                        .is_some_and(|projection| !projection.rows.is_empty()),
                 on_select_key: workspace_callbacks.keymap_select,
                 binding_actions,
                 macro_actions,

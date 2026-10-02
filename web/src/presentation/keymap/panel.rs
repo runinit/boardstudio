@@ -16,6 +16,8 @@ pub(in crate::presentation) fn KeymapPanel(
     on_layer: EventHandler<String>,
     on_layer_operation: EventHandler<KeymapLayerOperation>,
     on_select_key: EventHandler<String>,
+    on_export: EventHandler<()>,
+    firmware_export_enabled: bool,
     keys_editor: Element,
     macros_editor: Element,
     encoders_editor: Element,
@@ -129,6 +131,13 @@ pub(in crate::presentation) fn KeymapPanel(
                         }
                     }
                 }
+            }
+            button {
+                class: "m1-keymap-export",
+                r#type: "button",
+                disabled: !firmware_export_enabled,
+                onclick: move |_| on_export.call(()),
+                "Export ZMK source"
             }
             if selected_editor() == KeymapEditor::Keys {
                 section { class: "m1-keymap-key-selection", "aria-label": "Selected key",
