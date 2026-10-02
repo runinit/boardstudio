@@ -57,23 +57,31 @@ try {
     if (!address || typeof address === 'string') throw new Error('Test asset server did not bind a TCP port');
     const moduleUrl = `http://127.0.0.1:${address.port}/layout-generators/src/index.js`;
     try {
-      const tests = await new Promise((resolveExit, rejectExit) => {
-        const child = spawn('wasm-pack', [
-          'test',
-          '--headless',
-          '--chrome',
-          'web',
-          '--',
-          'native_preview_paths_use_the_packaged_ergogen_asset_identity_helper',
-        ], {
-          cwd: root,
-          stdio: 'inherit',
-          env: { ...process.env, BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL: moduleUrl },
+      for (const test of [
+        'generated_models_use_packaged_generator_part_overrides',
+        'native_preview_paths_use_the_packaged_ergogen_asset_identity_helper',
+      ]) {
+        const tests = await new Promise((resolveExit, rejectExit) => {
+          const child = spawn('wasm-pack', [
+            'test',
+            '--headless',
+            '--chrome',
+            'web',
+            '--',
+            test,
+          ], {
+            cwd: root,
+            stdio: 'inherit',
+            env: { ...process.env, BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL: moduleUrl },
+          });
+          child.once('error', rejectExit);
+          child.once('close', (code) => resolveExit(code ?? 1));
         });
-        child.once('error', rejectExit);
-        child.once('close', (code) => resolveExit(code ?? 1));
-      });
-      if (tests !== 0) process.exitCode = tests;
+        if (tests !== 0) {
+          process.exitCode = tests;
+          break;
+        }
+      }
     } finally {
       await new Promise((resolveClose) => server.close(resolveClose));
     }
