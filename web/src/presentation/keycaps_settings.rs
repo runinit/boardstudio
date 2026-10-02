@@ -432,6 +432,15 @@ pub(super) fn use_keycaps_settings_actions(
                 return;
             }
             if pending.read().is_some() {
+                if current_accepted_noop(&runtime, source.as_ref(), &request) {
+                    remove_retry_draft_through(
+                        &mut retry_drafts,
+                        &request.change.field(),
+                        request.request_id,
+                    );
+                    clear_feedback_through(&mut feedback, &request);
+                    return;
+                }
                 keep_retry_draft(
                     &mut retry_drafts,
                     &request,
@@ -554,6 +563,7 @@ pub(super) fn use_keycaps_settings_actions(
 
     let on_discard = use_callback({
         let mut retry_drafts = retry_drafts;
+        let mut feedback = feedback;
         let runtime = runtime.clone();
         let owner_tracker = owner_tracker.clone();
         let workspace = workspace;
@@ -589,6 +599,8 @@ pub(super) fn use_keycaps_settings_actions(
             {
                 drafts.remove(&identity.field);
             }
+            drop(drafts);
+            clear_feedback_through_identity(&mut feedback, &identity);
         }
     });
 
@@ -703,6 +715,33 @@ fn current_saved_snapshot(
         && model.display_preview.is_none()
         && model.gesture.is_none())
     .then_some(snapshot)
+}
+
+fn current_accepted_noop(
+    runtime: &Runtime,
+    expected_source: Option<&KeycapsEditSource>,
+    request: &KeycapsEditRequest,
+) -> bool {
+    let Some(expected) = expected_source else {
+        return false;
+    };
+    let model = runtime.model();
+    let Some(snapshot) = model.accepted else {
+        return false;
+    };
+    runtime.scope().as_ref() == Some(&request.scope)
+        && request.scope == expected.scope
+        && snapshot.session_epoch == request.scope.session_epoch
+        && snapshot.document.id == request.scope.document_id
+        && model.active_board_id.as_ref() == Some(&request.scope.board_id)
+        && model.active_instance_id == request.scope.instance_id
+        && snapshot.token == request.admission_token
+        && snapshot.document.revision == request.admission_revision
+        && snapshot.token == expected.token
+        && snapshot.document.revision == expected.revision
+        && valid_key_member(&snapshot, &request.scope, &request.key_id)
+        && core_change(&snapshot.document, &request.key_id, &request.change)
+            .is_some_and(|change| change_is_noop(&snapshot.document, &request.key_id, &change))
 }
 
 fn valid_key_member(snapshot: &AcceptedSnapshot, scope: &Scope, key_id: &str) -> bool {
@@ -847,7 +886,8 @@ fn clear_feedback_through(
 ) {
     let should_clear = feedback.read().as_ref().is_some_and(|state| {
         let previous = &state.request;
-        previous.editor_instance_id == request.editor_instance_id
+        !matches!(state.status, KeycapsEditStatus::Pending)
+            && previous.editor_instance_id == request.editor_instance_id
             && previous.scope == request.scope
             && previous.scope_generation == request.scope_generation
             && previous.selection_generation == request.selection_generation
@@ -858,6 +898,31 @@ fn clear_feedback_through(
     if should_clear {
         feedback.set(None);
     }
+}
+
+fn clear_feedback_through_identity(
+    feedback: &mut Signal<Option<FeedbackState>>,
+    identity: &KeycapsRetryIdentity,
+) {
+    let should_clear = feedback
+        .read()
+        .as_ref()
+        .is_some_and(|state| feedback_is_cleared_by_identity(state, identity));
+    if should_clear {
+        feedback.set(None);
+    }
+}
+
+fn feedback_is_cleared_by_identity(state: &FeedbackState, identity: &KeycapsRetryIdentity) -> bool {
+    let request = &state.request;
+    !matches!(state.status, KeycapsEditStatus::Pending)
+        && request.editor_instance_id == identity.editor_instance_id
+        && request.scope == identity.scope
+        && request.scope_generation == identity.scope_generation
+        && request.selection_generation == identity.selection_generation
+        && request.key_id == identity.key_id
+        && request.change.field() == identity.field
+        && request.request_id <= identity.request_id
 }
 
 fn draft_owner_mismatch(
@@ -1060,6 +1125,14 @@ pub(super) fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Elemen
             && feedback.selection_generation == actions.selection_generation
     });
     let retry_drafts = actions.retry_drafts.clone();
+    let legend_retry_pending = retry_drafts.iter().any(|draft| {
+        draft.field == KeycapEditField::Legend
+            && draft.editor_instance_id == actions.editor_instance_id
+            && draft.scope == actions.scope
+            && draft.scope_generation == actions.scope_generation
+            && draft.selection_generation == actions.selection_generation
+            && draft.key_id == actions.selected_key_id
+    });
     let on_retry = actions.on_retry;
     let on_discard = actions.on_discard;
     let mut legend_sequence = actions.request_sequence;
@@ -1104,8 +1177,13 @@ pub(super) fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Elemen
                     oninput: move |event| legend_draft.set(event.value()),
                     onblur: move |_| {
                         let value = legend_draft();
-                        if legend_change_required(&value, accepted_legend.as_deref()) {
-                            request(KeycapEditChange::Legend(Some(value)), &mut legend_sequence, legend_change, &legend_actions);
+                        if legend_blur_requires_reconciliation(&value, accepted_legend.as_deref(), legend_retry_pending) {
+                            let change = if legend_change_required(&value, accepted_legend.as_deref()) {
+                                KeycapEditChange::Legend(Some(value))
+                            } else {
+                                KeycapEditChange::Legend(accepted_legend.clone())
+                            };
+                            request(change, &mut legend_sequence, legend_change, &legend_actions);
                         }
                     },
                 }
@@ -1279,6 +1357,14 @@ fn parse_mount(value: &str) -> Option<KeycapMount> {
 
 fn legend_change_required(draft: &str, accepted: Option<&str>) -> bool {
     draft != accepted.unwrap_or("")
+}
+
+fn legend_blur_requires_reconciliation(
+    draft: &str,
+    accepted: Option<&str>,
+    retry_pending: bool,
+) -> bool {
+    legend_change_required(draft, accepted) || retry_pending
 }
 
 fn field_label(field: &KeycapEditField) -> &'static str {
@@ -1459,5 +1545,70 @@ mod tests {
         assert!(!legend_change_required("", None));
         assert!(!legend_change_required("", Some("")));
         assert!(legend_change_required("A", None));
+        assert!(legend_blur_requires_reconciliation("", None, true));
+        assert!(!legend_blur_requires_reconciliation("", None, false));
+    }
+
+    #[test]
+    fn discard_feedback_cleanup_is_exact_and_never_hides_pending_work() {
+        let scope = Scope {
+            session_epoch: boardstudio_application::SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let request = KeycapsEditRequest {
+            scope: scope.clone(),
+            scope_generation: 2,
+            selection_generation: 3,
+            editor_instance_id: 4,
+            request_id: 5,
+            admission_token: SnapshotToken(6),
+            admission_revision: 7,
+            key_id: "sw1".into(),
+            baseline_settings: KeycapKeySettings::default(),
+            change: KeycapEditChange::Legend(Some("X".into())),
+        };
+        let identity = KeycapsRetryIdentity {
+            editor_instance_id: 4,
+            scope,
+            scope_generation: 2,
+            selection_generation: 3,
+            key_id: "sw1".into(),
+            request_id: 5,
+            field: KeycapEditField::Legend,
+        };
+        let state = |request_id, status| FeedbackState {
+            request: KeycapsEditRequest {
+                request_id,
+                ..request.clone()
+            },
+            operation_id: None,
+            status,
+        };
+
+        assert!(feedback_is_cleared_by_identity(
+            &state(5, KeycapsEditStatus::Failed("rejected".into())),
+            &identity
+        ));
+        assert!(!feedback_is_cleared_by_identity(
+            &state(6, KeycapsEditStatus::Failed("newer".into())),
+            &identity
+        ));
+        assert!(!feedback_is_cleared_by_identity(
+            &state(5, KeycapsEditStatus::Pending),
+            &identity
+        ));
+        assert!(!feedback_is_cleared_by_identity(
+            &FeedbackState {
+                request: KeycapsEditRequest {
+                    change: KeycapEditChange::Color(Some("#ffffff".into())),
+                    ..request.clone()
+                },
+                operation_id: None,
+                status: KeycapsEditStatus::Failed("another field".into()),
+            },
+            &identity
+        ));
     }
 }
