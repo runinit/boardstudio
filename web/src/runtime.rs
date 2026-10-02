@@ -131,6 +131,9 @@ impl Runtime {
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {
         self.session.borrow().scope()
     }
+    pub(crate) fn electrical_preview_executor_epoch(&self) -> u64 {
+        self.session.borrow().core_executor_epoch().0
+    }
     pub fn model(&self) -> ReadModel {
         self.session.borrow().read_model().clone()
     }

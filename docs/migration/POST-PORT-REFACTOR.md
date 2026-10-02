@@ -54,6 +54,8 @@ The confirmed six-stream parity reset has dispatched a bounded private compositi
 
 PCB scene review at source correction `590140b2` also found that accepted board membership/part projection is rebuilt on selection renders and generator drawing transfers owned parameter and full definition inputs through `FootprintGraphics`. The existing owned-prop boundary is retained; the obvious duplicate local parameter clone may be removed, but broad memoization is deferred until render/allocation cost is measured on a real generated multi-part board. This is an unmeasured design risk, not a performance pass or current assembly blocker. See the [PCB Wiring/context Inspector audit](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/audit.md).
 
+The bounded PCB Wiring Runtime helper independently repeats the mechanical resolver’s accepted-source and exact Core worker `Rc`/executor-epoch checks around its async request. This is necessary feature-local protection now; assess a shared tested read-query lifecycle boundary only after parity. The private Inspector also remains an unmounted source slice until root composition/build/public checks. See the [implementation handoff](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md).
+
 ## RF-002
 
 **Internal browser host types are exposed as crate APIs** — architecture / API design. confirmed observation; future cost is a design risk.
@@ -140,6 +142,9 @@ Evidence: [Workbench.tsx](../../app/src/ui/Workbench.tsx), [LibraryWorkspace.tsx
 
 **Current effective-projection handoff (2026-10-02):** the private proposal projection and matching contours deliberately use different inputs. Project the ephemeral proposed canonical document through `captured_case_document`; use `captured_case_scene` on the original accepted snapshot for the unchanged board contours. That preserves the physical-instance reflection/winding policy once, while preventing a reflected display document from being persisted or projected a second time. The temporary carrier never becomes Session, accepted-read-model, CAD cache/job, export or operation authority. No public API is added or widened, and no default/material policy is copied. The source-backed cost and identity limits are recorded in the [retained projection review](../../.scratch/dioxus-frontend-v1/evidence/planning/mechanical-effective-projection-cost-20261002.md).
 
+
+The PCB electrical preview explicitly uses board `Scope(instance_id=None)` while physical Case/mechanical operations retain their instance identity. This source distinction is recorded in the [Wiring implementation handoff](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md); do not generalize the board normalization to instance-scoped operations.
+
 ## RF-007
 
 **Runtime observation currently supports one subscriber** — architecture / reactivity. hypothesis requiring consumer audit.
@@ -217,6 +222,8 @@ The built encoder candidate at source `e82c039b` / build `frontend-encoder-bindi
 ### RF-009 PCB Wiring and selected-switch accounting
 
 The pinned React Sofle flow shows a board-level Wiring plan when nothing or a controller is selected, and a read-only accepted-net/name projection for a selected switch. The current page still contains the PCB placeholder; the new private host-scene leaf awaits root mount and paired public verification. Core already owns `ResolveElectrical`; a private Runtime request/scope adapter and Inspector composition are still required. The proposed F5.2a draft keeps that adapter, the accepted selected-board scope, and the selected-switch context explicit without closing F5.2 or its INT.2 acceptance join. The candidate page observation used an unpinned local server, so it is exploratory only. See the [source/UI audit and packet](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/audit.md) and [draft child](../../.scratch/dioxus-pcb-view/drafts/F5.2a-wiring-preview-and-switch-context.md).
+
+The private Runtime adapter and Wiring/selected-switch projection are now authored at source commit `626668b7`; an executor-identity/UI parity follow-up is under exact-source review. The [implementation handoff](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md) records current hashes and root’s mount/CSS contract. Compilation, public pairing and F5.2/F5.3/INT.2 remain open.
 
 ## RF-010
 

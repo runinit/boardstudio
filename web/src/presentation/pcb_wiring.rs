@@ -18,6 +18,7 @@ pub(in crate::presentation) struct WiringPlanIdentity {
     pub scope: Scope,
     pub token: SnapshotToken,
     pub revision: u64,
+    pub executor_epoch: u64,
 }
 
 /// A cheap view of the accepted source. Arc identity avoids deep document comparisons in the
@@ -34,6 +35,7 @@ impl PcbWiringSource {
         accepted: &AcceptedSnapshot,
         scope: &Scope,
         active_part_id: Option<&str>,
+        executor_epoch: u64,
     ) -> Option<Self> {
         if scope.instance_id.is_some()
             || scope.session_epoch != accepted.session_epoch
@@ -52,6 +54,7 @@ impl PcbWiringSource {
                 scope: scope.clone(),
                 token: accepted.token,
                 revision: accepted.document.revision,
+                executor_epoch,
             },
             document: accepted.document.clone(),
             active_part_id: active_part_id.map(str::to_owned),
@@ -359,7 +362,13 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let chosen_controller_id = display
         .configured_controller_id
         .as_deref()
-        .or_else(|| matching_plan.and_then(|plan| plan.controller_part_id.as_deref()));
+        .or_else(|| matching_plan.and_then(|plan| plan.controller_part_id.as_deref()))
+        .filter(|id| {
+            display
+                .controller_choices
+                .iter()
+                .any(|choice| choice.id == *id)
+        });
     let controller_name = chosen_controller_id.map_or("No controller selected", |id| {
         display
             .controller_choices
@@ -389,7 +398,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             } else if matching_plan.is_none() {
                 p { role: "status", "Waiting for a current wiring plan." }
             }
-            button { type: "button", disabled: pending, onclick: move |_| on_resolve.call(()),
+            button { type: "button", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
                 if pending { "Resolving…" } else { "Resolve automatically" }
             }
             if let Some(plan) = matching_plan {
@@ -449,11 +458,11 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     }
                 }
                 if !plan.diagnostics.is_empty() {
-                    div { class: "m1-pcb-wiring-section",
+                    div { class: "m1-pcb-wiring-section", role: "alert",
                         h3 { "Findings" }
                         ul {
                             for (index, diagnostic) in plan.diagnostics.iter().enumerate() {
-                                li { key: "{index}", "{diagnostic.message}" }
+                                li { key: "{index}", "{diagnostic.severity}: {diagnostic.message}" }
                             }
                         }
                     }
@@ -510,4 +519,35 @@ fn used_pins(plan: &ElectricalPlan) -> Vec<String> {
         .into_iter()
         .chain(plan.peripheral_terminals.values().cloned())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+
+    #[test]
+    fn executor_restart_invalidates_same_accepted_wiring_identity() {
+        let scope = Scope {
+            session_epoch: SessionEpoch(7),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let before_restart = WiringPlanIdentity {
+            scope: scope.clone(),
+            token: SnapshotToken(11),
+            revision: 13,
+            executor_epoch: 17,
+        };
+        let after_restart = WiringPlanIdentity {
+            executor_epoch: 18,
+            ..before_restart.clone()
+        };
+
+        assert_ne!(before_restart, after_restart);
+        assert_eq!(before_restart.scope, after_restart.scope);
+        assert_eq!(before_restart.token, after_restart.token);
+        assert_eq!(before_restart.revision, after_restart.revision);
+    }
 }

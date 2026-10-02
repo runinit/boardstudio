@@ -52,7 +52,7 @@ pub(in crate::presentation) fn use_pcb_wiring_controller(
         }
     }));
 
-    let on_resolve = EventHandler::new({
+    let on_resolve = use_callback({
         let runtime = runtime.clone();
         let latest_request = latest_request.clone();
         let alive = alive.clone();
@@ -102,6 +102,7 @@ fn current_input(runtime: &Runtime) -> Option<(WiringPlanIdentity, AcceptedSnaps
         scope: scope.clone(),
         token: accepted.token,
         revision: accepted.document.revision,
+        executor_epoch: runtime.electrical_preview_executor_epoch(),
     };
     Some((identity, accepted, scope))
 }

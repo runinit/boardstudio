@@ -88,7 +88,17 @@
           "validation": "Profile accepted scene and generator input allocations during selection-only renders; compare output/selection parity and verify document/history/export state remains unchanged.",
           "status": "unmeasured design risk recorded; no performance-pass or acceptance claim"
         }
-      ]
+      ,
+  {
+    "source": "PCB Wiring bounded Runtime adapter; source commit 626668b7 plus reviewed follow-up pending",
+    "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md",
+    "observation": "The new private electrical preview helper repeats the existing mechanical settings resolver boundary: each independently validates accepted source/scope and checks the exact Core worker Rc plus Session executor epoch around its await. The bounded feature helper is necessary now; a shared tested read-query lifecycle boundary is a post-port proposal only. The separate PCB scene allocation observation remains unmeasured.",
+    "current_mitigation": "Keep the two bounded Runtime helpers explicit and source-specific, with exact accepted input, worker and epoch checks; do not introduce a generic query framework or duplicate Session/document authority during the parity slice.",
+    "post_port_follow_up": "After parity, evaluate one shared, tested Runtime read-query lifecycle boundary covering accepted-source/scope admission, worker identity/epoch, cancellation and stale-reply suppression. Measure a real benefit and preserve feature-specific typed inputs before consolidating.",
+    "validation": "Exercise mechanical and electrical source changes, executor restart/reopen ABA and late worker replies through the real Runtime; prove current accepted inputs are returned and stale results suppressed without duplicate authority.",
+    "status": "bounded source adapter implemented; shared lifecycle refactor deferred; compiler/browser/public gates remain open"
+  }
+]
     },
     {
       "id": "RF-002",
@@ -416,7 +426,17 @@
           "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
           "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
         }
-      ]
+      ,
+  {
+    "source": "F5.2a board-level electrical query identity",
+    "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md",
+    "observation": "The Wiring plan is board-scoped and normalizes Scope.instance_id to None, matching the reference ResolveElectrical request. The helper separately validates the accepted board/session/document and executor identity. This is distinct from Case/mechanical instance projection and must not be reused as a generic scope normalization rule.",
+    "current_mitigation": "Carry an explicit board Scope(instance_id=None) for electrical resolution and retain the existing physical-instance scope for mechanical operations.",
+    "post_port_follow_up": "Include board, physical-instance and isolated-sample queries in the proposed typed scope/query lifecycle evaluation; preserve each consumer projection and identity independently.",
+    "validation": "Switch between board and physical-instance workspaces while a query is pending; verify board Wiring stays board-scoped and instance mechanical operations retain their captured instance identity.",
+    "status": "source-level distinction recorded; root mount, async lifecycle and paired browser checks remain open"
+  }
+]
     },
     {
       "id": "RF-007",
@@ -640,7 +660,14 @@
           "observation": "Confirmed legacy stale-closure defect: explicit setSelectionMode(key) immediately followed by captured choosePart still uses Matrix and selectScope restores Matrix. Paired intended single-key oracle passes Dioxus, fails React; manual Key mode first fixes reference path. Preserve correct Dioxus behavior as explicit user-Q1 bug exception; retain original mismatch and earlier hypothesis.",
           "status": "confirmed legacy defect documented; candidate regression proof retained; broader selection/lifecycle refactor and full Keycaps acceptance open"
         }
-      ]
+      ,
+  {
+    "source": "F5.2a private Wiring source commit 626668b7; follow-up source review pending",
+    "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md",
+    "observation": "A private board-scoped Core ResolveElectrical adapter and read-only Wiring/switch-terminal Inspector are implemented. Follow-up includes executor-epoch invalidation and reviewed no-controller/diagnostic display corrections. The source is not yet mounted or compiler/public verified; root owns composition, build, paired fixture evidence and all F5.2/F5.3/INT.2 joins.",
+    "status": "private source implementation only; exact current file hashes and unrun checks are recorded in handoff; no acceptance claim"
+  }
+]
     },
     {
       "id": "RF-010",
