@@ -73,3 +73,18 @@ Exact current file SHA-256:
 - `web/src/presentation/pcb_wiring/controller.rs`: `48258f7f15cb7cc0ad656a47d311f7473b38eac8d58d7eb3ca6d4aefb47b3136`
 
 Reran the same targeted native firmware-position command after this correction: all six tests pass. This source may be integrated and released to the F6 initial consumer. The previous acknowledgment's full-ticket limits remain unchanged: production F6 control/stylesheet mounting and mandatory mounted async Runtime/Dioxus regression, paired edit/Undo/Redo/reopen and F5.2/F8.2 joins are still open. No new refactoring takeaway; no gate is waived.
+
+## Keycaps final corrected-source acknowledgment — `13533ccf373cbdda0ca0c478744907117ea906cf`
+
+**Source-integration Spec clear; all three original source findings are resolved. Full paired acceptance remains open.** Reviewed final source at merged HEAD `fa269477a181573df5f2d21a008fd9f327e4a254`; the merge does not change the reviewed fit module, lifecycle tests, Runtime request or Keycaps workspace files. Uncommitted report/screenshot updates were inspected only as evidence, not mistaken for source changes.
+
+Exact hashes verified:
+
+- `web/src/presentation/keycaps_fit.rs`: `13c5644743c21a0701378a68d166b1806b02484923899ae91182de6be04e4c65`
+- `web/tests/keycaps_fit_lifecycle.rs`: `8d8e67db790aa5d03c667d4703a1b47657975fa8903d4f89c9be555ed94c72c0`
+
+The request effect now uses non-subscribing `peek` reads for mutable bookkeeping and preserves one request per source/retry change. Same-source pending/retry/failure is non-current because `is_current` requires a settled success without error; retained clean output is explicitly described as an earlier assessment. Findings follow the pinned React oracle's feature-wrapper deduplication, merged target IDs, stable error/warning/info sorting, first-seen target groups, outline/part+definition/matrix/body/board label precedence, fallback scope label and fitted-outline note. Keycaps' reference `FindingList` receives no mechanical assembly, so omitting an assembly-layer label branch here is correct. Finding navigation remains separate ticket02 scope.
+
+The final follow-up adds an Rc/Cell mount guard checked before any signal access after the detached await and uses stable `use_callback` retry ownership. The harness imports the production hook/component directly and models genuinely detached pending tasks, then drops the VirtualDom before settling the request. This exercises the prior disposed-signal failure rather than merely cancelling the test task with the component. Six tests are present: four mounted lifecycle scenarios and two source state/oracle tests; this is not six browser-worker integration tests. The supplied independently passing test evidence and documented red/green regressions were reused; no redundant build/test run was added while the candidate build is active.
+
+No new actionable source Spec finding observed. The fixed `4d9196d` activation screenshot/run supports the loop fix but predates the final unmount correction. Require the final source-stamped candidate and full paired finding/clean/edit/Undo/Redo/save-reopen journey, plus delayed supersession/failure and responsive Inspector evidence, before accepting ticket01/F6C.4/INT.2. No gate waived; RF-003/RF-006/RF-009 carry forward, no new RF ID.

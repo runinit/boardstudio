@@ -90,3 +90,15 @@ The original P1 effect loop is repaired: sequence/previous-state reads use `peek
 Executed exact `git diff --check 448c3274..4d9196d7`: passed. No tests rerun concurrently with the production candidate build. Source integration is **not yet clear** at this revision; original loop P1 is resolved, but these bounded lifecycle/policy repairs remain. Browser finding/edit/Undo/Redo/reopen and delayed-failure acceptance stay open independently.
 
 RF handoff: add concrete callback/lifetime evidence to existing RF-001 and test-executor lifetime mismatch to RF-009; retain RF-003/006 prepared-artifact/physical-source observations. No new RF ID.
+
+## Keycaps final owner repair — `13533ccf373cbdda0ca0c478744907117ea906cf`
+
+Reviewed 2026-10-02; re-ack applies to merged worktree HEAD `fa269477a181573df5f2d21a008fd9f327e4a254`, whose relevant source hashes remain identical. **Source Standards clear; earlier Keycaps source findings resolved.**
+
+`use_hook` now owns an `Rc<Cell<bool>>` mount guard and `use_drop` clears it. Detached completion checks that guard before any post-await `sequence.peek()` or state access, so scope disposal cannot cause the previously identified Signal borrow panic. Sequence/revision checks still reject stale publication without changing Runtime authority. Retry uses `use_callback` for one refreshed callback allocation. Pure tests moved into a child module; state methods and grouping helpers are private again. The test-module dead-code allowance is gone; the harness actually mounts the production inspector.
+
+The test executor now retains detached futures separately from VirtualDom. It starts a held request, drops the mounted DOM, releases the request, then polls the detached completion. Author reports removing the alive guard produced the expected `ValueDroppedError` at `sequence.peek`; restoring it passes. Reviewer independently ran `cargo test --locked --manifest-path web/Cargo.toml --test keycaps_fit_lifecycle -- --nocapture` at merged HEAD: **6 passed**, covering idle settling, one-request accepted source, detached late completion after teardown, mounted completion, failed-retry staleness and presentation grouping. `git diff --check 4d9196d7..13533ccf`: passed.
+
+Exact final source SHA-256: `keycaps_fit.rs` `13c5644743c21a0701378a68d166b1806b02484923899ae91182de6be04e4c65`; `keycaps_fit_lifecycle.rs` `8d8e67db790aa5d03c667d4703a1b47657975fa8903d4f89c9be555ed94c72c0`.
+
+This clears source integration and confirms a meaningful mounted lifecycle regression seam. The deterministic port does not establish real browser worker transport, Case artifact currentness under real jobs, or paired finding/edit/Undo/Redo/reopen acceptance. Those gates remain with the candidate browser journey. RF-001/RF-009 follow-up evidence retained; no new RF ID.
