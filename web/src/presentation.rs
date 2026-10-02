@@ -7,6 +7,7 @@ mod case_workspace;
 mod context_summary;
 mod inspector;
 mod instance_selection;
+mod keycaps_scene;
 mod keycaps_workspace;
 mod keymap;
 mod keymap_workspace;
@@ -34,7 +35,7 @@ use selection::{ReentrancyReset, SelectionAdapter};
 mod footprint_graphics;
 
 use crate::runtime::Runtime;
-use boardstudio_application::{Durability, Event, Scope, SelectionMode};
+use boardstudio_application::{AcceptedSnapshot, Durability, Event, Scope, SelectionMode};
 use boardstudio_core::model::{
     Contour, EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
 };
@@ -110,6 +111,7 @@ struct WorkspaceCallbackSlots {
     canvas_key_up: EventHandler<KeyboardEvent>,
     canvas_wheel: EventHandler<WheelEvent>,
     keymap_select: EventHandler<String>,
+    keycaps_select: EventHandler<String>,
     keymap_layer: EventHandler<String>,
     show_configured_board: EventHandler<String>,
 }
@@ -572,6 +574,23 @@ fn durability_label(durability: &Durability) -> &'static str {
     }
 }
 
+fn accepted_board_contours(snapshot: &AcceptedSnapshot, board_id: &str) -> Rc<[Contour]> {
+    let contours = snapshot
+        .scene
+        .board_contours
+        .iter()
+        .find(|board| board.board_id == board_id)
+        .map(|board| board.contours.as_slice())
+        .unwrap_or_else(|| {
+            if snapshot.document.boards.len() == 1 {
+                snapshot.scene.contours.as_slice()
+            } else {
+                &[]
+            }
+        });
+    Rc::<[Contour]>::from(contours.to_vec())
+}
+
 fn keymap_bounds(view: &keymap::KeymapView, contours: &[Contour]) -> Option<(f64, f64, f64, f64)> {
     let mut bounds: Option<(f64, f64, f64, f64)> = None;
     let mut include = |x: f64, y: f64| {
@@ -591,6 +610,39 @@ fn keymap_bounds(view: &keymap::KeymapView, contours: &[Contour]) -> Option<(f64
             let x = key.pose.at.x + local_x * cos - local_y * sin;
             let y = key.pose.at.y + local_x * sin + local_y * cos;
             include(x, y);
+        }
+    }
+    for contour in contours {
+        for point in &contour.points {
+            include(point.x, point.y);
+        }
+    }
+    bounds
+}
+
+fn keycaps_bounds(
+    view: &keycaps_scene::KeycapsView,
+    contours: &[Contour],
+) -> Option<(f64, f64, f64, f64)> {
+    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    let mut include = |x: f64, y: f64| {
+        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
+            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
+        }));
+    };
+    for key in &view.keys {
+        let angle = key.pose.rotation.to_radians();
+        let (sin, cos) = angle.sin_cos();
+        for (local_x, local_y) in [
+            (-key.size.x / 2.0, -key.size.y / 2.0),
+            (-key.size.x / 2.0, key.size.y / 2.0),
+            (key.size.x / 2.0, -key.size.y / 2.0),
+            (key.size.x / 2.0, key.size.y / 2.0),
+        ] {
+            include(
+                key.pose.at.x + local_x * cos - local_y * sin,
+                key.pose.at.y + local_x * sin + local_y * cos,
+            );
         }
     }
     for contour in contours {
@@ -638,6 +690,7 @@ fn Editor() -> Element {
         canvas_key_up: EventHandler::new(|_: KeyboardEvent| {}),
         canvas_wheel: EventHandler::new(|_: WheelEvent| {}),
         keymap_select: EventHandler::new(|_: String| {}),
+        keycaps_select: EventHandler::new(|_: String| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
         show_configured_board: EventHandler::new(|_: String| {}),
     });
@@ -678,7 +731,10 @@ fn Editor() -> Element {
     let parts_selection: PartsSelection = use_signal(|| None);
     let mut keymap_layer_id = use_signal(|| "base".to_owned());
     let active_workspace = workspace();
-    let has_inspector = matches!(active_workspace, "Layout" | "Parts" | "Keymap" | "Case");
+    let has_inspector = matches!(
+        active_workspace,
+        "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case"
+    );
     let mut objects_open = use_signal(|| false);
     let mut inspect_open = use_signal(|| false);
     let on_parts_select = {
@@ -763,20 +819,22 @@ fn Editor() -> Element {
                     board_id.as_ref(),
                     layer_id.as_ref(),
                 )?;
-                let contours = snapshot
-                    .scene
-                    .board_contours
-                    .iter()
-                    .find(|board| board.board_id == *board_id)
-                    .map(|board| board.contours.as_slice())
-                    .unwrap_or_else(|| {
-                        if snapshot.document.boards.len() == 1 {
-                            snapshot.scene.contours.as_slice()
-                        } else {
-                            &[]
-                        }
-                    });
-                Some((view, Rc::<[Contour]>::from(contours.to_vec())))
+                Some((view, accepted_board_contours(snapshot, board_id)))
+            }
+        },
+    ));
+    let keycaps_projection = use_memo(use_reactive(
+        (&accepted_token, &current_scope, &active_board_id),
+        {
+            let runtime = runtime.clone();
+            move |(token, scope, board_id)| {
+                let model = runtime.model();
+                let snapshot = model.accepted.as_ref()?;
+                if token.as_ref() != Some(&snapshot.token) {
+                    return None;
+                }
+                let view = keycaps_scene::project(snapshot, scope.as_ref()?, board_id)?;
+                Some((view, accepted_board_contours(snapshot, board_id)))
             }
         },
     ));
@@ -800,6 +858,9 @@ fn Editor() -> Element {
     let keymap_projection = keymap_projection.read().clone();
     let keymap_view = keymap_projection.as_ref().map(|(view, _)| view.clone());
     let keymap_contours = keymap_projection.map(|(_, contours)| contours);
+    let keycaps_projection = keycaps_projection.read().clone();
+    let keycaps_view = keycaps_projection.as_ref().map(|(view, _)| view.clone());
+    let keycaps_contours = keycaps_projection.map(|(_, contours)| contours);
     // Keep macro operation observation alive when another workspace hides the panel.
     let macro_actions = keymap::use_macro_operations(
         runtime.clone(),
@@ -1160,6 +1221,91 @@ fn Editor() -> Element {
             inspect_open.set(true);
         }
     };
+    let on_keycaps_select = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        move |key_id: String| {
+            if workspace() != "Keycaps"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !keymap_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
+                return;
+            }
+            if key_id.is_empty() {
+                let mut selected_context = adapter.selected_context;
+                selected_context.set(None);
+                let mut anchor_scope = adapter.anchor_scope;
+                anchor_scope.set(None);
+                runtime.submit(Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: Vec::new(),
+                    range_part_ids: Vec::new(),
+                    mode: SelectionMode::Replace,
+                });
+                return;
+            }
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            let Some(view) = keycaps_scene::project(snapshot, &scope, &model.active_board_id)
+            else {
+                return;
+            };
+            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
+                return;
+            }
+            let Some(context) = objects::context_for_part(&model, &key_id) else {
+                return;
+            };
+            if !selection::context_is_current(&model, &scope, &context) {
+                return;
+            }
+            let Some(selected_ids) = selection::submit_canvas_selection(
+                &runtime,
+                &adapter,
+                &scope,
+                generation,
+                context.clone(),
+                SelectionMode::Replace,
+                Vec::new(),
+            ) else {
+                return;
+            };
+            if selected_ids.is_empty()
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let current = runtime.model();
+            if !keymap_scope_matches(&current, &scope)
+                || !selection::context_is_current(&current, &scope, &context)
+                || !instance_selection.is_current(&current)
+            {
+                return;
+            }
+            let Some(snapshot) = current.accepted.as_ref() else {
+                return;
+            };
+            let Some(view) = keycaps_scene::project(snapshot, &scope, &current.active_board_id)
+            else {
+                return;
+            };
+            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
+                return;
+            }
+            objects_open.set(false);
+            inspect_open.set(true);
+        }
+    };
     let on_keymap_layer = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -1327,14 +1473,16 @@ fn Editor() -> Element {
                 ));
             }
         };
-    let keymap_rect_bounds = if active_workspace == "Keymap" {
-        keymap_view
+    let workspace_rect_bounds = match active_workspace {
+        "Keymap" => keymap_view
             .as_deref()
-            .and_then(|view| keymap_bounds(view, keymap_contours.as_deref().unwrap_or(&[])))
-    } else {
-        None
+            .and_then(|view| keymap_bounds(view, keymap_contours.as_deref().unwrap_or(&[]))),
+        "Keycaps" => keycaps_view
+            .as_deref()
+            .and_then(|view| keycaps_bounds(view, keycaps_contours.as_deref().unwrap_or(&[]))),
+        _ => None,
     };
-    let bounds = keymap_rect_bounds.or_else(|| {
+    let bounds = workspace_rect_bounds.or_else(|| {
         let mut points = visible.iter().map(|part| part.pose.at);
         let first = points.next()?;
         Some(points.fold(
@@ -1997,6 +2145,9 @@ fn Editor() -> Element {
         .keymap_select
         .replace(Box::new(on_keymap_select.clone()));
     workspace_callbacks
+        .keycaps_select
+        .replace(Box::new(on_keycaps_select.clone()));
+    workspace_callbacks
         .keymap_layer
         .replace(Box::new(on_keymap_layer));
     workspace_callbacks
@@ -2128,11 +2279,17 @@ fn Editor() -> Element {
             }),
         )),
         "Keycaps" => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
-            workspace_composition::PlaceholderInput {
-                workspace,
-                name: "Keycaps",
-                message: "Keycap editing is not available yet in the Rust interface.",
-            },
+            Box::new(keycaps_workspace::CanvasInput {
+                view: keycaps_view.clone(),
+                contours: keycaps_contours
+                    .clone()
+                    .unwrap_or_else(|| Rc::<[Contour]>::from(Vec::new())),
+                view_box: view_box.clone(),
+                selected_ids: model.selected_part_ids.iter().cloned().collect(),
+                selected_key_id: model.selected_part_ids.first().cloned(),
+                handlers: canvas_handlers,
+                on_select_key: workspace_callbacks.keycaps_select,
+            }),
         )),
         "Case" => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
             case_workspace::CanvasInput {
@@ -2188,7 +2345,12 @@ fn Editor() -> Element {
             })
         }
         "PCB" => workspace_composition::WorkspaceInspectorInput::Pcb,
-        "Keycaps" => workspace_composition::WorkspaceInspectorInput::Keycaps,
+        "Keycaps" => workspace_composition::WorkspaceInspectorInput::Keycaps(
+            keycaps_workspace::InspectorInput {
+                view: keycaps_view.clone(),
+                selected_key_id: model.selected_part_ids.first().cloned(),
+            },
+        ),
         _ => workspace_composition::WorkspaceInspectorInput::Layout(
             layout_workspace::InspectorInput {
                 context_title: context_summary

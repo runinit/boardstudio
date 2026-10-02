@@ -4,8 +4,8 @@
 //! controlled view over the accepted document and emits stable part IDs only.
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{
-    KeyBinding, KeycapBoardSettings, KeycapKeySettings, Part, PartDefinition, PartKind, Pose2,
-    ProjectDoc, Vec2,
+    Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, Part, PartDefinition, PartKind,
+    Pose2, ProjectDoc, Vec2,
 };
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -263,11 +263,21 @@ fn key_binding_label(document: &ProjectDoc, board_id: &str, key_id: &str) -> Str
 #[component]
 pub(super) fn KeycapsCanvas(
     view: Rc<KeycapsView>,
+    contours: Rc<[Contour]>,
     selected_ids: BTreeSet<String>,
     on_select_key: EventHandler<String>,
 ) -> Element {
     rsx! {
         g { class: "m1-keycaps-layout", "data-board-id": "{view.board_id}",
+            g { class: "m1-keycaps-outline", "aria-hidden": "true", "pointer-events": "none",
+                for (index, contour) in contours.iter().enumerate() {
+                    polygon {
+                        key: "outline-{index}",
+                        points: contour_points(&contour.points),
+                        class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+                    }
+                }
+            }
             for key in &view.keys {
                 {
                     let id = key.id.clone();
@@ -334,6 +344,14 @@ pub(super) fn KeycapsCanvas(
             }
         }
     }
+}
+
+fn contour_points(points: &[Vec2]) -> String {
+    points
+        .iter()
+        .map(|point| format!("{},{}", point.x, point.y))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[component]

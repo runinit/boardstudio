@@ -50,7 +50,7 @@ pub(super) struct PlaceholderInput {
 pub(super) enum WorkspaceCanvasInput {
     Pcb(PlaceholderInput),
     Keymap(Box<super::keymap_workspace::CanvasInput>),
-    Keycaps(PlaceholderInput),
+    Keycaps(Box<super::keycaps_workspace::CanvasInput>),
     Case(Box<super::case_workspace::CanvasInput>),
     Parts(PlaceholderInput),
     Other(PlaceholderInput),
@@ -60,7 +60,7 @@ pub(super) enum WorkspaceInspectorInput {
     Layout(super::layout_workspace::InspectorInput),
     Pcb,
     Keymap(Box<super::keymap_workspace::InspectorInput>),
-    Keycaps,
+    Keycaps(super::keycaps_workspace::InspectorInput),
     Case(super::case_workspace::InspectorInput),
     Parts(super::parts_workspace::InspectorInput),
 }
@@ -94,7 +94,7 @@ pub(super) fn canvas(input: WorkspaceCanvasInput) -> Element {
     match input {
         WorkspaceCanvasInput::Pcb(input) => super::pcb_workspace::canvas(input),
         WorkspaceCanvasInput::Keymap(input) => super::keymap_workspace::canvas(*input),
-        WorkspaceCanvasInput::Keycaps(input) => super::keycaps_workspace::canvas(input),
+        WorkspaceCanvasInput::Keycaps(input) => super::keycaps_workspace::canvas(*input),
         WorkspaceCanvasInput::Case(input) => super::case_workspace::canvas(*input),
         WorkspaceCanvasInput::Parts(input) => super::parts_workspace::canvas(input),
         WorkspaceCanvasInput::Other(input) => super::parts_workspace::canvas(input),
@@ -106,7 +106,7 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
         WorkspaceInspectorInput::Layout(input) => super::layout_workspace::inspector(input),
         WorkspaceInspectorInput::Pcb => super::pcb_workspace::inspector(),
         WorkspaceInspectorInput::Keymap(input) => super::keymap_workspace::inspector(*input),
-        WorkspaceInspectorInput::Keycaps => super::keycaps_workspace::inspector(),
+        WorkspaceInspectorInput::Keycaps(input) => super::keycaps_workspace::inspector(input),
         WorkspaceInspectorInput::Case(input) => super::case_workspace::inspector(input),
         WorkspaceInspectorInput::Parts(input) => super::parts_workspace::inspector(input),
     }
