@@ -1,0 +1,26 @@
+# 12: Contextual Inspector for generated Case layers
+
+**Parent workflows:** F7.2 Case contextual workspace and F7.4 mechanical settings.
+
+**What to build:** Selecting a supported generated structural layer in the Case Objects tree changes Inspect to the same layer-specific mechanical editor shown by React, while retaining current display controls and the existing settings/edit authority.
+
+**Parent contract:** This is a child refinement of the existing Issue09 contextual workspace and Issue03 mechanical settings work. Issue05 remains the owner of gasket/support controls. This issue does not replace or close any of those tickets.
+
+**Capability start gate:** Start after the integrated Issue09 Case tree-to-Inspector route and Case16 layer tree/shared viewer mount are proven, and the current MechanicalSettings request/outcome seam can edit an accepted field under the exact active Scope. Do not wait for all of F7.3 or F7.4. A current resolved mechanical layer projection is required for the selected-layer journey.
+
+**Status:** planning review pending; public paired journey has identified the gap. Parent acceptance remains open.
+
+**Reviewed draft:** [Issue12 contextual generated-layer spec](../drafts/12-case-contextual-generated-layer-inspector.md).
+
+- [ ] For supported generated structural layer IDs `plate`, `pcb`, `plate-foam`, `bottom-foam`, `bottom`, and `retainer`, selecting the current Objects row switches the right Inspector into the corresponding React context. Show the same title and `Assembly settings` return action. When the matching current generated body exists in the accepted Case projection, show React's `Resolved thickness` readout from the producer-supplied body thickness; do not derive a substitute or fabricate a value. With internal gasket configured, Retainer/Bottom also shows React's `Edit shared closure hardware` action; activating it clears selected-layer context through the existing selection action and returns to Assembly settings.
+- [ ] Show only the dimension controls React associates with that layer: Plate → plate thickness; PCB → PCB thickness; Plate foam → plate-foam thickness; Bottom foam → bottom-foam thickness; Bottom → bottom thickness, wall thickness and clearance; Retainer/top case → wall thickness and clearance. Preserve existing input units, validation, coupled mechanical behavior, per-field drafts, current Scope and feedback.
+- [ ] Show current error findings in React's `Fit issues` section via existing finding navigation; the reference includes all current mechanical errors there and does not filter by selected layer. Keep the layer's display color/reset/visibility controls available. View preferences remain separate from document edits.
+- [ ] `Assembly settings`, deselection, unknown/stale IDs, scope/instance changes, wrong-board mechanical configuration or unresolved/stale output return to the safe current global Inspector or a truthful status. Never render stale layer values or fabricate a layer selection.
+- [ ] Persist a field edit through the existing scoped MechanicalSettings controller and existing canonical/physical-instance commit path. Preserve latest-accepted merge, history, failure handling, Undo/Redo, save/reopen and document values. No public API/schema changes, new state/history owner, CAD implementation, or gasket/support controls.
+- [ ] Paired browser journey on the same archive SHA `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`: resolve Case stack; select Plate; edit thickness; return to Assembly settings; select Bottom and verify its field set; exercise a selected-layer finding present in the fixture; test color/reset/visibility; Undo/Redo; save/reopen and reselect. Preserve exact React/candidate source, build, profile, actions, screenshots and persisted values.
+- [ ] Include desktop/compact and keyboard-focus checks through the existing Case contextual acceptance. This child does not close F7.2, F7.4, F7.3, F7.8, or INT.2/BND.1 joins.
+- [ ] Record no new RF takeaway for this bounded surface, preserving RF-001/RF-006 evidence; add a new RF only if implementation/review establishes a distinct architectural issue.
+
+**Parent gates unchanged:** F7.4 still requires INT.2; F7.3 still requires INT.2 and BND.1; F7.2/F7.8 and the canonical 62-task graph are unchanged.
+
+**Routing:** Luna Medium implementation/evidence; Sol 6.1 High independent Spec and Standards review. Root owns shared Inspector composition and integration files.
