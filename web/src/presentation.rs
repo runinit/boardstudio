@@ -153,7 +153,8 @@ fn Editor() -> Element {
         .filter(|p| board.is_some_and(|b| b.part_ids.contains(&p.id)))
         .cloned()
         .collect();
-    let visible_ids: Vec<String> = visible.iter().map(|part| part.id.clone()).collect();
+    let visible_ids: Rc<Vec<String>> =
+        Rc::new(visible.iter().map(|part| part.id.clone()).collect());
     let points: Vec<_> = visible.iter().map(|p| p.pose.at).collect();
     let min_x = points.iter().map(|p| p.x).reduce(f64::min).unwrap_or(-50.0) - 20.0;
     let max_x = points.iter().map(|p| p.x).reduce(f64::max).unwrap_or(50.0) + 20.0;
@@ -480,7 +481,7 @@ fn Editor() -> Element {
                                         let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
                                         let current = runtime.model();
                                         if !current.selected_part_ids.contains(&id) || mode != SelectionMode::Replace {
-                                            let range_part_ids = if mode == SelectionMode::Range { range_ids.clone() } else { vec![] };
+                                            let range_part_ids = if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { vec![] };
                                             runtime.submit(Event::SelectParts { operation_id: runtime.operation(), part_ids: vec![id.clone()], range_part_ids, mode });
                                         }
                                         let current = runtime.model();
@@ -518,42 +519,44 @@ fn Inspector() -> Element {
                 .find(|p| model.selected_part_ids.contains(&p.id))
         })
         .cloned();
-    let component_items: Vec<_> = model
-        .accepted
-        .as_ref()
-        .map(|snapshot| {
-            snapshot
-                .document
-                .parts
-                .iter()
-                .filter(|part| {
-                    snapshot
-                        .document
-                        .boards
-                        .iter()
-                        .find(|board| board.id == model.active_board_id)
-                        .is_some_and(|board| board.part_ids.contains(&part.id))
-                })
-                .enumerate()
-                .map(|(index, part)| {
-                    let kind = snapshot
-                        .document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == part.definition_id)
-                        .map(|definition| format!("{:?}", definition.kind))
-                        .unwrap_or_else(|| "component".into());
-                    (
-                        index,
-                        part.id.clone(),
-                        part.reference.clone(),
-                        kind,
-                        model.selected_part_ids.contains(&part.id),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let component_items: Rc<Vec<_>> = Rc::new(
+        model
+            .accepted
+            .as_ref()
+            .map(|snapshot| {
+                snapshot
+                    .document
+                    .parts
+                    .iter()
+                    .filter(|part| {
+                        snapshot
+                            .document
+                            .boards
+                            .iter()
+                            .find(|board| board.id == model.active_board_id)
+                            .is_some_and(|board| board.part_ids.contains(&part.id))
+                    })
+                    .enumerate()
+                    .map(|(index, part)| {
+                        let kind = snapshot
+                            .document
+                            .definitions
+                            .iter()
+                            .find(|definition| definition.id == part.definition_id)
+                            .map(|definition| format!("{:?}", definition.kind))
+                            .unwrap_or_else(|| "component".into());
+                        (
+                            index,
+                            part.id.clone(),
+                            part.reference.clone(),
+                            kind,
+                            model.selected_part_ids.contains(&part.id),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+    );
     let has_selected_component = component_items.iter().any(|item| item.4);
     let mut x = use_signal(String::new);
     let mut y = use_signal(String::new);
@@ -654,7 +657,7 @@ fn Inspector() -> Element {
         details { class: "m1-component-picker", open: true,
             summary { "Components ({component_items.len()})" }
             div { role: "listbox", "aria-label": "Components on current board", class: "m1-component-list",
-                for (index, id, reference, kind, is_selected) in component_items.clone() {
+                for (index, id, reference, kind, is_selected) in component_items.iter().cloned() {
                     {
                         let id_for_click = id.clone();
                         let select_component_click = select_component.clone();
