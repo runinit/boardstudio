@@ -1,0 +1,189 @@
+New17 Oracle
+
+Saved locally
+
+Changes are saved in this browser. Use Save project copy for a portable backup.
+
+LayoutPCBKeymapKeycapsCaseParts
+
+LayoutPCBKeymapKeycapsCaseParts
+
+Export
+
+Setup
+
+## Setup guide
+
+Main board
+
+Back to objects
+
+Step 4 of 5. Move between steps freely; your work is kept.
+
+Project & hardware2Layout & assemblies3Controller & wiring4Case (optional)5Review & export
+
+### Case (optional)
+
+Generation blocked · review mechanical findings.
+
+Configure construction and clearances, then generate geometry when you are ready. PCB and firmware exports are available separately.
+
+Open case settingsContinue to reviewPrevious step
+
+CaseAssembly & components
+
+### Case preview
+
+Live preview
+
+Generation blocked · review mechanical findings.
+
+Update previewExport geometry
+
+Board outline has no resolved contours
+
+Retry preview
+
+Inspect
+
+Main board / Case
+
+Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects.
+
+Keyboard · Main board · standalone
+
+Assembly setupPCB designMain boardTurn PCB over for this half
+
+Configuration resolved · r6
+
+Mechanical diagnostics4
+
+### Case review
+
+-
+
+Error
+
+Case body 'mechanical-frame-outline' requires at least one outer contour
+
+-
+
+Error
+
+An assembly requires a resolved board outline.
+
+-
+
+Error
+
+Case body 'plate' requires at least one outer contour
+
+-
+
+Warning
+
+No mounting points are configured; choose supported mounting locations before manufacturing.
+
+Construction3D printed
+
+MethodPCB FR-43D printedCNC machinedCut sheetMount styleTrayRigid mountGasket mountBottom constructionTray shellFlat sheetIntegrate plate frame into case
+
+Dimensions & clearancesmm
+
+Plate thicknessmmPlate foammmPCB thicknessmmBottom foammmBottom thicknessmmWall thicknessmmClearancemm
+
+Plate underside to PCB top: 3.50 mm, derived from the switch mounting dimensions.
+
+Radial opening allowancemm
+
+Resolved stack5 layers
+
+Plate1.50 mmZ 3.50Plate foam3.00 mmZ 0.00PCB1.60 mmZ -1.60Bottom foam2.00 mmZ -3.60Bottom3.00 mmZ -6.60
+
+### Openings & battery
+
+Case openings0
+
+Document-coordinate access openingsAdd volume
+
+No volumes configured.
+
+BatteryOptional
+
+Include a battery envelope
+
+### Mounting & hardware
+
+Suspension mounts0
+
+Add suspension mount
+
+Closure screws0
+
+Add closure screw
+
+Hardware & critical fits0 hardware · 0 fits
+
+HardwareAdd hardware
+
+Add a suspension or closure mount to link a fastener specification to its generated feature.
+
+Critical fitsAdd fit dimension
+
+Endpoints are document XY coordinates. Length is calculated from the saved endpoints.
+
+Suggested mount locations0 candidates
+
+No additional clear locations fit the current outline, openings and battery. Move obstructions or extend the outline to make room.
+
+### Manufacturing overrides
+
+Per-part process overrides4
+
+plateRemove
+
+MethodPCB FR-43D printedCNC machinedCut sheetMaterialPLAABSFinished thicknessmm
+
+Constraint set 2026-09-24
+
+plate foamRemove
+
+MethodCut sheetMaterialEVAFinished thicknessmm
+
+Constraint set 2026-09-24
+
+bottom foamRemove
+
+MethodCut sheetMaterialEVAFinished thicknessmm
+
+Constraint set 2026-09-24
+
+bottomRemove
+
+MethodPCB FR-43D printedCNC machinedCut sheetMaterialPLAABSFinished thicknessmm
+
+Constraint set 2026-09-24
+
+Supported constraint set: 2026-09-24.
+
+Stabilizer fit0 wide keys
+
+No keys in this layout need stabilizers.
+
+Configuration management
+
+Disable mechanical stack
+
+Generated assembly preview · 0 authored case bodies remain saved. Disable the mechanical stack to preview and edit them.
+
+Routed PCB reference
+
+Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad.
+
+Import KiCad board
+
+3D · mm
+
+Drag to orbit · Scroll to zoom
+
+Layout findings: 2Mechanical findings: 4

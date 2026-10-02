@@ -1,0 +1,73 @@
+Untitled keyboard
+
+Saved locally
+
+Changes are saved in this browser. Use Save project copy for a portable backup.
+
+LayoutPCBKeymapKeycapsCaseParts
+
+LayoutPCBKeymapKeycapsCaseParts
+
+Export
+
+Setup
+
+## Setup guide
+
+Main board
+
+Back to objects
+
+Step 1 of 5. Move between steps freely; your work is kept.
+
+1Project & hardware2Layout & assemblies3Controller & wiring4Case (optional)5Review & export
+
+### Project & hardware
+
+Choose one keyboard or a split keyboard.
+
+Project name
+
+Keyboard configuration
+
+One keyboardSplit keyboard
+
+Reversible layout
+
+Continue to layout
+
+Select: KeyTransformAlignSnap
+
+2D3D assemblyFootprints
+
+Layers
+
+KeysComponentsKeycapsFootprintsBoard
+
+Inspect
+
+Main board / Layout
+
+## Main board
+
+Select a key, component, or matrix to edit it.
+
+Board name
+
+OutlineNot defined
+
+Placed parts0
+
+Routed PCB reference
+
+Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad.
+
+Import KiCad board
+
+mmX 0.00Y 0.00
+
+Grid ¼uGeometry snap on
+
+Fit boardFit selection−100%+
+
+Layout findings: 2

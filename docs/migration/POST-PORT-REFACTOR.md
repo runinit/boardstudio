@@ -149,6 +149,18 @@ Evidence: [Workbench.tsx](../../app/src/ui/Workbench.tsx), [LibraryWorkspace.tsx
 
 The PCB electrical preview explicitly uses board `Scope(instance_id=None)` while physical Case/mechanical operations retain their instance identity. This source distinction is recorded in the [Wiring implementation handoff](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md); do not generalize the board normalization to instance-scoped operations.
 
+**New keyboard guide reference observation (2026-10-02):** In the isolated
+React session `new17-c8a853a97c72`, a rapid Project-stage `Split keyboard` then
+`Reversible layout` sequence showed `Error: Stale base revision` once. The
+first observation did not capture its exact pre-action accepted revision, so
+later revision reads are not attributed to it. After a separately settled
+Unibody/None state at revision 11, the same rapid sequence completed at
+revision 14 without an alert; a settled Reversible toggle also completed
+revision 7→8 without an alert. This records an unreproduced timing observation,
+not a confirmed React defect or cause. Candidate code must retain its accepted
+identity/revision guards. The [paired New/guide React evidence](evidence/new-keyboard-guide-paired-20261002/README.md)
+contains exact screenshots, UI captures, project ID and revision probes.
+
 ## RF-007
 
 **Runtime observation currently supports one subscriber** — architecture / reactivity. hypothesis requiring consumer audit.

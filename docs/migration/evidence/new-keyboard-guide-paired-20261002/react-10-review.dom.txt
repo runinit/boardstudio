@@ -1,0 +1,65 @@
+Error: Stale base revision
+
+New17 Oracle
+
+Saved locally
+
+Changes are saved in this browser. Use Save project copy for a portable backup.
+
+LayoutPCBKeymapKeycapsCaseParts
+
+LayoutPCBKeymapKeycapsCasePartsExport
+
+Export
+
+Setup
+
+## Setup guide
+
+Main board
+
+Back to objects
+
+Step 5 of 5. Move between steps freely; your work is kept.
+
+Project & hardware2Layout & assemblies3Controller & wiring4Case (optional)5Review & export
+
+### Review & export
+
+Complete the required steps for this board before export.
+
+Review the selected board’s findings and available outputs. Export checks still apply to each output.
+
+Open export optionsFinish guidePrevious step
+
+Back to Case
+
+# Export package
+
+Choose a handoff for Main board. Downloads use the current committed design; routing and mechanical fit still need downstream review.
+
+## Design files
+
+KiCad boardPlacements, resolved wiring, and board edges for KiCadReview the layout and resolve controller wiring in PCB.Needs work
+
+Draft KiCad boardIncomplete wiring with a findings reportReview the board outline and layout findings.Needs work
+
+ZMK firmwareZMK v0.3.0 configuration and editable starter keymapReview the layout and resolve controller wiring in PCB.Needs work
+
+KiCad footprintsComponent footprint libraryReview the board outline and layout findings.Needs work
+
+SVG board outlineResolved board contourReview the board outline and layout findings.Needs work
+
+DXF board outlineResolved board contourReview the board outline and layout findings.Needs work
+
+Authored Case STEPSaved authored case bodiesAdd and generate case geometry in Case.Needs work
+
+Generated mechanical packageSTEP/STL parts, outlines, specifications and FR4 plate projectNeeds work
+
+Need to finish something?Review wiringReview case
+
+## Portable project
+
+Keep an editable copy of the whole project, including all boards.
+
+Embed used modelsInclude attached 3D model files used in this project.Save .boardstudio project
