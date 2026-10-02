@@ -1,6 +1,6 @@
 # F3a: Layout keycaps, layers and footprint view
 
-**Status:** implementing; pulled forward by the user's missing-function correction.
+**Status:** implemented and functionally/visually verified at `f44a3d1b`; pulled forward by the user's missing-function correction. Actual assistive-technology acceptance remains open.
 **Parent:** [F3](03-layout.md). Full F3 remains open.
 
 Restore the pinned React Layout presentation now: default keycap outlines and the
@@ -21,7 +21,9 @@ The retained catalogue generator remains a service. Package its unchanged TS
 source with type erasure and its verified generated catalogue; Dioxus/Rust owns
 all SVG projection, state and controls. Include those service files in root and
 subpath offline manifests and provenance. This does not migrate generator logic
-or authorize a public Rust API change.
+or authorize a public Rust API change. The complete caller/callee, lifecycle,
+error, cost and retirement contract is recorded in
+[architecture](../../../docs/architecture.md#dioxus-layout-footprint-graphics-f3a).
 
 ## Verification
 
@@ -39,3 +41,5 @@ Full Layout authoring and 3D assembly remain in F3/F7. The reference's working 3
 assembly selector must be ported with its viewer; an inert selector is not an
 acceptable substitute in this correction. Keep this boundary explicit in the
 roadmap and do not mark Workbench, CanvasObjects or WorkbenchLayers fully ported.
+
+[Final demo and evidence](../evidence/layout-layers/handoff.md).

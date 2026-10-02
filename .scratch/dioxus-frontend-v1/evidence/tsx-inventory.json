@@ -75,12 +75,13 @@
           "role": "Workbench",
           "status": "partial_port",
           "source_sha256": "8c85a0857550c5ba860a4151a1d0a5789b7bcfaf5dbd349f6eadf29e300e6220",
-          "dioxus_owner": "web/src/presentation.rs (F1 shell/navigation/themes only)",
+          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
           "evidence": [
             "handoff.md",
-            "visual-final/desktop-dark.png"
+            "visual-final/desktop-dark.png",
+            "layout-layers/handoff.md"
           ],
-          "acceptance": "F1 increment verified; remaining shared/workspace responsibilities stay open"
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
         },
         {
           "path": "app/src/ui/WorkbenchIcons.tsx",
@@ -130,20 +131,24 @@
         {
           "path": "app/src/ui/CanvasLayers.tsx",
           "role": "CanvasLayers",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "e1b41a10094b0006dacd21dda5a58b827926afc1d9ec9192097395073c2ba0eb",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned"
+          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
+          "evidence": [
+            "layout-layers/handoff.md"
+          ],
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
         },
         {
           "path": "app/src/ui/CanvasObjects.tsx",
           "role": "CanvasObjects",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "dfd094d9a0941bc6aa6e64d6aa1368797f3a4b6f55985e0f9a9d4a7e65c34f8f",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned"
+          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
+          "evidence": [
+            "layout-layers/handoff.md"
+          ],
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
         },
         {
           "path": "app/src/ui/CommandMenu.tsx",
@@ -292,11 +297,13 @@
         {
           "path": "app/src/ui/WorkbenchLayers.tsx",
           "role": "WorkbenchLayers",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "1ff03a8ad230adbd9200b192d180be361c6d77af320c94e4e36bcb1feda32188",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned"
+          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
+          "evidence": [
+            "layout-layers/handoff.md"
+          ],
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
         },
         {
           "path": "app/src/ui/WorkbenchTree.tsx",
@@ -357,11 +364,13 @@
         {
           "path": "app/src/ui/Ergogen2DPreview.tsx",
           "role": "Ergogen2DPreview",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "90464298a1f6bfb239192d5abe11862ac74bfb15e8f1093fce51218b33d37d26",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned"
+          "dioxus_owner": "web/src/presentation.rs and private presentation/footprint_{graphics,forms}.rs (F1 shell plus scoped F3a Layout layers/keycaps/footprints)",
+          "evidence": [
+            "layout-layers/handoff.md"
+          ],
+          "acceptance": "F3a increment verified; complete Layout/Parts/PCB/3D responsibilities stay open"
         },
         {
           "path": "app/src/ui/GeneratorFields.tsx",
@@ -944,5 +953,11 @@
     "fully_ported_production_files_claimed": 0,
     "next": "F2",
     "evidence": "handoff.md"
+  },
+  "f3a_increment": {
+    "source": "f44a3d1b",
+    "status": "scoped functional and visual verification; actual AT unavailable",
+    "fully_ported_file_claims": 0,
+    "evidence": "layout-layers/handoff.md"
   }
 }

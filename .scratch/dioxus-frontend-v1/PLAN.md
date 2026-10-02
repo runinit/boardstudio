@@ -31,7 +31,7 @@ No new API/schema/budget or production cutover follows from a placeholder or pla
 
 - [x] F1: [Reference shell and theming](issues/01-shell-theme.md) — verified first increment; [handoff](evidence/handoff.md).
 - [ ] F2: [Projects, panels and shared controls](issues/02-projects-shared-ui.md) — planned; depends on F1.
-- [ ] F3: [Complete Layout frontend](issues/03-layout.md) — planned; depends on F2.
+- [ ] F3: [Complete Layout frontend](issues/03-layout.md) — F3a layers/keycaps/footprints verified; full F3 open and depends on F2.
 - [ ] F4: [Parts and assembly frontend](issues/04-parts.md) — planned; depends on F2; integrate with F3.
 - [ ] F5: [PCB and hardware frontend](issues/05-pcb.md) — planned; depends on F3, F4.
 - [ ] F6: [Keymap and Keycaps frontend](issues/06-keymap-keycaps.md) — planned; depends on F3, F4; F5 hardware handoff.
@@ -41,8 +41,8 @@ No new API/schema/budget or production cutover follows from a placeholder or pla
 
 ## User correction: Layout layers and keycap rendering
 
-The missing keycap outlines and layer/footprint controls are being restored now
-as F3a, before the remaining F2 work. This corrects the first demo’s Layout
+The missing keycap outlines and layer/footprint controls are restored and verified
+as F3a, pulled forward before the remaining F2 work. This corrects the first demo’s Layout
 presentation without claiming the rest of F3 or 3D assembly is complete.
 See `.scratch/dioxus-frontend-v1/issues/03a-layout-layers.md` and the retained
 reference/red evidence under `evidence/layout-layers/`.

@@ -1,0 +1,10 @@
+[
+  {
+    "value": "left",
+    "label": "Left PCB"
+  },
+  {
+    "value": "right",
+    "label": "Right PCB"
+  }
+]

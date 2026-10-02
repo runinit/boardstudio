@@ -1,0 +1,12 @@
+{
+  "working_directory": "/tmp/boardstudio-rust-v1-shell",
+  "final_source": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
+  "commands": {
+    "fmt": "cargo fmt --manifest-path web/Cargo.toml -- --check",
+    "wasm-check": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
+    "clippy": "cargo clippy --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --all-targets -- -D warnings",
+    "native-tests": "cargo test --manifest-path web/Cargo.toml --locked --no-default-features --features page"
+  },
+  "result": "all exit0",
+  "native_scope": "12 library tests plus2 footprint projection tests at5f654dfa; unchanged by later matrix-only source fixes, covered by final WASM/browser checks"
+}

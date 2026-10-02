@@ -13,7 +13,7 @@ const root = path.resolve(provenance.root.site);
 const subpath = path.resolve(provenance.subpath.site);
 const mime = {
   '.css': 'text/css', '.html': 'text/html', '.ico': 'image/x-icon', '.js': 'text/javascript',
-  '.json': 'application/json', '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.boardstudio': 'application/zip',
+  '.mjs': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.wasm': 'application/wasm', '.boardstudio': 'application/zip',
 };
 let updatedRootWorker = false;
 const requests = [];

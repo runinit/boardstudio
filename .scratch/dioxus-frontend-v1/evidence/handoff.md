@@ -1,3 +1,5 @@
+Current follow-up: [F3a Layout layers, keycaps and footprint view](layout-layers/handoff.md), source `f44a3d1b`, demo http://127.0.0.1:34643/. The F1 evidence below remains historical.
+
 # F1 frontend shell handoff
 
 **Implemented and verified first increment; full frontend v1 remains open.**

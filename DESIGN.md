@@ -582,7 +582,13 @@ guides in the Parts preview remain dashed. The Layout canvas offers a separate
 keycap overlay with a rounded outer envelope and inset top face, using the
 resolved key dimensions and existing geometry/selection tokens. Matrix membership
 identifies keys even when their definition is a socket; pitch minus edge gap
-supplies missing key dimensions. Keys and Components have independent visibility. Layer swatches distinguish
+supplies missing key dimensions. The Layout Layers control has independent Keys, Components, Keycaps, Footprints,
+and Board switches; all start visible except Footprints. The toolbar Footprints
+switch shares that view-only state. Visibility survives workspace changes without
+creating document revisions or history entries. The control overlays the canvas
+without changing its bounds or camera. Compact canvas widths use 44px targets and
+a Close action; Escape closes the list and restores focus to the trigger.
+Layer swatches distinguish
 Action blue keys, amber components, neutral keycaps, violet footprints, and
 teal boards using the existing theme tokens.
 Selection types have direct icon shortcuts. Stagger, Splay, and Origin activate

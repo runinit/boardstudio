@@ -407,3 +407,43 @@ probe only after the real application adapters have equivalent completion,
 abort/recovery, archive compatibility and offline/update evidence. Preserve the
 branch and failed experiments. No prototype code is automatically promoted and
 no React cutover follows from these feasibility results.
+
+
+### Dioxus Layout footprint graphics (F3a)
+
+The private `web/src/presentation/footprint_graphics.rs` presentation component
+loads `assets/layout-generators.js`, a packaged copy of the retained
+`ergogen/src/index.ts` service and verified generated catalogue. The build strips
+TypeScript types; it includes no React or UI component. Dioxus owns layer state
+and SVG nodes. The generator still owns its reviewed footprint recipe execution.
+The private Rust `footprint_forms` module projects returned KiCad expression
+arrays into the same Y-up line/arc/rect/circle/polygon/text presentation as React.
+
+Input is the existing serialized PartDefinition with per-part generator overrides
+merged and `include_keycap=false`; the workspace draws the resolved keycap once.
+Output is the existing nested Expression array, decoded through JSON. Definition
+pads/drills continue to use their authoritative document data. No project writes,
+core commands, public Rust API or document schema are introduced. Pose and back
+reflection remain parent SVG transforms, outside the generator cache.
+
+A Dioxus resource owns each request: changed props restart it and unmount drops
+its task, so old completions cannot publish to a replacement component. There is
+no worker, subscription, event listener or DOM object to dispose at this boundary.
+The browser retains the imported module; a bounded 64-entry cache retains only
+projected graphics keyed by the complete definition and overrides. It cannot
+serve a drawing from another definition or parameter set. Failures are not cached
+by Rust and show a local drawing error; pads/drills remain visible. A retry
+remounts the component when Footprints is toggled.
+
+Recipe execution and projection are synchronous after import, on the presentation
+thread, as in the retained React preview. They cannot be interrupted mid-call.
+Cost scales with returned expression/graphic count; the cache avoids re-running
+recipes for repeated instances and pose edits. This is a retained frontend service
+limitation, not a new CAD/core scheduling boundary or a performance acceptance
+claim. Root/subpath offline manifests include the complete service dependency
+tree, and build provenance hashes its source, catalogue and emitted files.
+
+Retire this adapter when the generator service supplies equivalent neutral
+graphics through the accepted Rust boundary and paired preview evidence passes.
+The frontend migration does not authorize rewriting recipes. Full Parts/PCB/3D
+presentation and their lifecycle gates remain in F4/F5/F7/F9.

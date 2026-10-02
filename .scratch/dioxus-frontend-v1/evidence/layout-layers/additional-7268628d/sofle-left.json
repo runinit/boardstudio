@@ -1,0 +1,14 @@
+{
+  "caps": 29,
+  "parts": 70,
+  "ghosts": 29,
+  "pads": 160,
+  "drills": 198,
+  "graphics": 250,
+  "graphicErrors": 0,
+  "board": 1,
+  "labels": 41,
+  "viewBox": "-10.820000000000022 -10.542000000000002 163.84903810567664 128.4",
+  "revision": "3",
+  "footprints": "true"
+}

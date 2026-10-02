@@ -108,7 +108,7 @@ See [specification](.scratch/m1-production/spec.md), [task graph](.scratch/m1-pr
 
 - [x] F1: [Reference shell and theming](.scratch/dioxus-frontend-v1/issues/01-shell-theme.md) — bounded first increment verified at `24218450`; [handoff](.scratch/dioxus-frontend-v1/evidence/handoff.md). Full UI parity remains F2–F9.
 - [ ] F2: [Projects, panels and shared controls](.scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md)
-- [ ] F3: [Complete Layout frontend](.scratch/dioxus-frontend-v1/issues/03-layout.md)
+- [ ] F3: [Complete Layout frontend](.scratch/dioxus-frontend-v1/issues/03-layout.md) — F3a layers, keycaps and footprint view restored/verified at `f44a3d1b`; full authoring and 3D remain open.
 - [ ] F4: [Parts and assembly frontend](.scratch/dioxus-frontend-v1/issues/04-parts.md)
 - [ ] F5: [PCB and hardware frontend](.scratch/dioxus-frontend-v1/issues/05-pcb.md)
 - [ ] F6: [Keymap and Keycaps frontend](.scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md)

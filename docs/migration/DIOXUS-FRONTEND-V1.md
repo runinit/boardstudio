@@ -1,7 +1,7 @@
 # Dioxus frontend v1 — complete React interface parity
 
 **Current priority: 100% frontend.** Updated 2026-10-01.
-**F1 implemented and verified as the first increment; F2 is next.**
+**F1 and the requested F3a Layout layer correction are implemented and verified; full F2–F9 remain open.**
 [Demo and evidence](../../.scratch/dioxus-frontend-v1/evidence/handoff.md).
 
 The user clarified that this run is the Dioxus migration: rewrite and port every
@@ -181,8 +181,10 @@ replace an unfinished feature with a permanent placeholder.
 
 ## User correction: Layout layers and keycap rendering
 
-The missing keycap outlines and layer/footprint controls are being restored now
-as F3a, before the remaining F2 work. This corrects the first demo’s Layout
+The missing keycap outlines and layer/footprint controls are restored and verified
+as F3a, pulled forward before the remaining F2 work. This corrects the first demo’s Layout
 presentation without claiming the rest of F3 or 3D assembly is complete.
 See `.scratch/dioxus-frontend-v1/issues/03a-layout-layers.md` and the retained
 reference/red evidence under `evidence/layout-layers/`.
+
+[Current F3a demo, verification and limits](../../.scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md).

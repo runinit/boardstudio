@@ -1,6 +1,6 @@
 # F3: Complete Layout frontend
 
-**Status:** F3a layer/keycap/footprint correction implementing; complete F3 open
+**Status:** F3a layer/keycap/footprint correction verified; complete F3 open
 **Blocked by:** F2 for full milestone; [F3a](03a-layout-layers.md) pulled forward by user correction
 **Category:** frontend behavior-preserving port of the pinned React reference.
 **Reference:** React 5a472a94; Rust base f0ac0a19.
