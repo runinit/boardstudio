@@ -5,6 +5,23 @@
 **Canonical graph:** `.scratch/dioxus-frontend-v1/tasks.json` remains 62 parents with all criteria, start rationale, and `acceptance_after` joins unchanged.
 **Historic bounded records:** 48 published / 47 non-superseded before this plan. Those historical totals are not recast as actionable or completed work here.
 
+## Current active frontier — 2026-10-02
+
+Current editable candidate: [Dioxus34727](http://127.0.0.1:34727/), build `frontend-outline-integrated-20261002`, exact source `c701233ea7bab6a4c794cba38cabf13be3a0b498`. Pinned React oracle: [5173](http://127.0.0.1:5173/), source `5a472a9426e6e38993361da402cd4ec730feb369`. Eight packaging commands,1289 source hashes and145 route assets verified. The machine run and PLAN carry the current integration; the first-slice tables below are retained history, not current dispatch status.
+
+| Stream | Active isolated work | Integrated evidence and remaining gates |
+|---|---|---|
+| Layout | Outline bridge-camera regression repair; linked/mirror authoring; reviewed toolbar composition refinement | Matrix create/Inspector and Outline lifecycle wired. Paired copy/delete/Undo/reopen green; bridge selection blanks canvas and remains a blocker. Matrix focus repair is integrated; repeated-save observer defect under Astra repair. |
+| PCB | Generic Part Inspector07 frozen `4f1338d9`; next approved capability-ready child | Physical setup/host scene/wiring context wired.07 awaits independent review, integrated packaging and paired net edit/history/reopen. Mode/Apply/remap parent joins remain open. |
+| Keymap | Firmware adapter `418076ae` frozen; actual Runtime/ZIP MIME join implementing | Selected-owner query/tab repair paired. Macro/encoder bounded journeys retained; real firmware ZIP/output qualification remains open. |
+| Keycaps | Size/reflowF6C.3 implementing; per-key refinement queue | Settings/disclosures wired. Shared Inspector overflow blocks ordinary access to lower controls; Astra repair active. Full color/per-key/mirror/CAD joins open. |
+| Case/shared3D | Packaged path/descriptor/verified-byte adapter `9e286d38` frozen for review; separate fresh-Matrix safe-path diagnosis | Contextual panes/model delivery/picking wired. Full90/90/root/subpath/offline/pick/reopen acceptance still open. |
+| Parts+Project | Parts Name12 exact React disclosure refinement/review; Controller placement18 implementing; Parts authoring inventory | New/setup guide wired. Portable option real fresh React archive verifies0 versus6 assets; broader menus/library/custom geometry and export parents open. |
+
+Independent Astra reviewers own source/bug review; Luna authors remain isolated. User ceiling30 is respected within host11 slots including coordinator. All62 parents, blocker history and RF001–013 remain preserved. Root source integrations are serial; compilation does not substitute for paired browser acceptance.
+
+## Historical first-slice checkpoint
+
 **Live execution:** private six-workspace composition and the first Keymap tabs/accepted-outline surface are implemented and mounted at integration `1037778016c8c02f3ebc5971908984a0e7028dda`. Source review is clear; native 34 and strict WASM Clippy pass at `98188448`, and formatting passes at `10377780`. Corrected integrated build `frontend-matrix-keycaps-styled-20261002` completed at `92db0b8f` with eight commands/983 hashes. The exact previously red SW7 remount check now passes on candidate `34691`: after filtering SW7, both Macros → Keys and Encoders → Keys retain the `matrix/left-keys/r1c0` selection and selected SW7 option; the retained same-fixture React return-Keys snapshot agrees. Clear-filter canvas selection of SW8 and Function → Main preserve its identity and layer-specific labels; read-only project revision/hash remain unchanged. Correction `deba7087` is Spec/Standards-clear. Evidence: `/tmp/frontend-parity-reset-20261002/keymap/green-92db0b8f/`. Full Keymap/F6K workflow and canonical parent acceptance remain open, and all six-workspace paired characterization remains incomplete. Layout Matrix Inspector source candidate `c9411` is Standards-clear; root mounting, integrated build and its public journey remain open. Case contextual-workspace remains an independent implementation child; the other feature slices retain their separate contract/review and acceptance gates. Do not infer paired parity from source presence or compile results.
 
 ## Status vocabulary
