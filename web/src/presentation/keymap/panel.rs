@@ -22,6 +22,16 @@ pub(in crate::presentation) fn KeymapPanel(
 ) -> Element {
     let mut query = use_signal(String::new);
     let mut selected_editor = use_signal(|| KeymapEditor::Keys);
+    // React keys the Inspector by its accepted selection owner. Keep query and tab
+    // presentation local to that owner, without changing shared Session selection.
+    use_effect(use_reactive((&scope, &selected_key_id), move |_| {
+        if !query.peek().is_empty() {
+            query.set(String::new());
+        }
+        if *selected_editor.peek() != KeymapEditor::Keys {
+            selected_editor.set(KeymapEditor::Keys);
+        }
+    }));
     let active_layer = view
         .layers
         .iter()
