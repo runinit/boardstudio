@@ -1,0 +1,87 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/canvas-arbiter-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.49s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-f9cc47151ec5f73a.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:38561/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+
+running 1 test
+test presentation::part_placement::tests::mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas ... FAIL
+
+failures:
+
+---- presentation::part_placement::tests::mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas output ----
+    error output:
+        panicked at src/presentation/part_placement.rs:1651:9:
+        assertion failed: mount.projection.is_none()
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:35717/wasm-bindgen-test:1574:25
+            at logError (http://127.0.0.1:35717/wasm-bindgen-test:2665:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:35717/wasm-bindgen-test:1573:57)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[115217]:0x16d7e6f)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[65483]:0x14b3436)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[24722]:0x10159b4)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[69084]:0x14ea51f)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[21211]:0xf52380)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[40581]:0x128ea9c)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[116803]:0x16dcb00)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-f9cc47151ec5f73a.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[117202]:0x16dd714)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[117141]:0x16dd5f4)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[115556]:0x16d91c6)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[21211]:0xf523f3)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[40581]:0x128ea9c)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[116803]:0x16dcb00)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[91258]:0x160335e)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[68353]:0x14df7bf)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.core[f0fd674eaa06beef]::panicking::panic (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[114701]:0x16d56a7)
+            at boardstudio_web-f9cc47151ec5f73a.wasm.boardstudio_web[64cd5e7c1b1a15f1]::presentation::part_placement::tests::mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas::{closure#0} (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[2390]:0x6181d5)
+
+failures:
+
+    presentation::part_placement::tests::mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 52 filtered out; finished in 0.09s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::part_placement::tests::mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas
+    panicked at src/presentation/part_placement.rs:1651:9:
+    assertion failed: mount.projection.is_none()
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:35717/wasm-bindgen-test:1574:25
+        at logError (http://127.0.0.1:35717/wasm-bindgen-test:2665:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:35717/wasm-bindgen-test:1573:57)
+        at boardstudio_web-f9cc47151ec5f73a.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[115217]:0x16d7e6f)
+        at boardstudio_web-f9cc47151ec5f73a.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[65483]:0x14b3436)
+        at boardstudio_web-f9cc47151ec5f73a.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[24722]:0x10159b4)
+        at boardstudio_web-f9cc47151ec5f73a.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[69084]:0x14ea51f)
+        at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[21211]:0xf52380)
+        at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[40581]:0x128ea9c)
+        at boardstudio_web-f9cc47151ec5f73a.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:35717/wasm-bindgen-test_bg.wasm:wasm-function[116803]:0x16dcb00)
+    
+    
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/canvas-arbiter-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-f9cc47151ec5f73a.wasm mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas"
+exit=1

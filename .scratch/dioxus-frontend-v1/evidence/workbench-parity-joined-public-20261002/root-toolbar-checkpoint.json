@@ -1,0 +1,29 @@
+{
+  "build": "frontend-workbench-parity-joined-20261002",
+  "source": "9d34f3672f4f05cb3771bc5cd358508b13e9c31f",
+  "root": "http://127.0.0.1:34732/",
+  "subpath": "http://127.0.0.1:34732/boardstudio/",
+  "commands": 22,
+  "source_hashes": 1328,
+  "assets_per_route": 145,
+  "source_mismatches": 0,
+  "reference": "http://127.0.0.1:5173/",
+  "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+  "bounded_toolbar_results": {
+    "collapsed_inspector_splay_target": "candidate opens Inspector with Splay input; intentionally fixes confirmed reference behavior that stays collapsed",
+    "snap_close": "all menus closed, focus restored to m1-layout-snap-trigger",
+    "compact_snap": {
+      "viewport": 375,
+      "document_width": 375,
+      "menu_left": 13,
+      "menu_right": 273
+    }
+  },
+  "remaining_gaps": [
+    "TypeScript Transform has Stagger/Splay/Origin shortcuts in addition to Position & rotation/Splay & origin/Row offsets; candidate only has latter three",
+    "statusbar Grid is an inert span; reference opens Snap",
+    "2D/3D assembly/Footprints group incomplete; canonical Layout scene/pick prerequisite planned",
+    "command leading icons/trailing chevrons missing; eligible CSS repair in isolated author review"
+  ],
+  "acceptance": "Bounded public toolbar checks only. All parent gates and edit/history/reopen qualification remain open."
+}
