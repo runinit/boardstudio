@@ -1,6 +1,7 @@
 //! Private Layout Align toolbar controls.
 pub(in crate::presentation) use super::layout_align_geometry::{
-    AlignCommand, alignment_delta, local_matrix_delta, transformed_envelope,
+    AlignCommand, alignment_delta, local_matrix_delta, reference_choice,
+    should_wait_for_alignment_advance, transformed_envelope,
 };
 use super::tree::TreeContext;
 use boardstudio_application::{Scope, SnapshotToken};

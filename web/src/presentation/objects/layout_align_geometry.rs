@@ -1,6 +1,37 @@
 //! Pure accepted-envelope and axis-alignment policy for Layout Align.
 use boardstudio_core::model::{Matrix, Mirror, Part, PartDefinition, PartKind, Vec2};
 
+pub(crate) fn reference_choice(
+    current: Option<&str>,
+    eligible: &[String],
+    authoritative: bool,
+) -> Option<String> {
+    if !authoritative {
+        return current.map(str::to_owned);
+    }
+    current
+        .filter(|id| eligible.iter().any(|eligible| eligible == id))
+        .map(str::to_owned)
+        .or_else(|| eligible.first().cloned())
+}
+
+pub(crate) fn should_wait_for_alignment_advance(
+    same_scope: bool,
+    base_token: u64,
+    base_revision: u64,
+    accepted: Option<(u64, u64)>,
+    terminal_failure: bool,
+    ready_and_saved: bool,
+) -> bool {
+    if !same_scope || terminal_failure {
+        return false;
+    }
+    let Some((token, revision)) = accepted else {
+        return true;
+    };
+    token == base_token || revision <= base_revision || !ready_and_saved
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum AlignCommand {
     Left,
@@ -104,6 +135,51 @@ impl Bounds {
 
 fn finite_point(point: Vec2) -> bool {
     point.x.is_finite() && point.y.is_finite()
+}
+
+#[cfg(test)]
+mod state_tests {
+    use super::{reference_choice, should_wait_for_alignment_advance};
+
+    #[test]
+    fn reference_choice_retains_preferences_when_projection_is_unavailable() {
+        assert_eq!(
+            reference_choice(Some("B"), &["A".into()], false),
+            Some("B".into())
+        );
+        assert_eq!(
+            reference_choice(Some("B"), &["A".into(), "B".into()], true),
+            Some("B".into())
+        );
+        assert_eq!(
+            reference_choice(Some("B"), &["A".into()], true),
+            Some("A".into())
+        );
+        assert_eq!(reference_choice(None, &[], true), None);
+    }
+
+    #[test]
+    fn completed_old_scope_is_not_held_by_a_lower_new_revision() {
+        assert!(!should_wait_for_alignment_advance(
+            false,
+            10,
+            40,
+            Some((1, 2)),
+            false,
+            true,
+        ));
+        assert!(!should_wait_for_alignment_advance(
+            false, 10, 40, None, false, false,
+        ));
+        assert!(should_wait_for_alignment_advance(
+            true,
+            10,
+            40,
+            Some((10, 40)),
+            false,
+            true,
+        ));
+    }
 }
 
 /// Resolve the exact accepted envelope used by React selectionOutline for one live part.

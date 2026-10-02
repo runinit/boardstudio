@@ -1,5 +1,8 @@
 //! Root-lifetime admission and exact outcome settlement for Layout Align commands.
-use super::layout_align::{alignment_delta, local_matrix_delta, transformed_envelope};
+use super::layout_align::{
+    alignment_delta, local_matrix_delta, reference_choice, should_wait_for_alignment_advance,
+    transformed_envelope,
+};
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
     TreeContext,
@@ -59,6 +62,7 @@ struct AlignProjection {
     scope: Option<Scope>,
     context: Option<TreeContext>,
     moving_ids: Vec<String>,
+    reference_authoritative: bool,
 }
 
 #[derive(Clone)]
@@ -153,21 +157,18 @@ pub(in crate::presentation) fn use_layout_align(
         },
     ));
 
-    let reference_id = selected_reference.read().clone();
-    projection.selected_reference = reference_id
-        .filter(|id| {
-            projection
-                .references
-                .iter()
-                .any(|reference| &reference.id == id)
-        })
-        .or_else(|| {
-            projection
-                .references
-                .first()
-                .map(|reference| reference.id.clone())
-        });
-    if projection.selected_reference != *selected_reference.read() {
+    let reference_id = selected_reference.peek().clone();
+    let eligible_reference_ids: Vec<_> = projection
+        .references
+        .iter()
+        .map(|reference| reference.id.clone())
+        .collect();
+    projection.selected_reference = reference_choice(
+        reference_id.as_deref(),
+        &eligible_reference_ids,
+        projection.reference_authoritative,
+    );
+    if projection.reference_authoritative && projection.selected_reference != reference_id {
         selected_reference.set(projection.selected_reference.clone());
     }
     let shown_feedback = feedback.read().clone().and_then(|state| {
@@ -188,7 +189,7 @@ pub(in crate::presentation) fn use_layout_align(
         let runtime = runtime.clone();
         let mut selected_reference = selected_reference;
         move |reference_id: String| {
-            let selected = selected_context.read().clone();
+            let selected = selected_context.peek().clone();
             let current = project(&runtime, selected.as_ref(), workspace(), None);
             if current
                 .references
@@ -205,12 +206,12 @@ pub(in crate::presentation) fn use_layout_align(
         let mut pending = pending;
         let mut feedback = feedback;
         move |request: AlignAction| {
-            if pending.read().is_some() {
+            if pending.peek().is_some() {
                 return;
             }
             let current_workspace = workspace();
             let current_generation = scope_generation();
-            let Some(selected) = selected_context.read().clone() else {
+            let Some(selected) = selected_context.peek().clone() else {
                 return;
             };
             let reference_id = request.reference_id.clone();
@@ -234,7 +235,7 @@ pub(in crate::presentation) fn use_layout_align(
                     .references
                     .iter()
                     .any(|reference| reference.id == request.reference_id)
-                || selected_reference.read().as_deref() != Some(request.reference_id.as_str())
+                || selected_reference.peek().as_deref() != Some(request.reference_id.as_str())
             {
                 feedback.set(None);
                 return;
@@ -360,21 +361,20 @@ pub(in crate::presentation) fn use_layout_align(
         current_workspace,
         projection.selected_reference.as_deref(),
     );
-    projection.selected_reference = selected_reference
-        .read()
-        .clone()
-        .filter(|id| {
-            projection
-                .references
-                .iter()
-                .any(|reference| &reference.id == id)
-        })
-        .or_else(|| {
-            projection
-                .references
-                .first()
-                .map(|reference| reference.id.clone())
-        });
+    let retained_reference = selected_reference.peek().clone();
+    let eligible_reference_ids: Vec<_> = projection
+        .references
+        .iter()
+        .map(|reference| reference.id.clone())
+        .collect();
+    projection.selected_reference = reference_choice(
+        retained_reference.as_deref(),
+        &eligible_reference_ids,
+        projection.reference_authoritative,
+    );
+    if projection.reference_authoritative && projection.selected_reference != retained_reference {
+        selected_reference.set(projection.selected_reference.clone());
+    }
     let action = if projection.enabled {
         selected
             .as_ref()
@@ -425,26 +425,24 @@ fn reconcile_reference(
     if workspace != "Layout" {
         return;
     }
-    let selected = selected_context.read().clone();
+    let selected = selected_context.peek().clone();
     if selected.is_none() {
         return;
     }
     let current = project(runtime, selected.as_ref(), workspace, None);
-    let current_id = selected_reference.read().clone();
-    if current_id.as_ref().is_some_and(|id| {
-        current
-            .references
-            .iter()
-            .any(|reference| &reference.id == id)
-    }) {
+    if !current.reference_authoritative {
         return;
     }
-    selected_reference.set(
-        current
-            .references
-            .first()
-            .map(|reference| reference.id.clone()),
-    );
+    let current_id = selected_reference.peek().clone();
+    let eligible: Vec<_> = current
+        .references
+        .iter()
+        .map(|reference| reference.id.clone())
+        .collect();
+    let next = reference_choice(current_id.as_deref(), &eligible, true);
+    if next != current_id {
+        selected_reference.set(next);
+    }
 }
 
 fn clear_stale_feedback(
@@ -455,15 +453,15 @@ fn clear_stale_feedback(
     selected_reference: Signal<Option<String>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
 ) {
-    let Some(current_feedback) = feedback.read().clone() else {
+    let Some(current_feedback) = feedback.peek().clone() else {
         return;
     };
-    let selected = selected_context.read().clone();
+    let selected = selected_context.peek().clone();
     let current = project(
         runtime,
         selected.as_ref(),
         workspace,
-        selected_reference.read().as_deref(),
+        selected_reference.peek().as_deref(),
     );
     let still_current = selected.as_ref().is_some_and(|selected| {
         selected.scope == current_feedback.scope
@@ -492,6 +490,7 @@ fn project(
         scope: selected.map(|selected| selected.scope.clone()),
         context: selected.map(|selected| selected.context.clone()),
         moving_ids: Vec::new(),
+        reference_authoritative: false,
     };
     if workspace != "Layout" {
         return empty;
@@ -591,6 +590,7 @@ fn project(
             references,
             selected_reference,
             moving_ids,
+            reference_authoritative: true,
             ..empty
         };
     }
@@ -645,6 +645,7 @@ fn project(
         scope: Some(scope),
         context: Some(selected.context.clone()),
         moving_ids,
+        reference_authoritative: true,
     }
 }
 
@@ -862,7 +863,7 @@ fn settle_pending(
     pending: &mut Signal<Option<PendingAlign>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
 ) {
-    let Some(waiting) = pending.read().clone() else {
+    let Some(waiting) = pending.peek().clone() else {
         return;
     };
     let Some(outcome) = waiting.outcome.borrow().clone() else {
@@ -872,24 +873,45 @@ fn settle_pending(
     let live_scope = runtime.scope();
     let same_scope =
         live_scope.as_ref() == Some(&waiting.scope) && scope_generation == waiting.scope_generation;
+    if !same_scope {
+        feedback.set(None);
+        pending.set(None);
+        return;
+    }
     let still_visible_target = same_scope
         && workspace == "Layout"
-        && selected_context.read().as_ref().is_some_and(|selected| {
+        && selected_context.peek().as_ref().is_some_and(|selected| {
             selected.scope == waiting.scope && selected.context == waiting.context
         });
+    let accepted = model
+        .accepted
+        .as_ref()
+        .map(|snapshot| (snapshot.token.0, snapshot.document.revision));
+    let terminal_failure = matches!(model.durability, Durability::Failed { .. })
+        || matches!(
+            model.lifecycle,
+            Lifecycle::RecoveryRequired | Lifecycle::Closed
+        );
+    let ready_and_saved = model.lifecycle == Lifecycle::Ready
+        && accepted
+            .is_some_and(|(_, revision)| model.durability == (Durability::Saved { revision }));
+    if matches!(&outcome, TerminalOutcome::Completed)
+        && should_wait_for_alignment_advance(
+            same_scope,
+            waiting.base_token.0,
+            waiting.base_revision,
+            accepted,
+            terminal_failure,
+            ready_and_saved,
+        )
+    {
+        return;
+    }
     let completed = match outcome {
         TerminalOutcome::Completed => {
             let Some(snapshot) = model.accepted.as_ref() else { return; };
-            if matches!(model.durability, Durability::Failed { .. })
-                || matches!(model.lifecycle, Lifecycle::RecoveryRequired | Lifecycle::Closed)
-            {
+            if terminal_failure {
                 Some(Err("The alignment completed, but the accepted document did not save. Retry after recovery.".to_owned()))
-            } else if snapshot.token == waiting.base_token
-                || snapshot.document.revision <= waiting.base_revision
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability != (Durability::Saved { revision: snapshot.document.revision })
-            {
-                None
             } else {
                 Some(if expected_applied(&snapshot.document, &waiting.expected, &waiting.reference_id) {
                     Ok(())
@@ -909,11 +931,6 @@ fn settle_pending(
     let Some(result) = completed else {
         return;
     };
-    if !same_scope {
-        feedback.set(None);
-        pending.set(None);
-        return;
-    }
     if still_visible_target {
         let (message, succeeded) = match result {
             Ok(()) => (
