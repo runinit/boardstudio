@@ -5,25 +5,68 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken,
     TerminalOutcome,
 };
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, KeymapChange, KeymapConfiguration, KeymapLayer,
-};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, KeymapChange};
 use dioxus::prelude::*;
 use std::rc::Rc;
+
+#[derive(Clone)]
+enum LayerEditIntent {
+    Add { layer_id: String, name: String },
+    Rename { layer_id: String, name: String },
+    Remove { layer_id: String },
+}
+
+impl LayerEditIntent {
+    fn layer_id(&self) -> &str {
+        match self {
+            Self::Add { layer_id, .. }
+            | Self::Rename { layer_id, .. }
+            | Self::Remove { layer_id } => layer_id,
+        }
+    }
+
+    fn change(&self) -> KeymapChange {
+        match self {
+            Self::Add { layer_id, name } => KeymapChange::AddLayer {
+                id: layer_id.clone(),
+                name: name.clone(),
+            },
+            Self::Rename { layer_id, name } => KeymapChange::RenameLayer {
+                id: layer_id.clone(),
+                name: name.clone(),
+            },
+            Self::Remove { layer_id } => KeymapChange::RemoveLayer {
+                id: layer_id.clone(),
+            },
+        }
+    }
+
+    fn is_applied_to(&self, document: &boardstudio_core::model::ProjectDoc) -> bool {
+        let Some(map) = document.keymap.as_ref() else {
+            return false;
+        };
+        if map.layers.is_empty() {
+            return false;
+        }
+        match self {
+            Self::Add { layer_id, name } | Self::Rename { layer_id, name } => map
+                .layers
+                .iter()
+                .any(|layer| layer.id == *layer_id && layer.name == *name),
+            Self::Remove { layer_id } => map.layers.iter().all(|layer| layer.id != *layer_id),
+        }
+    }
+}
 
 #[derive(Clone)]
 struct PendingLayerEdit {
     editor_instance_id: u64,
     scope: Scope,
-    snapshot_token: SnapshotToken,
-    revision: u64,
+    snapshot: AcceptedSnapshot,
     scope_generation: u64,
     operation_id: OperationId,
-    target_layer_id: String,
+    request: LayerEditIntent,
     outcome: crate::operation_outcomes::OutcomeSlot,
-    before: KeymapConfiguration,
-    expected: KeymapConfiguration,
-    select_after: Option<String>,
 }
 
 #[derive(Clone)]
@@ -33,9 +76,7 @@ struct LayerFeedbackState {
     snapshot_token: SnapshotToken,
     scope_generation: u64,
     operation_id: OperationId,
-    target_layer_id: String,
-    before: KeymapConfiguration,
-    expected: KeymapConfiguration,
+    request: LayerEditIntent,
     feedback: KeymapLayerFeedback,
 }
 
@@ -52,11 +93,7 @@ struct LayerEditCommit {
     snapshot: AcceptedSnapshot,
     scope_generation: u64,
     operation_id: OperationId,
-    target_layer_id: String,
-    before: KeymapConfiguration,
-    expected: KeymapConfiguration,
-    select_after: Option<String>,
-    change: KeymapChange,
+    request: LayerEditIntent,
 }
 
 /// Hook-owned state passed directly into the private Keymap panel.
@@ -81,9 +118,9 @@ pub(in crate::presentation) fn use_layer_operations(
         let runtime = runtime.clone();
         move || runtime.operation().0
     });
+    let captured_generation = scope_generation();
     let mut pending = use_signal(|| None::<PendingLayerEdit>);
     let mut feedback = use_signal(|| None::<LayerFeedbackState>);
-    let mut effect_active_layer = active_layer;
 
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
@@ -97,14 +134,13 @@ pub(in crate::presentation) fn use_layer_operations(
                 return;
             };
 
-            // Retire the operation slot only after its Session terminal result is
-            // visible. A scope/workspace switch never cancels or replays it.
-            pending.set(None);
             let live_scope = runtime.scope();
             if waiting.editor_instance_id != editor_instance_id
                 || live_scope.as_ref() != Some(&waiting.scope)
+                || waiting.scope_generation != captured_generation
                 || scope_generation() != waiting.scope_generation
             {
+                pending.set(None);
                 return;
             }
 
@@ -112,53 +148,30 @@ pub(in crate::presentation) fn use_layer_operations(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
-            let identity = LayerFeedbackState {
-                editor_instance_id,
-                scope: waiting.scope.clone(),
-                snapshot_token: waiting.snapshot_token,
-                scope_generation: waiting.scope_generation,
-                operation_id: waiting.operation_id,
-                target_layer_id: waiting.target_layer_id.clone(),
-                before: waiting.before.clone(),
-                expected: waiting.expected.clone(),
-                feedback: KeymapLayerFeedback::Pending,
-            };
             match outcome {
                 TerminalOutcome::Completed => {
+                    // A later queued edit can make the model busy after this
+                    // operation settles. Keep the slot until a saved snapshot is
+                    // available, then verify the requested target against it.
                     let saved_current = model.lifecycle == Lifecycle::Ready
-                        && snapshot.document.revision > waiting.revision
                         && model.durability
                             == (Durability::Saved {
                                 revision: snapshot.document.revision,
                             });
-                    let accepted_map = snapshot.document.keymap.clone().unwrap_or_default();
-                    if !saved_current || snapshot.token == waiting.snapshot_token {
-                        feedback.set(Some(failed_layer_edit_feedback(
-                            identity,
-                            &waiting,
-                            &mut effect_active_layer,
-                            "The accepted Keymap edit is not saved yet. Check the current layer values before retrying.".into(),
-                        )));
-                    } else if accepted_map == waiting.expected {
-                        if let Some(select_after) = waiting.select_after.as_ref()
-                            && active_layer() == waiting.target_layer_id
-                        {
-                            effect_active_layer.set(select_after.clone());
-                        }
-                        let mut identity = identity;
-                        if let Some(select_after) = waiting.select_after {
-                            identity.target_layer_id = select_after;
-                        }
-                        feedback.set(Some(LayerFeedbackState {
-                            feedback: KeymapLayerFeedback::Saved,
-                            ..identity
-                        }));
+                    if !saved_current
+                        || snapshot.token == waiting.snapshot.token
+                        || snapshot.document.revision <= waiting.snapshot.document.revision
+                    {
+                        return;
+                    }
+
+                    pending.set(None);
+                    if waiting.request.is_applied_to(&snapshot.document) {
+                        feedback.set(Some(feedback_state(&waiting, KeymapLayerFeedback::Saved)));
                     } else {
-                        feedback.set(Some(failed_layer_edit_feedback(
-                            identity,
-                            &waiting,
-                            &mut effect_active_layer,
-                            "The accepted Keymap differs from this layer edit. Review the current values and retry.".into(),
+                        feedback.set(Some(failed_feedback(
+                            feedback_state(&waiting, KeymapLayerFeedback::Pending),
+                            "The saved Keymap no longer contains this layer change. Review the current layer and retry.".into(),
                         )));
                     }
                 }
@@ -166,20 +179,18 @@ pub(in crate::presentation) fn use_layer_operations(
                 | TerminalOutcome::PersistenceFailed(message)
                 | TerminalOutcome::BlockedByRecovery(message)
                 | TerminalOutcome::ExecutorFailed(message) => {
-                    feedback.set(Some(failed_layer_edit_feedback(
-                        identity,
-                        &waiting,
-                        &mut effect_active_layer,
+                    pending.set(None);
+                    feedback.set(Some(failed_feedback(
+                        feedback_state(&waiting, KeymapLayerFeedback::Pending),
                         message,
                     )));
                 }
                 TerminalOutcome::Superseded
                 | TerminalOutcome::Cancelled
                 | TerminalOutcome::Closed => {
-                    feedback.set(Some(failed_layer_edit_feedback(
-                        identity,
-                        &waiting,
-                        &mut effect_active_layer,
+                    pending.set(None);
+                    feedback.set(Some(failed_feedback(
+                        feedback_state(&waiting, KeymapLayerFeedback::Pending),
                         "The Keymap edit did not complete in the active session.".into(),
                     )));
                 }
@@ -190,48 +201,39 @@ pub(in crate::presentation) fn use_layer_operations(
     let current_source = current_saved_source(
         &runtime,
         source.as_ref(),
-        scope_generation(),
+        captured_generation,
         scope_generation,
         workspace(),
         admission_current.as_ref(),
     );
-    let no_pending = pending.read().is_none();
-    let enabled = no_pending && current_source.is_some();
-    let current_feedback_snapshot = current_feedback_snapshot(&runtime, source.as_ref());
+    let enabled = pending.read().is_none() && current_source.is_some();
+    let feedback_snapshot = current_feedback_snapshot(&runtime, source.as_ref());
     let visible_feedback = feedback.read().as_ref().and_then(|state| {
-        let current = current_feedback_snapshot.as_ref()?;
+        let snapshot = feedback_snapshot.as_ref()?;
         (state.editor_instance_id == editor_instance_id
             && source.as_ref().map(|source| &source.scope) == Some(&state.scope)
+            && state.scope_generation == captured_generation
             && scope_generation() == state.scope_generation
             && workspace() == "Keymap"
-            && active_layer() == state.target_layer_id)
-            .then(|| state.feedback.clone())
+            && active_layer() == state.request.layer_id())
+        .then(|| (state, snapshot))
     });
-    // Saved feedback is useful after the commit advanced the token, while a failed
-    // request only describes the unchanged base snapshot. Filter either by the
-    // current projected Keymap and target layer below.
-    let visible_feedback = visible_feedback.filter(|shown| {
-        let Some(state) = feedback.read().as_ref() else {
-            return false;
-        };
-        let Some(current) = current_feedback_snapshot.as_ref() else {
-            return false;
-        };
-        let accepted_map = current.document.keymap.clone().unwrap_or_default();
-        match shown {
-            KeymapLayerFeedback::Saved => {
-                current.token != state.snapshot_token && accepted_map == state.expected
-            }
-            KeymapLayerFeedback::Failed(_) => {
-                accepted_map == state.before && current.token == state.snapshot_token
-            }
-            KeymapLayerFeedback::Pending => pending.read().as_ref().is_some_and(|waiting| {
+    let visible_feedback = visible_feedback.and_then(|(state, snapshot)| match &state.feedback {
+        KeymapLayerFeedback::Pending => pending
+            .read()
+            .as_ref()
+            .is_some_and(|waiting| {
                 waiting.editor_instance_id == state.editor_instance_id
                     && waiting.scope == state.scope
                     && waiting.operation_id == state.operation_id
-                    && current.token == state.snapshot_token
-            }),
-        }
+                    && snapshot.token == state.snapshot_token
+            })
+            .then_some(KeymapLayerFeedback::Pending),
+        KeymapLayerFeedback::Saved => (snapshot.token != state.snapshot_token
+            && state.request.is_applied_to(&snapshot.document))
+        .then_some(KeymapLayerFeedback::Saved),
+        KeymapLayerFeedback::Failed(message) => (snapshot.token == state.snapshot_token)
+            .then(|| KeymapLayerFeedback::Failed(message.clone())),
     });
 
     let on_operation = EventHandler::new({
@@ -244,11 +246,10 @@ pub(in crate::presentation) fn use_layer_operations(
             if pending.read().is_some() {
                 return;
             }
-            let requested_generation = scope_generation();
             let Some(snapshot) = current_saved_source(
                 &runtime,
                 source.as_ref(),
-                requested_generation,
+                captured_generation,
                 scope_generation,
                 workspace(),
                 admission_current.as_ref(),
@@ -258,36 +259,32 @@ pub(in crate::presentation) fn use_layer_operations(
             let Some(scope) = source.as_ref().map(|source| source.scope.clone()) else {
                 return;
             };
-            let mut expected = snapshot.document.keymap.clone().unwrap_or_default();
-            let before = expected.clone();
-            let (change, target_layer_id, select_after) = match request {
+            let existing_map = snapshot.document.keymap.as_ref();
+            if existing_map.is_some_and(|map| map.layers.is_empty()) {
+                return;
+            }
+            let layer_count = existing_map.map_or(1, |map| map.layers.len());
+            match request {
                 KeymapLayerOperation::Add => {
-                    if expected.layers.len() >= 32 {
+                    if layer_count >= 32 {
                         return;
                     }
-                    let operation_id = runtime.operation();
-                    let mut id = format!("keymap-layer-{editor_instance_id}-{}", operation_id.0);
-                    let existing_ids = expected
-                        .layers
-                        .iter()
-                        .map(|layer| layer.id.clone())
-                        .collect::<std::collections::BTreeSet<_>>();
-                    let mut suffix = 0u32;
-                    while existing_ids.contains(id.as_str()) {
-                        suffix = suffix.saturating_add(1);
-                        id = format!(
-                            "keymap-layer-{editor_instance_id}-{}-{suffix}",
-                            operation_id.0
-                        );
+                    // Entity and Session operation identities use separate
+                    // counter allocations; neither ID doubles as the other.
+                    let entity_nonce = runtime.operation().0;
+                    let mut layer_id = format!("keymap-layer-{editor_instance_id}-{entity_nonce}");
+                    if let Some(map) = existing_map {
+                        let mut suffix = 0u32;
+                        while map.layers.iter().any(|layer| layer.id == layer_id) {
+                            suffix = suffix.saturating_add(1);
+                            layer_id = format!(
+                                "keymap-layer-{editor_instance_id}-{entity_nonce}-{suffix}"
+                            );
+                        }
                     }
-                    let name = format!("Layer {}", expected.layers.len());
-                    expected.layers.push(KeymapLayer {
-                        id: id.clone(),
-                        name: name.clone(),
-                        bindings: Default::default(),
-                        sensors: Default::default(),
-                    });
-                    active_layer.set(id.clone());
+                    let name = format!("Layer {layer_count}");
+                    let operation_id = runtime.operation();
+                    active_layer.set(layer_id.clone());
                     submit_layer_edit(
                         &runtime,
                         &mut pending,
@@ -296,78 +293,64 @@ pub(in crate::presentation) fn use_layer_operations(
                             editor_instance_id,
                             scope,
                             snapshot,
-                            scope_generation: requested_generation,
+                            scope_generation: captured_generation,
                             operation_id,
-                            target_layer_id: id.clone(),
-                            before,
-                            expected,
-                            select_after: Some(id.clone()),
-                            change: KeymapChange::AddLayer {
-                                id: id.clone(),
-                                name,
-                            },
+                            request: LayerEditIntent::Add { layer_id, name },
                         },
                     );
-                    return;
                 }
                 KeymapLayerOperation::Rename { layer_id, name } => {
-                    let Some(layer) = expected
-                        .layers
-                        .iter_mut()
-                        .find(|layer| layer.id == layer_id)
-                    else {
-                        return;
-                    };
-                    layer.name = name.clone();
-                    (
-                        KeymapChange::RenameLayer {
-                            id: layer_id.clone(),
-                            name,
-                        },
-                        layer_id,
-                        None,
-                    )
-                }
-                KeymapLayerOperation::Remove { layer_id } => {
-                    let Some(index) = expected
-                        .layers
-                        .iter()
-                        .position(|layer| layer.id == layer_id)
-                    else {
-                        return;
-                    };
-                    if index == 0 || expected.layers.len() <= 1 {
+                    if active_layer() != layer_id {
                         return;
                     }
-                    expected.layers.remove(index);
-                    let fallback = expected.layers[0].id.clone();
-                    (
-                        KeymapChange::RemoveLayer {
-                            id: layer_id.clone(),
+                    let exists = match existing_map {
+                        Some(map) => map.layers.iter().any(|layer| layer.id == layer_id),
+                        None => layer_id == "base",
+                    };
+                    if !exists {
+                        return;
+                    }
+                    submit_layer_edit(
+                        &runtime,
+                        &mut pending,
+                        &mut feedback,
+                        LayerEditCommit {
+                            editor_instance_id,
+                            scope,
+                            snapshot,
+                            scope_generation: captured_generation,
+                            operation_id: runtime.operation(),
+                            request: LayerEditIntent::Rename { layer_id, name },
                         },
-                        layer_id.clone(),
-                        (active_layer() == layer_id).then_some(fallback),
-                    )
+                    );
                 }
-            };
-            let operation_id = runtime.operation();
-            submit_layer_edit(
-                &runtime,
-                &mut pending,
-                &mut feedback,
-                LayerEditCommit {
-                    editor_instance_id,
-                    scope,
-                    snapshot,
-                    scope_generation: requested_generation,
-                    operation_id,
-                    target_layer_id,
-                    before,
-                    expected,
-                    select_after,
-                    change,
-                },
-            );
+                KeymapLayerOperation::Remove { layer_id } => {
+                    if active_layer() != layer_id {
+                        return;
+                    }
+                    let Some(map) = existing_map else { return };
+                    let Some(index) = map.layers.iter().position(|layer| layer.id == layer_id)
+                    else {
+                        return;
+                    };
+                    if index == 0 || map.layers.len() <= 1 {
+                        return;
+                    }
+                    submit_layer_edit(
+                        &runtime,
+                        &mut pending,
+                        &mut feedback,
+                        LayerEditCommit {
+                            editor_instance_id,
+                            scope,
+                            snapshot,
+                            scope_generation: captured_generation,
+                            operation_id: runtime.operation(),
+                            request: LayerEditIntent::Remove { layer_id },
+                        },
+                    );
+                }
+            }
         }
     });
 
@@ -442,39 +425,22 @@ fn submit_layer_edit(
         snapshot,
         scope_generation,
         operation_id,
-        target_layer_id,
-        before,
-        expected,
-        select_after,
-        change,
+        request,
     } = commit;
     let outcome = runtime.observe_operation(operation_id);
     let waiting = PendingLayerEdit {
         editor_instance_id,
         scope: scope.clone(),
-        snapshot_token: snapshot.token,
-        revision: snapshot.document.revision,
+        snapshot: snapshot.clone(),
         scope_generation,
         operation_id,
-        target_layer_id: target_layer_id.clone(),
+        request: request.clone(),
         outcome,
-        before: before.clone(),
-        expected: expected.clone(),
-        select_after,
     };
+    let change = request.change();
     let transaction_id = format!("keymap-layer-{editor_instance_id}-{}", operation_id.0);
-    pending.set(Some(waiting));
-    feedback.set(Some(LayerFeedbackState {
-        editor_instance_id,
-        scope: scope.clone(),
-        snapshot_token: snapshot.token,
-        scope_generation,
-        operation_id,
-        target_layer_id,
-        before,
-        expected,
-        feedback: KeymapLayerFeedback::Pending,
-    }));
+    pending.set(Some(waiting.clone()));
+    feedback.set(Some(feedback_state(&waiting, KeymapLayerFeedback::Pending)));
     runtime.submit(Event::Edit {
         operation_id,
         command: EditCommand {
@@ -487,32 +453,19 @@ fn submit_layer_edit(
     });
 }
 
+fn feedback_state(waiting: &PendingLayerEdit, feedback: KeymapLayerFeedback) -> LayerFeedbackState {
+    LayerFeedbackState {
+        editor_instance_id: waiting.editor_instance_id,
+        scope: waiting.scope.clone(),
+        snapshot_token: waiting.snapshot.token,
+        scope_generation: waiting.scope_generation,
+        operation_id: waiting.operation_id,
+        request: waiting.request.clone(),
+        feedback,
+    }
+}
+
 fn failed_feedback(mut identity: LayerFeedbackState, message: String) -> LayerFeedbackState {
     identity.feedback = KeymapLayerFeedback::Failed(message);
     identity
-}
-
-fn failed_layer_edit_feedback(
-    mut identity: LayerFeedbackState,
-    waiting: &PendingLayerEdit,
-    active_layer: &mut Signal<String>,
-    message: String,
-) -> LayerFeedbackState {
-    let is_failed_add = !waiting
-        .before
-        .layers
-        .iter()
-        .any(|layer| layer.id == waiting.target_layer_id)
-        && waiting
-            .expected
-            .layers
-            .iter()
-            .any(|layer| layer.id == waiting.target_layer_id);
-    if is_failed_add && active_layer() == waiting.target_layer_id {
-        if let Some(fallback) = waiting.before.layers.first() {
-            active_layer.set(fallback.id.clone());
-            identity.target_layer_id = fallback.id.clone();
-        }
-    }
-    failed_feedback(identity, message)
 }
