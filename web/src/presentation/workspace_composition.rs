@@ -10,12 +10,12 @@ pub(super) struct SharedObjectsInput {
     pub(super) on_nudge: EventHandler<objects::TreeNudgeRequest>,
 }
 
-pub(super) enum WorkspaceObjectsInput {
+pub(super) enum WorkspaceObjectsInput<'a> {
     Layout(SharedObjectsInput),
     Pcb(SharedObjectsInput),
     Keymap(SharedObjectsInput),
     Keycaps(SharedObjectsInput),
-    Case(SharedObjectsInput),
+    Case(Box<super::case_workspace::ObjectsInput<'a>>),
     Parts(super::parts_workspace::ObjectsInput),
 }
 
@@ -65,13 +65,13 @@ pub(super) enum WorkspaceInspectorInput {
     Parts(super::parts_workspace::InspectorInput),
 }
 
-pub(super) fn objects(input: WorkspaceObjectsInput) -> Element {
+pub(super) fn objects(input: WorkspaceObjectsInput<'_>) -> Element {
     match input {
         WorkspaceObjectsInput::Layout(input) => super::layout_workspace::objects(input),
         WorkspaceObjectsInput::Pcb(input) => super::pcb_workspace::objects(input),
         WorkspaceObjectsInput::Keymap(input) => super::keymap_workspace::objects(input),
         WorkspaceObjectsInput::Keycaps(input) => super::keycaps_workspace::objects(input),
-        WorkspaceObjectsInput::Case(input) => super::case_workspace::objects(input),
+        WorkspaceObjectsInput::Case(input) => super::case_workspace::objects(*input),
         WorkspaceObjectsInput::Parts(input) => super::parts_workspace::objects(input),
     }
 }

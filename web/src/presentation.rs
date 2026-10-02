@@ -115,6 +115,8 @@ struct WorkspaceCallbackSlots {
     keycaps_select: EventHandler<String>,
     pcb_empty_hit: EventHandler<MouseEvent>,
     pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
+    case_action: EventHandler<case_workspace::TreeAction>,
+    case_display: EventHandler<case_workspace::DisplayRequest>,
     keymap_layer: EventHandler<String>,
     show_configured_board: EventHandler<String>,
 }
@@ -735,6 +737,8 @@ fn Editor() -> Element {
         keycaps_select: EventHandler::new(|_: String| {}),
         pcb_empty_hit: EventHandler::new(|_: MouseEvent| {}),
         pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
+        case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
+        case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
         show_configured_board: EventHandler::new(|_: String| {}),
     });
@@ -757,11 +761,13 @@ fn Editor() -> Element {
     let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
     let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
     let case_display = use_signal(std::collections::BTreeMap::new);
-    use_context_provider(|| case_viewer::CaseSelection {
+    let case_selection = case_viewer::CaseSelection {
         body: case_body_selection,
         layer: case_layer_selection,
         display: case_display,
-    });
+    };
+    use_context_provider(|| case_selection);
+    let case_tree_expanded = use_signal(BTreeSet::<String>::new);
     let workspace = use_context::<WorkspaceState>().0;
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
@@ -1464,6 +1470,54 @@ fn Editor() -> Element {
             };
             selection::submit_canvas_selection(
                 &runtime, &adapter, &scope, generation, context, mode, range_ids,
+            );
+        }
+    };
+    let on_case_action = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let token = snapshot.token;
+        let generation = render_generation;
+        let selection = case_selection;
+        let navigate = workspace_callbacks.navigate;
+        move |action| {
+            if workspace() != "Case" {
+                return;
+            }
+            case_workspace::apply_tree_action(
+                action,
+                &runtime,
+                &adapter,
+                selection,
+                instance_selection,
+                &scope,
+                token,
+                generation,
+                navigate,
+            );
+        }
+    };
+    let on_case_display = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let token = snapshot.token;
+        let generation = render_generation;
+        let selection = case_selection;
+        move |request| {
+            if workspace() != "Case" {
+                return;
+            }
+            case_workspace::apply_display_request(
+                request,
+                &runtime,
+                &adapter,
+                selection,
+                instance_selection,
+                &scope,
+                token,
+                generation,
             );
         }
     };
@@ -2316,6 +2370,12 @@ fn Editor() -> Element {
         .pcb_part_hit
         .replace(Box::new(on_pcb_part_hit));
     workspace_callbacks
+        .case_action
+        .replace(Box::new(on_case_action));
+    workspace_callbacks
+        .case_display
+        .replace(Box::new(on_case_display));
+    workspace_callbacks
         .keymap_layer
         .replace(Box::new(on_keymap_layer));
     workspace_callbacks
@@ -2371,11 +2431,42 @@ fn Editor() -> Element {
         on_navigate: workspace_callbacks.navigate,
         on_nudge: workspace_callbacks.nudge_tree,
     };
+    let case_scene = runtime.cad_scene().filter(|scene| {
+        scene.exact && scene.scope == render_scope && scene.token == snapshot.token
+    });
+    let case_selected_body_id = case_selection
+        .body
+        .read()
+        .as_ref()
+        .filter(|selection| selection.scope == render_scope)
+        .map(|selection| selection.body_id.clone());
+    let case_selected_layer_id = case_selection.layer_id(&render_scope);
+    let case_selected_context = adapter
+        .selected_context
+        .read()
+        .clone()
+        .filter(|selected| selected.scope == render_scope);
     let objects_input = match active_workspace {
         "PCB" => workspace_composition::WorkspaceObjectsInput::Pcb(shared_objects),
         "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
         "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
-        "Case" => workspace_composition::WorkspaceObjectsInput::Case(shared_objects),
+        "Case" => workspace_composition::WorkspaceObjectsInput::Case(Box::new(
+            case_workspace::ObjectsInput {
+                model: &model,
+                scope: current_scope.clone(),
+                instance_scope_pending,
+                scene: case_scene.clone(),
+                selected_context: adapter.selected_context,
+                selected_body_id: case_selected_body_id.clone(),
+                selected_layer_id: case_selected_layer_id.clone(),
+                case_selection,
+                expanded: case_tree_expanded,
+                on_action: workspace_callbacks.case_action,
+                on_select: workspace_callbacks.select_tree,
+                on_navigate: workspace_callbacks.navigate,
+                on_display: workspace_callbacks.case_display,
+            },
+        )),
         "Parts" => {
             workspace_composition::WorkspaceObjectsInput::Parts(parts_workspace::ObjectsInput {
                 snapshot: snapshot.clone(),
@@ -2465,7 +2556,7 @@ fn Editor() -> Element {
         )),
         "Case" => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
             case_workspace::CanvasInput {
-                mechanical_settings: mechanical_settings.clone(),
+                generation_ready: mechanical_settings.generation_ready,
                 instance_scope_pending,
             },
         ))),
@@ -2505,8 +2596,15 @@ fn Editor() -> Element {
         )),
         "Case" => {
             workspace_composition::WorkspaceInspectorInput::Case(case_workspace::InspectorInput {
-                on_show_configured_board: workspace_callbacks.show_configured_board,
+                mechanical_settings: mechanical_settings.clone(),
                 instance_scope_pending,
+                scope: current_scope.clone(),
+                scene: case_scene,
+                case_selection,
+                selected_layer_id: case_selected_layer_id,
+                selected_context: case_selected_context,
+                on_show_configured_board: workspace_callbacks.show_configured_board,
+                on_display: workspace_callbacks.case_display,
             })
         }
         "Parts" => {
