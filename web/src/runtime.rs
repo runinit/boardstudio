@@ -9,7 +9,8 @@ use boardstudio_core::{
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, Board, CoreReply, CoreRequest,
         ErgogenJobResult, FinishExportRequest, HardwareTopology, Material, MechanicalAssembly,
-        MechanicalConfiguration, Operation, OutlineFeature, OutlineSettings, ProjectDoc,
+        MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalPartProfile,
+        MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -195,6 +196,49 @@ impl Runtime {
         }
         self.session.borrow().read_model().clone()
     }
+
+    /// Load a reviewed bundled switch fit into the Parts editor's local draft.
+    /// This never submits an accepted edit; the existing Parts profile Save path
+    /// remains the sole owner of document history.
+    pub(crate) async fn standard_switch_profile(
+        &self,
+        operation_id: OperationId,
+        definition_id: String,
+        family: MechanicalSwitchFamily,
+        plate_to_pcb: f64,
+    ) -> Result<MechanicalPartProfile, String> {
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let core = self.core.borrow().clone();
+        let request_id = format!("parts-standard-profile-{}", operation_id.0);
+        let source = match family {
+            MechanicalSwitchFamily::Mx => MechanicalBuiltinProfile::MxSwitch,
+            MechanicalSwitchFamily::ChocV1 => MechanicalBuiltinProfile::ChocV1Switch,
+            MechanicalSwitchFamily::ChocV2 => MechanicalBuiltinProfile::ChocV2Switch,
+        };
+        let request = CoreRequest::MechanicalProfile {
+            id: request_id.clone(),
+            definition_id: definition_id.clone(),
+            source,
+            plate_to_pcb,
+        };
+        let reply = core
+            .request(&request_id, &executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Standard switch fit failed: {error}"))?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow())
+        {
+            return Err("Core worker changed during standard switch fit lookup.".into());
+        }
+        crate::parts_mechanical_profile::standard_profile_reply_matches(
+            reply,
+            &request_id,
+            &definition_id,
+            family,
+            plate_to_pcb,
+        )
+    }
+
     /// Ask the existing Core worker to project candidate matrices with its authoritative
     /// layout geometry. This is a private preview path; candidates are never installed in Session.
     pub(crate) async fn project_matrices(
