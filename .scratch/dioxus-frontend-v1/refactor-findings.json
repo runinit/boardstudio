@@ -66,6 +66,12 @@
           "evidence": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
           "observation": "The bounded private composition extraction is dispatched with six disjoint feature render leaves and a root-owned thin dispatcher. It preserves existing feature-local Runtime/lifecycle ownership and Session/Core authority. This mitigates shared presentation edit contention; it does not establish the hotspot is resolved or add a new refactoring takeaway beyond RF-001.",
           "status": "implementation in progress; no user-visible workflow or parent acceptance implied"
+        },
+        {
+          "source": "Integration 10377780; composition source commits 1c5de957, 44777c41 and 09563bc1",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/composition/source-standards-review.md; /tmp/frontend-parity-reset-20261002/composition/source-spec-review.md",
+          "observation": "The private six-workspace leaves and dispatcher are implemented and mounted. Standards identified unbounded per-render EventHandler::new callback allocations; the bounded correction allocates typed slots once via an unconditional pre-early-return use_hook and replaces each slot with fresh closures per render. The six-leaf seam mitigates shared edit contention, while root composition and the Layout SVG remain coordinator-owned. PCB source review separately observed full PartDefinition and generator-parameter copies on selection repaints.",
+          "status": "Source review clear; native 34, strict WASM Clippy, final formatting, and integrated eight-command/980-hash build pass. Six-workspace paired characterization remains pending. PCB copy cost is unmeasured and deferred; no performance improvement or hotspot resolution is claimed."
         }
       ]
     },
@@ -149,7 +155,7 @@
       "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
       "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
       "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
-      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
+      "validation_needed": "Every required capability has a verified engine\u2192worker\u2192host\u2192UI trace, same fixture outputs and cancellation/error disposition.",
       "decision": "proposal only; no refactor/API/schema change approved by this entry",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
@@ -362,6 +368,12 @@
           "evidence": ".scratch/dioxus-keymap-layers/evidence/public-macro-editor/RESULTS.md",
           "observation": "On both candidate and React, entering invalid tap duration 10001 ms showed the Core validation error and preserved the prior accepted value (45 ms); reverting the field to the already-accepted 45 ms did not clear the global error, while a later distinct valid value did. This is a paired existing behavior, not a candidate-only regression or proposed fix. Public archive/history/reload behavior passes; firmware output and selected ceilings/pending-document race remain unexercised.",
           "status": "bounded paired RF-006 observation; preserve source parity, no candidate-only fix indicated; broader F6/firmware gates remain open"
+        },
+        {
+          "source": "Parts preview source review/correction candidate 05a1dac4",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/parts-projects/source-spec-review.md",
+          "observation": "The first private preview draft mutated plain Cell/RefCell values returned through use_hook, so request-generation ownership did not persist across renders and an A\u2192B\u2192A scope cycle could alias an old owner. The reviewed correction retained shared hook state. The first geometry draft also inverted the already-Y-up graphic coordinates when computing bounds; the correction aligns bounds with rendered coordinates. These are candidate-source corrections, not integrated or paired-verified Parts behavior; exact React fixture framing remains open.",
+          "status": "Original lifecycle and coordinate-frame defects closed in source review through 05a1dac4; preview remains unmounted in integration and public/build verification is pending. No new RF or broad scope abstraction is proposed."
         }
       ]
     },
@@ -562,6 +574,12 @@
           "evidence": ".scratch/dioxus-keymap-layers/evidence/encoder-select-regression/refactor-handoff.md",
           "observation": "Built candidate 34685 showed key-press in all three unassigned dynamic encoder selectors while the accepted archive had empty sensor/binding maps; no accepted-document mutation occurred. The focused correction binds option selection to accepted values; build 34687 returns none for all three controls. This is a bounded UI projection/default finding, not a Core/API or broader architecture finding.",
           "status": "Targeted public regression is green; genuine archive workflow and F5.2/F8.2/AT/parent acceptance remain open; retained under RF-006 without a new register ID"
+        },
+        {
+          "source": "Parts preview packaged-default-loader source review",
+          "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md; /tmp/frontend-parity-reset-20261002/parts-projects/source-spec-review.md",
+          "observation": "The reviewed preview loader initially requested generator parameters absent from generated assets/layout-generators.js; the narrow export correction bf797f4 passed a packaged Node check. The Parts preview remains unmounted in the current integration and its full public browser gate remains open.",
+          "status": "Packaged Node check passes after bf797f4; preview browser acceptance and feature integration remain open. No end-to-end preview pass claimed."
         }
       ]
     },
