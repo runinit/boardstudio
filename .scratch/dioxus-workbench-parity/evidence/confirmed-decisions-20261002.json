@@ -1,0 +1,36 @@
+{
+  "status": "Q1\u2013Q6 confirmed; six-stream specification and reviewed implementation frontier in progress",
+  "reference": {
+    "url": "http://127.0.0.1:5175/",
+    "commit": "5a472a9426e6e38993361da402cd4ec730feb369"
+  },
+  "candidate": {
+    "url": "http://127.0.0.1:34687/",
+    "build_source": "868edfcbdf93315e866962c9c57543d26672f379",
+    "integration_commit": "89b1de8a"
+  },
+  "settled": {
+    "fidelity": "Preserve TypeScript UI and behavior; record intentional bug/platform differences",
+    "streams": [
+      "Layout",
+      "PCB",
+      "Keymap",
+      "Keycaps",
+      "Case and shared 3D",
+      "Parts with Project-menu support"
+    ],
+    "acceptance": "Paired actual browser journey; contextual Objects, toolbar/canvas, Inspector, accepted edit result and applicable Undo/save/reopen",
+    "composition": "Limited private workbench composition extraction approved; Session/Core ownership and public APIs preserved; larger architectural refactor deferred",
+    "start_gates": "Reviewed children may start after their particular prerequisite capabilities are proven; all parent criteria/final acceptance gates and historical dependency rationale remain",
+    "final_confirmation": "Q6 confirmed by user; architectural issues and future refactoring opportunities must remain logged throughout",
+    "ledger": "Mandatory per-slice and per-review architecture/design/theoretical gaps, evidence, impact, mitigation and later refactoring proposal; explicit no-new-finding when applicable"
+  },
+  "pending": [],
+  "preserved": [
+    "62 canonical parents and existing issue history",
+    "Blockers and acceptance joins",
+    "Refactor opportunity register",
+    "Luna implementation and Astra review/bug-fix allocation",
+    "Public API/format/visibility and destructive action approval boundaries"
+  ]
+}

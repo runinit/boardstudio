@@ -20,6 +20,16 @@ are the active frontend execution documents. First visible tranche: project
 library, panels/drawers and Layout tree/selection; other workspace work joins only
 its exact dependencies. The graph separates starts from acceptance joins.
 
+The user’s confirmed 2026-10-02 execution refinement now tracks six persistent
+workbench streams with exact React UI placement/behavior and paired browser
+journeys. See the [six-stream parity spec](../../.scratch/dioxus-workbench-parity/spec.md)
+and [current stream queue](../../.scratch/dioxus-workbench-parity/stream-reconciliation.md).
+The canonical 62-parent graph and final acceptance joins remain unchanged; only
+reviewed, evidence-backed capability starts may release a child early. The
+private composition preparation and Case contextual-workspace child are
+implementing against independently reviewed private contracts in isolated
+worktrees. Neither status is feature or parent acceptance.
+
 Planning baseline `c827c4e6`; executable `f44a3d1b` and its demo/build are unchanged.
 No frontend milestone is closed by this documentation update. Existing M1 limits,
 actual screen-reader host gap and final concrete cutover approval remain separate.

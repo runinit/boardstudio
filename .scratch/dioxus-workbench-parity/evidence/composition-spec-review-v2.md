@@ -1,0 +1,13 @@
+# Workbench composition v2: independent Spec review
+
+**Clear for the bounded extraction; no blocking Spec findings.** Reviewed exact proposal SHA-256 `a7e584a7bdc1e0129d23c72614e903eadd838c520c0d028b27e0ce50a6300d48` against the confirmed Q1–Q6 decisions, Workbench parity spec, INT.1/first-tranche ownership rules and actual integration presentation. The current presentation.rs matches base89b1de8a at SHA-256 `f52d368f790a7f644a969610b8a24d5c866d09585bc3ee0066c4eb75e87d59d5`.
+
+The dispatcher plus six flat feature-owned render modules resolves v1’s shared-file contention. Feature-specific typed input structs live with each workspace; root constructs current values/actions and retains hooks, Runtime/Session access, scope reconciliation, pointer handles, listener cleanup and submission authority. Existing feature implementation and shared frame owners remain intact. Mechanical input grouping is permitted; it must not become a shared mutable model or require a broad framework.
+
+The proposal preserves current behavior rather than claiming six-stream parity. Export/fallback routes remain explicit. Its source map is consistent with current routing, subject to the existing has_inspector rule: PCB and Keycaps presently have no Inspector mounted. Preserve that condition. Case’s existing viewer key and Layout’s SVG mount/handlers remain specified; implementation must also keep wrapper DOM ancestry and ARIA IDs, including direct Case-panel ancestry used by compact focus/resize logic. These are existing-preservation checks, not requests for new behavior.
+
+Paired baseline/post-extraction public journeys are the correct primary seam. Compare candidate invariants and record React gaps separately; do not require arbitrary navigation to preserve a selection that the existing route intentionally changes. Never invent a public unknown-workspace route merely to exercise fallback; source review can support an unreachable fallback branch while actual available routes receive browser coverage. Preserve exact build/fixture/scope identities and affected desktop/compact/theme/focus checks.
+
+INT.1 remains accepted; this adds no canonical parent or feature-closure claim. Root-run compiler/build checks, independent resulting-diff review and fresh public characterization remain mandatory before completion. The architecture/refactor ledger handoff is required: retain RF-001’s concrete hotspot evidence and bounded mitigation; record any distinct implementation finding honestly without duplicate entries or claiming broad coupling resolved.
+
+No source, central ledger or ticket edits; no builds/tests executed. Only this independent review artifact was written.

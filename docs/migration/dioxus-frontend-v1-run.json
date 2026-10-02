@@ -2,6 +2,30 @@
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
   "status": "Parallel frontend implementation active: current Case compact/focus/resize build frontend-case-focus-resize-final-20261002 (e2a84d8b) has a bounded public green for its documented compact panel/keyboard/focus/resize states and root/subpath/offline delivery; broader workspace, actual AT and parent acceptance remain open. Keymap binding editor focused public packet is complete with a focus-continuity difference retained; encoder rotation issue06 implementation has started after independent private target-contract clearance. Case mechanical settings and Macro bounded public packets remain complete with their broader criteria/gates open. Full F2\u2013F9 and all canonical acceptance joins remain open.",
+  "six_stream_parity": {
+    "spec": ".scratch/dioxus-workbench-parity/spec.md",
+    "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
+    "confirmed_at": "2026-10-02",
+    "status": "private composition preparation and Case contextual-workspace child are implementing against independently reviewed contracts in isolated worktrees; other stream contracts are in prep/review; no feature or canonical parent acceptance is inferred",
+    "active_feature_contracts": {
+      "composition": {
+        "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
+        "contract_sha256": "c6550ab551734340be7c58683494925f4087941b9f598f0fd10131396a2f395f",
+        "status": "implementation in progress; preparation only"
+      },
+      "case_contextual_workspace": {
+        "ticket": ".scratch/dioxus-case-workspace/issues/09-case-contextual-objects-inspector.md",
+        "contract": ".scratch/dioxus-case-workspace/evidence/contextual-workspace-issue09/implementation-contract-reviewed.md",
+        "contract_sha256": "3a701acb2dc75bc72f5753fc4bf8b639ebbdd908482c0bd0455a88f17b845c88",
+        "review": ".scratch/dioxus-case-workspace/evidence/contextual-workspace-issue09/review.md",
+        "review_sha256": "8512f8e709ff3c1b383451fd4f3ee6c80bb9642358b33cce241aae7e4766dc68",
+        "status": "implementation in progress; public paired acceptance open"
+      }
+    },
+    "canonical_parent_count": 62,
+    "canonical_graph_changed": false,
+    "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved"
+  },
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",

@@ -5,3 +5,5 @@ This automatically published planning ticket refines F7.1 in the canonical 62-pa
 Before dispatch, prove the private page-side renderer contract and crate call path in [DISPATCH.md](DISPATCH.md). This ticket establishes the contract and feasibility decision for F7.3; it does not claim to implement the shared viewer. F7.3 retains its canonical `start_after: [F7.1]` and `acceptance_after: [INT.2, BND.1]`; those acceptance joins do not block fixture-backed F7.3 implementation.
 
 The ticket is in [issues/01-common-viewer-contract.md](issues/01-common-viewer-contract.md). Source notes and initial/final independent Astra planning reviews are retained in `evidence/`.
+
+A six-stream paired acceptance child is drafted at [09: Paired viewer acceptance across six workbench streams](issues/09-six-workspace-paired-viewer-acceptance.md). It includes PCB through the F5.8 acceptance path; the task-graph edge remains a coordinator decision and no existing join is waived.
