@@ -1,0 +1,29 @@
+{
+  "independent_reviews": [
+    "provider-spec-review-20261002.md",
+    "provider-standards-review-20261002.md"
+  ],
+  "entries": [
+    {
+      "draft": ".scratch/dioxus-project-archive/drafts/01-bundle-aware-portable-pack.md",
+      "reviewed_sha256": "cb6a4f16452e54387d9680c5ed3fa9a3012fc8e956181e644797f72055891a3f",
+      "published": ".scratch/dioxus-project-archive/issues/01-bundle-aware-portable-pack.md",
+      "published_sha256": "d3ea9eb5ce9a6293508145d2cfb5cbf281720377dcf57065690e10f463119d3a",
+      "delta": "Publication metadata only: remove Draft title prefix, set ready-for-agent; acceptance/ownership/dependencies unchanged."
+    },
+    {
+      "draft": ".scratch/dioxus-project-archive/drafts/02-packaged-model-byte-provider.md",
+      "reviewed_sha256": "043f410ac013d9d1299e2986d03fca95df64ce6c3b91047baeea0d8bbd563582",
+      "published": ".scratch/dioxus-project-archive/issues/02-packaged-model-byte-provider.md",
+      "published_sha256": "c6fd940dbce4e496a83cd1f6f850ce28263763ee71861969befc4d463ae30361",
+      "delta": "Publication metadata only: remove Draft title prefix, set ready-for-agent; acceptance/ownership/dependencies unchanged."
+    },
+    {
+      "draft": ".scratch/dioxus-frontend-tranche-1/drafts/16-project-menu-portable-copy.md",
+      "reviewed_sha256": "9a41ca5bfe251ad642f741c497bb31cca15fe9beb3559500bacc400ec033f776",
+      "published": ".scratch/dioxus-frontend-tranche-1/issues/16-project-menu-portable-copy.md",
+      "published_sha256": "d69aaa3d3126defaeaf458ad88be59dc39f9305ed4b4fd6d7472df3f6b21d21e",
+      "delta": "Publication metadata only; still blocked on capability01."
+    }
+  ]
+}
