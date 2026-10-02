@@ -48,7 +48,7 @@ pub(super) struct PlaceholderInput {
 }
 
 pub(super) enum WorkspaceCanvasInput {
-    Pcb(PlaceholderInput),
+    Pcb(Box<super::pcb_workspace::CanvasInput>),
     Keymap(Box<super::keymap_workspace::CanvasInput>),
     Keycaps(Box<super::keycaps_workspace::CanvasInput>),
     Case(Box<super::case_workspace::CanvasInput>),
@@ -92,7 +92,7 @@ pub(super) fn toolbar(input: WorkspaceToolbarInput) -> Element {
 /// handlers. Other workspaces mount their current content here.
 pub(super) fn canvas(input: WorkspaceCanvasInput) -> Element {
     match input {
-        WorkspaceCanvasInput::Pcb(input) => super::pcb_workspace::canvas(input),
+        WorkspaceCanvasInput::Pcb(input) => super::pcb_workspace::canvas(*input),
         WorkspaceCanvasInput::Keymap(input) => super::keymap_workspace::canvas(*input),
         WorkspaceCanvasInput::Keycaps(input) => super::keycaps_workspace::canvas(*input),
         WorkspaceCanvasInput::Case(input) => super::case_workspace::canvas(*input),

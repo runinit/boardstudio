@@ -20,6 +20,7 @@ mod objects;
 mod panels;
 mod parts;
 mod parts_workspace;
+mod pcb_scene;
 mod pcb_workspace;
 mod selection;
 mod shared_viewer;
@@ -112,6 +113,8 @@ struct WorkspaceCallbackSlots {
     canvas_wheel: EventHandler<WheelEvent>,
     keymap_select: EventHandler<String>,
     keycaps_select: EventHandler<String>,
+    pcb_empty_hit: EventHandler<MouseEvent>,
+    pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
     keymap_layer: EventHandler<String>,
     show_configured_board: EventHandler<String>,
 }
@@ -653,7 +656,46 @@ fn keycaps_bounds(
     bounds
 }
 
-fn keymap_scope_matches(model: &boardstudio_application::ReadModel, scope: &Scope) -> bool {
+fn pcb_bounds(snapshot: &AcceptedSnapshot, scope: &Scope) -> Option<(f64, f64, f64, f64)> {
+    if snapshot.session_epoch != scope.session_epoch || snapshot.document.id != scope.document_id {
+        return None;
+    }
+    let board = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == scope.board_id)?;
+    let member_ids: BTreeSet<&str> = board.part_ids.iter().map(String::as_str).collect();
+    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    let mut include = |x: f64, y: f64| {
+        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
+            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
+        }));
+    };
+    for contour in accepted_board_contours(snapshot, &scope.board_id).iter() {
+        for point in &contour.points {
+            include(point.x, point.y);
+        }
+    }
+    for part in snapshot
+        .document
+        .parts
+        .iter()
+        .filter(|part| member_ids.contains(part.id.as_str()))
+    {
+        let pose = snapshot
+            .scene
+            .transforms
+            .iter()
+            .find(|transform| transform.id == part.id)
+            .map(|transform| transform.pose)
+            .unwrap_or(part.pose);
+        include(pose.at.x, pose.at.y);
+    }
+    bounds
+}
+
+fn active_board_scope_matches(model: &boardstudio_application::ReadModel, scope: &Scope) -> bool {
     model.active_board_id == scope.board_id
         && model.active_instance_id == scope.instance_id
         && model.accepted.as_ref().is_some_and(|snapshot| {
@@ -691,6 +733,8 @@ fn Editor() -> Element {
         canvas_wheel: EventHandler::new(|_: WheelEvent| {}),
         keymap_select: EventHandler::new(|_: String| {}),
         keycaps_select: EventHandler::new(|_: String| {}),
+        pcb_empty_hit: EventHandler::new(|_: MouseEvent| {}),
+        pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
         show_configured_board: EventHandler::new(|_: String| {}),
     });
@@ -1148,7 +1192,7 @@ fn Editor() -> Element {
                 return;
             }
             let model = runtime.model();
-            if !keymap_scope_matches(&model, &scope) {
+            if !active_board_scope_matches(&model, &scope) {
                 return;
             }
             let Some(snapshot) = model.accepted.as_ref() else {
@@ -1200,7 +1244,7 @@ fn Editor() -> Element {
                 return;
             }
             let current = runtime.model();
-            if !keymap_scope_matches(&current, &scope)
+            if !active_board_scope_matches(&current, &scope)
                 || !selection::context_is_current(&current, &scope, &context)
             {
                 return;
@@ -1236,7 +1280,8 @@ fn Editor() -> Element {
                 return;
             }
             let model = runtime.model();
-            if !keymap_scope_matches(&model, &scope) || !instance_selection.is_current(&model) {
+            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
+            {
                 return;
             }
             if key_id.is_empty() {
@@ -1286,7 +1331,7 @@ fn Editor() -> Element {
                 return;
             }
             let current = runtime.model();
-            if !keymap_scope_matches(&current, &scope)
+            if !active_board_scope_matches(&current, &scope)
                 || !selection::context_is_current(&current, &scope, &context)
                 || !instance_selection.is_current(&current)
             {
@@ -1306,6 +1351,122 @@ fn Editor() -> Element {
             inspect_open.set(true);
         }
     };
+    let on_pcb_empty_hit = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let token = snapshot.token;
+        move |_: MouseEvent| {
+            if workspace() != "PCB"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
+            {
+                return;
+            }
+            let Some(snapshot) = model
+                .accepted
+                .as_ref()
+                .filter(|snapshot| snapshot.token == token)
+            else {
+                return;
+            };
+            if !snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == scope.board_id)
+            {
+                return;
+            }
+            let mut selected_context = adapter.selected_context;
+            selected_context.set(None);
+            let mut anchor_scope = adapter.anchor_scope;
+            anchor_scope.set(None);
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: Vec::new(),
+                range_part_ids: Vec::new(),
+                mode: SelectionMode::Replace,
+            });
+        }
+    };
+    let on_pcb_part_hit = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let token = snapshot.token;
+        move |request: pcb_scene::PcbPartHit| {
+            if workspace() != "PCB"
+                || request.scope != scope
+                || request.token != token
+                || request.generation != generation
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
+            {
+                return;
+            }
+            let Some(snapshot) = model
+                .accepted
+                .as_ref()
+                .filter(|snapshot| snapshot.token == request.token)
+            else {
+                return;
+            };
+            let Some(board) = snapshot
+                .document
+                .boards
+                .iter()
+                .find(|board| board.id == scope.board_id)
+            else {
+                return;
+            };
+            if !board.part_ids.contains(&request.part_id)
+                || !snapshot
+                    .document
+                    .parts
+                    .iter()
+                    .any(|part| part.id == request.part_id)
+            {
+                return;
+            }
+            let Some(context) = objects::context_for_part(&model, &request.part_id) else {
+                return;
+            };
+            if !selection::context_is_current(&model, &scope, &context) {
+                return;
+            }
+            let mode = if request.range {
+                SelectionMode::Range
+            } else if request.additive {
+                SelectionMode::Toggle
+            } else {
+                SelectionMode::Replace
+            };
+            let range_ids = if mode == SelectionMode::Range {
+                selection::eligible_live_ids(&model)
+                    .into_iter()
+                    .filter(|id| board.part_ids.contains(id))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            selection::submit_canvas_selection(
+                &runtime, &adapter, &scope, generation, context, mode, range_ids,
+            );
+        }
+    };
     let on_keymap_layer = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -1319,7 +1480,7 @@ fn Editor() -> Element {
                 return;
             }
             let model = runtime.model();
-            if !keymap_scope_matches(&model, &scope) {
+            if !active_board_scope_matches(&model, &scope) {
                 return;
             }
             let Some(snapshot) = model.accepted.as_ref() else {
@@ -1474,6 +1635,7 @@ fn Editor() -> Element {
             }
         };
     let workspace_rect_bounds = match active_workspace {
+        "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
             .as_deref()
             .and_then(|view| keymap_bounds(view, keymap_contours.as_deref().unwrap_or(&[]))),
@@ -2148,6 +2310,12 @@ fn Editor() -> Element {
         .keycaps_select
         .replace(Box::new(on_keycaps_select.clone()));
     workspace_callbacks
+        .pcb_empty_hit
+        .replace(Box::new(on_pcb_empty_hit));
+    workspace_callbacks
+        .pcb_part_hit
+        .replace(Box::new(on_pcb_part_hit));
+    workspace_callbacks
         .keymap_layer
         .replace(Box::new(on_keymap_layer));
     workspace_callbacks
@@ -2259,13 +2427,18 @@ fn Editor() -> Element {
         wheel: workspace_callbacks.canvas_wheel,
     };
     let canvas_input = match active_workspace {
-        "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(
-            workspace_composition::PlaceholderInput {
-                workspace,
-                name: "PCB",
-                message: "PCB editing is not available yet in the Rust interface.",
+        "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(Box::new(
+            pcb_workspace::CanvasInput {
+                snapshot: snapshot.clone(),
+                scope: render_scope.clone(),
+                view_box: view_box.clone(),
+                selected_ids: model.selected_part_ids.clone(),
+                generation: render_generation,
+                handlers: canvas_handlers,
+                on_empty_hit: workspace_callbacks.pcb_empty_hit,
+                on_part_hit: workspace_callbacks.pcb_part_hit,
             },
-        )),
+        ))),
         "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
             Box::new(keymap_workspace::CanvasInput {
                 view: keymap_view.clone(),
