@@ -91,25 +91,26 @@
     "canonical_graph_changed": false,
     "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved",
     "current_integration": {
-      "commit": "119c9d059c002057e73b3fd3a36648a9681c9cd6",
+      "commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
       "checks": {
         "provider_wave": "76 native tests, actual packaged WASM normalizer1, Python3, strict WASM all-targets passed at9b700800",
-        "align_join": "10 mounted lifecycle tests, strict WASM all-targets, WASM page binary, fmt/diff passed at14d1bfeb"
+        "align_join": "10 mounted lifecycle tests, strict WASM all-targets, WASM page binary, fmt/diff passed at14d1bfeb",
+        "outline_join": "Full native suite, strict WASM all-targets Clippy, formatting and independent join review passed; paired browser pending."
       },
       "build": {
-        "id": "frontend-keymap-owner-integrated-20261002",
-        "source_commit": "119c9d059c002057e73b3fd3a36648a9681c9cd6",
-        "url": "http://127.0.0.1:34724/",
-        "subpath": "http://127.0.0.1:34724/boardstudio/",
+        "id": "frontend-outline-integrated-20261002",
+        "source_commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
+        "url": "http://127.0.0.1:34727/",
+        "subpath": "http://127.0.0.1:34727/boardstudio/",
         "commands": 8,
-        "source_hashes": 1280,
+        "source_hashes": 1289,
         "source_mismatches": 0,
         "assets_per_site": {
           "root": 145,
           "subpath": 145
         },
-        "provider_reuse": "Verified exact unchanged provider inputs and all145 base assets per route from full d425 build; only reviewed Keymap panel/test inputs differ.",
-        "scope": "Paired Keymap selected-owner workflow now running. Matrix guide cancel-focus and Case bundled-model adapter remain open; no parent completion."
+        "provider_reuse": "Exact unchanged provider inputs and route assets verified against full22-command d425 build; reviewed page-only inputs rebuilt.",
+        "scope": "Outline source/joins and Matrix focus repair integrated; paired public acceptance still open."
       },
       "next_build": {
         "status": "Next independently reviewed bounded fixes integrate serially; no unverified browser closure."
@@ -129,18 +130,18 @@
         "pcb_firmware_position_handoff": "6fe8fb875585fca7fba4636cf1a9696e55b5406f",
         "keycaps_fit_findings": "448c3274693b611ad747d0461de1b18d88245fb8"
       },
-      "layout": "MatrixSetup source/controller/history and guide/Add object mount integrated; exact browser create/Undo/Redo/reopen open. Outline lifecycle source held for repair. Transform/Align broad joins remain open.",
-      "pcb": "Physical setup integrated in Project guide and Case; contextual wiring controls still incomplete, next specific contracts under review.",
-      "keymap": "Confirmed SW17 filter\u2192SW18 canvas selection mismatch repaired in isolated6c2468f3; actual mounted red/green clear, independent source reack/browser pending. Firmware private operation/adapter contract5b1 under review.",
-      "keycaps": "Board/matrix settings and default-open disclosures integrated; paired settings history bounded proof retained; current disclosure/color/browser joins open.",
-      "case": "Source delivery/pick integration compiled; actual bundled provider\u2192Case descriptor/fetch bridge absent. Narrow existing-provider adapter reviewed packet pending; full90/90/pick/reopen acceptance open.",
-      "parts_project": "New17/setup guide integrated; compact guide fix independently reviewing. Parts first editable-field private adapter child drafted; portable export option source awaits remaining reack/browser.",
+      "layout": "Outline navigation/version lifecycle/activation integrated and independently reviewed; paired34727 journey running. Matrix focus repair integrated; historical repeated IndexedDB failure retained under Astra diagnosis, fresh12-create stress green.",
+      "pcb": "Generic contextual Part Inspector source4f1338d9 frozen, independent review queued; next approved mode/Apply slice implementing.",
+      "keymap": "Selected-owner query/tab repair integrated and paired; firmware adapter418076ae frozen, production Runtime/MIME join implementing.",
+      "keycaps": "Settings/disclosures integrated; shared Inspector clipping repair in progress, size/reflow child implementing; per-key refinement retained.",
+      "case": "Packaged descriptor/path/verified-byte adapter9e286d38 frozen for independent review; current served Case90/90 remains unqualified.",
+      "parts_project": "Portable option integrated3c0cd7de: real fresh React archive yields0 versus6 embedded assets with digest verification. Parts Name nesting corrected to React Edit footprint disclosure before source review; controller placement18 implementing.",
       "source_reviews": {
         "spec": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md",
         "standards": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md"
       },
       "source_integration": {
-        "commit": "119c9d059c002057e73b3fd3a36648a9681c9cd6",
+        "commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/integration-report.md",
         "checks": {
           "provider_wave": "76 native tests, actual packaged WASM normalizer1, Python3, strict WASM all-targets passed at9b700800",
@@ -149,19 +150,19 @@
         "acceptance": "Source integration only. Full browser workbench parity remains open."
       },
       "current_build": {
-        "id": "frontend-keymap-owner-integrated-20261002",
-        "source_commit": "119c9d059c002057e73b3fd3a36648a9681c9cd6",
-        "url": "http://127.0.0.1:34724/",
-        "subpath": "http://127.0.0.1:34724/boardstudio/",
+        "id": "frontend-outline-integrated-20261002",
+        "source_commit": "c701233ea7bab6a4c794cba38cabf13be3a0b498",
+        "url": "http://127.0.0.1:34727/",
+        "subpath": "http://127.0.0.1:34727/boardstudio/",
         "commands": 8,
-        "source_hashes": 1280,
+        "source_hashes": 1289,
         "source_mismatches": 0,
         "assets_per_site": {
           "root": 145,
           "subpath": 145
         },
-        "provider_reuse": "Verified exact unchanged provider inputs and all145 base assets per route from full d425 build; only reviewed Keymap panel/test inputs differ.",
-        "scope": "Paired Keymap selected-owner workflow now running. Matrix guide cancel-focus and Case bundled-model adapter remain open; no parent completion."
+        "provider_reuse": "Exact unchanged provider inputs and route assets verified against full22-command d425 build; reviewed page-only inputs rebuilt.",
+        "scope": "Outline source/joins and Matrix focus repair integrated; paired public acceptance still open."
       },
       "next_build": {
         "status": "Next independently reviewed bounded fixes integrate serially; no unverified browser closure."
@@ -176,7 +177,7 @@
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "Verify served14d1bfeb Align/numeric/F6/provider wave at34721 and integrate reviewed contextual UI successors. Six streams and all62 parents remain open.",
+  "current_milestone": "Continue six workbench streams; integrate independently reviewed source, package current demos and qualify paired browser journeys. All62 canonical parents and RF ledger remain open.",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
@@ -679,5 +680,10 @@
     "review_status": "All four issues independently Spec and Standards clear at exact reviewed draft hashes retained in ticket-split evidence.",
     "status": "Published as execution children; all four retain only canonical F3.1 start gate. F3.2 remains open and all parent criteria/joins remain unchanged; no sibling dependency or canonical graph edge added.",
     "canonical_graph": "Unchanged 62 parents; F3.2 starts after F3.1 and has no acceptance joins."
+  },
+  "current_export_option_evidence": {
+    "source_commit": "3c0cd7de2dadc6184c6b1771fbe0837a2aa2235a",
+    "receipt": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-export-fresh-oracle-34726-20261002.json",
+    "result": "Fresh React archive has0 local assets: unchecked export0 assets, checked6 assets, each digest verified. Bounded archive-option proof only; STEP/firmware/full export parent remain open."
   }
 }
