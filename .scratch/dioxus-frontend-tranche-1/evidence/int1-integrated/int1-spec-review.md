@@ -1,0 +1,15 @@
+# INT.1 independent Spec review
+
+Reviewed `git diff 257bad888a2e6c8a5b1343701d87ccf4d7d7c855...598b2c026941130f9b95ff4fee57353f8eefcb0d`, implementation `ad483859` and integration `598b2c02`, against T1-01, shared ACCEPTANCE/AUTHORITY, INT.1 in tasks.json, and the corrected preimplementation contract review.
+
+**Source verdict: pass. Zero missing implementation requirements, scope-creep findings, or incorrectly implemented requirements observed. Coordinator owns final ticket acceptance and gate accounting.**
+
+The requirement “Keep one root subscription and one document/history authority; do not add a general UI framework or widen member/API visibility” is satisfied. Only the four authorized presentation files change. App retains its sole Runtime construction, signal provider/subscription and unsubscribe/Close teardown; runtime.rs, main.rs, manifests and public library boundaries are unchanged. Direct private child modules use only the approved pub(super) entrypoints; Inspector helpers remain private.
+
+“Mount the existing library, object-list and inspector content through the new composition points” is satisfied without changing call-site positions or conditional mounts: Library still has two mounts, Objects remains inside its existing wrapper, and Inspector remains Layout-only. Normalized extraction comparison proves Objects, Library, Inspector, submit_position and commit_numeric bodies identical to baseline, except the approved visibility and Library ancestor-helper qualification. Hooks, action closures, IDs, selection/navigation, numeric transaction handling, compact panel state, and shell/layer/Footprints wiring are preserved.
+
+The requirement “Provide exact ownership for the three feature lanes and evidence for affected checks” has the approved concrete module boundary; downstream packets must name their actual lane owners. For “Preserve ... affected selection/drag/Undo behavior in the public browser,” the coordinator now reports exact-source root/subpath production builds at 598b2c, passing public F3a shell/layer/Footprints/theme/compact/selection/Undo checks, and independent baseline/candidate numeric preview Escape, Enter/Apply→Undo, target-change cancellation, Inspector unmount and blank-input parity evidence at `/tmp/frontend-run/int1-behavior-{baseline,after}`. These are coordinator/verifier results, not checks executed by this source reviewer. Build/browser evidence is therefore no longer reported pending here. The coordinator must retain the exact evidence and account for all applicable established checks; existing AT/resource limitations remain carried gates rather than source defects.
+
+No new refactoring takeaway observed. Existing RF-001/RF-002 same-crate ownership mitigation remains applicable.
+
+This reviewer performed source/document inspection and exact moved-body comparisons only; no repository edits, builds, browser checks or subagents. Missing CONTEXT-MAP.md was handled using existing domain guidance and the supplied authoritative scope.

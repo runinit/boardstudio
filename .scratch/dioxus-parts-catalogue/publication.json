@@ -1,0 +1,21 @@
+{
+  "parent": "F4.1",
+  "authority": "../dioxus-frontend-tranche-1/AUTHORITY.md",
+  "shared_acceptance": "../dioxus-frontend-tranche-1/ACCEPTANCE.md",
+  "status": "published automatically; concrete feature contract required before implementation",
+  "parent_completion": "unchanged; original acceptance and joins remain open",
+  "tickets": [
+    {
+      "id": "F4.1a",
+      "issue": "issues/01-component-catalogue.md",
+      "status": "ready-for-agent",
+      "profile": "luna-high"
+    },
+    {
+      "id": "F4.1b",
+      "issue": "issues/02-assembly-presets-modules.md",
+      "status": "ready-for-agent",
+      "profile": "luna-high"
+    }
+  ]
+}

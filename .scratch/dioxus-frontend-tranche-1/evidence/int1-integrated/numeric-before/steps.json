@@ -1,0 +1,1711 @@
+[
+  {
+    "args": [
+      "open",
+      "http://127.0.0.1:34643/"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": true,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": false,
+          "saveStatus": "not_attempted"
+        },
+        "targetId": "31F3AB99E98329772A063A280C28CC99",
+        "title": "BoardStudio",
+        "url": "http://127.0.0.1:34643/"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      ".m1-library"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": ".m1-library",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      ".m1-library-landing .m1-library button:first-child"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": ".m1-library-landing .m1-library button:first-child",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      ".m1-canvas"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": ".m1-canvas",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\".m1-save-state\").textContent.includes(\"Saved\")",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({id:document.querySelector(\".m1-keycap-overlay\").parentElement.dataset.partId,transform:document.querySelector(\".m1-keycap-overlay\").parentElement.getAttribute(\"transform\")}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"id\":\"matrix/main-right-keys/r0c0\",\"transform\":\"translate(147.285,-51.02) rotate(10) \"}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "[data-part-id=\"matrix/main-right-keys/r0c0\"] .m1-part-hit-area"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "[data-part-id=\"matrix/main-right-keys/r0c0\"] .m1-part-hit-area",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "#m1-position-x"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": "#m1-position-x",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"147.285\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":3,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "fill",
+      "#m1-position-x",
+      "150.285"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "filled": "#m1-position-x",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")!==\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"150.285\",\"y\":\"-51.02\",\"transform\":\"translate(150.285,-51.02) rotate(10) \",\"revision\":3,\"save\":\"Saved\",\"status\":[\"Preview only. Press Enter or Apply position to save, or Escape to cancel.\",\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "press",
+      "Escape"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "pressed": "Escape"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "Math.abs(Number(document.querySelector(\"#m1-position-x\").value)-147.285)<0.0001",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")===\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"147.285\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":3,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "fill",
+      "#m1-position-x",
+      "150.285"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "filled": "#m1-position-x",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")!==\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "press",
+      "Enter"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "pressed": "Enter"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1])>3",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"150.285\",\"y\":\"-51.02\",\"transform\":\"translate(150.285,-51.02) rotate(10) \",\"revision\":4,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "button[aria-label=\"Undo\"]"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "button[aria-label=\"Undo\"]",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "Math.abs(Number(document.querySelector(\"#m1-position-x\").value)-147.285)<0.0001",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")===\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"147.285\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":5,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "fill",
+      "#m1-position-x",
+      "150.285"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "filled": "#m1-position-x",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")!==\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "find",
+      "role",
+      "button",
+      "click",
+      "--name",
+      "Apply position"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "@e1",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1])>5",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"150.285\",\"y\":\"-51.02\",\"transform\":\"translate(150.285,-51.02) rotate(10) \",\"revision\":6,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "button[aria-label=\"Undo\"]"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "button[aria-label=\"Undo\"]",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "Math.abs(Number(document.querySelector(\"#m1-position-x\").value)-147.285)<0.0001",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")===\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"147.285\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":7,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(([...document.querySelectorAll(\".m1-keycap-overlay\")].map(e=>e.parentElement.dataset.partId).find(id=>id!==\"matrix/main-right-keys/r0c0\")))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "\"matrix/main-right-keys/r0c1\""
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({id:\"matrix/main-right-keys/r0c1\",transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c1\\\"]\")?.getAttribute(\"transform\")}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"id\":\"matrix/main-right-keys/r0c1\",\"transform\":\"translate(165.41500000000002,-44.260000000000005) rotate(10) \"}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "fill",
+      "#m1-position-x",
+      "150.285"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "filled": "#m1-position-x",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")!==\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "[data-part-id=\"matrix/main-right-keys/r0c1\"] .m1-part-hit-area"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "[data-part-id=\"matrix/main-right-keys/r0c1\"] .m1-part-hit-area",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "#m1-position-x"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": "#m1-position-x",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")===\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({selected:[...document.querySelectorAll(\".m1-part-hit-area\")].find(e=>e.closest(\"[data-part-id]\")?.classList.contains(\"is-selected\"))?.closest(\"[data-part-id]\")?.dataset.partId,x:document.querySelector(\"#m1-position-x\").value,oldTransform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"165.41500000000002\",\"oldTransform\":\"translate(147.285,-51.02) rotate(10) \",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "[data-part-id=\"matrix/main-right-keys/r0c0\"] .m1-part-hit-area"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "[data-part-id=\"matrix/main-right-keys/r0c0\"] .m1-part-hit-area",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "#m1-position-x"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": "#m1-position-x",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"147.285\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":7,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "fill",
+      "#m1-position-x",
+      "150.285"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "filled": "#m1-position-x",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")!==\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "#m1-tab-PCB"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "#m1-tab-PCB",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "#m1-tab-PCB[aria-selected=\"true\"]"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": "#m1-tab-PCB[aria-selected=\"true\"]",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\"),transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1])}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":null,\"revision\":7}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "#m1-tab-Layout"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "#m1-tab-Layout",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "#m1-position-x"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": "#m1-position-x",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "Math.abs(Number(document.querySelector(\"#m1-position-x\").value)-147.285)<0.0001",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\")===\"translate(147.285,-51.02) rotate(10) \"",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"147.285\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":7,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "fill",
+      "#m1-position-x",
+      ""
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "filled": "#m1-position-x",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":7,\"save\":\"Saved\",\"status\":[\"Saved locally.\"]}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "press",
+      "Escape"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "pressed": "Escape"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "Math.abs(Number(document.querySelector(\"#m1-position-x\").value)-147.285)<0.0001",
+      "--timeout",
+      "8000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({x:document.querySelector(\"#m1-position-x\")?.value,y:document.querySelector(\"#m1-position-y\")?.value,transform:document.querySelector(\"[data-part-id=\\\"matrix/main-right-keys/r0c0\\\"]\")?.getAttribute(\"transform\"),revision:Number(document.querySelector(\".m1-editor-footer\").textContent.match(/Revision (\\d+)/)?.[1]),save:document.querySelector(\".m1-save-state\")?.textContent,status:[...document.querySelectorAll(\"[role=status]\")].map(e=>e.textContent)}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34643/",
+        "result": "{\"x\":\"147.285\",\"y\":\"-51.02\",\"transform\":\"translate(147.285,-51.02) rotate(10) \",\"revision\":7,\"save\":\"Saved\",\"status\":[\"Position preview canceled.\"]}"
+      },
+      "error": null
+    }
+  }
+]

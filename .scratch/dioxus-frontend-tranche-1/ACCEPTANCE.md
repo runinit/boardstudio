@@ -2,7 +2,7 @@
 
 This proposal refines INT.1, F2.1, F2.3 and F3.1 from the existing frontend plan.
 It does not replace, close or modify their parent specifications or the 62-task
-graph. Tickets are drafts until the user approves the concrete breakdown.
+graph. The first twelve tickets and six follow-on children are published under AUTHORITY.md. Routine next-ticket publication is automatically authorized; retained draft snapshots are historical.
 
 ## Acceptance for every ticket
 
@@ -37,7 +37,7 @@ graph. Tickets are drafts until the user approves the concrete breakdown.
 The current planning activity only checks documents, source mapping and the
 dependency graph. It does not claim any new application test or UI acceptance.
 
-## Dispatch after approval
+## Dispatch under current authority
 
 Use the saved [agent policy](../dioxus-frontend-v1/AGENT-ROUTING.md). Normally run
 two Luna authors and one Luna verifier alongside the coordinator. Rotate a slot
@@ -63,7 +63,7 @@ entrypoints under this proposal. If a concrete boundary cannot be implemented
 within existing authority, record the smallest affected decision and continue
 unrelated work.
 
-## Publication after approval
+## Automatic publication under current authority
 
 Publish one approved ticket per file in this tranche's `issues` directory,
 numbered in dependency order and marked `ready-for-agent`. Draft files and the

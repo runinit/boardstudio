@@ -1,0 +1,17 @@
+# Dispatch notes — F4.1 Parts catalogue
+
+## Ownership and seam
+
+INT.1 is the parent start edge only. Its reviewed extraction provides Library/Objects/Inspector in the page crate, not a Parts mount/read-model contract. The coordinator must assign the actual page-crate Parts mount owner and prove its immutable accepted-document inputs, module catalogue lifecycle, current project/scope identity and selection callback before feature edits. Keep coordinator-owned shared `web/src/presentation.rs` changes with the coordinator; F4 owns separate private catalog/detail modules. This local read-only slice needs no automatic INT.2 dependency. If the current page cannot reach an existing catalogue source privately, stop and report the exact boundary; do not claim a Rust public catalogue facade or widen visibility.
+
+## Source and behavior
+
+Parent requirements/source accountability are `.scratch/dioxus-frontend-v1/issues/04-parts.md`; task graph is `.scratch/dioxus-frontend-v1/tasks.json`. React composition is `app/src/ui/Workbench.tsx`, `PartsLibrary.tsx`, `partsCatalog.ts`, `PartsInspectorPanel.tsx`, and `assemblyCatalog.ts`. `Workbench.tsx` merges `ergogenCatalogue()` + `importedPartDefinitions()` with project definitions, and supplies the module catalogue and eight `matrixPresetDefinitions`. `partsCatalog.ts` defines preferred labels/search aliases and excludes `infused-kim/nice_nano_pretty` and assembly placement snapshots while retaining assigned choices. `modules/catalogue.ts` asynchronously imports `imported-modules.json`, merges project snapshots by ID with project precedence, and manages retry on re-entry; PartsLibrary displays loading/error and no-match, without an explicit retry button. Preset naming/selection is in `assemblyCatalog.ts`; selected details are composed by `PartsInspectorPanel.tsx`.
+
+Candidate Parts currently routes through a placeholder in `web/src/presentation.rs`. Existing accepted definitions/assemblies are document inputs, but do not substitute them for the full catalogue. `assets/layout-generators.js` exposes only `isErgogen`/`render`; the already packaged `layout-generators/src/index.js` has `catalogue()`. Prove any private page adapter can access the packaged source, preserve asset provenance, deserialize typed definitions and merge imported static/project sources. No new public Rust facade, generated catalogue, or algorithm duplication.
+
+## Checks and profiles
+
+Use `cargo fmt --manifest-path web/Cargo.toml -- --check`; `cargo clippy --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --all-targets -- -D warnings`; `cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web`; and the applicable existing page build/browser workflow with same-source provenance. Existing app/React tests are reference evidence only, never proof the Dioxus page works. No new gate. Require public Dioxus browser evidence for catalog sources, precedence, exclusions, details, module lifecycle/variant states, themes/desktop/compact, keyboard/focus/axe and truthful failures.
+
+F4.1a: Luna High author/verifier (new catalogue access/projection/scope state), Astra High independent reviewer; M. F4.1b: Luna High for bundled module async source lifecycle; Medium only after a proven adapter is consumed; Astra High reviewer; M. Include parent RF-009 source-accounting reconciliation and record current private-adapter mitigation when publishing.

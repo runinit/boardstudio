@@ -1102,3 +1102,10 @@ is underway in an isolated worker after independent contract review. A parallel
 agent prepares Parts/PCB/Keymap starter tickets for source-checked publication.
 The current baseline public Layout regression passes; source extraction,
 new UI features and parent acceptance need their own integrated evidence.
+
+
+### INT.1 accepted and next frontier published
+
+Private Library/Objects/Inspector extraction is integrated at `598b2c02`. The [acceptance record](../../.scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/record.json) retains independent Standards/Spec reviews (zero findings), 14 native page tests, strict native/WASM checks, fresh root/subpath page/offline build provenance, public layers/keycaps/footprints regression, and matched Inspector numeric lifecycle traces. The editable fresh demo is [root](http://127.0.0.1:34645/) and [subpath](http://127.0.0.1:34645/boardstudio/).
+
+Two Luna High authors prepare saved-keyboard cards and desktop panel modes in isolated worktrees. Agents automatically generated and Astra reviewed six further children: [Parts catalogue](../../.scratch/dioxus-parts-catalogue/README.md), [PCB view](../../.scratch/dioxus-pcb-view/README.md), and [Keymap layers](../../.scratch/dioxus-keymap-layers/README.md). These refine three more parents; all 62 parent IDs and original joins remain. Feature-specific contracts remain required. No new refactoring takeaway observed; source reconciliation reinforces RF-009. Full frontend v1, actual AT, retained M1 gates and production cutover remain open.

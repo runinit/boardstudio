@@ -1,0 +1,21 @@
+{
+  "parent": "F6K.1",
+  "authority": "../dioxus-frontend-tranche-1/AUTHORITY.md",
+  "shared_acceptance": "../dioxus-frontend-tranche-1/ACCEPTANCE.md",
+  "status": "published automatically; concrete feature contract required before implementation",
+  "parent_completion": "unchanged; original acceptance and joins remain open",
+  "tickets": [
+    {
+      "id": "F6K.1a",
+      "issue": "issues/01-keymap-projection-selection.md",
+      "status": "ready-for-agent",
+      "profile": "luna-high"
+    },
+    {
+      "id": "F6K.1b",
+      "issue": "issues/02-layer-operations.md",
+      "status": "ready-for-agent",
+      "profile": "luna-high"
+    }
+  ]
+}
