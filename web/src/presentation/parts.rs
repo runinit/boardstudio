@@ -236,8 +236,10 @@ pub(super) fn PartsInspectorPanel(
     query: PartsQuery,
     selected: PartsSelection,
     on_place_controller: EventHandler<String>,
+    controller_placement_enabled: bool,
     placement_busy: bool,
     placement_error: Option<String>,
+    mut layout_target: Signal<Option<String>>,
 ) -> Element {
     let catalogue = use_catalogue(&snapshot, &scope);
     let Some(entries) = catalogue.entries else {
@@ -281,6 +283,16 @@ pub(super) fn PartsInspectorPanel(
             )
         })
         .map(|entry| entry.definition.id.clone());
+    let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
+    let layouts = snapshot
+        .document
+        .layouts
+        .iter()
+        .filter(|layout| Some(layout.board_id.as_str()) == board_id)
+        .collect::<Vec<_>>();
+    let selected_layout = layout_target()
+        .filter(|id| layouts.iter().any(|layout| layout.id == *id))
+        .unwrap_or_default();
 
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
@@ -293,16 +305,34 @@ pub(super) fn PartsInspectorPanel(
                     definition,
                 }
             }
-            if let Some(definition_id) = controller_id {
-                button {
-                    class: "m1-parts-place-controller",
-                    r#type: "button",
-                    disabled: placement_busy,
-                    onclick: move |_| on_place_controller.call(definition_id.clone()),
-                    if placement_busy { "Preparing controller…" } else { "Place component" }
+            if controller_placement_enabled {
+                if !layouts.is_empty() {
+                    label { class: "m1-parts-placement-layout",
+                        "Place in"
+                        select {
+                            aria_label: "Part placement layout",
+                            value: "{selected_layout}",
+                            onchange: move |event| {
+                                layout_target.set((!event.value().is_empty()).then(|| event.value()));
+                            },
+                            option { value: "", "Board / ungrouped" }
+                            for layout in layouts {
+                                option { value: "{layout.id}", "{layout.name}" }
+                            }
+                        }
+                    }
+                }
+                if let Some(definition_id) = controller_id {
+                    button {
+                        class: "m1-parts-place-controller",
+                        r#type: "button",
+                        disabled: placement_busy,
+                        onclick: move |_| on_place_controller.call(definition_id.clone()),
+                        if placement_busy { "Preparing controller…" } else { "Place component" }
+                    }
                 }
             }
-            if let Some(message) = placement_error {
+            if controller_placement_enabled && let Some(message) = placement_error {
                 p { class: "m1-parts-placement-error", role: "alert", "{message}" }
             }
         }

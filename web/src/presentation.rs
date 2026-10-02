@@ -1474,19 +1474,7 @@ fn Editor() -> Element {
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
-    let part_placement =
-        part_placement::use_controller_placement(part_placement::PartPlacementHost {
-            runtime: runtime.clone(),
-            workspace,
-            generation: adapter.generation,
-            adapter: adapter.clone(),
-            guide_preferences,
-            parts_query,
-            parts_selection,
-            snap_settings: layout_snap_settings,
-            objects_open,
-            inspect_open,
-        });
+    let layout_target: Signal<Option<String>> = use_signal(|| None);
     let mut keymap_layer_id = use_signal(|| "base".to_owned());
     let has_inspector = matches!(
         active_workspace,
@@ -2780,6 +2768,24 @@ fn Editor() -> Element {
     let view_x = (min_x + max_x - width) * 0.5 + model.camera.center.x;
     let view_y = -(min_y + max_y + height) * 0.5 - model.camera.center.y;
     let view_box = format!("{view_x} {view_y} {width} {height}");
+    let canvas_center =
+        part_placement::canvas_world_center(min_x, max_x, min_y, max_y, model.camera.center);
+    let part_placement =
+        part_placement::use_controller_placement(part_placement::PartPlacementHost {
+            runtime: runtime.clone(),
+            workspace,
+            generation: adapter.generation,
+            version,
+            adapter: adapter.clone(),
+            guide_preferences,
+            parts_query,
+            parts_selection,
+            snap_settings: layout_snap_settings,
+            layout_target,
+            canvas_center,
+            objects_open,
+            inspect_open,
+        });
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let pair_placement_owner = mirrored_pair
         .placement
@@ -3077,17 +3083,20 @@ fn Editor() -> Element {
             if let Some(active) = placement.projection.clone() {
                 if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
                     let model = runtime.model();
-                    let at = model.accepted.as_ref().map_or(point, |snapshot| {
+                    let at = model.accepted.as_ref().map_or(point, |_snapshot| {
                         part_placement::snap_placement_at(
-                            &snapshot.document,
+                            &active.snap_document,
                             &active.owner.board_id,
                             &active.pending,
                             point,
-                            part_placement::PlacementSnapOptions {
-                                snap_fraction: snap_settings.read().snap_fraction,
-                                geometry_snap: snap_settings.read().geometry_snap,
-                                gap_snap: snap_settings.read().gap_snap,
-                                free: pointer.alt_key(),
+                            {
+                                let settings = snap_settings.read();
+                                part_placement::PlacementSnapOptions {
+                                    snap_fraction: settings.snap_fraction,
+                                    geometry_snap: settings.geometry_snap,
+                                    gap: part_placement::placement_gap(&settings),
+                                    free: pointer.alt_key(),
+                                }
                             },
                         )
                     });
@@ -3231,22 +3240,29 @@ fn Editor() -> Element {
                 pointer.prevent_default();
                 pointer.stop_propagation();
                 if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                    let at = runtime.model().accepted.as_ref().map_or(point, |snapshot| {
-                        placement.projection.as_ref().map_or(point, |active| {
-                            part_placement::snap_placement_at(
-                                &snapshot.document,
-                                &active.owner.board_id,
-                                &active.pending,
-                                point,
-                                part_placement::PlacementSnapOptions {
-                                    snap_fraction: snap_settings.read().snap_fraction,
-                                    geometry_snap: snap_settings.read().geometry_snap,
-                                    gap_snap: snap_settings.read().gap_snap,
-                                    free: pointer.alt_key(),
-                                },
-                            )
-                        })
-                    });
+                    let at = runtime
+                        .model()
+                        .accepted
+                        .as_ref()
+                        .map_or(point, |_snapshot| {
+                            placement.projection.as_ref().map_or(point, |active| {
+                                part_placement::snap_placement_at(
+                                    &active.snap_document,
+                                    &active.owner.board_id,
+                                    &active.pending,
+                                    point,
+                                    {
+                                        let settings = snap_settings.read();
+                                        part_placement::PlacementSnapOptions {
+                                            snap_fraction: settings.snap_fraction,
+                                            geometry_snap: settings.geometry_snap,
+                                            gap: part_placement::placement_gap(&settings),
+                                            free: pointer.alt_key(),
+                                        }
+                                    },
+                                )
+                            })
+                        });
                     placement.on_commit.call(at);
                 }
                 return;
@@ -4001,17 +4017,25 @@ fn Editor() -> Element {
                 on_display: workspace_callbacks.case_display,
             },
         )),
-        "Parts" => {
-            workspace_composition::WorkspaceInspectorInput::Parts(parts_workspace::InspectorInput {
+        "Parts" => workspace_composition::WorkspaceInspectorInput::Parts(Box::new(
+            parts_workspace::InspectorInput {
                 snapshot: snapshot.clone(),
                 scope: current_scope.clone(),
                 query: parts_query,
                 selected: parts_selection,
                 on_place_controller: part_placement.on_place_controller,
+                controller_placement_enabled: guide_preferences().as_ref().is_some_and(
+                    |preferences| {
+                        preferences.open
+                            && preferences.project_id == document.id
+                            && preferences.current_stage == SetupGuideStage::Wiring
+                    },
+                ),
                 placement_busy: part_placement.busy,
                 placement_error: part_placement.error.clone(),
-            })
-        }
+                layout_target,
+            },
+        )),
         "PCB" => {
             workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
                 let firmware_position_projection = pcb_wiring::firmware_position_projection(

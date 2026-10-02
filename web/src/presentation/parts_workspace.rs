@@ -19,8 +19,10 @@ pub(super) struct InspectorInput {
     pub(super) query: PartsQuery,
     pub(super) selected: PartsSelection,
     pub(super) on_place_controller: EventHandler<String>,
+    pub(super) controller_placement_enabled: bool,
     pub(super) placement_busy: bool,
     pub(super) placement_error: Option<String>,
+    pub(super) layout_target: Signal<Option<String>>,
 }
 
 pub(super) struct CanvasInput {
@@ -75,8 +77,10 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             query: input.query,
             selected: input.selected,
             on_place_controller: input.on_place_controller,
+            controller_placement_enabled: input.controller_placement_enabled,
             placement_busy: input.placement_busy,
             placement_error: input.placement_error,
+            layout_target: input.layout_target,
         }
     }
 }

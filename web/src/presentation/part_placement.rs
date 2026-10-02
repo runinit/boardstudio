@@ -3,7 +3,7 @@
 //! The browser controller owns the interaction lifetime; this module keeps the
 //! identity checks and atomic document proposal independent of the canvas DOM.
 use super::{
-    objects::LayoutSnapSettings,
+    objects::{self, LayoutSnapSettings},
     parts::{PartsQuery, PartsSelection},
     selection::SelectionAdapter,
     setup_guide::{SetupGuidePreferences, SetupGuideStage},
@@ -113,6 +113,7 @@ pub(super) struct PendingPart {
 pub(super) struct ActivePartPlacement {
     pub(super) owner: PlacementOwner,
     pub(super) pending: PendingPart,
+    pub(super) snap_document: Rc<ProjectDoc>,
 }
 
 #[derive(Clone)]
@@ -120,6 +121,19 @@ struct PendingCommit {
     owner: PlacementOwner,
     operation_id: boardstudio_application::OperationId,
     outcome: crate::operation_outcomes::OutcomeSlot,
+}
+
+fn pending_commit_matches(
+    pending: Option<&PendingCommit>,
+    operation_id: boardstudio_application::OperationId,
+    owner: &PlacementOwner,
+    observed: &crate::operation_outcomes::OutcomeSlot,
+) -> bool {
+    pending.is_some_and(|pending| {
+        pending.operation_id == operation_id
+            && pending.owner == *owner
+            && Rc::ptr_eq(&pending.outcome, observed)
+    })
 }
 
 #[derive(Clone)]
@@ -138,11 +152,14 @@ pub(super) struct PartPlacementHost {
     pub(super) runtime: Rc<Runtime>,
     pub(super) workspace: Signal<&'static str>,
     pub(super) generation: Signal<u64>,
+    pub(super) version: Signal<u64>,
     pub(super) adapter: SelectionAdapter,
     pub(super) guide_preferences: Signal<Option<SetupGuidePreferences>>,
     pub(super) parts_query: PartsQuery,
     pub(super) parts_selection: PartsSelection,
     pub(super) snap_settings: Signal<LayoutSnapSettings>,
+    pub(super) layout_target: Signal<Option<String>>,
+    pub(super) canvas_center: Vec2,
     pub(super) objects_open: Signal<bool>,
     pub(super) inspect_open: Signal<bool>,
 }
@@ -178,11 +195,14 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         runtime,
         workspace,
         generation,
+        version,
         adapter,
         guide_preferences,
         parts_query,
         parts_selection,
         snap_settings,
+        layout_target,
+        canvas_center,
         mut objects_open,
         mut inspect_open,
     } = host;
@@ -238,12 +258,41 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
 
     let on_place_controller = {
         let runtime = runtime.clone();
+        let mut active = active;
         let query = parts_query;
         let mut preparing = preparing;
         let mut error = error;
         let alive = alive.clone();
         let adapter_for_async = adapter.clone();
         move |definition_id: String| {
+            let current_model = runtime.model();
+            let admission = PlacementAdmission::capture(
+                &runtime,
+                generation(),
+                workspace(),
+                "Layout",
+                guide_preferences(),
+            );
+            if active.read().as_ref().is_some_and(|placement| {
+                !owner_is_live(&placement.owner, &runtime, &current_model, admission)
+            }) {
+                active.set(None);
+            }
+            let current_model = runtime.model();
+            let admission = PlacementAdmission::capture(
+                &runtime,
+                generation(),
+                workspace(),
+                "Parts",
+                guide_preferences(),
+            );
+            if preparing
+                .read()
+                .as_ref()
+                .is_some_and(|owner| !owner_is_live(owner, &runtime, &current_model, admission))
+            {
+                preparing.set(None);
+            }
             if active.read().is_some()
                 || preparing.read().is_some()
                 || committing.read().is_some()
@@ -282,14 +331,21 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                     return;
                 }
             };
-            let at = grid_snap_point(model.camera.center, snap_settings.read().snap_fraction);
+            let at = grid_snap_point(canvas_center, snap_settings.read().snap_fraction);
+            let layout_id = layout_target().filter(|layout_id| {
+                snapshot
+                    .document
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.id == *layout_id && layout.board_id == scope.board_id)
+            });
             let Some(owner) = PlacementOwner::capture(
                 snapshot,
                 scope.clone(),
                 generation(),
                 part_id,
                 definition_id.clone(),
-                None,
+                layout_id,
                 at,
             ) else {
                 return;
@@ -378,7 +434,14 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                     preparing.set(None);
                     return;
                 }
-                active.set(Some(ActivePartPlacement { owner, pending }));
+                active.set(Some(ActivePartPlacement {
+                    owner,
+                    snap_document: Rc::new(document_with_pending_definition(
+                        &accepted.document,
+                        &pending.definition,
+                    )),
+                    pending,
+                }));
                 preparing.set(None);
                 query.set("controller".into());
                 workspace.set("Layout");
@@ -394,6 +457,53 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         }
     };
 
+    let observed_version = version();
+    let observed_generation = generation();
+    let observed_workspace = workspace();
+    let observed_guide = guide_preferences();
+    let cleanup_runtime = runtime.clone();
+    let mut cleanup_active = active;
+    let mut cleanup_preparing = preparing;
+    use_effect(use_reactive!(
+        |observed_version, observed_generation, observed_workspace, observed_guide| {
+            let _ = observed_version;
+            let model = cleanup_runtime.model();
+            let stale_active = cleanup_active.read().as_ref().is_some_and(|placement| {
+                !owner_is_live(
+                    &placement.owner,
+                    &cleanup_runtime,
+                    &model,
+                    PlacementAdmission::capture(
+                        &cleanup_runtime,
+                        observed_generation,
+                        observed_workspace,
+                        "Layout",
+                        observed_guide.clone(),
+                    ),
+                )
+            });
+            if stale_active {
+                cleanup_active.set(None);
+            }
+            let stale_preparing = cleanup_preparing.read().as_ref().is_some_and(|owner| {
+                !owner_is_live(
+                    owner,
+                    &cleanup_runtime,
+                    &model,
+                    PlacementAdmission::capture(
+                        &cleanup_runtime,
+                        observed_generation,
+                        observed_workspace,
+                        "Parts",
+                        observed_guide.clone(),
+                    ),
+                )
+            });
+            if stale_preparing {
+                cleanup_preparing.set(None);
+            }
+        }
+    ));
     let on_move = {
         let mut active = active;
         move |at: Vec2| {
@@ -493,11 +603,12 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 if !alive.get() {
                     return;
                 }
-                let operation_matches = committing.read().as_ref().is_some_and(|pending| {
-                    pending.operation_id == operation_id
-                        && pending.owner == owner
-                        && Rc::ptr_eq(&pending.outcome, &observed)
-                });
+                let operation_matches = pending_commit_matches(
+                    committing.read().as_ref(),
+                    operation_id,
+                    &owner,
+                    &observed,
+                );
                 if terminal == Some(TerminalOutcome::Completed) {
                     for _ in 0..500 {
                         let model = runtime.model();
@@ -558,21 +669,15 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         range_part_ids: Vec::new(),
                         mode: SelectionMode::Replace,
                     });
-                } else if route_live {
+                } else if route_live
+                    && model
+                        .accepted
+                        .as_ref()
+                        .is_some_and(|accepted| owner_snapshot_is_current(accepted, &owner))
+                    && let Some(message) = placement_failure_message(terminal.as_ref())
+                {
                     workspace.set("Parts");
-                    error.set(Some(match terminal {
-                        Some(
-                            TerminalOutcome::Rejected(message)
-                            | TerminalOutcome::PersistenceFailed(message)
-                            | TerminalOutcome::ExecutorFailed(message)
-                            | TerminalOutcome::BlockedByRecovery(message),
-                        ) => message,
-                        Some(TerminalOutcome::Completed) => {
-                            "The controller was not accepted and saved in the active project."
-                                .into()
-                        }
-                        _ => "Controller placement was cancelled or superseded.".into(),
-                    }));
+                    error.set(Some(message));
                 }
             });
         }
@@ -732,6 +837,34 @@ pub(super) fn update_pending_part(pending: &mut PendingPart, at: Vec2) {
     pending.part.pose.at = at;
 }
 
+pub(super) fn canvas_world_center(
+    min_x: f64,
+    max_x: f64,
+    min_y: f64,
+    max_y: f64,
+    camera_pan: Vec2,
+) -> Vec2 {
+    Vec2 {
+        x: (min_x + max_x) * 0.5 + camera_pan.x,
+        y: (min_y + max_y) * 0.5 + camera_pan.y,
+    }
+}
+
+fn document_with_pending_definition(
+    document: &ProjectDoc,
+    definition: &PartDefinition,
+) -> ProjectDoc {
+    let mut snap_document = document.clone();
+    if !snap_document
+        .definitions
+        .iter()
+        .any(|existing| existing.id == definition.id)
+    {
+        snap_document.definitions.push(definition.clone());
+    }
+    snap_document
+}
+
 fn grid_snap_point(at: Vec2, snap_fraction: f64) -> Vec2 {
     if snap_fraction == 0.0 {
         return at;
@@ -755,8 +888,12 @@ fn grid_snap_point(at: Vec2, snap_fraction: f64) -> Vec2 {
 pub(super) struct PlacementSnapOptions {
     pub(super) snap_fraction: f64,
     pub(super) geometry_snap: bool,
-    pub(super) gap_snap: bool,
+    pub(super) gap: Option<f64>,
     pub(super) free: bool,
+}
+
+pub(super) fn placement_gap(settings: &LayoutSnapSettings) -> Option<f64> {
+    objects::gesture_snap_inputs(settings, None, None).gap
 }
 
 pub(super) fn snap_placement_at(
@@ -780,7 +917,7 @@ pub(super) fn snap_placement_at(
         board_id,
         &moving,
         2.0,
-        options.gap_snap.then_some(1.0),
+        options.gap,
     )
     .map_or(grid, |guide| guide.at)
 }
@@ -917,6 +1054,8 @@ pub(super) fn completion_is_accepted(
             })
         && snapshot.document.id == owner.project_id
         && snapshot.session_epoch == owner.session_epoch
+        && owner.revision.checked_add(1) == Some(snapshot.document.revision)
+        && snapshot.token != owner.token
         && snapshot
             .document
             .definitions
@@ -933,6 +1072,31 @@ pub(super) fn completion_is_accepted(
                 && part.pose.rotation == 0.0
                 && part.side == Side::Front
         })
+}
+
+fn owner_snapshot_is_current(snapshot: &AcceptedSnapshot, owner: &PlacementOwner) -> bool {
+    snapshot.token == owner.token
+        && snapshot.session_epoch == owner.session_epoch
+        && snapshot.document.id == owner.project_id
+        && snapshot.document.revision == owner.revision
+}
+
+fn placement_failure_message(outcome: Option<&TerminalOutcome>) -> Option<String> {
+    match outcome {
+        Some(
+            TerminalOutcome::Rejected(message)
+            | TerminalOutcome::PersistenceFailed(message)
+            | TerminalOutcome::ExecutorFailed(message)
+            | TerminalOutcome::BlockedByRecovery(message),
+        ) => Some(message.clone()),
+        Some(TerminalOutcome::Completed) => {
+            Some("The controller was not accepted and saved in the active project.".into())
+        }
+        Some(
+            TerminalOutcome::Cancelled | TerminalOutcome::Superseded | TerminalOutcome::Closed,
+        )
+        | None => None,
+    }
 }
 
 #[cfg(test)]
@@ -1164,7 +1328,7 @@ mod tests {
                 PlacementSnapOptions {
                     snap_fraction: 0.25,
                     geometry_snap: false,
-                    gap_snap: true,
+                    gap: None,
                     free: false,
                 }
             ),
@@ -1182,12 +1346,63 @@ mod tests {
                 PlacementSnapOptions {
                     snap_fraction: 0.25,
                     geometry_snap: true,
-                    gap_snap: true,
+                    gap: None,
                     free: true,
                 }
             ),
             point
         );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn initial_placement_uses_world_view_center_after_pan() {
+        assert_eq!(
+            canvas_world_center(-40.0, 60.0, -20.0, 80.0, Vec2 { x: 13.0, y: -7.0 }),
+            Vec2 { x: 23.0, y: 23.0 }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn placement_geometry_snap_uses_pending_definition_and_current_gap_preference() {
+        let mut document = fixture();
+        let obstacle_definition = controller_definition("existing:controller");
+        document.definitions.push(obstacle_definition.clone());
+        let mut obstacle = part(&obstacle_definition.id, "existing-controller", "U2");
+        obstacle.pose.at = Vec2 { x: 11.0, y: 0.0 };
+        document.parts.push(obstacle);
+        document.boards[0]
+            .part_ids
+            .push("existing-controller".into());
+
+        let definition = controller_definition("catalog:controller");
+        let pending = controller_part(
+            definition.clone(),
+            "part-controller".into(),
+            "U1".into(),
+            Vec2::default(),
+        )
+        .unwrap();
+        let snap_document = document_with_pending_definition(&document, &definition);
+        let at = snap_placement_at(
+            &snap_document,
+            "board-main",
+            &pending,
+            Vec2 { x: 10.2, y: 0.0 },
+            PlacementSnapOptions {
+                snap_fraction: 0.25,
+                geometry_snap: true,
+                gap: None,
+                free: false,
+            },
+        );
+        assert_eq!(at.x, 11.0);
+
+        let mut settings = LayoutSnapSettings::default();
+        assert_eq!(placement_gap(&settings), Some(1.0));
+        settings.gap_override = "0.7".into();
+        assert_eq!(placement_gap(&settings), Some(0.7));
+        settings.gap_snap = false;
+        assert_eq!(placement_gap(&settings), None);
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -1247,6 +1462,7 @@ mod tests {
             Vec2::default(),
         )
         .unwrap();
+        assert!(owner_snapshot_is_current(&initial, &owner));
         placed.pose.at = Vec2 { x: 14.0, y: -3.0 };
         owner.record_committed_position(placed.pose.at);
         let mut proposed = replacement(
@@ -1255,6 +1471,7 @@ mod tests {
         );
         proposed.revision += 1;
         let saved = accepted(proposed, 12);
+        assert!(!owner_snapshot_is_current(&saved, &owner));
 
         assert!(completion_is_accepted(
             true,
@@ -1281,6 +1498,29 @@ mod tests {
             &Lifecycle::Ready,
             &Durability::Saved { revision: 1 },
             Some(&wrong_position),
+            &owner,
+            "part-controller",
+        ));
+        let mut later_document = (*saved.document).clone();
+        later_document.revision += 1;
+        let later_snapshot = accepted(later_document, 13);
+        assert!(!owner_snapshot_is_current(&later_snapshot, &owner));
+        assert!(!completion_is_accepted(
+            true,
+            Some(&TerminalOutcome::Completed),
+            &Lifecycle::Ready,
+            &Durability::Saved { revision: 2 },
+            Some(&later_snapshot),
+            &owner,
+            "part-controller",
+        ));
+        let same_token = accepted((*saved.document).clone(), 11);
+        assert!(!completion_is_accepted(
+            true,
+            Some(&TerminalOutcome::Completed),
+            &Lifecycle::Ready,
+            &Durability::Saved { revision: 1 },
+            Some(&same_token),
             &owner,
             "part-controller",
         ));
@@ -1311,5 +1551,78 @@ mod tests {
             &owner,
             "part-controller",
         ));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn commit_observer_matches_exact_operation_slot_and_retains_terminal_after_owner_drop() {
+        let initial = accepted(fixture(), 11);
+        let scope = Scope {
+            session_epoch: SessionEpoch(7),
+            document_id: "project".into(),
+            board_id: "board-main".into(),
+            instance_id: None,
+        };
+        let owner = PlacementOwner::capture(
+            &initial,
+            scope,
+            4,
+            "part-controller".into(),
+            "catalog:controller".into(),
+            None,
+            Vec2::default(),
+        )
+        .unwrap();
+        let operation_id = boardstudio_application::OperationId(41);
+        let outcomes = crate::operation_outcomes::OperationOutcomes::default();
+        let outcome = outcomes.observe(operation_id);
+        let pending = PendingCommit {
+            owner: owner.clone(),
+            operation_id,
+            outcome: outcome.clone(),
+        };
+        assert!(pending_commit_matches(
+            Some(&pending),
+            operation_id,
+            &owner,
+            &outcome
+        ));
+        assert!(!pending_commit_matches(
+            Some(&pending),
+            boardstudio_application::OperationId(42),
+            &owner,
+            &outcome
+        ));
+        let other_slot = Rc::new(std::cell::RefCell::new(None));
+        assert!(!pending_commit_matches(
+            Some(&pending),
+            operation_id,
+            &owner,
+            &other_slot
+        ));
+
+        let retained_observer = outcome.clone();
+        drop(pending);
+        assert!(outcomes.settle(operation_id, TerminalOutcome::Completed));
+        assert_eq!(
+            *retained_observer.borrow(),
+            Some(TerminalOutcome::Completed)
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn terminal_cancellation_does_not_redirect_but_rejection_can_return_to_source_panel() {
+        assert_eq!(
+            placement_failure_message(Some(&TerminalOutcome::Rejected("stale".into()))),
+            Some("stale".into())
+        );
+        assert_eq!(
+            placement_failure_message(Some(&TerminalOutcome::Cancelled)),
+            None
+        );
+        assert_eq!(
+            placement_failure_message(Some(&TerminalOutcome::Superseded)),
+            None
+        );
+        assert_eq!(placement_failure_message(None), None);
     }
 }
