@@ -1,7 +1,7 @@
 //! Read-only host scene projection for the currently accepted PCB board.
 use crate::presentation::footprint_graphics::FootprintGraphics;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{PadShape, PartDefinition, Side, Vec2};
+use boardstudio_core::model::{PadShape, Side, Vec2};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::collections::BTreeSet;
@@ -105,8 +105,8 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                             transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation}) {side_transform}",
                             role: "button",
                             tabindex: "0",
-                            aria_pressed: "{selected}",
-                            aria_label: "{label}",
+                            "aria-pressed": "{selected}",
+                            "aria-label": "{label}",
                             "data-part-id": "{part.id}",
                             onpointerdown: move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };

@@ -52,7 +52,7 @@ pub(super) enum WorkspaceCanvasInput {
     Keymap(Box<super::keymap_workspace::CanvasInput>),
     Keycaps(Box<super::keycaps_workspace::CanvasInput>),
     Case(Box<super::case_workspace::CanvasInput>),
-    Parts(PlaceholderInput),
+    Parts(super::parts_workspace::CanvasInput),
     Other(PlaceholderInput),
 }
 
@@ -96,7 +96,7 @@ pub(super) fn canvas(input: WorkspaceCanvasInput) -> Element {
         WorkspaceCanvasInput::Keymap(input) => super::keymap_workspace::canvas(*input),
         WorkspaceCanvasInput::Keycaps(input) => super::keycaps_workspace::canvas(*input),
         WorkspaceCanvasInput::Case(input) => super::case_workspace::canvas(*input),
-        WorkspaceCanvasInput::Parts(input) => super::parts_workspace::canvas(input),
+        WorkspaceCanvasInput::Parts(input) => super::parts_workspace::preview(input),
         WorkspaceCanvasInput::Other(input) => super::parts_workspace::canvas(input),
     }
 }

@@ -2470,10 +2470,11 @@ fn Editor() -> Element {
             },
         ))),
         "Parts" => Some(workspace_composition::WorkspaceCanvasInput::Parts(
-            workspace_composition::PlaceholderInput {
-                workspace,
-                name: "Parts",
-                message: "Parts library editing is not available yet in the Rust interface.",
+            parts_workspace::CanvasInput {
+                snapshot: snapshot.clone(),
+                scope: current_scope.clone(),
+                query: parts_query,
+                selected: parts_selection,
             },
         )),
         "Layout" | "Export" => None,

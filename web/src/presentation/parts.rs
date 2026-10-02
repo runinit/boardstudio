@@ -3,7 +3,7 @@ mod catalogue;
 mod details;
 mod preview;
 
-pub(super) use preview::PartsPreviewPanel;
+pub(in crate::presentation) use preview::PartsPreviewPanel;
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::ProjectDoc;
@@ -198,6 +198,48 @@ pub(super) fn PartsInspectorPanel(
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
             SelectedDefinition { entry }
+        }
+    }
+}
+
+/// Mount the selected accepted catalogue definition in the workspace canvas.
+/// Selection and catalogue lookup stay with the Parts owner; the preview only
+/// receives the immutable definition and its accepted source identity.
+#[component]
+pub(super) fn PartsPreviewWorkspace(
+    snapshot: AcceptedSnapshot,
+    scope: Option<Scope>,
+    query: PartsQuery,
+    selected: PartsSelection,
+) -> Element {
+    let catalogue = use_catalogue(&snapshot, &scope);
+    let Some(entries) = catalogue.entries else {
+        return if let Some(error) = catalogue.error {
+            rsx! {
+                p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
+            }
+        } else {
+            rsx! {
+                p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
+            }
+        };
+    };
+    let listed_entries = catalogue_choices(&entries);
+    let search = query().trim().to_lowercase();
+    let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
+    let definition = selected_id.as_deref().and_then(|id| {
+        listed_entries
+            .iter()
+            .copied()
+            .find(|entry| entry.definition.id == id)
+            .map(|entry| entry.definition.clone())
+    });
+
+    rsx! {
+        PartsPreviewPanel {
+            definition,
+            scope,
+            snapshot_token: snapshot.token,
         }
     }
 }

@@ -1,10 +1,9 @@
 //! Read-only, source-backed 2D preview for the selected Parts definition.
 use crate::footprint_forms::{Graphic, Shape};
-use crate::footprint_graphics::{self, Drawings, GraphicElement};
+use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeSet,
@@ -26,7 +25,7 @@ struct PreviewOwner {
     generation: u64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct PreviewLayer {
     id: String,
     label: String,
@@ -62,7 +61,7 @@ struct Visibility {
 /// The Parts slot supplies accepted immutable source identity; this component
 /// owns only its transient generator request and visibility controls.
 #[component]
-pub(super) fn PartsPreviewPanel(
+pub(in crate::presentation) fn PartsPreviewPanel(
     definition: Option<Rc<PartDefinition>>,
     scope: Option<Scope>,
     snapshot_token: SnapshotToken,
@@ -155,15 +154,18 @@ pub(super) fn PartsPreviewPanel(
                                     }
                                 }
                                 for pad in &definition.pads {
-                                    let pad_copper = copper_id(pad, &definition);
-                                    let pad_visible = !hidden.contains(&pad_copper);
-                                    if pad_visible {
-                                        { render_pad(
-                                            pad,
-                                            pad_copper.trim_start_matches("copper:"),
-                                            hidden.contains("drills"),
-                                            hidden.contains("pad-labels"),
-                                        ) }
+                                    { let pad_copper = copper_id(pad, &definition);
+                                      let pad_visible = !hidden.contains(&pad_copper);
+                                      rsx! {
+                                        if pad_visible {
+                                            { render_pad(
+                                                pad,
+                                                pad_copper.trim_start_matches("copper:"),
+                                                hidden.contains("drills"),
+                                                hidden.contains("pad-labels"),
+                                            ) }
+                                        }
+                                      }
                                     }
                                 }
                                 for (index, graphic) in content.drawings.iter().enumerate() {
@@ -570,7 +572,7 @@ fn PartsPreviewLayers(
     on_toggle: EventHandler<String>,
 ) -> Element {
     let mut open = use_signal(|| false);
-    let close_and_restore_focus = move || {
+    let mut close_and_restore_focus = move || {
         open.set(false);
         if let Some(trigger) = web_sys::window()
             .and_then(|window| window.document())
@@ -595,8 +597,8 @@ fn PartsPreviewLayers(
         }
     }
     rsx! {
-        section { class: "m1-layers", "data-open": "{open()}", aria_label: "Footprint preview layers", onkeydown: keydown,
-            button { id: "m1-parts-preview-layers-trigger", class: "m1-layers-trigger", type: "button", aria_expanded: "{open()}", aria_controls: "m1-parts-preview-layers-list", onclick: move |_| open.set(!open()),
+        section { class: "m1-layers", "data-open": "{open()}", "aria-label": "Footprint preview layers", onkeydown: keydown,
+            button { id: "m1-parts-preview-layers-trigger", class: "m1-layers-trigger", type: "button", "aria-expanded": "{open()}", "aria-controls": "m1-parts-preview-layers-list", onclick: move |_| open.set(!open()),
                 "Layers"
                 svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } } }
             }
@@ -613,7 +615,7 @@ fn PartsPreviewLayers(
                               let action = if visible { "Hide" } else { "Show" };
                               let accessible = format!("{action} {}", layer.label);
                               rsx! {
-                                  button { key: "{layer.id}", type: "button", aria_pressed: "{visible}", aria_label: "{accessible}", onclick: move |_| on_toggle.call(id.clone()),
+                                  button { key: "{layer.id}", type: "button", "aria-pressed": "{visible}", "aria-label": "{accessible}", onclick: move |_| on_toggle.call(id.clone()),
                                       span { class: "m1-layer-swatch", "data-layer": "{layer.label}" }
                                       span { class: "m1-layer-label", "{layer.label}" }
                                       svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 10q8-12 16 0-8 12-16 0Z" }, circle { cx: "10", cy: "10", r: "2.5" }, if !visible { path { d: "m3 17 14-14" } } }

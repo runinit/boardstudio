@@ -1,5 +1,5 @@
 //! Parts-owned Objects, canvas placeholder and Inspector composition.
-use super::parts::{PartsInspectorPanel, PartsLibraryPanel};
+use super::parts::{PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace};
 use super::parts::{PartsQuery, PartsSelection};
 use super::workspace_composition::PlaceholderInput;
 use boardstudio_application::{AcceptedSnapshot, Scope};
@@ -14,6 +14,13 @@ pub(super) struct ObjectsInput {
 }
 
 pub(super) struct InspectorInput {
+    pub(super) snapshot: AcceptedSnapshot,
+    pub(super) scope: Option<Scope>,
+    pub(super) query: PartsQuery,
+    pub(super) selected: PartsSelection,
+}
+
+pub(super) struct CanvasInput {
     pub(super) snapshot: AcceptedSnapshot,
     pub(super) scope: Option<Scope>,
     pub(super) query: PartsQuery,
@@ -36,12 +43,23 @@ pub(super) fn toolbar() -> Element {
     rsx! {}
 }
 
-pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
+pub(super) fn canvas(input: PlaceholderInput) -> Element {
     rsx! {
         section { class: "m1-placeholder-workspace",
             h1 { "{input.name}" }
             p { "{input.message}" }
             button { onclick: move |_| input.workspace.set("Layout"), "Back to Layout" }
+        }
+    }
+}
+
+pub(super) fn preview(input: CanvasInput) -> Element {
+    rsx! {
+        PartsPreviewWorkspace {
+            snapshot: input.snapshot,
+            scope: input.scope,
+            query: input.query,
+            selected: input.selected,
         }
     }
 }

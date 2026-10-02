@@ -41,7 +41,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                 preserve_aspect_ratio: "xMidYMid meet",
                 tabindex: "0",
                 role: "group",
-                aria_label: "PCB layout; select a part with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
+                "aria-label": "PCB layout; select a part with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom",
                 onmounted: handlers.mount,
                 onpointerdown: handlers.start_pan,
                 onpointermove: handlers.move_pointer,
