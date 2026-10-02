@@ -1,0 +1,79 @@
+{
+  "url": "http://127.0.0.1:34687/",
+  "databaseNames": [
+    "boardstudio-m1-root"
+  ],
+  "activeProjectKeys": [
+    "boardstudio-m1-active-project:boardstudio-m1-root"
+  ],
+  "projects": [
+    {
+      "database": "boardstudio-m1-root",
+      "activeKey": "boardstudio-m1-active-project:boardstudio-m1-root",
+      "activeProjectId": "m1-sofle-v2-copy",
+      "recordKeys": [
+        "assets",
+        "boards",
+        "caseBodies",
+        "constraints",
+        "definitions",
+        "format",
+        "hardware",
+        "id",
+        "keymap",
+        "layouts",
+        "materials",
+        "matrices",
+        "mechanical",
+        "name",
+        "nets",
+        "outline",
+        "parameters",
+        "parts",
+        "revision",
+        "scripts"
+      ],
+      "projectId": "m1-sofle-v2-copy",
+      "name": "Sofle v2",
+      "revision": 15,
+      "layers": [
+        {
+          "id": "base",
+          "name": "Main",
+          "sensors": {
+            "left/SW25": {
+              "clockwise": {
+                "keycode": "F5",
+                "kind": "key-press"
+              },
+              "counterclockwise": {
+                "keycode": "Q",
+                "kind": "key-press"
+              }
+            }
+          },
+          "bindings": {
+            "left/SW25/push": {
+              "keycode": "SPACE",
+              "kind": "key-press"
+            }
+          }
+        },
+        {
+          "id": "dc238a57-6d6c-4eaa-b6c2-061d2eedec00",
+          "name": "Function",
+          "sensors": {},
+          "bindings": {
+            "matrix/left-keys/r0c0": {
+              "keycode": "Q",
+              "kind": "key-press"
+            },
+            "matrix/left-keys/r0c1": {
+              "kind": "none"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+      - combobox "left-keys-SW6 behavior" [expanded=false, ref=e701]: Macro
+        - option "Key press" [ref=e703]
+        - option "Mod tap" [ref=e704]
+        - option "Layer tap" [ref=e705]
+        - option "Momentary layer" [ref=e706]
+        - option "Toggle layer" [ref=e707]
+        - option "Go to layer" [ref=e708]
+        - option "Sticky layer" [ref=e709]
+        - option "Sticky key" [ref=e710]
+        - option "Macro" [selected, ref=e711]
+        - option "Transparent" [ref=e712]
+        - option "Unassigned" [ref=e713]
+      - combobox "left-keys-SW6 macro" [expanded=false, ref=e702]: Macro 2
+        - option "Reference Macro" [ref=e714]
+        - option "Macro 2" [selected, ref=e715]
+    - region "Encoders" [ref=e547]
+      - heading "Encoders" [level=3, ref=e559]
+      - heading "left-SW25" [level=4, ref=e551]
+      - region "Key binding" [ref=e560]
+        - combobox "left-SW25 clockwise behavior" [expanded=false, ref=e612]: Unassigned
+          - option "Key press" [ref=e626]
+          - option "Mod tap" [ref=e627]
+          - option "Layer tap" [ref=e628]

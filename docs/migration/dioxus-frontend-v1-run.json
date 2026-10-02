@@ -1,7 +1,7 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Parallel frontend implementation active: current Case compact/focus/resize build frontend-case-focus-resize-final-20261002 (e2a84d8b) has a bounded public green for its documented compact panel/keyboard/focus/resize states and root/subpath/offline delivery; broader workspace, actual AT and parent acceptance remain open. Keymap binding editor focused public packet is complete with a focus-continuity difference retained; encoder rotation issue06 implementation has started after independent private target-contract clearance. Case mechanical settings and Macro bounded public packets remain complete with their broader criteria/gates open. Full F2–F9 and all canonical acceptance joins remain open.",
+  "status": "Parallel frontend implementation active: current Case compact/focus/resize build frontend-case-focus-resize-final-20261002 (e2a84d8b) has a bounded public green for its documented compact panel/keyboard/focus/resize states and root/subpath/offline delivery; broader workspace, actual AT and parent acceptance remain open. Keymap binding editor focused public packet is complete with a focus-continuity difference retained; encoder rotation issue06 implementation has started after independent private target-contract clearance. Case mechanical settings and Macro bounded public packets remain complete with their broader criteria/gates open. Full F2\u2013F9 and all canonical acceptance joins remain open.",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
@@ -10,7 +10,7 @@
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
     "F1": {
-      "status": "verified first increment; full parity remains F2–F9",
+      "status": "verified first increment; full parity remains F2\u2013F9",
       "ticket": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md",
       "depends_on": "M1 implementation"
     },
@@ -93,7 +93,7 @@
       ]
     },
     "F7": {
-      "status": "Case viewport 32695555 compact/44px-control public check and root/subpath offline reload pass; Case issue02 continues the first viewer slice, and four new Layout/Keymap/Keycaps/Parts-sample issues 03–06 are published. All start at F7.1; INT.2/BND.1 remain F7.3 acceptance joins and F7.8 remains later. Model delivery/consumer proof remain open. Case mechanical mount/controller are integrated in 0cad7577 and pass strict WASM/native Clippy plus 34 native checks; fresh build frontend-mechanical-settings-20261002 passes seven commands and 965 source hashes, served at 34675; bounded public mechanical semantic packet is green (including split-scope preservation, Disable, Undo/Redo, archive equality/reload); draft/layout remain underway, authored mesh/STEP and full F7 acceptance remain open.",
+      "status": "Case viewport 32695555 compact/44px-control public check and root/subpath offline reload pass; Case issue02 continues the first viewer slice, and four new Layout/Keymap/Keycaps/Parts-sample issues 03\u201306 are published. All start at F7.1; INT.2/BND.1 remain F7.3 acceptance joins and F7.8 remains later. Model delivery/consumer proof remain open. Case mechanical mount/controller are integrated in 0cad7577 and pass strict WASM/native Clippy plus 34 native checks; fresh build frontend-mechanical-settings-20261002 passes seven commands and 965 source hashes, served at 34675; bounded public mechanical semantic packet is green (including split-scope preservation, Disable, Undo/Redo, archive equality/reload); draft/layout remain underway, authored mesh/STEP and full F7 acceptance remain open.",
       "ticket": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
       "planning_status": "planned and independently reviewed; implementation open",
@@ -295,7 +295,7 @@
     "mounted": true,
     "checks": "strict WASM/native Clippy and 34 native checks pass, including six closure and four feedback tests",
     "public_build": "complete: frontend-mechanical-settings-20261002; seven commands and 965 source hashes verified",
-    "public_acceptance": "Bounded public semantic packet green: Configure→four NPTH, CNC materials, Undo/Redo around Disable, full archive equality/reload; genuine React Sofle split import Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions. Do not redispatch the completed settings editor/controller path. Draft-state/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
+    "public_acceptance": "Bounded public semantic packet green: Configure\u2192four NPTH, CNC materials, Undo/Redo around Disable, full archive equality/reload; genuine React Sofle split import Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions. Do not redispatch the completed settings editor/controller path. Draft-state/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
     "compiled": true,
     "evidence": ".scratch/dioxus-case-workspace/evidence/mechanical-feedback-regression",
     "integration_snapshot": "0cad7577",
@@ -304,7 +304,7 @@
       "http://127.0.0.1:34675/",
       "http://127.0.0.1:34675/boardstudio/"
     ],
-    "public_qa": "Bounded public results verify Configure→4 NPTH, CNC material mapping, Undo/Redo around Disable, and full archive equality. Genuine React Sofle split import: Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions; Undo/Redo, archive equality and reload pass. Do not redispatch the completed editor/controller path. Draft/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
+    "public_qa": "Bounded public results verify Configure\u21924 NPTH, CNC material mapping, Undo/Redo around Disable, and full archive equality. Genuine React Sofle split import: Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions; Undo/Redo, archive equality and reload pass. Do not redispatch the completed editor/controller path. Draft/viewport-layout, authored mesh/STEP, remaining issue criteria and whole F7.4/INT.2 acceptance remain open.",
     "evidence_public_qa": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
   },
   "current_case_viewport": {
@@ -321,7 +321,7 @@
       ".scratch/dioxus-case-workspace/evidence/compact-focus-resize-final-public/resize-settlement/ASSESSMENT.md",
       ".scratch/dioxus-case-workspace/evidence/preview-generator-worker-packaging/RESULTS.md"
     ],
-    "compact_follow_up": "Bounded compact/focus/resize packet is green on the final combined candidate. Immediate read may capture queued panel state before the independent drawer updates render; six read-only runs measured resize-event-to-uncovered settlement at 3.1–3.6ms with 30/30 unobscured compact rAF samples each. Treat timings as observations, not a new threshold. Broader workflow, assistive-technology, and F7/INT.2 acceptance remain open.",
+    "compact_follow_up": "Bounded compact/focus/resize packet is green on the final combined candidate. Immediate read may capture queued panel state before the independent drawer updates render; six read-only runs measured resize-event-to-uncovered settlement at 3.1\u20133.6ms with 30/30 unobscured compact rAF samples each. Treat timings as observations, not a new threshold. Broader workflow, assistive-technology, and F7/INT.2 acceptance remain open.",
     "containment_candidate": {
       "source": "b6d2af49e519b282abaf8e026dcaca1232a0fd19",
       "build": "frontend-case-compact-containment-20261002",
@@ -353,7 +353,7 @@
     "parent": "F7.3",
     "status": "Two model-delivery children independently Spec/Standards cleared and published; implementation/public verification open.",
     "incremental_new_tickets": 6,
-    "counting_note": "Existing issue02 is a continuation and is not recounted; new issues03–08 add six children, moving the published frontier from 35 to 41.",
+    "counting_note": "Existing issue02 is a continuation and is not recounted; new issues03\u201308 add six children, moving the published frontier from 35 to 41.",
     "issues": [
       {
         "path": ".scratch/dioxus-shared-viewer/issues/02-private-shared-viewer-case-slice.md",
@@ -437,7 +437,7 @@
       ".scratch/dioxus-keymap-layers/issues/08-zmk-firmware-export-delivery.md"
     ],
     "publication_record": ".scratch/dioxus-keymap-layers/evidence/encoder-firmware-ticket-split/publication-record.md",
-    "status": "Three source-grounded children Spec/Standards clear and published; issue05 superseded with its criteria/history retained. Issue06 is in implementation after independent clearance of the private binding-target contract; issue08 still requires the real provider route. No child or canonical acceptance is inferred.",
+    "status": "Three source-grounded children Spec/Standards clear and published; issue05 superseded with history retained. Issue06 bounded genuine physical-fixture workflow and corrected-build regression/layout evidence pass. Scope switching, full keyboard/focus and actual AT, attached-module rejection/recovery, and all parent acceptance remain open. F5.2 physical-plan acceptance and F8.2 firmware output remain canonical acceptance joins; issue08 still requires real provider output.",
     "canonical_graph": "Unchanged 62 parents: F6K.4 starts after F6K.1/F6K.2 and retains F5.2/F8.2 acceptance joins.",
     "encoder_target_contract": {
       "path": ".scratch/dioxus-keymap-layers/drafts/encoder-target-port/private-binding-target-contract.md",
@@ -446,12 +446,61 @@
       "status": "Independent Spec and Standards clearance; implementation dispatch gate cleared."
     },
     "issue06_implementation": {
-      "branch": "codex/frontend-encoder-bindings-20261002",
+      "branch": "codex/rust-v1-ui-parity-20261001",
       "authors": "Two Luna High authors with disjoint private controller/component ownership.",
-      "status": "In progress; implementation, build, public behavior, real F5.2 inputs, F8.2 output, and all parent acceptance gates remain open.",
-      "canonical_graph": "Unchanged 62 parents; F6K.4 starts after F6K.1/F6K.2 and retains F5.2/F8.2 acceptance joins."
+      "status": "Bounded physical-fixture public workflow and corrected-build regression/layout checks pass. Scope switching, full keyboard/focus, actual AT, attached-module rejection/recovery, real F5.2 handoff, F8.2 output and all parent acceptance remain open.",
+      "canonical_graph": "Unchanged 62 parents; F6K.4 starts after F6K.1/F6K.2 and retains F5.2/F8.2 acceptance joins.",
+      "source_commit": "868edfcbdf93315e866962c9c57543d26672f379",
+      "build": "frontend-encoder-select-fixed-20261002 complete: 8 commands, 973 source hashes",
+      "demo_urls": [
+        "http://127.0.0.1:34687/",
+        "http://127.0.0.1:34687/boardstudio/"
+      ],
+      "checks": "Strict WASM Clippy, formatting and diff pass for correction 868edfcb. Encoder WASM-only presentation tests were typechecked, not executed by existing native page34.",
+      "public_observation": "Against the genuine original layered Sofle archive, fresh corrected build 34687 preserves accepted Main/base revision 9 with empty maps and shows all three controls as Unassigned/None without mutation. Fresh edit actions save CW F5, CCW Q, and reported push SPACE at revision 15; Undo/Redo reach revisions 16/17. A separate profile reimports the earlier accepted export archive SHA-256 887585d5bb011307908727afb47c19bb4f002191fe410e087f91deb0a9f1ccac and retains CW LC(LS(A)), CCW Q, push SPACE and stable layer IDs at revision 18. The reimported archive is from the earlier workflow, not exported by the fresh corrected run. Final regression/layout evidence also verifies 56 matching served/offline asset hashes per route, activated caches, offline navigation/WASM, desktop/compact width fit, and ordinary non-first Layer/hold/Macro persistence after reload. This is bounded fixture evidence, not full issue or parent acceptance.",
+      "remaining_acceptance": [
+        "board and physical-instance scope switching",
+        "complete keyboard/focus behavior and actual assistive technology",
+        "attached EC11 module rejection/recovery",
+        "actual F5.2 accepted physical-plan/fingerprint handoff",
+        "F8.2 firmware output/provider behavior",
+        "F6K.4/F6.6 and canonical parent acceptance"
+      ],
+      "public_default_regression_evidence": {
+        "baseline_directory": ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow",
+        "baseline_files": {
+          "candidate-baseline.png": "fc2ede69f0627a9cda90185f75599458582ea8a60339bf916c7b6dfa244ba991",
+          "candidate-baseline-read.txt": "b9129ee3a27ead36bab0dd2ac8561e0aa410ae469fb00dab2c041c0a678e2adf",
+          "candidate-baseline-project.json": "492a047e4fd52eff53c31f7f118c07c255ad1d0cd318c3ce2ded642f48aad86c",
+          "encoder-control-baseline.json": "4e69add2e95ada655b392399a634b8a5043162bff85ac82bbc762738365a830a"
+        },
+        "corrected_regression_directory": ".scratch/dioxus-keymap-layers/evidence/encoder-select-regression",
+        "corrected_regression": "encoder-root-initial-select-green.json and encoder-root-initial-select-green.log; screenshot encoder-root-final-controls.png",
+        "source_build": "868edfcb / frontend-encoder-select-fixed-20261002 / port 34687"
+      },
+      "expected_port": 34687,
+      "source_commit_parent": "e82c039b5486d934de96931238e65622ad0ffb1d",
+      "evidence": [
+        ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+        ".scratch/dioxus-keymap-layers/evidence/encoder-regression-layout/RESULTS.md"
+      ],
+      "integration_branch": "codex/rust-v1-ui-parity-20261001"
     }
   },
-  "published_bounded_tickets": 44,
-  "non_superseded_published_tickets": 43
+  "published_bounded_tickets": 48,
+  "non_superseded_published_tickets": 47,
+  "layout_authoring_split": {
+    "parent": "F3.2",
+    "published_children": [
+      ".scratch/dioxus-layout-authoring/issues/01-matrix-create-placement.md",
+      ".scratch/dioxus-layout-authoring/issues/02-linked-layout-authoring.md",
+      ".scratch/dioxus-layout-authoring/issues/03-component-placement.md",
+      ".scratch/dioxus-layout-authoring/issues/04-matrix-cell-inspector.md"
+    ],
+    "source_contract": ".scratch/dioxus-layout-authoring/evidence/ticket-split/source-contract.md",
+    "publication_record": ".scratch/dioxus-layout-authoring/evidence/ticket-split/publication-record.md",
+    "review_status": "All four issues independently Spec and Standards clear at exact reviewed draft hashes retained in ticket-split evidence.",
+    "status": "Published as execution children; all four retain only canonical F3.1 start gate. F3.2 remains open and all parent criteria/joins remain unchanged; no sibling dependency or canonical graph edge added.",
+    "canonical_graph": "Unchanged 62 parents; F3.2 starts after F3.1 and has no acceptance joins."
+  }
 }

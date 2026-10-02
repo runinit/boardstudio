@@ -1,0 +1,72 @@
+{
+  "build_id": "frontend-encoder-select-fixed-20261002",
+  "source_commit": "868edfcbdf93315e866962c9c57543d26672f379",
+  "source_hashes_verified": 973,
+  "build_commands": 8,
+  "build_commands_exit_zero": true,
+  "fixture": {
+    "encoder_archive": "binding-editor-reference/imported-layered-sofle.boardstudio",
+    "encoder_archive_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+    "binding_macro_archive": "public-binding-editor/reference-layered-bindings.boardstudio",
+    "binding_macro_archive_sha256": "c9aa6a4e387fc206fd3a4a0e944b140f095ba8774a8ab5bdc93a99d74e19c9ea",
+    "import_method": "Visible Import .boardstudio control in isolated browser profiles"
+  },
+  "routes": {
+    "root": {
+      "url": "http://127.0.0.1:34687/",
+      "browser_session": "encoder-fixed-root-34687",
+      "profile": "/var/tmp/encoder-regression-layout-final/root-profile",
+      "service_worker_scope": "http://127.0.0.1:34687/",
+      "service_worker_activated_and_controlling": true,
+      "cache_entries": 56,
+      "offline_reload_editor": true,
+      "offline_navigation_worker_start_ms": 1,
+      "offline_navigation_transfer_size": 0,
+      "offline_wasm_worker_start_ms": 18.8,
+      "offline_wasm_transfer_size": 0,
+      "page_errors": [],
+      "desktop_viewport": [1280, 577],
+      "desktop_document_body_width": [1280, 1280],
+      "compact_viewport": [390, 844],
+      "compact_document_body_width": [390, 390],
+      "compact_document_body_height": [1852, 1852]
+    },
+    "subpath": {
+      "url": "http://127.0.0.1:34687/boardstudio/",
+      "browser_session": "encoder-fixed-subpath-34687",
+      "profile": "/var/tmp/encoder-regression-layout-final/subpath-profile",
+      "service_worker_scope": "http://127.0.0.1:34687/boardstudio/",
+      "service_worker_activated_and_controlling": true,
+      "cache_entries": 56,
+      "offline_reload_editor": true,
+      "offline_navigation_worker_start_ms": 1,
+      "offline_navigation_transfer_size": 0,
+      "offline_wasm_worker_start_ms": 12,
+      "offline_wasm_transfer_size": 0,
+      "page_errors": [],
+      "desktop_viewport": [1280, 577],
+      "desktop_document_body_width": [1280, 1280],
+      "compact_viewport": [390, 844],
+      "compact_document_body_width": [390, 390],
+      "compact_document_body_height": [3400, 3400]
+    }
+  },
+  "binding_macro_regression": {
+    "initial_none_normal_key": "SW4 behavior displayed Unassigned",
+    "nonfirst_layer": "SW3 Momentary layer target Function (second layer) remained selected after full reload and key reselection",
+    "nonfirst_hold": "SW5 Mod tap hold modifier RGUI (last of eight choices) remained selected after full reload and key reselection",
+    "nonfirst_macro": "After adding Macro 2, SW6 Macro target Macro 2 (second macro) remained selected after full reload and key reselection",
+    "scope": "Focused ordinary BindingEditor/MacroEditor smoke, not full F6K.2 or F6K.3 acceptance"
+  },
+  "encoder_none_behavior": {
+    "source_fixture_has_no_encoder_sensor_binding": true,
+    "clockwise": "Unassigned",
+    "counterclockwise": "Unassigned",
+    "source": "Source-backed encoder fixture preflight; browser DOM output in final-encoder-none-snapshot.txt"
+  },
+  "limits": [
+    "No full F6K.4 acceptance, F5.2 selected-board hardware acceptance, or F8.2 firmware-output check.",
+    "No attached VIK encoder was present or tested.",
+    "No full accessibility audit or claim of no Keymap vertical page scrolling."
+  ]
+}

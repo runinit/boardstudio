@@ -1,0 +1,164 @@
+{
+  "source_commit": "868edfcbdf93315e866962c9c57543d26672f379",
+  "build_id": "frontend-encoder-select-fixed-20261002",
+  "status": "complete",
+  "source_hashes_verified": 973,
+  "commands": [
+    {
+      "label": "layout-generators",
+      "argv": [
+        "node",
+        "scripts/web/build-layout-generators.mjs",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/layout-generator-assets"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-02T13:02:37.839161+00:00",
+      "finished": "2026-10-02T13:02:37.951141+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/layout-generators.log",
+      "extra_env": {}
+    },
+    {
+      "label": "preview-generator",
+      "argv": [
+        "node",
+        "scripts/web/build-preview-generator.mjs",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/preview-generator-assets"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-02T13:02:37.952254+00:00",
+      "finished": "2026-10-02T13:02:38.018656+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/preview-generator.log",
+      "extra_env": {}
+    },
+    {
+      "label": "page-root",
+      "argv": [
+        "dx",
+        "build",
+        "--web",
+        "--release",
+        "--base-path",
+        "/",
+        "--no-default-features",
+        "--features",
+        "page",
+        "--cargo-args=--locked"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web",
+      "started": "2026-10-02T13:02:38.020192+00:00",
+      "finished": "2026-10-02T13:03:00.441061+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/page-root.log",
+      "extra_env": {}
+    },
+    {
+      "label": "offline-root",
+      "argv": [
+        "wasm-pack",
+        "build",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web",
+        "--target",
+        "web",
+        "--out-name",
+        "boardstudio_offline_worker",
+        "--out-dir",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-root",
+        "--release",
+        "--locked",
+        "--no-default-features",
+        "--features",
+        "service-worker"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-02T13:03:00.453203+00:00",
+      "finished": "2026-10-02T13:03:01.415311+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-root.log",
+      "extra_env": {
+        "BOARDSTUDIO_OFFLINE_MANIFEST": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-manifest-root.json"
+      }
+    },
+    {
+      "label": "embed-offline-root",
+      "argv": [
+        "node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/scripts/web/embed-worker-wasm.mjs",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-root",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-manifest-root.json",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/site-root/service-worker.js"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-02T13:03:01.416643+00:00",
+      "finished": "2026-10-02T13:03:01.441473+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/embed-offline-root.log",
+      "extra_env": {}
+    },
+    {
+      "label": "page-subpath",
+      "argv": [
+        "dx",
+        "build",
+        "--web",
+        "--release",
+        "--base-path",
+        "/boardstudio/",
+        "--no-default-features",
+        "--features",
+        "page",
+        "--cargo-args=--locked"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web",
+      "started": "2026-10-02T13:03:01.496427+00:00",
+      "finished": "2026-10-02T13:03:22.970159+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/page-subpath.log",
+      "extra_env": {}
+    },
+    {
+      "label": "offline-subpath",
+      "argv": [
+        "wasm-pack",
+        "build",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web",
+        "--target",
+        "web",
+        "--out-name",
+        "boardstudio_offline_worker",
+        "--out-dir",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-subpath",
+        "--release",
+        "--locked",
+        "--no-default-features",
+        "--features",
+        "service-worker"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-02T13:03:22.982329+00:00",
+      "finished": "2026-10-02T13:03:23.950039+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-subpath.log",
+      "extra_env": {
+        "BOARDSTUDIO_OFFLINE_MANIFEST": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-manifest-subpath.json"
+      }
+    },
+    {
+      "label": "embed-offline-subpath",
+      "argv": [
+        "node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/scripts/web/embed-worker-wasm.mjs",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-subpath",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/offline-manifest-subpath.json",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/site-subpath/boardstudio/service-worker.js"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+      "started": "2026-10-02T13:03:23.951453+00:00",
+      "finished": "2026-10-02T13:03:23.977933+00:00",
+      "exit": 0,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-encoder-select-fixed-20261002/embed-offline-subpath.log",
+      "extra_env": {}
+    }
+  ]
+}

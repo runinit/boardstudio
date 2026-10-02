@@ -1,0 +1,29 @@
+[
+  {
+    "label": "left-SW25 clockwise behavior",
+    "value": "none",
+    "valueAttribute": null,
+    "selected": [
+      "none"
+    ],
+    "fields": []
+  },
+  {
+    "label": "left-SW25 counterclockwise behavior",
+    "value": "none",
+    "valueAttribute": null,
+    "selected": [
+      "none"
+    ],
+    "fields": []
+  },
+  {
+    "label": "left-SW25 push button behavior",
+    "value": "none",
+    "valueAttribute": null,
+    "selected": [
+      "none"
+    ],
+    "fields": []
+  }
+]

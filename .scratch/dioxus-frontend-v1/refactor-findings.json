@@ -137,7 +137,7 @@
       "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
       "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
       "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
-      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
+      "validation_needed": "Every required capability has a verified engine\u2192worker\u2192host\u2192UI trace, same fixture outputs and cancellation/error disposition.",
       "decision": "proposal only; no refactor/API/schema change approved by this entry",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
@@ -522,6 +522,12 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
           "observation": "Native page checks omit wasm-only Dioxus components; actual WASM compiler exposed RSX and closure-ownership errors. Offline candidate controlled green on disk-backed isolated profiles, low-space tmp controls red; retain filesystem condition without production fix.",
           "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+        },
+        {
+          "source": "Encoder defaults at e82c039b and narrow option.selected correction 868edfcb",
+          "evidence": ".scratch/dioxus-keymap-layers/evidence/encoder-select-regression/refactor-handoff.md",
+          "observation": "Built candidate 34685 showed key-press in all three unassigned dynamic encoder selectors while the accepted archive had empty sensor/binding maps; no accepted-document mutation occurred. The focused correction binds option selection to accepted values; build 34687 returns none for all three controls. This is a bounded UI projection/default finding, not a Core/API or broader architecture finding.",
+          "status": "Targeted public regression is green; genuine archive workflow and F5.2/F8.2/AT/parent acceptance remain open; retained under RF-006 without a new register ID"
         }
       ]
     },

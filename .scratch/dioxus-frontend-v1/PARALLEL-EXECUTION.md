@@ -1,6 +1,6 @@
 # Frontend v1: portfolio and parallel dispatch view
 
-**Portfolio:** 62 canonical parent work packages; 44 bounded ticket records published across the feature frontier, of which 43 are non-superseded. The retained superseded F6K.4 aggregate is included only in the historical record count. Child tickets do not replace parent tasks or alter the graph. INT.1 is accepted; F1 and F3a remain previously verified increments. This is a dispatch view, not a scope reduction or a claim that all 62 have been decomposed.
+**Portfolio:** 62 canonical parent work packages; 48 bounded ticket records published across the feature frontier, of which 47 are non-superseded. The retained superseded F6K.4 aggregate is included only in the historical record count. Child tickets do not replace parent tasks or alter the graph. INT.1 is accepted; F1 and F3a remain previously verified increments. This is a dispatch view, not a scope reduction or a claim that all 62 have been decomposed.
 
 ## How to read the dependencies
 
@@ -19,7 +19,7 @@
 | Project and workspace UI | F2.3 | Workspace panels and compact drawers | INT.1 | — | T1-07–09 |
 | Project and workspace UI | F2.4 | Setup guide, shared menus, shortcuts and focus | F2.3 | — | — |
 | Layout | F3.1 | Layout tree, board scope and selection | INT.1 | — | T1-10–12 |
-| Layout | F3.2 | Matrix and component authoring | F3.1 | — | — |
+| Layout | F3.2 | Matrix and component authoring | F3.1 | — | `.scratch/dioxus-layout-authoring/issues/01–04` |
 | Layout | F3.3 | Transforms, constraints and snapping | F3.1 | F3.2 | — |
 | Layout | F3.4 | Outline editing, versions and refinements | F3.1 | — | — |
 | Layout | F3.5 | Layout inspector, relationships and findings | F3.1 | — | — |
@@ -44,7 +44,7 @@
 | Keymap and Keycaps | F6K.1 | Keymap projection, layers, selection, and active-layer 2D view | INT.1 | F3.1 | Keymap 01–02 |
 | Keymap and Keycaps | F6K.2 | Binding editor, supported behavior fields, and keycode search | F6K.1 | — | Keymap 03 |
 | Keymap and Keycaps | F6K.3 | Structured macro editor | F6K.1, F6K.2 | INT.2 | Keymap 04 |
-| Keymap and Keycaps | F6K.4 | Encoder bindings, PCB firmware-position editor, and ZMK export handoff | F6K.1, F6K.2 | F5.2, F8.2 | Keymap 05 |
+| Keymap and Keycaps | F6K.4 | Encoder bindings, PCB firmware-position editor, and ZMK export handoff | F6K.1, F6K.2 | F5.2, F8.2 | Keymap 06–08 (05 retained superseded) |
 | Keymap and Keycaps | F6C.1 | Keycaps projection, shared selection, and physical 2D view | INT.1 | F3.1 | Keycaps 01 |
 | Keymap and Keycaps | F6C.2 | Board, matrix, and per-key keycap controls | F6C.1 | — | — |
 | Keymap and Keycaps | F6C.3 | Shared key-size drafts, selection scope, and linked reflow | F6C.1 | F3.2, F3.5 | — |
@@ -105,7 +105,7 @@ The coordinator owns shared presentation/runtime/shell, global CSS, build files,
 This view is derived from the [62-parent graph](tasks.json), whose start and
 acceptance edges remain authoritative, and the [first-wave child proposal](../dioxus-frontend-tranche-1/proposal.json). The current published-child mapping is listed in the table above. The [model policy](AGENT-ROUTING.md) governs assignments.
 
-The user authorized implementation and automatic bounded-ticket publication on 2026-10-02; 41 source-checked child tickets are published. Remaining parent scopes without a bounded child still require source-checked decomposition before broad implementation dispatch. This view changes neither that authorization nor parent statuses and authorizes no API or cutover changes. The 62-parent graph, including each original start and acceptance edge, remains authoritative. Planning/review may continue while implementation and verification use the available capacity.
+The user authorized implementation and automatic bounded-ticket publication on 2026-10-02; 48 bounded ticket records are published, of which 47 are non-superseded. This cumulative count includes the retained superseded F6K.4 aggregate; it does not imply dispatch readiness or acceptance. Remaining parent scopes without a bounded child still require source-checked decomposition before broad implementation dispatch. This view changes neither that authorization nor parent statuses and authorizes no API or cutover changes. The 62-parent graph, including each original start and acceptance edge, remains authoritative. Planning/review may continue while implementation and verification use the available capacity.
 
 
-Current portfolio addendum (2026-10-02): the F6K.4 encoder/firmware aggregate issue05 is superseded for dispatch by published issues06–08; its criteria/history remain. Counts are 44 published records total / 43 non-superseded records, with 62 canonical parents unchanged. F6K.4 still starts after F6K.1/F6K.2 and keeps F5.2/F8.2 as acceptance joins. Issue06 implementation dispatch is held for review of its separate private binding-target contract.
+Current portfolio addendum (2026-10-02): the F6K.4 encoder/firmware aggregate issue05 is superseded for dispatch by published issues06–08; its criteria/history remain. Counts are 48 published records total / 47 non-superseded records, with 62 canonical parents unchanged. F6K.4 still starts after F6K.1/F6K.2 and keeps F5.2/F8.2 as acceptance joins. Issue06’s private binding-target contract has cleared review. Source correction `868edfcb` is mounted and the eight-command/973-hash build `frontend-encoder-select-fixed-20261002` is served at 34687; targeted 34687 browser regression now passes (all three empty values are `none`). The genuine physical-fixture workflow now passes: fresh None defaults, clockwise/counterclockwise/push edits, Undo/Redo and export/reimport. The final separate regression/layout packet covers both offline routes and ordinary non-first binding selections after reload. Scope switching, full keyboard/focus/AT, module rejection/recovery, F5.2/F8.2 and issue06/parent acceptance remain open.

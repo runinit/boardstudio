@@ -178,6 +178,10 @@ The original roadmap contained invented project/export controls and coarse depen
 
 Evidence: [tsx-inventory.json](../../.scratch/dioxus-frontend-v1/evidence/tsx-inventory.json), [CONSTRAINTS.md](../../CONSTRAINTS.md), [playwright.config.ts](../../app/playwright.config.ts), [ACCEPTANCE.md](../../.scratch/m1-production/ACCEPTANCE.md).
 
+### RF-009 encoder initial-value regression evidence
+
+The built encoder candidate at source `e82c039b` / build `frontend-encoder-bindings-20261002` (34685) rendered three unassigned dynamic selectors as `key-press` despite the empty accepted sensor/binding maps; readonly evidence confirmed no document mutation. The narrow declarative `option.selected` correction at source `868edfcb`, build `frontend-encoder-select-fixed-20261002` (34687), now renders `none` in the value and selected options of all three controls. This is a bounded regression/evidence observation; it does not claim a framework-wide issue or broad architecture finding. Genuine archive interaction/recovery and F5.2/F8.2/AT/parent gates remain open. The exact retained paths are in the [encoder regression handoff](../../.scratch/dioxus-keymap-layers/evidence/encoder-select-regression/refactor-handoff.md), [baseline packet](../../.scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/) and [corrected regression packet](../../.scratch/dioxus-keymap-layers/evidence/encoder-select-regression/).
+
 ## RF-010
 
 **Cancellation has different guarantees at worker and kernel boundaries** — theoretical / async resource lifecycle. confirmed limitation; not automatically a design defect.
