@@ -1,0 +1,50 @@
+[
+  {
+    "file": "generated-root-01.json",
+    "first_kind": "panel-attribute-change",
+    "elapsed_from_first_observation_ms": 2.2000000178813934,
+    "covered_compact_frames": 0,
+    "compact_frames": 30,
+    "all_focus_retained": true
+  },
+  {
+    "file": "generated-root-02.json",
+    "first_kind": "panel-attribute-change",
+    "elapsed_from_first_observation_ms": 1.600000023841858,
+    "covered_compact_frames": 0,
+    "compact_frames": 30,
+    "all_focus_retained": true
+  },
+  {
+    "file": "generated-root-03.json",
+    "first_kind": "panel-attribute-change",
+    "elapsed_from_first_observation_ms": 1.5,
+    "covered_compact_frames": 0,
+    "compact_frames": 30,
+    "all_focus_retained": true
+  },
+  {
+    "file": "generated-root-04.json",
+    "first_kind": "resize-event",
+    "elapsed_from_first_observation_ms": 3.600000023841858,
+    "covered_compact_frames": 0,
+    "compact_frames": 30,
+    "all_focus_retained": true
+  },
+  {
+    "file": "generated-root-05.json",
+    "first_kind": "resize-event",
+    "elapsed_from_first_observation_ms": 3.0999999940395355,
+    "covered_compact_frames": 0,
+    "compact_frames": 30,
+    "all_focus_retained": true
+  },
+  {
+    "file": "generated-root-06.json",
+    "first_kind": "resize-event",
+    "elapsed_from_first_observation_ms": 3.2999999821186066,
+    "covered_compact_frames": 0,
+    "compact_frames": 30,
+    "all_focus_retained": true
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "integration_commit": "a93eb523",
+  "worker_commit": "f6dd310bbf449b64f165780b1a00429d9d4e9d50",
+  "source_hashes": {
+    "scripts/web/preview-generator-worker.ts": "6bae601ac2f452c542de9fe91b31a1c07a5ec58bad59efe4813889b43f8a03f6",
+    "scripts/web/build-preview-generator.mjs": "3896278f0022672fc98ed9d6e3c42a5effdfc227c6dfb011e63f3ac642af754e",
+    "scripts/web/preview-generator-worker.test.mjs": "cd6a791d2320eaea9d33995e93ffa843ac04ecc5a20f1bc954897b7572d61961"
+  },
+  "root_checks": {
+    "node_boundary_tests": "6/6 pass on integration",
+    "python_build_helper_compile": "pass"
+  },
+  "open_gates": [
+    "Runtime/Core producer integration",
+    "page registration",
+    "actual model decoding and renderer delivery",
+    "fresh offline packaging",
+    "public browser acceptance"
+  ]
+}

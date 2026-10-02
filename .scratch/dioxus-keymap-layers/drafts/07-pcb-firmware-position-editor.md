@@ -1,0 +1,22 @@
+# F6K.4b: Edit legacy PCB firmware key positions
+
+**Parent:** F6K.4 — Encoder bindings, PCB firmware-position editor, and ZMK export handoff.
+
+**What to build:** In the PCB Wiring inspector, a designer can assign the existing supported firmware keycodes to the current board's resolved matrix and reported auxiliary press inputs, see the assigned count and key preview, and undo or restore an assignment while preserving the Core-owned compatibility mapping into the first typed layer when a typed Keymap exists.
+
+**Blocked by:** F6K.1 Keymap/workbench projection and mount and F6K.2 shared binding path, preserving the canonical F6K.4 start gates. The PCB feature also must expose its current F5-owned selected-board electrical plan, legacy bindings, and Wiring composition callback; fixture-backed authoring can proceed while F5.2 is unfinished.
+
+**Parent acceptance joins:** F5.2 remains the selected-board electrical/legacy-position acceptance join for this slice. F8.2 remains a canonical F6K.4 acceptance join for firmware delivery. This bounded control does not close F6K.4 or either join.
+
+**Status:** draft for independent review; not published or counted.
+
+- [ ] Add the existing “Firmware keymap” control to the PCB Wiring surface. Build its choices from the accepted selected-board resolved plan: current matrix assignments plus only auxiliary press inputs whose supported GPIO role is reported by that plan. Preserve the React labels (part reference, falling back to stable ID), key order, assigned count, compact preview, and empty/loading/error states supplied by F5.
+- [ ] Read the selected board's legacy `hardware.boards[].keyBindings` map and preserve `&none` as the default plus current choices/labels, including `&trans`. A change uses existing `SetKeyBinding` with the selected board ID and real key ID through normal accepted edits/history. Core also synchronizes supported legacy `&kp`, `&trans`, and `&none` values into that key's first typed layer when a typed Keymap exists; preserve that Core-owned compatibility behavior. Do not duplicate this synchronization in the UI. Other typed layers, unrelated bindings, wiring assignments and locks remain unchanged.
+- [ ] Keep this legacy position map distinct from `KeymapLayer.bindings`: do not mirror, migrate, or overwrite legacy entries when editing typed layer bindings, encoder rotations, or push bindings. Use no synthetic keys; include auxiliary push IDs only when F5 reports them.
+- [ ] Scope callback and visible values to the accepted document/session/selected board/physical instance and electrical-plan revision. On board, instance, plan, or saved-source change, stale callbacks cannot write against a new selection. Surface the existing edit failure and retry path truthfully.
+- [ ] Verify fixture-backed key list/order, choice labels, default/assigned count, preview, matrix and reported-push entries, Undo/Redo, archive/save reload, scope switching, keyboard/focus, compact controls, and preservation of pins/unrelated bindings, and Core-owned first-layer synchronization with both absent and present typed Keymap configurations. Pair against F5.2's actual selected-board projection and Wiring mount before claiming integrated parity.
+- [ ] Use only existing legacy `SetKeyBinding`, accepted document/history, F5 plan values, and current choice semantics. No public API/schema/visibility changes, new keymap model, electrical readiness policy, duplicated wiring editor, or copied firmware generator.
+- [ ] **Ownership:** F6 owns a private firmware-position control and local styles; F5 owns selected-board input/readiness data and Wiring composition; coordinator owns the root mount, accepted edit callback, Runtime/CoreWorker, and global CSS. Agree one private control/value callback with F5 before mount changes.
+- [ ] Run affected native/WASM/frontend/build checks and paired public Dioxus evidence. Keep the real F5.2 and F8.2 joins, plus F6K.4 acceptance, open until their own evidence passes.
+- [ ] **Profile:** Luna Medium author/verifier for the bounded form once the selected-board value/callback contract is fixed; Astra independent reviewer. Upgrade to High if asynchronous scope or edit-outcome behavior expands beyond the existing serialized edit path.
+- [ ] **Refactoring handoff:** Preserve RF-009. Record “No new refactoring takeaway observed” unless the implementation proves a separate source-of-truth or ownership issue.

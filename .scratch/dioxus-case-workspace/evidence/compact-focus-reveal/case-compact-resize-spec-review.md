@@ -1,0 +1,9 @@
+# Compact Case focused-resize: independent Spec review
+
+Source clear for the bounded repair. Reviewed integration `web/src/presentation/panels.rs` SHA-256 `aab64ce779f5980eb61e19f521fb9522bfb7c487538fd9542e417b710560fefb`, the exact dirty delta, existing media lifecycle, Case mount and retained actual resize-red diagnosis. No source edits or Cargo.
+
+The existing compact-state effect now closes each panel’s own transient open signal only when the live active element belongs to a workspace containing the direct Case panel. Both mounted panel instances receive the same media transition. This addresses desktop-to-compact retained workspace focus, which the separate workspace focusin handler cannot observe. The guard does not close panels when focus is in panel contents, their toggles, another workspace, or elsewhere. Desktop preferences and menu/timer cleanup remain unchanged; there is no new listener, observer, focus movement, component key, renderer action or document edit.
+
+The reactive input is compact state alone. Reopening a panel at an unchanged compact width does not rerun this transition effect merely because compact_open changed; normal focus-entry handling remains responsible when focus returns to the Case workspace. The existing media listener and drop cleanup are preserved.
+
+Root may build the combined focus-entry and focused-resize candidate. Source clearance is not public acceptance. Required fresh evidence: repeat the retained actual resize red with one/both drawers, preserve the exact focused child and an unobscured hit target, check focused viewer and keyboard control, and show that panel-focused/no-workspace-focus resizing preserves open state. Reopening, reverse traversal, desktop and another workspace remain bounded controls. Retain the original immutable red; temporary DOM/CSS probes do not establish implementation green.

@@ -1,0 +1,22 @@
+{
+  "focus_entry_commit": "cf67a388acbd90e52665185dfb4dc3bd8eab31b8",
+  "focused_resize_commit": "e2a84d8b00418eab4d1ec47e0bf5b6957da9ffe3",
+  "final_build": "frontend-case-focus-resize-final-20261002",
+  "routes": [
+    "http://127.0.0.1:34683/",
+    "http://127.0.0.1:34683/boardstudio/"
+  ],
+  "native_page_tests": 34,
+  "strict_wasm_clippy": "passed",
+  "format_and_diff": "passed",
+  "build_commands": 8,
+  "verified_source_hashes": 971,
+  "bounded_public_packet": "../compact-focus-resize-final-public/README.md",
+  "offline_and_worker_packet": "../preview-generator-worker-packaging/RESULTS.md",
+  "scope": "Case compact layout and focus/resize regression only; no full frontend or parent acceptance",
+  "sources": {
+    "web/src/presentation.rs": "63d64acbc45df116ccde77f53e837ea12527d57e3f12bb0749706f0f169f506f",
+    "web/src/presentation/panels.rs": "aab64ce779f5980eb61e19f521fb9522bfb7c487538fd9542e417b710560fefb",
+    "web/assets/m1.css": "ed3fcce8677e261167f247acf5304205f309cca62b593444d934bd089a0da009"
+  }
+}

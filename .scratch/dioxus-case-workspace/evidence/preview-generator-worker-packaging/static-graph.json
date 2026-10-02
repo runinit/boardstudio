@@ -1,0 +1,87 @@
+{
+  "expected_files": [
+    "catalogue.mjs",
+    "ergogen.mjs",
+    "kicad.mjs",
+    "provenance.json",
+    "worker.mjs"
+  ],
+  "actual_files": [
+    "catalogue.mjs",
+    "ergogen.mjs",
+    "kicad.mjs",
+    "provenance.json",
+    "worker.mjs"
+  ],
+  "files_match": true,
+  "purpose": "Private Ergogen preview job worker",
+  "source_hashes": {
+    "scripts/web/preview-generator-worker.ts": "6bae601ac2f452c542de9fe91b31a1c07a5ec58bad59efe4813889b43f8a03f6",
+    "kicad/src/ergogen.ts": "fd3dcfe3555f2a2bcaeef7cb6f05ebff2997741aa55d75d2271449d445825605",
+    "ergogen/src/index.ts": "930dc6f8cd1d172d6ff181bf310d99a3ae5fe8ed51d820236bb3e388bd1146dd",
+    "ergogen/generated/catalogue.mjs": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97"
+  },
+  "outputs": {
+    "worker.mjs": {
+      "sha256": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+      "expected_sha256": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+      "matches": true
+    },
+    "kicad.mjs": {
+      "sha256": "373e90ffe7151a7da15280e9ec625f42e7d31fb0ea18f9bfce4068f741cb5b25",
+      "expected_sha256": "373e90ffe7151a7da15280e9ec625f42e7d31fb0ea18f9bfce4068f741cb5b25",
+      "matches": true
+    },
+    "ergogen.mjs": {
+      "sha256": "c5ce9e6cc2d57a42d44fd3d0b4070db390458fa20fd1b132a480af552424e018",
+      "expected_sha256": "c5ce9e6cc2d57a42d44fd3d0b4070db390458fa20fd1b132a480af552424e018",
+      "matches": true
+    },
+    "catalogue.mjs": {
+      "sha256": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+      "expected_sha256": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+      "matches": true
+    }
+  },
+  "import_graph": {
+    "worker.mjs": {
+      "sha256": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+      "expected_sha256": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+      "hash_matches": true,
+      "imports": [
+        "./ergogen.mjs",
+        "./kicad.mjs"
+      ],
+      "imports_match_expected": true,
+      "all_local_relative": true
+    },
+    "kicad.mjs": {
+      "sha256": "373e90ffe7151a7da15280e9ec625f42e7d31fb0ea18f9bfce4068f741cb5b25",
+      "expected_sha256": "373e90ffe7151a7da15280e9ec625f42e7d31fb0ea18f9bfce4068f741cb5b25",
+      "hash_matches": true,
+      "imports": [
+        "./ergogen.mjs"
+      ],
+      "imports_match_expected": true,
+      "all_local_relative": true
+    },
+    "ergogen.mjs": {
+      "sha256": "c5ce9e6cc2d57a42d44fd3d0b4070db390458fa20fd1b132a480af552424e018",
+      "expected_sha256": "c5ce9e6cc2d57a42d44fd3d0b4070db390458fa20fd1b132a480af552424e018",
+      "hash_matches": true,
+      "imports": [
+        "./catalogue.mjs"
+      ],
+      "imports_match_expected": true,
+      "all_local_relative": true
+    },
+    "catalogue.mjs": {
+      "sha256": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+      "expected_sha256": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+      "hash_matches": true,
+      "imports": [],
+      "imports_match_expected": true,
+      "all_local_relative": true
+    }
+  }
+}

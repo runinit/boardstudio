@@ -1,0 +1,25 @@
+# Encoder binding target — Standards contract review
+
+Reviewed private contract SHA-256 `621216338d84e127d129fa07a1855e75552c68d71fe2c568e6e27523c3bba196` against current binding_editor/controller, Core Encoder admission, and electrical fingerprint source.
+
+**Two P2 planning findings; clear after bounded corrections.**
+
+1. **Separate projection identity from optional electrical fingerprint.** The request section allows absent captured input identity only for ordinary Key, yet the projection section permits F5 data to be absent while attached-module encoders remain visible/editable. The suggested DTO exposes only an optional electrical fingerprint alongside source fields. Requiring Some fingerprint for all encoder requests would disable the required module-only edit attempt. Specify a mandatory private input-projection identity for encoder targets (full accepted source plus stable projection generation/identity), with an optional existing F5 fingerprint; validate Some/None and exact membership against the fresh root-owned projection. Do not synthesize an electrical fingerprint or weaken source guards. CONSTRAINTS.md requires explicit single ownership and preserved supported behavior.
+
+2. **Define unique DOM and draft identities for multiple shared editors.** Current binding_editor.rs builds `m1-keymap-keycodes-{editor_instance_id}` as its datalist ID. The proposed shared Editor-lifetime ID and several simultaneous direction/push components would duplicate that DOM ID. Require a component/target-specific stable DOM identifier, and full target including direction in component/field draft keys. Preserve source-revision-independent draft lifetime while resetting on Scope/layer/target/editor replacement. This follows CONSTRAINTS.md accessibility and deliberate component lifetimes. Verify multiple encoder rows/directions and ordinary key editor together.
+
+The discriminated private target is otherwise the smallest coherent reuse seam: it preserves key selection admission, proves encoder push membership without fabricated keys, reuses one writable field component/controller/OutcomeSlot authority, applies requested fields to fresh accepted bindings, and leaves Core rejection authoritative for module rows. Immutable memoized row/choice handles avoid per-render map/document copies. No public/member widening is necessary.
+
+Implementation must retain Pending across accepted token advancement, distinguish target-specific terminal visibility from global single-flight settlement, and avoid dropping the accepted display projection during unsaved/busy state. Those existing guarantees remain requirements, not proven by this plan. Fixture and real F5/provider acceptance remain separate. No source edits, Cargo or browser execution. No new structural RF beyond documented source-accounting boundaries.
+
+## Delta review — 4144cf96
+
+Reviewed exact SHA `4144cf96a00abb8c7b8ef9faa7995375aeba760e270a11c247378f841e4dd941`. Both prior P2s are resolved: mandatory source/projection identity is distinct from optional F5 fingerprint, and complete target-qualified DOM/draft identities are required. Encoder admission and feedback no longer depend on an ordinary selected-key projection.
+
+**Remaining P2: distinguish admission identity from terminal correlation.** The new EncoderInputIdentity contains token/revision, while the prose requires exact current projection identity and rejects terminal results from prior input projections. A successful own edit advances accepted token/revision, so literal application can hide Pending/Saved or prevent single-flight settlement. Require full identity equality at admission. Pending/terminal correlation must use the exact admitted request/OutcomeSlot and stable Scope/editor/target/input-membership identity; acknowledge the field against the newer accepted snapshot without demanding its token/revision equal the admission source. Explicitly distinguish binding-only source advancement from actual input replacement. This preserves the existing binding controller guarantee and CONSTRAINTS.md async lifetime/feedback requirements. Source implementation and native/public tests remain unexecuted.
+
+## Final contract — clear
+
+Re-reviewed exact SHA `6fa10d66e61ef9deab3b1dcde8db5ff7aac64dfa6855473d2f0400e54086f3b3`. The final P2 is resolved: full input identity equality gates admission only; exact OperationId/OutcomeSlot correlation owns terminal settlement; binding-only token/revision advancement preserves input-lineage generation and Pending visibility. A genuine input-lineage replacement suppresses stale display while releasing the matching terminal slot, and acknowledgement re-reads the accepted target/field. Target-aware feedback remains independent of selected canvas keys.
+
+No remaining material Standards planning finding. Clear for bounded private implementation under the recorded single-writer ownership. Source implementation, allocation/DOM behavior, operation regressions, real F5 handoff and public acceptance remain open. No source edits or Cargo.

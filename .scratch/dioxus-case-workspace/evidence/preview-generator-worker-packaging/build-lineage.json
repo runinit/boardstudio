@@ -1,0 +1,58 @@
+{
+  "reused_worker_execution": {
+    "build_id": "frontend-case-focus-preview-worker-20261002",
+    "source_commit": "cf67a388acbd90e52665185dfb4dc3bd8eab31b8",
+    "route_worker_runs": [
+      "root",
+      "subpath"
+    ]
+  },
+  "final_build": {
+    "build_id": "frontend-case-focus-resize-final-20261002",
+    "source_commit": "e2a84d8b00418eab4d1ec47e0bf5b6957da9ffe3",
+    "source_hashes_verified": 971
+  },
+  "identical_graph": true,
+  "files": [
+    {
+      "name": "worker.mjs",
+      "sha256": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+      "old_root_equals_final_root": true,
+      "final_root_equals_final_subpath": true,
+      "final_root_matches_route_provenance": true,
+      "final_subpath_matches_route_provenance": true
+    },
+    {
+      "name": "kicad.mjs",
+      "sha256": "373e90ffe7151a7da15280e9ec625f42e7d31fb0ea18f9bfce4068f741cb5b25",
+      "old_root_equals_final_root": true,
+      "final_root_equals_final_subpath": true,
+      "final_root_matches_route_provenance": true,
+      "final_subpath_matches_route_provenance": true
+    },
+    {
+      "name": "ergogen.mjs",
+      "sha256": "c5ce9e6cc2d57a42d44fd3d0b4070db390458fa20fd1b132a480af552424e018",
+      "old_root_equals_final_root": true,
+      "final_root_equals_final_subpath": true,
+      "final_root_matches_route_provenance": true,
+      "final_subpath_matches_route_provenance": true
+    },
+    {
+      "name": "catalogue.mjs",
+      "sha256": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+      "old_root_equals_final_root": true,
+      "final_root_equals_final_subpath": true,
+      "final_root_matches_route_provenance": true,
+      "final_subpath_matches_route_provenance": true
+    },
+    {
+      "name": "provenance.json",
+      "sha256": "0799f117078194465a28d5b97baaa7ddc7b3a00d34105646e28b654ec8e64035",
+      "old_root_equals_final_root": true,
+      "final_root_equals_final_subpath": true,
+      "final_root_matches_route_provenance": true,
+      "final_subpath_matches_route_provenance": true
+    }
+  ]
+}

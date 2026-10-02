@@ -210,7 +210,8 @@
     ],
     "status": "two drafts independently reviewed and automatically published; concrete contracts required"
   },
-  "bounded_ticket_count": 39,
+  "bounded_ticket_count": 44,
+  "non_superseded_bounded_ticket_count": 43,
   "canonical_parent_count": 62,
   "pending_api_decision": {
     "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
@@ -307,7 +308,7 @@
     ]
   },
   "case_settings_frontier": {
-    "status": "five independently reviewed bounded tickets published; implementation and canonical parent joins open",
+    "status": "Issue03 bounded settings editor/controller implementation and public semantic packet complete; do not redispatch this surface. Issues04–07 and authored mesh/STEP, remaining F7.4 acceptance, and canonical parent joins remain open.",
     "issues": [
       "../dioxus-case-workspace/issues/03-mechanical-configuration.md",
       "../dioxus-case-workspace/issues/04-mechanical-profiles.md",
@@ -316,14 +317,15 @@
       "../dioxus-case-workspace/issues/07-direct-manipulation.md"
     ],
     "review": "../dioxus-case-workspace/evidence/next-five-tickets-reviewed/case-next-five-final-review.md",
-    "source_implementation": "Mechanical settings controller/mount integrated in 0cad7577; current owned closure source 61e8c43 integrated in 86a83ddf. Strict WASM/native Clippy and 34 native tests pass, including six closure and four feedback cases. Fresh public build verification underway; no workflow or parent acceptance claimed.",
+    "source_implementation": "Issue03 bounded settings editor/controller is mounted and complete for the public semantic packet (Configure/edit/Disable, canonical and split-instance behavior, Undo/Redo, archive equality/reload); do not redispatch that completed path. Source 0cad7577 plus owned closure source 61e8c43 integrated in 86a83ddf; strict WASM/native Clippy and 34 native tests pass. Draft-state/layout, authored mesh/STEP, remaining issue criteria and full F7.4/INT.2 acceptance remain open.",
     "evidence": "../dioxus-case-workspace/evidence/mechanical-feedback-regression",
     "build": "frontend-mechanical-settings-20261002; 7 commands, 965 source hashes; source 0cad75775e84aba13dc2f88d513b9f662e037e5e",
     "demo_urls": [
       "http://127.0.0.1:34675/",
       "http://127.0.0.1:34675/boardstudio/"
     ],
-    "public_acceptance": "underway; configure/edit/disable, accepted saved payload, Undo/Redo, archive/reopen and parent acceptance remain open"
+    "public_acceptance": "Bounded public packet green: Configure\u2192four NPTH, CNC materials, Undo/Redo Disable, full archive equality/reload; genuine React Sofle import Right-to-CNC preserves Left exactly; Disable clears all eight closure parts/definitions. Draft-state/layout remain underway; authored mesh/STEP and whole-parent acceptance remain open.",
+    "public_evidence": "../dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
   },
   "mechanical_clearance_ticket": {
     "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
@@ -342,22 +344,55 @@
     "contract_sha256": "e3529ac79f1b7d69211a8fa4cdc9e4d1170ec39a3c6510ab458dddc3a634b946",
     "status": "Independently Spec/Standards cleared and published; implementation/acceptance open.",
     "existing_issue_continued": "../dioxus-shared-viewer/issues/02-private-shared-viewer-case-slice.md",
-    "new_issue_count": 4,
+    "new_issue_count": 6,
     "new_issues": [
       "../dioxus-shared-viewer/issues/03-shared-viewer-layout.md",
       "../dioxus-shared-viewer/issues/04-shared-viewer-keymap.md",
       "../dioxus-shared-viewer/issues/05-shared-viewer-keycaps.md",
-      "../dioxus-shared-viewer/issues/06-shared-viewer-parts-sample.md"
+      "../dioxus-shared-viewer/issues/06-shared-viewer-parts-sample.md",
+      "../dioxus-shared-viewer/issues/07-case-imported-board-model-delivery.md",
+      "../dioxus-shared-viewer/issues/08-case-generated-board-model-delivery.md"
     ],
     "canonical_edges": "F7.3 starts after F7.1; INT.2 and BND.1 remain acceptance joins; F7.8 remains the later join. No canonical graph changes.",
-    "evidence": "../dioxus-shared-viewer/evidence/model-delivery-contract-reviewed"
+    "evidence": "../dioxus-shared-viewer/evidence/model-delivery-contract-reviewed",
+    "private_model_source": "Author-owned module source 837cb105 cherry-picked at integration 87891883; source-reviewed, unregistered and uncompiled.",
+    "next_child_drafts": [
+      "../dioxus-shared-viewer/drafts/07-case-imported-board-model-delivery.md",
+      "../dioxus-shared-viewer/drafts/08-case-generated-board-model-delivery.md"
+    ],
+    "draft_status": "Published after exact-hash Spec/Standards clearance; implementation and public acceptance remain open.",
+    "kicad_bridge_spec": "Corrected proposal independently Spec/Standards clear; retained SHA-256 de3bb2a43f8d4db5ee6235819a1c1129e07193e57b779078d3b91b952763702a. Unarchived static model bytes are deferred.",
+    "counting_note": "Issue02 is an existing continuation and is not recounted; issues03\u201308 add six published children, moving 35 to 41. Canonical graph unchanged.",
+    "implementation_ownership": "Issue07 model module source 837cb105 is cherry-picked at integration 87891883, source-reviewed but unregistered/uncompiled. Issue08 generator worker authoring starts in the shared-viewer worker lane. Runtime/CoreWorker, private page host registration, Case mount/composition, CSS and build integration remain root-owned serial ports.",
+    "publication_evidence": "../dioxus-shared-viewer/evidence/model-delivery-ticket-split/publication-record.md"
+  },
+  "keymap_hardware_split": {
+    "parent": "F6K.4",
+    "status": "Issues06–08 published after independent Spec/Standards review; aggregate issue05 superseded with criteria/history retained. Issue06 dispatch waits on private target contract review; issue08 requires real provider route.",
+    "issues": [
+      "../dioxus-keymap-layers/issues/06-encoder-rotation-editor.md",
+      "../dioxus-keymap-layers/issues/07-pcb-firmware-position-editor.md",
+      "../dioxus-keymap-layers/issues/08-zmk-firmware-export-delivery.md"
+    ],
+    "publication_evidence": "../dioxus-keymap-layers/evidence/encoder-firmware-ticket-split/publication-record.md",
+    "canonical_edges": "F6K.4 starts after F6K.1/F6K.2; F5.2/F8.2 remain acceptance joins. No parent graph change."
   },
   "macro_editor_source": {
     "source_commit": "ac43980c",
-    "integrated_commit": "96874be6",
+    "integrated_commit": "9ef5bc5c",
     "review": "Independent Spec and Standards clear",
-    "mounted": false,
-    "compiled": false,
-    "acceptance": "source merged; Macro UI and F6 acceptance open"
+    "mounted": true,
+    "compiled": true,
+    "checks": "native34; strict native/WASM Clippy; formatting pass",
+    "build": "frontend-keymap-macros-20261002 complete; seven commands and 967 source hashes",
+    "expected_port": 34677,
+    "demo_urls": [
+      "http://127.0.0.1:34677/",
+      "http://127.0.0.1:34677/boardstudio/"
+    ],
+    "evidence": "../dioxus-keymap-layers/evidence/macro-editor",
+    "acceptance": "Bounded public authoring/history/save/reopen and root/subpath offline/layout checks pass; firmware-provider output, public UI ceilings, pending-document race, broader F6 and parent acceptance remain open.",
+    "source_build": "9ef5bc5cad09ab3064711b45fc348b4cc09a74d4",
+    "public_qa": "Public semantic authoring/history/save/reopen and root/subpath offline/layout checks pass. Candidate and React both retain the global Core validation error after reverting to the accepted value (RF-006). Firmware, broader F6 gates and parent acceptance remain open."
   }
 }

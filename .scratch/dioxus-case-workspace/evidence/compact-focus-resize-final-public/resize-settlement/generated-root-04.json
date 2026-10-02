@@ -1,0 +1,497 @@
+{
+  "rows": [
+    {
+      "kind": "initial-desktop",
+      "t": 131372.80000001192,
+      "width": 1280,
+      "compact": false,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "true",
+        "true"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "resize-event",
+      "t": 131385.69999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": true,
+      "expanded": [
+        "true",
+        "true"
+      ],
+      "hit": "m1-panel-heading"
+    },
+    {
+      "kind": "panel-attribute-change",
+      "t": 131387.80000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": true,
+      "expanded": [
+        "true",
+        "false"
+      ],
+      "hit": "m1-panel-options-trigger"
+    },
+    {
+      "kind": "panel-attribute-change",
+      "t": 131389.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "media-change",
+      "t": 131389.40000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131389.40000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131413.69999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131416,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131433,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131449.69999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131466.19999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131483,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131499.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131516.90000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131533.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131549.80000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131566.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131583.19999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131599.90000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131616.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131633,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131649.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131667.19999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131683.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131699.40000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131716.40000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131736.80000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131749.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131766.19999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131782.90000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131799.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131816.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131833,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131849.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 131866.19999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    }
+  ],
+  "done": true,
+  "started": 131372.59999999404,
+  "url": "http://127.0.0.1:34683/"
+}

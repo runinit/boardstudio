@@ -330,6 +330,18 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/planning/binding-focus-continuity-handoff-20261002.md",
           "observation": "Actual native Tab during candidate blur-save moves focus to BODY while single-flight disables controls; the React reference moves focus to Hold. After-idle native pointer/selection preserves and saves both Tap and Hold. A prior synthetic agent-browser select red reproduced on React and is retired as driver/event ordering, not candidate-only data loss.",
           "status": "bounded focus-continuity difference recorded; focused public packet complete; broad F6 acceptance and actual AT remain open; no AT pass or parent closure claimed"
+        },
+        {
+          "source": "Mechanical-settings candidate 0cad7577; public UI import of genuine React Sofle split archive",
+          "evidence": ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md",
+          "observation": "Visible UI changed only the Right physical instance to CNC while preserving the imported Left config, mount IDs/coordinates, generated parts/definitions and memberships exactly. In Right scope Disable cleared all eight generated closure parts/definitions; Undo/Redo restored and removed them; candidate archive and readonly accepted ProjectDoc matched on the full document, and reload retained both instances and memberships.",
+          "status": "bounded public confirmation of the existing canonical-versus-physical-instance distinction; no new refactoring issue or scope/API change; draft/layout, authored mesh/STEP and whole-parent acceptance remain open"
+        },
+        {
+          "source": "Macro public candidate 9ef5bc5c; paired React same-fixture interaction",
+          "evidence": ".scratch/dioxus-keymap-layers/evidence/public-macro-editor/RESULTS.md",
+          "observation": "On both candidate and React, entering invalid tap duration 10001 ms showed the Core validation error and preserved the prior accepted value (45 ms); reverting the field to the already-accepted 45 ms did not clear the global error, while a later distinct valid value did. This is a paired existing behavior, not a candidate-only regression or proposed fix. Public archive/history/reload behavior passes; firmware output and selected ceilings/pending-document race remain unexercised.",
+          "status": "bounded paired RF-006 observation; preserve source parity, no candidate-only fix indicated; broader F6/firmware gates remain open"
         }
       ]
     },
@@ -482,6 +494,20 @@
           "current_mitigation": "Six corrected children published automatically with concrete feature contract gates and unchanged parent acceptance joins.",
           "post_port_follow_up": "Keep per-action source/accounting and private boundary proofs alongside maintained conformance evidence.",
           "validation": "Dispatch concrete reviewed contracts and integrated public workflows before accepting each parent."
+        },
+        {
+          "date": "2026-10-02",
+          "task": "Case compact focus and resize public evidence",
+          "baseline": "c827c4e6",
+          "evidence": [
+            ".scratch/dioxus-case-workspace/evidence/compact-containment-public/",
+            ".scratch/dioxus-case-workspace/evidence/compact-focus-reveal/",
+            ".scratch/dioxus-case-workspace/evidence/compact-focus-resize-final-public/"
+          ],
+          "observation": "On the prior b6d2af49 compact candidate, keyboard focus entered a covered Generate control with both compact panels open; after focusing Generate on desktop, resizing to compact left focus on the covered control. This is a confirmed candidate keyboard-visibility gap; no React parity or actual assistive-technology result is claimed. Screenshots/canvas intersection alone did not establish focus visibility.",
+          "current_mitigation": "Focus-entry source cf67a388 and Case resize lifecycle repair in integrated source e2a84d8b00418eab4d1ec47e0bf5b6957da9ffe3. Bounded focus-entry passed on earlier build 34681. Final build frontend-case-focus-resize-final-20261002 (8 commands/971 hashes) is at 34683; final resize and integrated keyboard/fit verifier release remains pending. No accessibility waiver.",
+          "post_port_follow_up": "Assess responsive disclosure state and focus ownership as one keyboard transition; preserve screenshot, DOM hit-testing, Tab/Shift+Tab, resize and return-path traces in the conformance suite. Keep actual AT evidence separate.",
+          "status": "confirmed source/UI gap; candidate mitigation integrated; final built public verification pending"
         }
       ],
       "handoff_evidence": [

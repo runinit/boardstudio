@@ -1,0 +1,21 @@
+{
+  "active": {
+    "tag": "BUTTON",
+    "name": "Generate case",
+    "workspace": true
+  },
+  "panels": [
+    {
+      "name": "Objects",
+      "expanded": "false"
+    },
+    {
+      "name": "Inspect",
+      "expanded": "false"
+    }
+  ],
+  "hit": {
+    "tag": "BUTTON",
+    "name": "Generate case"
+  }
+}

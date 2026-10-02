@@ -1,0 +1,58 @@
+{
+  "purpose": "Private Ergogen preview job worker",
+  "files": [
+    "catalogue.mjs",
+    "ergogen.mjs",
+    "kicad.mjs",
+    "provenance.json",
+    "worker.mjs"
+  ],
+  "files_exact": true,
+  "outputs_match_provenance": {
+    "worker.mjs": true,
+    "kicad.mjs": true,
+    "ergogen.mjs": true,
+    "catalogue.mjs": true
+  },
+  "import_graph": {
+    "worker.mjs": {
+      "imports": [
+        "./ergogen.mjs",
+        "./kicad.mjs"
+      ],
+      "expected": [
+        "./ergogen.mjs",
+        "./kicad.mjs"
+      ],
+      "matches": true,
+      "all_relative": true
+    },
+    "kicad.mjs": {
+      "imports": [
+        "./ergogen.mjs"
+      ],
+      "expected": [
+        "./ergogen.mjs"
+      ],
+      "matches": true,
+      "all_relative": true
+    },
+    "ergogen.mjs": {
+      "imports": [
+        "./catalogue.mjs"
+      ],
+      "expected": [
+        "./catalogue.mjs"
+      ],
+      "matches": true,
+      "all_relative": true
+    },
+    "catalogue.mjs": {
+      "imports": [],
+      "expected": [],
+      "matches": true,
+      "all_relative": true
+    }
+  },
+  "imports_match": true
+}

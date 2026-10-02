@@ -1,0 +1,352 @@
+[
+  {
+    "step": "compact with both drawers open",
+    "state": {
+      "url": "http://127.0.0.1:34683/boardstudio/",
+      "viewport": [
+        390,
+        640
+      ],
+      "document": [
+        390,
+        640
+      ],
+      "active": {
+        "tag": "BUTTON",
+        "name": "Inspect",
+        "isConnected": true,
+        "rect": {
+          "x": 79,
+          "y": 50,
+          "w": 61.84375,
+          "h": 30
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "true"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "true"
+        }
+      ],
+      "slots": [
+        {
+          "cls": "m1-object-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 0,
+            "y": 87,
+            "w": 195,
+            "h": 490.609375
+          }
+        },
+        {
+          "cls": "m1-inspector-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 195,
+            "y": 87,
+            "w": 195,
+            "h": 490.609375
+          }
+        }
+      ],
+      "hit": {
+        "tag": "BUTTON",
+        "name": "Inspect"
+      },
+      "previewReady": true,
+      "canvas": [
+        {
+          "x": 12,
+          "y": 287.84375,
+          "w": 366,
+          "h": 206.078125
+        }
+      ]
+    }
+  },
+  {
+    "step": "desktop after resize",
+    "state": {
+      "url": "http://127.0.0.1:34683/boardstudio/",
+      "viewport": [
+        1280,
+        577
+      ],
+      "document": [
+        1280,
+        577
+      ],
+      "active": {
+        "tag": "BODY",
+        "name": "BoardStudioREVIUNG41Your keyboards1Saved in this browserREVIUNG4141 keys \u00b7 Single boardCurrentREVIUN",
+        "isConnected": true,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 1280,
+          "h": 577
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "true"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "true"
+        }
+      ],
+      "slots": [
+        {
+          "cls": "m1-object-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 0,
+            "y": 44,
+            "w": 235,
+            "h": 470.609375
+          }
+        },
+        {
+          "cls": "m1-inspector-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 960,
+            "y": 44,
+            "w": 320,
+            "h": 470.609375
+          }
+        }
+      ],
+      "hit": {
+        "tag": "CANVAS",
+        "name": "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display."
+      },
+      "previewReady": true,
+      "canvas": [
+        {
+          "x": 247,
+          "y": 164.84375,
+          "w": 701,
+          "h": 266.078125
+        }
+      ]
+    }
+  },
+  {
+    "step": "desktop Generate case focus",
+    "state": {
+      "url": "http://127.0.0.1:34683/boardstudio/",
+      "viewport": [
+        1280,
+        577
+      ],
+      "document": [
+        1280,
+        577
+      ],
+      "active": {
+        "tag": "BUTTON",
+        "name": "Generate case",
+        "isConnected": true,
+        "rect": {
+          "x": 613.21875,
+          "y": 56,
+          "w": 98.125,
+          "h": 36
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "true"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "true"
+        }
+      ],
+      "slots": [
+        {
+          "cls": "m1-object-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 0,
+            "y": 44,
+            "w": 235,
+            "h": 470.609375
+          }
+        },
+        {
+          "cls": "m1-inspector-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 960,
+            "y": 44,
+            "w": 320,
+            "h": 470.609375
+          }
+        }
+      ],
+      "hit": {
+        "tag": "BUTTON",
+        "name": "Generate case"
+      },
+      "previewReady": true,
+      "canvas": [
+        {
+          "x": 247,
+          "y": 164.84375,
+          "w": 701,
+          "h": 266.078125
+        }
+      ]
+    }
+  },
+  {
+    "step": "immediate compact resize observation",
+    "state": {
+      "url": "http://127.0.0.1:34683/boardstudio/",
+      "viewport": [
+        390,
+        640
+      ],
+      "document": [
+        390,
+        640
+      ],
+      "active": {
+        "tag": "BUTTON",
+        "name": "Generate case",
+        "isConnected": true,
+        "rect": {
+          "x": 154.0625,
+          "y": 99,
+          "w": 98.125,
+          "h": 44
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "true"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "true"
+        }
+      ],
+      "slots": [
+        {
+          "cls": "m1-object-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 0,
+            "y": 87,
+            "w": 195,
+            "h": 490.609375
+          }
+        },
+        {
+          "cls": "m1-inspector-slot m1-panel-slot compact-open",
+          "display": "block",
+          "rect": {
+            "x": 195,
+            "y": 87,
+            "w": 195,
+            "h": 490.609375
+          }
+        }
+      ],
+      "hit": {
+        "tag": "HEADER",
+        "name": "InspectOptions"
+      },
+      "previewReady": true,
+      "canvas": [
+        {
+          "x": 12,
+          "y": 287.84375,
+          "w": 366,
+          "h": 206.078125
+        }
+      ]
+    }
+  },
+  {
+    "step": "compact after resize settles for 600ms",
+    "state": {
+      "url": "http://127.0.0.1:34683/boardstudio/",
+      "viewport": [
+        390,
+        640
+      ],
+      "document": [
+        390,
+        640
+      ],
+      "active": {
+        "tag": "BUTTON",
+        "name": "Generate case",
+        "isConnected": true,
+        "rect": {
+          "x": 154.0625,
+          "y": 99,
+          "w": 98.125,
+          "h": 44
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "false"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "false"
+        }
+      ],
+      "slots": [
+        {
+          "cls": "m1-object-slot m1-panel-slot compact-closed",
+          "display": "none",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        },
+        {
+          "cls": "m1-inspector-slot m1-panel-slot compact-closed",
+          "display": "none",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0
+          }
+        }
+      ],
+      "hit": {
+        "tag": "BUTTON",
+        "name": "Generate case"
+      },
+      "previewReady": true,
+      "canvas": [
+        {
+          "x": 12,
+          "y": 287.84375,
+          "w": 366,
+          "h": 206.078125
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,35 @@
+diff --git a/web/src/presentation/panels.rs b/web/src/presentation/panels.rs
+index 8827b2a9..1eb8a02e 100644
+--- a/web/src/presentation/panels.rs
++++ b/web/src/presentation/panels.rs
+@@ -115,6 +115,9 @@ fn panel_frame(
+             if is_compact {
+                 set_bool(menu_open, false);
+                 cancel_hide_timer(&hide_timer);
++                if case_workspace_has_focus() {
++                    set_bool(compact_open, false);
++                }
+             }
+         }
+     }));
+@@ -382,6 +385,20 @@ fn media_query() -> Option<MediaQueryList> {
+     web_sys::window().and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
+ }
+ 
++fn case_workspace_has_focus() -> bool {
++    web_sys::window()
++        .and_then(|window| window.document())
++        .and_then(|document| document.active_element())
++        .and_then(|active| active.closest(".m1-workspace-content").ok().flatten())
++        .and_then(|workspace| {
++            workspace
++                .query_selector(":scope > .m1-case-panel")
++                .ok()
++                .flatten()
++        })
++        .is_some()
++}
++
+ fn set_bool(mut signal: Signal<bool>, value: bool) {
+     signal.set(value);
+ }

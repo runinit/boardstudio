@@ -8,7 +8,7 @@
 
 **Parent acceptance join:** INT.2 remains required for F7.4 integrated acceptance. F7.4a is only one bounded child and cannot close the parent.
 
-**Status:** ready-for-agent; independently reviewed and published.
+**Status:** Bounded implementation and public semantic packet complete; mounted and independently source-reviewed. Do not re-dispatch the completed settings editor/controller path. Retained public evidence verifies Configure/edit/Disable, canonical and split-instance behavior, Undo/Redo, full archive equality and reload. Draft-state/viewport-layout proof, authored mesh/STEP behavior, the remaining checklist items, and F7.4/INT.2 integrated acceptance remain open; this child does not close its parent. Evidence: `../evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md`; layout follow-up is tracked separately.
 
 - [ ] When no matching mechanical configuration exists, offer the existing “Configure mechanical stack” action with the current supported initial settings. For the selected canonical board use `SetMechanical`; for a physical-instance Case scope, apply to that instance through the existing shared-construction/instance update and normal accepted document edit path. Preserve unrelated document data, authored bodies, board/instance IDs and fields on ordinary configuration edits.
 - [ ] Expose the represented construction choices only: PCB FR-4 / printed / CNC / cut-sheet method; tray / rigid / gasket mount; shell / sheet bottom; middle frame only for sheet bottom; integrated plate frame only where allowed. Choosing gasket mount performs the source-prescribed compatible state updates (including removing only `auto-closure/` generated closure mounts) and disables incompatible construction controls; do not invent choices.

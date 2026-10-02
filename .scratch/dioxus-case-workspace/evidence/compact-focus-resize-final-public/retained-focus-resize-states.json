@@ -1,0 +1,143 @@
+[
+  {
+    "step": "Objects tree row focused at 390x640",
+    "state": {
+      "viewport": [
+        390,
+        640
+      ],
+      "document": [
+        390,
+        640
+      ],
+      "active": {
+        "tag": "BUTTON",
+        "name": "right keysIndependent",
+        "isConnected": true,
+        "rect": {
+          "x": 44,
+          "y": 369.015625,
+          "w": 143,
+          "h": 32
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "true"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "true"
+        }
+      ],
+      "hit": {
+        "tag": "SPAN",
+        "name": "right keys"
+      },
+      "canvas": [
+        {
+          "x": 12,
+          "y": 287.84375,
+          "w": 366,
+          "h": 206.078125
+        }
+      ],
+      "previewReady": true
+    }
+  },
+  {
+    "step": "retained focus after resize to 390x844",
+    "state": {
+      "viewport": [
+        390,
+        844
+      ],
+      "document": [
+        390,
+        844
+      ],
+      "active": {
+        "tag": "BUTTON",
+        "name": "right keysIndependent",
+        "isConnected": true,
+        "rect": {
+          "x": 44,
+          "y": 369.015625,
+          "w": 143,
+          "h": 32
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "true"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "true"
+        }
+      ],
+      "hit": {
+        "tag": "SPAN",
+        "name": "right keys"
+      },
+      "canvas": [
+        {
+          "x": 12,
+          "y": 287.84375,
+          "w": 366,
+          "h": 410.078125
+        }
+      ],
+      "previewReady": true
+    }
+  },
+  {
+    "step": "retained focus after resize to 1280x577",
+    "state": {
+      "viewport": [
+        1280,
+        577
+      ],
+      "document": [
+        1280,
+        577
+      ],
+      "active": {
+        "tag": "BUTTON",
+        "name": "right keysIndependent",
+        "isConnected": true,
+        "rect": {
+          "x": 44,
+          "y": 317.015625,
+          "w": 182,
+          "h": 32
+        }
+      },
+      "panels": [
+        {
+          "name": "Objects",
+          "expanded": "true"
+        },
+        {
+          "name": "Inspect",
+          "expanded": "true"
+        }
+      ],
+      "hit": {
+        "tag": "BUTTON",
+        "name": "right keysIndependent"
+      },
+      "canvas": [
+        {
+          "x": 247,
+          "y": 164.84375,
+          "w": 701,
+          "h": 266.078125
+        }
+      ],
+      "previewReady": true
+    }
+  }
+]

@@ -1,0 +1,497 @@
+{
+  "rows": [
+    {
+      "kind": "initial-desktop",
+      "t": 144625.19999998808,
+      "width": 1280,
+      "compact": false,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "true",
+        "true"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "resize-event",
+      "t": 144634.80000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": true,
+      "expanded": [
+        "true",
+        "true"
+      ],
+      "hit": "m1-panel-heading"
+    },
+    {
+      "kind": "panel-attribute-change",
+      "t": 144636.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": true,
+      "expanded": [
+        "true",
+        "false"
+      ],
+      "hit": "m1-panel-options-trigger"
+    },
+    {
+      "kind": "panel-attribute-change",
+      "t": 144637.90000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "media-change",
+      "t": 144638.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144638.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144662.5,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144665.69999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144682.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144699.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144715.80000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144732.90000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144749.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144765.90000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144782.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144799.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144816.5,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144833.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144849.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144866.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144882.40000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144899.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144915.69999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144933,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144949.19999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144966,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144983.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 144999.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 145015.69999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 145032.5,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 145049.09999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 145065.69999998808,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 145082.30000001192,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 145098.90000000596,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    },
+    {
+      "kind": "animation-frame",
+      "t": 145115.59999999404,
+      "width": 390,
+      "compact": true,
+      "focused": "Generate case",
+      "workspace": true,
+      "covered": false,
+      "expanded": [
+        "false",
+        "false"
+      ],
+      "hit": ""
+    }
+  ],
+  "done": true,
+  "started": 144625,
+  "url": "http://127.0.0.1:34683/"
+}

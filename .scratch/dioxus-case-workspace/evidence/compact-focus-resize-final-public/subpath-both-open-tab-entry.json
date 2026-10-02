@@ -1,0 +1,28 @@
+{
+  "url": "http://127.0.0.1:34683/boardstudio/",
+  "active": {
+    "tag": "BUTTON",
+    "name": "Generate case",
+    "rect": {
+      "x": 154.0625,
+      "y": 99,
+      "w": 98.125,
+      "h": 44
+    },
+    "workspace": true
+  },
+  "panels": [
+    {
+      "name": "Objects",
+      "expanded": "false"
+    },
+    {
+      "name": "Inspect",
+      "expanded": "false"
+    }
+  ],
+  "hit": {
+    "tag": "BUTTON",
+    "name": "Generate case"
+  }
+}
