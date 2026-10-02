@@ -8,7 +8,7 @@ use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast, closure::Closure};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{HtmlElement, HtmlInputElement, SvgElement};
 
@@ -32,6 +32,10 @@ struct NumericEdit {
     start: Vec2,
 }
 type KeyboardHandler = Rc<RefCell<Box<dyn FnMut(KeyboardEvent)>>>;
+#[derive(Clone, Copy)]
+struct WorkspaceState(Signal<&'static str>);
+#[derive(Clone, Copy)]
+struct ThemeState(Signal<&'static str>);
 
 struct PointerLocation {
     world: Vec2,
@@ -73,14 +77,373 @@ pub fn App() -> Element {
     let _ = version();
     use_context_provider(|| runtime.clone());
     use_context_provider(|| version);
+    let mut workspace = use_signal(|| "Layout");
+    use_context_provider(|| WorkspaceState(workspace));
+    let theme = use_signal(read_theme_preference);
+    let system_theme = use_signal(read_system_theme);
+    use_context_provider(|| ThemeState(theme));
+    let media_listener = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(web_sys::MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>,
+        ))
+    });
+    use_effect({
+        let mut system_theme = system_theme;
+        let media_listener = media_listener.clone();
+        move || {
+            if let Some(query) = web_sys::window().and_then(|window| {
+                window
+                    .match_media("(prefers-color-scheme: dark)")
+                    .ok()
+                    .flatten()
+            }) {
+                let observed_query = query.clone();
+                let listener = Closure::wrap(Box::new(move |_event: web_sys::Event| {
+                    system_theme.set(if observed_query.matches() {
+                        "dark"
+                    } else {
+                        "light"
+                    });
+                }) as Box<dyn FnMut(_)>);
+                let _ = query
+                    .add_event_listener_with_callback("change", listener.as_ref().unchecked_ref());
+                *media_listener.borrow_mut() = Some((query, listener));
+            }
+        }
+    });
+    use_drop({
+        let media_listener = media_listener.clone();
+        move || {
+            if let Some((query, listener)) = media_listener.borrow_mut().take() {
+                let _ = query.remove_event_listener_with_callback(
+                    "change",
+                    listener.as_ref().unchecked_ref(),
+                );
+            }
+        }
+    });
+    use_effect(use_reactive((&theme(), &system_theme()), {
+        move |(preference, system)| {
+            let effective = if preference == "system" {
+                system
+            } else {
+                preference
+            };
+            if let Some(root) = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.document_element())
+            {
+                let _ = root.set_attribute("data-theme", effective);
+            }
+        }
+    }));
+    use_effect(|| {
+        if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+            document.set_title("BoardStudio");
+        }
+    });
+    let project_name = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|snapshot| snapshot.document.name.clone())
+        .unwrap_or_else(|| "Open project".into());
+    let save_label = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|_| durability_label(&runtime.model().durability))
+        .unwrap_or("Ready");
+    let save_state = if runtime.model().accepted.is_none() {
+        "ready"
+    } else {
+        durability_state(&runtime.model().durability)
+    };
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
         main { class: "m1-workbench",
-            header { class: "m1-toolbar", h1 { "BoardStudio" } span { "M1 migration candidate" } }
-            Library {}
+            header { class: "m1-topbar",
+                span { class: "m1-brand", "aria-label": "BoardStudio", title: "BoardStudio",
+                    svg { view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4zM8 20l5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
+                }
+                details { class: "m1-project-menu",
+                    summary { "{project_name}" }
+                    Library {}
+                }
+                span { class: "m1-save-state", "data-state": "{save_state}", "{save_label}" }
+                WorkspaceNavigation {}
+                button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| workspace.set("Export"), "Export" }
+                ThemePicker {}
+            }
             if runtime.model().accepted.is_some() { Editor {} }
+            else { LibraryLanding {} }
             p { role: "status", "aria-live": "polite", class: "m1-status", "{runtime.status()}" }
         }
+    }
+}
+
+fn read_theme_preference() -> &'static str {
+    web_sys::window()
+        .and_then(|window| window.local_storage().ok().flatten())
+        .and_then(|storage| storage.get_item("boardstudio:v2:theme").ok().flatten())
+        .filter(|value| value == "light" || value == "dark")
+        .map(|value| if value == "dark" { "dark" } else { "light" })
+        .unwrap_or("system")
+}
+
+fn read_system_theme() -> &'static str {
+    if web_sys::window()
+        .and_then(|window| {
+            window
+                .match_media("(prefers-color-scheme: dark)")
+                .ok()
+                .flatten()
+        })
+        .is_some_and(|query| query.matches())
+    {
+        "dark"
+    } else {
+        "light"
+    }
+}
+
+#[component]
+fn ThemePicker() -> Element {
+    let mut theme = use_context::<ThemeState>().0;
+    rsx! { label { class: "m1-theme-picker", "Theme"
+        select { "aria-label": "Theme", value: "{theme()}", onchange: move |event: FormEvent| {
+            let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
+            if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
+                let _ = storage.set_item("boardstudio:v2:theme", preference);
+            }
+            theme.set(preference);
+        },
+            option { value: "system", "System" }
+            option { value: "light", "Light" }
+            option { value: "dark", "Dark" }
+        }
+    } }
+}
+
+#[component]
+fn WorkspaceNavigation() -> Element {
+    let mut workspace = use_context::<WorkspaceState>().0;
+    let tabs = ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"];
+    rsx! {
+        div { class: "m1-workflow-navigation",
+            nav { class: "m1-workflow-tabs", role: "tablist", "aria-label": "Board workflow",
+                for tab in tabs {
+                    button { key: "{tab}", role: "tab", id: "m1-tab-{tab}", "aria-selected": "{workspace() == tab}", "aria-controls": "m1-workspace-panel", onclick: move |_| workspace.set(tab), onkeydown: {
+                        let mut workspace = workspace;
+                        move |event: KeyboardEvent| {
+                            let key = event.data().key().to_string();
+                            let current = workspace();
+                            let index = tabs.iter().position(|candidate| *candidate == current).unwrap_or(0);
+                            let next = match key.as_str() { "ArrowRight" => Some((index + 1) % tabs.len()), "ArrowLeft" => Some((index + tabs.len() - 1) % tabs.len()), "Home" => Some(0), "End" => Some(tabs.len() - 1), _ => None };
+                            if let Some(next) = next {
+                                event.prevent_default();
+                                workspace.set(tabs[next]);
+                                if let Some(tab) = tabs.get(next)
+                                    && let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-tab-{tab}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok())
+                                {
+                                    let _ = element.focus();
+                                }
+                            }
+                        }
+                    },
+                        TabIcon { name: tab }
+                        "{tab}"
+                    }
+                }
+            }
+            select { class: "m1-workspace-select", "aria-label": "Workspace", value: "{workspace()}", onchange: move |event| workspace.set(match event.value().as_str() { "PCB" => "PCB", "Keymap" => "Keymap", "Keycaps" => "Keycaps", "Case" => "Case", "Parts" => "Parts", "Export" => "Export", _ => "Layout" }),
+                for tab in tabs { option { value: "{tab}", "{tab}" } }
+                option { value: "Export", "Export" }
+            }
+        }
+    }
+}
+
+#[component]
+fn TabIcon(name: &'static str) -> Element {
+    rsx! { svg { class: "m1-tab-icon", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true",
+        if name == "Layout" { path { d: "M4 14.5 14.5 4l2.5 2.5L5.5 18H3v-2.5zM11.5 7l2.5 2.5M3 18h14" } }
+        else if name == "PCB" { path { d: "M4 4h12v12H4zM7 7h2v2H7zM11 11h2v2h-2zM9 8h3v4" } }
+        else if name == "Keymap" { path { d: "M3 5h14v10H3zM6 8h2m2 0h2m2 0h1M6 11h2m2 0h2M6 14h8" } }
+        else if name == "Keycaps" { path { d: "m3 15 2-10h10l2 10zM5 5l2 4h6l2-4M7 9l-1 6m7-6 1 6" } }
+        else if name == "Case" { path { d: "m10 2 7 4v8l-7 4-7-4V6zM3 6l7 4 7-4m-7 4v8" } }
+        else { path { d: "M4 3h9l3 3v11H4zM13 3v4h4M7 11h6M7 14h6" } }
+    } }
+}
+
+#[component]
+fn LibraryLanding() -> Element {
+    rsx! {
+        section { class: "m1-library-landing",
+            h1 { "Open a keyboard" }
+            p { "Choose a demo copy, open a saved project, or import a BoardStudio archive." }
+            Library {}
+        }
+    }
+}
+
+#[component]
+fn Objects() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let _ = use_context::<Signal<u64>>()();
+    let model = runtime.model();
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return rsx! {};
+    };
+    let document = &snapshot.document;
+    let items: Rc<Vec<_>> = Rc::new(
+        document
+            .parts
+            .iter()
+            .filter(|part| {
+                document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == model.active_board_id)
+                    .is_some_and(|board| board.part_ids.contains(&part.id))
+            })
+            .enumerate()
+            .map(|(index, part)| {
+                let kind = document
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == part.definition_id)
+                    .map(|definition| format!("{:?}", definition.kind))
+                    .unwrap_or_else(|| "component".into());
+                (
+                    index,
+                    part.id.clone(),
+                    part.reference.clone(),
+                    kind,
+                    model.selected_part_ids.contains(&part.id),
+                )
+            })
+            .collect(),
+    );
+    let selected = items.iter().any(|item| item.4);
+    let board_runtime = runtime.clone();
+    let instance_runtime = runtime.clone();
+    let board_id = model.active_board_id.clone();
+    let active_instance = model.active_instance_id.clone().unwrap_or_default();
+    let instances: Vec<_> = document
+        .hardware
+        .as_ref()
+        .map(|hardware| {
+            hardware
+                .instances
+                .iter()
+                .filter(|instance| instance.board_id == model.active_board_id)
+                .collect()
+        })
+        .unwrap_or_default();
+    let select: Rc<dyn Fn(String)> = Rc::new({
+        let runtime = runtime.clone();
+        move |id| {
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: vec![id],
+                range_part_ids: vec![],
+                mode: SelectionMode::Replace,
+            })
+        }
+    });
+    rsx! {
+        aside { class: "m1-objects", "aria-label": "Objects",
+            header { h2 { "Objects" } }
+            div { class: "m1-object-navigation",
+                label { "Board"
+                    select { "aria-label": "Board", value: "{model.active_board_id}", onchange: move |event: FormEvent| board_runtime.submit(Event::Navigate { operation_id: board_runtime.operation(), board_id: event.value(), instance_id: None }),
+                        for board in &document.boards { option { value: "{board.id}", "{board.name}" } }
+                    }
+                }
+                if !instances.is_empty() {
+                    label { "Physical instance"
+                        select { "aria-label": "Physical instance", value: "{active_instance}", onchange: move |event: FormEvent| {
+                            let value = event.value();
+                            instance_runtime.submit(Event::Navigate { operation_id: instance_runtime.operation(), board_id: board_id.clone(), instance_id: (!value.is_empty()).then_some(value) });
+                        },
+                            option { value: "", "Canonical board" }
+                            for instance in &instances { option { key: "{instance.id}", value: "{instance.id}", "{instance.name}" } }
+                        }
+                    }
+                }
+            }
+            div { class: "m1-object-tree",
+                div { class: "m1-object-tree-heading", "{document.name}", span { "{items.len()} parts" } }
+                div { role: "listbox", "aria-label": "Objects on current board", class: "m1-component-list",
+                    for (index, id, reference, kind, is_selected) in items.iter().cloned() {
+                        {
+                            let click = select.clone();
+                            let key_select = select.clone();
+                            let items_for_key = items.clone();
+                            rsx! { button { key: "{id}", id: "m1-object-{index}", class: if is_selected { "m1-component selected" } else { "m1-component" }, role: "option", "aria-selected": "{is_selected}", tabindex: if is_selected || (!selected && index == 0) { "0" } else { "-1" }, onclick: move |_| click(id.clone()), onkeydown: move |event: KeyboardEvent| {
+                                let key = event.data().key().to_string();
+                                let next = match key.as_str() { "ArrowDown" => Some(index + 1), "ArrowUp" => Some(index.saturating_sub(1)), "Home" => Some(0), "End" => Some(items_for_key.len().saturating_sub(1)), _ => None };
+                                let Some(next) = next.filter(|next| *next < items_for_key.len()) else { return; };
+                                event.prevent_default();
+                                if let Some((_, next_id, _, _, _)) = items_for_key.get(next) { key_select(next_id.clone()); }
+                                if let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-object-{next}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok()) { let _ = element.focus(); }
+                            }, span { "{reference}" span { class: "m1-object-kind", "{kind}" } } } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn PlaceholderWorkspace(name: &'static str) -> Element {
+    let mut workspace = use_context::<WorkspaceState>().0;
+    let message = match name {
+        "PCB" => "PCB editing controls will be added in a later Rust frontend phase.",
+        "Keymap" => "Keymap editing controls will be added in a later Rust frontend phase.",
+        "Keycaps" => "Keycap editing controls will be added in a later Rust frontend phase.",
+        _ => "Parts library editing controls will be added in a later Rust frontend phase.",
+    };
+    rsx! { section { class: "m1-placeholder-workspace", h1 { "{name}" }, p { "{message}" }, button { onclick: move |_| workspace.set("Layout"), "Back to Layout" } } }
+}
+
+#[component]
+fn ExportPanel() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let _ = use_context::<Signal<u64>>()();
+    let model = runtime.model();
+    let archive = runtime.clone();
+    let step = runtime.clone();
+    rsx! {
+        section { class: "m1-export-panel", "aria-label": "Export",
+            h1 { "Export" }
+            p { "Create files from the saved keyboard in the current board and instance scope." }
+            div { class: "m1-export-actions",
+                button { disabled: model.accepted.is_none(), onclick: move |_| if let Some(scope) = archive.scope() { archive.submit(Event::StartExport { operation_id: archive.operation(), scope }); }, "Export archive" }
+                button { disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
+            }
+            p { role: "status", "aria-live": "polite", "{runtime.status()}" }
+        }
+    }
+}
+
+fn durability_label(durability: &Durability) -> &'static str {
+    match durability {
+        Durability::Saved { .. } => "Saved",
+        Durability::Saving { .. } => "Saving…",
+        Durability::Failed { .. } => "Save failed",
+        _ => "Pending",
+    }
+}
+
+fn durability_state(durability: &Durability) -> &'static str {
+    match durability {
+        Durability::Saved { .. } => "saved",
+        Durability::Saving { .. } => "saving",
+        Durability::Failed { .. } => "failed",
+        _ => "pending",
     }
 }
 
@@ -112,7 +475,6 @@ fn Library() -> Element {
     let import = runtime.clone();
     rsx! {
         section { class: "m1-library", "aria-label": "Keyboard library",
-            h2 { "Open a keyboard" }
             button { onclick: move |_| reviung.open_fixture("reviung41"), "REVIUNG41 copy" }
             button { onclick: move |_| sofle.open_fixture("sofle"), "Sofle v2 copy" }
             label { "Import .boardstudio"
@@ -134,7 +496,10 @@ fn Library() -> Element {
 fn Editor() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
+    let workspace = use_context::<WorkspaceState>().0;
+    let active_workspace = workspace();
     let model = runtime.model();
+    let zoom_percent = model.camera.zoom * 100.0;
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
@@ -147,18 +512,6 @@ fn Editor() -> Element {
         .boards
         .iter()
         .find(|b| b.id == model.active_board_id);
-    let physical_instances: Vec<_> = document
-        .hardware
-        .as_ref()
-        .map(|hardware| {
-            hardware
-                .instances
-                .iter()
-                .filter(|instance| instance.board_id == model.active_board_id)
-                .collect()
-        })
-        .unwrap_or_default();
-    let active_instance_value = model.active_instance_id.clone().unwrap_or_default();
     let visible: Vec<_> = document
         .parts
         .iter()
@@ -321,10 +674,20 @@ fn Editor() -> Element {
     let redo = runtime.clone();
     let retry = runtime.clone();
     let recover = runtime.clone();
-    let export = runtime.clone();
-    let navigate = runtime.clone();
-    let navigate_instance = runtime.clone();
-    let instance_board_id = model.active_board_id.clone();
+    use_effect(use_reactive((&active_workspace,), {
+        let runtime = runtime.clone();
+        let drag = drag.clone();
+        move |_| {
+            if let Some(current) = drag.borrow_mut().take()
+                && current.active
+                && !current.pan
+            {
+                runtime.submit(Event::GestureCancel {
+                    pointer_id: current.pointer,
+                });
+            }
+        }
+    }));
     let keyboard = {
         let runtime = runtime.clone();
         let drag = drag.clone();
@@ -450,41 +813,18 @@ fn Editor() -> Element {
     };
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
-            nav { class: "m1-toolbar",
-                strong { "{document.name}" }
-                label { "Board"
-                    select { value: "{model.active_board_id}", onchange: move |event| navigate.submit(Event::Navigate { operation_id: navigate.operation(), board_id: event.value(), instance_id: None }),
-                        for board in &document.boards { option { value: "{board.id}", "{board.name}" } }
-                    }
-                }
-                if !physical_instances.is_empty() {
-                    label { "Physical instance"
-                        select { "aria-label": "Physical instance", value: "{active_instance_value}", onchange: move |event: FormEvent| {
-                            let value = event.value();
-                            navigate_instance.submit(Event::Navigate {
-                                operation_id: navigate_instance.operation(),
-                                board_id: instance_board_id.clone(),
-                                instance_id: (!value.is_empty()).then_some(value),
-                            });
-                        },
-                            option { value: "", "Canonical board" }
-                            for instance in &physical_instances {
-                                option { key: "{instance.id}", value: "{instance.id}", "{instance.name}" }
+            div { class: "m1-editor-body", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
+                Objects {}
+                main { class: "m1-workspace-content",
+                    if active_workspace == "Layout" {
+                        div { class: "m1-canvas-toolbar",
+                            span { "{document.name}" }
+                            button { disabled: !matches!(model.durability, Durability::Failed {..}), onclick: move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() }), "Retry save" }
+                            if model.lifecycle == boardstudio_application::Lifecycle::RecoveryRequired {
+                                button { onclick: move |_| recover.recover_saved(), "Reopen last saved version (discard pending changes)" }
                             }
                         }
-                    }
-                }
-                button { onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
-                button { onclick: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }
-                button { onclick: move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() }), disabled: !matches!(model.durability, Durability::Failed {..}), "Retry save" }
-                if model.lifecycle == boardstudio_application::Lifecycle::RecoveryRequired {
-                    button { onclick: move |_| recover.recover_saved(), "Reopen last saved version (discard pending changes)" }
-                }
-                button { onclick: move |_| { if let Some(scope) = export.scope() { export.submit(Event::StartExport { operation_id: export.operation(), scope }); } }, "Export archive" }
-                span { "Revision {document.revision} · {model.durability:?}" }
-            }
-            div { class: "m1-editor-body",
-                svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
+                        svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     g { transform: "scale(1,-1)",
                         for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
@@ -527,10 +867,23 @@ fn Editor() -> Element {
                             }
                         }
                     }
+                        }
+                    } else if active_workspace == "Case" {
+                        CasePanel {}
+                    } else if active_workspace == "Export" {
+                        ExportPanel {}
+                    } else {
+                        PlaceholderWorkspace { name: active_workspace }
+                    }
                 }
-                Inspector {}
+                if active_workspace == "Layout" { Inspector {} }
             }
-            CasePanel {}
+            footer { class: "m1-editor-footer",
+                button { "aria-label": "Undo", onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M8 6 4 10l4 4M4 10h7a5 5 0 0 1 5 5" } } }
+                button { "aria-label": "Redo", onclick: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m12 6 4 4-4 4m4-4H9a5 5 0 0 0-5 5" } } }
+                span { "{document.name} · Revision {document.revision} · {durability_label(&model.durability)}" }
+                span { "{zoom_percent:.0}%" }
+            }
         }
     }
 }
@@ -550,48 +903,20 @@ fn Inspector() -> Element {
                 .find(|p| model.selected_part_ids.contains(&p.id))
         })
         .cloned();
-    let component_items: Rc<Vec<_>> = Rc::new(
-        model
-            .accepted
-            .as_ref()
-            .map(|snapshot| {
-                snapshot
-                    .document
-                    .parts
-                    .iter()
-                    .filter(|part| {
-                        snapshot
-                            .document
-                            .boards
-                            .iter()
-                            .find(|board| board.id == model.active_board_id)
-                            .is_some_and(|board| board.part_ids.contains(&part.id))
-                    })
-                    .enumerate()
-                    .map(|(index, part)| {
-                        let kind = snapshot
-                            .document
-                            .definitions
-                            .iter()
-                            .find(|definition| definition.id == part.definition_id)
-                            .map(|definition| format!("{:?}", definition.kind))
-                            .unwrap_or_else(|| "component".into());
-                        (
-                            index,
-                            part.id.clone(),
-                            part.reference.clone(),
-                            kind,
-                            model.selected_part_ids.contains(&part.id),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
-    );
-    let has_selected_component = component_items.iter().any(|item| item.4);
     let mut x = use_signal(String::new);
     let mut y = use_signal(String::new);
     let numeric_edit = use_hook(|| Rc::new(RefCell::new(None::<NumericEdit>)));
+    use_drop({
+        let runtime = runtime.clone();
+        let numeric_edit = numeric_edit.clone();
+        move || {
+            let pending = numeric_edit.borrow_mut().take();
+            if let Some(edit) = pending {
+                let start = edit.start;
+                submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
+            }
+        }
+    });
     let key = selected
         .as_ref()
         .map(|p| (p.id.clone(), p.pose.at.x, p.pose.at.y));
@@ -673,43 +998,8 @@ fn Inspector() -> Element {
             }
         })))
     };
-    let select_component: Rc<dyn Fn(String)> = Rc::new({
-        let runtime = runtime.clone();
-        move |id: String| {
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: vec![id],
-                range_part_ids: vec![],
-                mode: SelectionMode::Replace,
-            })
-        }
-    });
-    rsx! { aside { class: "m1-inspector", "aria-label": "Component inspector",
-        details { class: "m1-component-picker", open: true,
-            summary { "Components ({component_items.len()})" }
-            div { role: "listbox", "aria-label": "Components on current board", class: "m1-component-list",
-                for (index, id, reference, kind, is_selected) in component_items.iter().cloned() {
-                    {
-                        let id_for_click = id.clone();
-                        let select_component_click = select_component.clone();
-                        let select_component_key = select_component.clone();
-                        let items_for_key = component_items.clone();
-                        rsx! { button { key: "{id}", id: "m1-component-{index}", class: if is_selected { "m1-component selected" } else { "m1-component" }, role: "option", "aria-selected": "{is_selected}", tabindex: if is_selected || (!has_selected_component && index == 0) { "0" } else { "-1" }, onclick: move |_| select_component_click(id_for_click.clone()), onkeydown: {
-                            let select_component = select_component_key.clone();
-                            let items_for_key = items_for_key.clone();
-                            move |event: KeyboardEvent| {
-                                let key = event.data().key().to_string();
-                                let next = match key.as_str() { "ArrowDown" => Some(index + 1), "ArrowUp" => Some(index.saturating_sub(1)), "Home" => Some(0), "End" => Some(items_for_key.len().saturating_sub(1)), _ => None };
-                                let Some(next) = next.filter(|next| *next < items_for_key.len()) else { return; };
-                                event.prevent_default();
-                                if let Some((_, next_id, _, _, _)) = items_for_key.get(next) { select_component(next_id.clone()); }
-                                if let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-component-{next}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok()) { let _ = element.focus(); }
-                            }
-                        }, "{reference} · {kind}" } }
-                    }
-                }
-            }
-        }
+    rsx! { aside { class: "m1-inspector", "aria-label": "Inspect",
+        header { h2 { "Inspect" } }
         h2 { "Position" }
         if let Some(part) = selected {
             p { "{part.reference}" }

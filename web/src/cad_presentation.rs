@@ -71,7 +71,6 @@ pub fn CasePanel() -> Element {
     let initialize = runtime.clone();
     let generate = runtime.clone();
     let cancel = runtime.clone();
-    let export = runtime.clone();
     let update = runtime.clone();
     let scene = runtime.cad_scene();
     let stale = scene
@@ -106,7 +105,6 @@ pub fn CasePanel() -> Element {
             }
             button { onclick: move |_| if let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Generate case" }
             button { disabled: !matches!(model.generation, GenerationStatus::Preparing {..} | GenerationStatus::Running {..}), onclick: move |_| cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() }), "Cancel generation" }
-            button { onclick: move |_| export.export_step(), "Export STEP" }
             p { role: "status", "aria-live": "polite", "{title}" }
             p { "PCB reference is unpopulated; case bodies use exact CAD geometry." }
             if let Some(scene) = scene {
