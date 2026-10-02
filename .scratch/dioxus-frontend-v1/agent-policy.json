@@ -108,15 +108,18 @@
     "approval_boundaries": "Existing public API/visibility/schema/cutover approvals are unchanged."
   },
   "concurrency": {
-    "max_total_agents": 4,
-    "max_children": 3,
+    "max_total_agents": 11,
+    "max_children": 10,
     "steady_state": [
       "coordinator",
-      "two Luna feature authors",
-      "one Luna verifier; rotate to Astra reviewer when ready"
+      "up to three Luna feature authors with disjoint private ownership",
+      "one independent Luna verifier",
+      "Astra contract/bug review; reserve two final review axes",
+      "optional Luna automatic-frontier planner"
     ],
-    "three_builders": "Short initial exception only with disjoint owners and no review/verification backlog.",
-    "shared_files": "coordinator serializes; browser sessions/stores isolated; CAD-heavy checks serial"
+    "three_builders": "Allowed with disjoint private owners and independent verification/review capacity; no simultaneous shared writes.",
+    "shared_files": "coordinator serializes; browser sessions/stores isolated; CAD-heavy checks serial",
+    "runtime_change": "2026-10-02 resumed collaboration metadata exposes11 total slots; prior four-slot limit superseded. No host configuration changed."
   },
   "runtime_observation": {
     "checked": "2026-10-02",

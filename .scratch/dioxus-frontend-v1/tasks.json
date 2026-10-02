@@ -2,7 +2,7 @@
   "schema_version": 1,
   "planned_at": "2026-10-02",
   "baseline": "c827c4e6",
-  "executable_source": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
+  "executable_source": "598b2c026941130f9b95ff4fee57353f8eefcb0d",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "scope": "100% frontend Dioxus parity; no backend rewrite",
   "dependency_semantics": {
@@ -22,7 +22,7 @@
       "depends_on": [],
       "priority": "P0",
       "effort": "S",
-      "status": "implementing",
+      "status": "accepted",
       "acceptance": "Existing session/runtime remains authoritative; private workspace read-model/callback slots, scope/draft keys and shared panel/control contracts let the first F2/F3 slices mount without parallel edits to the same shell. Preserve working F1/F3a behavior. No general framework or public API expansion.",
       "boundary_status": "Private presentation composition only; existing events/model/types suffice.",
       "external_gates": [],
@@ -38,7 +38,8 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
-      }
+      },
+      "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/record.json"
     },
     {
       "id": "INT.2",

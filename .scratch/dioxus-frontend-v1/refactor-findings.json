@@ -72,6 +72,21 @@
       "linked_tasks": [
         "F7.1",
         "BND.1"
+      ],
+      "follow_up_evidence": [
+        {
+          "date": "2026-10-02",
+          "task": "T1-02 tolerant saved-project discovery boundary",
+          "baseline": "598b2c02",
+          "evidence": [
+            ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/tolerant-listing-api-proposal.md"
+          ],
+          "observation": "Public BrowserStore discovery returns only Vec<ProjectDoc> or aggregate error, so private page callers cannot retain identified damaged cards and healthy records after typed deserialization fails. The existing raw storage helper/database identity are private in another crate.",
+          "certainty": "confirmed source boundary limitation; tolerant discovery proposal not applied or approved",
+          "current_mitigation": "Keep per-card typed geometry fallback private; prepare smallest additive read-only discovery API for explicit decision. Do not fake documents, skip records or duplicate writable storage authority.",
+          "post_port_follow_up": "Evaluate host discovery/read-model depth and safe degraded presentation contracts after port.",
+          "validation": "Real isolated mixed healthy/damaged/unusable-identity rows, strict-open and unchanged schema/API behavior; transaction errors and stale list guards."
+        }
       ]
     },
     {
@@ -357,6 +372,21 @@
           "current_mitigation": "Proposed T1-04/05/06 cover every demo family and actual opens, and T1-11 distinguishes version edits, part-selection clearing and bridge camera movement. Parent task status is unchanged.",
           "post_port_follow_up": "Include callable catalogue entries and side-effect classifications in reproducible parity accounting, alongside source-file inventories.",
           "validation": "Every pinned demo maps to a verified real open; paired tree version/bridge traces assert actual document/history/selection/camera effects."
+        },
+        {
+          "date": "2026-10-02",
+          "task": "automatic Parts/PCB/Keymap ticket publication",
+          "baseline": "598b2c02",
+          "evidence": [
+            ".scratch/dioxus-parts-catalogue/evidence/astra-final-review.md",
+            ".scratch/dioxus-pcb-view/evidence/astra-final-review.md",
+            ".scratch/dioxus-keymap-layers/evidence/astra-final-review.md"
+          ],
+          "observation": "Independent source review corrected catalogue provenance (Ergogen/imported/project definitions), eight bundled assembly presets, shared host hidden-layer lifetime, virtual Base and legacy binding fallback, and Base rename versus protected removal. INT.1 supplies only Library/Objects/Inspector composition, not unspecified Parts/PCB/Keymap facades.",
+          "certainty": "confirmed ticket/source accounting gap; no new RF entry or introduced application defect",
+          "current_mitigation": "Six corrected children published automatically with concrete feature contract gates and unchanged parent acceptance joins.",
+          "post_port_follow_up": "Keep per-action source/accounting and private boundary proofs alongside maintained conformance evidence.",
+          "validation": "Dispatch concrete reviewed contracts and integrated public workflows before accepting each parent."
         }
       ]
     },
@@ -390,6 +420,23 @@
         "BND.1",
         "F7.3",
         "F8.2"
+      ],
+      "follow_up_evidence": [
+        {
+          "date": "2026-10-02",
+          "task": "T1-02 saved-open public diagnosis",
+          "baseline": "598b2c02",
+          "certainty": "confirmed public defect; delayed real request and already-executed reply both reproduce",
+          "evidence": [
+            ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/open-supersession-diagnosis.md",
+            ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/open-supersession-reply-result.json",
+            ".scratch/dioxus-frontend-tranche-1/evidence/contracts-active/open-supersession-control.json"
+          ],
+          "observation": "Runtime guards saved-document loading by sequence but Session adoption/persistence lacks latest open intent. Pending A adopts and changes durable active project after newer B is unavailable. No-B control opens A normally.",
+          "current_mitigation": "Full ticket acceptance remains blocked; pure UI and independent panels/tree continue. No unsafe reply dropping, fabricated core error, history-resetting restore or narrower acceptance applied.",
+          "post_port_follow_up": "Review cancellation/adoption contracts across UI intent, worker state, durable commit and one-time caller settlement.",
+          "validation": "Retained red-capable public loop plus pending-core/save variants, valid/unavailable B and history/selection retention; repaired source needs independent review."
+        }
       ]
     },
     {

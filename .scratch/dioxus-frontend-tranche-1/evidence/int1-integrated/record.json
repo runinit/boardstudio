@@ -1,0 +1,27 @@
+{
+  "ticket": "T1-01",
+  "parent": "INT.1",
+  "status": "accepted scoped private composition; full frontend/M1 external gates remain open",
+  "source_commit": "598b2c026941130f9b95ff4fee57353f8eefcb0d",
+  "source_changes": [
+    "web/src/presentation.rs",
+    "web/src/presentation/library.rs",
+    "web/src/presentation/objects.rs",
+    "web/src/presentation/inspector.rs"
+  ],
+  "build": "frontend-int1-598b2c-20261002",
+  "checks": {
+    "worker_fmt_native_clippy_wasm_check_wasm_clippy": "passed; exact commands in int1-handoff.md",
+    "native_page_tests": "cargo test --manifest-path web/Cargo.toml --locked --no-default-features --features page: 12 lib + 2 binary passed",
+    "fresh_production_build": "root/subpath page and offline bundles passed, all source and asset hashes verified",
+    "public_layout": "before and after F3a regression passed; default41keycaps,5layers,193pads238drills,sharedtoggle,editUndo,historycamera,themecompactfocus",
+    "numeric_inspector": "matched public before/after Escape, Enter/Apply Undo, target cancellation, unmount restoration, blankinput",
+    "subpath": "fresh named session frontend-int1-subpath loaded Library at /boardstudio/"
+  },
+  "reviews": {
+    "Standards": "0 findings independent Astra High",
+    "Spec": "0 findings independent Astra High"
+  },
+  "refactoring": "No new refactoring takeaway observed; RF001/002 mitigation and RF007 constraint retained",
+  "carried_limits": "Actual AT and retained M1 performance/resource/comparability gates remain open; no production cutover/React retirement."
+}
