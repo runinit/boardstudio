@@ -1,6 +1,6 @@
 # Native Case model path prefix join repair
 
-Category: bounded defect correction at the Issue 10 model-selection consumer of Issue 11's generated physical preview. Base `f782fc08f` (resolve with the branch's parent), isolated branch `codex/case-model-path-prefix-fix-20261002`. Root remains the serial integration owner. This packet has not been independently reviewed or publicly accepted.
+Category: bounded defect correction at the Issue 10 model-selection consumer of Issue 11's generated physical preview. Base `f782fc081af9b50d77b8a74f2495a95c7cb31a6b`, isolated branch `codex/case-model-path-prefix-fix-20261002`. Root remains the serial integration owner. This packet has not been independently reviewed or publicly accepted.
 
 ## Repro and oracle
 
