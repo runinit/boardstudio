@@ -15,6 +15,8 @@ mod parts_definition_name;
 #[path = "presentation/parts/mechanical_profile.rs"]
 mod parts_mechanical_profile;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod parts_new_component;
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod physical_setup;
 #[cfg(feature = "page")]
 mod portable_archive;

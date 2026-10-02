@@ -473,3 +473,7 @@ The actual matching full build took535.29 seconds and the guarded page-only reus
 ### RF-009: syntax-aware reuse eligibility
 
 The unintegrated leaf-reuse expansion used line-based Rust registration detection. Independent production eligibility probes found valid module, macro and include changes that its passing guard suite missed. The expansion remains held while token handling and negative coverage are corrected. Later refactoring should evaluate a maintained syntax/dependency audit boundary; no changed provider output has been observed.
+
+### Parts13 custom-component handoff — 2026-10-02
+
+No new refactoring takeaway was observed in the feature-private create leaf and its isolated Parts mount. It reuses the current Runtime operation/outcome observer and accepted `ReplaceDocument`/history path; the Parts-local view generation rejects late reconciliation after query or selection intent changes. The shared Parts mount remains coordinator-owned under RF-001, while public paired browser, Undo/Redo and save/reopen evidence remains open under RF-009. See the [implementation handoff](../../.scratch/dioxus-parts-catalogue/evidence/parts13-implementation-handoff-20261002.md).

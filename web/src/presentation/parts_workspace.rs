@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 pub(super) struct ObjectsInput {
     pub(super) snapshot: AcceptedSnapshot,
     pub(super) scope: Option<Scope>,
+    pub(super) workspace: Signal<&'static str>,
     pub(super) query: PartsQuery,
     pub(super) selected: PartsSelection,
     pub(super) on_select: EventHandler<()>,
@@ -37,6 +38,7 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
         PartsLibraryPanel {
             snapshot: input.snapshot,
             scope: input.scope,
+            workspace: input.workspace,
             query: input.query,
             selected: input.selected,
             on_select: input.on_select,

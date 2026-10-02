@@ -132,51 +132,34 @@ pub(super) async fn load_controller_definition(
 pub(super) fn PartsLibraryPanel(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
+    workspace: Signal<&'static str>,
     mut query: PartsQuery,
     mut selected: PartsSelection,
     on_select: EventHandler<()>,
 ) -> Element {
+    let mut view_generation = use_signal(|| 0_u64);
     let catalogue = use_catalogue(&snapshot, &scope);
-    let Some(entries) = catalogue.entries else {
-        return if let Some(error) = catalogue.error {
-            rsx! {
-                section { class: "m1-parts-library", "aria-label": "Parts library",
-                    h2 { "Parts library" }
-                    p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
-                }
-            }
-        } else {
-            rsx! {
-                section { class: "m1-parts-library", "aria-label": "Parts library",
-                    h2 { "Parts library" }
-                    p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
-                }
-            }
-        };
-    };
+    let content = if let Some(entries) = catalogue.entries {
+        let choices = group_choices(&entries);
+        let listed_entries = catalogue_choices(&entries);
+        let search = query().trim().to_lowercase();
+        let groups = choices
+            .iter()
+            .map(|group| {
+                let items = group
+                    .entries
+                    .iter()
+                    .copied()
+                    .filter(|entry| entry.matches(&search, group.label))
+                    .collect::<Vec<_>>();
+                (group, items)
+            })
+            .filter(|(_, items)| !items.is_empty())
+            .collect::<Vec<_>>();
+        let result_count = groups.iter().map(|(_, items)| items.len()).sum::<usize>();
+        let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
 
-    let choices = group_choices(&entries);
-    let listed_entries = catalogue_choices(&entries);
-    let search = query().trim().to_lowercase();
-    let groups = choices
-        .iter()
-        .map(|group| {
-            let items = group
-                .entries
-                .iter()
-                .copied()
-                .filter(|entry| entry.matches(&search, group.label))
-                .collect::<Vec<_>>();
-            (group, items)
-        })
-        .filter(|(_, items)| !items.is_empty())
-        .collect::<Vec<_>>();
-    let result_count = groups.iter().map(|(_, items)| items.len()).sum::<usize>();
-    let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
-
-    rsx! {
-        section { class: "m1-parts-library", "aria-label": "Parts library",
-            h2 { "Parts library" }
+        rsx! {
             label { class: "m1-parts-search-label", "Search parts"
                 input {
                     class: "m1-parts-search",
@@ -184,7 +167,10 @@ pub(super) fn PartsLibraryPanel(
                     "aria-label": "Search footprints",
                     placeholder: "Name or category",
                     value: "{query()}",
-                    oninput: move |event: FormEvent| query.set(event.value()),
+                    oninput: move |event: FormEvent| {
+                        query.set(event.value());
+                        view_generation.set(view_generation() + 1);
+                    },
                 }
             }
             if entries.is_empty() {
@@ -212,6 +198,7 @@ pub(super) fn PartsLibraryPanel(
                                             title: entry.definition.generator.as_ref().map(|generator| generator.source.as_str()).unwrap_or(""),
                                             onclick: move |_| {
                                                 selected.set(Some((scope.clone(), id.clone())));
+                                                view_generation.set(view_generation() + 1);
                                                 on_select.call(());
                                             },
                                             "{preferred_label(&entry.definition)}"
@@ -222,6 +209,31 @@ pub(super) fn PartsLibraryPanel(
                             }
                         }
                     }
+                }
+            }
+        }
+    } else if let Some(error) = catalogue.error {
+        rsx! {
+            p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
+        }
+    } else {
+        rsx! {
+            p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
+        }
+    };
+
+    rsx! {
+        section { class: "m1-parts-library", "aria-label": "Parts library",
+            h2 { "Parts library" }
+            {content}
+            div { class: "m1-parts-actions",
+                crate::parts_new_component::NewCustomComponentAction {
+                    scope: scope.clone(),
+                    view_generation,
+                    workspace,
+                    query,
+                    selected,
+                    on_select,
                 }
             }
         }

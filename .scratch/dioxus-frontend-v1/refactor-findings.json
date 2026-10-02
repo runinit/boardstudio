@@ -149,6 +149,12 @@
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
       "parts_name_draft_20261002": "Source comparison found Dioxus token/revision-keyed Name draft resets on unrelated accepted edits while React DraftInput resets only accepted value changes. Required parity repair splits stable target/value draft identity from current accepted capture; no stale admission waiver. Independent review and mounted regression remain open.",
+      "parts13_create_component_20261002": {
+        "source": "Parts13 private create leaf and isolated Parts mount at codex/parts-new-component13-20261002",
+        "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts13-implementation-handoff-20261002.md",
+        "observation": "No new refactoring takeaway observed in the custom-component create path. The leaf reuses Runtime operation IDs/outcomes and the existing accepted ReplaceDocument/history path; the Parts-only owner generation protects newer query/selection intent while the coordinator retains shared mount ownership.",
+        "status": "bounded implementation handoff; paired public browser acceptance and parent joins remain open"
+      },
       "shared_join_checkpoint_20261002": {
         "source": "94480901a2dcabaa6085416e29116c620017a385",
         "observation": "PCB07 and PCB08 isolated authors each correctly implemented a generic-part Inspector, but the initial serial join duplicated its heading and moved Ergogen bindings ahead of Board details/Connections. Independent review reproduced the composition mismatch; a single contextual host heading and a private Element slot now preserve both controllers and reference order. Source review clear; actual paired DOM qualification remains open.",
