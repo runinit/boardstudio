@@ -145,6 +145,13 @@
           "current_mitigation": "Use accepted selection IDs for editing/warnings while retaining contextual validity checks; production selection mutation regressions required.",
           "post_port_follow_up": "Clarify and consolidate context-anchor versus accepted-selection projection semantics across Inspector controllers after parity.",
           "status": "confirmed defect under repair; broader selection model consolidation deferred"
+        },
+        {
+          "source": "Parts15 isolated111647f6; served9d34f367 separate",
+          "evidence": "SolPCB Parts15 exact source review, repair owner parts_new_component_author; public toolbar checkpoint workbench-parity-joined-public-20261002/root-toolbar-checkpoint.json",
+          "observation": "Independent review found an unmerged Parts15 async continuation reading disposed editor Signals before its alive guard and again in stale cleanup. Parts13 had previously required an effect self-read correction. These are concrete recurring lifecycle integration hazards, not proof of a production crash in served9d. Separately actual paired Case generated Plate selection retains global MechanicalSettings rather than contextual Plate Inspector; Mirror form appears in Objects instead of reference canvas overlay. Missing composition parity is current port work, not evidence that it was caused by module size.",
+          "status": "Parts15 source held and repairing; broader lifecycle/owner interface assessment deferred, no public acceptance waiver",
+          "post_port_validation": "Evaluate a common lifetime-first async admission pattern and mounted unmount/resolve tests across feature controllers; measure shared composition churn before proposing generalized abstractions."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -152,7 +159,7 @@
       "parts13_create_component_20261002": {
         "source": "Parts13 private create leaf and isolated Parts mount at codex/parts-new-component13-20261002",
         "evidence": ".scratch/dioxus-parts-catalogue/evidence/parts13-implementation-handoff-20261002.md",
-        "observation": "No new refactoring takeaway observed in the custom-component create path. The leaf reuses Runtime operation IDs/outcomes and the existing accepted ReplaceDocument/history path; reconciliation checks both Parts query/selection intent generation and the actual monotonic Runtime scope generation, including A→B→A scope transitions. A mounted production-effect test verifies workspace generation advances once per transition without subscribing to its own write. The Inspector resolves accepted project definitions directly while catalogue loading/error status remains visible.",
+        "observation": "No new refactoring takeaway observed in the custom-component create path. The leaf reuses Runtime operation IDs/outcomes and the existing accepted ReplaceDocument/history path; reconciliation checks both Parts query/selection intent generation and the actual monotonic Runtime scope generation, including A\u2192B\u2192A scope transitions. A mounted production-effect test verifies workspace generation advances once per transition without subscribing to its own write. The Inspector resolves accepted project definitions directly while catalogue loading/error status remains visible.",
         "status": "bounded implementation handoff with reviewed source/effect repairs; paired public browser acceptance and parent joins remain open"
       },
       "shared_join_checkpoint_20261002": {
