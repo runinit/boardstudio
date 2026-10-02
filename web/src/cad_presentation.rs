@@ -9,17 +9,20 @@ use wasm_bindgen_futures::spawn_local;
 pub fn CasePanel(generation_ready: bool) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<crate::presentation::InstanceSelection>();
-    let _ = use_context::<Signal<u64>>()();
+    let runtime_version = use_context::<Signal<u64>>();
+    let _ = runtime_version();
     crate::case_preview_lifecycle::use_native_case_preview(
         runtime.clone(),
         runtime.native_case_preview_key(),
     );
     let accepted_preview = runtime.native_case_preview();
-    use_effect({
+    use_effect(use_reactive((&runtime_version(),), {
         let runtime = runtime.clone();
-        let accepted_preview = accepted_preview.clone();
-        move || {
-            if let Some(preview) = accepted_preview.clone() {
+        move |_| {
+            // Runtime snapshots are not Dioxus signals. Re-read them when its
+            // subscribed version changes so a preview published after mount
+            // starts delivery, and so the completed batch becomes visible.
+            if let Some(preview) = runtime.native_case_preview() {
                 let runtime = runtime.clone();
                 spawn_local(async move {
                     if let Err(error) = runtime.deliver_native_case_models(preview).await {
@@ -28,7 +31,7 @@ pub fn CasePanel(generation_ready: bool) -> Element {
                 });
             }
         }
-    });
+    }));
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
