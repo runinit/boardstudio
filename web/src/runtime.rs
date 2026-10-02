@@ -36,6 +36,8 @@ use js_sys::{Array, Function, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, VecDeque},
+    future::Future,
+    pin::Pin,
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
@@ -155,6 +157,58 @@ fn firmware_export_is_latest(
     latest_operation_id == Some(operation_id)
 }
 
+type FirmwareExecutorFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'a>>;
+
+/// Narrow private adapter for the three awaited Core operations in a firmware export. Keeping
+/// the await points behind this interface lets lifecycle tests replace the worker while a real
+/// production export is suspended, without adding a second provider or changing Core's API.
+pub(crate) trait FirmwareExportExecutor {
+    fn request<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        request: &'a CoreRequest,
+    ) -> FirmwareExecutorFuture<'a, CoreReply>;
+
+    fn archive<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        metadata: &'a str,
+        buffers: Vec<Uint8Array>,
+    ) -> FirmwareExecutorFuture<'a, (String, Vec<Uint8Array>)>;
+}
+
+impl FirmwareExportExecutor for CoreWorker {
+    fn request<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        request: &'a CoreRequest,
+    ) -> FirmwareExecutorFuture<'a, CoreReply> {
+        Box::pin(async move {
+            CoreWorker::request(self, request_id, executor_epoch, request)
+                .await
+                .map_err(|error| error.to_string())
+        })
+    }
+
+    fn archive<'a>(
+        &'a self,
+        request_id: &'a str,
+        executor_epoch: &'a str,
+        metadata: &'a str,
+        buffers: Vec<Uint8Array>,
+    ) -> FirmwareExecutorFuture<'a, (String, Vec<Uint8Array>)> {
+        Box::pin(async move {
+            CoreWorker::archive(self, request_id, executor_epoch, metadata, buffers)
+                .await
+                .map(|result| (result.metadata, result.buffers))
+                .map_err(|error| error.to_string())
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FirmwareExportCapture {
     scope: Scope,
@@ -162,6 +216,7 @@ struct FirmwareExportCapture {
     revision: u64,
     session_epoch: boardstudio_application::SessionEpoch,
     document_id: String,
+    executor_epoch: boardstudio_application::ExecutorEpoch,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -171,6 +226,23 @@ struct FirmwareAcceptedIdentity {
     token: SnapshotToken,
     revision: u64,
     scene_revision: u64,
+}
+
+#[cfg(test)]
+struct FirmwareExportTestContext {
+    accepted: AcceptedSnapshot,
+    scope: Option<Scope>,
+    operation_id: Option<OperationId>,
+    current_executor: Rc<dyn FirmwareExportExecutor>,
+    executor_epoch: boardstudio_application::ExecutorEpoch,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FirmwareTestDelivery {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) filename: String,
+    pub(crate) media_type: Option<String>,
 }
 
 impl From<&AcceptedSnapshot> for FirmwareAcceptedIdentity {
@@ -244,6 +316,14 @@ pub struct Runtime {
     definition_name_test_state: RefCell<Option<(AcceptedSnapshot, Option<Scope>)>>,
     #[cfg(test)]
     definition_name_test_events: RefCell<Vec<Event>>,
+    #[cfg(test)]
+    firmware_export_test_context: RefCell<Option<FirmwareExportTestContext>>,
+    #[cfg(test)]
+    firmware_export_test_effects: RefCell<Vec<Effect>>,
+    #[cfg(test)]
+    firmware_export_test_events: RefCell<Vec<Event>>,
+    #[cfg(test)]
+    firmware_export_test_deliveries: RefCell<Vec<FirmwareTestDelivery>>,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
@@ -286,6 +366,14 @@ impl Runtime {
             definition_name_test_state: RefCell::new(None),
             #[cfg(test)]
             definition_name_test_events: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            firmware_export_test_context: RefCell::new(None),
+            #[cfg(test)]
+            firmware_export_test_effects: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            firmware_export_test_events: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            firmware_export_test_deliveries: RefCell::new(Vec::new()),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
@@ -317,15 +405,39 @@ impl Runtime {
     }
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {
         #[cfg(test)]
+        if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
+            return context.scope.clone();
+        }
+        #[cfg(test)]
         if let Some((_, scope)) = self.definition_name_test_state.borrow().as_ref() {
             return scope.clone();
         }
         self.session.borrow().scope()
     }
     pub(crate) fn electrical_preview_executor_epoch(&self) -> u64 {
+        #[cfg(test)]
+        if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
+            return context.executor_epoch.0;
+        }
         self.session.borrow().core_executor_epoch().0
     }
     pub fn model(&self) -> ReadModel {
+        #[cfg(test)]
+        if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
+            return ReadModel {
+                accepted: Some(context.accepted.clone()),
+                active_board_id: context
+                    .scope
+                    .as_ref()
+                    .map(|scope| scope.board_id.clone())
+                    .unwrap_or_default(),
+                active_instance_id: context
+                    .scope
+                    .as_ref()
+                    .and_then(|scope| scope.instance_id.clone()),
+                ..ReadModel::default()
+            };
+        }
         #[cfg(test)]
         if let Some((snapshot, _)) = self.definition_name_test_state.borrow().as_ref() {
             return ReadModel {
@@ -870,6 +982,8 @@ impl Runtime {
 
     pub fn submit(self: &Rc<Self>, event: Event) {
         #[cfg(test)]
+        let test_event = event.clone();
+        #[cfg(test)]
         if self.definition_name_test_state.borrow().is_some() {
             self.definition_name_test_events.borrow_mut().push(event);
             return;
@@ -892,6 +1006,16 @@ impl Runtime {
             }
         }
         self.changed();
+        #[cfg(test)]
+        if self.firmware_export_test_context.borrow().is_some() {
+            self.firmware_export_test_events
+                .borrow_mut()
+                .push(test_event);
+            self.firmware_export_test_effects
+                .borrow_mut()
+                .extend(effects);
+            return;
+        }
         self.drive(effects);
     }
 
@@ -902,6 +1026,64 @@ impl Runtime {
         scope: Option<Scope>,
     ) {
         *self.definition_name_test_state.borrow_mut() = Some((snapshot, scope));
+    }
+
+    #[cfg(test)]
+    fn set_firmware_export_test_context(
+        &self,
+        accepted: AcceptedSnapshot,
+        scope: Option<Scope>,
+        current_executor: Rc<dyn FirmwareExportExecutor>,
+        executor_epoch: boardstudio_application::ExecutorEpoch,
+        next_operation: u64,
+    ) {
+        *self.firmware_export_test_context.borrow_mut() = Some(FirmwareExportTestContext {
+            accepted,
+            scope,
+            operation_id: None,
+            current_executor,
+            executor_epoch,
+        });
+        self.next_operation.set(next_operation);
+    }
+
+    #[cfg(test)]
+    fn replace_firmware_export_test_executor(
+        &self,
+        executor: Rc<dyn FirmwareExportExecutor>,
+        epoch: boardstudio_application::ExecutorEpoch,
+    ) {
+        let mut context = self.firmware_export_test_context.borrow_mut();
+        let context = context
+            .as_mut()
+            .expect("firmware export test context is installed");
+        context.current_executor = executor;
+        context.executor_epoch = epoch;
+    }
+
+    #[cfg(test)]
+    fn replace_firmware_export_test_owner(&self, accepted: AcceptedSnapshot, scope: Option<Scope>) {
+        let mut context = self.firmware_export_test_context.borrow_mut();
+        let context = context
+            .as_mut()
+            .expect("firmware export test context is installed");
+        context.accepted = accepted;
+        context.scope = scope;
+    }
+
+    #[cfg(test)]
+    fn take_firmware_export_test_effects(&self) -> Vec<Effect> {
+        std::mem::take(&mut *self.firmware_export_test_effects.borrow_mut())
+    }
+
+    #[cfg(test)]
+    fn take_firmware_export_test_events(&self) -> Vec<Event> {
+        std::mem::take(&mut *self.firmware_export_test_events.borrow_mut())
+    }
+
+    #[cfg(test)]
+    fn take_firmware_export_test_deliveries(&self) -> Vec<FirmwareTestDelivery> {
+        std::mem::take(&mut *self.firmware_export_test_deliveries.borrow_mut())
     }
 
     #[cfg(test)]
@@ -1211,17 +1393,13 @@ impl Runtime {
                 let artifact = self.artifacts.borrow_mut().remove(&artifact_id);
                 if let Some(artifact) = artifact
                     && token == artifact.token
-                    && self.scope() == Some(artifact.scope)
+                    && self.scope().as_ref() == Some(&artifact.scope)
                     && self
                         .model()
                         .accepted
                         .as_ref()
                         .is_some_and(|s| s.token == token)
-                    && let Err(error) = deliver(
-                        &artifact.bytes,
-                        &artifact.filename,
-                        artifact.media_type.as_deref(),
-                    )
+                    && let Err(error) = self.deliver_artifact(&artifact)
                 {
                     if artifact.firmware {
                         self.firmware_export_delivery_errors
@@ -1981,7 +2159,12 @@ impl Runtime {
         };
         self.clear_alert();
         let operation_id = self.operation();
+        let (_, executor_epoch) = self.current_firmware_executor();
         self.latest_firmware_export.set(Some(operation_id));
+        #[cfg(test)]
+        if let Some(context) = self.firmware_export_test_context.borrow_mut().as_mut() {
+            context.operation_id = Some(operation_id);
+        }
         self.firmware_exports.borrow_mut().insert(
             operation_id,
             FirmwareExportCapture {
@@ -1990,6 +2173,7 @@ impl Runtime {
                 revision: snapshot.document.revision,
                 session_epoch: snapshot.session_epoch,
                 document_id: snapshot.document.id.clone(),
+                executor_epoch,
             },
         );
         self.submit(Event::StartExport {
@@ -2017,6 +2201,13 @@ impl Runtime {
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
+        #[cfg(test)]
+        if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
+            return context.operation_id == Some(operation_id)
+                && context.scope.as_ref() == Some(scope)
+                && context.accepted.token == token
+                && !self.cancelled_exports.borrow().contains(&operation_id);
+        }
         self.session
             .borrow()
             .export_is_current(operation_id, token, scope)
@@ -2038,7 +2229,40 @@ impl Runtime {
         let model = self.model();
         let accepted = model.accepted.as_ref().map(FirmwareAcceptedIdentity::from);
         firmware_export_is_latest(operation_id, self.latest_firmware_export.get())
+            && self.current_firmware_executor().1 == capture.executor_epoch
             && firmware_export_capture_matches(capture, self.scope().as_ref(), accepted.as_ref())
+    }
+    fn current_firmware_executor(
+        &self,
+    ) -> (
+        Rc<dyn FirmwareExportExecutor>,
+        boardstudio_application::ExecutorEpoch,
+    ) {
+        #[cfg(test)]
+        if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
+            return (context.current_executor.clone(), context.executor_epoch);
+        }
+        let core = self.core.borrow().clone();
+        let executor: Rc<dyn FirmwareExportExecutor> = core;
+        (executor, self.session.borrow().core_executor_epoch())
+    }
+    fn deliver_artifact(&self, artifact: &Artifact) -> Result<(), String> {
+        #[cfg(test)]
+        if self.firmware_export_test_context.borrow().is_some() && artifact.firmware {
+            self.firmware_export_test_deliveries
+                .borrow_mut()
+                .push(FirmwareTestDelivery {
+                    bytes: artifact.bytes.clone(),
+                    filename: artifact.filename.clone(),
+                    media_type: artifact.media_type.clone(),
+                });
+            return Ok(());
+        }
+        deliver(
+            &artifact.bytes,
+            &artifact.filename,
+            artifact.media_type.as_deref(),
+        )
     }
     async fn generate(
         self: &Rc<Self>,
@@ -2270,8 +2494,7 @@ impl Runtime {
         let primary_instance_id = central.map_or(scope.instance_id.as_deref(), |instance| {
             Some(instance.id.as_str())
         });
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let (core, executor_epoch) = self.current_firmware_executor();
         self.ensure_firmware_export_current(
             operation_id,
             snapshot,
@@ -2401,12 +2624,12 @@ impl Runtime {
             Some(&core),
             Some(executor_epoch),
         )?;
-        let packed = packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
-        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
+        let (packed_metadata, packed_buffers) =
+            packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
+        match serde_json::from_str::<ArchiveReply>(&packed_metadata)
             .map_err(|error| format!("Could not read firmware package result: {error}"))?
         {
-            ArchiveReply::Packed => packed
-                .buffers
+            ArchiveReply::Packed => packed_buffers
                 .first()
                 .map(Uint8Array::to_vec)
                 .ok_or_else(|| "Firmware package returned no ZIP bytes.".into()),
@@ -2422,7 +2645,7 @@ impl Runtime {
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        core: &Rc<CoreWorker>,
+        core: &Rc<dyn FirmwareExportExecutor>,
         executor_epoch: boardstudio_application::ExecutorEpoch,
         target: FirmwarePlanTarget<'_>,
     ) -> Result<ElectricalPlan, String> {
@@ -2506,7 +2729,7 @@ impl Runtime {
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        core: Option<&Rc<CoreWorker>>,
+        core: Option<&Rc<dyn FirmwareExportExecutor>>,
         executor_epoch: Option<boardstudio_application::ExecutorEpoch>,
     ) -> Result<(), String> {
         if !self.export_current(operation_id, snapshot.token, scope) {
@@ -2522,14 +2745,15 @@ impl Runtime {
         }) {
             return Err("The accepted project or scene changed during firmware export.".into());
         }
-        if let (Some(expected_core), Some(expected_epoch)) = (core, executor_epoch)
-            && !firmware_export_worker_is_current(
+        if let (Some(expected_core), Some(expected_epoch)) = (core, executor_epoch) {
+            let (current_core, current_epoch) = self.current_firmware_executor();
+            if !firmware_export_worker_is_current(
                 expected_epoch,
-                self.session.borrow().core_executor_epoch(),
-                Rc::ptr_eq(expected_core, &self.core.borrow().clone()),
-            )
-        {
-            return Err("The Core worker changed during firmware export.".into());
+                current_epoch,
+                Rc::ptr_eq(expected_core, &current_core),
+            ) {
+                return Err("The Core worker changed during firmware export.".into());
+            }
         }
         Ok(())
     }
@@ -2899,6 +3123,314 @@ impl Drop for Runtime {
     }
 }
 
+#[cfg(test)]
+pub(crate) mod firmware_export_test_support {
+    use super::*;
+    use boardstudio_application::{Completion, Effect, Event, SaveResult, Session};
+    use boardstudio_core::{CoreEngine, firmware::FirmwarePackage, model::Board};
+    use futures_channel::oneshot;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum Stage {
+        Resolution,
+        Generation,
+        Packaging,
+    }
+
+    impl Stage {
+        fn label(self) -> &'static str {
+            match self {
+                Self::Resolution => "resolution",
+                Self::Generation => "generation",
+                Self::Packaging => "packaging",
+            }
+        }
+    }
+
+    struct Gate {
+        stage: Stage,
+        entered: oneshot::Sender<&'static str>,
+        release: oneshot::Receiver<()>,
+    }
+
+    pub(crate) struct ControlledExecutor {
+        fail_at: Option<Stage>,
+        gate: RefCell<Option<Gate>>,
+    }
+
+    impl ControlledExecutor {
+        pub(crate) fn succeeding() -> Rc<Self> {
+            Rc::new(Self {
+                fail_at: None,
+                gate: RefCell::new(None),
+            })
+        }
+
+        pub(crate) fn failing(stage: Stage) -> Rc<Self> {
+            Rc::new(Self {
+                fail_at: Some(stage),
+                gate: RefCell::new(None),
+            })
+        }
+
+        pub(crate) fn gated(
+            stage: Stage,
+        ) -> (
+            Rc<Self>,
+            oneshot::Receiver<&'static str>,
+            oneshot::Sender<()>,
+        ) {
+            let (entered_tx, entered_rx) = oneshot::channel();
+            let (release_tx, release_rx) = oneshot::channel();
+            let executor = Rc::new(Self {
+                fail_at: None,
+                gate: RefCell::new(Some(Gate {
+                    stage,
+                    entered: entered_tx,
+                    release: release_rx,
+                })),
+            });
+            (executor, entered_rx, release_tx)
+        }
+
+        fn gate_for(&self, stage: Stage) -> Option<Gate> {
+            let mut gate = self.gate.borrow_mut();
+            (gate.as_ref().is_some_and(|gate| gate.stage == stage))
+                .then(|| gate.take())
+                .flatten()
+        }
+
+        async fn wait_at(&self, stage: Stage) {
+            if let Some(gate) = self.gate_for(stage) {
+                let _ = gate.entered.send(stage.label());
+                let _ = gate.release.await;
+            }
+        }
+    }
+
+    impl FirmwareExportExecutor for ControlledExecutor {
+        fn request<'a>(
+            &'a self,
+            request_id: &'a str,
+            _executor_epoch: &'a str,
+            request: &'a CoreRequest,
+        ) -> FirmwareExecutorFuture<'a, CoreReply> {
+            let request_id = request_id.to_owned();
+            let response = match request {
+                CoreRequest::ResolveElectrical { request, .. } => {
+                    if self.fail_at == Some(Stage::Resolution) {
+                        Err("injected electrical-resolution failure".to_owned())
+                    } else {
+                        Ok(CoreReply::ElectricalResolved {
+                            id: request_id.clone(),
+                            plan: resolved_plan(request),
+                        })
+                    }
+                }
+                CoreRequest::GenerateFirmware { .. } => {
+                    if self.fail_at == Some(Stage::Generation) {
+                        Err("injected firmware-generation failure".to_owned())
+                    } else {
+                        Ok(CoreReply::FirmwareGenerated {
+                            id: request_id.clone(),
+                            package: FirmwarePackage {
+                                files: BTreeMap::from([(
+                                    "config/boards/test.keymap".to_owned(),
+                                    "// generated test keymap".to_owned(),
+                                )]),
+                                warnings: Vec::new(),
+                            },
+                        })
+                    }
+                }
+                _ => Err("unexpected Core request in firmware test".to_owned()),
+            };
+            let stage = match request {
+                CoreRequest::ResolveElectrical { .. } => Stage::Resolution,
+                CoreRequest::GenerateFirmware { .. } => Stage::Generation,
+                _ => unreachable!("unexpected requests returned an error above"),
+            };
+            Box::pin(async move {
+                self.wait_at(stage).await;
+                response
+            })
+        }
+
+        fn archive<'a>(
+            &'a self,
+            _request_id: &'a str,
+            _executor_epoch: &'a str,
+            _metadata: &'a str,
+            _buffers: Vec<Uint8Array>,
+        ) -> FirmwareExecutorFuture<'a, (String, Vec<Uint8Array>)> {
+            Box::pin(async move {
+                self.wait_at(Stage::Packaging).await;
+                if self.fail_at == Some(Stage::Packaging) {
+                    return Err("injected ZIP-packaging failure".into());
+                }
+                Ok((
+                    serde_json::to_string(&ArchiveReply::Packed)
+                        .map_err(|error| error.to_string())?,
+                    vec![Uint8Array::from(&[0x50, 0x4b, 0x03, 0x04][..])],
+                ))
+            })
+        }
+    }
+
+    fn resolved_plan(request: &ElectricalPlanRequest) -> ElectricalPlan {
+        let board_id = request.board_id.clone().unwrap_or_default();
+        ElectricalPlan {
+            instance_id: request.instance_id.clone(),
+            jumpers: Vec::new(),
+            module_aliases: Default::default(),
+            mode: request.mode,
+            assignments: vec![boardstudio_core::electrical::ElectricalAssignment {
+                key_id: "key-1".into(),
+                matrix_id: "matrix-1".into(),
+                row: 0,
+                column: 0,
+                row_pin: "R0".into(),
+                column_pin: "C0".into(),
+                locked: false,
+                row_firmware_gpio: None,
+                column_firmware_gpio: None,
+                direct_gpio: None,
+            }],
+            row_pins: vec!["R0".into()],
+            column_pins: vec!["C0".into()],
+            diagnostics: Vec::new(),
+            fingerprint: "controlled-firmware-plan".into(),
+            board_id: Some(board_id),
+            controller_part_id: Some("controller-1".into()),
+            revision: request.document.revision,
+            controller_profile: Some("test-controller".into()),
+            free_pins: Vec::new(),
+            nets: Vec::new(),
+            diode_direction: "column2row".into(),
+            peripherals: Vec::new(),
+            peripheral_pins: Default::default(),
+            peripheral_terminals: Default::default(),
+        }
+    }
+
+    pub(crate) fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
+        let mut session = Session::new();
+        let mut core = CoreEngine::new();
+        let mut document = ProjectDoc::empty("zmk-export-test", "ZMK export test");
+        document.boards.push(Board {
+            id: "main-board".into(),
+            name: "Main board".into(),
+            outline_ids: Vec::new(),
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
+        let mut effects = session.submit(Event::Open {
+            operation_id: OperationId(1),
+            document,
+        });
+        while let Some(effect) = effects.pop() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => effects.extend(session.complete(Completion::Core {
+                    request_id,
+                    executor_epoch,
+                    reply: Box::new(core.handle(*request)),
+                })),
+                Effect::Persist {
+                    save_attempt_id, ..
+                } => {
+                    effects.extend(session.complete(Completion::Persist {
+                        save_attempt_id,
+                        result: SaveResult::Committed,
+                    }));
+                }
+                _ => {}
+            }
+        }
+        let accepted = session.read_model().accepted.clone().unwrap();
+        let scope = session.scope().unwrap();
+        (session, accepted, scope)
+    }
+
+    pub(crate) fn configure_runtime(
+        runtime: &Runtime,
+        session: Session,
+        accepted: AcceptedSnapshot,
+        scope: Scope,
+        executor: Rc<dyn FirmwareExportExecutor>,
+        epoch: boardstudio_application::ExecutorEpoch,
+        next_operation: u64,
+    ) {
+        *runtime.session.borrow_mut() = session;
+        runtime.set_firmware_export_test_context(
+            accepted,
+            Some(scope),
+            executor,
+            epoch,
+            next_operation,
+        );
+    }
+
+    pub(crate) fn new_runtime() -> Rc<Runtime> {
+        Runtime::new().expect("browser runtime fixture initializes")
+    }
+
+    pub(crate) async fn run_effects(runtime: &Rc<Runtime>, initial: Vec<Effect>) {
+        let mut effects = VecDeque::from(initial);
+        while let Some(effect) = effects.pop_front() {
+            effects.extend(runtime.run(effect).await);
+        }
+    }
+
+    pub(crate) fn start_export(runtime: &Rc<Runtime>) -> Vec<Effect> {
+        runtime.export_firmware();
+        runtime.take_firmware_export_test_effects()
+    }
+
+    pub(crate) fn replace_executor(
+        runtime: &Runtime,
+        executor: Rc<ControlledExecutor>,
+        epoch: boardstudio_application::ExecutorEpoch,
+    ) {
+        runtime.replace_firmware_export_test_executor(executor, epoch);
+    }
+
+    pub(crate) fn replace_owner(
+        runtime: &Runtime,
+        accepted: AcceptedSnapshot,
+        scope: Option<Scope>,
+    ) {
+        runtime.replace_firmware_export_test_owner(accepted, scope);
+    }
+
+    pub(crate) fn take_deliveries(runtime: &Runtime) -> Vec<FirmwareTestDelivery> {
+        runtime.take_firmware_export_test_deliveries()
+    }
+
+    pub(crate) fn take_events(runtime: &Runtime) -> Vec<Event> {
+        runtime.take_firmware_export_test_events()
+    }
+
+    pub(crate) fn take_effects(runtime: &Runtime) -> Vec<Effect> {
+        runtime.take_firmware_export_test_effects()
+    }
+
+    pub(crate) fn session_model(runtime: &Runtime) -> ReadModel {
+        runtime.session.borrow().read_model().clone()
+    }
+
+    pub(crate) fn has_artifacts(runtime: &Runtime) -> bool {
+        !runtime.artifacts.borrow().is_empty()
+    }
+}
+
 fn validate_mechanical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
     if scope.session_epoch != accepted.session_epoch
         || scope.document_id != accepted.document.id
@@ -3041,7 +3573,10 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 #[cfg(test)]
 mod firmware_export_tests {
     use super::*;
+    use crate::runtime::firmware_export_test_support as test_support;
     use boardstudio_application::{ExecutorEpoch, SessionEpoch};
+    use futures_channel::oneshot;
+    use std::task::Poll;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     fn capture() -> FirmwareExportCapture {
@@ -3056,6 +3591,7 @@ mod firmware_export_tests {
             revision: 6,
             session_epoch: SessionEpoch(5),
             document_id: "project-a".into(),
+            executor_epoch: ExecutorEpoch(11),
         }
     }
 
@@ -3067,6 +3603,216 @@ mod firmware_export_tests {
             revision: capture.revision,
             scene_revision: capture.revision,
         }
+    }
+
+    fn run_export_effect(effects: Vec<Effect>) -> (OperationId, Effect) {
+        let exports = effects
+            .into_iter()
+            .filter(|effect| matches!(effect, Effect::RunExport { .. }))
+            .collect::<Vec<_>>();
+        assert_eq!(exports.len(), 1, "one click starts one export operation");
+        let effect = exports.into_iter().next().unwrap();
+        let Effect::RunExport { operation_id, .. } = &effect else {
+            unreachable!()
+        };
+        (*operation_id, effect)
+    }
+
+    fn runtime_fixture(
+        executor: Rc<test_support::ControlledExecutor>,
+    ) -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
+        let runtime = test_support::new_runtime();
+        let (session, accepted, scope) = test_support::opened_session();
+        let executor: Rc<dyn FirmwareExportExecutor> = executor;
+        test_support::configure_runtime(
+            &runtime,
+            session,
+            accepted.clone(),
+            scope.clone(),
+            executor,
+            ExecutorEpoch(11),
+            100,
+        );
+        (runtime, accepted, scope)
+    }
+
+    async fn wait_for_actual_stage(
+        run: &mut Pin<Box<dyn Future<Output = Vec<Effect>> + '_>>,
+        entered: oneshot::Receiver<&'static str>,
+    ) -> &'static str {
+        let mut entered = Box::pin(entered);
+        std::future::poll_fn(|context| {
+            if let Poll::Ready(effects) = run.as_mut().poll(context) {
+                panic!("production RunExport completed before the gated stage: {effects:?}");
+            }
+            match entered.as_mut().poll(context) {
+                Poll::Ready(Ok(stage)) => Poll::Ready(stage),
+                Poll::Ready(Err(_)) => panic!("controlled stage notification was dropped"),
+                Poll::Pending => Poll::Pending,
+            }
+        })
+        .await
+    }
+
+    #[wasm_bindgen_test]
+    async fn production_run_export_injects_both_provider_failures_and_retries_without_editing_session()
+     {
+        for (stage, expected) in [
+            (
+                test_support::Stage::Generation,
+                "Firmware generation failed: injected firmware-generation failure",
+            ),
+            (
+                test_support::Stage::Packaging,
+                "Firmware packaging failed: injected ZIP-packaging failure",
+            ),
+        ] {
+            let (runtime, accepted, scope) =
+                runtime_fixture(test_support::ControlledExecutor::failing(stage));
+            let before = runtime.session.borrow().read_model().clone();
+            let (operation_id, run_effect) =
+                run_export_effect(test_support::start_export(&runtime));
+            assert!(matches!(
+                test_support::take_events(&runtime).as_slice(),
+                [Event::StartExport { operation_id: emitted, scope: emitted_scope }]
+                    if *emitted == operation_id && emitted_scope == &scope
+            ));
+
+            test_support::run_effects(&runtime, vec![run_effect]).await;
+
+            assert_eq!(runtime.session.borrow().read_model(), &before);
+            assert_eq!(runtime.model().accepted.as_ref(), Some(&accepted));
+            assert_eq!(runtime.scope().as_ref(), Some(&scope));
+            assert_eq!(runtime.status(), expected);
+            assert!(runtime.status_is_alert());
+            assert!(runtime.artifacts.borrow().is_empty());
+            assert!(test_support::take_deliveries(&runtime).is_empty());
+
+            let succeeding = test_support::ControlledExecutor::succeeding();
+            let succeeding_executor: Rc<dyn FirmwareExportExecutor> = succeeding;
+            runtime.replace_firmware_export_test_executor(succeeding_executor, ExecutorEpoch(11));
+            let retry_effects = test_support::start_export(&runtime);
+            assert!(
+                !runtime.status_is_alert(),
+                "retry clears the prior firmware alert"
+            );
+            let (retry_operation, retry_effect) = run_export_effect(retry_effects);
+            assert_ne!(retry_operation, operation_id);
+            test_support::run_effects(&runtime, vec![retry_effect]).await;
+
+            let deliveries = test_support::take_deliveries(&runtime);
+            assert_eq!(
+                deliveries.len(),
+                1,
+                "retry through the same Runtime action delivers once"
+            );
+            assert_eq!(deliveries[0].filename, "ZMK export test-zmk.zip");
+            assert_eq!(deliveries[0].media_type.as_deref(), Some("application/zip"));
+            assert_eq!(runtime.session.borrow().read_model(), &before);
+            assert!(!runtime.status_is_alert());
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn replacing_worker_during_each_actual_await_rejects_old_output_and_suppresses_its_report()
+     {
+        for (stage, expected_label) in [
+            (test_support::Stage::Resolution, "resolution"),
+            (test_support::Stage::Generation, "generation"),
+            (test_support::Stage::Packaging, "packaging"),
+        ] {
+            let (gated_executor, entered, release) = test_support::ControlledExecutor::gated(stage);
+            let (runtime, _accepted, _scope) = runtime_fixture(gated_executor);
+            let before = runtime.session.borrow().read_model().clone();
+            let (_operation, effect) = run_export_effect(test_support::start_export(&runtime));
+            let mut run: Pin<Box<dyn Future<Output = Vec<Effect>> + '_>> =
+                Box::pin(runtime.run(effect));
+            assert_eq!(
+                wait_for_actual_stage(&mut run, entered).await,
+                expected_label
+            );
+
+            test_support::replace_executor(
+                &runtime,
+                test_support::ControlledExecutor::succeeding(),
+                ExecutorEpoch(12),
+            );
+            release
+                .send(())
+                .expect("release suspended worker operation");
+            let effects = run.await;
+            test_support::run_effects(&runtime, effects).await;
+
+            assert_eq!(runtime.session.borrow().read_model(), &before);
+            assert!(runtime.artifacts.borrow().is_empty());
+            assert!(test_support::take_deliveries(&runtime).is_empty());
+            assert!(
+                !runtime.status_is_alert(),
+                "obsolete worker failures stay silent"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn production_completion_after_owner_switch_does_not_deliver_or_report() {
+        let (executor, entered, release) =
+            test_support::ControlledExecutor::gated(test_support::Stage::Generation);
+        let (runtime, accepted, scope) = runtime_fixture(executor);
+        let before = runtime.session.borrow().read_model().clone();
+        let (_, effect) = run_export_effect(test_support::start_export(&runtime));
+        let mut run: Pin<Box<dyn Future<Output = Vec<Effect>> + '_>> =
+            Box::pin(runtime.run(effect));
+        assert_eq!(wait_for_actual_stage(&mut run, entered).await, "generation");
+
+        let mut next_accepted = accepted;
+        next_accepted.token = SnapshotToken(next_accepted.token.0 + 1);
+        let next_scope = Scope {
+            board_id: "next-board".into(),
+            ..scope
+        };
+        test_support::replace_owner(&runtime, next_accepted.clone(), Some(next_scope.clone()));
+        release.send(()).expect("release old project generation");
+        test_support::run_effects(&runtime, run.await).await;
+
+        assert_eq!(runtime.model().accepted.as_ref(), Some(&next_accepted));
+        assert_eq!(runtime.scope().as_ref(), Some(&next_scope));
+        assert_eq!(runtime.session.borrow().read_model(), &before);
+        assert!(runtime.artifacts.borrow().is_empty());
+        assert!(test_support::take_deliveries(&runtime).is_empty());
+        assert!(
+            !runtime.status_is_alert(),
+            "an old project failure must not be announced in the new project"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn production_older_export_completion_cannot_replace_newer_report_or_delivery() {
+        let (executor, entered, release) =
+            test_support::ControlledExecutor::gated(test_support::Stage::Generation);
+        let (runtime, _accepted, _scope) = runtime_fixture(executor);
+        let (_, old_effect) = run_export_effect(test_support::start_export(&runtime));
+        let mut old_run: Pin<Box<dyn Future<Output = Vec<Effect>> + '_>> =
+            Box::pin(runtime.run(old_effect));
+        assert_eq!(
+            wait_for_actual_stage(&mut old_run, entered).await,
+            "generation"
+        );
+
+        let (new_operation, new_effect) = run_export_effect(test_support::start_export(&runtime));
+        assert_ne!(new_operation, OperationId(100));
+        test_support::run_effects(&runtime, vec![new_effect]).await;
+        let new_deliveries = test_support::take_deliveries(&runtime);
+        assert_eq!(new_deliveries.len(), 1, "newest attempt delivers once");
+        assert_eq!(runtime.status(), "Saved locally.");
+
+        release.send(()).expect("release older generation");
+        test_support::run_effects(&runtime, old_run.await).await;
+        assert!(
+            test_support::take_deliveries(&runtime).is_empty(),
+            "older completion cannot deliver after the newer attempt"
+        );
+        assert_eq!(runtime.status(), "Saved locally.");
+        assert!(!runtime.status_is_alert());
     }
 
     #[wasm_bindgen_test]

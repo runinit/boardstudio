@@ -487,15 +487,26 @@ pub fn App() -> Element {
             }
             if runtime.model().accepted.is_some() { Editor {} }
             else { LibraryLanding {} }
-                p {
-                    role: if runtime.status_is_alert() { "alert" } else { "status" },
-                    "aria-live": if runtime.status_is_alert() { "assertive" } else { "polite" },
-                    class: "m1-status",
-                    "{runtime.status()}"
-                }
+                RuntimeReportBanner {}
             if !new_keyboard_error().is_empty() {
                 p { role: "alert", class: "m1-status", "{new_keyboard_error()}" }
             }
+        }
+    }
+}
+
+#[component]
+fn RuntimeReportBanner() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let version = use_context::<Signal<u64>>();
+    let _ = version();
+    let alert = runtime.status_is_alert();
+    rsx! {
+        p {
+            role: if alert { "alert" } else { "status" },
+            "aria-live": if alert { "assertive" } else { "polite" },
+            class: "m1-status",
+            "{runtime.status()}"
         }
     }
 }
