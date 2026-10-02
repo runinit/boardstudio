@@ -3,7 +3,6 @@ use super::objects::{self, TreeContext};
 use boardstudio_application::ReadModel;
 
 pub(super) struct ContextSummary {
-    pub indicator: String,
     pub title: String,
     pub detail: Option<String>,
 }
@@ -43,22 +42,19 @@ pub(super) fn summarize(model: &ReadModel, context: &TreeContext) -> Option<Cont
             });
         Some((matrix, title))
     };
-    let (indicator, title, detail) = match context {
+    let (title, detail) = match context {
         TreeContext::Matrix { matrix_id } => {
             let (matrix, title) = matrix_title(matrix_id)?;
             (
-                "Select: Matrix",
                 title,
                 Some(format!("{} rows · {} columns", matrix.rows, matrix.columns)),
             )
         }
         TreeContext::Row { matrix_id, row } => (
-            "Select: Row",
             format!("{} · Row {}", matrix_title(matrix_id)?.1, row + 1),
             Some(format!("{selected_count} keys selected")),
         ),
         TreeContext::Column { matrix_id, column } => (
-            "Select: Column",
             format!("{} · Column {}", matrix_title(matrix_id)?.1, column + 1),
             Some(format!("{selected_count} keys selected")),
         ),
@@ -67,7 +63,6 @@ pub(super) fn summarize(model: &ReadModel, context: &TreeContext) -> Option<Cont
             row,
             column,
         } => (
-            "Select: Key",
             format!(
                 "{} · Key {}.{}",
                 matrix_title(matrix_id)?.1,
@@ -76,16 +71,12 @@ pub(super) fn summarize(model: &ReadModel, context: &TreeContext) -> Option<Cont
             ),
             Some(format!("{selected_count} keys selected")),
         ),
-        TreeContext::Component { .. } => ("Select: Part", label, None),
-        TreeContext::Board { .. } => ("Selected: Board", label, None),
-        TreeContext::LayoutGroup { .. } => ("Selected: Layout", label, None),
-        TreeContext::Outline { .. } => ("Selected: Outline", label, None),
-        TreeContext::OutlineVersion { .. } => ("Selected: Outline version", label, None),
-        TreeContext::Bridge { .. } => ("Selected: Bridge", label, None),
+        TreeContext::Component { .. }
+        | TreeContext::Board { .. }
+        | TreeContext::LayoutGroup { .. }
+        | TreeContext::Outline { .. }
+        | TreeContext::OutlineVersion { .. }
+        | TreeContext::Bridge { .. } => (label, None),
     };
-    Some(ContextSummary {
-        indicator: indicator.into(),
-        title,
-        detail,
-    })
+    Some(ContextSummary { title, detail })
 }

@@ -5,9 +5,7 @@
 //! the existing Issue07 producer path.
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{
-    ArtifactRequest, ExportTarget, PcbPreview, PrepareExportRequest, ProjectDoc,
-};
+use boardstudio_core::model::{ExportTarget, PcbPreview, PrepareExportRequest, ProjectDoc};
 use boardstudio_web::cad_jobs::{captured_case_document, captured_case_scene};
 use std::{
     cell::Cell,
@@ -441,29 +439,7 @@ pub(crate) fn capture_native_preview(
         .find(|entry| entry.board_id == scope.board_id)
         .map(|entry| entry.contours.clone())
         .unwrap_or_default();
-    let mut path_assets = document
-        .assets
-        .iter()
-        .filter_map(|asset| {
-            let extension = model_extension(&asset.name)?;
-            (!asset.id.is_empty() && !asset.sha256.is_empty()).then(|| {
-                (
-                    asset.id.clone(),
-                    format!("models/{}.{extension}", asset.sha256),
-                )
-            })
-        })
-        .collect::<BTreeMap<_, _>>();
-    let document_asset_ids = document
-        .assets
-        .iter()
-        .map(|asset| asset.id.as_str())
-        .collect::<BTreeSet<_>>();
-    for (asset_id, path) in crate::bundled_models::preview_model_paths() {
-        if !document_asset_ids.contains(asset_id) {
-            path_assets.insert(asset_id.to_owned(), path.to_owned());
-        }
-    }
+    let path_assets = preview_model_paths(&document);
     let owner = CasePreviewOwnerIdentity {
         scope: scope.clone(),
         snapshot_token: snapshot.token,
@@ -521,13 +497,6 @@ pub(crate) fn accept_native_preview(
     })
 }
 
-pub(crate) fn prepare_artifact(id: String, capture: &NativePreviewCapture) -> ArtifactRequest {
-    ArtifactRequest::PreparePreview {
-        id,
-        request: capture.request.clone(),
-    }
-}
-
 pub(crate) fn same_core_executor(
     captured_epoch: u64,
     current_epoch: u64,
@@ -545,6 +514,36 @@ fn model_extension(filename: &str) -> Option<&'static str> {
         "wrl" => Some("wrl"),
         _ => None,
     }
+}
+
+/// Build the existing export-relative path table for preview model resolution.
+/// Layout and Case share this metadata rule; their accepted source projections
+/// and freshness owners remain separate.
+pub(crate) fn preview_model_paths(document: &ProjectDoc) -> BTreeMap<String, String> {
+    let mut path_assets = document
+        .assets
+        .iter()
+        .filter_map(|asset| {
+            let extension = model_extension(&asset.name)?;
+            (!asset.id.is_empty() && !asset.sha256.is_empty()).then(|| {
+                (
+                    asset.id.clone(),
+                    format!("models/{}.{extension}", asset.sha256),
+                )
+            })
+        })
+        .collect::<BTreeMap<_, _>>();
+    let document_asset_ids = document
+        .assets
+        .iter()
+        .map(|asset| asset.id.as_str())
+        .collect::<BTreeSet<_>>();
+    for (asset_id, path) in crate::bundled_models::preview_model_paths() {
+        if !document_asset_ids.contains(asset_id) {
+            path_assets.insert(asset_id.to_owned(), path.to_owned());
+        }
+    }
+    path_assets
 }
 
 #[cfg(test)]

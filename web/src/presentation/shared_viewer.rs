@@ -5,6 +5,7 @@
 use super::case_assembly_layers::{
     CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
 };
+use super::layout_viewer_source::LayoutPreviewSnapshot;
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_model_lifecycle::ProjectionInputs;
 use crate::case_preview::NativePreviewSnapshot;
@@ -202,6 +203,7 @@ impl PartialEq for RendererSceneProjection {
 pub(crate) fn CaseSharedViewer(
     scene: Option<Rc<CadScene>>,
     preview: Option<Rc<NativePreviewSnapshot>>,
+    layout_preview: Option<Rc<LayoutPreviewSnapshot>>,
     model_rows: Option<ModelDeliveryRows>,
     selected_layer: String,
     display: CaseDisplay,
@@ -221,6 +223,7 @@ pub(crate) fn CaseSharedViewer(
     let Some(source) = scene
         .map(ViewerSource::Cad)
         .or_else(|| preview.clone().map(ViewerSource::Native))
+        .or_else(|| layout_preview.clone().map(ViewerSource::Layout))
     else {
         return rsx! { p { role: "alert", "3D preview source is unavailable." } };
     };
@@ -228,7 +231,18 @@ pub(crate) fn CaseSharedViewer(
     let matching_preview = preview
         .as_ref()
         .filter(|preview| preview_matches_source(&preview.owner, source_scope, source_token));
-    let matching_model_rows = matching_preview.and(model_rows.as_ref());
+    let matching_model_rows = match &source {
+        ViewerSource::Cad(_) | ViewerSource::Native(_) => matching_preview.and(model_rows.as_ref()),
+        ViewerSource::Layout(source_preview)
+            if layout_preview.as_ref().is_some_and(|input_preview| {
+                Rc::ptr_eq(input_preview, source_preview)
+                    && input_preview.lease.matches(&input_preview.owner)
+            }) =>
+        {
+            model_rows.as_ref()
+        }
+        ViewerSource::Layout(_) => None,
+    };
     let inputs = ProjectionInputs {
         source: source.pointer(),
         preview: matching_preview.map_or(0, |preview| Rc::as_ptr(preview) as usize),
@@ -313,7 +327,7 @@ pub(crate) fn CaseSharedViewer(
                 })
                 .unwrap_or_default()
         }
-        ViewerSource::Cad(_) | ViewerSource::Native(_) => Vec::new(),
+        ViewerSource::Cad(_) | ViewerSource::Native(_) | ViewerSource::Layout(_) => Vec::new(),
     };
     let assembly_layers = assembly_layers_with_stack(generated_layers, configured_stack_ids);
     let component_layers = matching_preview.map_or_else(Vec::new, |preview| {
@@ -339,6 +353,7 @@ pub(crate) fn CaseSharedViewer(
 enum ViewerSource {
     Cad(Rc<CadScene>),
     Native(Rc<NativePreviewSnapshot>),
+    Layout(Rc<LayoutPreviewSnapshot>),
 }
 
 impl ViewerSource {
@@ -346,6 +361,7 @@ impl ViewerSource {
         match (self, other) {
             (Self::Cad(left), Self::Cad(right)) => Rc::ptr_eq(left, right),
             (Self::Native(left), Self::Native(right)) => Rc::ptr_eq(left, right),
+            (Self::Layout(left), Self::Layout(right)) => Rc::ptr_eq(left, right),
             _ => false,
         }
     }
@@ -354,6 +370,7 @@ impl ViewerSource {
         match self {
             Self::Cad(scene) => Rc::as_ptr(scene) as usize,
             Self::Native(preview) => Rc::as_ptr(preview) as usize,
+            Self::Layout(preview) => Rc::as_ptr(preview) as usize,
         }
     }
 
@@ -361,6 +378,7 @@ impl ViewerSource {
         match self {
             Self::Cad(scene) => (&scene.scope, scene.token),
             Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
+            Self::Layout(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
         }
     }
 
@@ -372,6 +390,7 @@ impl ViewerSource {
         let (scope, token) = match self {
             Self::Cad(scene) => (&scene.scope, scene.token),
             Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
+            Self::Layout(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
         };
         owner.advance_source(scope.clone(), token, inputs)
     }
@@ -393,6 +412,11 @@ impl ViewerSource {
             Self::Native(preview) => runtime.native_case_preview().is_some_and(|current| {
                 current.owner == preview.owner && Rc::ptr_eq(&current.lease, &preview.lease)
             }),
+            Self::Layout(preview) => runtime.layout_preview().is_some_and(|current| {
+                current.owner == preview.owner
+                    && Rc::ptr_eq(&current.lease, &preview.lease)
+                    && preview.lease.matches(&preview.owner)
+            }),
         }
     }
 }
@@ -410,6 +434,9 @@ fn project_source(
         }
         ViewerSource::Native(preview) => {
             project_native_preview(preview, identity, theme, model_rows)
+        }
+        ViewerSource::Layout(preview) => {
+            project_layout_preview(preview, identity, theme, model_rows)
         }
     }
 }
@@ -535,6 +562,48 @@ fn project_native_preview(
         "view": "assembled",
         "keepCamera": true,
         "selectedLayer": "",
+        "hidden": [],
+        "board": {
+            "revision": identity.renderer_sequence,
+            "thickness": preview.preview.thickness,
+            "contours": &preview.contours,
+            "surfaces": &preview.preview.surfaces,
+            "holes": &preview.preview.holes,
+            "models": &preview.preview.models
+        },
+        "models": [],
+        "mechanicalStack": []
+    });
+    let input = js_sys::JSON::parse(&packet.to_string()).map_err(js_error)?;
+    let models = loaded_model_inputs(model_rows);
+    Reflect::set(&input, &"models".into(), &models).map_err(js_error)?;
+    Ok(RendererSceneProjection {
+        identity,
+        input,
+        layers: vec![("pcb".to_owned(), "PCB".to_owned())],
+        handles: Vec::new(),
+    })
+}
+
+fn project_layout_preview(
+    preview: &LayoutPreviewSnapshot,
+    identity: ViewerIdentity,
+    theme: &str,
+    model_rows: Option<&ModelDeliveryRows>,
+) -> Result<RendererSceneProjection, String> {
+    if preview.owner.scope != identity.scope
+        || preview.owner.snapshot_token != identity.snapshot_token
+        || !preview.lease.matches(&preview.owner)
+    {
+        return Err("Canonical Layout preview does not match the active viewer owner".into());
+    }
+    let packet = serde_json::json!({
+        "revision": identity.renderer_sequence,
+        "kind": "assembly",
+        "theme": theme,
+        "view": "assembled",
+        "keepCamera": true,
+        "selectedLayer": "pcb",
         "hidden": [],
         "board": {
             "revision": identity.renderer_sequence,

@@ -4,6 +4,7 @@
 //! renderer scene submission are supplied by the page owners. In particular,
 //! model-batch liveness is independent of the renderer's scene sequence.
 
+use super::layout_viewer_source::LayoutSourceLease;
 use crate::case_preview::CasePreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Asset, BoardReference, PcbModel, ProjectDoc};
@@ -19,6 +20,22 @@ use std::{
 const MESH_CACHE_CAPACITY: usize = 80;
 const MAX_MODEL_BYTES: usize = 32 * 1024 * 1024;
 
+trait ModelSourceLease {
+    fn is_active(&self) -> bool;
+}
+
+impl ModelSourceLease for CasePreviewOwnerLease {
+    fn is_active(&self) -> bool {
+        CasePreviewOwnerLease::is_active(self)
+    }
+}
+
+impl ModelSourceLease for LayoutSourceLease {
+    fn is_active(&self) -> bool {
+        LayoutSourceLease::is_active(self)
+    }
+}
+
 pub(crate) type ModelFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'static>>;
 
 /// The owner of model work. Renderer scene submissions intentionally are not
@@ -30,7 +47,7 @@ pub(crate) struct ModelOwnerIdentity {
     snapshot_token: SnapshotToken,
     viewer_instance: u64,
     projection_generation: u64,
-    source_owner: Weak<CasePreviewOwnerLease>,
+    source_owner: Weak<dyn ModelSourceLease>,
 }
 
 impl ModelOwnerIdentity {
@@ -41,12 +58,31 @@ impl ModelOwnerIdentity {
         projection_generation: u64,
         source_owner: &Rc<CasePreviewOwnerLease>,
     ) -> Self {
+        let source_owner: Rc<dyn ModelSourceLease> = source_owner.clone();
         Self {
             scope,
             snapshot_token,
             viewer_instance,
             projection_generation,
-            source_owner: Rc::downgrade(source_owner),
+            source_owner: Rc::downgrade(&source_owner),
+        }
+    }
+
+    pub(crate) fn new_layout(
+        scope: Scope,
+        snapshot_token: SnapshotToken,
+        source_generation: u64,
+        source_owner: &Rc<LayoutSourceLease>,
+    ) -> Self {
+        let source_owner: Rc<dyn ModelSourceLease> = source_owner.clone();
+        Self {
+            scope,
+            snapshot_token,
+            // These keys are local to model delivery and do not share a sequence
+            // domain with the renderer's independent ViewerOwner.
+            viewer_instance: 0,
+            projection_generation: source_generation,
+            source_owner: Rc::downgrade(&source_owner),
         }
     }
 
@@ -74,14 +110,35 @@ impl ModelOwnerIdentity {
             && self.viewer_instance == current_viewer_instance
             && self.projection_generation == current_projection_generation
             && self.source_owner.upgrade().is_some_and(|captured| {
-                Rc::ptr_eq(&captured, current_owner)
+                let current_lease: Rc<dyn ModelSourceLease> = current_owner.clone();
+                Rc::ptr_eq(&captured, &current_lease)
                     && captured.is_active()
-                    && captured.identity_matches(
+                    && current_lease.is_active()
+                    && current_owner.identity_matches(
                         current_scope,
                         current_token,
                         current_viewer_instance,
                         current_projection_generation,
                     )
+            })
+    }
+
+    pub(crate) fn is_current_layout_owner(
+        &self,
+        current_scope: &Scope,
+        current_token: SnapshotToken,
+        source_generation: u64,
+        current_owner: &Rc<LayoutSourceLease>,
+    ) -> bool {
+        self.scope == *current_scope
+            && self.snapshot_token == current_token
+            && self.viewer_instance == 0
+            && self.projection_generation == source_generation
+            && self.source_owner.upgrade().is_some_and(|captured| {
+                let current_owner: Rc<dyn ModelSourceLease> = current_owner.clone();
+                Rc::ptr_eq(&captured, &current_owner)
+                    && captured.is_active()
+                    && current_owner.is_active()
             })
     }
 }
@@ -944,6 +1001,14 @@ mod tests {
     use super::*;
     use boardstudio_core::model::{Pose2, Side, Vec2, Vec3};
 
+    struct InactiveTestLease;
+
+    impl ModelSourceLease for InactiveTestLease {
+        fn is_active(&self) -> bool {
+            false
+        }
+    }
+
     fn model(id: &str, reference: &str, path: &str) -> PcbModel {
         PcbModel {
             id: id.into(),
@@ -994,6 +1059,7 @@ mod tests {
     fn batch(generation: u64) -> ModelBatchIdentity {
         // The cache tests need only stable semantic identity; scene liveness is
         // covered by the page owner integration which owns CadScene creation.
+        let source_owner: Rc<dyn ModelSourceLease> = Rc::new(InactiveTestLease);
         ModelBatchIdentity {
             owner: ModelOwnerIdentity {
                 scope: Scope {
@@ -1005,7 +1071,7 @@ mod tests {
                 snapshot_token: SnapshotToken(1),
                 viewer_instance: 1,
                 projection_generation: 1,
-                source_owner: Weak::new(),
+                source_owner: Rc::downgrade(&source_owner),
             },
             accepted_revision: 1,
             batch_generation: generation,

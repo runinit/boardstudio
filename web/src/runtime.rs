@@ -10,7 +10,8 @@ use boardstudio_core::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, Board, CoreReply, CoreRequest,
         ErgogenJobResult, FinishExportRequest, HardwareTopology, Material, MechanicalAssembly,
         MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalPartProfile,
-        MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings, ProjectDoc,
+        MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings, PcbPreview,
+        PrepareExportRequest, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -21,6 +22,7 @@ use boardstudio_web::{
     },
     cad_worker::CadWorker,
 };
+use sha2::{Digest, Sha256};
 
 pub struct CadScene {
     pub scope: Scope,
@@ -308,6 +310,14 @@ pub struct Runtime {
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::presentation::model_delivery::ModelDeliveryAdapter,
     native_model_delivery: RefCell<NativeModelDeliveryState>,
+    layout_preview: RefCell<crate::presentation::layout_viewer_source::LayoutPreviewState>,
+    layout_model_rows: RefCell<
+        Option<(
+            crate::presentation::layout_viewer_source::LayoutSourceIdentity,
+            crate::presentation::model_delivery::ModelDeliveryRows,
+        )>,
+    >,
+    layout_model_batch_generation: Cell<u64>,
     native_model_jobs: RefCell<BTreeSet<String>>,
     preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
     archive_export_options: ArchiveExportOptions,
@@ -358,6 +368,9 @@ impl Runtime {
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
             native_model_delivery: RefCell::new(Default::default()),
+            layout_preview: RefCell::new(Default::default()),
+            layout_model_rows: RefCell::new(None),
+            layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             preview_generator: RefCell::new(None),
             archive_export_options: ArchiveExportOptions::default(),
@@ -1465,6 +1478,412 @@ impl Runtime {
             .cloned()
     }
 
+    pub(crate) fn layout_preview(
+        &self,
+    ) -> Option<Rc<crate::presentation::layout_viewer_source::LayoutPreviewSnapshot>> {
+        self.layout_preview
+            .borrow()
+            .published
+            .as_ref()
+            .filter(|preview| self.layout_source_owner_is_current(&preview.owner))
+            .cloned()
+    }
+
+    pub(crate) fn layout_preview_pending(&self) -> bool {
+        self.layout_preview
+            .borrow()
+            .pending
+            .as_ref()
+            .is_some_and(|(owner, lease)| {
+                lease.matches(owner) && self.layout_source_owner_is_current(owner)
+            })
+    }
+
+    pub(crate) fn layout_preview_error(&self) -> Option<String> {
+        let scope = self.scope()?;
+        let accepted = self.model().accepted?;
+        self.layout_preview
+            .borrow()
+            .error
+            .as_ref()
+            .filter(|(owner, _)| owner.matches_current(&accepted, &scope, owner.source_generation))
+            .map(|(_, error)| error.clone())
+    }
+
+    pub(crate) fn layout_source_generation(&self) -> Option<u64> {
+        let state = self.layout_preview.borrow();
+        state
+            .published
+            .as_ref()
+            .map(|preview| preview.owner.source_generation)
+            .or_else(|| {
+                state
+                    .pending
+                    .as_ref()
+                    .map(|(owner, _)| owner.source_generation)
+            })
+            .or_else(|| {
+                state
+                    .error
+                    .as_ref()
+                    .map(|(owner, _)| owner.source_generation)
+            })
+    }
+
+    pub(crate) fn layout_model_delivery(
+        &self,
+        preview: &crate::presentation::layout_viewer_source::LayoutPreviewSnapshot,
+    ) -> Option<crate::presentation::model_delivery::ModelDeliveryRows> {
+        self.layout_model_rows
+            .borrow()
+            .as_ref()
+            .filter(|(owner, _)| {
+                owner == &preview.owner
+                    && preview.lease.matches(owner)
+                    && self.layout_source_owner_is_current(owner)
+            })
+            .map(|(_, rows)| rows.clone())
+    }
+
+    pub(crate) fn retire_layout_source(&self, source_generation: u64) {
+        let retired = self
+            .layout_preview
+            .borrow_mut()
+            .retire_generation(source_generation);
+        if retired {
+            self.layout_model_rows.borrow_mut().take();
+            self.changed();
+        }
+    }
+
+    fn layout_source_owner_is_current(
+        &self,
+        owner: &crate::presentation::layout_viewer_source::LayoutSourceIdentity,
+    ) -> bool {
+        let Some(scope) = self.scope() else {
+            return false;
+        };
+        let Some(accepted) = self.model().accepted else {
+            return false;
+        };
+        owner.matches_current(&accepted, &scope, owner.source_generation)
+            && self.layout_preview.borrow().owns(owner)
+    }
+
+    async fn deliver_layout_models(
+        self: &Rc<Self>,
+        preview: Rc<crate::presentation::layout_viewer_source::LayoutPreviewSnapshot>,
+    ) -> Result<(), String> {
+        if !self.layout_source_owner_is_current(&preview.owner) {
+            return Ok(());
+        }
+        if self
+            .layout_model_rows
+            .borrow()
+            .as_ref()
+            .is_some_and(|(owner, _)| owner == &preview.owner)
+        {
+            return Ok(());
+        }
+        let batch_generation = self
+            .layout_model_batch_generation
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| "Layout model batch identity exhausted".to_owned())?;
+        self.layout_model_batch_generation.set(batch_generation);
+        let owner = crate::presentation::model_delivery::ModelOwnerIdentity::new_layout(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.owner.source_generation,
+            &preview.lease,
+        );
+        let batch = crate::presentation::model_delivery::ModelBatchIdentity::new(
+            owner,
+            preview.owner.accepted_revision,
+            batch_generation,
+        );
+        let native_paths =
+            crate::presentation::model_delivery::native_model_path_assets(&preview.path_assets);
+        let unique_model_paths = preview
+            .preview
+            .models
+            .iter()
+            .map(|model| model.path.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let source_is_current = {
+            let weak = Rc::downgrade(self);
+            let preview = preview.clone();
+            Rc::new(move || {
+                weak.upgrade().is_some_and(|runtime| {
+                    runtime.layout_source_owner_is_current(&preview.owner)
+                        && preview.lease.matches(&preview.owner)
+                })
+            }) as Rc<dyn Fn() -> bool>
+        };
+        let mut ergogen_ids_by_path = BTreeMap::new();
+        if !unique_model_paths.is_empty() {
+            let ids =
+                crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
+                    .await?;
+            if !source_is_current() {
+                return Ok(());
+            }
+            if ids.len() != unique_model_paths.len() {
+                return Err("Model path resolver returned an incomplete Layout mapping".into());
+            }
+            ergogen_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+        }
+        let selections = crate::presentation::model_delivery::resolve_preview_assets(
+            &preview.preview.models,
+            preview.board_reference.as_ref(),
+            &native_paths,
+            &preview.document,
+            |path| ergogen_ids_by_path.get(path).cloned().flatten(),
+            |asset_id| {
+                crate::bundled_models::bundled_model(asset_id).map(|model| {
+                    crate::presentation::model_delivery::ResolvedModelAsset {
+                        id: model.id.to_owned(),
+                        sha256: model.sha256.to_owned(),
+                        filename: model.filename.to_owned(),
+                        source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                            url_path: model.url_path.to_owned(),
+                        },
+                    }
+                })
+            },
+        )
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let ports = self.layout_model_delivery_ports(&preview, source_is_current.clone());
+        let results = self
+            .case_model_delivery
+            .deliver_models(
+                preview.preview.revision,
+                &preview.preview.models,
+                &selections,
+                &ports,
+                &batch,
+                source_is_current.clone(),
+            )
+            .await;
+        if let Some(rows) = results
+            && source_is_current()
+            && self.layout_source_owner_is_current(&preview.owner)
+        {
+            *self.layout_model_rows.borrow_mut() = Some((preview.owner.clone(), rows));
+            self.changed();
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn prepare_layout_preview(
+        self: &Rc<Self>,
+        expected_scope: Scope,
+        expected_token: SnapshotToken,
+        expected_revision: u64,
+    ) -> Result<(), String> {
+        let accepted = self
+            .model()
+            .accepted
+            .ok_or_else(|| "No accepted project is available for Layout preview".to_owned())?;
+        if accepted.token != expected_token
+            || accepted.document.revision != expected_revision
+            || self.scope().as_ref() != Some(&expected_scope)
+        {
+            return Err("The accepted Layout preview source changed before preparation".into());
+        }
+        if self.layout_preview().is_some() || self.layout_preview_pending() {
+            return Ok(());
+        }
+
+        let source_generation = self.layout_preview.borrow_mut().next_generation()?;
+        let operation = self.operation().0;
+        if operation == 0 || operation > 9_007_199_254_740_991 {
+            let error = "Layout preview operation identity is outside the safe integer range";
+            self.layout_preview.borrow_mut().fail_before_begin(
+                crate::presentation::layout_viewer_source::LayoutSourceIdentity::from_accepted(
+                    &accepted,
+                    &expected_scope,
+                    source_generation,
+                ),
+                error.into(),
+            );
+            self.changed();
+            return Err(error.into());
+        }
+        let request_token = format!(
+            "layout-preview-{}-{}-{}",
+            expected_token.0, expected_revision, operation
+        );
+        let model_paths = crate::case_preview::preview_model_paths(&accepted.document);
+        let capture = match crate::presentation::layout_viewer_source::LayoutSourceCapture::capture(
+            &accepted,
+            &expected_scope,
+            source_generation,
+            request_token,
+            model_paths,
+        ) {
+            Ok(capture) => capture,
+            Err(error) => {
+                self.layout_preview.borrow_mut().fail_before_begin(
+                    crate::presentation::layout_viewer_source::LayoutSourceIdentity::from_accepted(
+                        &accepted,
+                        &expected_scope,
+                        source_generation,
+                    ),
+                    error.clone(),
+                );
+                self.changed();
+                return Err(error);
+            }
+        };
+        self.layout_preview.borrow_mut().begin(&capture);
+        self.layout_model_rows.borrow_mut().take();
+        self.changed();
+
+        let owner = capture.owner.clone();
+        let lease = capture.lease.clone();
+        let weak = Rc::downgrade(self);
+        let is_current: Rc<dyn Fn() -> bool> = Rc::new(move || {
+            weak.upgrade().is_some_and(|runtime| {
+                runtime.layout_source_owner_is_current(&owner) && lease.matches(&owner)
+            })
+        });
+        let result = match &capture.request {
+            crate::presentation::layout_viewer_source::LayoutPreviewRequest::Authored(request) => {
+                self.run_preview_pipeline(
+                    request.clone(),
+                    operation,
+                    capture.owner.scope.clone(),
+                    capture.owner.source_generation,
+                    is_current.clone(),
+                )
+                .await
+            }
+            crate::presentation::layout_viewer_source::LayoutPreviewRequest::Imported {
+                asset,
+                ..
+            } => {
+                self.run_imported_layout_preview(&capture, asset, operation, is_current.clone())
+                    .await
+            }
+        };
+        match result.and_then(|preview| capture.accept_preview(preview)) {
+            Ok(preview) if is_current() => {
+                self.layout_preview.borrow_mut().publish(preview)?;
+                let published = self.layout_preview();
+                self.changed();
+                if let Some(published) = published {
+                    let runtime = self.clone();
+                    spawn_local(async move {
+                        if let Err(error) = runtime.deliver_layout_models(published).await
+                            && runtime.layout_preview().is_some()
+                        {
+                            runtime.report(format!("Layout model preview failed: {error}"));
+                        }
+                    });
+                }
+                Ok(())
+            }
+            Ok(preview) => {
+                preview.lease.invalidate();
+                Err("Layout preview result became stale before publication".into())
+            }
+            Err(error) => {
+                let still_current = is_current();
+                if still_current {
+                    self.layout_preview
+                        .borrow_mut()
+                        .fail(capture.owner.clone(), error.clone());
+                    self.changed();
+                } else {
+                    capture.lease.invalidate();
+                }
+                Err(error)
+            }
+        }
+    }
+
+    async fn run_imported_layout_preview(
+        &self,
+        capture: &crate::presentation::layout_viewer_source::LayoutSourceCapture,
+        asset: &boardstudio_core::model::Asset,
+        operation: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<PcbPreview, String> {
+        let bytes = self
+            .load_layout_document_asset(asset, is_current.clone())
+            .await?;
+        let source = String::from_utf8(bytes)
+            .map_err(|error| format!("Imported board asset is not valid UTF-8: {error}"))?;
+        let request_id = format!("layout-preview-{operation}-imported");
+        let request = capture.artifact_request(request_id.clone(), Some(source))?;
+        let core = self.core.borrow().clone();
+        let core_epoch = self.session.borrow().core_executor_epoch().0;
+        if !is_current() {
+            return Err("Imported Layout preview source became stale before Core dispatch".into());
+        }
+        let epoch = core_epoch.to_string();
+        let reply = core
+            .artifact(&request_id, &epoch, &request)
+            .await
+            .map_err(|error| format!("Imported board preview failed: {error}"))?;
+        if !is_current()
+            || self.session.borrow().core_executor_epoch().0 != core_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
+        {
+            return Err("Imported Layout preview source changed during Core preview".into());
+        }
+        match reply {
+            ArtifactReply::PreviewBoard { id, result } if id == request_id => Ok(result),
+            ArtifactReply::Error { id, error } if id == request_id => Err(format!(
+                "Core rejected the imported board preview: {error:?}"
+            )),
+            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
+                Err("Core returned an imported board preview for another request".into())
+            }
+            _ => Err("Core returned an unexpected imported-board preview reply".into()),
+        }
+    }
+
+    async fn load_layout_document_asset(
+        &self,
+        asset: &boardstudio_core::model::Asset,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<Vec<u8>, String> {
+        if asset.sha256.is_empty() || !is_current() {
+            return Err("Imported Layout asset identity is missing or stale".into());
+        }
+        let cached = self.assets.borrow().get(&asset.sha256).cloned();
+        let bytes = if let Some(bytes) = cached {
+            bytes
+        } else {
+            self.store
+                .load_asset(asset.sha256.clone())
+                .await
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| format!("Imported board asset {} is not stored", asset.id))?
+                .to_vec()
+        };
+        if !is_current() {
+            return Err("Imported Layout asset request became stale after loading".into());
+        }
+        let digest = Sha256::digest(&bytes);
+        let digest = digest
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        if digest != asset.sha256 {
+            return Err("Imported Layout asset bytes do not match the accepted SHA-256".into());
+        }
+        self.assets
+            .borrow_mut()
+            .insert(asset.sha256.clone(), bytes.clone());
+        Ok(bytes)
+    }
+
     pub(crate) fn native_case_preview_pending(&self) -> bool {
         self.native_case_preview
             .borrow()
@@ -1620,7 +2039,7 @@ impl Runtime {
         })
     }
 
-    async fn read_case_step_model(
+    async fn read_step_model(
         &self,
         bytes: Vec<u8>,
         scope: Scope,
@@ -1629,7 +2048,7 @@ impl Runtime {
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<crate::presentation::model_delivery::MeshArrays, String> {
         if !is_current() || self.scope().as_ref() != Some(&scope) {
-            return Err("Case STEP model request became stale before worker setup".into());
+            return Err("STEP model request became stale before worker setup".into());
         }
         let worker = crate::case_model_lifecycle::case_model_worker(
             &self.cad_worker,
@@ -1643,7 +2062,7 @@ impl Runtime {
         )?;
         worker.ready().await.map_err(|error| error.to_string())?;
         if !is_current() || self.scope().as_ref() != Some(&scope) {
-            return Err("Case STEP model request became stale before dispatch".into());
+            return Err("STEP model request became stale before dispatch".into());
         }
         let operation = self.operation().0;
         let identity = CadSnapshotIdentity {
@@ -1669,7 +2088,7 @@ impl Runtime {
         self.native_model_jobs.borrow_mut().remove(&request.job_id);
         let reply = reply.map_err(|error| error.to_string())?;
         if !is_current() || self.scope().as_ref() != Some(&scope) {
-            return Err("Case STEP model request became stale after parsing".into());
+            return Err("STEP model request became stale after parsing".into());
         }
         let result =
             validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
@@ -1688,33 +2107,83 @@ impl Runtime {
         preview: &crate::case_preview::NativePreviewSnapshot,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
+        let scope = preview.owner.scope.clone();
+        let token = preview.owner.snapshot_token;
+        let viewer_instance = preview.owner.viewer_instance;
+        let projection_generation = preview.owner.projection_generation;
+        let lease = preview.lease.clone();
+        let owner_is_current = Rc::new(
+            move |owner: &crate::presentation::model_delivery::ModelOwnerIdentity| {
+                owner.is_current_owner(
+                    &scope,
+                    token,
+                    viewer_instance,
+                    projection_generation,
+                    &lease,
+                )
+            },
+        );
+        self.model_delivery_ports(
+            preview.owner.scope.clone(),
+            token,
+            preview.owner.accepted_revision,
+            is_current,
+            owner_is_current,
+        )
+    }
+
+    fn layout_model_delivery_ports(
+        self: &Rc<Self>,
+        preview: &crate::presentation::layout_viewer_source::LayoutPreviewSnapshot,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
+        let scope = preview.owner.scope.clone();
+        let token = preview.owner.snapshot_token;
+        let source_generation = preview.owner.source_generation;
+        let lease = preview.lease.clone();
+        let owner_is_current = Rc::new(
+            move |owner: &crate::presentation::model_delivery::ModelOwnerIdentity| {
+                owner.is_current_layout_owner(&scope, token, source_generation, &lease)
+            },
+        );
+        self.model_delivery_ports(
+            preview.owner.scope.clone(),
+            token,
+            preview.owner.accepted_revision,
+            is_current,
+            owner_is_current,
+        )
+    }
+
+    fn model_delivery_ports(
+        self: &Rc<Self>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+        owner_is_current: Rc<
+            dyn Fn(&crate::presentation::model_delivery::ModelOwnerIdentity) -> bool,
+        >,
+    ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
         use crate::presentation::model_delivery::{
             MeshArrays, ModelAssetSource, ModelDeliveryPorts, ModelFuture, ResolvedModelAsset,
             VerifiedModelBytes,
         };
-        let scope = preview.owner.scope.clone();
-        let token = preview.owner.snapshot_token;
-        let revision = preview.owner.accepted_revision;
-        let viewer_instance = preview.owner.viewer_instance;
-        let projection_generation = preview.owner.projection_generation;
-        let lease = preview.lease.clone();
         let weak = Rc::downgrade(self);
         let scope_for_load = scope.clone();
-        let lease_for_load = lease.clone();
         let current_for_load = is_current.clone();
         let load_verified_bytes = Rc::new(
             move |asset: ResolvedModelAsset| -> ModelFuture<Option<VerifiedModelBytes>> {
                 let weak = weak.clone();
                 let scope = scope_for_load.clone();
-                let lease = lease_for_load.clone();
                 let is_current = current_for_load.clone();
                 Box::pin(async move {
                     let sha256 = asset.sha256.clone();
                     let runtime = weak
                         .upgrade()
-                        .ok_or_else(|| "Case runtime was closed".to_owned())?;
-                    if !is_current() || !lease.is_active() {
-                        return Err("Case model asset request became stale before loading".into());
+                        .ok_or_else(|| "Model runtime was closed".to_owned())?;
+                    if !is_current() {
+                        return Err("Model asset request became stale before loading".into());
                     }
                     let cached = runtime.assets.borrow().get(&sha256).cloned();
                     let (bytes, cache_packaged) = match (asset.source.clone(), cached) {
@@ -1750,11 +2219,8 @@ impl Runtime {
                             )
                         }
                     };
-                    if !is_current()
-                        || !lease.is_active()
-                        || runtime.scope().as_ref() != Some(&scope)
-                    {
-                        return Err("Case model asset request became stale after loading".into());
+                    if !is_current() || runtime.scope().as_ref() != Some(&scope) {
+                        return Err("Model asset request became stale after loading".into());
                     }
                     let Some(bytes) = bytes else {
                         return Ok(None);
@@ -1778,36 +2244,24 @@ impl Runtime {
             )
         });
         let weak = Rc::downgrade(self);
+        let owner_is_current = owner_is_current.clone();
         let read_step = Rc::new(
             move |bytes: VerifiedModelBytes,
                   owner: crate::presentation::model_delivery::ModelOwnerIdentity|
                   -> ModelFuture<MeshArrays> {
                 let weak = weak.clone();
                 let scope = scope.clone();
-                let lease = lease.clone();
                 let is_current = is_current.clone();
+                let owner_is_current = owner_is_current.clone();
                 Box::pin(async move {
-                    if !owner.is_current_owner(
-                        &scope,
-                        token,
-                        viewer_instance,
-                        projection_generation,
-                        &lease,
-                    ) || !is_current()
-                    {
-                        return Err("Case STEP model request became stale before reading".into());
+                    if !owner_is_current(&owner) || !is_current() {
+                        return Err("STEP model request became stale before reading".into());
                     }
                     let runtime = weak
                         .upgrade()
-                        .ok_or_else(|| "Case runtime was closed".to_owned())?;
+                        .ok_or_else(|| "Model runtime was closed".to_owned())?;
                     runtime
-                        .read_case_step_model(
-                            bytes.bytes().to_vec(),
-                            scope,
-                            token,
-                            revision,
-                            is_current,
-                        )
+                        .read_step_model(bytes.bytes().to_vec(), scope, token, revision, is_current)
                         .await
                 })
             },
@@ -1877,7 +2331,7 @@ impl Runtime {
         };
         self.set_native_preview_pending(capture.owner.clone(), capture.lease.clone());
         let result = self
-            .run_native_case_preview(&accepted, capture.clone(), operation)
+            .run_native_case_preview(capture.clone(), operation)
             .await;
         match result {
             Ok(preview) if self.preview_owner_is_current(&preview.owner) => {
@@ -1946,29 +2400,6 @@ impl Runtime {
             )
     }
 
-    fn ensure_preview_owner_current(
-        &self,
-        accepted: &AcceptedSnapshot,
-        owner: &crate::case_preview::CasePreviewOwnerIdentity,
-        core: &Rc<CoreWorker>,
-        core_epoch: u64,
-    ) -> Result<(), String> {
-        if !self.preview_owner_is_current(owner) {
-            return Err("The accepted Case preview source changed during preparation".into());
-        }
-        if !self.preview_owner_lease_is_current(owner) {
-            return Err("The Case preview owner lease was cancelled during preparation".into());
-        }
-        if accepted.token != owner.snapshot_token
-            || accepted.document.revision != owner.accepted_revision
-            || self.session.borrow().core_executor_epoch().0 != core_epoch
-            || !Rc::ptr_eq(core, &self.core.borrow().clone())
-        {
-            return Err("The Core worker or accepted Case preview source changed".into());
-        }
-        Ok(())
-    }
-
     fn preview_owner_lease_is_current(
         &self,
         owner: &crate::case_preview::CasePreviewOwnerIdentity,
@@ -1977,67 +2408,117 @@ impl Runtime {
     }
 
     async fn run_native_case_preview(
-        &self,
-        accepted: &AcceptedSnapshot,
+        self: &Rc<Self>,
         capture: crate::case_preview::NativePreviewCapture,
         operation: u64,
     ) -> Result<crate::case_preview::NativePreviewSnapshot, String> {
+        let owner = capture.owner.clone();
+        let lease = capture.lease.clone();
+        let weak = Rc::downgrade(self);
+        let preview = self
+            .run_preview_pipeline(
+                capture.request.clone(),
+                operation,
+                owner.scope.clone(),
+                owner.projection_generation,
+                Rc::new(move || {
+                    weak.upgrade().is_some_and(|runtime| {
+                        runtime.preview_owner_is_current(&owner)
+                            && runtime.preview_owner_lease_is_current(&owner)
+                            && lease.matches(&owner)
+                    })
+                }),
+            )
+            .await?;
+        crate::case_preview::accept_native_preview(capture, preview)
+    }
+
+    /// One existing Core→preview-generator→Core path shared by canonical Layout
+    /// and the physical Case producer. Source construction and liveness stay with
+    /// each workflow; this method owns only the established preview pipeline.
+    async fn run_preview_pipeline(
+        &self,
+        request: PrepareExportRequest,
+        operation: u64,
+        scope: Scope,
+        source_generation: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<PcbPreview, String> {
+        if source_generation == 0 || source_generation > 9_007_199_254_740_991 {
+            return Err("Preview source generation is outside the safe integer range".into());
+        }
+        if request.expected_revision != request.document.revision
+            || request.target
+                != (boardstudio_core::model::ExportTarget::Board {
+                    board_id: scope.board_id.clone(),
+                })
+        {
+            return Err("Preview request does not match its captured board source".into());
+        }
         let core = self.core.borrow().clone();
         let core_epoch = self.session.borrow().core_executor_epoch().0;
-        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        let ensure_current = || {
+            if !is_current() {
+                return Err("Accepted board preview source became stale".to_owned());
+            }
+            if self.session.borrow().core_executor_epoch().0 != core_epoch
+                || !Rc::ptr_eq(&core, &self.core.borrow().clone())
+            {
+                return Err("Core worker changed during board preview generation".to_owned());
+            }
+            Ok(())
+        };
+        ensure_current()?;
+
         let epoch = core_epoch.to_string();
-        let prepare_id = format!("case-preview-{operation}-prepare");
-        let prepare = crate::case_preview::prepare_artifact(prepare_id.clone(), &capture);
+        let prepare_id = format!("board-preview-{operation}-prepare");
+        let prepare = boardstudio_core::model::ArtifactRequest::PreparePreview {
+            id: prepare_id.clone(),
+            request: request.clone(),
+        };
         let reply = core
             .artifact(&prepare_id, &epoch, &prepare)
             .await
             .map_err(|error| format!("Core preview preparation failed: {error}"))?;
-        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        ensure_current()?;
         let plan = match reply {
             ArtifactReply::PreparePreview { id, result } if id == prepare_id => *result,
             ArtifactReply::Error { id, error } if id == prepare_id => {
-                return Err(format!("Core rejected Case preview preparation: {error:?}"));
+                return Err(format!(
+                    "Core rejected board preview preparation: {error:?}"
+                ));
             }
             ArtifactReply::PreparePreview { .. } | ArtifactReply::Error { .. } => {
                 return Err("Core returned a preview plan for another request".into());
             }
             _ => return Err("Core returned an unexpected preview preparation reply".into()),
         };
-        if plan.snapshot_token != capture.owner.request_token
-            || plan.revision != capture.owner.accepted_revision
-            || plan.target
-                != (boardstudio_core::model::ExportTarget::Board {
-                    board_id: capture.owner.scope.board_id.clone(),
-                })
+        if plan.snapshot_token != request.snapshot_token
+            || plan.revision != request.expected_revision
+            || plan.target != request.target
         {
-            return Err(
-                "Core preview plan identity does not match the captured Case source".into(),
-            );
+            return Err("Core preview plan does not match the captured board source".into());
         }
 
         let worker_request_id = operation;
-        let worker_generation = capture.owner.projection_generation;
-        if worker_generation == 0 || worker_generation > 9_007_199_254_740_991 {
-            return Err("Case preview worker generation is outside the safe integer range".into());
-        }
         let worker_request = serde_json::json!({
             "kind": "generate-preview-jobs",
-            "worker_generation": worker_generation,
+            "worker_generation": source_generation,
             "request_id": worker_request_id,
             "owner": {
                 "scope": {
-                    "sessionEpoch": capture.owner.scope.session_epoch.0,
-                    "documentId": capture.owner.scope.document_id,
-                    "boardId": capture.owner.scope.board_id,
-                    "instanceId": capture.owner.scope.instance_id,
+                    "sessionEpoch": scope.session_epoch.0,
+                    "documentId": scope.document_id,
+                    "boardId": scope.board_id,
+                    "instanceId": scope.instance_id,
                 },
-                "token": capture.owner.request_token,
-                "viewer_instance": worker_generation,
-                "projection_generation": capture.owner.projection_generation,
+                "token": request.snapshot_token,
+                "viewer_instance": 0,
+                "projection_generation": source_generation,
             },
             "batch": {
-                "accepted_revision": capture.owner.accepted_revision,
-                "batch_generation": capture.owner.batch_generation,
+                "accepted_revision": request.expected_revision,
+                "batch_generation": source_generation,
             },
             "plan_key": {
                 "snapshot_token": plan.snapshot_token,
@@ -2049,7 +2530,7 @@ impl Runtime {
             "next_net_index": plan.next_net_index,
             "paths": plan.model_paths.iter().collect::<Vec<_>>(),
         });
-        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        ensure_current()?;
         let worker = if let Some(worker) = self.preview_generator.borrow().as_ref() {
             worker.clone()
         } else {
@@ -2059,11 +2540,11 @@ impl Runtime {
             worker
         };
         let worker_reply = worker.generate(worker_request_id, &worker_request).await?;
-        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        ensure_current()?;
         validate_preview_worker_envelope(
             &worker_reply,
             &worker_request,
-            worker_generation,
+            source_generation,
             worker_request_id,
         )?;
         let results = serde_json::from_value::<Vec<ErgogenJobResult>>(
@@ -2073,7 +2554,7 @@ impl Runtime {
                 .ok_or_else(|| "Preview worker returned no conversion results".to_owned())?,
         )
         .map_err(|error| format!("Preview worker returned malformed results: {error}"))?;
-        let finish_id = format!("case-preview-{operation}-finish");
+        let finish_id = format!("board-preview-{operation}-finish");
         let finish = boardstudio_core::model::ArtifactRequest::FinishPreview {
             id: finish_id.clone(),
             request: FinishExportRequest { plan, results },
@@ -2082,12 +2563,12 @@ impl Runtime {
             .artifact(&finish_id, &epoch, &finish)
             .await
             .map_err(|error| format!("Core preview finish failed: {error}"))?;
-        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        ensure_current()?;
         let preview = match reply {
             ArtifactReply::PreviewBoard { id, result } if id == finish_id => result,
             ArtifactReply::Error { id, error } if id == finish_id => {
                 return Err(format!(
-                    "Core rejected the completed Case preview: {error:?}"
+                    "Core rejected the completed board preview: {error:?}"
                 ));
             }
             ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
@@ -2095,7 +2576,10 @@ impl Runtime {
             }
             _ => return Err("Core returned an unexpected completed-preview reply".into()),
         };
-        crate::case_preview::accept_native_preview(capture, preview)
+        if preview.revision != request.expected_revision {
+            return Err("Core returned a board preview for another revision".into());
+        }
+        Ok(preview)
     }
     /// An existing resolved stack with suggested mounts must finish its saved initialization
     /// before a dependent generation or STEP capture. Archive saving remains independent.

@@ -181,6 +181,7 @@ pub(crate) fn CaseViewer(
         CaseSharedViewer {
             scene: Some(scene),
             preview,
+            layout_preview: None,
             model_rows,
             selected_layer,
             display,
@@ -262,6 +263,7 @@ pub(crate) fn CasePreviewViewer(
         CaseSharedViewer {
             scene: None,
             preview: Some(preview),
+            layout_preview: None,
             model_rows,
             selected_layer: "pcb".to_owned(),
             display,

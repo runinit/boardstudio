@@ -798,6 +798,19 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-layout-command-menu-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .m1-layout-command-menu-header button:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 
+/* Keep Design view switching separate from the Layout command-pill owner. */
+.m1-layout-view-group { position: absolute; z-index: 11; top: 12px; right: 12px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--wb-rule); border-radius: 8px; background: var(--wb-panel); box-shadow: 0 3px 10px rgb(0 0 0 / 10%); }
+.m1-layout-view-group button { min-height: 32px; padding: 4px 10px; border: 0; border-radius: 5px; color: var(--wb-muted); background: transparent; font: 12px var(--wb-body); cursor: pointer; }
+.m1-layout-view-group button[aria-pressed='true'] { background: var(--wb-selection-surface); color: var(--wb-selection-ink); }
+.m1-layout-view-group button:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-canvas-context { display: grid; gap: 2px; align-items: center; padding: 0 8px; }
+.m1-canvas-context strong { color: var(--wb-ink); font-size: 12px; }
+.m1-canvas-context span { color: var(--wb-muted); font-size: 11px; }
+@media (max-width: 760px) {
+  .m1-layout-view-group { top: 60px; right: auto; left: 8px; }
+  .m1-layout-view-group button { min-height: 44px; }
+}
+
 /* Parts mechanical-fit controls preserve the reference center-workspace layout. */
 .m1-parts-actions { display: grid; gap: 4px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--wb-rule); }
 .m1-parts-mechanical-fit { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 12px; border: 1px solid var(--wb-rule); border-radius: 8px; background: var(--wb-surface-soft); }

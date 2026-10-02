@@ -76,6 +76,10 @@ mod case_display;
 mod model_delivery;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+#[path = "presentation/layout_viewer_source.rs"]
+mod layout_viewer_source;
+
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 mod presentation {
     pub(crate) mod objects {
         #[path = "keycap_resize.rs"]

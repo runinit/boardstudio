@@ -17,6 +17,8 @@ mod keycaps_workspace;
 mod keymap;
 mod keymap_workspace;
 mod layout_camera;
+mod layout_viewer;
+pub(crate) mod layout_viewer_source;
 mod layout_workspace;
 mod library;
 mod mechanical_settings;
@@ -1366,6 +1368,7 @@ fn Editor() -> Element {
     let render_generation = (adapter.generation)();
     let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
+    let mut layout_assembly_3d = use_signal(|| false);
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
@@ -3925,6 +3928,46 @@ fn Editor() -> Element {
             },
         )),
     };
+    let on_layout_view_mode = EventHandler::new({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let placement = part_placement.clone();
+        let mirrored_pair = mirrored_pair.clone();
+        let matrix_setup = matrix_setup.clone();
+        let drag = drag.clone();
+        let svg = svg.clone();
+        let render_scope = render_scope.clone();
+        let canvas_interaction = canvas_interaction.clone();
+        move |assembly_3d: bool| {
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            if assembly_3d && !layout_assembly_3d() {
+                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
+                let mut interaction_version = interaction_version;
+                interaction_version += 1;
+                if placement.projection.is_some() {
+                    placement.on_cancel.call(());
+                }
+                if let Some(active) = mirrored_pair.placement.as_ref() {
+                    mirrored_pair.on_return_to_form.call(active.owner.clone());
+                } else if let Some(form) = mirrored_pair.form.as_ref() {
+                    mirrored_pair.on_cancel.call(form.owner.clone());
+                }
+                if let Some(projection) = matrix_setup.projection.as_ref() {
+                    matrix_setup.on_cancel.call(projection.owner.clone());
+                }
+                match canvas_interaction.current() {
+                    Some(CanvasInteractionOwner::PartPlacement) => {
+                        canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+                    }
+                    Some(CanvasInteractionOwner::MirroredPair) | None => {}
+                }
+            }
+            layout_assembly_3d.set(assembly_3d);
+        }
+    });
     let toolbar_input = match active_workspace {
         "Layout" => {
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
@@ -3979,10 +4022,6 @@ fn Editor() -> Element {
                 && !(layer_visibility.hidden)().contains("Footprints");
             workspace_composition::WorkspaceToolbarInput::Layout(Box::new(
                 layout_workspace::ToolbarInput {
-                    selection_indicator: context_summary
-                        .as_ref()
-                        .map(|summary| summary.indicator.clone()),
-                    document_name: document.name.clone(),
                     save_failure: match &model.durability {
                         Durability::Failed { reason, .. } => Some(reason.clone()),
                         _ => None,
@@ -3991,6 +4030,8 @@ fn Editor() -> Element {
                         == boardstudio_application::Lifecycle::RecoveryRequired,
                     footprints_pressed,
                     on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    assembly_3d: layout_assembly_3d(),
+                    on_view_mode: on_layout_view_mode,
                     on_retry_save: workspace_callbacks.retry_save,
                     on_recover_saved: workspace_callbacks.recover_saved,
                     selection_kind: layout_selection_kind(),
@@ -4463,7 +4504,9 @@ fn Editor() -> Element {
                             on_preview: mirrored_pair.on_preview,
                         }
                     }
-                    if active_workspace == "Layout" {
+                    if active_workspace == "Layout" && layout_assembly_3d() {
+                        layout_viewer::LayoutCanonicalViewer {}
+                    } else if active_workspace == "Layout" {
                         svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     g { transform: "scale(1,-1)",

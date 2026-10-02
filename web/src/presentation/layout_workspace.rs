@@ -11,12 +11,12 @@ pub(super) struct ObjectsInput {
 }
 
 pub(super) struct ToolbarInput {
-    pub(super) selection_indicator: Option<String>,
-    pub(super) document_name: String,
     pub(super) save_failure: Option<String>,
     pub(super) recovery_required: bool,
     pub(super) footprints_pressed: bool,
     pub(super) on_toggle_footprints: EventHandler<()>,
+    pub(super) assembly_3d: bool,
+    pub(super) on_view_mode: EventHandler<bool>,
     pub(super) on_retry_save: EventHandler<()>,
     pub(super) on_recover_saved: EventHandler<()>,
     pub(super) selection_kind: objects::LayoutSelectionKind,
@@ -57,24 +57,21 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
         div { class: "m1-canvas-toolbar",
-            objects::LayoutCommandPill {
-                menu_owner_key: input.menu_owner_key,
-                transform: input.transform,
-                align: input.align,
-                selection_kind: input.selection_kind,
-                snap_settings: input.snap_settings,
-                on_selection_kind: input.on_selection_kind,
-                on_snap_intent: input.on_snap_intent,
-            }
-            if let Some(indicator) = input.selection_indicator.as_ref() {
-                span { class: "m1-selection-indicator", "{indicator}" }
-            }
-            span { "{input.document_name}" }
-            button {
-                class: "m1-footprints-toggle",
-                aria_pressed: "{input.footprints_pressed}",
-                onclick: move |_| input.on_toggle_footprints.call(()),
-                "Footprints"
+            if input.assembly_3d {
+                div { class: "m1-canvas-context",
+                    strong { "Layout" }
+                    span { "PCB assembly" }
+                }
+            } else {
+                objects::LayoutCommandPill {
+                    menu_owner_key: input.menu_owner_key,
+                    transform: input.transform,
+                    align: input.align,
+                    selection_kind: input.selection_kind,
+                    snap_settings: input.snap_settings,
+                    on_selection_kind: input.on_selection_kind,
+                    on_snap_intent: input.on_snap_intent,
+                }
             }
             if let Some(reason) = input.save_failure.as_ref() {
                 p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
@@ -82,6 +79,28 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             }
             if input.recovery_required {
                 button { onclick: move |_| input.on_recover_saved.call(()), "Reopen last saved version (discard pending changes)" }
+            }
+        }
+        div { class: "m1-layout-view-group", role: "group", aria_label: "Design view",
+            button {
+                r#type: "button",
+                aria_pressed: "{!input.assembly_3d}",
+                onclick: move |_| input.on_view_mode.call(false),
+                "2D"
+            }
+            button {
+                r#type: "button",
+                aria_pressed: "{input.assembly_3d}",
+                onclick: move |_| input.on_view_mode.call(true),
+                "3D assembly"
+            }
+            if !input.assembly_3d {
+                button {
+                    r#type: "button",
+                    aria_pressed: "{input.footprints_pressed}",
+                    onclick: move |_| input.on_toggle_footprints.call(()),
+                    "Footprints"
+                }
             }
         }
     }
