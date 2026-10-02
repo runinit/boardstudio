@@ -1,0 +1,8 @@
+{
+  "binding": {
+    "kind": "layer-tap",
+    "layerId": "dc238a57-6d6c-4eaa-b6c2-061d2eedec00",
+    "tap": "SPACE"
+  },
+  "revision": 38
+}

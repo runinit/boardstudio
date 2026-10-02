@@ -1,16 +1,16 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Parallel frontend implementation active: Case authored-body and Keymap projection mounts verified in bounded public flows; default physical-instance repair ed242c02 passes 20 native tests, strict WASM/native checks and fresh paired import/navigation/reload checks. Keymap layer editing and Case-first shared viewer are under integration and independent review. Full F2\u2013F9 remain open.",
+  "status": "Parallel frontend implementation active: fresh Case viewport compact/44px-control and root/subpath offline checks pass; Keymap binding editor source/build checks pass with its focused public packet complete and a focus-continuity difference retained; Case mechanical settings mount/controller are integrated in 0cad7577 and pass strict WASM/native Clippy plus 34 native checks; fresh build frontend-mechanical-settings-20261002 passes seven commands and 965 source hashes from 0cad75775e84aba13dc2f88d513b9f662e037e5e, served at 34675; public verification is underway. Macro source ac43980c is reviewed but unmounted/uncompiled. Four new shared-viewer consumer tickets are published. Full F2–F9 and all parent acceptance joins remain open.",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "parallel Keymap layer editing and Case/shared-viewer frontend continuation",
+  "current_milestone": "parallel shared-viewer model-delivery slices, completed focused Keymap binding public packet with remaining full F6 gates, and Case mechanical-settings root integration",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
     "F1": {
-      "status": "verified first increment; full parity remains F2\u2013F9",
+      "status": "verified first increment; full parity remains F2–F9",
       "ticket": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md",
       "depends_on": "M1 implementation"
     },
@@ -75,7 +75,7 @@
       ]
     },
     "F6": {
-      "status": "planned",
+      "status": "Keymap layer and binding UI are root-mounted with source reviews; bindings source 6509f557 passes strict WASM/native Clippy, formatting, and 30 native tests. Fresh 7-command/961-hash build is served at 34673; focused public packet complete. Native Tab during blur-save leaves candidate focus on BODY while React moves to Hold; idle native selection preserves both fields. Full F6 legacy/malformed/stale-race, broad semantic and actual AT gates remain open.",
       "ticket": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
       "planning_status": "planned and independently reviewed; implementation open",
@@ -93,7 +93,7 @@
       ]
     },
     "F7": {
-      "status": "planned",
+      "status": "Case viewport 32695555 compact/44px-control public check and root/subpath offline reload pass; Case issue02 continues the first viewer slice, and four new Layout/Keymap/Keycaps/Parts-sample issues 03–06 are published. All start at F7.1; INT.2/BND.1 remain F7.3 acceptance joins and F7.8 remains later. Model delivery/consumer proof remain open. Case mechanical mount/controller are integrated in 0cad7577 and pass strict WASM/native Clippy plus 34 native checks; fresh build frontend-mechanical-settings-20261002 passes seven commands and 965 source hashes, served at 34675; public verification is underway; full F7 open.",
       "ticket": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
       "planning_status": "planned and independently reviewed; implementation open",
@@ -141,9 +141,9 @@
   "m1_acceptance": "open; separate retained ledger",
   "backend_rewrites_in_scope": false,
   "production_cutover": false,
-  "executable_source": "598b2c026941130f9b95ff4fee57353f8eefcb0d",
-  "build": "frontend-int1-598b2c-20261002",
-  "demo_url": "http://127.0.0.1:34645/",
+  "executable_source": "6509f557c2a16df0a1f5ce19296eeb635df68256",
+  "build": "frontend-keymap-bindings-20261002",
+  "demo_url": "http://127.0.0.1:34673/",
   "handoff": ".scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/README.md",
   "planning_revision": "2026-10-02",
   "planning_baseline": "c827c4e69389a77b1f0e8d647ce86a4c41529611",
@@ -177,7 +177,7 @@
   "automatic_ticket_frontier": true,
   "implementation_authority": "2026-10-02 user requested implementation and automatic agent-created next tickets",
   "bounded_ticket_tracking": {
-    "published_bounded_tickets": 29,
+    "published_bounded_tickets": 39,
     "canonical_parent_tasks": 62,
     "new_publication_folders": [
       ".scratch/dioxus-shared-viewer",
@@ -185,7 +185,7 @@
       ".scratch/dioxus-export-workspace"
     ],
     "parent_completion": "No parent task or milestone is closed by ticket publication or partial implementation evidence.",
-    "latest_ticket": ".scratch/dioxus-parts-catalogue/issues/03-isolated-library-preview.md"
+    "latest_ticket": ".scratch/dioxus-shared-viewer/issues/06-shared-viewer-parts-sample.md"
   },
   "current_partial_evidence": {
     "T1-10": {
@@ -230,5 +230,138 @@
     ],
     "status": "mounted independentlyreviewed dc81237c; strictWASM/nativechecks pass; freshbuildcomplete; publicverification running"
   },
-  "bounded_ticket_count": 34
+  "bounded_ticket_count": 39,
+  "latest_demo": {
+    "build": "frontend-keymap-bindings-20261002",
+    "source": "6509f557c2a16df0a1f5ce19296eeb635df68256",
+    "root": "http://127.0.0.1:34673/",
+    "subpath": "http://127.0.0.1:34673/boardstudio/",
+    "status": "Seven packaging commands and 961 source hashes pass; the focused public packet is complete. The programmatic driver-select red is retired because React reproduces the same event ordering. Native Tab during blur-save reveals a candidate focus-continuity difference (BODY vs React Hold); after-idle native selection preserves and saves both Tap and Hold. This is not data loss or acceptance. Full F6 legacy/malformed/stale-race, broad semantic and actual AT gates remain open.",
+    "build_evidence": ".scratch/dioxus-keymap-layers/evidence/public-binding-editor/provenance.json",
+    "interaction_diagnosis": ".scratch/dioxus-keymap-layers/evidence/public-binding-editor/sibling-diagnosis/README.md"
+  },
+  "mechanical_clearance_ticket": {
+    "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
+    "status": "Published after independent exact-delta review; implementation and actual integrated public acceptance remain open.",
+    "parent": "F7.4",
+    "start_after": [
+      "INT.1"
+    ],
+    "parent_acceptance_after": [
+      "INT.2"
+    ],
+    "reviewed_draft_sha256": "71312f312b36c01904820c45e43d2d19e681ac6d413c1c6733886b0ba9a8a6e8"
+  },
+  "closure_clearance_planner": {
+    "source_sha256": "f96b9b28e9796b3950f3d5a64dacf35c464811b932f4b738141e9bcf5d234975",
+    "native_tests": {
+      "lib": 12,
+      "binary": 18,
+      "total": 30
+    },
+    "review": "Independent Spec and Standards clear with explicitly guarded unsupported MH reference range.",
+    "status": "Private helper compiled and tested natively; UI controller/atomic Session/public saved-payload acceptance open.",
+    "evidence": ".scratch/dioxus-case-workspace/evidence/closure-clearance-planner",
+    "historical_planner_file_sha256": "f96b9b28e9796b3950f3d5a64dacf35c464811b932f4b738141e9bcf5d234975",
+    "historical_tested_source": "b25d6887 plus root Result/compiler repairs and formatting",
+    "source_commit": "61e8c43",
+    "integrated_commit": "86a83ddf",
+    "current_test_note": "Current 34 native tests include six closure and four feedback tests; strict WASM/native Clippy passes. Public workflow proof remains open.",
+    "source_sha256_role": "Historical earlier planner-only implementation; current owned closure source is recorded separately as 61e8c43 integrated in 86a83ddf."
+  },
+  "current_keymap_binding": {
+    "source": "6509f557c2a16df0a1f5ce19296eeb635df68256",
+    "mounted": true,
+    "checks": "Strict WASM/native Clippy, formatting, and 30 native tests pass; Astra source review clear.",
+    "build": "frontend-keymap-bindings-20261002 complete; 7 packaging commands and 961 source hashes verified.",
+    "public_qa": "Focused public packet complete: eleven choices/defaults and stable IDs; invalid no-match draft recovery; Undo/Redo; Enter/Space key selection; archive/reload accepted-document equality. Candidate native Tab during pending blur-save moves focus to BODY while React moves to Hold; idle native selection preserves both fields. This is a focus-continuity difference, not data loss. Full F6 legacy/malformed/stale-race, broad semantic and actual AT gates remain open; no ticket/parent acceptance inferred.",
+    "demo_urls": [
+      "http://127.0.0.1:34673/",
+      "http://127.0.0.1:34673/boardstudio/"
+    ],
+    "evidence": [
+      ".scratch/dioxus-keymap-layers/evidence/public-binding-editor/README.md",
+      ".scratch/dioxus-keymap-layers/evidence/public-binding-editor/sibling-diagnosis/README.md",
+      ".scratch/dioxus-keymap-layers/evidence/binding-offline-layout/RESULTS.md"
+    ],
+    "ticket": ".scratch/dioxus-keymap-layers/issues/03-binding-editor.md"
+  },
+  "current_case_mechanical_settings": {
+    "source_change": "0cad75775e84aba13dc2f88d513b9f662e037e5e",
+    "integration_head": "0cad7577",
+    "mounted": true,
+    "checks": "strict WASM/native Clippy and 34 native checks pass, including six closure and four feedback tests",
+    "public_build": "complete: frontend-mechanical-settings-20261002; seven commands and 965 source hashes verified",
+    "public_acceptance": "verification underway; no ticket or parent acceptance claimed",
+    "compiled": true,
+    "evidence": ".scratch/dioxus-case-workspace/evidence/mechanical-feedback-regression",
+    "integration_snapshot": "0cad7577",
+    "status": "Mounted and compiled; strict WASM/native Clippy and 34 native checks pass. Fresh seven-command build with 965 source hashes is served at 34675; public verification is underway.",
+    "demo_urls": [
+      "http://127.0.0.1:34675/",
+      "http://127.0.0.1:34675/boardstudio/"
+    ]
+  },
+  "current_case_viewport": {
+    "source": "32695555a642c4e07d66e4d05fcbc6b07f8b800a",
+    "build": "frontend-case-viewport-final-20261002",
+    "demo_urls": [
+      "http://127.0.0.1:34671/",
+      "http://127.0.0.1:34671/boardstudio/"
+    ],
+    "public": "Focused compact 390x844 generated Case check passes with zero page/pane scrolling and 44px Generate, Cancel generation, Case settings and Bottom thickness controls.",
+    "offline": "Natural service-worker install/activation, 51-entry cache and offline reload pass at root and /boardstudio/.",
+    "evidence": [
+      ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/README.md",
+      ".scratch/dioxus-case-viewport-layout/evidence/offline-final/README.md"
+    ]
+  },
+  "integration_source_snapshot": "3c83cc0f",
+  "shared_viewer_model_delivery": {
+    "parent": "F7.3",
+    "status": "Published after independent Spec and Standards clearance; implementation/public verification open.",
+    "incremental_new_tickets": 4,
+    "counting_note": "Existing issue02 updated as continuation and not recounted; four new issues 03–06 move 35 to 39.",
+    "issues": [
+      {
+        "path": ".scratch/dioxus-shared-viewer/issues/02-private-shared-viewer-case-slice.md",
+        "kind": "existing Case slice continuation; bounded geometry proof partial, new model delivery open",
+        "status": "ready-for-agent"
+      },
+      {
+        "path": ".scratch/dioxus-shared-viewer/issues/03-shared-viewer-layout.md",
+        "consumer": "Layout",
+        "status": "ready-for-agent"
+      },
+      {
+        "path": ".scratch/dioxus-shared-viewer/issues/04-shared-viewer-keymap.md",
+        "consumer": "Keymap",
+        "status": "ready-for-agent"
+      },
+      {
+        "path": ".scratch/dioxus-shared-viewer/issues/05-shared-viewer-keycaps.md",
+        "consumer": "Keycaps",
+        "status": "ready-for-agent"
+      },
+      {
+        "path": ".scratch/dioxus-shared-viewer/issues/06-shared-viewer-parts-sample.md",
+        "consumer": "isolated Parts sample",
+        "status": "ready-for-agent"
+      }
+    ],
+    "contract": ".scratch/dioxus-shared-viewer/evidence/model-delivery-contract-reviewed/contract.md",
+    "reviews": [
+      ".scratch/dioxus-shared-viewer/evidence/model-delivery-contract-reviewed/astra-spec-review.md",
+      ".scratch/dioxus-shared-viewer/evidence/model-delivery-contract-reviewed/standards-review.md"
+    ],
+    "canonical_graph": "Unchanged 62 parents: F7.3 start_after F7.1; acceptance_after INT.2 and BND.1; later F7.8 consumer join unchanged."
+  },
+  "current_macro_editor": {
+    "source_commit": "ac43980c",
+    "review": "Independent Spec and Standards clear",
+    "mounted": false,
+    "compiled": false,
+    "acceptance": "source merged; Macro UI remains unmounted/uncompiled and F6 acceptance open",
+    "integrated_commit": "96874be6"
+  }
 }

@@ -1,0 +1,8 @@
+{
+  "binding": {
+    "hold": "RSHIFT",
+    "kind": "mod-tap",
+    "tap": "Y"
+  },
+  "revision": 38
+}

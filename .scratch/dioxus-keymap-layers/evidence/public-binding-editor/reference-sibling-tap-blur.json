@@ -1,0 +1,8 @@
+{
+  "binding": {
+    "hold": "LCTRL",
+    "kind": "mod-tap",
+    "tap": "Y"
+  },
+  "revision": 32
+}

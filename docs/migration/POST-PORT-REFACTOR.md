@@ -20,7 +20,7 @@ At frontend v1, F9 produces a refactoring handoff grouped by architectural bound
 | [RF-002](#rf-002) | Internal browser host types are exposed as crate APIs | confirmed observation; future cost is a design risk | high | F7, F8 |
 | [RF-003](#rf-003) | CAD engine capabilities and host protocols drift apart | confirmed adapter gap | high | F6, F7, F8 |
 | [RF-004](#rf-004) | Immutable export tokens do not model export-owned commits | confirmed contract mismatch for PCB workflow | high | F5, F8 |
-| [RF-005](#rf-005) | Geometric edit planning lives in frontend helper policy | confirmed remaining TS policy; target placement is a hypothesis | medium | F3, F6 |
+| [RF-005](#rf-005) | Geometric edit planning lives in frontend helper policy | confirmed remaining TS policy; target placement is a hypothesis | medium | F3, F6, F7 |
 | [RF-006](#rf-006) | Canonical, physical-instance and isolated sample scopes are easy to conflate | confirmed distinct scopes; abstraction improvement is a hypothesis | high | F3, F4, F5, F6, F7, F8 |
 | [RF-007](#rf-007) | Runtime observation currently supports one subscriber | hypothesis requiring consumer audit | medium | F2, F3, F4, F5, F6, F7, F8 |
 | [RF-008](#rf-008) | Archive packing capability is split from its UI options and asset resolution | confirmed frontend parity gap | medium | F2, F4, F8 |
@@ -98,17 +98,19 @@ Evidence: [session.rs](../../application/src/session.rs), [context.ts](../../app
 
 **Geometric edit planning lives in frontend helper policy** — architecture / domain ownership. confirmed remaining TS policy; target placement is a hypothesis.
 
-Resize/reflow computes canonical linked-half deduplication, axis projections, spacing and center preservation in TS UI helpers. No equivalent callable Rust resize/reflow controller was found, although core owns matrix projection and accepted edits.
+Resize/reflow computes canonical linked-half deduplication, axis projections, spacing and center preservation in TS UI helpers. No equivalent callable Rust resize/reflow controller was found, although core owns matrix projection and accepted edits. The pinned React Case edit path also plans generated PCB clearance parts from canonical and physical-instance closure settings: it reflects flipped X coordinates, deduplicates board/position holes while preserving the largest required drill, replaces only its owned generated parts/definitions, and synchronizes layout and board membership. Rust `SetMechanical` only assigns `doc.mechanical`; it does not perform this document projection.
 
-**Impact:** A component-only rewrite would lose behavior or leave hidden TS logic; moving the policy carelessly could duplicate geometry authority.
+**Impact:** A component-only rewrite would lose behavior or leave hidden TS logic; moving the policy carelessly could duplicate geometry authority. A Case configuration-only port would also leave exported PCB holes and saved membership stale, while splitting the update into separate edits would break atomic Undo/persistence behavior.
 
-**During the port:** F6C.3 ports the existing policy into a private Rust frontend controller with preserved helper/public workflow tests and one normal edit/history path.
+**During the port:** F6C.3 ports the existing policy into a private Rust frontend controller with preserved helper/public workflow tests and one normal edit/history path. F7.4e preserves the bounded Case closure-clearance document projection through one existing accepted-document/Session edit, without moving geometry authority or widening public APIs.
 
 **After the port:** After parity, decide whether interaction planning belongs in a dedicated application service using core geometry primitives, with explicit draft/commit ownership.
 
-**Validate:** Compare identical resize traces across pointer/keyboard, mixed selections and linked boards; no semantic drift, duplicated calculations or extra history steps.
+**Validate:** Compare identical resize traces across pointer/keyboard, mixed selections and linked boards; no semantic drift, duplicated calculations or extra history steps. For Case, compare canonical/physical-instance closure edits, reflected and coincident holes, generated definition/drill data, board/layout membership, saved archive payload, one-step Undo/Redo and reopen.
 
-Evidence: [planKeycapResize.ts](../../app/src/ui/planKeycapResize.ts), [keycapReflow.ts](../../app/src/ui/keycapReflow.ts), [interactions.rs](../../application/src/interactions.rs), [layout.rs](../../core/src/matrix/layout.rs).
+Evidence: [planKeycapResize.ts](../../app/src/ui/planKeycapResize.ts), [keycapReflow.ts](../../app/src/ui/keycapReflow.ts), [interactions.rs](../../application/src/interactions.rs), [layout.rs](../../core/src/matrix/layout.rs), [closureClearance.ts](../../app/src/closureClearance.ts), [createProjectActions.ts](../../app/src/createProjectActions.ts), [core edit operations](../../core/src/lib.rs), [Case mechanical settings evidence](../../.scratch/dioxus-case-workspace/evidence/mechanical-settings-contract/implementation-contract.md).
+
+**Current effective-projection handoff (2026-10-02):** a private stateless carrier can reuse the existing public `captured_case_document` projection for a proposed canonical document. Keep original accepted snapshot identity and full Scope for validation, async guards and Core correlation; the ephemeral carrier shares the original scene Arc/token/epoch, exists only as projection input, and is immediately discarded. A paired call to `captured_case_document` and `captured_case_scene` costs two document plus two scene projections because each clones both values even though each call discards one half. This is a bounded per-resolution cost, not a once-total-copy or measured-performance claim; avoid per-render calls and extra caller clones. See the [retained projection review](../../.scratch/dioxus-frontend-v1/evidence/planning/mechanical-effective-projection-cost-20261002.md).
 
 ## RF-006
 
@@ -125,6 +127,8 @@ Layout/Keymap/Keycaps use canonical boards; Case projects a physical instance; P
 **Validate:** Table-driven fixtures for front/back/split/instance/sample scopes plus properties for stable IDs, reflection count, unchanged canonical document and correct outputs.
 
 Evidence: [Workbench.tsx](../../app/src/ui/Workbench.tsx), [LibraryWorkspace.tsx](../../app/src/ui/LibraryWorkspace.tsx), [cases.ts](../../app/src/exports/cases.ts), [cad_jobs.rs](../../web/src/cad_jobs.rs).
+
+**Current effective-projection handoff (2026-10-02):** the private proposal projection and matching contours deliberately use different inputs. Project the ephemeral proposed canonical document through `captured_case_document`; use `captured_case_scene` on the original accepted snapshot for the unchanged board contours. That preserves the physical-instance reflection/winding policy once, while preventing a reflected display document from being persisted or projected a second time. The temporary carrier never becomes Session, accepted-read-model, CAD cache/job, export or operation authority. No public API is added or widened, and no default/material policy is copied. The source-backed cost and identity limits are recorded in the [retained projection review](../../.scratch/dioxus-frontend-v1/evidence/planning/mechanical-effective-projection-cost-20261002.md).
 
 ## RF-007
 
@@ -308,3 +312,6 @@ The Case-first viewer needs private host operations across the library/binary bo
 ### RF-006 layer feedback and test-boundary follow-up
 
 Layer editing distinguishes the stored requested layer ID from its displayed fallback, accepted field-name identity from unrelated snapshot changes, and exact acknowledgement mismatch from rejection feedback. Source review corrected these branches before integration. The Dioxus controller remains a WASM hook: strict WASM checks compile its unit tests, while native Core/Session tests and actual public UI actions prove different seams. After parity, assess whether a private state machine can expose these correlation decisions to native behavioral tests without duplicating domain edits or persistence ownership.
+
+
+A bounded [Keymap focus-continuity handoff](../../.scratch/dioxus-frontend-v1/evidence/planning/binding-focus-continuity-handoff-20261002.md) adds paired candidate/React native Tab evidence to this finding. During blur-save, candidate focus falls to BODY while single-flight disables controls; React moves focus to Hold. After idle, native pointer/selection preserves and saves both fields. The earlier programmatic select red is retired because the same event order occurs on React. This is a focus-continuity gap, not demonstrated document-data loss; broader legacy/malformed/stale-race/semantic checks and actual AT remain open, with no AT pass claimed.

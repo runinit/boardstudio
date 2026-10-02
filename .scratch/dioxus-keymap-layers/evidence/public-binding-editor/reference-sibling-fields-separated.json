@@ -1,0 +1,8 @@
+{
+  "binding": {
+    "hold": "RCTRL",
+    "kind": "mod-tap",
+    "tap": "Y"
+  },
+  "revision": 33
+}

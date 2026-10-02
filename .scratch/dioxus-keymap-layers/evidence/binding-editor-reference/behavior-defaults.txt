@@ -1,0 +1,153 @@
+
+### Key press
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Key press
+    - option "Key press" [selected, ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [ref=e303]
+  - combobox "left-keys-SW1 keycode" [ref=e314]: A
+  - button "Export ZMK source" [ref=e250]
+
+### Layer tap
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Layer tap
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [selected, ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [ref=e303]
+  - combobox "left-keys-SW1 tap" [ref=e315]: SPACE
+  - combobox "left-keys-SW1 layer" [expanded=false, ref=e316]: Function
+    - option "Main" [ref=e317]
+    - option "Function" [selected, ref=e318]
+  - button "Export ZMK source" [ref=e250]
+
+### Momentary layer
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Momentary layer
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [selected, ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [ref=e303]
+  - combobox "left-keys-SW1 layer" [expanded=false, ref=e316]: Function
+    - option "Main" [ref=e317]
+    - option "Function" [selected, ref=e318]
+  - button "Export ZMK source" [ref=e250]
+
+### Toggle layer
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Toggle layer
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [selected, ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [ref=e303]
+  - combobox "left-keys-SW1 layer" [expanded=false, ref=e316]: Function
+    - option "Main" [ref=e317]
+    - option "Function" [selected, ref=e318]
+  - button "Export ZMK source" [ref=e250]
+
+### Go to layer
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Go to layer
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [selected, ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [ref=e303]
+  - combobox "left-keys-SW1 layer" [expanded=false, ref=e316]: Function
+    - option "Main" [ref=e317]
+    - option "Function" [selected, ref=e318]
+  - button "Export ZMK source" [ref=e250]
+
+### Sticky layer
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Sticky layer
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [selected, ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [ref=e303]
+  - combobox "left-keys-SW1 layer" [expanded=false, ref=e316]: Function
+    - option "Main" [ref=e317]
+    - option "Function" [selected, ref=e318]
+  - button "Export ZMK source" [ref=e250]
+
+### Sticky key
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Sticky key
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [selected, ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [ref=e303]
+  - combobox "left-keys-SW1 keycode" [ref=e319]: A
+  - button "Export ZMK source" [ref=e250]
+
+### Transparent
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Transparent
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [selected, ref=e302]
+    - option "Unassigned" [ref=e303]
+  - button "Export ZMK source" [ref=e250]
+
+### Unassigned
+  - combobox "left-keys-SW1 behavior" [expanded=false, ref=e261]: Unassigned
+    - option "Key press" [ref=e293]
+    - option "Mod tap" [ref=e294]
+    - option "Layer tap" [ref=e295]
+    - option "Momentary layer" [ref=e296]
+    - option "Toggle layer" [ref=e297]
+    - option "Go to layer" [ref=e298]
+    - option "Sticky layer" [ref=e299]
+    - option "Sticky key" [ref=e300]
+    - option "Macro" [disabled, ref=e301]
+    - option "Transparent" [ref=e302]
+    - option "Unassigned" [selected, ref=e303]
+  - button "Export ZMK source" [ref=e250]

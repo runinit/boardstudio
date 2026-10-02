@@ -210,7 +210,7 @@
     ],
     "status": "two drafts independently reviewed and automatically published; concrete contracts required"
   },
-  "bounded_ticket_count": 34,
+  "bounded_ticket_count": 39,
   "canonical_parent_count": 62,
   "pending_api_decision": {
     "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
@@ -267,18 +267,18 @@
       "INT.2",
       "BND.1"
     ],
-    "status": "published automatically after independent review; Case vertical slice author dispatch pending; all canonical acceptance joins retained"
+    "status": "Published issue02 continues the first Case slice: existing Case geometry evidence is partial and newly required model delivery/public proof remain open; F7.3 parent joins remain open."
   },
   "case_keymap_source_status": {
-    "source_commit": "dc81237c",
-    "status": "mounted independentlyreviewed dc81237c; strictWASM/nativechecks pass; freshbuildcomplete; publicverification running",
-    "native_checks": "16 integrated native tests and separate5 actualSession/Core Keymap projection tests",
-    "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current",
+    "source_commit": "6468e80d8d0aee563098ca271f837b6d1a62343e",
+    "status": "Keymap layer edits and Case-first shared viewer mounted, independently reviewed and compiled; fresh combined demo public verification running",
+    "native_checks": "24 page native tests +4 isolated real Core/Session layer edit/history tests; wasm controller tests compiled but not executed natively",
+    "evidence": ".scratch/dioxus-frontend-v1/evidence/layer-viewer-current",
     "public_acceptance": "pending; no canonical parent closure",
-    "build": "frontend-case-keymap-20261002 complete; root/subpath/offline sourcehashes verified",
+    "build": "frontend-layer-viewer-20261002 complete; all7commands and source/provider/asset hashes pass",
     "demo_urls": [
-      "http://127.0.0.1:34663/",
-      "http://127.0.0.1:34663/boardstudio/"
+      "http://127.0.0.1:34667/",
+      "http://127.0.0.1:34667/boardstudio/"
     ]
   },
   "keymap_next_tickets": {
@@ -288,11 +288,16 @@
       "../dioxus-keymap-layers/issues/05-encoder-firmware-handoff.md"
     ],
     "status": "publishedaftercorrectedindependentreview; canonicalstarts/acceptancejoinsretained; HighunlessprovenScope/token/outcomeseam",
-    "source_implementation": "notstarted; layer02 privateworkerimplementednext"
+    "source_implementation": "Binding editor source 6509f557 root-mounted; fresh build frontend-keymap-bindings-20261002 complete at 34673 with 961 source hashes. Focused public packet complete; native Tab during blur-save shows focus-continuity difference (candidate BODY vs React Hold), while after-idle native selection preserves both fields. Full F6 legacy/malformed/stale-race, broad semantic and actual AT gates remain open; no acceptance inferred.",
+    "public_qa_evidence": [
+      "../dioxus-keymap-layers/evidence/public-binding-editor/README.md",
+      "../dioxus-keymap-layers/evidence/public-binding-editor/sibling-diagnosis/README.md",
+      "../dioxus-keymap-layers/evidence/binding-offline-layout/RESULTS.md"
+    ]
   },
   "default_instance_repair": {
     "issue": "../dioxus-case-workspace/issues/02-default-instance-selection-repair.md",
-    "status": "sourceimplemented and independentlyreviewed;20nativepage +strictnative/WASMpass; freshpublicverificationrunning",
+    "status": "Source reviewed;20native+strictchecks and fresh import/board navigation/reload/no-instance/offline root+subpath public checks pass; complex multi-instance and pending-lifecycle gates open",
     "gates": "fullF7.7 canonicalstartandacceptancejoins preserved; parentopen",
     "source_commit": "ed242c02",
     "build": "frontend-instance-defaults-20261002 complete; sourcehashesverified",
@@ -310,6 +315,49 @@
       "../dioxus-case-workspace/issues/06-manufacturing-overrides.md",
       "../dioxus-case-workspace/issues/07-direct-manipulation.md"
     ],
-    "review": "../dioxus-case-workspace/evidence/next-five-tickets-reviewed/case-next-five-final-review.md"
+    "review": "../dioxus-case-workspace/evidence/next-five-tickets-reviewed/case-next-five-final-review.md",
+    "source_implementation": "Mechanical settings controller/mount integrated in 0cad7577; current owned closure source 61e8c43 integrated in 86a83ddf. Strict WASM/native Clippy and 34 native tests pass, including six closure and four feedback cases. Fresh public build verification underway; no workflow or parent acceptance claimed.",
+    "evidence": "../dioxus-case-workspace/evidence/mechanical-feedback-regression",
+    "build": "frontend-mechanical-settings-20261002; 7 commands, 965 source hashes; source 0cad75775e84aba13dc2f88d513b9f662e037e5e",
+    "demo_urls": [
+      "http://127.0.0.1:34675/",
+      "http://127.0.0.1:34675/boardstudio/"
+    ],
+    "public_acceptance": "underway; configure/edit/disable, accepted saved payload, Undo/Redo, archive/reopen and parent acceptance remain open"
+  },
+  "mechanical_clearance_ticket": {
+    "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
+    "status": "Published after independent exact-delta review; implementation and actual integrated public acceptance remain open.",
+    "parent": "F7.4",
+    "start_after": [
+      "INT.1"
+    ],
+    "parent_acceptance_after": [
+      "INT.2"
+    ],
+    "reviewed_draft_sha256": "71312f312b36c01904820c45e43d2d19e681ac6d413c1c6733886b0ba9a8a6e8"
+  },
+  "shared_viewer_model_delivery": {
+    "parent": "F7.3",
+    "contract_sha256": "e3529ac79f1b7d69211a8fa4cdc9e4d1170ec39a3c6510ab458dddc3a634b946",
+    "status": "Independently Spec/Standards cleared and published; implementation/acceptance open.",
+    "existing_issue_continued": "../dioxus-shared-viewer/issues/02-private-shared-viewer-case-slice.md",
+    "new_issue_count": 4,
+    "new_issues": [
+      "../dioxus-shared-viewer/issues/03-shared-viewer-layout.md",
+      "../dioxus-shared-viewer/issues/04-shared-viewer-keymap.md",
+      "../dioxus-shared-viewer/issues/05-shared-viewer-keycaps.md",
+      "../dioxus-shared-viewer/issues/06-shared-viewer-parts-sample.md"
+    ],
+    "canonical_edges": "F7.3 starts after F7.1; INT.2 and BND.1 remain acceptance joins; F7.8 remains the later join. No canonical graph changes.",
+    "evidence": "../dioxus-shared-viewer/evidence/model-delivery-contract-reviewed"
+  },
+  "macro_editor_source": {
+    "source_commit": "ac43980c",
+    "integrated_commit": "96874be6",
+    "review": "Independent Spec and Standards clear",
+    "mounted": false,
+    "compiled": false,
+    "acceptance": "source merged; Macro UI and F6 acceptance open"
   }
 }

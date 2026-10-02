@@ -1,0 +1,110 @@
+{
+  "build_id": "frontend-keymap-bindings-20261002",
+  "source_commit": "6509f557c2a16df0a1f5ce19296eeb635df68256",
+  "source_hash_count": 961,
+  "source_hashes_verified": 961,
+  "routes": {
+    "root": {
+      "prefix": "/",
+      "checks": [
+        {
+          "asset": "index.html",
+          "url": "http://127.0.0.1:34673/",
+          "expected": "5f66085534dc7e39aae9561fc696da0d70d28ffb66d4fd2afc2849c3f9308828",
+          "local": "5f66085534dc7e39aae9561fc696da0d70d28ffb66d4fd2afc2849c3f9308828",
+          "served": "5f66085534dc7e39aae9561fc696da0d70d28ffb66d4fd2afc2849c3f9308828",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "service-worker.js",
+          "url": "http://127.0.0.1:34673/service-worker.js",
+          "expected": "4e45330bfd3d15bbed1b01b6d1b97fdfabbd56a93fa321bfeffe272b37e96141",
+          "local": "4e45330bfd3d15bbed1b01b6d1b97fdfabbd56a93fa321bfeffe272b37e96141",
+          "served": "4e45330bfd3d15bbed1b01b6d1b97fdfabbd56a93fa321bfeffe272b37e96141",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "boardstudio_offline_worker.js",
+          "url": "http://127.0.0.1:34673/boardstudio_offline_worker.js",
+          "expected": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61",
+          "local": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61",
+          "served": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "assets/boardstudio-web-dxhaf4d314b29c093d0.js",
+          "url": "http://127.0.0.1:34673/assets/boardstudio-web-dxhaf4d314b29c093d0.js",
+          "expected": "b96fd0099ae6e0131f03436c0a4db949f70199ab8133e9c8a41ec407245b7216",
+          "local": "b96fd0099ae6e0131f03436c0a4db949f70199ab8133e9c8a41ec407245b7216",
+          "served": "b96fd0099ae6e0131f03436c0a4db949f70199ab8133e9c8a41ec407245b7216",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "assets/boardstudio-web_bg-dxh21af40aa455c93bf.wasm",
+          "url": "http://127.0.0.1:34673/assets/boardstudio-web_bg-dxh21af40aa455c93bf.wasm",
+          "expected": "adbf1476bd4f13c8f8e1120d4c8d573d76ee35f2cce105ca0465f468da24aeb3",
+          "local": "adbf1476bd4f13c8f8e1120d4c8d573d76ee35f2cce105ca0465f468da24aeb3",
+          "served": "adbf1476bd4f13c8f8e1120d4c8d573d76ee35f2cce105ca0465f468da24aeb3",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        }
+      ],
+      "all_match": true
+    },
+    "subpath": {
+      "prefix": "/boardstudio/",
+      "checks": [
+        {
+          "asset": "index.html",
+          "url": "http://127.0.0.1:34673/boardstudio/",
+          "expected": "cb6ca85da5abd04a7f29083535deef1ca8fb6bb64b93c5f7379dcfd57ed051c6",
+          "local": "cb6ca85da5abd04a7f29083535deef1ca8fb6bb64b93c5f7379dcfd57ed051c6",
+          "served": "cb6ca85da5abd04a7f29083535deef1ca8fb6bb64b93c5f7379dcfd57ed051c6",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "service-worker.js",
+          "url": "http://127.0.0.1:34673/boardstudio/service-worker.js",
+          "expected": "d47c619a5850530c2ecb36ae753f0f67045c389fdb1605c01b4f98b0edd3204d",
+          "local": "d47c619a5850530c2ecb36ae753f0f67045c389fdb1605c01b4f98b0edd3204d",
+          "served": "d47c619a5850530c2ecb36ae753f0f67045c389fdb1605c01b4f98b0edd3204d",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "boardstudio_offline_worker.js",
+          "url": "http://127.0.0.1:34673/boardstudio/boardstudio_offline_worker.js",
+          "expected": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61",
+          "local": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61",
+          "served": "1c02dac3443cbc9b8c312b6c0d78181f6e76c53077af235a3d92f67cc9842c61",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "assets/boardstudio-web-dxh64dd33736c8654ae.js",
+          "url": "http://127.0.0.1:34673/boardstudio/assets/boardstudio-web-dxh64dd33736c8654ae.js",
+          "expected": "faa5ad6db643bff04584a9afe21bd4f3d3fef49f3fb7290bb4984c09b09ea26a",
+          "local": "faa5ad6db643bff04584a9afe21bd4f3d3fef49f3fb7290bb4984c09b09ea26a",
+          "served": "faa5ad6db643bff04584a9afe21bd4f3d3fef49f3fb7290bb4984c09b09ea26a",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        },
+        {
+          "asset": "assets/boardstudio-web_bg-dxh21af40aa455c93bf.wasm",
+          "url": "http://127.0.0.1:34673/boardstudio/assets/boardstudio-web_bg-dxh21af40aa455c93bf.wasm",
+          "expected": "adbf1476bd4f13c8f8e1120d4c8d573d76ee35f2cce105ca0465f468da24aeb3",
+          "local": "adbf1476bd4f13c8f8e1120d4c8d573d76ee35f2cce105ca0465f468da24aeb3",
+          "served": "adbf1476bd4f13c8f8e1120d4c8d573d76ee35f2cce105ca0465f468da24aeb3",
+          "local_matches_manifest": true,
+          "served_matches_manifest": true
+        }
+      ],
+      "all_match": true
+    }
+  }
+}

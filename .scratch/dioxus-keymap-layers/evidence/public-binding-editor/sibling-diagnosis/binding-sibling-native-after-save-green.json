@@ -1,0 +1,122 @@
+{
+  "binding": {
+    "hold": "LCTRL",
+    "kind": "mod-tap",
+    "tap": "Y"
+  },
+  "revision": 58,
+  "trace": [
+    {
+      "type": "focusin",
+      "label": "left-keys-SW8 tap",
+      "value": "A",
+      "active": "left-keys-SW8 tap",
+      "at": 430749.40000000596
+    },
+    {
+      "type": "input",
+      "label": "left-keys-SW8 tap",
+      "value": "",
+      "active": "left-keys-SW8 tap",
+      "at": 430751.09999999404
+    },
+    {
+      "type": "input",
+      "label": "left-keys-SW8 tap",
+      "value": "Y",
+      "active": "left-keys-SW8 tap",
+      "at": 430752.5
+    },
+    {
+      "type": "change",
+      "label": "left-keys-SW8 tap",
+      "value": "Y",
+      "active": null,
+      "at": 430775.5
+    },
+    {
+      "type": "blur",
+      "label": "left-keys-SW8 tap",
+      "value": "Y",
+      "active": null,
+      "at": 430775.5
+    },
+    {
+      "type": "focusout",
+      "label": "left-keys-SW8 tap",
+      "value": "Y",
+      "active": null,
+      "at": 430778.90000000596
+    },
+    {
+      "type": "focusin",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "LSHIFT",
+      "active": "left-keys-SW8 hold modifier",
+      "at": 441639.2000000179
+    },
+    {
+      "type": "input",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "RSHIFT",
+      "active": "left-keys-SW8 hold modifier",
+      "at": 441660.2000000179
+    },
+    {
+      "type": "change",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "RSHIFT",
+      "active": "left-keys-SW8 hold modifier",
+      "at": 441660.59999999404
+    },
+    {
+      "type": "blur",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "LSHIFT",
+      "active": null,
+      "at": 441672.40000000596
+    },
+    {
+      "type": "focusout",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "LSHIFT",
+      "active": null,
+      "at": 441672.5
+    },
+    {
+      "type": "focusin",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "RSHIFT",
+      "active": "left-keys-SW8 hold modifier",
+      "at": 457958.7000000179
+    },
+    {
+      "type": "input",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "LCTRL",
+      "active": "left-keys-SW8 hold modifier",
+      "at": 457972.7000000179
+    },
+    {
+      "type": "change",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "LCTRL",
+      "active": "left-keys-SW8 hold modifier",
+      "at": 457972.90000000596
+    },
+    {
+      "type": "blur",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "RSHIFT",
+      "active": null,
+      "at": 457988.59999999404
+    },
+    {
+      "type": "focusout",
+      "label": "left-keys-SW8 hold modifier",
+      "value": "RSHIFT",
+      "active": null,
+      "at": 457988.59999999404
+    }
+  ]
+}

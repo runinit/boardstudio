@@ -1,0 +1,335 @@
+[
+  {
+    "label": "Workspace",
+    "options": [
+      {
+        "disabled": false,
+        "label": "Layout",
+        "value": "Layout"
+      },
+      {
+        "disabled": false,
+        "label": "PCB",
+        "value": "PCB"
+      },
+      {
+        "disabled": false,
+        "label": "Keymap",
+        "value": "Keymap"
+      },
+      {
+        "disabled": false,
+        "label": "Keycaps",
+        "value": "Keycaps"
+      },
+      {
+        "disabled": false,
+        "label": "Case",
+        "value": "Case"
+      },
+      {
+        "disabled": false,
+        "label": "Parts",
+        "value": "Parts"
+      },
+      {
+        "disabled": false,
+        "label": "Export",
+        "value": "Export"
+      }
+    ],
+    "value": "Keymap"
+  },
+  {
+    "label": "Theme",
+    "options": [
+      {
+        "disabled": false,
+        "label": "System",
+        "value": "system"
+      },
+      {
+        "disabled": false,
+        "label": "Light",
+        "value": "light"
+      },
+      {
+        "disabled": false,
+        "label": "Dark",
+        "value": "dark"
+      }
+    ],
+    "value": "system"
+  },
+  {
+    "label": "Board",
+    "options": [
+      {
+        "disabled": false,
+        "label": "Left PCB",
+        "value": "left"
+      },
+      {
+        "disabled": false,
+        "label": "Right PCB",
+        "value": "right"
+      }
+    ],
+    "value": "left"
+  },
+  {
+    "label": "Physical instance",
+    "options": [
+      {
+        "disabled": false,
+        "label": "left half",
+        "value": "left"
+      }
+    ],
+    "value": "left"
+  },
+  {
+    "label": "Group objects",
+    "options": [
+      {
+        "disabled": false,
+        "label": "Columns",
+        "value": "column"
+      },
+      {
+        "disabled": false,
+        "label": "Rows",
+        "value": "row"
+      }
+    ],
+    "value": "column"
+  },
+  {
+    "label": "Selected key",
+    "options": [
+      {
+        "disabled": false,
+        "label": "Choose on the layout…",
+        "value": ""
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW1 · LC(LS(A))",
+        "value": "matrix/left-keys/r0c0"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW2 · Reference Macro",
+        "value": "matrix/left-keys/r0c1"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW3 · Reference Macro",
+        "value": "matrix/left-keys/r0c2"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW4 · Transparent",
+        "value": "matrix/left-keys/r0c3"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW5 · Transparent",
+        "value": "matrix/left-keys/r0c4"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW6 · Transparent",
+        "value": "matrix/left-keys/r0c5"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW7 · Transparent",
+        "value": "matrix/left-keys/r1c0"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW8 · Transparent",
+        "value": "matrix/left-keys/r1c1"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW9 · Transparent",
+        "value": "matrix/left-keys/r1c2"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW10 · Transparent",
+        "value": "matrix/left-keys/r1c3"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW11 · Transparent",
+        "value": "matrix/left-keys/r1c4"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW12 · Transparent",
+        "value": "matrix/left-keys/r1c5"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW13 · Transparent",
+        "value": "matrix/left-keys/r2c0"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW14 · Transparent",
+        "value": "matrix/left-keys/r2c1"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW15 · Transparent",
+        "value": "matrix/left-keys/r2c2"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW16 · Transparent",
+        "value": "matrix/left-keys/r2c3"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW17 · Transparent",
+        "value": "matrix/left-keys/r2c4"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW18 · Transparent",
+        "value": "matrix/left-keys/r2c5"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW19 · Transparent",
+        "value": "matrix/left-keys/r3c0"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW20 · Transparent",
+        "value": "matrix/left-keys/r3c1"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW21 · Transparent",
+        "value": "matrix/left-keys/r3c2"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW22 · Transparent",
+        "value": "matrix/left-keys/r3c3"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW23 · Transparent",
+        "value": "matrix/left-keys/r3c4"
+      },
+      {
+        "disabled": false,
+        "label": "left-keys-SW24 · Transparent",
+        "value": "matrix/left-keys/r3c5"
+      },
+      {
+        "disabled": false,
+        "label": "left-thumbs-SW1 · Transparent",
+        "value": "matrix/left-thumbs/r0c0"
+      },
+      {
+        "disabled": false,
+        "label": "left-thumbs-SW2 · Transparent",
+        "value": "matrix/left-thumbs/r0c1"
+      },
+      {
+        "disabled": false,
+        "label": "left-thumbs-SW3 · Transparent",
+        "value": "matrix/left-thumbs/r0c2"
+      },
+      {
+        "disabled": false,
+        "label": "left-thumbs-SW4 · Transparent",
+        "value": "matrix/left-thumbs/r0c3"
+      },
+      {
+        "disabled": false,
+        "label": "left-thumbs-SW5 · Transparent",
+        "value": "matrix/left-thumbs/r0c4"
+      }
+    ],
+    "value": "matrix/left-keys/r0c2"
+  },
+  {
+    "label": "left-keys-SW3 behavior",
+    "options": [
+      {
+        "disabled": false,
+        "label": "Key press",
+        "value": "key-press"
+      },
+      {
+        "disabled": false,
+        "label": "Mod tap",
+        "value": "mod-tap"
+      },
+      {
+        "disabled": false,
+        "label": "Layer tap",
+        "value": "layer-tap"
+      },
+      {
+        "disabled": false,
+        "label": "Momentary layer",
+        "value": "momentary-layer"
+      },
+      {
+        "disabled": false,
+        "label": "Toggle layer",
+        "value": "toggle-layer"
+      },
+      {
+        "disabled": false,
+        "label": "Go to layer",
+        "value": "to-layer"
+      },
+      {
+        "disabled": false,
+        "label": "Sticky layer",
+        "value": "sticky-layer"
+      },
+      {
+        "disabled": false,
+        "label": "Sticky key",
+        "value": "sticky-key"
+      },
+      {
+        "disabled": false,
+        "label": "Macro",
+        "value": "macro"
+      },
+      {
+        "disabled": false,
+        "label": "Transparent",
+        "value": "transparent"
+      },
+      {
+        "disabled": false,
+        "label": "Unassigned",
+        "value": "none"
+      }
+    ],
+    "value": "macro"
+  },
+  {
+    "label": "left-keys-SW3 macro",
+    "options": [
+      {
+        "disabled": false,
+        "label": "Reference Macro",
+        "value": "2110cfa6-98b3-429b-b5ff-d019722b7d4b"
+      }
+    ],
+    "value": "2110cfa6-98b3-429b-b5ff-d019722b7d4b"
+  }
+]

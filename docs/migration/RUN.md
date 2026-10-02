@@ -1225,3 +1225,102 @@ Five Case tickets for mechanical configuration, profiles, enclosure fit, manufac
 ### Layer controls and Case-first viewer mounted
 
 Keymap Add/blur-rename/protected Remove now use the private Editor-lifetime single-flight controller; requested IDs survive removal/rejection, and resolved fallback is used for controls. The Case-first shared viewer is mounted with reactive resolved theme, persisted alias-aware display preferences and shared authored-body selection. Independent root/source reviews clear, strict WASM/native checks and24native page tests pass; four real Core/Session layer edit/history tests also pass. Fresh release and public interaction/persistence/lifecycle verification remain next, and all full parent joins remain open. The viewer currently consumes full scenes with no models or fabricated handles; prepared/patch/model adoption is explicitly still required for fullF7.3.
+
+
+### Fresh combined frontend demo
+
+The seven-command root/subpath/offline packaging run `frontend-layer-viewer-20261002` completed from6468e80d with source/provider/asset hash verification. The demo is at [root](http://127.0.0.1:34667/) and [subpath](http://127.0.0.1:34667/boardstudio/). Separate agents are verifying actual public Keymap layer edits and generated Case viewer/display behavior. Isolated source authors have started the reviewed binding editor and mechanical configuration UI slices; root mount/controller and all full parent gates remain explicit.
+
+### Combined candidate public verification and next component reviews
+
+The exact `6468e80d` build passes fresh root/subpath offline reload with active controlling service workers and 51 cached entries at each mount. Public Keymap layer controls pass Add, blur rename, Remove/fallback, Undo/Redo identity restoration, protected Base, invalid-name correction, keyboard actions, 32-layer limit, hide/show and reload. A fresh paired reference retains an obsolete error banner after a successful rename; candidate clears it and both saved payloads agree. This behavior difference is retained explicitly rather than copying the stale alert. Full F6 acceptance remains open.
+
+Same-archive Reviung generation reaches exact geometry in both applications. The initial candidate screenshot appeared blank because settings and controls placed the canvas at y=489–809 while the workspace ended at y=515. Scrolling reveals the rendered mesh without a source/provider change. This is an evidenced Case layout regression; viewport repair and fresh public regression checks are underway. Renderer failure is not claimed.
+
+Isolated BindingEditor source `f494232e` and MechanicalSettings source `82dceabc` are committed for independent review. They are not mounted or accepted by those commits. The corrected mechanical controller contract and an additional closure-clearance ticket remain under independent review; the published frontier stays at 34 children and all 62 parent tasks remain intact.
+
+The independently reviewed F7.4e mechanical-clearance child is automatically published as issue 08. It requires actual Configure/edit/disable, one atomic accepted change, saved generated holes and membership, Undo/Redo and reopen proof. The frontier now has 35 bounded tickets; all 62 parent milestones and F7.4’s INT.2 acceptance join remain intact. RF-005 records the verified frontend document-planning coupling.
+
+### Case viewport repair and guarded clearance planner
+
+The Case-only viewport repair `87cea512` passes independent public red/green verification: its canvas is fully visible without scrolling at 1280×577, 390×844 and 760×844. Native disclosures, camera/display and generated-layer controls remain reachable. A follow-up compact settings target correction is packaged in `frontend-case-viewport-final-20261002` from `32695555`; all seven build commands and 959 captured source/provider/asset hashes pass. The latest combined demo is [root](http://127.0.0.1:34671/) and [subpath](http://127.0.0.1:34671/boardstudio/). Focused final-delta and fresh offline checks are running.
+
+The source-reviewed private closure-clearance planner now compiles in the native page test target. All 30 page tests (12 library, 18 binary) and strict native/WASM Clippy pass. Six planner tests cover source-compatible deduplication/rounding/metadata and real Core Open/Snapshot admission at mounting-hole reference boundaries. Unlike unsafe JavaScript numeric allocation, the private planner returns a correctable error before producing a replacement when MH references exceed the exact JavaScript integer range or the generated count exhausts it. This deliberate supported-range guard changes no public API/schema. The helper remains unmounted; F7.4e still requires the mechanical controller, one atomic Session edit and public save/Undo/Redo/reopen evidence. Binding and mechanical controllers are being authored against the existing exact-operation outcome seam with Editor-lifetime request IDs and fresh field-specific admission.
+
+## Latest verified frontend handoff — 2026-10-02
+
+Fresh Case viewport source `32695555a642c4e07d66e4d05fcbc6b07f8b800a`, build
+`frontend-case-viewport-final-20261002`, is served at [root](http://127.0.0.1:34671/)
+and [subpath](http://127.0.0.1:34671/boardstudio/). Its focused public compact
+check passes: after importing the genuine React Reviung archive and generating
+Case, the mesh is fully visible at 390×844, with no page or pane scrolling; the
+Generate, Cancel generation, Case settings and Bottom thickness controls are
+44 px high. The independently retained prior `87cea512` desktop/compact/
+breakpoint results stay tied to that source. The fresh source additionally passes
+natural service-worker install/activation and offline reload at both `/` and
+`/boardstudio/`. Exact public evidence is in
+[`public-final`](../../.scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public-final/)
+and [`offline-final`](../../.scratch/dioxus-case-viewport-layout/evidence/offline-final/).
+These bounded viewport, control-target and offline results do not close F7.3 or
+any other parent.
+
+The Keymap binding editor is mounted through the root at `6509f557`.
+Strict WASM/native Clippy, formatting and 30 native tests pass; Astra's source
+review is clear. Fresh build `frontend-keymap-bindings-20261002` is complete
+with seven packaging commands and 961 source hashes verified; it is served at
+[root](http://127.0.0.1:34673/) and [subpath](http://127.0.0.1:34673/boardstudio/).
+The focused public packet is complete; see [`public-binding-editor`](../../.scratch/dioxus-keymap-layers/evidence/public-binding-editor/README.md), its build provenance and the published [binding editor ticket](../../.scratch/dioxus-keymap-layers/issues/03-binding-editor.md). It records defaults/choices, stable identities, invalid no-match draft retention, correction, Undo/Redo, keyboard selection and archive/reload document equality. Full F6 acceptance remains open for legacy/malformed/stale races, broader semantics and actual assistive-technology testing.
+The initial synthetic driver-select red is retired because React reproduces the
+same programmatic event ordering. An actual native Tab during blur-save does move
+focus to BODY while the single-flight lock disables the field; after idle,
+pointer focus/native selection preserves and saves both Tap and Hold. This is a focus-continuity difference, not document-data loss. The paired focused public packet is complete; broader F6 acceptance remains open.
+The Case mechanical settings source `84c300` is cherry-picked into integration
+snapshot `3c83cc0f` but remains unmounted and uncompiled; root port/mount work is
+underway.
+
+Four independently Spec/Standards-cleared model-delivery tickets are now
+published. Existing Case issue 02 continues its initial slice, with bounded
+existing geometry proof partial and new model delivery open; issues 03–06 provide
+separate Layout, Keymap, Keycaps and isolated Parts-sample consumers. This adds
+four tickets, not five, bringing the frontier to 39 over all 62 canonical
+parents. F7.3 starts only after F7.1; INT.2 and BND.1 remain its acceptance
+joins, and F7.8 remains the later consumer join. No parent is accepted or closed.
+The reviewed contract/reports and exact issue hashes are retained in
+[`model-delivery-contract-reviewed`](../../.scratch/dioxus-shared-viewer/evidence/model-delivery-contract-reviewed/README.md).
+
+The current frontier remains 39 published bounded tickets over all 62 canonical
+parents. Original start and acceptance joins remain authoritative; no parent or
+full milestone is closed by this update. Earlier planning review hashes apply to
+the previously reviewed planning delta, not the fresh viewport package or the
+new Keymap binding source/build or model-delivery ticket texts. The public API
+proposal remains pending, and the saved-open race remains open.
+
+The latest Keymap binding build `frontend-keymap-bindings-20261002` is now
+complete from source `6509f557c2a16df0a1f5ce19296eeb635df68256`, with 961 captured
+source hashes verified. It is served at [root](http://127.0.0.1:34673/) and
+[subpath](http://127.0.0.1:34673/boardstudio/); the focused public packet is complete, but full F6 acceptance remains open.
+The focused public packet and Astra source review are clear; strict WASM/native Clippy, formatting and 30 native tests pass. The Case mechanical settings source `84c300` is cherry-picked into
+integration snapshot `3c83cc0f` but is still unmounted and uncompiled; root
+mount/port work is underway.
+
+A source-reviewed mechanical effective-projection seam has also been retained in
+[RF-005/RF-006 evidence](../../.scratch/dioxus-frontend-v1/evidence/planning/mechanical-effective-projection-cost-20261002.md).
+It reuses existing `captured_case_document` for an ephemeral proposed canonical
+document and `captured_case_scene` on the original accepted snapshot for matching
+contours. The temporary carrier never becomes Session or operation authority.
+The paired public projections clone two full documents and two full scenes per
+resolution while discarding one output each; this is a bounded frequency-dependent
+cost observation, not a measured-performance claim or a new public API. The
+refactor register remains at 13 existing IDs; RF-005 and RF-006 are augmented.
+
+
+## Current mechanical and Macro integration update — 2026-10-02
+
+The Case mechanical settings controller and root mount are integrated in commit `0cad7577`. Strict WASM/native Clippy and 34 native checks pass; retained logs and independent reviews are in [mechanical feedback regression evidence](../../.scratch/dioxus-case-workspace/evidence/mechanical-feedback-regression/). Fresh build `frontend-mechanical-settings-20261002` completed all seven commands with 965 source hashes verified from `0cad75775e84aba13dc2f88d513b9f662e037e5e`; it is served at [root](http://127.0.0.1:34675/) and [subpath](http://127.0.0.1:34675/boardstudio/). The public verifier is now running with distinct candidate profiles. Configure/edit/disable behavior, accepted saved payload, Undo/Redo, archive/reopen, and all F7.4 parent joins remain open. This supersedes the earlier same-day note that the mechanical source was unmounted; it does not claim ticket acceptance.
+
+The Macro editor worker source `ac43980c` is independently Spec/Standards clear, but remains unmounted and uncompiled. The portfolio remains 39 published bounded tickets over all 62 canonical parents, with all original start and acceptance joins intact.
+
+
+## Current mechanical source provenance — 2026-10-02
+
+The current owned closure implementation is source commit `61e8c43`, integrated in `86a83ddf`; the current 34 native tests include six closure and four feedback cases, and strict WASM/native Clippy passes. Retained logs and review are in [mechanical feedback regression evidence](../../.scratch/dioxus-case-workspace/evidence/mechanical-feedback-regression/). The older planner-only file-hash prefix `f96b9b28` checked at `b25d6887` is historical and should not be used as provenance for the current implementation. Macro worker source `ac43980c` is Spec/Standards cleared and merged in `96874be6`, but the Macro UI remains unmounted/uncompiled. The mechanical public verification on build `frontend-mechanical-settings-20261002` remains underway; no F7.4 ticket or parent acceptance is inferred.

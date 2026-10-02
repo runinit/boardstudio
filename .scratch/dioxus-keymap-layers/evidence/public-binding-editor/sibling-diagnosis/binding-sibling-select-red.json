@@ -1,0 +1,83 @@
+{
+  "keys": [
+    "assets",
+    "boards",
+    "caseBodies",
+    "constraints",
+    "definitions",
+    "format",
+    "hardware",
+    "id",
+    "keymap",
+    "layouts",
+    "materials",
+    "matrices",
+    "mechanical",
+    "name",
+    "nets",
+    "outline",
+    "parameters",
+    "parts",
+    "revision",
+    "scripts"
+  ],
+  "trace": [
+    {
+      "type": "focusin",
+      "label": "left-keys-SW7 tap",
+      "value": "A",
+      "active": "left-keys-SW7 tap",
+      "at": 371674.8000000119
+    },
+    {
+      "type": "input",
+      "label": "left-keys-SW7 tap",
+      "value": "",
+      "active": "left-keys-SW7 tap",
+      "at": 371676
+    },
+    {
+      "type": "input",
+      "label": "left-keys-SW7 tap",
+      "value": "Y",
+      "active": "left-keys-SW7 tap",
+      "at": 371676.90000000596
+    },
+    {
+      "type": "change",
+      "label": "left-keys-SW7 hold modifier",
+      "value": "LCTRL",
+      "active": "left-keys-SW7 tap",
+      "at": 371680.8000000119
+    },
+    {
+      "type": "change",
+      "label": "left-keys-SW7 tap",
+      "value": "Y",
+      "active": null,
+      "at": 371684
+    },
+    {
+      "type": "blur",
+      "label": "left-keys-SW7 tap",
+      "value": "Y",
+      "active": null,
+      "at": 371684.09999999404
+    },
+    {
+      "type": "focusout",
+      "label": "left-keys-SW7 tap",
+      "value": "Y",
+      "active": null,
+      "at": 371684.2000000179
+    }
+  ],
+  "draft": "Y",
+  "active": null,
+  "binding": {
+    "hold": "LCTRL",
+    "kind": "mod-tap",
+    "tap": "A"
+  },
+  "revision": 52
+}

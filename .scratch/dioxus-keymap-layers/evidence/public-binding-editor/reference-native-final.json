@@ -1,0 +1,10 @@
+{
+  "activeLabel": "left-keys-SW6 hold modifier",
+  "activeValue": "RSHIFT",
+  "binding": {
+    "hold": "RSHIFT",
+    "kind": "mod-tap",
+    "tap": "Y"
+  },
+  "revision": 33
+}
