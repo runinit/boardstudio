@@ -185,6 +185,11 @@ pub(super) fn Objects(
                             let key_scope = active_scope.clone();
                             rsx! {
                                 div { key: "{item.id}", class: "m1-tree-row", style: "padding-left: {8 + item.level * 14}px",
+                                    role: "treeitem",
+                                    "aria-labelledby": "{tree_item_id}",
+                                    "aria-level": "{item.level + 1}",
+                                    "aria-selected": "{selected}",
+                                    "aria-expanded": if item.expandable { "{item.expanded == Some(true)}" },
                                     if item.expandable {
                                         button {
                                             id: "{tree_item_id}-disclosure",
@@ -200,10 +205,6 @@ pub(super) fn Objects(
                                     button {
                                         id: "{tree_item_id}",
                                         class: if selected { "m1-component selected" } else { "m1-component" },
-                                        role: "treeitem",
-                                        "aria-level": "{item.level + 1}",
-                                        "aria-selected": "{selected}",
-                                        "aria-expanded": if item.expandable { "{item.expanded == Some(true)}" },
                                         onclick: move |_| {
                                             if let Some(context) = select_item.context.clone() {
                                                 if let Some(scope) = click_scope.clone() {
