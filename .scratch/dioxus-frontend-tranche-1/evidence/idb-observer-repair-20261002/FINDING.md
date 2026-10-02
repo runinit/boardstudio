@@ -1,6 +1,6 @@
 # Proposed RF-014 — Host callback lifetime through browser terminal events
 
-Status: confirmed production defect; isolated repair has five real Chromium tests passing. Independent review and packaged public acceptance remain pending. This finding is distinct from accepted-scope identity (RF-006).
+Status: confirmed production defect; isolated repair has five real Chromium tests passing. Independent Spec and Standards review cleared source commit `acdf17718069342b20d6d9438ad8df97b8bba57a`; packaged public acceptance remains pending. This finding is distinct from accepted-scope identity (RF-006).
 
 Exact inspected baseline: `3c0cd7de2dadc6184c6b1771fbe0837a2aa2235a`, `web/src/host/storage.rs::transaction_completion`.
 
@@ -35,4 +35,6 @@ cargo test --locked --manifest-path web/Cargo.toml --target wasm32-unknown-unkno
 
 Use `--lib`: the storage observer lives in the WASM library. A bin-only filter executes zero tests and supplies no evidence.
 
-Affected checks: release-independent actual Chromium WASM library tests 5/5; strict WASM page all-target Clippy (`-D warnings`) passed; formatter and diff checks passed. Production edits are exclusively in the WASM host storage module; no native production path changed. The callback logic is not conditional on debug assertions.
+Affected checks: actual Chromium WASM library tests 5/5 in the test profile; strict WASM page all-target Clippy (`-D warnings`) passed; formatter and production source diff checks passed. Commit-range whitespace checking reports runner-emitted trailing whitespace in the preserved raw evidence logs; those logs have not been normalized. Production edits are exclusively in the WASM host storage module; no native production path changed. The callback logic is not conditional on debug assertions.
+
+Independent report: `/tmp/matrix-idb-observer-independent-review-20261002.md`. The storage host module is shared by WASM library/provider builds, so integration requires the complete package pipeline; page-only artifact reuse is insufficient. No provider or packaged public acceptance is claimed here.
