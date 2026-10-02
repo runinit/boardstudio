@@ -41,7 +41,7 @@ PAGE_ONLY_ALLOWLIST = frozenset({
 })
 # Parent registration files are held byte-identical to the full baseline. The
 # inner registration signature below additionally prevents an allowlisted leaf
-# from changing its own module, cfg, path, or include graph.
+# from changing its module, cfg, attribute, import, macro, or include graph.
 PAGE_ONLY_PROOF_PATHS = (
     "web/src/main.rs",
     "web/src/lib.rs",
@@ -91,53 +91,264 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def rust_module_registration_signature(source):
-    """Hash module/cfg/path/include registration while ignoring leaf behavior."""
+def rust_lex(source):
+    """Tokenize the Rust constructs used by the registration guard.
+
+    Comments and whitespace do not affect the signature. String/raw-string
+    literals stay atomic so words such as `mod` in UI copy cannot look like
+    declarations. Nested block comments and balanced token groups are handled;
+    malformed strings/comments fail closed.
+    """
     if isinstance(source, bytes):
         source = source.decode("utf-8")
-    registrations = []
-    pending_attributes = []
-    collecting_attribute = False
-    attribute_depth = 0
-    module_decl = re.compile(r"^(?:(?:pub(?:\([^)]*\))?)\s+)?mod\s+[A-Za-z_]\w*\s*(?:;|\{)")
-    include_call = re.compile(r"\binclude(?:_str|_bytes)?!\s*\(")
-    registration_attribute = re.compile(r"^#\[\s*(?:cfg|cfg_attr|path)\b")
-
-    lines = source.splitlines()
+    tokens = []
     index = 0
-    while index < len(lines):
-        line = lines[index].strip()
-        index += 1
-        if collecting_attribute:
-            pending_attributes.append(line)
-            attribute_depth += line.count("[") - line.count("]")
-            if attribute_depth <= 0:
-                collecting_attribute = False
-            continue
-        if registration_attribute.match(line):
-            pending_attributes.append(line)
-            attribute_depth = line.count("[") - line.count("]")
-            collecting_attribute = attribute_depth > 0
-            if not collecting_attribute:
-                tail = line[line.rfind("]") + 1:].strip()
-                if module_decl.match(tail) or include_call.search(tail):
-                    registrations.append("\n".join(pending_attributes))
-                    pending_attributes.clear()
-            continue
-        if module_decl.match(line):
-            registrations.append("\n".join((*pending_attributes, line)))
-        elif include_call.search(line):
-            include_lines = [line]
-            depth = line.count("(") - line.count(")")
-            while depth > 0 and index < len(lines):
-                next_line = lines[index].strip()
-                index += 1
-                include_lines.append(next_line)
-                depth += next_line.count("(") - next_line.count(")")
-            registrations.append("\n".join((*pending_attributes, *include_lines)))
-        pending_attributes.clear()
+    length = len(source)
 
-    return hashlib.sha256("\n".join(registrations).encode()).hexdigest()
+    def raw_string_end(start, prefix_length):
+        quote = start + prefix_length
+        hashes = 0
+        while quote < length and source[quote] == "#":
+            hashes += 1
+            quote += 1
+        if quote >= length or source[quote] != '"':
+            return None
+        terminator = '"' + ("#" * hashes)
+        end = source.find(terminator, quote + 1)
+        if end < 0:
+            raise ValueError("unterminated Rust raw string in page leaf")
+        return end + len(terminator)
+
+    while index < length:
+        char = source[index]
+        if char.isspace():
+            index += 1
+            continue
+        if source.startswith("//", index):
+            end = source.find("\n", index + 2)
+            index = length if end < 0 else end + 1
+            continue
+        if source.startswith("/*", index):
+            depth = 1
+            index += 2
+            while index < length and depth:
+                if source.startswith("/*", index):
+                    depth += 1
+                    index += 2
+                elif source.startswith("*/", index):
+                    depth -= 1
+                    index += 2
+                else:
+                    index += 1
+            if depth:
+                raise ValueError("unterminated Rust block comment in page leaf")
+            continue
+
+        raw_prefix = next((prefix for prefix in ("br", "cr", "r") if source.startswith(prefix, index)), None)
+        if raw_prefix is not None:
+            raw_end = raw_string_end(index, len(raw_prefix))
+            if raw_end is not None:
+                tokens.append(("literal", source[index:raw_end]))
+                index = raw_end
+                continue
+        if source.startswith("r#", index) and index + 2 < length and (source[index + 2].isalpha() or source[index + 2] == "_"):
+            end = index + 3
+            while end < length and (source[end].isalnum() or source[end] == "_"):
+                end += 1
+            tokens.append(("ident", source[index:end]))
+            index = end
+            continue
+
+        literal_start = index
+        quote_index = index
+        if char in "bc" and index + 1 < length and source[index + 1] in "\"'":
+            quote_index += 1
+        if source[quote_index] == '"':
+            index = quote_index + 1
+            while index < length:
+                if source[index] == "\\":
+                    index += 2
+                elif source[index] == '"':
+                    index += 1
+                    break
+                else:
+                    index += 1
+            else:
+                raise ValueError("unterminated Rust string in page leaf")
+            tokens.append(("literal", source[literal_start:index]))
+            continue
+        if source[quote_index] == "'":
+            # Distinguish a quoted character from a lifetime token. Character
+            # contents are atomic; lifetime names cannot be registration words.
+            end = quote_index + 1
+            if end < length and source[end] == "\\":
+                end += 2
+            elif end < length:
+                end += 1
+            if end < length and source[end] == "'":
+                index = end + 1
+                tokens.append(("literal", source[literal_start:index]))
+                continue
+            if char in "bc":
+                raise ValueError("malformed Rust byte character in page leaf")
+
+        if char.isalpha() or char == "_":
+            end = index + 1
+            while end < length and (source[end].isalnum() or source[end] == "_"):
+                end += 1
+            tokens.append(("ident", source[index:end]))
+            index = end
+            continue
+        if char.isdigit():
+            end = index + 1
+            while end < length and (source[end].isalnum() or source[end] in "_."):
+                end += 1
+            tokens.append(("number", source[index:end]))
+            index = end
+            continue
+        tokens.append(("punct", char))
+        index += 1
+    return tokens
+
+
+def rust_module_registration_signature(source):
+    """Hash Rust graph, cfg, include, macro, and import tokens across a leaf."""
+    tokens = rust_lex(source)
+    values = [value for _, value in tokens]
+    open_to_close = {"[": "]", "{": "}", "(": ")"}
+    safe_expression_macros = {"rsx", "format", "format_args", "vec", "matches"}
+    registrations = []
+
+    def group_end(start):
+        if start >= len(values) or values[start] not in open_to_close:
+            raise ValueError("unbalanced Rust registration token group")
+        stack = [open_to_close[values[start]]]
+        cursor = start + 1
+        while cursor < len(values) and stack:
+            value = values[cursor]
+            if value in open_to_close:
+                stack.append(open_to_close[value])
+            elif value in ("]", "}", ")"):
+                if not stack or value != stack.pop():
+                    raise ValueError("mismatched Rust registration token group")
+            cursor += 1
+        if stack:
+            raise ValueError("unterminated Rust registration token group")
+        return cursor
+
+    def statement_end(start):
+        stack = []
+        cursor = start
+        while cursor < len(values):
+            value = values[cursor]
+            if value in open_to_close:
+                stack.append(open_to_close[value])
+            elif value in ("]", "}", ")"):
+                if not stack or value != stack.pop():
+                    raise ValueError("mismatched Rust statement token group")
+            elif value == ";" and not stack:
+                return cursor + 1
+            cursor += 1
+        raise ValueError("unterminated Rust registration statement")
+
+    index = 0
+    while index < len(values):
+        value = values[index]
+        if value == "#" and index + 1 < len(values) and values[index + 1] == "[":
+            end = group_end(index + 1)
+            registrations.append(tokens[index:end])
+            index = end
+            continue
+        if tokens[index][0] == "ident" and value == "mod":
+            qualifier = index
+            if qualifier and values[qualifier - 1] == "unsafe":
+                qualifier -= 1
+            # Preserve visibility (`pub` / `pub(crate)`) as part of a module
+            # declaration without including neighboring leaf behavior tokens.
+            if qualifier and values[qualifier - 1] == ")":
+                open_index = qualifier - 2
+                nesting = 1
+                while open_index >= 0 and nesting:
+                    if values[open_index] == ")":
+                        nesting += 1
+                    elif values[open_index] == "(":
+                        nesting -= 1
+                    open_index -= 1
+                candidate = open_index + 1
+                if candidate > 0 and values[candidate - 1] == "pub":
+                    qualifier = candidate - 1
+            elif qualifier and values[qualifier - 1] == "pub":
+                qualifier -= 1
+            start = qualifier
+            end = index + 1
+            while end < len(values) and values[end] not in (";", "{"):
+                end += 1
+            if end < len(values):
+                end += 1
+            registrations.append(tokens[start:end])
+        if tokens[index][0] == "ident" and value == "use":
+            start = index
+            qualifier = index
+            if qualifier and values[qualifier - 1] == ")":
+                open_index = qualifier - 2
+                nesting = 1
+                while open_index >= 0 and nesting:
+                    if values[open_index] == ")":
+                        nesting += 1
+                    elif values[open_index] == "(":
+                        nesting -= 1
+                    open_index -= 1
+                candidate = open_index + 1
+                if candidate > 0 and values[candidate - 1] == "pub":
+                    start = candidate - 1
+            elif qualifier and values[qualifier - 1] == "pub":
+                start = qualifier - 1
+            registrations.append(tokens[start:statement_end(index)])
+        if (
+            tokens[index][0] == "ident"
+            and value == "extern"
+            and index + 1 < len(values)
+            and values[index + 1] == "crate"
+        ):
+            registrations.append(tokens[index:statement_end(index)])
+        if tokens[index][0] == "ident" and value == "macro" and index + 1 < len(values):
+            end = index + 1
+            while end < len(values) and values[end] not in open_to_close:
+                end += 1
+            if end < len(values):
+                end = group_end(end)
+            registrations.append(tokens[index:end])
+        if tokens[index][0] == "ident" and value == "macro_rules" and index + 1 < len(values) and values[index + 1] == "!":
+            end = index + 2
+            while end < len(values) and values[end] not in ("{", "("):
+                end += 1
+            if end < len(values):
+                end = group_end(end)
+            registrations.append(tokens[index:end])
+        if tokens[index][0] == "ident" and value in {"include", "include_str", "include_bytes"} and index + 1 < len(values) and values[index + 1] == "!":
+            end = index + 2
+            while end < len(values) and values[end] not in open_to_close:
+                end += 1
+            if end < len(values):
+                end = group_end(end)
+            registrations.append(tokens[index:end])
+        if (
+            tokens[index][0] == "ident"
+            and index + 1 < len(values)
+            and values[index + 1] == "!"
+            and value not in safe_expression_macros
+            and value not in {"macro_rules", "include", "include_str", "include_bytes"}
+        ):
+            end = index + 2
+            while end < len(values) and values[end] not in open_to_close:
+                end += 1
+            if end < len(values):
+                end = group_end(end)
+            registrations.append(tokens[index:end])
+        index += 1
+
+    encoded = json.dumps(registrations, ensure_ascii=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def sources():
@@ -395,7 +606,7 @@ def validate_reuse(build_id, baseline_id):
             baseline_registration = rust_module_registration_signature(baseline_bytes)
             head_registration = rust_module_registration_signature(head_bytes)
             if baseline_registration != head_registration:
-                raise ValueError(f"page-leaf module/cfg/path/include registration changed: {path}")
+                raise ValueError(f"page-leaf module/cfg/path/include/dependency registration changed: {path}")
             registration_signatures[path] = head_registration
     return (output, baseline, provenance, provenance_path, provenance_hash, current,
             changed, tools, command_log_hashes, registration_signatures)
@@ -447,7 +658,7 @@ def build_reuse(build_id, baseline_id):
         },
         "changed_leaf_registration_signatures": registration_signatures,
         "dependency_proof": {
-            "statement": "The exact enumerated Layout command-pill, PCB part-input Inspector, and Parts definition-name editor leaves are already mounted through unchanged main/presentation/objects/pcb_wiring/parts registrations. Leaf module/cfg/path/include registrations are compared with the full baseline. The core-worker lib.rs test alias for layout_align_geometry.rs remains unchanged and is not eligible. Existing panels/scroll-test/CSS paths retain their prior proof.",
+            "statement": "The exact enumerated Layout command-pill, PCB part-input Inspector, and Parts definition-name editor leaves are already mounted through unchanged main/presentation/objects/pcb_wiring/parts registrations. Lexed module/cfg/attribute/import/macro/include tokens are compared with the full baseline. The core-worker lib.rs test alias for layout_align_geometry.rs remains unchanged and is not eligible. Existing panels/scroll-test/CSS paths retain their prior proof.",
             "source_hashes": {path: source_before[path] for path in PAGE_ONLY_PROOF_PATHS},
         },
         "sources": source_before,

@@ -298,6 +298,9 @@ class PageOnlyReuseTests(TestCase):
                     "web/src/presentation/panels.rs",
                     "web/src/presentation/panels_scroll_tests.rs",
                 ])
+                self.assertTrue(set(checked[6]).issubset(BUILD.PAGE_ONLY_ALLOWLIST))
+                self.assertTrue(set(checked[6]).isdisjoint(BUILD.PAGE_ONLY_PROOF_PATHS))
+                self.assertFalse(any(path.startswith("web/src/core_worker/") for path in checked[6]))
                 self.assertFalse(checked[0].exists())
 
     def test_page_leaf_inventory_is_exact_and_excludes_worker_test_alias(self):
@@ -331,7 +334,14 @@ class PageOnlyReuseTests(TestCase):
         path = "web/src/presentation/layout_workspace.rs"
         baseline = SOURCE_BYTES[path]
         cases = (
-            ("module", baseline.replace(b"mod existing;", b"mod added;")),
+            ("module", baseline + b"\nmod\nadded;\n"),
+            ("split-pub-module", baseline + b"\npub\nmod added;\n"),
+            ("comment-prefix-module", baseline + b"\n// keep this comment\nmod added;\n"),
+            ("nested-const-module", baseline + b"\nconst _: () = { mod nested; };\n"),
+            ("macro-emitted-module", baseline + b"\nmacro_rules! add { () => { mod made; } }\nadd!();\n"),
+            ("spaced-include", baseline + b'\ninclude ! ("worker.rs");\n'),
+            ("cfg-new-function", baseline + b'\n#[cfg(feature = "page")]\nfn added() {}\n'),
+            ("new-macro-import", baseline + b"\nuse worker_macros::register_leaf;\n"),
             ("cfg", baseline.replace(b'target_arch = "wasm32"', b'feature = "core-worker"')),
             ("path", baseline.replace(b'layout.rs', b'worker.rs')),
             ("include", baseline.replace(b'include!("leaf.rs")', b'include!("worker.rs")')),
@@ -345,10 +355,23 @@ class PageOnlyReuseTests(TestCase):
                 current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
                 current[path] = sha(mutated)
                 with self._patches(self.mock_environment(root, {}, current, head)):
-                    with self.assertRaisesRegex(ValueError, "module/cfg/path/include registration changed"):
+                    with self.assertRaisesRegex(ValueError, "module/cfg/path/include/dependency registration changed"):
                         BUILD.validate_reuse("candidate", "full-fixture")
                 self.assertFalse((root / "web/target/builds/candidate").exists())
                 self.assertTrue((baseline_dir / "provenance.json").exists())
+
+    def test_registration_signature_allows_ordinary_rsx_copy_edits(self):
+        before = b'''\
+#[component]
+fn CommandPill() -> Element {
+    rsx! { button { "mod include! cfg" } }
+}
+'''
+        after = before.replace(b"mod include! cfg", b"workers still compile")
+        self.assertEqual(
+            BUILD.rust_module_registration_signature(before),
+            BUILD.rust_module_registration_signature(after),
+        )
 
     def test_docs_only_source_identity_change_can_reuse_explicitly(self):
         with TemporaryDirectory() as temporary:
