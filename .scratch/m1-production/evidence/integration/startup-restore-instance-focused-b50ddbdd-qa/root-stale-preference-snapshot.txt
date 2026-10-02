@@ -1,0 +1,7 @@
+- heading "BoardStudio" [level=1, ref=e196]
+- region "Keyboard library" [ref=e195]
+  - heading "Open a keyboard" [level=2, ref=e197]
+  - button "REVIUNG41 copy" [ref=e198]
+  - button "Sofle v2 copy" [ref=e199]
+  - button "Import .boardstudio" [ref=e201]: No file chosen
+  - button "Sofle v2" [ref=e200]
