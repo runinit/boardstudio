@@ -496,7 +496,7 @@ pub(in crate::presentation) fn LayoutCommandPill(
     on_selection_kind: EventHandler<LayoutSelectionKind>,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
 ) -> Element {
-    let open_menu = use_signal(|| None::<LayoutCommandMenu>);
+    let mut open_menu = use_signal(|| None::<LayoutCommandMenu>);
     let outside_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(Document, Closure<dyn FnMut(WebPointerEvent)>)>,

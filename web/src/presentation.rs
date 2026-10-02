@@ -3476,6 +3476,57 @@ fn Editor() -> Element {
     };
     let toolbar_input = match active_workspace {
         "Layout" => {
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
+            let supports_kind = |kind| {
+                selected_tree_context.as_ref().is_some_and(|selected| {
+                    objects::context_for_selection_kind(
+                        &model,
+                        &selected.context,
+                        kind,
+                        retained.as_ref(),
+                    )
+                    .is_some()
+                })
+            };
+            let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
+                matches!(
+                    &selected.context,
+                    objects::TreeContext::Matrix { .. }
+                        | objects::TreeContext::Row { .. }
+                        | objects::TreeContext::Column { .. }
+                        | objects::TreeContext::Key { .. }
+                        | objects::TreeContext::Component { .. }
+                )
+            }) && (show_position_inspector
+                || matrix_transform_inspector.projection.is_some());
+            let position_has_rotation = selected_tree_context.as_ref().is_some_and(|selected| {
+                !matches!(&selected.context, objects::TreeContext::Column { .. })
+            });
+            let on_show_properties = EventHandler::new({
+                let runtime = runtime.clone();
+                let adapter = adapter.clone();
+                let owner = layout_owner.clone();
+                let mut objects_open = objects_open;
+                let mut inspect_open = inspect_open;
+                move |_| {
+                    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                        return;
+                    }
+                    if !properties_available {
+                        return;
+                    }
+                    objects_open.set(false);
+                    inspect_open.set(true);
+                }
+            });
+            let transform = objects::LayoutTransformMenuMount {
+                properties_available,
+                position_has_rotation,
+                column_available: supports_kind(objects::LayoutSelectionKind::Column),
+                row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                on_selection_kind: workspace_callbacks.layout_selection_kind,
+                on_show_properties,
+            };
             let footprints_pressed = (layer_visibility.footprints)()
                 && !(layer_visibility.hidden)().contains("Footprints");
             workspace_composition::WorkspaceToolbarInput::Layout(Box::new(
@@ -3497,6 +3548,8 @@ fn Editor() -> Element {
                     selection_kind: layout_selection_kind(),
                     snap_settings: layout_snap_settings.read().clone(),
                     align: layout_align.clone(),
+                    transform,
+                    menu_owner_key: format!("{layout_owner:?}"),
                     on_selection_kind: workspace_callbacks.layout_selection_kind,
                     on_snap_intent: workspace_callbacks.layout_snap_intent,
                 },

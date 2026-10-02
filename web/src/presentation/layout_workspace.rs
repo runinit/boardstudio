@@ -20,6 +20,8 @@ pub(super) struct ToolbarInput {
     pub(super) selection_kind: objects::LayoutSelectionKind,
     pub(super) snap_settings: objects::LayoutSnapSettings,
     pub(super) align: objects::LayoutAlignMount,
+    pub(super) transform: objects::LayoutTransformMenuMount,
+    pub(super) menu_owner_key: String,
     pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
 }
@@ -50,13 +52,15 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
         div { class: "m1-canvas-toolbar",
-            objects::LayoutSelectionSnapToolbar {
+            objects::LayoutCommandPill {
+                menu_owner_key: input.menu_owner_key,
+                transform: input.transform,
+                align: input.align,
                 selection_kind: input.selection_kind,
                 snap_settings: input.snap_settings,
                 on_selection_kind: input.on_selection_kind,
                 on_snap_intent: input.on_snap_intent,
             }
-            objects::LayoutAlignToolbar { mount: input.align.clone() }
             if let Some(indicator) = input.selection_indicator.as_ref() {
                 span { class: "m1-selection-indicator", "{indicator}" }
             }

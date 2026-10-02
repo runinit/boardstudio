@@ -7,6 +7,7 @@ mod layout_align;
 mod layout_align_controller;
 mod layout_align_geometry;
 mod layout_toolbar;
+mod layout_transform_toolbar;
 mod matrix_inspector;
 mod matrix_inspector_controller;
 mod matrix_setup;
@@ -15,13 +16,14 @@ mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod tree;
 pub(in crate::presentation) use layout_align::{
-    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, LayoutAlignToolbar,
+    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
 };
 pub(in crate::presentation) use layout_align_controller::use_layout_align;
 pub(in crate::presentation) use layout_toolbar::{
-    LayoutSelectionKind, LayoutSelectionSnapStatus, LayoutSelectionSnapToolbar, LayoutSnapIntent,
+    LayoutCommandPill, LayoutSelectionKind, LayoutSelectionSnapStatus, LayoutSnapIntent,
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
 };
+pub(in crate::presentation) use layout_transform_toolbar::LayoutTransformMenuMount;
 pub(in crate::presentation) use matrix_inspector::MatrixInspector;
 pub(in crate::presentation) use matrix_inspector_controller::{
     MatrixInspectorMount, use_matrix_inspector,
