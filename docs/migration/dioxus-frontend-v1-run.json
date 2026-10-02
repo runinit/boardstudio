@@ -99,7 +99,7 @@
       },
       "build": "frontend-case-readiness-fixed-20261002: 8 successful commands; 990 verified source hashes",
       "demo": "http://127.0.0.1:34697/",
-      "subpath": "http://127.0.0.1:34696/boardstudio/",
+      "subpath": "http://127.0.0.1:34697/boardstudio/",
       "paired_browser_acceptance": "Same layered Sofle archive SHA-256 5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df. Candidate Case Generate is disabled when selected-scope readiness is missing. Candidate Layout shows the selected contour and the same Snap increments/toggles; toolbar pill, left filters, Transform/Align and actual edit/Undo/save-reopen journey remain open. The distinct missing 90/90 Case physical-model projection remains open. No parent acceptance closed.",
       "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-toolbar-paired-20261002/RESULTS.md",
       "build_evidence": "web/target/builds/frontend-case-readiness-fixed-20261002/provenance.json"
@@ -109,6 +109,20 @@
       "available_session_slots": 11,
       "includes_coordinator": true,
       "effective_run_cap": 11
+    },
+    "implementation_wave_20261002": {
+      "status": "Six streams resumed; exact implemented source under independent Astra Spec/Standards review. No parent acceptance closed.",
+      "source_review_targets": {
+        "pcb_physical_setup_proposals": "0dd1f3ce904dc11ba62d175dba078729d5263472",
+        "pcb_firmware_position_handoff": "6fe8fb875585fca7fba4636cf1a9696e55b5406f",
+        "keycaps_fit_findings": "448c3274693b611ad747d0461de1b18d88245fb8"
+      },
+      "layout": "Transform/Align planning packet fb8f776d720d2cce1ec5419ac945c1e08fddbe88 exact Spec/Standards clear; fields-only issue07 implementation resumed; pointer-tools and parent acceptance open.",
+      "pcb": "Ticket05 private proposals implemented and tested; ticket06 Editor-owned intents continuing on isolated branch; paired UI acceptance open.",
+      "keymap": "F5.2b handoff implemented and tested; F6K.4b UI prepared against exact handoff pending source review.",
+      "keycaps": "Fit findings implemented and tested; same-fixture project activation renderer hang blocks paired acceptance and is under active diagnosis.",
+      "case": "Native pre-CadScene PcbPreview is required for Sofle baseline. Existing issue08 producer/issue07 provider contracts being refined to accepted physical document/contours; no duplicate producer.",
+      "parts_project": "Packaged opaque Ergogen byte provider prerequisite now assigned to Parts/Project for reviewed ticketing and implementation; capability01 owns private bool input; F8 checkbox is later integration join."
     }
   },
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",

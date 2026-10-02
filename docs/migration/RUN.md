@@ -4,7 +4,9 @@ Current priority: **100% frontend Dioxus migration**. See [frontend v1 roadmap](
 
 ## Latest frontend integration — 2026-10-02
 
-The [Matrix/Keycaps wave results](../../.scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md) record actual compiler/build and browser evidence. Current editable candidate: http://127.0.0.1:34693/ (source `a896cd49`); TypeScript reference: http://127.0.0.1:5175/. Keymap tabs/outline and the remount fix, editable Matrix fields, and the first Keycaps physical scene are now mounted. Full workbench parity remains open. User concurrency ceiling: 30 agents; this session provides 11 slots including the coordinator. Mandatory architecture/refactor ledger remains active.
+The [current run](dioxus-frontend-v1-run.json) records the active six-stream frontier. Current editable integration candidate: http://127.0.0.1:34697/ (source `5944a1df`); TypeScript reference: http://127.0.0.1:5175/. Layout Select/Snap and Matrix fields, Keymap tabs/outline, the first Keycaps scene/settings, contextual Case panes and PCB Wiring Inspector are mounted. Case Generate readiness admission is corrected. Full workbench parity remains open.
+
+The next implementation wave contains PCB physical-setup proposals (`0dd1f3ce`), firmware-position handoff (`6fe8fb87`) and Keycaps fit findings (`448c3274`), now under independent Astra source Spec/Standards review before integration. The Keycaps production candidate has a project-activation renderer hang; paired acceptance remains open while diagnosis proceeds. Layout fields-only Transform, PCB Editor-owned physical intents, Keymap firmware-position UI, Case pre-CAD native PCB preview and the Parts/Project packaged-byte provider are the continuing frontier. User concurrency ceiling: 30; this session provides 11 slots including the coordinator. The architecture/refactor ledger remains mandatory. No parent criteria are closed by these source or planning statuses.
 
 ## Current bounded-ticket ledger
 
