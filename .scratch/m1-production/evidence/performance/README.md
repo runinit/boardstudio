@@ -1,6 +1,22 @@
 # Ticket 06 performance candidate protocol
 
-Status: the maintained `8f509433` candidate received two complete pointer sessions, but its 100/200-key p95 results exceed the frozen limits. The paired aggregate is incomplete because the reference adapter had a navigation-readiness race; the public import adapter is now corrected and verified without timing.
+Status: full acceptance remains open. Reviewed pointer repairs pass one focused
+session and two complete `b9748745` candidate sessions, but the paired attempts
+stopped on reference-server availability and candidate startup-readiness errors.
+The [first attempt](runs/paired-pointer-b9748745-20261002T0014Z/stopped-aggregate.json),
+[retry](runs/paired-pointer-b9748745-retry-20261002T0018Z/stopped-aggregate.json)
+and [public import diagnosis](candidate-import-diagnostic-b9748745-20261002.md)
+remain retained; no five-session aggregate is claimed. A new source completion
+for active-project restoration and instance selection requires a fresh release
+before final paired timing. The [unchanged reference gates](runs/reference-gates-20261002T002536Z/assessment.md)
+completed separately: UI/live frozen timing comparisons fail; CAD completed all
+five sessions and per-row budgets pass, but its frozen comparison is ineligible
+because OS and core/renderer WASM identities differ. All nine pinned inputs
+remained unchanged.
+
+Historical `8f509433` evidence below remains a failure at 100/200-key caps. The
+public reference import adapter was repaired after its navigation-readiness race;
+budgets and accepted fixtures remain unchanged.
 
 Evidence-only performance changes are integrated on
 `codex/m1-production-20261001`; the adapter was prepared from final-release
