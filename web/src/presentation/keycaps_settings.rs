@@ -192,7 +192,7 @@ pub(super) fn use_keycaps_settings_actions(
     let last_request_id = use_signal(|| 0_u64);
     let pending = use_signal(|| None::<PendingEdit>);
     let feedback = use_signal(|| None::<FeedbackState>);
-    let retry_drafts = use_signal(BTreeMap::<KeycapEditField, KeycapsRetryDraft>::new);
+    let mut retry_drafts = use_signal(BTreeMap::<KeycapEditField, KeycapsRetryDraft>::new);
     let owner_tracker = use_hook(|| Rc::new(RefCell::new(OwnerTracker::default())));
     let selected_key_id = live_selected_key_id(&runtime);
     let current_scope = runtime.scope();
@@ -247,7 +247,7 @@ pub(super) fn use_keycaps_settings_actions(
         let runtime = runtime.clone();
         let mut pending = pending;
         let mut feedback = feedback;
-        let retry_drafts = retry_drafts;
+        let mut retry_drafts = retry_drafts;
         let owner_tracker = owner_tracker.clone();
         let workspace = workspace;
         let scope_generation = scope_generation;
