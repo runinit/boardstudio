@@ -41,7 +41,7 @@ pub(in crate::presentation) fn LayoutTransformToolbar(
                     let mut open_menu = open_menu;
                     open_menu.set((open_menu() != Some(LayoutCommandMenu::Transform)).then_some(LayoutCommandMenu::Transform));
                 },
-                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", aria_hidden: "true",
+                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: "M10 1v18M1 10h18M7 4l3-3 3 3M7 16l3 3 3-3M4 7l-3 3 3 3M16 7l3 3-3 3" }
                 }
                 span { "Transform" }

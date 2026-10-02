@@ -644,7 +644,7 @@ fn LayoutSelectMenu(
                     event.prevent_default();
                     toggle_layout_command_menu(open_menu, LayoutCommandMenu::Select);
                 },
-                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", aria_hidden: "true",
+                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
                     rect { x, y, width, height, rx: radius }
                     path { d: "{path}" }
                 }
@@ -700,7 +700,7 @@ fn LayoutSnapMenu(
                     event.prevent_default();
                     toggle_layout_command_menu(open_menu, LayoutCommandMenu::Snap);
                 },
-                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", aria_hidden: "true",
+                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: "M4 3v7a6 6 0 0 0 12 0V3h-4v7a2 2 0 0 1-4 0V3ZM4 7h4M12 7h4" }
                 }
                 span { "Snap" }
