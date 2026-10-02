@@ -62,6 +62,7 @@ pub(super) enum DisplayAction {
 pub(super) struct ObjectsInput<'a> {
     pub(super) model: &'a ReadModel,
     pub(super) scope: Option<Scope>,
+    pub(super) instance_scope_pending: bool,
     /// Only the page owner may supply this scene, after its normal scope/token
     /// check. This leaf rechecks the identity before displaying generated rows.
     pub(super) scene: Option<Rc<CadScene>>,
@@ -78,10 +79,12 @@ pub(super) struct ObjectsInput<'a> {
 
 pub(super) struct CanvasInput {
     pub(super) generation_ready: bool,
+    pub(super) instance_scope_pending: bool,
 }
 
 pub(super) struct InspectorInput {
     pub(super) mechanical_settings: MechanicalSettingsMount,
+    pub(super) instance_scope_pending: bool,
     pub(super) scope: Option<Scope>,
     pub(super) scene: Option<Rc<CadScene>>,
     pub(super) case_selection: CaseSelection,
@@ -107,6 +110,9 @@ struct Row {
 }
 
 pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
+    if input.instance_scope_pending {
+        return rsx! { p { role: "status", "Selecting physical assembly…" } };
+    }
     let Some(snapshot) = input.model.accepted.as_ref() else {
         return rsx! { p { role: "status", "Open a saved keyboard to inspect its Case assembly." } };
     };
@@ -826,7 +832,11 @@ pub(super) fn toolbar() -> Element {
 }
 
 pub(super) fn canvas(input: CanvasInput) -> Element {
-    rsx! { crate::cad_presentation::CasePanel { generation_ready: input.generation_ready } }
+    if input.instance_scope_pending {
+        rsx! { p { role: "status", "Selecting physical assembly…" } }
+    } else {
+        rsx! { crate::cad_presentation::CasePanel { generation_ready: input.generation_ready } }
+    }
 }
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
@@ -892,11 +902,15 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         .to_owned();
     rsx! {
         section { class: "m1-case-inspector", "aria-label": "Case Inspector",
-            if let Some(props) = input.mechanical_settings.props {
-                {MechanicalSettings(props)}
+            if input.instance_scope_pending {
+                p { role: "status", "Selecting physical assembly…" }
             }
-            if generated {
-                if active_display_layer.is_some() {
+            if !input.instance_scope_pending {
+                if let Some(props) = input.mechanical_settings.props {
+                    {MechanicalSettings(props)}
+                }
+                if generated {
+                    if active_display_layer.is_some() {
                 section { class: "m1-case-display", "aria-label": "Part appearance",
                     h3 { "Display" }
                     label { "Colour"
@@ -941,10 +955,11 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         }
                         "Visible"
                     }
-                }
+                    }
+                    }
                 }
             }
-            div { hidden: generated && !show_generated_note,
+            div { hidden: input.instance_scope_pending || (generated && !show_generated_note),
                 CaseBodyInspector { on_show_configured_board: input.on_show_configured_board }
             }
         }
