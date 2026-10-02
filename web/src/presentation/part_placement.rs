@@ -697,6 +697,16 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 if terminal == Some(TerminalOutcome::Completed) {
                     for _ in 0..500 {
                         let model = runtime.model();
+                        if !placement_route_is_current(
+                            &runtime,
+                            &model,
+                            &owner,
+                            generation(),
+                            workspace(),
+                            guide_preferences(),
+                        ) {
+                            break;
+                        }
                         if let Some(accepted) = model.accepted.as_ref()
                             && completion_is_accepted(
                                 operation_matches,
@@ -731,18 +741,14 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         &owner.part_id,
                     )
                 });
-                let route_live = model.accepted.as_ref().is_some_and(|accepted| {
-                    accepted.document.id == owner.project_id
-                        && model.active_board_id == owner.board_id
-                        && model.active_instance_id == owner.scope.instance_id
-                        && runtime.scope().as_ref() == Some(&owner.scope)
-                        && generation() == owner.generation
-                        && workspace() == "Layout"
-                }) && guide_preferences().as_ref().is_some_and(|preferences| {
-                    preferences.open
-                        && preferences.project_id == owner.project_id
-                        && preferences.current_stage == SetupGuideStage::Wiring
-                });
+                let route_live = placement_route_is_current(
+                    &runtime,
+                    &model,
+                    &owner,
+                    generation(),
+                    workspace(),
+                    guide_preferences(),
+                );
                 committing.set(None);
                 if success && route_live {
                     selected_context.set(None);
@@ -874,6 +880,29 @@ fn owner_is_live(
     ) && model.active_board_id == owner.board_id
         && runtime.scope().as_ref() == Some(&owner.scope)
         && admission.workspace == admission.expected_workspace
+}
+
+fn placement_route_is_current(
+    runtime: &dyn PlacementRuntime,
+    model: &boardstudio_application::ReadModel,
+    owner: &PlacementOwner,
+    generation: u64,
+    workspace: &'static str,
+    preferences: Option<SetupGuidePreferences>,
+) -> bool {
+    model.accepted.as_ref().is_some_and(|accepted| {
+        accepted.session_epoch == owner.session_epoch
+            && accepted.document.id == owner.project_id
+            && model.active_board_id == owner.board_id
+            && model.active_instance_id == owner.scope.instance_id
+            && runtime.scope().as_ref() == Some(&owner.scope)
+            && generation == owner.generation
+            && workspace == "Layout"
+    }) && preferences.as_ref().is_some_and(|preferences| {
+        preferences.open
+            && preferences.project_id == owner.project_id
+            && preferences.current_stage == SetupGuideStage::Wiring
+    })
 }
 
 fn browser_uuid() -> Result<String, String> {
@@ -1680,6 +1709,13 @@ mod tests {
             let active = start_hook_placement(&probe, &mut dom).await;
             active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
             let (operation_id, _) = submitted_edit(&probe);
+            let select_count_before = probe
+                .runtime
+                .events
+                .borrow()
+                .iter()
+                .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
+                .count();
             {
                 let mut model = probe.runtime.model.borrow_mut();
                 if stale_identity == "board" {
@@ -1696,7 +1732,7 @@ mod tests {
                 probe
                     .runtime
                     .outcomes
-                    .settle(operation_id, TerminalOutcome::Cancelled)
+                    .settle(operation_id, TerminalOutcome::Completed)
             );
             let_hook_tasks_run().await;
             flush_hook(&mut dom);
@@ -1704,6 +1740,121 @@ mod tests {
                 workspace(&probe),
                 "Layout",
                 "stale {stale_identity} route redirected"
+            );
+            assert_eq!(
+                probe
+                    .runtime
+                    .events
+                    .borrow()
+                    .iter()
+                    .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
+                    .count(),
+                select_count_before,
+                "stale {stale_identity} completion selected a new owner"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_waits_through_saving_before_returning_to_wiring() {
+        let (probe, mut dom) = hook_mounted();
+        let active = start_hook_placement(&probe, &mut dom).await;
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        let (operation_id, edit) = submitted_edit(&probe);
+        let original = probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .clone();
+        *probe.runtime.model.borrow_mut() = ReadModel {
+            lifecycle: Lifecycle::Saving,
+            durability: Durability::Saving { revision: 0 },
+            accepted: Some(original.clone()),
+            active_board_id: "board-main".into(),
+            ..ReadModel::default()
+        };
+        assert!(
+            probe
+                .runtime
+                .outcomes
+                .settle(operation_id, TerminalOutcome::Completed)
+        );
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert_eq!(workspace(&probe), "Layout");
+        assert!(probe.latest.borrow().as_ref().unwrap().busy);
+
+        let mut document = replacement(edit);
+        document.revision = 1;
+        let mut scene = (*original.scene).clone();
+        scene.revision = 1;
+        *probe.runtime.model.borrow_mut() = ReadModel {
+            lifecycle: Lifecycle::Ready,
+            durability: Durability::Saved { revision: 1 },
+            accepted: Some(AcceptedSnapshot {
+                token: SnapshotToken(12),
+                session_epoch: original.session_epoch,
+                document: Arc::new(document),
+                scene: Arc::new(scene),
+            }),
+            active_board_id: "board-main".into(),
+            ..ReadModel::default()
+        };
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        assert_eq!(workspace(&probe), "PCB");
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn production_hook_suppresses_actionable_failure_after_board_or_project_switch() {
+        for (stale_identity, outcome) in [
+            ("board", TerminalOutcome::Rejected("stale board".into())),
+            (
+                "project",
+                TerminalOutcome::PersistenceFailed("stale project".into()),
+            ),
+        ] {
+            let (probe, mut dom) = hook_mounted();
+            let active = start_hook_placement(&probe, &mut dom).await;
+            active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+            let (operation_id, _) = submitted_edit(&probe);
+            let select_count_before = probe
+                .runtime
+                .events
+                .borrow()
+                .iter()
+                .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
+                .count();
+            {
+                let mut model = probe.runtime.model.borrow_mut();
+                if stale_identity == "board" {
+                    model.active_board_id = "board-other".into();
+                } else {
+                    let accepted = model.accepted.as_mut().unwrap();
+                    let mut document = (*accepted.document).clone();
+                    document.id = "replacement-project".into();
+                    accepted.document = Arc::new(document);
+                    accepted.token = SnapshotToken(12);
+                }
+            }
+            assert!(probe.runtime.outcomes.settle(operation_id, outcome));
+            let_hook_tasks_run().await;
+            flush_hook(&mut dom);
+            assert_eq!(workspace(&probe), "Layout");
+            assert_eq!(probe.latest.borrow().as_ref().unwrap().error, None);
+            assert!(
+                probe
+                    .runtime
+                    .events
+                    .borrow()
+                    .iter()
+                    .filter(|event| matches!(event, SessionEvent::SelectParts { .. }))
+                    .count()
+                    == select_count_before,
+                "stale {stale_identity} failure submitted a new selection"
             );
         }
     }

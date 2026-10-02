@@ -36,9 +36,9 @@ failures:
     error output:
         panicked at src/presentation/part_placement.rs:1499:9:
         assertion failed: !canvas_pointer_start_allowed(&preparing)
-        
+
         Stack:
-        
+
         Error
             at http://127.0.0.1:42625/wasm-bindgen-test:1364:25
             at logError (http://127.0.0.1:42625/wasm-bindgen-test:2241:18)
@@ -50,9 +50,9 @@ failures:
             at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:42625/wasm-bindgen-test_bg.wasm:wasm-function[17954]:0xcf1d80)
             at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:42625/wasm-bindgen-test_bg.wasm:wasm-function[34913]:0xfc97f0)
             at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:42625/wasm-bindgen-test_bg.wasm:wasm-function[98240]:0x135e887)
-        
-        
-    
+
+
+
     JS exception that was thrown:
         RuntimeError: unreachable
             at boardstudio_web-894d1de18dfb270f.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:42625/wasm-bindgen-test_bg.wasm:wasm-function[98606]:0x135f36c)
@@ -77,9 +77,9 @@ console output:
     Invoking test: presentation::part_placement::tests::production_hook_owns_canvas_during_definition_preparation_and_escape_restores_guide
     panicked at src/presentation/part_placement.rs:1499:9:
     assertion failed: !canvas_pointer_start_allowed(&preparing)
-    
+
     Stack:
-    
+
     Error
         at http://127.0.0.1:42625/wasm-bindgen-test:1364:25
         at logError (http://127.0.0.1:42625/wasm-bindgen-test:2241:18)
@@ -91,8 +91,8 @@ console output:
         at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:42625/wasm-bindgen-test_bg.wasm:wasm-function[17954]:0xcf1d80)
         at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:42625/wasm-bindgen-test_bg.wasm:wasm-function[34913]:0xfc97f0)
         at boardstudio_web-894d1de18dfb270f.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:42625/wasm-bindgen-test_bg.wasm:wasm-function[98240]:0x135e887)
-    
-    
+
+
 Error: some tests failed
 error: test failed, to rerun pass `--bin boardstudio-web`
 
