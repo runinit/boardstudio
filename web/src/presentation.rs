@@ -2040,7 +2040,7 @@ fn Editor() -> Element {
                 },
             );
             if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                pin_inspector_on_desktop(inspector_settings);
+                pin_inspector_on_desktop(inspector_panel_settings);
                 objects_open.set(false);
                 inspect_open.set(true);
             }
@@ -3513,7 +3513,7 @@ fn Editor() -> Element {
                     if !properties_available {
                         return;
                     }
-                    pin_inspector_on_desktop(inspector_settings);
+                    pin_inspector_on_desktop(inspector_panel_settings);
                     objects_open.set(false);
                     inspect_open.set(true);
                 }
