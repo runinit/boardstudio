@@ -2,8 +2,8 @@
 
 use boardstudio_application::{AcceptedSnapshot, Event, OperationId, Scope, SessionEpoch};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, MechanicalPartProfile, MechanicalSwitchFamily,
-    PartDefinition,
+    CoreReply, EditCommand, EditOperation, EditPhase, MechanicalBuiltinProfile,
+    MechanicalPartProfile, MechanicalSwitchFamily, PartDefinition,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +46,135 @@ impl ProfileEditOwner {
 pub(crate) struct ProfileEditCapture {
     owner: ProfileEditOwner,
     definition: PartDefinition,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct StandardProfileRequestCapture {
+    pub(crate) operation_id: OperationId,
+    pub(crate) owner: ProfileEditOwner,
+    pub(crate) definition: PartDefinition,
+    pub(crate) family: MechanicalSwitchFamily,
+    pub(crate) plate_to_pcb: f64,
+    pub(crate) scope_generation: u64,
+    pub(crate) selection_generation: u64,
+}
+
+impl StandardProfileRequestCapture {
+    pub(crate) fn new(
+        operation_id: OperationId,
+        owner: ProfileEditOwner,
+        definition: PartDefinition,
+        family: MechanicalSwitchFamily,
+        plate_to_pcb: f64,
+        scope_generation: u64,
+        selection_generation: u64,
+    ) -> Self {
+        Self {
+            operation_id,
+            owner,
+            definition,
+            family,
+            plate_to_pcb,
+            scope_generation,
+            selection_generation,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn standard_profile_request_is_current(
+    request: &StandardProfileRequestCapture,
+    pending_operation: Option<OperationId>,
+    current_owner: &ProfileEditOwner,
+    runtime_scope: Option<&Scope>,
+    snapshot: &AcceptedSnapshot,
+    selection: &Option<(Option<Scope>, String)>,
+    definition: &PartDefinition,
+    scope_generation: u64,
+    selection_generation: u64,
+    workspace: &str,
+    mounted: bool,
+) -> bool {
+    mounted
+        && workspace == "Parts"
+        && pending_operation == Some(request.operation_id)
+        && current_owner == &request.owner
+        && request.owner.scope.as_ref() == runtime_scope
+        && snapshot.session_epoch == request.owner.session_epoch
+        && snapshot.document.id == request.owner.document_id
+        && selection.as_ref() == Some(&(request.owner.scope.clone(), request.definition.id.clone()))
+        && definition == &request.definition
+        && request.owner.definition_id == request.definition.id
+        && scope_generation == request.scope_generation
+        && selection_generation == request.selection_generation
+}
+
+pub(crate) fn standard_profile_source_and_gap(
+    family: MechanicalSwitchFamily,
+) -> (MechanicalBuiltinProfile, f64) {
+    match family {
+        MechanicalSwitchFamily::Mx => (MechanicalBuiltinProfile::MxSwitch, 3.5),
+        MechanicalSwitchFamily::ChocV1 => (MechanicalBuiltinProfile::ChocV1Switch, 2.2),
+        MechanicalSwitchFamily::ChocV2 => (MechanicalBuiltinProfile::ChocV2Switch, 3.5),
+    }
+}
+
+pub(crate) fn standard_profile_reply_matches(
+    reply: CoreReply,
+    request_id: &str,
+    definition_id: &str,
+    family: MechanicalSwitchFamily,
+    plate_to_pcb: f64,
+) -> Result<MechanicalPartProfile, String> {
+    match reply {
+        CoreReply::MechanicalProfile { id, profile } if id == request_id => {
+            if profile.definition_id != definition_id
+                || profile.switch_family != Some(family)
+                || (profile.plate_to_pcb - plate_to_pcb).abs() > f64::EPSILON
+            {
+                return Err("Core returned a different standard switch fit.".into());
+            }
+            Ok(profile)
+        }
+        CoreReply::Error { id, message, .. } if id == request_id => Err(message),
+        CoreReply::MechanicalProfile { .. } | CoreReply::Error { .. } => {
+            Err("Core returned a stale standard switch fit reply.".into())
+        }
+        _ => Err("Core returned an unexpected standard switch fit reply.".into()),
+    }
+}
+
+pub(crate) fn merge_standard_profile(
+    draft: &mut MechanicalPartProfile,
+    mut loaded: MechanicalPartProfile,
+    family: MechanicalSwitchFamily,
+    plate_to_pcb: f64,
+) {
+    // Core's optional fields are sparse: a missing value means retain the
+    // user's current draft, including manually entered provenance and details.
+    if loaded.source_geometry.is_some() {
+        draft.source_geometry = loaded.source_geometry.take();
+    }
+    if loaded.pcb_holes.is_some() {
+        draft.pcb_holes = loaded.pcb_holes.take();
+    }
+    if loaded.clearance_volumes.is_some() {
+        draft.clearance_volumes = loaded.clearance_volumes.take();
+    }
+    if loaded.openings.is_some() {
+        draft.openings = loaded.openings.take();
+    }
+    if loaded.clearances.is_some() {
+        draft.clearances = loaded.clearances.take();
+    }
+    if loaded.supported_thickness.is_some() {
+        draft.supported_thickness = loaded.supported_thickness.take();
+    }
+    draft.cutouts = loaded.cutouts;
+    draft.source = loaded.source;
+    draft.definition_id = loaded.definition_id;
+    draft.switch_family = Some(family);
+    draft.plate_to_pcb = plate_to_pcb;
 }
 
 #[derive(Clone)]
@@ -653,5 +782,218 @@ mod tests {
         let pending = PendingProfileEdit::new(owner.clone(), operations.observe(operation_id));
         assert!(operations.settle(operation_id, TerminalOutcome::Completed));
         assert!(pending.should_retire(&owner, &scope));
+    }
+
+    #[test]
+    fn standard_profile_request_rejects_superseded_operation_and_returned_view_aba() {
+        let target = definition("bundled-switch", "Switch");
+        let (session, _) = open(document(vec![]));
+        let snapshot = accepted(&session);
+        let scope = session.scope();
+        let owner = edit_owner(
+            &snapshot,
+            scope.clone(),
+            ProfileDefinitionSource::Ergogen,
+            &target,
+            300,
+        );
+        let request = StandardProfileRequestCapture::new(
+            OperationId(301),
+            owner.clone(),
+            target.clone(),
+            boardstudio_core::model::MechanicalSwitchFamily::Mx,
+            3.5,
+            8,
+            4,
+        );
+        let selection = Some((scope.clone(), target.id.clone()));
+
+        let is_current = |pending, scope_generation, selection_generation| {
+            standard_profile_request_is_current(
+                &request,
+                pending,
+                &owner,
+                scope.as_ref(),
+                &snapshot,
+                &selection,
+                &target,
+                scope_generation,
+                selection_generation,
+                "Parts",
+                true,
+            )
+        };
+
+        assert!(is_current(Some(OperationId(301)), 8, 4));
+        assert!(!is_current(Some(OperationId(302)), 8, 4));
+        // A→B→A has the original Scope and selection again, but both monotonic owners advanced.
+        assert!(!is_current(Some(OperationId(301)), 10, 6));
+        assert!(!is_current(Some(OperationId(301)), 8, 6));
+        assert!(!is_current(Some(OperationId(301)), 10, 4));
+        assert!(!standard_profile_request_is_current(
+            &request,
+            Some(OperationId(301)),
+            &owner,
+            scope.as_ref(),
+            &snapshot,
+            &selection,
+            &target,
+            8,
+            4,
+            "Layout",
+            true,
+        ));
+        assert!(!standard_profile_request_is_current(
+            &request,
+            Some(OperationId(301)),
+            &owner,
+            scope.as_ref(),
+            &snapshot,
+            &selection,
+            &target,
+            8,
+            4,
+            "Parts",
+            false,
+        ));
+        let mut another_owner = owner.clone();
+        another_owner.source = ProfileDefinitionSource::Project;
+        assert!(!standard_profile_request_is_current(
+            &request,
+            Some(OperationId(301)),
+            &another_owner,
+            scope.as_ref(),
+            &snapshot,
+            &selection,
+            &target,
+            8,
+            4,
+            "Parts",
+            true,
+        ));
+        let mut another_definition = target.clone();
+        another_definition.name = "Newer selected definition".into();
+        assert!(!standard_profile_request_is_current(
+            &request,
+            Some(OperationId(301)),
+            &owner,
+            scope.as_ref(),
+            &snapshot,
+            &selection,
+            &another_definition,
+            8,
+            4,
+            "Parts",
+            true,
+        ));
+    }
+
+    #[test]
+    fn standard_profile_request_matches_react_family_sources_and_plate_gaps() {
+        use boardstudio_core::model::{MechanicalBuiltinProfile, MechanicalSwitchFamily};
+
+        assert_eq!(
+            standard_profile_source_and_gap(MechanicalSwitchFamily::Mx),
+            (MechanicalBuiltinProfile::MxSwitch, 3.5)
+        );
+        assert_eq!(
+            standard_profile_source_and_gap(MechanicalSwitchFamily::ChocV1),
+            (MechanicalBuiltinProfile::ChocV1Switch, 2.2)
+        );
+        assert_eq!(
+            standard_profile_source_and_gap(MechanicalSwitchFamily::ChocV2),
+            (MechanicalBuiltinProfile::ChocV2Switch, 3.5)
+        );
+    }
+
+    #[test]
+    fn standard_profile_merge_preserves_sparse_user_fields_and_replaces_fit_geometry() {
+        let mut current = profile("switch", "manual provenance");
+        let old_cutouts = current.cutouts.clone();
+        let loaded = MechanicalPartProfile {
+            source_geometry: None,
+            pcb_holes: None,
+            clearance_volumes: None,
+            openings: None,
+            clearances: None,
+            supported_thickness: None,
+            switch_family: Some(MechanicalSwitchFamily::Mx),
+            definition_id: "switch".into(),
+            source: "Kailh MX standard".into(),
+            cutouts: vec![vec![Vec2 { x: -7.0, y: -7.0 }, Vec2 { x: 7.0, y: -7.0 }]],
+            plate_to_pcb: 3.5,
+        };
+        let new_cutouts = loaded.cutouts.clone();
+        merge_standard_profile(&mut current, loaded, MechanicalSwitchFamily::Mx, 3.5);
+        assert_eq!(
+            current.source_geometry.as_ref().unwrap().text,
+            "source geometry"
+        );
+        assert_eq!(current.clearances, profile("switch", "").clearances);
+        assert_eq!(current.cutouts, new_cutouts);
+        assert_ne!(current.cutouts, old_cutouts);
+        assert_eq!(current.source, "Kailh MX standard");
+        assert_eq!(current.switch_family, Some(MechanicalSwitchFamily::Mx));
+        assert_eq!(current.plate_to_pcb, 3.5);
+    }
+
+    #[test]
+    fn standard_profile_reply_rejects_wrong_request_owner_family_or_gap() {
+        use boardstudio_core::model::CoreReply;
+        let mut expected = profile("switch", "standard");
+        expected.switch_family = Some(MechanicalSwitchFamily::Mx);
+        expected.plate_to_pcb = 3.5;
+        assert!(
+            standard_profile_reply_matches(
+                CoreReply::MechanicalProfile {
+                    id: "right".into(),
+                    profile: expected.clone(),
+                },
+                "wrong",
+                "switch",
+                MechanicalSwitchFamily::Mx,
+                3.5,
+            )
+            .is_err()
+        );
+        assert!(
+            standard_profile_reply_matches(
+                CoreReply::MechanicalProfile {
+                    id: "right".into(),
+                    profile: expected.clone(),
+                },
+                "right",
+                "another-switch",
+                MechanicalSwitchFamily::Mx,
+                3.5,
+            )
+            .is_err()
+        );
+        assert!(
+            standard_profile_reply_matches(
+                CoreReply::MechanicalProfile {
+                    id: "right".into(),
+                    profile: expected.clone(),
+                },
+                "right",
+                "switch",
+                MechanicalSwitchFamily::ChocV2,
+                3.5,
+            )
+            .is_err()
+        );
+        assert!(
+            standard_profile_reply_matches(
+                CoreReply::MechanicalProfile {
+                    id: "right".into(),
+                    profile: expected,
+                },
+                "right",
+                "switch",
+                MechanicalSwitchFamily::Mx,
+                2.2,
+            )
+            .is_err()
+        );
     }
 }
