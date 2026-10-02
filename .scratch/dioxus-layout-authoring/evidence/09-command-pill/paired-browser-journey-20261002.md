@@ -39,3 +39,7 @@ Images are retained at `/home/chris/.local/share/boardstudio/retained-tmp/202610
 ## Remaining acceptance
 
 Use one identical saved archive hash, capture every available menu at desktop and compact widths in Light and Dark, integrate the close and Inspector pin/reveal repairs, execute one real Align result and one real transform-field edit, verify one-step Undo/Redo for each, and save/reopen accepted values. Keep view-group and common Layout 3D viewer parity under F3.6 and the F7.3 acceptance join; this F3.3d evidence does not close F3.3 or F3.7.
+
+## Additional pinned-reference statusbar observation
+
+The coordinator's pinned React profile confirmed the **Grid ¼u** statusbar control is a button that opens the same Snap dialog. The Dioxus Layout status area still exposes this as inert status text. This is an existing F3.3 Snap/status-control parity gap to carry in that slice's current queue; no duplicate ticket or canonical parent is created here. The paired journey above did not exercise this added route, so no browser parity result is claimed for it.
