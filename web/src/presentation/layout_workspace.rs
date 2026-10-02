@@ -6,6 +6,8 @@ use dioxus::prelude::*;
 pub(super) struct ObjectsInput {
     pub(super) shared: SharedObjectsInput,
     pub(super) matrix_setup: objects::MatrixSetupMount,
+    pub(super) mirrored_pair: objects::MirroredPairMount,
+    pub(super) pair_created: Signal<Option<objects::MirroredPairCreated>>,
 }
 
 pub(super) struct ToolbarInput {
@@ -44,6 +46,8 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 on_navigate: input.shared.on_navigate,
                 on_nudge: input.shared.on_nudge,
                 matrix_setup: Some(input.matrix_setup),
+                mirrored_pair: Some(input.mirrored_pair),
+                pair_created: Some(input.pair_created),
             }
         }
     }

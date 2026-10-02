@@ -99,3 +99,6 @@ fn app() -> dioxus::prelude::Element {
     });
     presentation::App()
 }
+
+#[cfg(feature = "page")]
+mod mirrored_pair_geometry;

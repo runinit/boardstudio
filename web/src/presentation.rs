@@ -1360,7 +1360,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let matrix_setup = objects::use_matrix_setup(
+    let mut matrix_setup = objects::use_matrix_setup(
         runtime.clone(),
         version,
         adapter.selected_context,
@@ -1368,6 +1368,106 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
+    let pair_created_selection = use_signal(|| None::<objects::MirroredPairCreated>);
+    let on_mirrored_pair_created = use_callback({
+        let runtime = runtime.clone();
+        let mut adapter = adapter.clone();
+        let mut pair_created_selection = pair_created_selection;
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        move |created: objects::MirroredPairCreated| {
+            let current_scope = runtime.scope();
+            if workspace() != "Layout"
+                || (adapter.generation)() != created.owner.scope_generation
+                || current_scope.as_ref() != Some(&created.owner.scope)
+                || created.scope != created.owner.scope
+            {
+                return;
+            }
+            let model = runtime.model();
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            if snapshot.token != created.result_token
+                || snapshot.document.revision != created.result_revision
+                || snapshot.document.id != created.owner.scope.document_id
+                || snapshot.session_epoch != created.owner.scope.session_epoch
+                || model.active_board_id != created.owner.board_id
+                || model.active_instance_id != created.owner.scope.instance_id
+                || !crate::mirrored_pair_geometry::result_snapshot_is_current(
+                    crate::mirrored_pair_geometry::PairSnapshotIdentity {
+                        base_token: created.owner.snapshot_token,
+                        base_revision: created.owner.revision,
+                        result_token: created.result_token,
+                        result_revision: created.result_revision,
+                        accepted_token: snapshot.token,
+                        accepted_revision: snapshot.document.revision,
+                    },
+                    model.lifecycle == Lifecycle::Ready,
+                    &model.durability,
+                )
+                || !snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .any(|matrix| matrix.id == created.left_matrix_id)
+                || !snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .any(|matrix| matrix.id == created.right_matrix_id)
+                || !snapshot
+                    .document
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.id == created.left_layout_id)
+                || !snapshot
+                    .document
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.id == created.right_layout_id)
+            {
+                return;
+            }
+            let context = objects::TreeContext::Matrix {
+                matrix_id: created.left_matrix_id.clone(),
+            };
+            let Some(part_ids) = objects::resolve_selection(&model, &context)
+                .filter(|part_ids| !part_ids.is_empty())
+            else {
+                return;
+            };
+            adapter
+                .selected_context
+                .set(Some(objects::ScopedTreeContext {
+                    scope: created.scope.clone(),
+                    context,
+                }));
+            adapter.anchor_scope.set(None);
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids,
+                range_part_ids: Vec::new(),
+                mode: SelectionMode::Replace,
+            });
+            pair_created_selection.set(Some(created));
+            objects_open.set(false);
+            inspect_open.set(true);
+        }
+    });
+    let mut mirrored_pair = objects::use_mirrored_pair(
+        runtime.clone(),
+        version,
+        workspace,
+        adapter.generation,
+        on_mirrored_pair_created,
+    );
+    if mirrored_pair.owns_canvas {
+        matrix_setup.can_open = false;
+    }
+    if matrix_setup.projection.is_some() {
+        mirrored_pair.can_open = false;
+    }
     let (outline_inspector, outline_activation) = outline_lifecycle::use_outline_lifecycle(
         runtime.clone(),
         adapter.selected_context,
@@ -2671,6 +2771,22 @@ fn Editor() -> Element {
     let view_y = -(min_y + max_y + height) * 0.5 - model.camera.center.y;
     let view_box = format!("{view_x} {view_y} {width} {height}");
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
+    let pair_placement_owner = mirrored_pair
+        .placement
+        .as_ref()
+        .map(|placement| placement.owner.clone());
+    use_effect(use_reactive((&pair_placement_owner,), {
+        let svg = svg.clone();
+        move |(owner,)| {
+            if owner.is_some()
+                && let Some(surface) = svg.borrow().as_ref()
+            {
+                let options = web_sys::FocusOptions::new();
+                options.set_prevent_scroll(true);
+                let _ = surface.focus_with_options(&options);
+            }
+        }
+    }));
     let drag = use_hook(|| Rc::new(RefCell::new(None::<Drag>)));
     let space_down = use_hook(|| Rc::new(Cell::new(false)));
     let interaction_version = use_signal(|| 0_u64);
@@ -2873,6 +2989,7 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
+    let pair_placement_active = mirrored_pair.owns_canvas;
     let show_position_inspector = selected_tree_context.as_ref().is_none_or(|selected| {
         let resolved = selection::resolve_context(&model, &selected.context);
         resolved.is_some_and(|ids| {
@@ -2906,10 +3023,27 @@ fn Editor() -> Element {
         let owner = layout_owner.clone();
         let snap_settings = layout_snap_settings;
         let tree_cell_anchor = tree_cell_anchor.clone();
+        let mirrored_pair = mirrored_pair.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
+            if let Some(placement) = mirrored_pair.placement.as_ref() {
+                let pair_owner = placement.owner.clone();
+                if workspace() != "Layout"
+                    || runtime.scope().as_ref() != Some(&pair_owner.scope)
+                    || (adapter.generation)() != pair_owner.scope_generation
+                {
+                    mirrored_pair.on_cancel.call(pair_owner);
+                    return;
+                }
+                if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    mirrored_pair.on_move.call(objects::MirroredPairMove {
+                        owner: pair_owner,
+                        center,
+                    });
+                }
+            }
             let Some(mut current) = drag
                 .borrow()
                 .clone()
@@ -3175,10 +3309,64 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let render_scope = render_scope.clone();
         let space_down = space_down.clone();
+        let mirrored_pair = mirrored_pair.clone();
+        let snap_settings = layout_snap_settings;
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
             let modifiers = event.data().modifiers();
+            if let Some(placement) = mirrored_pair.placement.as_ref() {
+                let owner = placement.owner.clone();
+                if key == "Escape" {
+                    event.prevent_default();
+                    mirrored_pair.on_cancel.call(owner);
+                    return;
+                }
+                if key == "Enter" {
+                    event.prevent_default();
+                    mirrored_pair.on_commit.call(objects::MirroredPairMove {
+                        owner,
+                        center: placement.pair.center,
+                    });
+                    return;
+                }
+                let (dx, dy) = match key.as_str() {
+                    "ArrowLeft" => (-1.0, 0.0),
+                    "ArrowRight" => (1.0, 0.0),
+                    "ArrowDown" => (0.0, -1.0),
+                    "ArrowUp" => (0.0, 1.0),
+                    _ => (0.0, 0.0),
+                };
+                if dx != 0.0 || dy != 0.0 {
+                    event.prevent_default();
+                    let settings = snap_settings.read();
+                    let fraction = settings.snap_fraction;
+                    let pitch = placement.pair.matrix.pitch;
+                    let step = |axis_pitch: f64| {
+                        if fraction.is_sign_negative() {
+                            -fraction
+                        } else {
+                            axis_pitch * if fraction == 0.0 { 0.25 } else { fraction }
+                        }
+                    };
+                    mirrored_pair.on_move.call(objects::MirroredPairMove {
+                        owner,
+                        center: Vec2 {
+                            x: placement.pair.center.x + dx * step(pitch.x),
+                            y: placement.pair.center.y + dy * step(pitch.y),
+                        },
+                    });
+                    return;
+                }
+            }
+            if key == "Escape"
+                && let Some(form) = mirrored_pair.form.as_ref()
+                && mirrored_pair.placement.is_none()
+            {
+                event.prevent_default();
+                mirrored_pair.on_cancel.call(form.owner.clone());
+                return;
+            }
             if key == " " || code == "Space" {
                 space_down.set(true);
                 event.prevent_default();
@@ -3218,10 +3406,34 @@ fn Editor() -> Element {
         let space_down = space_down.clone();
         let scope = render_scope.clone();
         let adapter = adapter.clone();
+        let mirrored_pair = mirrored_pair.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
+            if let Some(placement) = mirrored_pair.placement.as_ref()
+                && pointer.button() == 0
+            {
+                let owner = placement.owner.clone();
+                if workspace() != "Layout"
+                    || runtime.scope().as_ref() != Some(&owner.scope)
+                    || (adapter.generation)() != owner.scope_generation
+                {
+                    mirrored_pair.on_cancel.call(owner);
+                    return;
+                }
+                if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    mirrored_pair
+                        .on_commit
+                        .call(objects::MirroredPairMove { owner, center });
+                }
+                return;
+            }
+            if mirrored_pair.owns_canvas {
+                return;
+            }
             if !space_down.get()
                 || pointer.button() != 0
                 || runtime.scope().as_ref() != Some(&scope)
@@ -3472,6 +3684,8 @@ fn Editor() -> Element {
             layout_workspace::ObjectsInput {
                 shared: shared_objects,
                 matrix_setup: matrix_setup.clone(),
+                mirrored_pair: mirrored_pair.clone(),
+                pair_created: pair_created_selection,
             },
         )),
     };
@@ -3791,7 +4005,10 @@ fn Editor() -> Element {
             && preferences.open
             // Opening Matrix Setup from the guide temporarily reveals the normal Layout
             // Objects panel; the guide preference remains intact and returns on cancel.
-            && !(active_workspace == "Layout" && matrix_setup.projection.is_some())
+            && !(active_workspace == "Layout"
+                && (matrix_setup.projection.is_some()
+                    || mirrored_pair.form.is_some()
+                    || mirrored_pair.placement.is_some()))
     });
     let name_value = guide_name_draft()
         .filter(|(project_id, _)| project_id == &document.id)
@@ -3994,6 +4211,29 @@ fn Editor() -> Element {
                             polygon { points: polygon_points(&bridge.points), class: "m1-outline-bridge-selected", "data-outline-bridge": bridge.id.clone() }
                         }
                         if !(layer_visibility.hidden)().contains("Keys") {
+                            if let Some(active_pair) = mirrored_pair.placement.as_ref() {
+                                {
+                                    let pair = &active_pair.pair;
+                                    let left_cells = crate::mirrored_pair_geometry::preview_cells(&pair.matrix);
+                                    let right_cells = crate::mirrored_pair_geometry::preview_cells(&pair.right_preview);
+                                    let line_half_height = f64::from(pair.matrix.rows) * pair.matrix.pitch.y / 2.0 + 16.0;
+                                    rsx! {
+                                        g { class: "m1-mirrored-pair-preview", "aria-label": "Mirrored pair placement preview",
+                                            line { class: "m1-mirror-pair-axis", x1: "{pair.axis_x}", x2: "{pair.axis_x}", y1: "{pair.center.y - line_half_height}", y2: "{pair.center.y + line_half_height}" }
+                                            for cell in left_cells {
+                                                g { key: "left-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
+                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                }
+                                            }
+                                            for cell in right_cells {
+                                                g { key: "right-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
+                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             for matrix in &matrices {
                                 if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
                                     for cell in projected.cells.iter().filter(|cell| cell.enabled) {
@@ -4022,6 +4262,7 @@ fn Editor() -> Element {
                                             let tree_cell_anchor = tree_cell_anchor.clone();
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
+                                                    if pair_placement_active { return; }
                                                     let Some(pointer) = event.data().try_as_web_event() else { return; };
                                                     if pointer.button() != 0 { return; }
                                                     if space_down.get() { return; }
@@ -4079,6 +4320,7 @@ fn Editor() -> Element {
                                 let tree_cell_anchor = tree_cell_anchor.clone();
                                 rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
+                                        if pair_placement_active { return; }
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
                                         if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }

@@ -14,6 +14,8 @@ mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_transform_controller;
 mod matrix_transform_inspector;
+mod mirrored_pair;
+mod mirrored_pair_controller;
 mod tree;
 pub(in crate::presentation) use layout_align::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
@@ -34,6 +36,10 @@ pub(in crate::presentation) use matrix_transform_controller::{
     MatrixTransformInspectorMount, use_matrix_transform_inspector,
 };
 pub(in crate::presentation) use matrix_transform_inspector::MatrixTransformInspector;
+pub(in crate::presentation) use mirrored_pair::{
+    MirroredPairCreated, MirroredPairForm, MirroredPairMount, MirroredPairMove,
+};
+pub(in crate::presentation) use mirrored_pair_controller::use_mirrored_pair;
 pub(in crate::presentation) use tree::TreeContext;
 use tree::{Grouping, TreeKind};
 
@@ -88,12 +94,16 @@ pub(super) fn Objects(
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
     on_nudge: EventHandler<TreeNudgeRequest>,
     matrix_setup: Option<MatrixSetupMount>,
+    mirrored_pair: Option<MirroredPairMount>,
+    pair_created: Option<Signal<Option<MirroredPairCreated>>>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
     let case_workspace = workspace() == "Case";
     let generation = (use_context::<super::SelectionAdapter>().generation)();
     let _ = use_context::<Signal<u64>>()();
+    let local_pair_created = use_signal(|| None::<MirroredPairCreated>);
+    let mut pair_created = pair_created.unwrap_or(local_pair_created);
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
@@ -107,15 +117,24 @@ pub(super) fn Objects(
     let navigate_instance = on_navigate;
     let defaults = tree::default_disclosures(document, &board_id);
     let mut expanded = use_signal(|| defaults.clone());
+    let created_pair = pair_created();
     let disclosure_scope = (
         snapshot.session_epoch,
         document.id.clone(),
         board_id.clone(),
     );
     use_effect(use_reactive(
-        (&disclosure_scope, &defaults),
-        move |(_, defaults)| {
+        (&disclosure_scope, &defaults, &created_pair),
+        move |(_, defaults, created_pair)| {
             expanded.write().extend(defaults);
+            if let Some(created) = created_pair {
+                let mut tree = expanded.write();
+                tree.insert(format!("half:{}", created.left_layout_id));
+                tree.insert(format!("half:{}", created.right_layout_id));
+                tree.insert(format!("matrix:{}", created.left_matrix_id));
+                tree.insert(format!("matrix:{}", created.right_matrix_id));
+                pair_created.set(None);
+            }
         },
     ));
     let mut grouping = use_signal(|| Grouping::from_storage(read_tree_grouping()));
@@ -162,8 +181,8 @@ pub(super) fn Objects(
     rsx! {
         aside { class: "m1-objects", "aria-label": "Objects",
             header { h2 { "Objects" } }
-            if let Some(mount) = matrix_setup {
-                LayoutAddObjectEntry { mount }
+            if matrix_setup.is_some() || mirrored_pair.is_some() {
+                LayoutAddObjectEntry { matrix_setup, mirrored_pair }
             }
             div { class: "m1-object-navigation",
                 label { "Board"
@@ -349,9 +368,18 @@ pub(super) fn Objects(
 }
 
 #[component]
-fn LayoutAddObjectEntry(mount: MatrixSetupMount) -> Element {
+fn LayoutAddObjectEntry(
+    matrix_setup: Option<MatrixSetupMount>,
+    mirrored_pair: Option<MirroredPairMount>,
+) -> Element {
     let mut menu_open = use_signal(|| false);
     let open_menu = menu_open();
+    let mirrored_open = mirrored_pair
+        .as_ref()
+        .map(|mount| (mount.can_open, mount.on_open));
+    let matrix_open = matrix_setup
+        .as_ref()
+        .map(|mount| (mount.can_open, mount.on_open));
     rsx! {
         div { class: "m1-layout-add-object",
             button {
@@ -364,25 +392,51 @@ fn LayoutAddObjectEntry(mount: MatrixSetupMount) -> Element {
                 div { role: "dialog", "aria-label": "Add", class: "m1-layout-add-menu",
                     section { "aria-label": "Layouts",
                         h3 { "Layouts" }
-                        button {
-                            r#type: "button",
-                            disabled: !mount.can_open,
-                            onclick: move |_| {
-                                menu_open.set(false);
-                                mount.on_open.call(());
-                            },
-                            "Matrix…"
-                            small { "Rows, columns & key assemblies" }
+                        if let Some((can_open, on_open)) = mirrored_open {
+                            button {
+                                r#type: "button",
+                                disabled: !can_open,
+                                onclick: move |_| {
+                                    menu_open.set(false);
+                                    on_open.call(());
+                                },
+                                "Mirrored pair…"
+                                small { "Create linked left and right halves" }
+                            }
+                        }
+                        if let Some((can_open, on_open)) = matrix_open {
+                            button {
+                                r#type: "button",
+                                disabled: !can_open,
+                                onclick: move |_| {
+                                    menu_open.set(false);
+                                    on_open.call(());
+                                },
+                                "Matrix…"
+                                small { "Rows, columns & key assemblies" }
+                            }
                         }
                     }
                 }
             }
         }
-        if let Some(projection) = mount.projection.clone() {
+        if let Some(mount) = matrix_setup.as_ref() {
+          if let Some(projection) = mount.projection.clone() {
             MatrixSetup {
                 projection,
                 on_cancel: mount.on_cancel,
                 on_create: mount.on_create,
+            }
+          }
+        }
+        if let Some(mount) = mirrored_pair.as_ref()
+            && let Some(projection) = mount.form.clone()
+        {
+            MirroredPairForm {
+                key: "{projection.owner.open_id}",
+                projection,
+                on_cancel: mount.on_cancel,
+                on_preview: mount.on_preview,
             }
         }
     }

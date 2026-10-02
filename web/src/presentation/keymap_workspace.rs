@@ -40,6 +40,8 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
             on_navigate: input.on_navigate,
             on_nudge: input.on_nudge,
             matrix_setup: None,
+            mirrored_pair: None,
+            pair_created: None,
         }
     }
 }
