@@ -92,6 +92,9 @@ impl Runtime {
             step_exports: RefCell::new(BTreeSet::new()),
             export_workers: RefCell::new(BTreeMap::new()),
         });
+        // Reserve the startup open identity synchronously, before any explicit
+        // open action can supersede restoration of the last durable project.
+        runtime.restore_active_project();
         let weak = Rc::downgrade(&runtime);
         spawn_local(async move {
             if let Err(error) = boardstudio_web::host::register_offline(prefix).await
@@ -101,6 +104,15 @@ impl Runtime {
             }
         });
         Ok(runtime)
+    }
+    fn restore_active_project(self: &Rc<Self>) {
+        match self.store.active_project_id("") {
+            Ok(project_id) if !project_id.is_empty() => self.open_saved(project_id),
+            Ok(_) => {}
+            Err(error) => self.report(format!(
+                "Could not read the last active keyboard preference; choose a saved keyboard from the library. {error}"
+            )),
+        }
     }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();
@@ -773,10 +785,12 @@ impl Runtime {
                 }
                 Ok(Some(_)) => {}
                 Ok(None) if this.open_sequence.get() == sequence => {
-                    this.report("Saved keyboard is unavailable.")
+                    this.report(
+                        "The saved keyboard is unavailable. Choose an available copy from the library.",
+                    )
                 }
                 Err(error) if this.open_sequence.get() == sequence => {
-                    this.report(error.to_string())
+                    this.report(format!("Could not open the saved keyboard: {error}"))
                 }
                 Ok(None) | Err(_) => {}
             }
