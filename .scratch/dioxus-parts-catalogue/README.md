@@ -5,3 +5,6 @@ Two agent-prepared tickets published automatically under the existing user autho
 Before dispatch, prove the feature-specific private mount/read/scope/action contract in DISPATCH.md. INT.1 supplies private Library/Objects/Inspector extraction only. Shared acceptance: ../dioxus-frontend-tranche-1/ACCEPTANCE.md.
 
 No new refactoring takeaway observed. RF-009 source accounting is reinforced: catalogue provenance, shared host-layer lifetime, and virtual/legacy keymap projection are reconciled with actual reference behavior. Base can be renamed; only Base removal is protected. Parent shorthand never overrides the source-supported rule.
+
+
+Automatically published [03: isolated Parts preview](issues/03-isolated-library-preview.md) after independent Astra Spec review. F4.4 starts after F4.1 and F7.1 and retains F7.3/INT.2 acceptance joins. This is the Parts consumer of the shared viewer, with no duplicate renderer or authoritative project session.
