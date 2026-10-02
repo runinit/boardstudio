@@ -12,6 +12,12 @@ Keep correctness required for parity in the current slice. Defer broad cleanup a
 
 At frontend v1, F9 produces a refactoring handoff grouped by architectural boundary, recurring cause, user impact and uncertainty. Prioritize the future refactor using the accumulated evidence; do not adopt every suggested abstraction automatically.
 
+## Current port checkpoint — 2026-10-02
+
+The source-specific machine register now retains the paired34727 bridge-camera blank-canvas defect, confirmed production IndexedDB error/abort callback-lifetime regression, and shared Inspector clipping. Required fixes remain in the port; neither parent acceptance nor the future refactor absorbs these blockers. The original repeated Matrix save's abort cause remains unknown despite12 fresh successful creates/history/reloads. Reviewers are keeping the callback defect and its trigger distinct.
+
+Temporary storage pressure also exposed an execution reliability cost: inactive generated build targets filled tmpfs during parallel browser/build work. The coordinator preserved two inactive generated target trees on disk with original-path symlinks after checking process references and inactivity; source, Git history and failed browser state were retained. This adds operational evidence to RF-009 without claiming a product architecture defect.
+
 ## Current findings
 
 | ID | Finding | Evidence status | Impact priority | Affected work |
