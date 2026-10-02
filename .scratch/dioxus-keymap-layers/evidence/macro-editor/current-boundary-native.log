@@ -1,0 +1,9 @@
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.87s
+     Running tests/keymap_workflow.rs (core/target/debug/deps/keymap_workflow-4883c736c3d35133)
+
+running 1 test
+test macro_expansion_respects_zmk_binding_limit_at_the_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
