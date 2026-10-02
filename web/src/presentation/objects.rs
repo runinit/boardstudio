@@ -247,7 +247,7 @@ pub(super) fn Objects(
                                                 }
                                             }
                                         },
-                                        span { class: "m1-tree-glyph", tree_glyph(item.kind) }
+                                        span { class: "m1-tree-glyph", {tree_glyph(item.kind)} }
                                         span { class: "m1-tree-label", "{item.label}" }
                                         if let Some(detail) = item.detail { span { class: "m1-object-kind", "{detail}" } }
                                     }
