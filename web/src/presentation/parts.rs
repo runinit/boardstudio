@@ -81,6 +81,14 @@ pub(super) async fn is_ergogen_source(source: String) -> Result<bool, String> {
     catalogue::is_ergogen_source(source).await
 }
 
+/// Read the parameter descriptors from the packaged Ergogen module. The Parts catalogue remains
+/// the sole owner of module loading; PCB receives only the accepted package schema values.
+pub(super) async fn ergogen_parameter_schema(
+    source: String,
+) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
+    catalogue::ergogen_parameter_schema(&source).await
+}
+
 pub(super) async fn load_matrix_templates(
     reversible: bool,
 ) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {

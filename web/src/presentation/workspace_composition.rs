@@ -112,6 +112,7 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
                 firmware_feedback: input.firmware_feedback,
                 firmware_controls: input.firmware_controls,
                 part_net_actions: input.part_net_actions,
+                part_input_actions: input.part_input_actions,
                 on_firmware_edit: input.on_firmware_edit,
                 on_resolve: input.on_resolve,
                 on_edit_board_wiring: input.on_edit_board_wiring,

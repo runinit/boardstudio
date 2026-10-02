@@ -12,6 +12,7 @@ use std::{rc::Rc, sync::Arc};
 
 mod controller;
 mod part_connections;
+mod part_input_settings;
 mod part_net_admission;
 use crate::firmware_position_projection;
 pub(in crate::presentation) use crate::firmware_position_projection::{
@@ -21,6 +22,7 @@ pub(in crate::presentation) use crate::firmware_position_projection::{
 pub(in crate::presentation) use controller::{
     use_firmware_position_edits, use_pcb_part_net_edits, use_pcb_wiring_controller,
 };
+pub(in crate::presentation) use part_input_settings::PartInputActions;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct PartNetEditIdentity {
@@ -75,6 +77,7 @@ pub(in crate::presentation) struct PartNetActions {
 pub(in crate::presentation) struct PcbWiringSource {
     pub identity: WiringPlanIdentity,
     pub ui_scope: Scope,
+    pub scope_generation: u64,
     document: Arc<ProjectDoc>,
     active_part_id: Option<String>,
 }
@@ -86,6 +89,7 @@ impl PcbWiringSource {
         ui_scope: &Scope,
         active_part_id: Option<&str>,
         executor_epoch: u64,
+        scope_generation: u64,
     ) -> Option<Self> {
         if scope.instance_id.is_some()
             || (Scope {
@@ -111,6 +115,7 @@ impl PcbWiringSource {
                 executor_epoch,
             },
             ui_scope: ui_scope.clone(),
+            scope_generation,
             document: accepted.document.clone(),
             active_part_id: active_part_id.map(str::to_owned),
         })
@@ -123,6 +128,7 @@ impl PartialEq for PcbWiringSource {
             && Arc::ptr_eq(&self.document, &other.document)
             && self.active_part_id == other.active_part_id
             && self.ui_scope == other.ui_scope
+            && self.scope_generation == other.scope_generation
     }
 }
 
@@ -236,6 +242,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub firmware_feedback: Option<FirmwarePositionFeedback>,
     pub firmware_controls: Element,
     pub part_net_actions: PartNetActions,
+    pub part_input_actions: PartInputActions,
     pub on_firmware_edit: EventHandler<FirmwarePositionEditRequest>,
     pub on_resolve: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
@@ -280,6 +287,22 @@ pub(in crate::presentation) fn firmware_position_projection(
         &source.ui_scope,
         generation,
         lifecycle,
+    )
+}
+
+pub(in crate::presentation) fn use_part_input_edits(
+    runtime: Rc<crate::runtime::Runtime>,
+    version: Signal<u64>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
+    instance_is_current: Rc<dyn Fn() -> bool>,
+) -> PartInputActions {
+    part_input_settings::use_part_input_edits(
+        runtime,
+        version,
+        workspace,
+        scope_generation,
+        instance_is_current,
     )
 }
 
@@ -590,6 +613,10 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
         section { class: "m1-pcb-wiring m1-pcb-part-connections",
             p { class: "m1-pcb-wiring-breadcrumb", "{breadcrumb}" }
             h2 { "{title}" }
+            part_input_settings::PartInputInspector {
+                source: source.clone(),
+                actions: props.part_input_actions.clone(),
+            }
             details { class: "m1-pcb-wiring-section",
                 summary { "Board details" }
                 ul {

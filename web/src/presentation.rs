@@ -1513,6 +1513,16 @@ fn Editor() -> Element {
         },
         pcb_wiring_mount.resolution_signal,
     );
+    let part_input_actions = pcb_wiring::use_part_input_edits(
+        runtime.clone(),
+        version,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+    );
     // Read guide state at every admission: an async operation may outlive the rendered guide
     // stage or switch to a different accepted project.
     let project_setup_active: Rc<dyn Fn() -> bool> = Rc::new({
@@ -3412,6 +3422,7 @@ fn Editor() -> Element {
                 scope,
                 model.selected_part_ids.first().map(String::as_str),
                 runtime.electrical_preview_executor_epoch(),
+                (adapter.generation)(),
             )
         });
     let case_selected_body_id = case_selection
@@ -3649,6 +3660,7 @@ fn Editor() -> Element {
                     firmware_feedback,
                     firmware_controls,
                     part_net_actions: pcb_part_net_actions.clone(),
+                    part_input_actions: part_input_actions.clone(),
                     on_firmware_edit: firmware_position_actions.on_edit,
                     on_resolve: pcb_wiring_mount.on_resolve,
                     on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,

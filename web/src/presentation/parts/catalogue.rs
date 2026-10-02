@@ -255,6 +255,36 @@ fn is_ergogen_source_with_module(source: String, module: &JsValue) -> Result<boo
         .ok_or_else(|| "Ergogen source classification returned a non-boolean value.".to_owned())
 }
 
+pub(super) async fn ergogen_parameter_schema(
+    source: &str,
+) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
+    let module = load_ergogen_module().await?;
+    ergogen_parameter_schema_with_module(source, &module)
+}
+
+fn ergogen_parameter_schema_with_module(
+    source: &str,
+    module: &JsValue,
+) -> Result<std::collections::BTreeMap<String, serde_json::Value>, String> {
+    let is_ergogen = function(module, "isErgogen")?
+        .call1(module, &source.into())
+        .map_err(js_error)?
+        .as_bool()
+        .unwrap_or(false);
+    if !is_ergogen {
+        return Ok(Default::default());
+    }
+    let schema = function(module, "parameters")?
+        .call1(module, &source.into())
+        .map_err(js_error)?;
+    let schema = js_sys::JSON::stringify(&schema)
+        .map_err(js_error)?
+        .as_string()
+        .ok_or_else(|| "Ergogen parameter schema could not be serialized.".to_owned())?;
+    serde_json::from_str(&schema)
+        .map_err(|error| format!("Ergogen parameter schema is invalid: {error}"))
+}
+
 /// Normalize a matrix-owned generator clone with the exact packaged Ergogen implementation.
 /// The clone is passed as a JSON object so generator parameters have the plain-object shape
 /// expected by the TypeScript normalizer (serde-wasm-bindgen's default Map is not compatible).
@@ -466,7 +496,7 @@ mod wasm_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn reversible_proposal_uses_the_packaged_gateron_normalizer() {
+    async fn pcb_part_packaged_reversible_proposal_uses_gateron_normalizer() {
         let module_url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
             Some(url) => url,
             None => panic!(
@@ -568,6 +598,31 @@ mod wasm_tests {
         );
         assert!(!normalized.pads.is_empty());
         assert!(!normalized.courtyard.is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    async fn pcb_part_packaged_binding_schema_uses_generator_parameters() {
+        let module_url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
+            Some(url) => url,
+            None => panic!(
+                "run scripts/web/test-physical-setup-proposal.mjs to provide packaged module URL"
+            ),
+        };
+        let module = import_ergogen_module(module_url)
+            .await
+            .expect("import generated layout-generator asset");
+        let schema = ergogen_parameter_schema_with_module("infused-kim/smd_0805", &module)
+            .expect("read packaged generic-part parameter schema");
+        assert_eq!(schema["net_1_from"]["type"], "net");
+        assert_eq!(schema["net_1_from"]["value"], "SMD_1_F");
+        assert_eq!(schema["net_1_to"]["value"], "SMD_1_T");
+        assert_eq!(schema["net_6_to"]["type"], "net");
+        assert!(schema.values().all(|parameter| {
+            matches!(
+                parameter["type"].as_str(),
+                Some("string" | "number" | "boolean" | "array" | "object" | "net" | "anchor")
+            )
+        }));
     }
 }
 
