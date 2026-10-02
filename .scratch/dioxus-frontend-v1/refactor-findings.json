@@ -724,7 +724,8 @@
         },
         ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md"
       ],
-      "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure."
+      "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
+      "build_cli_takeaway_20261002": "Confirmed tooling gap: build-m1.py treats --help as a valid build ID because hyphens are stripped before alphanumeric validation, starting expensive builds. Multiple authors hit it; preserved incomplete --help directories are not acceptance artifacts. Fix conventional help/invalid-leading-option handling after active source-stamped build, with focused CLI regression; do not mutate script during running provenance guard."
     },
     {
       "id": "RF-010",
