@@ -6,6 +6,7 @@
 
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Asset, BoardReference, PcbModel, ProjectDoc};
+use crate::case_preview::CasePreviewOwnerLease;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -14,7 +15,6 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use crate::runtime::CadScene;
 
 const MESH_CACHE_CAPACITY: usize = 80;
 const MAX_MODEL_BYTES: usize = 32 * 1024 * 1024;
@@ -30,7 +30,7 @@ pub(crate) struct ModelOwnerIdentity {
     snapshot_token: SnapshotToken,
     viewer_instance: u64,
     projection_generation: u64,
-    source_scene: Weak<CadScene>,
+    source_owner: Weak<CasePreviewOwnerLease>,
 }
 
 impl ModelOwnerIdentity {
@@ -39,14 +39,14 @@ impl ModelOwnerIdentity {
         snapshot_token: SnapshotToken,
         viewer_instance: u64,
         projection_generation: u64,
-        source_scene: &Rc<CadScene>,
+        source_owner: &Rc<CasePreviewOwnerLease>,
     ) -> Self {
         Self {
             scope,
             snapshot_token,
             viewer_instance,
             projection_generation,
-            source_scene: Rc::downgrade(source_scene),
+            source_owner: Rc::downgrade(source_owner),
         }
     }
 
@@ -55,27 +55,37 @@ impl ModelOwnerIdentity {
             && self.snapshot_token == other.snapshot_token
             && self.viewer_instance == other.viewer_instance
             && self.projection_generation == other.projection_generation
-            && Weak::ptr_eq(&self.source_scene, &other.source_scene)
+            && Weak::ptr_eq(&self.source_owner, &other.source_owner)
     }
 
-    /// Checks the captured projection against the current Case owner. The
-    /// accepted revision remains a separate batch property.
+    /// Checks the captured physical preview against the current Case owner.
+    /// This identity exists before mechanical CAD; the accepted revision remains
+    /// a separate batch property.
     pub(crate) fn is_current_owner(
         &self,
         current_scope: &Scope,
         current_token: SnapshotToken,
         current_viewer_instance: u64,
         current_projection_generation: u64,
-        current_scene: &Rc<CadScene>,
+        current_owner: &Rc<CasePreviewOwnerLease>,
     ) -> bool {
         self.scope == *current_scope
             && self.snapshot_token == current_token
             && self.viewer_instance == current_viewer_instance
             && self.projection_generation == current_projection_generation
             && self
-                .source_scene
+                .source_owner
                 .upgrade()
-                .is_some_and(|captured| Rc::ptr_eq(&captured, current_scene))
+                .is_some_and(|captured| {
+                    Rc::ptr_eq(&captured, current_owner)
+                        && captured.is_active()
+                        && captured.identity_matches(
+                            current_scope,
+                            current_token,
+                            current_viewer_instance,
+                            current_projection_generation,
+                        )
+                })
     }
 }
 
@@ -615,7 +625,7 @@ mod tests {
                 snapshot_token: SnapshotToken(1),
                 viewer_instance: 1,
                 projection_generation: 1,
-                source_scene: Weak::new(),
+            source_owner: Weak::new(),
             },
             accepted_revision: 1,
             batch_generation: generation,

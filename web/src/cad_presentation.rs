@@ -3,6 +3,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{Event, GenerationStatus};
 use dioxus::prelude::*;
 use std::rc::Rc;
+use wasm_bindgen_futures::spawn_local;
 
 #[component]
 pub fn CasePanel(generation_ready: bool) -> Element {
@@ -13,6 +14,18 @@ pub fn CasePanel(generation_ready: bool) -> Element {
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
+    let preview_key = runtime.native_case_preview_key();
+    let preview_runtime = runtime.clone();
+    use_effect(use_reactive((&preview_key,), move |(key,)| {
+        if let Some((scope, token, revision)) = key {
+            let runtime = preview_runtime.clone();
+            spawn_local(async move {
+                let _ = runtime
+                    .prepare_native_case_preview(scope, token, revision)
+                    .await;
+            });
+        }
+    }));
     let generate = runtime.clone();
     let cancel = runtime.clone();
     let scene = runtime.cad_scene();
@@ -41,6 +54,13 @@ pub fn CasePanel(generation_ready: bool) -> Element {
                 button { disabled: !matches!(model.generation, GenerationStatus::Preparing {..} | GenerationStatus::Running {..}), onclick: move |_| cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() }), "Cancel generation" }
             }
             p { role: "status", "aria-live": "polite", "{title}" }
+            if runtime.native_case_preview_pending() {
+                p { role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
+            } else if runtime.native_case_preview_error().is_some() {
+                p { role: "alert", "The accepted PCB preview could not be prepared." }
+            } else if runtime.native_case_preview().is_some() {
+                p { role: "status", "Accepted PCB preview is ready for the Case viewer." }
+            }
             if let Some(scene) = scene {
                 crate::presentation::CaseViewer { key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}", scene }
             }

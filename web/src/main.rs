@@ -16,6 +16,12 @@ mod renderer_host_page;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod runtime;
 
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod preview_generator;
+
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod case_preview;
+
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod operation_outcomes;
 

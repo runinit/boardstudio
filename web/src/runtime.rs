@@ -6,8 +6,9 @@ use boardstudio_application::{
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::{
-        ArchiveReply, Board, CoreReply, CoreRequest, Material, MechanicalAssembly,
-        MechanicalConfiguration, Operation, OutlineFeature, OutlineSettings, ProjectDoc,
+        ArchiveReply, ArtifactReply, Board, CoreReply, CoreRequest, ErgogenJobResult,
+        FinishExportRequest, Material, MechanicalAssembly, MechanicalConfiguration, Operation,
+        OutlineFeature, OutlineSettings, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -88,6 +89,17 @@ pub struct Runtime {
     step_exports: RefCell<BTreeSet<OperationId>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     embed_used_models: Cell<bool>,
+    native_case_preview: RefCell<Option<Rc<crate::case_preview::NativePreviewSnapshot>>>,
+    native_case_preview_pending: RefCell<
+        Option<(
+            crate::case_preview::CasePreviewOwnerIdentity,
+            Rc<crate::case_preview::CasePreviewOwnerLease>,
+        )>,
+    >,
+    native_case_preview_error:
+        RefCell<Option<(crate::case_preview::CasePreviewOwnerIdentity, String)>>,
+    native_case_preview_generation: Cell<u64>,
+    preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
@@ -116,6 +128,11 @@ impl Runtime {
             step_exports: RefCell::new(BTreeSet::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             embed_used_models: Cell::new(true),
+            native_case_preview: RefCell::new(None),
+            native_case_preview_pending: RefCell::new(None),
+            native_case_preview_error: RefCell::new(None),
+            native_case_preview_generation: Cell::new(0),
+            preview_generator: RefCell::new(None),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
@@ -173,6 +190,32 @@ impl Runtime {
     fn changed(&self) {
         if let Some(notify) = self.notify.borrow().as_ref().cloned() {
             notify();
+        }
+    }
+    fn invalidate_stale_native_case_preview(&self) {
+        let current = self.native_case_preview_key();
+        let stale = self
+            .native_case_preview
+            .borrow()
+            .as_ref()
+            .is_some_and(|preview| {
+                current.as_ref().is_none_or(|(scope, token, revision)| {
+                    preview.owner.scope != *scope
+                        || preview.owner.snapshot_token != *token
+                        || preview.owner.accepted_revision != *revision
+                        || !self.preview_owner_is_current(&preview.owner)
+                })
+            });
+        if stale {
+            if let Some(preview) = self.native_case_preview.borrow_mut().take() {
+                preview.lease.invalidate();
+            }
+            if let Some((_, lease)) = self.native_case_preview_pending.borrow_mut().take() {
+                lease.invalidate();
+            }
+            self.native_case_preview_error.borrow_mut().take();
+            self.native_case_preview_generation
+                .set(self.native_case_preview_generation.get().saturating_add(1));
         }
     }
     pub(crate) fn observe_operation(
@@ -567,6 +610,7 @@ impl Runtime {
         }
         let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
+        self.invalidate_stale_native_case_preview();
         if self.scope() != previous_scope {
             self.cad_scene.borrow_mut().take();
             if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
@@ -578,6 +622,7 @@ impl Runtime {
     }
     fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
         let effects = self.session.borrow_mut().complete(event);
+        self.invalidate_stale_native_case_preview();
         self.changed();
         effects
     }
@@ -867,6 +912,352 @@ impl Runtime {
             .as_ref()
             .filter(|scene| self.scope() == Some(scene.scope.clone()))
             .cloned()
+    }
+
+    pub(crate) fn native_case_preview(
+        &self,
+    ) -> Option<Rc<crate::case_preview::NativePreviewSnapshot>> {
+        let current_scope = self.scope()?;
+        let accepted = self.model().accepted?;
+        self.native_case_preview
+            .borrow()
+            .as_ref()
+            .filter(|preview| {
+                preview.lease.matches(&preview.owner)
+                    && preview.owner.scope == current_scope
+                    && preview.owner.snapshot_token == accepted.token
+                    && preview.owner.accepted_revision == accepted.document.revision
+            })
+            .cloned()
+    }
+
+    pub(crate) fn native_case_preview_pending(&self) -> bool {
+        self.native_case_preview_pending
+            .borrow()
+            .as_ref()
+            .is_some_and(|(owner, lease)| {
+                lease.matches(owner) && self.preview_owner_is_current(owner)
+            })
+    }
+
+    pub(crate) fn native_case_preview_error(&self) -> Option<String> {
+        self.native_case_preview_error
+            .borrow()
+            .as_ref()
+            .filter(|(owner, _)| self.preview_owner_is_current(owner))
+            .map(|(_, error)| error.clone())
+    }
+
+    pub(crate) fn native_case_preview_key(&self) -> Option<(Scope, SnapshotToken, u64)> {
+        let scope = self.scope()?;
+        let accepted = self.model().accepted?;
+        (scope.session_epoch == accepted.session_epoch
+            && scope.document_id == accepted.document.id
+            && accepted.scene.revision == accepted.document.revision)
+            .then_some((scope, accepted.token, accepted.document.revision))
+    }
+
+    pub(crate) async fn prepare_native_case_preview(
+        self: &Rc<Self>,
+        expected_scope: Scope,
+        expected_token: SnapshotToken,
+        expected_revision: u64,
+    ) -> Result<(), String> {
+        let accepted = self
+            .model()
+            .accepted
+            .ok_or_else(|| "No accepted project is available for Case preview".to_owned())?;
+        if accepted.token != expected_token
+            || accepted.document.revision != expected_revision
+            || self.scope().as_ref() != Some(&expected_scope)
+        {
+            return Err("The accepted Case preview source changed before preparation".into());
+        }
+        if self.native_case_preview().is_some() {
+            return Ok(());
+        }
+        if self.native_case_preview_pending() {
+            return Ok(());
+        }
+
+        let generation = self
+            .native_case_preview_generation
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| "Case preview generation identity exhausted".to_owned())?;
+        self.native_case_preview_generation.set(generation);
+        let operation = self.operation().0;
+        if operation == 0 || operation > 9_007_199_254_740_991 {
+            return Err("Case preview request identity is outside the safe integer range".into());
+        }
+        let request_token = format!(
+            "case-preview-{}-{}-{}",
+            expected_token.0, expected_revision, operation
+        );
+        let core = self.core.borrow().clone();
+        let core_executor_epoch = self.session.borrow().core_executor_epoch().0;
+        let core_worker_identity = Rc::as_ptr(&core) as usize;
+        let capture = match crate::case_preview::capture_native_preview(
+            &accepted,
+            &expected_scope,
+            generation,
+            generation,
+            core_executor_epoch,
+            core_worker_identity,
+            request_token,
+        ) {
+            Ok(capture) => capture,
+            Err(error) => {
+                return Err(error);
+            }
+        };
+        self.set_native_preview_pending(capture.owner.clone(), capture.lease.clone());
+        let result = self
+            .run_native_case_preview(&accepted, capture.clone(), operation)
+            .await;
+        match result {
+            Ok(preview) if self.preview_owner_is_current(&preview.owner) => {
+                *self.native_case_preview.borrow_mut() = Some(Rc::new(preview));
+                if let Some((_, lease)) = self.native_case_preview_pending.borrow_mut().take() {
+                    lease.invalidate();
+                }
+                self.native_case_preview_error.borrow_mut().take();
+                self.changed();
+                Ok(())
+            }
+            Ok(preview) => {
+                preview.lease.invalidate();
+                Err("The Case preview result became stale before publication".into())
+            }
+            Err(error) => {
+                let owner_is_current = self.preview_owner_is_current(&capture.owner);
+                capture.lease.invalidate();
+                if owner_is_current {
+                    if let Some((_, lease)) = self.native_case_preview_pending.borrow_mut().take() {
+                        lease.invalidate();
+                    }
+                    *self.native_case_preview_error.borrow_mut() =
+                        Some((capture.owner.clone(), error.clone()));
+                    self.report(format!("Case board preview failed: {error}"));
+                }
+                Err(error)
+            }
+        }
+    }
+
+    fn set_native_preview_pending(
+        &self,
+        owner: crate::case_preview::CasePreviewOwnerIdentity,
+        lease: Rc<crate::case_preview::CasePreviewOwnerLease>,
+    ) {
+        if let Some(previous) = self.native_case_preview.borrow_mut().take() {
+            previous.lease.invalidate();
+        }
+        self.native_case_preview_error.borrow_mut().take();
+        if let Some((_, previous_lease)) = self.native_case_preview_pending.borrow_mut().take() {
+            previous_lease.invalidate();
+        }
+        *self.native_case_preview_pending.borrow_mut() = Some((owner, lease));
+        self.changed();
+    }
+
+    fn preview_owner_is_current(
+        &self,
+        owner: &crate::case_preview::CasePreviewOwnerIdentity,
+    ) -> bool {
+        let model = self.model();
+        let core = self.core.borrow().clone();
+        self.scope().as_ref() == Some(&owner.scope)
+            && self
+                .native_case_preview
+                .borrow()
+                .as_ref()
+                .is_none_or(|preview| preview.lease.matches(owner))
+            && model.accepted.as_ref().is_some_and(|accepted| {
+                accepted.token == owner.snapshot_token
+                    && accepted.document.revision == owner.accepted_revision
+                    && accepted.document.id == owner.scope.document_id
+                    && accepted.session_epoch == owner.scope.session_epoch
+                    && accepted.scene.revision == owner.accepted_revision
+                    && std::sync::Arc::as_ptr(&accepted.scene) as usize
+                        == owner.accepted_scene_identity
+            })
+            && self.native_case_preview_generation.get() == owner.projection_generation
+            && crate::case_preview::same_core_executor(
+                owner.core_executor_epoch,
+                self.session.borrow().core_executor_epoch().0,
+                owner.core_worker_identity,
+                Rc::as_ptr(&core) as usize,
+            )
+    }
+
+    fn ensure_preview_owner_current(
+        &self,
+        accepted: &AcceptedSnapshot,
+        owner: &crate::case_preview::CasePreviewOwnerIdentity,
+        core: &Rc<CoreWorker>,
+        core_epoch: u64,
+    ) -> Result<(), String> {
+        if !self.preview_owner_is_current(owner) {
+            return Err("The accepted Case preview source changed during preparation".into());
+        }
+        if !self.preview_owner_lease_is_current(owner) {
+            return Err("The Case preview owner lease was cancelled during preparation".into());
+        }
+        if accepted.token != owner.snapshot_token
+            || accepted.document.revision != owner.accepted_revision
+            || self.session.borrow().core_executor_epoch().0 != core_epoch
+            || !Rc::ptr_eq(core, &self.core.borrow().clone())
+        {
+            return Err("The Core worker or accepted Case preview source changed".into());
+        }
+        Ok(())
+    }
+
+    fn preview_owner_lease_is_current(
+        &self,
+        owner: &crate::case_preview::CasePreviewOwnerIdentity,
+    ) -> bool {
+        let matches = |lease: &Rc<crate::case_preview::CasePreviewOwnerLease>| {
+            lease.matches(owner)
+                && lease.identity_matches(
+                    &owner.scope,
+                    owner.snapshot_token,
+                    owner.viewer_instance,
+                    owner.projection_generation,
+                )
+        };
+        self.native_case_preview
+            .borrow()
+            .as_ref()
+            .is_some_and(|preview| matches(&preview.lease))
+            || self
+                .native_case_preview_pending
+                .borrow()
+                .as_ref()
+                .is_some_and(|(pending_owner, lease)| pending_owner == owner && matches(lease))
+    }
+
+    async fn run_native_case_preview(
+        &self,
+        accepted: &AcceptedSnapshot,
+        capture: crate::case_preview::NativePreviewCapture,
+        operation: u64,
+    ) -> Result<crate::case_preview::NativePreviewSnapshot, String> {
+        let core = self.core.borrow().clone();
+        let core_epoch = self.session.borrow().core_executor_epoch().0;
+        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        let epoch = core_epoch.to_string();
+        let prepare_id = format!("case-preview-{operation}-prepare");
+        let prepare = crate::case_preview::prepare_artifact(prepare_id.clone(), &capture);
+        let reply = core
+            .artifact(&prepare_id, &epoch, &prepare)
+            .await
+            .map_err(|error| format!("Core preview preparation failed: {error}"))?;
+        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        let plan = match reply {
+            ArtifactReply::PreparePreview { id, result } if id == prepare_id => *result,
+            ArtifactReply::Error { id, error } if id == prepare_id => {
+                return Err(format!("Core rejected Case preview preparation: {error:?}"));
+            }
+            ArtifactReply::PreparePreview { .. } | ArtifactReply::Error { .. } => {
+                return Err("Core returned a preview plan for another request".into());
+            }
+            _ => return Err("Core returned an unexpected preview preparation reply".into()),
+        };
+        if plan.snapshot_token != capture.owner.request_token
+            || plan.revision != capture.owner.accepted_revision
+            || plan.target
+                != (boardstudio_core::model::ExportTarget::Board {
+                    board_id: capture.owner.scope.board_id.clone(),
+                })
+        {
+            return Err(
+                "Core preview plan identity does not match the captured Case source".into(),
+            );
+        }
+
+        let worker_request_id = operation;
+        let worker_generation = capture.owner.projection_generation;
+        if worker_generation == 0 || worker_generation > 9_007_199_254_740_991 {
+            return Err("Case preview worker generation is outside the safe integer range".into());
+        }
+        let worker_request = serde_json::json!({
+            "kind": "generate-preview-jobs",
+            "worker_generation": worker_generation,
+            "request_id": worker_request_id,
+            "owner": {
+                "scope": {
+                    "sessionEpoch": capture.owner.scope.session_epoch.0,
+                    "documentId": capture.owner.scope.document_id,
+                    "boardId": capture.owner.scope.board_id,
+                    "instanceId": capture.owner.scope.instance_id,
+                },
+                "token": capture.owner.request_token,
+                "viewer_instance": worker_generation,
+                "projection_generation": capture.owner.projection_generation,
+            },
+            "batch": {
+                "accepted_revision": capture.owner.accepted_revision,
+                "batch_generation": capture.owner.batch_generation,
+            },
+            "plan_key": {
+                "snapshot_token": plan.snapshot_token,
+                "revision": plan.revision,
+                "job_ids": plan.jobs.iter().map(|job| job.job_id.clone()).collect::<Vec<_>>(),
+            },
+            "jobs": plan.jobs,
+            "reserved_nets": plan.reserved_nets,
+            "next_net_index": plan.next_net_index,
+            "paths": plan.model_paths.iter().map(|(id, path)| (id, path)).collect::<Vec<_>>(),
+        });
+        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        let worker = if let Some(worker) = self.preview_generator.borrow().as_ref() {
+            worker.clone()
+        } else {
+            let url = resource_url("assets/preview-generator/worker.mjs")?;
+            let worker = Rc::new(crate::preview_generator::PreviewGeneratorClient::new(&url)?);
+            *self.preview_generator.borrow_mut() = Some(worker.clone());
+            worker
+        };
+        let worker_reply = worker.generate(worker_request_id, &worker_request).await?;
+        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        validate_preview_worker_envelope(
+            &worker_reply,
+            &worker_request,
+            worker_generation,
+            worker_request_id,
+        )?;
+        let results = serde_json::from_value::<Vec<ErgogenJobResult>>(
+            worker_reply
+                .get("results")
+                .cloned()
+                .ok_or_else(|| "Preview worker returned no conversion results".to_owned())?,
+        )
+        .map_err(|error| format!("Preview worker returned malformed results: {error}"))?;
+        let finish_id = format!("case-preview-{operation}-finish");
+        let finish = boardstudio_core::model::ArtifactRequest::FinishPreview {
+            id: finish_id.clone(),
+            request: FinishExportRequest { plan, results },
+        };
+        let reply = core
+            .artifact(&finish_id, &epoch, &finish)
+            .await
+            .map_err(|error| format!("Core preview finish failed: {error}"))?;
+        self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
+        let preview = match reply {
+            ArtifactReply::PreviewBoard { id, result } if id == finish_id => result,
+            ArtifactReply::Error { id, error } if id == finish_id => {
+                return Err(format!(
+                    "Core rejected the completed Case preview: {error:?}"
+                ));
+            }
+            ArtifactReply::PreviewBoard { .. } | ArtifactReply::Error { .. } => {
+                return Err("Core returned a completed preview for another request".into());
+            }
+            _ => return Err("Core returned an unexpected completed-preview reply".into()),
+        };
+        crate::case_preview::accept_native_preview(capture, preview)
     }
     /// An existing resolved stack with suggested mounts must finish its saved initialization
     /// before a dependent generation or STEP capture. Archive saving remains independent.
@@ -1372,6 +1763,35 @@ impl Runtime {
             reply => Err(format!("Archive export rejected: {reply:?}")),
         }
     }
+}
+
+fn validate_preview_worker_envelope(
+    reply: &serde_json::Value,
+    request: &serde_json::Value,
+    worker_generation: u64,
+    request_id: u64,
+) -> Result<(), String> {
+    if reply.get("kind").and_then(serde_json::Value::as_str) == Some("preview-generator-error") {
+        let message = reply
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("preview conversion failed");
+        return Err(format!("Ergogen preview conversion failed: {message}"));
+    }
+    if reply.get("kind").and_then(serde_json::Value::as_str) != Some("generated-preview-jobs")
+        || reply.get("worker_generation") != Some(&serde_json::json!(worker_generation))
+        || reply.get("request_id") != Some(&serde_json::json!(request_id))
+    {
+        return Err("Preview worker returned an unexpected request identity".into());
+    }
+    for field in ["owner", "batch", "plan_key"] {
+        if reply.get(field) != request.get(field) {
+            return Err(format!(
+                "Preview worker changed its captured {field} identity"
+            ));
+        }
+    }
+    Ok(())
 }
 impl Drop for Runtime {
     fn drop(&mut self) {
