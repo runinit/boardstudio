@@ -54,14 +54,12 @@ fn AlignReferenceEffectProbe(probe: Probe) -> Element {
             move |(workspace, references, _current, target_available)| {
                 effect_runs.set(effect_runs.get() + 1);
                 let current = selected_reference.read().clone();
-                let next = layout_align_geometry::reference_choice(
+                layout_align_geometry::reconcile_reference_choice(
                     current.as_deref(),
                     &references,
                     workspace && target_available,
+                    |next| selected_reference.set(next),
                 );
-                if next != current {
-                    selected_reference.set(next);
-                }
             }
         },
     ));
@@ -161,23 +159,28 @@ async fn mounted_reference_survives_hidden_workspace_and_falls_back_only_when_in
 
 #[test]
 fn completed_old_scope_does_not_wait_for_the_new_scopes_lower_revision() {
-    assert!(layout_align_geometry::should_wait_for_alignment_advance(
-        true,
-        10,
-        40,
-        Some((10, 40)),
-        false,
-        true,
-    ));
-    assert!(!layout_align_geometry::should_wait_for_alignment_advance(
-        false,
-        10,
-        40,
-        Some((1, 2)),
-        false,
-        true,
-    ));
-    assert!(!layout_align_geometry::should_wait_for_alignment_advance(
-        false, 10, 40, None, false, false,
-    ));
+    assert_eq!(
+        layout_align_geometry::pending_settlement_gate(
+            false,
+            true,
+            10,
+            40,
+            Some((1, 2)),
+            false,
+            true,
+        ),
+        layout_align_geometry::PendingSettlementGate::RetireOldScope
+    );
+    assert_eq!(
+        layout_align_geometry::pending_settlement_gate(
+            true,
+            true,
+            10,
+            40,
+            Some((10, 40)),
+            false,
+            true,
+        ),
+        layout_align_geometry::PendingSettlementGate::WaitForAcceptedAdvance
+    );
 }

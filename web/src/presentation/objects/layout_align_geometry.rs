@@ -15,6 +15,54 @@ pub(crate) fn reference_choice(
         .or_else(|| eligible.first().cloned())
 }
 
+pub(crate) fn reconcile_reference_choice(
+    current: Option<&str>,
+    eligible: &[String],
+    authoritative: bool,
+    mut write: impl FnMut(Option<String>),
+) -> Option<String> {
+    let next = reference_choice(current, eligible, authoritative);
+    if authoritative && next.as_deref() != current {
+        write(next.clone());
+    }
+    next
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PendingSettlementGate {
+    RetireOldScope,
+    WaitForAcceptedAdvance,
+    Settle,
+}
+
+pub(crate) fn pending_settlement_gate(
+    same_scope: bool,
+    completed: bool,
+    base_token: u64,
+    base_revision: u64,
+    accepted: Option<(u64, u64)>,
+    terminal_failure: bool,
+    ready_and_saved: bool,
+) -> PendingSettlementGate {
+    if !same_scope {
+        return PendingSettlementGate::RetireOldScope;
+    }
+    if completed
+        && should_wait_for_alignment_advance(
+            true,
+            base_token,
+            base_revision,
+            accepted,
+            terminal_failure,
+            ready_and_saved,
+        )
+    {
+        PendingSettlementGate::WaitForAcceptedAdvance
+    } else {
+        PendingSettlementGate::Settle
+    }
+}
+
 pub(crate) fn should_wait_for_alignment_advance(
     same_scope: bool,
     base_token: u64,
@@ -139,7 +187,10 @@ fn finite_point(point: Vec2) -> bool {
 
 #[cfg(test)]
 mod state_tests {
-    use super::{reference_choice, should_wait_for_alignment_advance};
+    use super::{
+        PendingSettlementGate, pending_settlement_gate, reconcile_reference_choice,
+        reference_choice, should_wait_for_alignment_advance,
+    };
 
     #[test]
     fn reference_choice_retains_preferences_when_projection_is_unavailable() {
@@ -156,6 +207,30 @@ mod state_tests {
             Some("A".into())
         );
         assert_eq!(reference_choice(None, &[], true), None);
+    }
+
+    #[test]
+    fn reconciliation_writes_only_changed_authoritative_choices() {
+        let mut writes = Vec::new();
+        assert_eq!(
+            reconcile_reference_choice(None, &[], true, |next| writes.push(next)),
+            None
+        );
+        assert_eq!(writes, Vec::<Option<String>>::new());
+        assert_eq!(
+            reconcile_reference_choice(Some("B"), &["A".into()], false, |next| {
+                writes.push(next)
+            }),
+            Some("B".into())
+        );
+        assert!(writes.is_empty());
+        assert_eq!(
+            reconcile_reference_choice(Some("B"), &["A".into()], true, |next| {
+                writes.push(next)
+            }),
+            Some("A".into())
+        );
+        assert_eq!(writes, vec![Some("A".into())]);
     }
 
     #[test]
@@ -179,6 +254,14 @@ mod state_tests {
             false,
             true,
         ));
+        assert_eq!(
+            pending_settlement_gate(false, true, 10, 40, Some((1, 2)), false, true),
+            PendingSettlementGate::RetireOldScope
+        );
+        assert_eq!(
+            pending_settlement_gate(true, true, 10, 40, Some((10, 40)), false, true),
+            PendingSettlementGate::WaitForAcceptedAdvance
+        );
     }
 }
 

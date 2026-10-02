@@ -1,7 +1,7 @@
 //! Root-lifetime admission and exact outcome settlement for Layout Align commands.
 use super::layout_align::{
-    alignment_delta, local_matrix_delta, reference_choice, should_wait_for_alignment_advance,
-    transformed_envelope,
+    PendingSettlementGate, alignment_delta, local_matrix_delta, pending_settlement_gate,
+    reconcile_reference_choice, transformed_envelope,
 };
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
@@ -163,14 +163,12 @@ pub(in crate::presentation) fn use_layout_align(
         .iter()
         .map(|reference| reference.id.clone())
         .collect();
-    projection.selected_reference = reference_choice(
+    projection.selected_reference = reconcile_reference_choice(
         reference_id.as_deref(),
         &eligible_reference_ids,
         projection.reference_authoritative,
+        |next| selected_reference.set(next),
     );
-    if projection.reference_authoritative && projection.selected_reference != reference_id {
-        selected_reference.set(projection.selected_reference.clone());
-    }
     let shown_feedback = feedback.read().clone().and_then(|state| {
         (selected
             .as_ref()
@@ -367,14 +365,12 @@ pub(in crate::presentation) fn use_layout_align(
         .iter()
         .map(|reference| reference.id.clone())
         .collect();
-    projection.selected_reference = reference_choice(
+    projection.selected_reference = reconcile_reference_choice(
         retained_reference.as_deref(),
         &eligible_reference_ids,
         projection.reference_authoritative,
+        |next| selected_reference.set(next),
     );
-    if projection.reference_authoritative && projection.selected_reference != retained_reference {
-        selected_reference.set(projection.selected_reference.clone());
-    }
     let action = if projection.enabled {
         selected
             .as_ref()
@@ -433,16 +429,15 @@ fn reconcile_reference(
     if !current.reference_authoritative {
         return;
     }
-    let current_id = selected_reference.peek().clone();
     let eligible: Vec<_> = current
         .references
         .iter()
         .map(|reference| reference.id.clone())
         .collect();
-    let next = reference_choice(current_id.as_deref(), &eligible, true);
-    if next != current_id {
-        selected_reference.set(next);
-    }
+    let current_reference = selected_reference.peek().clone();
+    reconcile_reference_choice(current_reference.as_deref(), &eligible, true, |next| {
+        selected_reference.set(next)
+    });
 }
 
 fn clear_stale_feedback(
@@ -873,11 +868,6 @@ fn settle_pending(
     let live_scope = runtime.scope();
     let same_scope =
         live_scope.as_ref() == Some(&waiting.scope) && scope_generation == waiting.scope_generation;
-    if !same_scope {
-        feedback.set(None);
-        pending.set(None);
-        return;
-    }
     let still_visible_target = same_scope
         && workspace == "Layout"
         && selected_context.peek().as_ref().is_some_and(|selected| {
@@ -895,17 +885,22 @@ fn settle_pending(
     let ready_and_saved = model.lifecycle == Lifecycle::Ready
         && accepted
             .is_some_and(|(_, revision)| model.durability == (Durability::Saved { revision }));
-    if matches!(&outcome, TerminalOutcome::Completed)
-        && should_wait_for_alignment_advance(
-            same_scope,
-            waiting.base_token.0,
-            waiting.base_revision,
-            accepted,
-            terminal_failure,
-            ready_and_saved,
-        )
-    {
-        return;
+    match pending_settlement_gate(
+        same_scope,
+        matches!(&outcome, TerminalOutcome::Completed),
+        waiting.base_token.0,
+        waiting.base_revision,
+        accepted,
+        terminal_failure,
+        ready_and_saved,
+    ) {
+        PendingSettlementGate::RetireOldScope => {
+            feedback.set(None);
+            pending.set(None);
+            return;
+        }
+        PendingSettlementGate::WaitForAcceptedAdvance => return,
+        PendingSettlementGate::Settle => {}
     }
     let completed = match outcome {
         TerminalOutcome::Completed => {
