@@ -72,6 +72,8 @@ web exports cad_jobs, renderer_host and several host modules publicly; CadOperat
 
 Evidence: [lib.rs](../../web/src/lib.rs), [cad_jobs.rs](../../web/src/cad_jobs.rs), [renderer_host.rs](../../web/src/renderer_host.rs).
 
+The Case generation button now has a private page-local readiness projection because the page binary cannot call the library crate's private `preparation_request`. It mirrors the matched-board readiness condition and keeps `preparation_request` as the final authority; regression tests cover missing readiness, mismatched board, configured and `case_ready` cases. This closes the observed enabled-action/rejected-request mismatch without widening APIs, but leaves a small duplicated predicate across crate boundaries. After parity, assess a supported shared admission contract or another way to keep the UI projection and request authority aligned. Evidence: [Case readiness paired check](../../.scratch/dioxus-frontend-v1/evidence/layout-toolbar-paired-20261002/RESULTS.md), [private predicate](../../web/src/case_generation_admission.rs), source commit `5944a1df`.
+
 ## RF-003
 
 **CAD engine capabilities and host protocols drift apart** — architecture / capability discovery. confirmed adapter gap.
