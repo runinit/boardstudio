@@ -4,17 +4,17 @@
 //! renderer scene submission are supplied by the page owners. In particular,
 //! model-batch liveness is independent of the renderer's scene sequence.
 
+use crate::case_preview::CasePreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Asset, BoardReference, PcbModel, ProjectDoc};
-use crate::case_preview::CasePreviewOwnerLease;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, VecDeque},
-    future::Future,
+    future::{Future, poll_fn},
     pin::Pin,
     rc::{Rc, Weak},
+    task::{Context, Poll, Waker},
 };
-
 
 const MESH_CACHE_CAPACITY: usize = 80;
 const MAX_MODEL_BYTES: usize = 32 * 1024 * 1024;
@@ -73,19 +73,16 @@ impl ModelOwnerIdentity {
             && self.snapshot_token == current_token
             && self.viewer_instance == current_viewer_instance
             && self.projection_generation == current_projection_generation
-            && self
-                .source_owner
-                .upgrade()
-                .is_some_and(|captured| {
-                    Rc::ptr_eq(&captured, current_owner)
-                        && captured.is_active()
-                        && captured.identity_matches(
-                            current_scope,
-                            current_token,
-                            current_viewer_instance,
-                            current_projection_generation,
-                        )
-                })
+            && self.source_owner.upgrade().is_some_and(|captured| {
+                Rc::ptr_eq(&captured, current_owner)
+                    && captured.is_active()
+                    && captured.identity_matches(
+                        current_scope,
+                        current_token,
+                        current_viewer_instance,
+                        current_projection_generation,
+                    )
+            })
     }
 }
 
@@ -190,7 +187,7 @@ impl VerifiedModelBytes {
         if bytes.is_empty() || bytes.len() > MAX_MODEL_BYTES {
             return Err("Model file must be between 1 byte and 32 MiB".into());
         }
-        let actual = format!("{:x}", Sha256::digest(&bytes));
+        let actual = sha256_hex(&bytes);
         if !actual.eq_ignore_ascii_case(expected_sha256) {
             return Err("Model asset failed SHA-256 verification".into());
         }
@@ -207,6 +204,13 @@ impl VerifiedModelBytes {
     pub(crate) fn sha256(&self) -> &str {
         &self.sha256
     }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -240,6 +244,17 @@ pub(crate) struct ModelDeliveryPorts {
     pub(crate) decode_wrl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
     pub(crate) read_step:
         Rc<dyn Fn(VerifiedModelBytes, ModelOwnerIdentity) -> ModelFuture<MeshArrays>>,
+}
+
+impl Clone for ModelDeliveryPorts {
+    fn clone(&self) -> Self {
+        Self {
+            load_verified_bytes: self.load_verified_bytes.clone(),
+            decode_stl: self.decode_stl.clone(),
+            decode_wrl: self.decode_wrl.clone(),
+            read_step: self.read_step.clone(),
+        }
+    }
 }
 
 impl ModelDeliveryPorts {
@@ -534,6 +549,321 @@ pub(crate) fn merge_model_rows(
     rows
 }
 
+type TaskKey = (String, u64);
+type ModelResult = Result<Rc<ValidatedMesh>, String>;
+type DeliveryTask = Pin<Box<dyn Future<Output = ()> + 'static>>;
+
+struct WaitState<T> {
+    value: Option<T>,
+    wakers: Vec<Waker>,
+}
+
+impl<T> Default for WaitState<T> {
+    fn default() -> Self {
+        Self {
+            value: None,
+            wakers: Vec::new(),
+        }
+    }
+}
+
+struct WaitCell<T> {
+    state: std::cell::RefCell<WaitState<T>>,
+}
+
+struct WaitCellFuture<T> {
+    cell: Rc<WaitCell<T>>,
+}
+
+impl<T> WaitCell<T> {
+    fn new() -> Self {
+        Self {
+            state: std::cell::RefCell::new(WaitState::default()),
+        }
+    }
+
+    fn settle(&self, value: T) {
+        let mut state = self.state.borrow_mut();
+        if state.value.is_some() {
+            return;
+        }
+        state.value = Some(value);
+        for waker in state.wakers.drain(..) {
+            waker.wake();
+        }
+    }
+}
+
+impl<T: Clone> Future for WaitCellFuture<T> {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut state = self.cell.state.borrow_mut();
+        if let Some(value) = &state.value {
+            return Poll::Ready(value.clone());
+        }
+        if !state
+            .wakers
+            .iter()
+            .any(|waker| waker.will_wake(context.waker()))
+        {
+            state.wakers.push(context.waker().clone());
+        }
+        Poll::Pending
+    }
+}
+
+/// Runs the model rows for one accepted preview concurrently, then publishes
+/// the completed Promise.all-style row snapshot in preview order. Meshes are
+/// cached by verified SHA; model rows retain their distinct renderer IDs.
+#[derive(Default)]
+pub(crate) struct ModelDeliveryAdapter {
+    cache: Rc<std::cell::RefCell<ModelMeshCache>>,
+    pending: Rc<std::cell::RefCell<BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>>>,
+}
+
+impl ModelDeliveryAdapter {
+    pub(crate) async fn deliver_models(
+        &self,
+        preview_revision: u64,
+        models: &[PcbModel],
+        selections: &BTreeMap<String, AssetSelection>,
+        ports: &ModelDeliveryPorts,
+        batch: &ModelBatchIdentity,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Option<ModelDeliveryRows> {
+        if preview_revision != batch.accepted_revision || !is_current() {
+            return None;
+        }
+
+        let mut direct = BTreeMap::<String, ModelResult>::new();
+        let mut completed_by_sha = BTreeMap::<String, ModelResult>::new();
+        let mut by_sha = BTreeMap::<String, Vec<String>>::new();
+        let mut receivers = BTreeMap::<String, WaitCellFuture<ModelResult>>::new();
+        let mut tasks = Vec::<DeliveryTask>::new();
+
+        for model in models {
+            if !is_current() {
+                return None;
+            }
+            let Some(selection) = selections.get(&model.id) else {
+                direct.insert(
+                    model.id.clone(),
+                    Err("No model asset mapping was provided".into()),
+                );
+                continue;
+            };
+            let asset = match selection {
+                AssetSelection::Archived(asset) => asset.clone(),
+                AssetSelection::MissingDocumentAsset { asset_id } => {
+                    direct.insert(
+                        model.id.clone(),
+                        Err(format!("Document model asset {asset_id} is missing")),
+                    );
+                    continue;
+                }
+                AssetSelection::MissingBundledProvider { asset_id } => {
+                    direct.insert(
+                        model.id.clone(),
+                        Err(format!(
+                            "Bundled model provider is unavailable for {asset_id}"
+                        )),
+                    );
+                    continue;
+                }
+                AssetSelection::NoAssetId => {
+                    direct.insert(model.id.clone(), Err("No model asset ID is mapped".into()));
+                    continue;
+                }
+            };
+            let format = match ModelFormat::from_filename(&asset.filename) {
+                Ok(format) => format,
+                Err(error) => {
+                    direct.insert(model.id.clone(), Err(error));
+                    continue;
+                }
+            };
+
+            if let Some(ids) = by_sha.get_mut(&asset.sha256) {
+                ids.push(model.id.clone());
+                continue;
+            }
+
+            let claim = match self.cache.borrow_mut().claim(&asset.sha256, batch) {
+                Ok(claim) => claim,
+                Err(error) => {
+                    direct.insert(model.id.clone(), Err(error));
+                    continue;
+                }
+            };
+            let (task_token, start_task) = match claim {
+                MeshCacheClaim::Reuse(mesh) => {
+                    completed_by_sha.insert(asset.sha256.clone(), Ok(mesh));
+                    by_sha.insert(asset.sha256.clone(), vec![model.id.clone()]);
+                    continue;
+                }
+                MeshCacheClaim::JoinPending { task_token } => (task_token, false),
+                MeshCacheClaim::Start {
+                    task_token,
+                    superseded,
+                    evicted,
+                } => {
+                    if let Some(task) = superseded {
+                        settle_pending(
+                            &self.pending,
+                            &task,
+                            Err("Model request was superseded".into()),
+                        );
+                    }
+                    if let Some(task) = evicted {
+                        settle_pending(
+                            &self.pending,
+                            &task,
+                            Err("Model request was evicted from the bounded cache".into()),
+                        );
+                    }
+                    (task_token, true)
+                }
+            };
+
+            let task_key = (asset.sha256.clone(), task_token);
+            let cell = Rc::new(WaitCell::new());
+            self.pending
+                .borrow_mut()
+                .entry(task_key.clone())
+                .or_default()
+                .push(cell.clone());
+            receivers.insert(asset.sha256.clone(), WaitCellFuture { cell });
+            by_sha.insert(asset.sha256.clone(), vec![model.id.clone()]);
+
+            if start_task {
+                let cache = self.cache.clone();
+                let pending = self.pending.clone();
+                let ports = ports.clone();
+                let batch_owner = batch.owner().clone();
+                let expected_sha = asset.sha256.clone();
+                let current = is_current.clone();
+                tasks.push(Box::pin(async move {
+                    let result = if !current() {
+                        Err("Model request became stale before loading".into())
+                    } else {
+                        load_and_decode(&ports, &asset, format, batch_owner, current.clone()).await
+                    };
+                    let result = if current() {
+                        match result {
+                            Ok(mesh) => {
+                                let mesh = Rc::new(mesh);
+                                if cache.borrow_mut().complete(
+                                    &expected_sha,
+                                    task_token,
+                                    mesh.clone(),
+                                ) {
+                                    Ok(mesh)
+                                } else {
+                                    Err("Model request was superseded before completion".into())
+                                }
+                            }
+                            Err(error) => {
+                                cache.borrow_mut().fail(&expected_sha, task_token);
+                                Err(error)
+                            }
+                        }
+                    } else {
+                        cache.borrow_mut().fail(&expected_sha, task_token);
+                        Err("Model request became stale".into())
+                    };
+                    settle_task(&pending, &task_key, result);
+                }));
+            }
+        }
+
+        join_all(tasks).await;
+
+        let mut outcomes = direct;
+        for (sha, receiver) in receivers {
+            let result = receiver.await;
+            if !is_current() {
+                return None;
+            }
+            completed_by_sha.insert(sha, result);
+        }
+        if !is_current() {
+            return None;
+        }
+        for (sha, ids) in by_sha {
+            if let Some(result) = completed_by_sha.get(&sha) {
+                for id in ids {
+                    outcomes.insert(id, result.clone());
+                }
+            }
+        }
+        Some(merge_model_rows(models, &outcomes))
+    }
+}
+
+async fn load_and_decode(
+    ports: &ModelDeliveryPorts,
+    asset: &ResolvedModelAsset,
+    format: ModelFormat,
+    owner: ModelOwnerIdentity,
+    is_current: Rc<dyn Fn() -> bool>,
+) -> Result<ValidatedMesh, String> {
+    let bytes = ports
+        .load(asset)
+        .await?
+        .ok_or_else(|| format!("Model asset {} is not stored", asset.id))?;
+    if !is_current() {
+        return Err("Model request became stale after loading bytes".into());
+    }
+    let mesh = ports.decode(format, bytes, owner).await?;
+    if !is_current() {
+        return Err("Model request became stale after decoding".into());
+    }
+    Ok(mesh)
+}
+
+fn settle_pending(
+    pending: &std::cell::RefCell<BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>>,
+    task: &EvictedTask,
+    result: ModelResult,
+) {
+    settle_task(pending, &(task.sha256.clone(), task.task_token), result);
+}
+
+fn settle_task(
+    pending: &std::cell::RefCell<BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>>,
+    key: &TaskKey,
+    result: ModelResult,
+) {
+    if let Some(waiters) = pending.borrow_mut().remove(key) {
+        for waiter in waiters {
+            waiter.settle(result.clone());
+        }
+    }
+}
+
+async fn join_all(futures: Vec<DeliveryTask>) {
+    let mut futures = futures.into_iter().map(Some).collect::<Vec<_>>();
+    poll_fn(move |context| {
+        let mut all_ready = true;
+        for future in &mut futures {
+            if let Some(task) = future.as_mut() {
+                if task.as_mut().poll(context).is_ready() {
+                    *future = None;
+                } else {
+                    all_ready = false;
+                }
+            }
+        }
+        if all_ready {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    })
+    .await
+}
+
 /// Resolve all row asset identities without inventing byte locations. The
 /// document is supplied as a captured snapshot; no separate asset registry is
 /// retained in this module.
@@ -625,7 +955,7 @@ mod tests {
                 snapshot_token: SnapshotToken(1),
                 viewer_instance: 1,
                 projection_generation: 1,
-            source_owner: Weak::new(),
+                source_owner: Weak::new(),
             },
             accepted_revision: 1,
             batch_generation: generation,
@@ -689,7 +1019,7 @@ mod tests {
     #[test]
     fn verified_bytes_reject_wrong_digest_and_bounds() {
         let bytes = b"model".to_vec();
-        let digest = format!("{:x}", Sha256::digest(&bytes));
+        let digest = sha256_hex(&bytes);
         let verified = VerifiedModelBytes::verify(bytes.clone(), &digest).unwrap();
         assert_eq!(verified.bytes(), bytes);
         assert_eq!(verified.sha256(), digest);
@@ -837,5 +1167,81 @@ mod tests {
         assert!(failed.pending.is_empty());
         assert_eq!(failed.failures[0].reference, "SW8");
         assert_eq!(failed.failures[0].reason, "decode rejected");
+    }
+
+    #[test]
+    fn batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids() {
+        let model_decode_count = Rc::new(std::cell::Cell::new(0));
+        let decode_count = model_decode_count.clone();
+        let bytes = b"same-model".to_vec();
+        let digest = sha256_hex(&bytes);
+        let expected_digest = digest.clone();
+        let ports = ModelDeliveryPorts {
+            load_verified_bytes: Rc::new(move |sha| {
+                let bytes = bytes.clone();
+                let expected_digest = expected_digest.clone();
+                Box::pin(async move {
+                    if sha != expected_digest {
+                        return Err("unexpected SHA".into());
+                    }
+                    Ok(Some(VerifiedModelBytes::verify(bytes, &sha)?))
+                })
+            }),
+            decode_stl: Rc::new(move |_| {
+                decode_count.set(decode_count.get() + 1);
+                Box::pin(async { Ok(valid_arrays()) })
+            }),
+            decode_wrl: Rc::new(|_| Box::pin(async { Ok(valid_arrays()) })),
+            read_step: Rc::new(|_, _| Box::pin(async { Ok(valid_arrays()) })),
+        };
+        let mut assets = BTreeMap::new();
+        for id in ["model-1", "model-2"] {
+            assets.insert(
+                id.into(),
+                AssetSelection::Archived(ResolvedModelAsset {
+                    id: "asset-1".into(),
+                    sha256: digest.clone(),
+                    filename: "switch.stl".into(),
+                }),
+            );
+        }
+        let models = [
+            model("model-1", "SW1", "switch.stl"),
+            model("model-2", "SW2", "switch.stl"),
+        ];
+        let adapter = ModelDeliveryAdapter::default();
+
+        let rows = block_on(adapter.deliver_models(
+            1,
+            &models,
+            &assets,
+            &ports,
+            &batch(1),
+            Rc::new(|| true),
+        ))
+        .expect("current model batch completes");
+
+        assert_eq!(model_decode_count.get(), 1);
+        assert_eq!(
+            rows.delivered
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            ["model-1", "model-2"]
+        );
+        assert!(rows.pending.is_empty());
+        assert!(rows.failures.is_empty());
+    }
+
+    fn block_on<F: Future>(future: F) -> F::Output {
+        let mut future = Box::pin(future);
+        let waker = std::task::Waker::noop();
+        let mut context = std::task::Context::from_waker(waker);
+        loop {
+            match future.as_mut().poll(&mut context) {
+                std::task::Poll::Ready(output) => return output,
+                std::task::Poll::Pending => std::thread::yield_now(),
+            }
+        }
     }
 }

@@ -55,6 +55,10 @@ mod renderer_host_source_sync;
 #[path = "presentation/case_display.rs"]
 mod case_display;
 
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+#[path = "presentation/model_delivery.rs"]
+mod model_delivery;
+
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "presentation/closure_clearance.rs"]
 mod closure_clearance;

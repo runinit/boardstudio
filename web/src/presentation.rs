@@ -19,6 +19,7 @@ mod library;
 mod mechanical_settings;
 mod mechanical_settings_controller;
 mod mechanical_settings_mount;
+mod model_delivery;
 mod objects;
 mod panels;
 mod parts;
