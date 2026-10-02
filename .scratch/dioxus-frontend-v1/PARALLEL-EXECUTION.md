@@ -1,6 +1,6 @@
 # Frontend v1: portfolio and parallel dispatch view
 
-**Portfolio:** 62 parent work packages, all still `planned` in the workflow graph. The 12 numbered child drafts expand four parents: INT.1 → 01; F2.1 → 02–06; F2.3 → 07–09; F3.1 → 10–12. The other 58 parents remain planned without child tickets. This is a dispatch view, not a scope reduction or a claim that all 62 have been converted to tickets. These remaining work packages have not started according to the graph; F1 and F3a remain previously verified increments.
+**Portfolio:** 62 parent work packages; current statuses live in the workflow graph. The 12 published child tickets expand four parents: INT.1 → 01; F2.1 → 02–06; F2.3 → 07–09; F3.1 → 10–12. The other 58 parents remain planned without child tickets. This is a dispatch view, not a scope reduction or a claim that all 62 have been converted to tickets. INT.1 implementation has started; F1 and F3a remain previously verified increments.
 
 ## How to read the dependencies
 
@@ -96,8 +96,8 @@ proposal. The [model policy](AGENT-ROUTING.md) still governs assignments.
 
 Eligible work packages require bounded, source-checked child tickets before
 implementation dispatch. The remaining 58 have not yet received that decomposition;
-they must not be dispatched as 58 whole-workspace prompts. The first twelve child
-tickets remain drafts awaiting breakdown approval. This view changes neither
+they must not be dispatched as 58 whole-workspace prompts. The user authorized implementation and automatic next-ticket publication on
+2026-10-02; the first twelve child tickets are published. This view changes neither
 that approval state nor parent task statuses, and authorizes no API or cutover
 changes. Planning/review can prepare the next independent tickets while current
 implementation and verification slots are occupied.
