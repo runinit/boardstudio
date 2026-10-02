@@ -73,6 +73,7 @@ pub struct Runtime {
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     step_exports: RefCell<BTreeSet<OperationId>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
+    embed_used_models: Cell<bool>,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
@@ -100,6 +101,7 @@ impl Runtime {
             cad_jobs: RefCell::new(BTreeMap::new()),
             step_exports: RefCell::new(BTreeSet::new()),
             export_workers: RefCell::new(BTreeMap::new()),
+            embed_used_models: Cell::new(true),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
@@ -710,7 +712,13 @@ impl Runtime {
             } => match if self.step_exports.borrow().contains(&operation_id) {
                 self.step_bytes(operation_id, &snapshot, &scope).await
             } else {
-                self.pack_archive(operation_id, &snapshot, &scope).await
+                self.pack_archive(
+                    operation_id,
+                    &snapshot,
+                    &scope,
+                    self.embed_used_models.get(),
+                )
+                .await
             } {
                 Ok(bytes) => {
                     let current = self.export_current(operation_id, snapshot.token, &scope);
@@ -1237,6 +1245,7 @@ impl Runtime {
         export_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
+        embed_used_models: bool,
     ) -> Result<Vec<u8>, String> {
         let guard = || {
             if self.export_current(export_id, snapshot.token, scope) {
@@ -1247,8 +1256,25 @@ impl Runtime {
         };
         guard()?;
         let document = snapshot.document.as_ref();
-        let mut buffers = vec![];
-        let mut entries = vec![];
+        let mut bundled_bytes = Vec::new();
+        if embed_used_models {
+            let generated_ids = crate::bundled_models::generated_model_ids(document).await?;
+            guard()?;
+            let existing_ids = document
+                .assets
+                .iter()
+                .map(|asset| asset.id.as_str())
+                .collect::<BTreeSet<_>>();
+            for model in crate::portable_archive::referenced_models(document, generated_ids)? {
+                if existing_ids.contains(model.id) {
+                    continue;
+                }
+                let bytes = crate::bundled_models::bundled_model_bytes(model.id).await?;
+                guard()?;
+                bundled_bytes.push((model, bytes));
+            }
+        }
+        let mut local_asset_bytes = BTreeMap::new();
         for asset in &document.assets {
             let bytes = self
                 .store
@@ -1257,15 +1283,29 @@ impl Runtime {
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Missing asset: {}", asset.name))?;
             guard()?;
-            entries.push(serde_json::json!({"path": format!("assets/{}", asset.sha256), "bufferIndex": buffers.len()}));
-            buffers.push(bytes);
+            local_asset_bytes.insert(asset.sha256.clone(), bytes.to_vec());
         }
-        let metadata = serde_json::json!({"kind":"pack-project", "projectJson":serde_json::to_string(document).map_err(|e| e.to_string())?, "assets":entries}).to_string();
+        let prepared = crate::portable_archive::prepare_archive(
+            document,
+            &local_asset_bytes,
+            bundled_bytes,
+            embed_used_models,
+        )?;
         guard()?;
         let operation = self.operation();
         let core = self.core.borrow().clone();
+        let buffers = prepared
+            .buffers
+            .iter()
+            .map(|bytes| Uint8Array::from(bytes.as_slice()))
+            .collect();
         let result = core
-            .archive(&format!("pack-{}", operation.0), "1", &metadata, buffers)
+            .archive(
+                &format!("pack-{}", operation.0),
+                "1",
+                &prepared.metadata,
+                buffers,
+            )
             .await
             .map_err(|e| e.to_string())?;
         match serde_json::from_str::<ArchiveReply>(&result.metadata).map_err(|e| e.to_string())? {
