@@ -1,0 +1,60 @@
+                - LabelText
+                  - StaticText "Behavior"
+                  - combobox "left-SW25 counterclockwise behavior" [expanded=false, ref=e230]: Unassigned
+                    - MenuListPopup
+                      - option "Key press" [ref=e242]
+                      - option "Mod tap" [ref=e243]
+                      - option "Layer tap" [ref=e244]
+                      - option "Momentary layer" [ref=e245]
+                      - option "Toggle layer" [ref=e246]
+                      - option "Go to layer" [ref=e247]
+                      - option "Sticky layer" [ref=e248]
+                      - option "Sticky key" [ref=e249]
+                      - option "Macro" [ref=e250]
+                      - option "Transparent" [ref=e251]
+                      - option "Unassigned" [selected, ref=e252]
+            - group
+              - DisclosureTriangle "Push button" [expanded=false]
+                - StaticText "Push button"
+          - generic
+            - heading "Macros" [level=3, ref=e86]
+            - status
+              - StaticText "Macro saved"
+            - group "Macro 1"
+              - Legend
+                - StaticText "Macro 1"
+              - LabelText
+                - StaticText "Name"
+                - textbox "Macro name Macro 1" [ref=e186]: Macro 1
+                  - StaticText "Macro 1"
+              - LabelText
+                - StaticText "Tap duration (ms)"
+                - spinbutton "Macro 1 tapMs" [ref=e187]: 30
+                  - StaticText "30"
+              - LabelText
+                - StaticText "Between actions (ms)"
+                - spinbutton "Macro 1 waitMs" [ref=e188]: 0
+                  - StaticText "0"
+              - LabelText
+                - StaticText "Step 1"
+                - combobox "keymap-macro-4-131077 step 1" [expanded=false, ref=e189]: tap
+                  - MenuListPopup
+                    - option "tap" [selected, ref=e191]
+                    - option "press" [ref=e192]
+                    - option "release" [ref=e193]
+                    - option "wait" [ref=e194]
+              - LabelText
+                - StaticText "Keycode"
+                - textbox "keymap-macro-4-131077 step 1 keycode" [ref=e190]: A
+                  - StaticText "A"
+              - button "Remove step 1" [disabled, ref=e183]
+              - button "Add step" [ref=e184]
+              - button "Remove macro" [ref=e185]
+            - button "Add macro" [ref=e87]
+    - sectionfooter
+      - button "Undo" [ref=e20]
+      - button "Redo" [ref=e21]
+      - StaticText "Sofle v2 · Revision 10 · Saved"
+      - StaticText "100%"
+  - status
+    - StaticText "Saved locally."

@@ -93,6 +93,8 @@ Start immediately on saved-fixture forms and viewer-contract feasibility; these 
 
 ## Further Notes
 
+The 2026-10-02 exact-parity clarification and six-workspace Case/shared-viewer reconciliation are recorded in the [parity reset addendum](07-case-3d-parity-reset-addendum.md). It refines acceptance decomposition but does not change this parent’s task graph or close any gate.
+
 ### Work sequencing and dependency boundaries
 
 - F7.1: early renderer/viewer contract and feasibility. Keep it short and decision-focused. It resolves which required viewer operations can be implemented through existing crate-private/wrapper and wasm bindings. If a public boundary really blocks parity, specify the missing contract separately and stop short of treating its widening as approved.
