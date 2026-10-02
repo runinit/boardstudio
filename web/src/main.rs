@@ -11,6 +11,9 @@ mod runtime;
 mod operation_outcomes;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod case_generation_admission;
+
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod mechanical_feedback;
 
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]

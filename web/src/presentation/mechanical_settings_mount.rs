@@ -315,6 +315,16 @@ pub(crate) fn use_mechanical_settings_mount(
         let model = runtime.model();
         workspace() == "Case"
             && instance_selection.is_current(&model)
+            && crate::case_generation_admission::is_ready(
+                &current.accepted.scene,
+                &current.identity.active_board_id,
+                current
+                    .configuration
+                    .as_deref()
+                    .is_some_and(|configuration| {
+                        configuration.board_id == current.identity.active_board_id
+                    }),
+            )
             && current.lifecycle == Lifecycle::Ready
             && current.durability
                 == (Durability::Saved {
