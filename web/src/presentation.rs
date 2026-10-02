@@ -22,6 +22,7 @@ mod panels;
 mod parts;
 mod parts_workspace;
 mod pcb_scene;
+mod pcb_wiring;
 mod pcb_workspace;
 mod selection;
 mod shared_viewer;
@@ -116,6 +117,7 @@ struct WorkspaceCallbackSlots {
     keycaps_select: EventHandler<String>,
     pcb_empty_hit: EventHandler<MouseEvent>,
     pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
+    pcb_wiring_edit_board: EventHandler<()>,
     case_action: EventHandler<case_workspace::TreeAction>,
     case_display: EventHandler<case_workspace::DisplayRequest>,
     keymap_layer: EventHandler<String>,
@@ -738,6 +740,7 @@ fn Editor() -> Element {
         keycaps_select: EventHandler::new(|_: String| {}),
         pcb_empty_hit: EventHandler::new(|_: MouseEvent| {}),
         pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
+        pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
         case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
         case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
@@ -784,7 +787,7 @@ fn Editor() -> Element {
     let active_workspace = workspace();
     let has_inspector = matches!(
         active_workspace,
-        "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case"
+        "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
     );
     let mut objects_open = use_signal(|| false);
     let mut inspect_open = use_signal(|| false);
@@ -857,6 +860,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
+    let pcb_wiring_mount = pcb_wiring::use_pcb_wiring_controller(runtime.clone(), version);
     // Keep the operation observer alive even when the workspace panel is hidden.
     let layer_actions = keymap::use_layer_operations(
         runtime.clone(),
@@ -1493,6 +1497,51 @@ fn Editor() -> Element {
             selection::submit_canvas_selection(
                 &runtime, &adapter, &scope, generation, context, mode, range_ids,
             );
+        }
+    };
+    let on_pcb_wiring_edit_board = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let token = snapshot.token;
+        move |()| {
+            if workspace() != "PCB"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
+            {
+                return;
+            }
+            let Some(snapshot) = model
+                .accepted
+                .as_ref()
+                .filter(|snapshot| snapshot.token == token)
+            else {
+                return;
+            };
+            if !snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == scope.board_id)
+            {
+                return;
+            }
+            let mut selected_context = adapter.selected_context;
+            selected_context.set(None);
+            let mut anchor_scope = adapter.anchor_scope;
+            anchor_scope.set(None);
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: Vec::new(),
+                range_part_ids: Vec::new(),
+                mode: SelectionMode::Replace,
+            });
         }
     };
     let case_admission = case_workspace::Admission {
@@ -2372,6 +2421,9 @@ fn Editor() -> Element {
         .pcb_part_hit
         .replace(Box::new(on_pcb_part_hit));
     workspace_callbacks
+        .pcb_wiring_edit_board
+        .replace(Box::new(on_pcb_wiring_edit_board));
+    workspace_callbacks
         .case_action
         .replace(Box::new(on_case_action));
     workspace_callbacks
@@ -2436,6 +2488,21 @@ fn Editor() -> Element {
     let case_scene = runtime.cad_scene().filter(|scene| {
         scene.exact && scene.scope == render_scope && scene.token == snapshot.token
     });
+    let pcb_wiring_source = current_scope
+        .as_ref()
+        .filter(|scope| {
+            active_board_scope_matches(&model, scope) && instance_selection.is_current(&model)
+        })
+        .and_then(|scope| {
+            let mut board_scope = scope.clone();
+            board_scope.instance_id = None;
+            pcb_wiring::PcbWiringSource::new(
+                snapshot,
+                &board_scope,
+                model.selected_part_ids.first().map(String::as_str),
+                runtime.electrical_preview_executor_epoch(),
+            )
+        });
     let case_selected_body_id = case_selection
         .body
         .read()
@@ -2617,7 +2684,16 @@ fn Editor() -> Element {
                 selected: parts_selection,
             })
         }
-        "PCB" => workspace_composition::WorkspaceInspectorInput::Pcb,
+        "PCB" => {
+            workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
+                Box::new(pcb_wiring::PcbWiringInspectorProps {
+                    source,
+                    resolution: pcb_wiring_mount.resolution.clone(),
+                    on_resolve: pcb_wiring_mount.on_resolve,
+                    on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
+                })
+            }))
+        }
         "Keycaps" => {
             let selected_key_id = model.selected_part_ids.first().cloned();
             let settings_editor = keycaps_view.as_deref().and_then(|view| {
