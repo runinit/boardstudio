@@ -1,0 +1,530 @@
+warning: struct `ArchiveOptionCaptures` is never constructed
+  --> src/archive_export.rs:14:19
+   |
+14 | pub(crate) struct ArchiveOptionCaptures(BTreeMap<OperationId, bool>);
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: methods `capture`, `take`, and `remove` are never used
+  --> src/archive_export.rs:17:19
+   |
+16 | impl ArchiveOptionCaptures {
+   | -------------------------- methods in this implementation
+17 |     pub(crate) fn capture(&mut self, operation: OperationId, embed_used_models: bool) {
+   |                   ^^^^^^^
+...
+21 |     pub(crate) fn take(&mut self, operation: OperationId) -> Option<bool> {
+   |                   ^^^^
+...
+25 |     pub(crate) fn remove(&mut self, operation: OperationId) {
+   |                   ^^^^^^
+
+warning: struct `ArchiveExportOptions` is never constructed
+  --> src/archive_export.rs:33:19
+   |
+33 | pub(crate) struct ArchiveExportOptions {
+   |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `embed_used_models`, `set_embed_used_models`, `begin_archive`, `settle`, `cancel`, and `dispatch` are never used
+  --> src/archive_export.rs:48:19
+   |
+47 | impl ArchiveExportOptions {
+   | ------------------------- methods in this implementation
+48 |     pub(crate) fn embed_used_models(&self) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^
+...
+52 |     pub(crate) fn set_embed_used_models(&self, value: bool) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+...
+56 |     pub(crate) fn begin_archive(&self, operation: OperationId) {
+   |                   ^^^^^^^^^^^^^
+...
+62 |     pub(crate) fn settle(&self, operation: OperationId) {
+   |                   ^^^^^^
+...
+66 |     pub(crate) fn cancel(&self, operation: OperationId) {
+   |                   ^^^^^^
+...
+72 |     pub(crate) fn dispatch<T>(
+   |                   ^^^^^^^^
+
+warning: function `archive_filename` is never used
+  --> src/archive_export.rs:89:15
+   |
+89 | pub(crate) fn archive_filename(accepted_project_name: &str) -> String {
+   |               ^^^^^^^^^^^^^^^^
+
+warning: struct `BundledModel` is never constructed
+ --> src/bundled_models.rs:2:19
+  |
+2 | pub(crate) struct BundledModel {
+  |                   ^^^^^^^^^^^^
+
+warning: static `BUNDLED_MODELS` is never used
+ --> /home/chris/.local/share/boardstudio/worktrees/layout-outline-camera-fix-20261002/web/target/debug/build/boardstudio-web-0d582d7570962d38/out/bundled_ergogen_models.rs:1:19
+  |
+1 | pub(super) static BUNDLED_MODELS: &[BundledModel] = &[
+  |                   ^^^^^^^^^^^^^^
+
+warning: function `bundled_model` is never used
+  --> src/bundled_models.rs:12:15
+   |
+12 | pub(crate) fn bundled_model(id: &str) -> Option<&'static BundledModel> {
+   |               ^^^^^^^^^^^^^
+
+warning: struct `PreparedArchive` is never constructed
+ --> src/portable_archive.rs:5:19
+  |
+5 | pub(crate) struct PreparedArchive {
+  |                   ^^^^^^^^^^^^^^^
+
+warning: function `prepare_archive` is never used
+  --> src/portable_archive.rs:10:15
+   |
+10 | pub(crate) fn prepare_archive(
+   |               ^^^^^^^^^^^^^^^
+
+warning: function `hex_digest` is never used
+  --> src/portable_archive.rs:98:4
+   |
+98 | fn hex_digest(bytes: &[u8]) -> String {
+   |    ^^^^^^^^^^
+
+warning: function `referenced_models` is never used
+   --> src/portable_archive.rs:110:15
+    |
+110 | pub(crate) fn referenced_models(
+    |               ^^^^^^^^^^^^^^^^^
+
+warning: fields `contours` and `path_assets` are never read
+  --> src/case_preview.rs:87:16
+   |
+83 | pub(crate) struct NativePreviewSnapshot {
+   |                   --------------------- fields in this struct
+...
+87 |     pub(crate) contours: Vec<boardstudio_core::model::Contour>,
+   |                ^^^^^^^^
+88 |     pub(crate) path_assets: BTreeMap<String, String>,
+   |                ^^^^^^^^^^^
+   |
+   = note: `NativePreviewSnapshot` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `prepare_artifact` is never used
+   --> src/case_preview.rs:510:15
+    |
+510 | pub(crate) fn prepare_artifact(id: String, capture: &NativePreviewCapture) -> ArtifactRequest {
+    |               ^^^^^^^^^^^^^^^^
+
+warning: associated items `new` and `is_current_owner` are never used
+  --> src/presentation/model_delivery.rs:37:19
+   |
+36 | impl ModelOwnerIdentity {
+   | ----------------------- associated items in this implementation
+37 |     pub(crate) fn new(
+   |                   ^^^
+...
+64 |     pub(crate) fn is_current_owner(
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> src/presentation/model_delivery.rs:98:19
+   |
+97 | impl ModelBatchIdentity {
+   | ----------------------- associated function in this implementation
+98 |     pub(crate) fn new(
+   |                   ^^^
+
+warning: fields `positions`, `normals`, and `colors` are never read
+   --> src/presentation/model_delivery.rs:301:16
+    |
+300 | pub(crate) struct ValidatedMesh {
+    |                   ------------- fields in this struct
+301 |     pub(crate) positions: Rc<[f32]>,
+    |                ^^^^^^^^^
+302 |     pub(crate) normals: Rc<[f32]>,
+    |                ^^^^^^^
+303 |     pub(crate) colors: Option<Rc<[f32]>>,
+    |                ^^^^^^
+    |
+    = note: `ValidatedMesh` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: function `resolve_preview_assets` is never used
+   --> src/presentation/model_delivery.rs:881:15
+    |
+881 | pub(crate) fn resolve_preview_assets(
+    |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `PITCH_MM` is never used
+ --> src/matrix_setup_operation.rs:5:7
+  |
+5 | const PITCH_MM: f64 = 19.05;
+  |       ^^^^^^^^
+
+warning: constant `MAX_MATRIX_CELLS` is never used
+ --> src/matrix_setup_operation.rs:6:7
+  |
+6 | const MAX_MATRIX_CELLS: u32 = 4096;
+  |       ^^^^^^^^^^^^^^^^
+
+warning: enum `MatrixSetupPreset` is never used
+ --> src/matrix_setup_operation.rs:9:17
+  |
+9 | pub(crate) enum MatrixSetupPreset {
+  |                 ^^^^^^^^^^^^^^^^^
+
+warning: struct `MatrixSetupRequest` is never constructed
+  --> src/matrix_setup_operation.rs:21:19
+   |
+21 | pub(crate) struct MatrixSetupRequest {
+   |                   ^^^^^^^^^^^^^^^^^^
+
+warning: methods `as_str` and `config` are never used
+  --> src/matrix_setup_operation.rs:28:19
+   |
+27 | impl MatrixSetupPreset {
+   | ---------------------- methods in this implementation
+28 |     pub(crate) fn as_str(self) -> &'static str {
+   |                   ^^^^^^
+...
+41 |     fn config(self) -> PresetConfig {
+   |        ^^^^^^
+
+warning: struct `PresetConfig` is never constructed
+  --> src/matrix_setup_operation.rs:95:8
+   |
+95 | struct PresetConfig {
+   |        ^^^^^^^^^^^^
+
+warning: struct `PreparedMatrix` is never constructed
+   --> src/matrix_setup_operation.rs:102:19
+    |
+102 | pub(crate) struct PreparedMatrix {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `next_matrix_id` is never used
+   --> src/matrix_setup_operation.rs:107:15
+    |
+107 | pub(crate) fn next_matrix_id(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `prepare_matrix` is never used
+   --> src/matrix_setup_operation.rs:142:15
+    |
+142 | pub(crate) fn prepare_matrix(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `required_catalogue_definition` is never used
+   --> src/matrix_setup_operation.rs:320:4
+    |
+320 | fn required_catalogue_definition<'a>(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `snapshot_definition` is never used
+   --> src/matrix_setup_operation.rs:337:4
+    |
+337 | fn snapshot_definition(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: `boardstudio-web` (bin "boardstudio-web") generated 12 warnings
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 17 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running unittests src/lib.rs (web/target/debug/deps/boardstudio_web-26e313c8ce81d852)
+
+running 19 tests
+test cad_jobs::tests::cad_revision_boundary_rejects_values_that_would_lose_integer_identity ... ok
+test cad_jobs::tests::completed_cad_reply_requires_current_operation_and_valid_payload ... ok
+test cad_jobs::tests::exact_accepts_public_case_payload_without_optional_bounds ... ok
+test matrix_transform_operation::tests::column_splay_uses_existing_affect_and_origin_operations ... ok
+test cad_jobs::tests::scope_or_scene_revision_mismatch_is_rejected_before_core_work ... ok
+test matrix_transform_operation::tests::linked_layout_rejects_y_mirror_at_the_operation_boundary ... ok
+test persistence_contract::tests::rejects_unsafe_json_integer_values_before_indexeddb_serialization ... ok
+test offline::tests::path_hex_encoding_separates_root_and_subpath_cache_names ... ok
+test persistence_contract::tests::allows_safe_json_integer_values ... ok
+test persistence_contract::tests::asset_sha256_matches_standard_digest ... ok
+test matrix_transform_operation::tests::empty_key_cell_edit_adds_a_semantic_cell_without_part_ids ... ok
+test matrix_transform_operation::tests::cell_edit_preserves_order_and_untouched_cell_fields ... ok
+test matrix_transform_operation::tests::key_reset_preserves_assembly_and_cell_identity ... ok
+test matrix_transform_operation::tests::row_offset_changes_only_the_selected_row_and_preserves_other_matrix_data ... ok
+test matrix_transform_operation::tests::remaining_numeric_fields_map_to_their_existing_matrix_properties ... ok
+test offline::tests::validates_complete_normalized_manifest ... ok
+test cad_jobs::tests::flipped_instance_reflects_only_its_board_parts_and_scene_transform ... ok
+test core_protocol::tests::text_frame_preserves_full_u64_revision_without_a_js_number_round_trip ... ok
+test cad_jobs::tests::captured_document_and_scene_prepare_through_the_public_core_provider ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (web/target/debug/deps/boardstudio_web-bcd3435edcef819a)
+
+running 91 tests
+test bundled_models::tests::lookup_does_not_turn_unknown_identifiers_into_static_paths ... ok
+test bundled_models::tests::lookup_preserves_nested_reference_filenames_from_react_catalogue ... ok
+test archive_export::tests::session_option_defaults_on_and_notifies_only_when_changed ... ok
+test archive_export::tests::settled_operation_releases_its_unused_archive_choice ... ok
+test archive_export::tests::production_dispatch_consumes_each_operation_capture_once ... ok
+test archive_export::tests::production_dispatch_uses_the_option_captured_when_archive_started ... ok
+test case_model_lifecycle::tests::first_step_decode_creates_a_worker_without_retaining_the_cache_borrow ... ok
+test bundled_models::tests::lookup_preserves_react_thqwgd_source_to_saved_name_aliases ... ok
+test archive_export::tests::archive_filename_uses_the_accepted_project_name ... ok
+test case_preview::tests::executor_replacement_and_epoch_reuse_reject_aba ... ok
+test case_model_lifecycle::tests::arriving_board_preview_invalidates_an_unchanged_cad_projection_before_models_finish ... ok
+test archive_export::tests::production_dispatch_keeps_step_separate_from_archive_capture ... ok
+test archive_export::tests::production_dispatch_fails_closed_after_archive_capture_is_cancelled ... ok
+test case_model_lifecycle::tests::exact_model_identity_and_theme_invalidate_projection_without_pointer_hash_collisions ... ok
+test case_model_lifecycle::tests::changed_scope_and_closed_worker_are_replaced_but_current_worker_is_reused ... ok
+test case_model_lifecycle::tests::failed_replacement_keeps_the_existing_cached_worker ... ok
+test case_generation_admission::tests::unconfigured_unready_physical_scope_disables_case_generation ... ok
+test case_display::tests::partial_reference_alias_colors_remain_resettable ... ok
+test case_display::tests::gasket_upper_lower_share_color_without_changing_visibility ... ok
+test case_display::tests::pcb_color_reads_reference_alias_and_changes_or_resets_all_aliases ... ok
+test case_preview::native_preview_pick_tests::native_pick_requires_the_current_preview_owner_source_identity ... ok
+test case_preview::native_preview_pick_tests::picked_renderer_reference_resolves_to_board_part_and_not_asset_or_mesh_id ... ok
+test closure_clearance::tests::key_rounding_matches_javascript_fixed_decimal_behavior ... ok
+test bundled_models::tests::catalogue_covers_each_react_vendor_model_once_with_safe_static_paths ... ok
+test firmware_position_choices::tests::choices_match_reference_defaults_labels_and_order ... ok
+test case_preview::tests::native_preview_refuses_to_take_imported_board_producer_ownership ... ok
+test firmware_position_projection::tests::exact_outcome_waits_across_revision_and_save_then_confirms_latest_value ... ok
+test closure_clearance::tests::positive_and_negative_zero_deduplicate_to_one_js_compatible_key ... ok
+test closure_clearance::tests::projects_canonical_and_flipped_instance_union_and_preserves_other_parts ... ok
+test case_preview::tests::preview_source_identity_rejects_same_revision_snapshot_aba ... ok
+test case_preview::tests::successful_publication_keeps_the_preview_visible_after_pending_clears ... ok
+test case_preview::tests::native_preview_uses_the_existing_flipped_physical_projection ... ok
+test closure_clearance::tests::screw_clearance_uses_hole_diameter_and_empty_mounts_remove_owned_projection ... ok
+test case_preview::tests::native_preview_captures_accepted_physical_contours_without_case_readiness_or_cad ... ok
+test firmware_position_projection::tests::persistence_failure_keeps_accepted_value_and_moved_target_suppresses_feedback ... ok
+test case_preview::tests::cancellation_rejects_late_completion_and_preserves_replacement_owner ... ok
+test footprint_forms::tests::projects_native_and_legacy_arcs_and_nested_keepouts ... ok
+test footprint_forms::tests::projects_nested_graphics_into_pad_coordinates_and_decodes_text ... ok
+test instance_selection::tests::board_fallback_does_not_replace_explicit_preference ... ok
+test instance_selection::tests::fallback_uses_board_order_without_requiring_mechanical_configuration ... ok
+test instance_selection::tests::restored_instance_recovers_preference_and_reopen_resets_it ... ok
+test instance_selection::tests::automatic_navigation_waits_for_real_session_open_and_save ... ok
+test matrix_transform_lifecycle::tests::another_field_revision_rejects_a_captured_transform_action ... ok
+test matrix_transform_lifecycle::tests::current_target_settles_only_its_observed_outcome ... ok
+test closure_clearance::tests::safe_mh_reference_and_output_count_boundaries_remain_allocatable ... ok
+test matrix_transform_lifecycle::tests::hidden_pending_keeps_its_exact_observer_until_terminal_settlement ... ok
+test matrix_transform_lifecycle::tests::replacement_token_and_revision_are_independently_checked ... ok
+test matrix_transform_lifecycle::tests::terminal_failure_after_scope_loss_retires_without_retargeting_feedback ... ok
+test mechanical_feedback::tests::failed_feedback_survives_token_advance_and_unrelated_field_change ... ok
+test mechanical_feedback::tests::rejected_request_reaches_its_field_while_older_request_is_pending ... ok
+test mechanical_feedback::tests::saved_feedback_is_hidden_after_undo_changes_its_field_again ... ok
+test mechanical_feedback::tests::summary_relevance_tracks_its_field_not_unrelated_configuration_values ... ok
+test model_delivery::tests::asset_selection_obeys_attached_then_native_then_ergogen_precedence ... ok
+test model_delivery::tests::failed_current_task_is_removed_for_retry ... ok
+test model_delivery::tests::format_selection_is_case_insensitive_and_rejects_other_extensions ... ok
+test model_delivery::tests::batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids ... ok
+test model_delivery::tests::mesh_validation_requires_complete_finite_matching_buffers ... ok
+test model_delivery::tests::native_export_path_table_is_inverted_for_preview_model_rows ... ok
+test model_delivery::tests::new_batch_replaces_pending_task_and_old_token_cannot_settle_it ... ok
+test model_delivery::tests::cache_is_bounded_and_reports_evicted_pending_task_token ... ok
+test model_delivery::tests::row_merge_preserves_exact_preview_model_ids_and_references ... ok
+test model_delivery::tests::verified_bytes_reject_wrong_digest_and_bounds ... ok
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test closure_clearance::tests::unsafe_or_exhausted_mh_references_fail_before_any_core_edit ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test physical_setup::tests::selection_reconciliation_requires_the_exact_accepted_proposal ... ok
+test physical_setup::tests::new_physical_instances_use_the_existing_mechanical_defaults_factory ... ok
+test physical_setup::tests::topology_noop_and_invalid_transport_are_rejected_without_changing_input ... ok
+test physical_setup::tests::reversible_changes_document_flag_and_only_eligible_existing_part_overrides ... ok
+test physical_setup::tests::topology_falls_back_to_board_matching_primary_and_resolved_mechanics_for_shared_construction ... ok
+test physical_setup::tests::topology_preserves_flipped_primary_and_shared_construction_and_adds_reversible_secondary ... ok
+test physical_setup::tests::topology_uses_matching_canonical_board_mechanics_before_the_defaults_factory ... ok
+test portable_archive::tests::generated_document_owned_model_does_not_require_a_bundled_provider ... ok
+test portable_archive::tests::a_disabled_embedding_option_can_keep_local_assets_without_resolving_models ... ok
+test portable_archive::tests::generated_unknown_ergogen_model_fails_instead_of_silently_omitting ... ok
+test portable_archive::tests::selected_closure_matches_react_reference_buckets_and_deduplicates ... ok
+test physical_setup::tests::transport_changes_only_the_transport_field ... ok
+test setup_guide_state::creation_tests::closed_or_superseded_completed_creation_releases_the_pending_slot ... ok
+test setup_guide_state::tests::accepted_rename_and_undo_replace_the_visible_name ... ok
+test renderer_host_source_sync::private_page_host_matches_normalized_library_host ... ok
+test setup_guide_state::tests::compact_guide_and_settings_reveal_the_requested_surface ... ok
+test setup_guide_state::tests::desktop_reveal_pins_only_the_requested_panel ... ok
+test setup_guide_state::tests::unrelated_accepted_edits_preserve_typing_but_project_switch_resets_it ... ok
+test case_preview::tests::preview_result_must_match_the_captured_accepted_revision ... ok
+test case_preview::tests::pending_scope_away_and_back_cannot_publish_the_old_completion ... ok
+test case_preview::tests::preview_owner_lease_tracks_liveness_and_exact_source_identity ... ok
+test portable_archive::tests::pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes ... ok
+test firmware_position_projection::tests::lifecycle_and_mismatched_plan_never_look_like_current_empty_inputs ... ok
+test firmware_position_projection::tests::current_real_plan_preserves_matrix_order_labels_and_selected_board_bindings ... ok
+test firmware_position_projection::tests::settled_feedback_survives_plan_refresh_but_not_target_or_key_changes ... ok
+test firmware_position_projection::tests::admission_and_exact_session_core_outcome_follow_the_accepted_board ... ok
+
+test result: ok. 91 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/case_preview_lifecycle.rs (web/target/debug/deps/case_preview_lifecycle-01857c7f464fffa5)
+
+running 3 tests
+test unmount_retires_pending_owner_before_late_completion ... ok
+test unmount_before_detached_start_prevents_acquiring_a_preview_owner ... ok
+test source_away_and_back_discards_a_detached_start_from_the_previous_lifetime ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/keycaps_fit_lifecycle.rs (web/target/debug/deps/keycaps_fit_lifecycle-121d2a3837e2b66b)
+
+running 6 tests
+test keycaps_fit::tests::same_source_retry_and_failure_keep_retained_result_stale ... ok
+test keycaps_fit::tests::findings_are_deduplicated_severity_sorted_and_grouped_like_react ... ok
+test absent_source_settles_without_requests ... ok
+test pending_browser_request_does_not_touch_signals_after_inspector_unmounts ... ok
+test completed_browser_request_settles_against_mounted_inspector ... ok
+test accepted_source_settles_after_one_resolution ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/keycaps_projection.rs (web/target/debug/deps/keycaps_projection-2164f61b1ec0beaf)
+
+running 7 tests
+test keycaps_scene::tests::contour_points_keeps_coordinates_ordered_for_svg_path_inputs ... ok
+test keycaps_scene::tests::canvas_text_contrast_uses_effective_cap_color_luminance ... ok
+test keycaps_scene::tests::key_binding_labels_match_existing_choices_and_fallbacks ... ok
+test keycaps_scene::tests::accepted_board_projection_preserves_membership_pose_and_display_fallbacks ... ok
+test keycaps_scene::tests::keycaps_projection_supplies_editable_defaults_without_materializing_config ... ok
+test keycaps_scene::tests::explicit_blank_keeps_inherited_binding_search_and_settings_are_not_materialized ... ok
+test keycaps_scene::tests::physical_legend_inheritance_uses_legacy_binding_and_active_scope_is_required ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/keymap_panel_lifecycle.rs (web/target/debug/deps/keymap_panel_lifecycle-e0f789562a173fef)
+
+running 6 tests
+test presentation::selection_change_returns_from_macros_to_keys_like_the_reference_owner ... ok
+test presentation::canvas_selection_clears_a_filter_that_would_hide_the_current_key ... ok
+test presentation::same_owner_rerender_and_editor_tabs_preserve_search ... ok
+test presentation::new_scope_with_identical_key_ids_resets_search ... ok
+test presentation::layer_and_operation_feedback_updates_keep_the_same_selection_search ... ok
+test presentation::selected_key_change_clears_the_search_from_the_previous_selection ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/layout_align_effect.rs (web/target/debug/deps/layout_align_effect-094d1737cd4acda7)
+
+running 10 tests
+test completed_old_scope_does_not_wait_for_the_new_scopes_lower_revision ... ok
+test layout_align_geometry::state_tests::completed_old_scope_is_not_held_by_a_lower_new_revision ... ok
+test layout_align_geometry::state_tests::reference_choice_retains_preferences_when_projection_is_unavailable ... ok
+test layout_align_geometry::state_tests::reconciliation_writes_only_changed_authoritative_choices ... ok
+test layout_align_geometry::tests::column_alignment_delta_uses_matrix_rotation_mirror_and_accumulated_splay ... ok
+test layout_align_geometry::tests::missing_exact_envelope_and_nonfinite_bounds_are_rejected ... ok
+test layout_align_geometry::tests::six_anchors_align_the_combined_axis_aligned_bounds ... ok
+test layout_align_geometry::tests::transformed_switch_keycap_override_uses_four_rotated_corners ... ok
+test mounted_empty_reference_effect_does_not_self_trigger ... ok
+test mounted_reference_survives_hidden_workspace_and_falls_back_only_when_ineligible ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/matrix_field_lifecycle.rs (web/target/debug/deps/matrix_field_lifecycle-f91b79e7ab1518df)
+
+running 4 tests
+test presentation::layout_name_target_switch_resets_the_name_draft ... ok
+test presentation::same_owner_pending_and_saved_feedback_settle_the_actual_field ... ok
+test presentation::dirty_fields_do_not_follow_an_equal_baseline_to_another_matrix ... ok
+test presentation::unrelated_revision_keeps_the_same_owners_uncommitted_draft ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/matrix_setup_lifecycle.rs (web/target/debug/deps/matrix_setup_lifecycle-7fdc7a76a47d53fa)
+
+running 11 tests
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test presentation::tests::nonexistent_physical_instance_cannot_open_matrix_setup ... ok
+test presentation::tests::admitted_outcome_survives_editor_unmount_until_exact_terminal ... ok
+test presentation::tests::detached_normalization_after_editor_unmount_never_touches_disposed_signals ... ok
+test presentation::tests::configured_board_instance_can_open_matrix_setup ... ok
+test presentation::tests::changed_accepted_token_during_normalization_never_submits ... ok
+test presentation::tests::completed_creation_without_accepted_snapshot_releases_its_slot ... ok
+test presentation::tests::hidden_pending_waits_for_exact_terminal_then_releases_without_selection ... ok
+test presentation::tests::current_saved_completion_selects_the_created_matrix_exactly_once ... ok
+test presentation::tests::completed_old_project_retires_before_replacement_revision_checks ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/matrix_setup_operation.rs (web/target/debug/deps/matrix_setup_operation-d4bb62d5f43642da)
+
+running 5 tests
+test matrix_setup_rejects_invalid_size_or_missing_real_catalogue_entries ... ok
+test generated_matrix_identity_skips_existing_matrix_definition_and_member_ids ... ok
+test matrix_setup_builds_the_reference_mx_rgb_cell_recipe_and_owned_definition_snapshots ... ok
+test matrix_setup_maps_every_reference_preset_without_losing_construction_flags ... ok
+test matrix_setup_uses_saved_session_history_selection_and_reopen ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/outline_camera.rs (web/target/debug/deps/outline_camera-f530bac4897bdcaf)
+
+running 1 test
+test layout_camera::tests::selected_bridge_camera_uses_a_viewport_relative_pan_delta ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/outline_lifecycle.rs (web/target/debug/deps/outline_lifecycle-eff2a8dd982250c3)
+
+running 17 tests
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test presentation::outline_lifecycle::lifecycle_tests::admitted_outcome_survives_editor_unmount_until_terminal ... ok
+test presentation::outline_lifecycle::lifecycle_tests::activation_retains_observed_slot_after_editor_unmount ... ok
+test presentation::outline_lifecycle::lifecycle_tests::activation_requires_saved_source ... ok
+test presentation::outline_lifecycle::lifecycle_tests::activation_rejects_stale_generation_at_refreshed_dispatch ... ok
+test presentation::outline_lifecycle::lifecycle_tests::different_context_hides_inspector_and_rejects_retained_copy ... ok
+test presentation::outline_lifecycle::lifecycle_tests::activation_rejects_stale_rendered_token ... ok
+test presentation::outline_lifecycle::lifecycle_tests::activation_checks_target_membership_and_selected_version ... ok
+test presentation::outline_lifecycle::lifecycle_tests::completed_current_source_in_recovery_retires_with_failure ... ok
+test presentation::outline_lifecycle::lifecycle_tests::completed_without_accepted_snapshot_retires_before_reopen ... ok
+test presentation::outline_lifecycle::lifecycle_tests::completed_old_epoch_retires_before_replacement_readiness ... ok
+test presentation::outline_lifecycle::lifecycle_tests::activation_settles_exact_generated_target_while_hidden ... ok
+test presentation::outline_lifecycle::lifecycle_tests::hidden_inspector_retains_exact_success_until_same_owner_returns ... ok
+test presentation::outline_lifecycle::lifecycle_tests::stale_rendered_copy_generation_is_rejected_after_callback_refresh ... ok
+test presentation::outline_lifecycle::lifecycle_tests::exact_rejection_allows_fresh_operation_retry ... ok
+test presentation::outline_lifecycle::lifecycle_tests::stale_rendered_delete_generation_is_rejected_after_callback_refresh ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/outline_tree.rs (web/target/debug/deps/outline_tree-90e377facdb2a834)
+
+running 2 tests
+test presentation::tree::tests::stored_row_grouping_and_empty_model_projection_remain_defined ... ok
+test presentation::tree::tests::bridge_has_same_board_selection_at_outline_and_owning_matrix_occurrences ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/physical_setup_lifecycle.rs (web/target/debug/deps/physical_setup_lifecycle-a84cac40f1f8c602)
+
+running 20 tests
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test physical_setup::tests::topology_noop_and_invalid_transport_are_rejected_without_changing_input ... ok
+test physical_setup::tests::selection_reconciliation_requires_the_exact_accepted_proposal ... ok
+test physical_setup::tests::new_physical_instances_use_the_existing_mechanical_defaults_factory ... ok
+test physical_setup::tests::topology_falls_back_to_board_matching_primary_and_resolved_mechanics_for_shared_construction ... ok
+test physical_setup::tests::topology_preserves_flipped_primary_and_shared_construction_and_adds_reversible_secondary ... ok
+test physical_setup::tests::reversible_changes_document_flag_and_only_eligible_existing_part_overrides ... ok
+test physical_setup::tests::transport_changes_only_the_transport_field ... ok
+test physical_setup::tests::topology_uses_matching_canonical_board_mechanics_before_the_defaults_factory ... ok
+test presentation::tests::closing_project_stage_during_normalization_prevents_submission ... ok
+test presentation::tests::exact_accepted_proposal_advances_only_its_feedback_attribution ... ok
+test presentation::tests::case_transport_keeps_the_rendered_scope ... ok
+test presentation::tests::hidden_guide_keeps_observer_and_restores_only_same_owner_result ... ok
+test presentation::tests::retained_rendered_controls_cannot_retarget_another_project ... ok
+test presentation::tests::hidden_success_restores_feedback_for_its_exact_accepted_proposal ... ok
+test presentation::tests::detached_normalization_and_outcome_survive_unmount_without_signal_access ... ok
+test presentation::tests::delayed_preparation_error_and_noop_do_not_appear_under_new_source ... ok
+test presentation::tests::retained_rendered_controls_reject_replaced_token_and_generation ... ok
+test presentation::tests::terminal_results_keep_exact_observer_but_never_retarget_feedback ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/preview_generator_transport.rs (web/target/debug/deps/preview_generator_transport-f06bf05fe8014411)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests boardstudio_web
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

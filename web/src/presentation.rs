@@ -14,6 +14,7 @@ mod keycaps_settings;
 mod keycaps_workspace;
 mod keymap;
 mod keymap_workspace;
+mod layout_camera;
 mod layout_workspace;
 mod library;
 mod mechanical_settings;
@@ -1127,6 +1128,33 @@ fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
             ))
         })
         .unwrap_or((min_x, max_x, min_y, max_y));
+    let viewport_bounds = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == model.active_board_id)
+        .and_then(|board| {
+            snapshot
+                .document
+                .parts
+                .iter()
+                .filter(|part| board.part_ids.contains(&part.id))
+                .map(|part| part.pose.at)
+                .fold(None, |bounds, point| {
+                    Some(bounds.map_or(
+                        (point.x, point.x, point.y, point.y),
+                        |(min_x, max_x, min_y, max_y): (f64, f64, f64, f64)| {
+                            (
+                                min_x.min(point.x),
+                                max_x.max(point.x),
+                                min_y.min(point.y),
+                                max_y.max(point.y),
+                            )
+                        },
+                    ))
+                })
+        })
+        .unwrap_or(board_bounds);
     let bridge_width = (max_x - min_x).max(bridge.width).max(1.0);
     let bridge_height = (max_y - min_y).max(bridge.width).max(1.0);
     let board_width = (board_bounds.1 - board_bounds.0).max(50.0) + 40.0;
@@ -1135,10 +1163,13 @@ fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
         (0.72 * (board_width / bridge_width).min(board_height / bridge_height)).clamp(0.15, 8.0);
     runtime.submit(Event::SetCamera {
         operation_id: runtime.operation(),
-        center: Vec2 {
-            x: (min_x + max_x) * 0.5,
-            y: (min_y + max_y) * 0.5,
-        },
+        center: layout_camera::bridge_camera_offset(
+            viewport_bounds,
+            Vec2 {
+                x: (min_x + max_x) * 0.5,
+                y: (min_y + max_y) * 0.5,
+            },
+        ),
         zoom,
     });
 }
