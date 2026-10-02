@@ -13,3 +13,33 @@ The identity remains page-local and read-only. It carries the existing accepted 
 `footprint_forms::point` already converts native KiCad Y to the projected preview coordinate (`Point(x, -nativeY)`). `GraphicElement` consumes those projected points beneath the preview's single outer SVG flip. Bounds now use the projected coordinates directly, including circle extents, and retain React's origin-inclusive viewBox policy. The asymmetric fixture checks the source-space line, keycap envelope, origin, and 3-unit margin instead of relying on symmetric MX geometry.
 
 The same bounded source tests cover React's authored-keycap precedence, retained Ergogen width/height and `include_keycap` defaults, and the `is-mechanical` class for unplated drills. These are regression fixtures in source only. No Cargo/native/WASM/browser check was run in this worker; those gates remain with the integration owner.
+
+## RF-002/RF-009 — packaged service reachability and provenance
+
+The preview loader needs the retained `parameters(source)` function from
+`ergogen/src/index.ts`. The generated frontend entrypoint previously exposed
+only `isErgogen` and `render`, even though the underlying source exported
+`parameters`. The private build bridge now exports that existing function and
+records the entrypoint hash in generator provenance. The packaging script
+imports the actual generated entrypoint and checks its named exports and
+`ceoloide/switch_mx` defaults (`18 × 18`, `include_keycap=true`) before it
+reports success. This is the existing asset boundary, not a new engine or
+Core API.
+
+Source package check run from the Parts worker on 2026-10-02:
+
+```text
+node scripts/web/build-layout-generators.mjs /tmp/parts-preview-generator-package-05a1dac4-retest
+Verified generated catalogue for 36 modules
+Verified packaged generator service and ceoloide/switch_mx preview defaults
+```
+
+The generated `layout-generators.js` SHA-256 was
+`c07cbe7aaff7f5da50e6db7cd952e35d316d87e847027bbf7dc5a4886139c547`; its
+provenance records `ergogen/src/index.ts` SHA-256
+`930dc6f8cd1d172d6ff181bf310d99a3ae5fe8ed51d820236bb3e388bd1146dd` and
+`ergogen/generated/catalogue.mjs` SHA-256
+`3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97`.
+This validates the generated package locally only. Root/subpath delivery,
+offline service-worker reload, WASM compilation, and browser parity remain
+integration gates.

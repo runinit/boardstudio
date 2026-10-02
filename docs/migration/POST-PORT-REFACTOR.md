@@ -202,6 +202,10 @@ that `footprint_forms::point` already converts native KiCad Y before the SVG
 flip; bounds use the projected frame once and preserve the reference origin
 policy. See the [Parts preview handoff](../../.scratch/dioxus-parts-catalogue/evidence/parts-preview-source-corrections/refactor-handoff.md).
 This is source-level RF-006/RF-009 evidence, not a compile or browser result.
+The packaging review also found that the generated service entrypoint omitted
+its already-existing `parameters(source)` export. The private builder now
+forwards and provenance-hashes that export, and self-checks the generated MX
+defaults before success; root/subpath/offline delivery remains unverified.
 
 ### RF-009 encoder initial-value regression evidence
 
