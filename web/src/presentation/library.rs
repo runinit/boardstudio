@@ -3,7 +3,7 @@ use boardstudio_core::model::{PartKind, ProjectDoc};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, JsString, Object};
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
@@ -125,7 +125,7 @@ fn sort_saved(documents: &mut [ProjectDoc]) {
 }
 
 #[component]
-fn KeyboardCard(document: ProjectDoc, current: bool, recovery_required: bool) -> Element {
+fn KeyboardCard(document: Arc<ProjectDoc>, current: bool, recovery_required: bool) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let name = project_name(&document);
     let preview = preview(&document);
@@ -218,9 +218,9 @@ pub(super) fn Library() -> Element {
         .model()
         .accepted
         .as_ref()
-        .map(|snapshot| snapshot.document.as_ref().clone());
+        .map(|snapshot| snapshot.document.clone());
     let accepted_identity = current.as_ref().map(|document| document.id.clone());
-    let mut saved = use_signal(Vec::<ProjectDoc>::new);
+    let mut saved = use_signal(Vec::<Arc<ProjectDoc>>::new);
     let mut status = use_signal(|| ListStatus::Loading);
     let mut retry = use_signal(|| 0_u64);
     let retry_value = retry();
@@ -262,7 +262,7 @@ pub(super) fn Library() -> Element {
             match result {
                 Ok(mut documents) => {
                     sort_saved(&mut documents);
-                    saved.set(documents);
+                    saved.set(documents.into_iter().map(Arc::new).collect());
                     status.set(ListStatus::Ready);
                 }
                 Err(_) => status.set(ListStatus::Failed),
@@ -272,15 +272,21 @@ pub(super) fn Library() -> Element {
 
     let mut cards = Vec::new();
     if let Some(current) = current {
-        cards.push((current.clone(), true));
+        cards.push((Arc::clone(&current), true));
+        let saved_documents = saved.read();
         cards.extend(
-            saved()
-                .into_iter()
+            saved_documents
+                .iter()
                 .filter(|document| document.id != current.id)
-                .map(|document| (document, false)),
+                .map(|document| (Arc::clone(document), false)),
         );
     } else {
-        cards.extend(saved().into_iter().map(|document| (document, false)));
+        let saved_documents = saved.read();
+        cards.extend(
+            saved_documents
+                .iter()
+                .map(|document| (Arc::clone(document), false)),
+        );
     }
     let reviung = runtime.clone();
     let sofle = runtime.clone();
