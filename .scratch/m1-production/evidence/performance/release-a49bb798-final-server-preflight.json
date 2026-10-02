@@ -1,0 +1,71 @@
+{
+  "verifiedAtUtc": "2026-10-02T01:03:58.064973+00:00",
+  "candidateBuildId": "m1-release-20261002-a49bb798",
+  "candidateSourceCommit": "a49bb798cf751d0f111c265c29d7276841e513b9",
+  "candidateReleaseRecordSha256": "ac08831f353b7d0c545162bded6937f2b61a06f038b29576da8c6756e0bd6f60",
+  "candidateProvenanceSha256": "48366fbbb316f238e33f10b1d2c14d04d934cd6392e776e404956ab5b6235789",
+  "referenceRecordSha256": "5ddce1f643eb899fefc3c26d4a3114e55ea90bc522e12716a61871eadc1c3df7",
+  "referenceDistTreeSha256": "5a3d371f115c5bd325f35e7efacf3a3ffde74587de538611b3ef2f7f940dabbd",
+  "candidateUrl": "http://127.0.0.1:34285/",
+  "referenceUrl": "http://127.0.0.1:46881/",
+  "httpChecks": [
+    {
+      "label": "candidate-index.html",
+      "url": "http://127.0.0.1:34285/index.html",
+      "status": 200,
+      "contentType": "text/html",
+      "sha256": "2f73cb8c17d085b9fa5cb09ff0d13fdac6d19c6643bcdb3613d89abc00032e18",
+      "expectedSha256": "2f73cb8c17d085b9fa5cb09ff0d13fdac6d19c6643bcdb3613d89abc00032e18",
+      "hashMatches": true
+    },
+    {
+      "label": "candidate-boardstudio-web-dxh5ea41861c9f4db6a.js",
+      "url": "http://127.0.0.1:34285/assets/boardstudio-web-dxh5ea41861c9f4db6a.js",
+      "status": 200,
+      "contentType": "text/javascript",
+      "sha256": "c912e0eeef373a67972405b2efc656eaef0fcd2677d32e120d01697ec600f024",
+      "expectedSha256": "c912e0eeef373a67972405b2efc656eaef0fcd2677d32e120d01697ec600f024",
+      "hashMatches": true
+    },
+    {
+      "label": "candidate-boardstudio-web_bg-dxh6324453db72c1a74.wasm",
+      "url": "http://127.0.0.1:34285/assets/boardstudio-web_bg-dxh6324453db72c1a74.wasm",
+      "status": 200,
+      "contentType": "application/wasm",
+      "sha256": "bd6d1e86a8c90eb7f552088a3cb196d76de230417a1660b3d808a375ad9f9b3d",
+      "expectedSha256": "bd6d1e86a8c90eb7f552088a3cb196d76de230417a1660b3d808a375ad9f9b3d",
+      "hashMatches": true
+    },
+    {
+      "label": "reference-index.html",
+      "url": "http://127.0.0.1:46881/index.html",
+      "status": 200,
+      "contentType": "text/html",
+      "sha256": "4114223c42fd444840928c11472c7a9284db8629c787a83ba7642e31102273aa",
+      "expectedSha256": "4114223c42fd444840928c11472c7a9284db8629c787a83ba7642e31102273aa",
+      "hashMatches": true
+    },
+    {
+      "label": "reference-__vite-browser-external-5wcixUzy.js",
+      "url": "http://127.0.0.1:46881/assets/__vite-browser-external-5wcixUzy.js",
+      "status": 200,
+      "contentType": "text/javascript",
+      "sha256": "ca4cae4aa8c8b513884b0ac03500ead3fe134491b97aa2379b08a44d2bb1f4f0",
+      "expectedSha256": "ca4cae4aa8c8b513884b0ac03500ead3fe134491b97aa2379b08a44d2bb1f4f0",
+      "hashMatches": true
+    },
+    {
+      "label": "reference-boardstudio_cadrum_wasm_bg-Zi6SCt0c.wasm",
+      "url": "http://127.0.0.1:46881/assets/boardstudio_cadrum_wasm_bg-Zi6SCt0c.wasm",
+      "status": 200,
+      "contentType": "application/wasm",
+      "sha256": "e8f6a988fe143b99486f0e4f6f1a3d3eff1e2ee5976079b648e160dda603a40c",
+      "expectedSha256": "e8f6a988fe143b99486f0e4f6f1a3d3eff1e2ee5976079b648e160dda603a40c",
+      "hashMatches": true
+    }
+  ],
+  "candidateAll47LocalAssetHashesMatch": true,
+  "referenceAll143LocalAssetHashesMatch": true,
+  "quietHostSignal": "Root final QA closed/quiet signal after host session 0d9e22ae and gate44125; no QA/browser/build/check jobs active.",
+  "browserTimingStarted": false
+}

@@ -1,0 +1,112 @@
+{
+  "verifiedAtUtc": "2026-10-02T00:54:11.728001+00:00",
+  "candidate": {
+    "buildId": "m1-release-20261002-a49bb798",
+    "sourceCommit": "a49bb798cf751d0f111c265c29d7276841e513b9",
+    "releaseRecordPath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/integration/release-a49bb798.json",
+    "releaseRecordSha256": "ac08831f353b7d0c545162bded6937f2b61a06f038b29576da8c6756e0bd6f60",
+    "provenancePath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/integration/release-a49bb798-provenance.json",
+    "provenanceSha256": "48366fbbb316f238e33f10b1d2c14d04d934cd6392e776e404956ab5b6235789",
+    "rootUrl": "http://127.0.0.1:34285/",
+    "subpathUrl": "http://127.0.0.1:34285/boardstudio/",
+    "rootSitePath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261002-a49bb798/site-root",
+    "subpathSitePath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261002-a49bb798/site-subpath/boardstudio",
+    "rootAssetCount": 47,
+    "subpathAssetCount": 47,
+    "allLocalAssetHashesMatch": true
+  },
+  "reference": {
+    "recordPath": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/reference-app-dist.json",
+    "recordSha256": "5ddce1f643eb899fefc3c26d4a3114e55ea90bc522e12716a61871eadc1c3df7",
+    "url": "http://127.0.0.1:46881/",
+    "distributionPath": "/home/chris/01_Projects/ts-boardstudio2/app/dist",
+    "treeSha256": "5a3d371f115c5bd325f35e7efacf3a3ffde74587de538611b3ef2f7f940dabbd",
+    "assetCount": 143,
+    "allLocalAssetHashesMatch": true
+  },
+  "httpChecks": [
+    {
+      "label": "candidate-root-index.html",
+      "url": "http://127.0.0.1:34285/index.html",
+      "status": 200,
+      "contentType": "text/html",
+      "sha256": "2f73cb8c17d085b9fa5cb09ff0d13fdac6d19c6643bcdb3613d89abc00032e18",
+      "expectedSha256": "2f73cb8c17d085b9fa5cb09ff0d13fdac6d19c6643bcdb3613d89abc00032e18",
+      "hashMatches": true
+    },
+    {
+      "label": "candidate-root-boardstudio-web-dxh5ea41861c9f4db6a.js",
+      "url": "http://127.0.0.1:34285/assets/boardstudio-web-dxh5ea41861c9f4db6a.js",
+      "status": 200,
+      "contentType": "text/javascript",
+      "sha256": "c912e0eeef373a67972405b2efc656eaef0fcd2677d32e120d01697ec600f024",
+      "expectedSha256": "c912e0eeef373a67972405b2efc656eaef0fcd2677d32e120d01697ec600f024",
+      "hashMatches": true
+    },
+    {
+      "label": "candidate-root-boardstudio-web_bg-dxh6324453db72c1a74.wasm",
+      "url": "http://127.0.0.1:34285/assets/boardstudio-web_bg-dxh6324453db72c1a74.wasm",
+      "status": 200,
+      "contentType": "application/wasm",
+      "sha256": "bd6d1e86a8c90eb7f552088a3cb196d76de230417a1660b3d808a375ad9f9b3d",
+      "expectedSha256": "bd6d1e86a8c90eb7f552088a3cb196d76de230417a1660b3d808a375ad9f9b3d",
+      "hashMatches": true
+    },
+    {
+      "label": "candidate-subpath-index.html",
+      "url": "http://127.0.0.1:34285/boardstudio/index.html",
+      "status": 200,
+      "contentType": "text/html",
+      "sha256": "241cc4951bf5fb7046d4bf6006df88508e42e3a81a2636d97246b05de56dec69",
+      "expectedSha256": "241cc4951bf5fb7046d4bf6006df88508e42e3a81a2636d97246b05de56dec69",
+      "hashMatches": true
+    },
+    {
+      "label": "candidate-subpath-boardstudio-web-dxhdd4d1a803612f7b.js",
+      "url": "http://127.0.0.1:34285/boardstudio/assets/boardstudio-web-dxhdd4d1a803612f7b.js",
+      "status": 200,
+      "contentType": "text/javascript",
+      "sha256": "597f80e5be6618abd1e324e03cce9c08f945f9ef3e2aa894ac54019a53c3b5d2",
+      "expectedSha256": "597f80e5be6618abd1e324e03cce9c08f945f9ef3e2aa894ac54019a53c3b5d2",
+      "hashMatches": true
+    },
+    {
+      "label": "candidate-subpath-boardstudio-web_bg-dxh6324453db72c1a74.wasm",
+      "url": "http://127.0.0.1:34285/boardstudio/assets/boardstudio-web_bg-dxh6324453db72c1a74.wasm",
+      "status": 200,
+      "contentType": "application/wasm",
+      "sha256": "bd6d1e86a8c90eb7f552088a3cb196d76de230417a1660b3d808a375ad9f9b3d",
+      "expectedSha256": "bd6d1e86a8c90eb7f552088a3cb196d76de230417a1660b3d808a375ad9f9b3d",
+      "hashMatches": true
+    },
+    {
+      "label": "reference-index.html",
+      "url": "http://127.0.0.1:46881/index.html",
+      "status": 200,
+      "contentType": "text/html",
+      "sha256": "4114223c42fd444840928c11472c7a9284db8629c787a83ba7642e31102273aa",
+      "expectedSha256": "4114223c42fd444840928c11472c7a9284db8629c787a83ba7642e31102273aa",
+      "hashMatches": true
+    },
+    {
+      "label": "reference-__vite-browser-external-5wcixUzy.js",
+      "url": "http://127.0.0.1:46881/assets/__vite-browser-external-5wcixUzy.js",
+      "status": 200,
+      "contentType": "text/javascript",
+      "sha256": "ca4cae4aa8c8b513884b0ac03500ead3fe134491b97aa2379b08a44d2bb1f4f0",
+      "expectedSha256": "ca4cae4aa8c8b513884b0ac03500ead3fe134491b97aa2379b08a44d2bb1f4f0",
+      "hashMatches": true
+    },
+    {
+      "label": "reference-boardstudio_cadrum_wasm_bg-Zi6SCt0c.wasm",
+      "url": "http://127.0.0.1:46881/assets/boardstudio_cadrum_wasm_bg-Zi6SCt0c.wasm",
+      "status": 200,
+      "contentType": "application/wasm",
+      "sha256": "e8f6a988fe143b99486f0e4f6f1a3d3eff1e2ee5976079b648e160dda603a40c",
+      "expectedSha256": "e8f6a988fe143b99486f0e4f6f1a3d3eff1e2ee5976079b648e160dda603a40c",
+      "hashMatches": true
+    }
+  ],
+  "browserTimingStarted": false,
+  "eligibility": "HTTP route and representative-asset preflight only; final browser QA and coordinator quiet-host signal pending"
+}

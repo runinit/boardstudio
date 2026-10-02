@@ -1,0 +1,466 @@
+{
+  "runId": "paired-pointer-a49bb798-20261002",
+  "mode": "paired-candidate-reference-native-pointer-to-painted-transform",
+  "comparator": {
+    "eligible": false,
+    "eligibility": "one or more paired size/session records failed archive, target, environment, or sample identity checks",
+    "endpoint": "native pointermove receivedAt → first requestAnimationFrame opportunity after MutationObserver observes the same archived target part transform change",
+    "operations": "same generated .boardstudio archive, same single-part drag, same on-screen ±50px movement, 10 warmups, 100 measured samples",
+    "viewport": {
+      "width": 1280,
+      "height": 720,
+      "deviceScaleFactor": 1
+    },
+    "relativeThreshold": null,
+    "relativeThresholdMeaning": "No paired relative pass/fail allowance is defined; report the per-session differences as observations only. Existing per-size absolute caps remain unchanged."
+  },
+  "sessionsRequested": 5,
+  "candidateUrl": "http://127.0.0.1:34285/",
+  "driver": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs",
+  "wrapperSha256": "6e3dc159321d910033f3149ad7f942d55b85592bdd6c6742006e0214c5ef35f0",
+  "node": "v26.10.0",
+  "startedAt": "2026-10-02T01:04:09.159Z",
+  "invocations": [
+    {
+      "variant": "candidate",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:09.160Z",
+      "finishedAt": "2026-10-02T01:04:09.247Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-1-candidate/run.json"
+    },
+    {
+      "variant": "reference",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:09.247Z",
+      "finishedAt": "2026-10-02T01:04:09.518Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-1-reference/run.json"
+    },
+    {
+      "variant": "reference",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:09.519Z",
+      "finishedAt": "2026-10-02T01:04:09.734Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-2-reference/run.json"
+    },
+    {
+      "variant": "candidate",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:09.734Z",
+      "finishedAt": "2026-10-02T01:04:09.825Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-2-candidate/run.json"
+    },
+    {
+      "variant": "candidate",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:09.825Z",
+      "finishedAt": "2026-10-02T01:04:09.920Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-3-candidate/run.json"
+    },
+    {
+      "variant": "reference",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:09.921Z",
+      "finishedAt": "2026-10-02T01:04:10.147Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-3-reference/run.json"
+    },
+    {
+      "variant": "reference",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:10.147Z",
+      "finishedAt": "2026-10-02T01:04:10.388Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-4-reference/run.json"
+    },
+    {
+      "variant": "candidate",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:10.388Z",
+      "finishedAt": "2026-10-02T01:04:10.477Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-4-candidate/run.json"
+    },
+    {
+      "variant": "candidate",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:10.478Z",
+      "finishedAt": "2026-10-02T01:04:10.570Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-5-candidate/run.json"
+    },
+    {
+      "variant": "reference",
+      "argv": [
+        "/usr/bin/node",
+        "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/measure-candidate-pointer.mjs"
+      ],
+      "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/",
+      "startedAt": "2026-10-02T01:04:10.570Z",
+      "finishedAt": "2026-10-02T01:04:10.795Z",
+      "status": 1,
+      "signal": null,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\n    triggerUncaughtException(\n    ^\n\n[Error: ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'] {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'open',\n  path: '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/fixtures/manifest.json'\n}\n\nNode.js v26.10.0\n",
+      "output": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-5-reference/run.json"
+    }
+  ],
+  "sessions": [
+    {
+      "sessionNumber": 1,
+      "order": [
+        "candidate",
+        "reference"
+      ],
+      "candidate": {
+        "variant": "candidate",
+        "sessionNumber": 1,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-1-candidate/run.json'"
+      },
+      "reference": {
+        "variant": "reference",
+        "sessionNumber": 1,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-1-reference/run.json'"
+      }
+    },
+    {
+      "sessionNumber": 2,
+      "order": [
+        "reference",
+        "candidate"
+      ],
+      "reference": {
+        "variant": "reference",
+        "sessionNumber": 2,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-2-reference/run.json'"
+      },
+      "candidate": {
+        "variant": "candidate",
+        "sessionNumber": 2,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-2-candidate/run.json'"
+      }
+    },
+    {
+      "sessionNumber": 3,
+      "order": [
+        "candidate",
+        "reference"
+      ],
+      "candidate": {
+        "variant": "candidate",
+        "sessionNumber": 3,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-3-candidate/run.json'"
+      },
+      "reference": {
+        "variant": "reference",
+        "sessionNumber": 3,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-3-reference/run.json'"
+      }
+    },
+    {
+      "sessionNumber": 4,
+      "order": [
+        "reference",
+        "candidate"
+      ],
+      "reference": {
+        "variant": "reference",
+        "sessionNumber": 4,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-4-reference/run.json'"
+      },
+      "candidate": {
+        "variant": "candidate",
+        "sessionNumber": 4,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-4-candidate/run.json'"
+      }
+    },
+    {
+      "sessionNumber": 5,
+      "order": [
+        "candidate",
+        "reference"
+      ],
+      "candidate": {
+        "variant": "candidate",
+        "sessionNumber": 5,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-5-candidate/run.json'"
+      },
+      "reference": {
+        "variant": "reference",
+        "sessionNumber": 5,
+        "status": "run-record-unavailable",
+        "error": "ENOENT: no such file or directory, open '/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/.scratch/m1-production/evidence/performance/runs/paired-pointer-a49bb798-20261002/session-5-reference/run.json'"
+      }
+    }
+  ],
+  "scenarios": {},
+  "verdict": "incomplete-or-failed-runs-retained",
+  "pairedComparisons": {
+    "30": {
+      "samplesPerSession": 100,
+      "warmupsPerSession": 10,
+      "sessions": [
+        {
+          "sessionNumber": 1,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 2,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 3,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 4,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 5,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        }
+      ],
+      "eligibleObservations": false,
+      "interpretation": "Matched-endpoint observations only; there is no invented relative pass/fail threshold."
+    },
+    "100": {
+      "samplesPerSession": 100,
+      "warmupsPerSession": 10,
+      "sessions": [
+        {
+          "sessionNumber": 1,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 2,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 3,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 4,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 5,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        }
+      ],
+      "eligibleObservations": false,
+      "interpretation": "Matched-endpoint observations only; there is no invented relative pass/fail threshold."
+    },
+    "200": {
+      "samplesPerSession": 100,
+      "warmupsPerSession": 10,
+      "sessions": [
+        {
+          "sessionNumber": 1,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 2,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 3,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 4,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        },
+        {
+          "sessionNumber": 5,
+          "sameArchiveBytes": true,
+          "sameTarget": true,
+          "sameBrowserEnvironment": true,
+          "completeSamples": false,
+          "candidateP95Ms": null,
+          "referenceP95Ms": null,
+          "referenceMinusCandidateP95Ms": null,
+          "relativePassFail": null
+        }
+      ],
+      "eligibleObservations": false,
+      "interpretation": "Matched-endpoint observations only; there is no invented relative pass/fail threshold."
+    }
+  },
+  "finishedAt": "2026-10-02T01:04:10.796Z"
+}
