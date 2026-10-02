@@ -2093,7 +2093,7 @@
       "agent_routing": {
         "author_profile": "luna-high",
         "verifier_profile": "luna-high",
-        "reviewer_profile": "astra-review",
+        "reviewer_profile": "sol-review",
         "review_mode": "dedicated",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,
@@ -2199,7 +2199,7 @@
       "agent_routing": {
         "author_profile": "luna-medium",
         "verifier_profile": "luna-medium",
-        "reviewer_profile": "astra-review",
+        "reviewer_profile": "sol-review",
         "review_mode": "workflow_batch_eligible",
         "contract_review_before_implementation": false,
         "requires_dispatch_packet": true,

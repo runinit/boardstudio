@@ -137,3 +137,7 @@ The milestone-level prerequisites above describe integration context. The refine
 ### Refactoring observation handoff
 
 Update the [living RF register](../refactor-findings.json) and [post-port takeaways](../../../docs/migration/POST-PORT-REFACTOR.md) for architectural, design, theoretical or quality issues discovered in this slice, or record “No new refactoring takeaway observed” with reviewed scope. Distinguish confirmed findings from hypotheses; include evidence, impact, current mitigation, later proposal and validation. This does not authorize unrelated refactoring or defer required parity fixes.
+
+### Active reviewer routing and current public evidence
+
+For the current F8.4/F8.6 public Keymap-to-firmware qualification, route the independent review to `sol-review` (Sol 6.1 High, `gpt-6.1-sol`, high). The active routing is also recorded on F8.4 and F8.6 in [tasks.json](../tasks.json). Historical Astra and earlier source reviews remain preserved as completed historical evidence; this route does not replace them. The exact paired current-build results, downloaded ZMK packages, archive identity, snapshots, and hashes are in [the current qualification bundle](../evidence/case-keymap-current/keymap-layered-public/current-qualification/RESULTS.md). The public result is bounded: the Dioxus Keymap-local source export succeeds, while the Dioxus Export workspace still lacks the reference ZMK row; an unavailable-firmware case has not yet been qualified.

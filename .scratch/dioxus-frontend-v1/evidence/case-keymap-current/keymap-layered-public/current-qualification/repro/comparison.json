@@ -1,0 +1,27 @@
+{
+  "input_archive_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+  "reference_zip_sha256": "13e9aaf265f0639b02d213a1192f7c6daa8d34bd981146dd4b05ca9574540be1",
+  "candidate_zip_sha256": "425f29890dbe47fac446e3dd6c3321ca0a39f484301df8ff07ac895a2168ff13",
+  "actual_download_filename_both": "Sofle v2-zmk.zip",
+  "archive_entry_sets_equal": true,
+  "entry_count_reference": 15,
+  "entry_count_candidate": 15,
+  "raw_differing_entries": [
+    "electrical-plan.json"
+  ],
+  "electrical_plan_parsed_equal": true,
+  "electrical_plan_revisions": {
+    "react": {
+      "central": 12,
+      "peripheral": 12
+    },
+    "dioxus": {
+      "central": 12,
+      "peripheral": 12
+    }
+  },
+  "boardstudio_keymap_identical": true,
+  "boardstudio_keymap_contains_edited_w": true,
+  "react_export_route_matches_react_keymap_action_sha256": true,
+  "repro_operation_sequence": "Same imported project and Function / left-keys-SW1: Q -> W, Undo -> Q, Redo -> W; reload both browser profiles; verify W; export."
+}
