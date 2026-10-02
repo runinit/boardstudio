@@ -3,11 +3,11 @@ use super::super::{TreeContext, keycap_size::KeySizeControls};
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core::model::Vec2;
+use boardstudio_core::model::{Part, Side};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Event, HtmlInputElement, KeyboardEvent};
-use boardstudio_core::model::{Part, Side};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -317,7 +317,9 @@ fn mixed_size_draft_uses_react_visible_document_part_order() {
         .iter()
         .filter(|placement| selected.contains(placement.id.as_str()))
         .collect();
-    let first = selected_items.first().expect("both selected caps are projected");
+    let first = selected_items
+        .first()
+        .expect("both selected caps are projected");
     let first_units = ((first.size.x + 1.0) / 19.0 * 4.0).round() / 4.0;
     assert_eq!(first.id, "part-a");
     assert_eq!(first_units, 2.0, "Wide/Tall drafts from React's first item");
