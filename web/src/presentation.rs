@@ -1325,16 +1325,15 @@ fn Editor() -> Element {
     );
     // The Project-stage guide slot is coordinator-owned; this remains false until that mount is
     // supplied and connected. Case inspector intents are active independently.
-    let project_setup_active = false;
+    let project_setup_active: Rc<dyn Fn() -> bool> = Rc::new(|| false);
     let physical_setup_mount = pcb_physical_setup::use_controller(
         runtime.clone(),
         version,
         adapter.generation,
-        project_setup_active,
+        project_setup_active.clone(),
         instance_selection,
         Rc::new({
             let runtime = runtime.clone();
-            let workspace = workspace;
             let generation = adapter.generation;
             let selected_context = adapter.selected_context;
             let project_setup_active = project_setup_active;
@@ -1345,7 +1344,9 @@ fn Editor() -> Element {
                 };
                 let context_current = match identity.context {
                     pcb_physical_setup::OwnerContext::ProjectGuide => {
-                        project_setup_active && model.active_board_id == identity.board_id
+                        project_setup_active()
+                            && model.active_board_id == identity.board_id
+                            && (!strict || model.active_instance_id == identity.instance_id)
                     }
                     pcb_physical_setup::OwnerContext::CaseInspector => {
                         let Some(scope) = runtime.scope() else {

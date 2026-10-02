@@ -940,10 +940,10 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                                     value: match input.physical_setup.projection.transport { boardstudio_core::model::HardwareTransport::Wired => "wired", _ => "wireless" },
                                     disabled: input.physical_setup.projection.busy,
                                     onchange: {
-                                        let on_intent = input.physical_setup.on_intent;
+                                        let mount = input.physical_setup.clone();
                                         move |event: FormEvent| {
                                             let next = if event.value() == "wired" { boardstudio_core::model::HardwareTransport::Wired } else { boardstudio_core::model::HardwareTransport::Wireless };
-                                            on_intent.call(super::pcb_physical_setup::PhysicalSetupIntent::CaseTransport(next));
+                                            mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseTransport(next));
                                         }
                                     },
                                     option { value: "wireless", "Wireless · local battery on each half" }

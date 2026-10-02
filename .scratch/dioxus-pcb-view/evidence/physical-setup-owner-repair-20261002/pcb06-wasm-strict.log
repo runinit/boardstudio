@@ -1,0 +1,26 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/f56-physical-intents-ticket06-20261002/web)
+error: variants `ProjectTopology`, `ProjectTransport`, and `ProjectReversibleLayout` are never constructed
+  --> src/presentation/pcb_physical_setup/controller.rs:38:5
+   |
+37 | pub(in crate::presentation) enum PhysicalSetupIntent {
+   |                                  ------------------- variants in this enum
+38 |     ProjectTopology(bool),
+   |     ^^^^^^^^^^^^^^^
+39 |     ProjectTransport(HardwareTransport),
+   |     ^^^^^^^^^^^^^^^^
+40 |     ProjectReversibleLayout(bool),
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `PhysicalSetupIntent` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+   = note: `-D dead-code` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: function `project_setup_controls` is never used
+   --> src/presentation/pcb_physical_setup/controller.rs:319:32
+    |
+319 | pub(in crate::presentation) fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
+    |                                ^^^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 2 previous errors
