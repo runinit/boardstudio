@@ -764,7 +764,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 }
 
 .m1-layout-command-menu-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.m1-layout-command-menu-header button:focus-visible { outline: 2px solid var(--accent, #9caaff); outline-offset: 2px; }
+.m1-layout-command-menu-header button:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 
 /* Parts mechanical-fit controls preserve the reference center-workspace layout. */
 .m1-parts-actions { display: grid; gap: 4px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--wb-rule); }
