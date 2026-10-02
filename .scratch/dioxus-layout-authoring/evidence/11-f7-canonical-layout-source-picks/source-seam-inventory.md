@@ -1,6 +1,12 @@
 # F7 canonical Layout source and pick capability — source inventory
 
-**Frozen root source:** `9d34f3672f4f05cb3771bc5cd358508b13e9c31` (verified as the root worktree HEAD; relevant application files were clean at that commit). **React oracle:** `5a472a9426e6e38993361da402cd4ec730feb369`. **Planning scope:** source-only contract inventory; no application code executed or modified.
+**Frozen root source:** `9d34f3672f4f05cb3771bc5cd358508b13e9c31f` (verified as the root worktree HEAD; relevant application files were clean at that commit). **React oracle:** `5a472a9426e6e38993361da402cd4ec730feb369`. **Planning scope:** source-only contract inventory; no application code executed or modified.
+
+## Relationship to existing Layout viewer ticket
+
+This is a bounded source/pick prerequisite to existing F7.3b issue 03, [Canonical Layout shared viewer](../../../dioxus-shared-viewer/issues/03-shared-viewer-layout.md). It does not duplicate or replace that ticket. Issue 03 remains responsible for full canonical Layout viewer behavior, including enabled `BoardReference` pose/elevation, generated-keycap model suppression and keycap mesh inputs, module geometry, current-document conditional Case overlays, all supported selection mappings, camera/display controls, relevant loading/missing/error/retry states, and the public paired Layout consumer route. A base-source/pick proof here is not completion evidence for those open issue 03 acceptance criteria.
+
+The common model bridge is implementation reuse for issue 03: use reviewed F7.3f/F7.3g provider/preview capabilities when callable. Do not implement another byte provider, decoder, model cache, or full Case acceptance gate. A real model must traverse the existing route before F3.6 can treat this capability as ready; if the route has not been integrated, leave readiness open while the isolated source/mapper can still be prepared.
 
 ## Existing contracts that are sufficient
 
@@ -27,7 +33,7 @@
 - Read canonical geometry and `ProjectDoc` directly from the exact `AcceptedSnapshot`; choose `Scope.board_id` only after validating document ID, session epoch, active board and `snapshot.scene.revision == document.revision`.
 - Preserve the **complete captured current `Scope`** in owner freshness identity, including optional `instance_id`. The active Session may still carry a previously selected Case instance while workspace is Layout. `instance_id` is freshness metadata here, not a projection instruction: never normalize the scope or use it to reflect/offset Layout geometry. A scope change invalidates work; canonical output remains independent of that optional instance.
 - For authored boards, the existing preview protocol uses the canonical accepted document and only the selected board's accepted contours. For an enabled imported `BoardReference`, consume the matching accepted asset bytes via `PreviewBoard`. In either path require exact request ID, document/scope/source owner, preview revision and accepted token/revision before publishing.
-- The renderer input retains current assembly JSON contract (`kind=assembly`; canonical board thickness/contours/surfaces/holes/model descriptors, loaded mesh inputs, layers, display, theme and renderer sequence). Preserve renderer sequence as its own domain, unrelated to preview generation/model batch counters.
+- The renderer input retains current assembly JSON contract (`kind=assembly`; canonical board thickness/contours/surfaces/holes/model descriptors, optional `BoardReference` metadata, loaded mesh inputs, layers, display, theme and renderer sequence). Preserve renderer sequence as its own domain, unrelated to preview generation/model batch counters. This base-input contract does not accept issue 03's BoardReference pose/elevation or conditional overlays.
 - A supported pick is the renderer's model **reference**. Resolve only against the matching current `PcbPreview` and exactly one matching Part in `board.part_ids`. Mesh/cache `PcbModel.id`, a renderer layer ID, unknown/duplicate references, and wrong-board parts do not select a part. Recheck the full current Runtime Scope, accepted token/revision, board, Layout workspace/view generation, source owner lease and viewer identity at callback delivery.
 - Source work/model delivery is canceled or its result ignored on project/session replacement, accepted revision/token change, board/scope change (including `instance_id` change), workspace/view change, Core worker replacement, source owner replacement and unmount. Do not use numeric sequence equality as proof of common ownership.
 
@@ -36,7 +42,8 @@
 - Capability author owns one new page-binary private Layout source/pick leaf and colocated source/mapper tests. It should contain no canvas or renderer lifecycle and no copies of Core/Core-generation policy.
 - The coordinator owns any edits to `web/src/main.rs`, `web/src/runtime.rs`, `web/src/presentation.rs`, `web/src/presentation/shared_viewer.rs`, `web/src/renderer_host_page.rs`, and shared/global CSS. Handoff those call sites as a small serial patch so the common viewer stays one owner and feature modules remain disjoint.
 - Feature output is a private current canonical source projection plus an owner-checked pick-to-Part callback. F3.6 owns the 2D/3D/Footprints controls, command/context chrome, cancellation and preserved 2D camera. F7.3 owns the common renderer and all viewer lifecycle/display capabilities.
-- Start after accepted F7.1 private-call reachability/contract and the exact source capability listed above. Do not wait for unrelated F7.3 consumers. Acceptance still joins full F7.3 and mounted F3.1/F3.6 Layout selection/view journeys. This local packet does not change `tasks.json` or any of its 62 parent rows.
+- The relevant F7.1 decision is already recorded in `.scratch/dioxus-shared-viewer/evidence/source-contract-reviewed-20261002/reviewed-contract.md` and its final re-review: current wasm renderer exports suffice; private feature wrappers belong in the page binary; no public contract gap is shown. At frozen root source `9d34f3672f4f05cb3771bc5cd358508b13e9c31f`, `main.rs` declares `renderer_host_page`, and its `RendererPageHost` is same-binary private and wraps existing `setScene`/`pick`. This is the concrete call-path start evidence; do not wait for F7.1's unrelated remaining acceptance work or status label.
+- Start after independent Sol clearance of this exact capability contract. The new canonical source producer and owner-checked Layout pick mapping are the work this child must establish. Do not wait for unrelated F7.3 consumers or full Case public acceptance. Reuse the reviewed F7.3f/F7.3g model/preview bridge when callable. Acceptance still joins full F7.3, existing F7.3b issue 03's complete Layout consumer and mounted F3.1/F3.6 Layout selection/view journeys. This local packet does not change `tasks.json` or any of its 62 parent rows.
 
 ## RF handoff
 
@@ -44,7 +51,7 @@ This contract intersects existing RF-002 (public library/binary private reachabi
 
 ## Frozen source hashes (SHA-256)
 
-| Source at root commit `9d34f3672f4f05cb3771bc5cd358508b13e9c31` | SHA-256 |
+| Source at root commit `9d34f3672f4f05cb3771bc5cd358508b13e9c31f` | SHA-256 |
 | --- | --- |
 | `web/src/main.rs` | `3aa104c2c2d2eabc91ae6f6de38db0394a4a5cdd06dc995b4350121cd2e5c037` |
 | `web/src/runtime.rs` | `ff1333eedf03e7fa3e7c14f334a7b94211ab27f31c85d9f79303c19ceb218512` |
