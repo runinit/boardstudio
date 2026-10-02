@@ -20,6 +20,8 @@ pub const CORE_WORKER_FRAME_VERSION: u8 = 1;
 
 #[cfg(any(all(target_arch = "wasm32", feature = "page"), test))]
 mod core_protocol;
+#[cfg(all(test, feature = "page"))]
+mod matrix_transform_operation;
 #[cfg(any(all(target_arch = "wasm32", feature = "page"), test))]
 mod persistence_contract;
 

@@ -1,4 +1,7 @@
 //! Private form for matrix, row, column, and cell-local transform properties.
+use crate::matrix_transform_operation::{
+    MatrixTransformField, MatrixTransformFields, MatrixTransformValue,
+};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{MatrixSplayAffect, Mirror, Vec2};
 use dioxus::prelude::*;
@@ -14,38 +17,6 @@ pub(in crate::presentation) struct MatrixTransformInspectorOwner {
     pub scope: Scope,
     pub matrix_id: String,
     pub context: TreeContext,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) enum MatrixTransformValue {
-    Number(f64),
-    Mirror(Option<Mirror>),
-    Offset(Vec2),
-    CellTransform { offset: Vec2, rotation: f64 },
-    OriginMode(bool),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::presentation) enum MatrixTransformField {
-    OriginX,
-    OriginY,
-    MatrixRotation,
-    MatrixMirror,
-    RowOffsetX,
-    RowOffsetY,
-    RowOffsetReset,
-    ColumnOffsetX,
-    ColumnOffsetY,
-    ColumnOffsetReset,
-    ColumnStagger,
-    ColumnSplay,
-    SplayOriginMode,
-    SplayOriginX,
-    SplayOriginY,
-    KeyOffsetX,
-    KeyOffsetY,
-    KeyRotation,
-    KeyTransformReset,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,34 +45,6 @@ pub(in crate::presentation) struct MatrixTransformRequest {
     pub baseline: MatrixTransformValue,
     pub value: MatrixTransformValue,
     pub splay_affect: MatrixSplayAffect,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(in crate::presentation) enum MatrixTransformFields {
-    Matrix {
-        origin: Vec2,
-        rotation: f64,
-        mirror: Option<Mirror>,
-        mirror_y_locked: bool,
-    },
-    Row {
-        row: u32,
-        offset: Vec2,
-    },
-    Column {
-        column: u32,
-        offset: Vec2,
-        stagger: f64,
-        splay_angle: f64,
-        splay_origin: Vec2,
-        custom_origin: bool,
-    },
-    Key {
-        row: u32,
-        column: u32,
-        offset: Vec2,
-        rotation: f64,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -143,21 +86,21 @@ pub(in crate::presentation) fn MatrixTransformInspector(
             rsx! {
                 div { class: "m1-matrix-inspector-fields",
                     NumericTransformField {
-                        key: "{owner_key}-origin-x", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::OriginX, label: "Origin X", unit: "mm",
                         value: origin.x, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
-                        key: "{owner_key}-origin-y", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::OriginY, label: "Origin Y", unit: "mm",
                         value: origin.y, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
-                        key: "{owner_key}-rotation", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::MatrixRotation, label: "Rotation", unit: "°",
                         value: *rotation, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
@@ -177,14 +120,14 @@ pub(in crate::presentation) fn MatrixTransformInspector(
             rsx! {
                 div { class: "m1-matrix-inspector-fields",
                     NumericTransformField {
-                        key: "{owner_key}-offset-x", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::RowOffsetX, label: "Offset X", unit: "mm",
                         value: offset.x, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
-                        key: "{owner_key}-offset-y", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::RowOffsetY, label: "Offset Y", unit: "mm",
                         value: offset.y, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
@@ -215,7 +158,7 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                 section { class: "m1-matrix-transform-section", aria_label: "Splay and origin",
                     h3 { "Splay & origin" }
                     NumericTransformField {
-                        key: "{owner_key}-splay", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::ColumnSplay, label: "Splay", unit: "°",
                         value: *splay_angle, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
@@ -229,14 +172,14 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                     }
                     div { class: "m1-matrix-inspector-fields",
                         NumericTransformField {
-                            key: "{owner_key}-splay-origin-x", owner: owner.clone(), snapshot_token, revision,
+                            owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::SplayOriginX, label: "Origin X", unit: "mm",
                             value: splay_origin.x, request_sequence, editable: props.mount.editable,
                             busy: props.mount.busy, feedback: props.mount.feedback.clone(),
                             on_edit, splay_affect,
                         }
                         NumericTransformField {
-                            key: "{owner_key}-splay-origin-y", owner: owner.clone(), snapshot_token, revision,
+                            owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::SplayOriginY, label: "Origin Y", unit: "mm",
                             value: splay_origin.y, request_sequence, editable: props.mount.editable,
                             busy: props.mount.busy, feedback: props.mount.feedback.clone(),
@@ -260,7 +203,7 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                 section { class: "m1-matrix-transform-section", aria_label: "Position and rotation",
                     h3 { "Position & rotation" }
                     NumericTransformField {
-                        key: "{owner_key}-stagger", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::ColumnStagger, label: "Stagger", unit: "mm",
                         value: *stagger, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
@@ -268,14 +211,14 @@ pub(in crate::presentation) fn MatrixTransformInspector(
                     }
                     div { class: "m1-matrix-inspector-fields",
                         NumericTransformField {
-                            key: "{owner_key}-column-offset-x", owner: owner.clone(), snapshot_token, revision,
+                            owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::ColumnOffsetX, label: "Offset X", unit: "mm",
                             value: offset.x, request_sequence, editable: props.mount.editable,
                             busy: props.mount.busy, feedback: props.mount.feedback.clone(),
                             on_edit, splay_affect,
                         }
                         NumericTransformField {
-                            key: "{owner_key}-column-offset-y", owner: owner.clone(), snapshot_token, revision,
+                            owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::ColumnOffsetY, label: "Offset Y", unit: "mm",
                             value: offset.y, request_sequence, editable: props.mount.editable,
                             busy: props.mount.busy, feedback: props.mount.feedback.clone(),
@@ -304,21 +247,21 @@ pub(in crate::presentation) fn MatrixTransformInspector(
             rsx! {
                 div { class: "m1-matrix-inspector-fields",
                     NumericTransformField {
-                        key: "{owner_key}-local-x", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::KeyOffsetX, label: "Local X", unit: "mm",
                         value: offset.x, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
-                        key: "{owner_key}-local-y", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::KeyOffsetY, label: "Local Y", unit: "mm",
                         value: offset.y, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
-                        key: "{owner_key}-key-rotation", owner: owner.clone(), snapshot_token, revision,
+                        owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::KeyRotation, label: "Key rotation", unit: "°",
                         value: *rotation, request_sequence, editable: props.mount.editable,
                         busy: props.mount.busy, feedback: props.mount.feedback.clone(),
@@ -338,7 +281,7 @@ pub(in crate::presentation) fn MatrixTransformInspector(
         ),
     };
     rsx! {
-        section { class: "m1-matrix-inspector m1-matrix-transform-inspector", aria_label: "Matrix transform properties",
+        section { key: "{owner_key}", class: "m1-matrix-inspector m1-matrix-transform-inspector", aria_label: "Matrix transform properties",
             header { class: "m1-matrix-inspector-heading",
                 h2 { "{title}" }
                 span { "{projection.label}" }

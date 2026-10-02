@@ -43,6 +43,10 @@ mod case_display;
 #[path = "presentation/closure_clearance.rs"]
 mod closure_clearance;
 
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+#[path = "matrix_transform_operation.rs"]
+mod matrix_transform_operation;
+
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
     dioxus::launch(app);
