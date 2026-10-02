@@ -1,0 +1,26 @@
+{
+  "source_commit": "47cf655b",
+  "build": "frontend-panels-47cf655b-20261002",
+  "status": "implementation and public browser checks complete; actual AT evidence remains separately open",
+  "checks": {
+    "strict_wasm_clippy": "passed -D warnings",
+    "cargo_fmt": "passed",
+    "fresh_build": "root/subpath page and offline completed",
+    "public_timer_regression": "green after independently captured red",
+    "responsive_widths": "green at1280x650,1000x650,1280x500",
+    "desktop_timer_control": "green",
+    "layout_keycaps_layers_footprints_regression": "passes a3 unchanged affected canvas source",
+    "independent_browser": "timer, width, two modes/hover/focus, reload/workspace, malformed/unavailable preference storage, neutral revision/camera, mounted85row scroll, card order, themes, keyboard, zero axe violations"
+  },
+  "independent_reviews": [
+    "panels-timer-standards-review.md",
+    "panels-timer-spec-review.md"
+  ],
+  "joins": [
+    "actual assistive-technology evidence remains separately required",
+    "T1-02 listing/open correctness remains open",
+    "T1-10 tree adapter worker source review ongoing",
+    "T1-08 resize and T1-09 drawer behavior remain separate"
+  ],
+  "evidence_limit": "No actual assistive-technology host; no AT pass claimed"
+}
