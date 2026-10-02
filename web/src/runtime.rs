@@ -1,5 +1,5 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
-use crate::archive_export::{ArchiveOptionCaptures, archive_filename};
+use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
     SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
@@ -89,13 +89,12 @@ pub struct Runtime {
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     step_exports: RefCell<BTreeSet<OperationId>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
-    embed_used_models: Cell<bool>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::presentation::model_delivery::ModelDeliveryAdapter,
     native_model_delivery: RefCell<NativeModelDeliveryState>,
     native_model_jobs: RefCell<BTreeSet<String>>,
     preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
-    archive_option_captures: RefCell<ArchiveOptionCaptures>,
+    archive_export_options: ArchiveExportOptions,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
@@ -123,13 +122,12 @@ impl Runtime {
             cad_jobs: RefCell::new(BTreeMap::new()),
             step_exports: RefCell::new(BTreeSet::new()),
             export_workers: RefCell::new(BTreeMap::new()),
-            embed_used_models: Cell::new(true),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
             native_model_delivery: RefCell::new(Default::default()),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             preview_generator: RefCell::new(None),
-            archive_option_captures: RefCell::new(ArchiveOptionCaptures::default()),
+            archive_export_options: ArchiveExportOptions::default(),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
@@ -172,10 +170,10 @@ impl Runtime {
         self.status.borrow().clone()
     }
     pub(crate) fn embed_used_models(&self) -> bool {
-        self.embed_used_models.get()
+        self.archive_export_options.embed_used_models()
     }
     pub(crate) fn set_embed_used_models(&self, value: bool) {
-        if self.embed_used_models.replace(value) != value {
+        if self.archive_export_options.set_embed_used_models(value) {
             self.changed();
         }
     }
@@ -734,9 +732,7 @@ impl Runtime {
                     .operation_outcomes
                     .settle(operation_id, outcome.clone());
                 self.step_exports.borrow_mut().remove(&operation_id);
-                self.archive_option_captures
-                    .borrow_mut()
-                    .remove(operation_id);
+                self.archive_export_options.settle(operation_id);
                 match outcome {
                     TerminalOutcome::Completed => self.report("Saved locally."),
                     TerminalOutcome::Rejected(reason)
@@ -816,18 +812,25 @@ impl Runtime {
                 snapshot,
             } => {
                 let is_step_export = self.step_exports.borrow().contains(&operation_id);
-                let embed_used_models = if is_step_export {
-                    None
-                } else {
-                    self.archive_option_captures.borrow_mut().take(operation_id)
-                };
-                let result = if is_step_export {
-                    self.step_bytes(operation_id, &snapshot, &scope).await
-                } else if let Some(embed_used_models) = embed_used_models {
-                    self.pack_archive(operation_id, &snapshot, &scope, embed_used_models)
-                        .await
-                } else {
-                    Err("Archive option was not captured for this export; try again.".into())
+                let work: Result<ArchiveWorkFuture<'_>, String> =
+                    self.archive_export_options.dispatch(
+                        operation_id,
+                        is_step_export,
+                        || -> ArchiveWorkFuture<'_> {
+                            Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
+                        },
+                        |embed_used_models| -> ArchiveWorkFuture<'_> {
+                            Box::pin(self.pack_archive(
+                                operation_id,
+                                &snapshot,
+                                &scope,
+                                embed_used_models,
+                            ))
+                        },
+                    );
+                let result = match work {
+                    Ok(future) => future.await,
+                    Err(reason) => Err(reason),
                 };
                 match result {
                     Ok(bytes) => {
@@ -857,7 +860,7 @@ impl Runtime {
                         self.complete(Completion::ExportFinished {
                             operation_id,
                             token: snapshot.token,
-                            scope,
+                            scope: scope.clone(),
                             artifact_id,
                         })
                     }
@@ -907,9 +910,7 @@ impl Runtime {
             }
             Effect::CancelExport { operation_id } => {
                 self.cancelled_exports.borrow_mut().insert(operation_id);
-                self.archive_option_captures
-                    .borrow_mut()
-                    .remove(operation_id);
+                self.archive_export_options.cancel(operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
@@ -1584,9 +1585,7 @@ impl Runtime {
             return;
         };
         let operation_id = self.operation();
-        self.archive_option_captures
-            .borrow_mut()
-            .capture(operation_id, self.embed_used_models.get());
+        self.archive_export_options.begin_archive(operation_id);
         self.submit(Event::StartExport {
             operation_id,
             scope,
