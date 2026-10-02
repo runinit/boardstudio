@@ -41,7 +41,24 @@ fn composition() -> Element {
     let mut previewed = use_signal(|| None::<MirroredPairRequest>);
     let mut cancelled = use_signal(|| None::<MirroredPairOwner>);
     rsx! {
-        aside { id: "mirror-overlay-objects", "Objects navigation" }
+        aside { id: "mirror-overlay-objects",
+            super::super::LayoutAddObjectEntry {
+                matrix_setup: None,
+                mirrored_pair: Some(MirroredPairMount {
+                    form: Some(current()),
+                    placement: None,
+                    can_open: true,
+                    owns_canvas: false,
+                    on_open: EventHandler::default(),
+                    on_cancel: EventHandler::default(),
+                    on_return_to_form: EventHandler::default(),
+                    on_preview: EventHandler::default(),
+                    on_move: EventHandler::default(),
+                    on_commit: EventHandler::default(),
+                    on_created: EventHandler::default(),
+                }),
+            }
+        }
         section { id: "mirror-overlay-workspace", class: "m1-workspace-content",
             div { id: "mirror-overlay-canvas", "Layout canvas" }
             if active() {
