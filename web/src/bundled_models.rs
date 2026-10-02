@@ -5,6 +5,7 @@ pub(crate) struct BundledModel {
     pub(crate) media_type: &'static str,
     pub(crate) source_relative_path: &'static str,
     pub(crate) url_path: &'static str,
+    pub(crate) sha256: &'static str,
 }
 
 include!(concat!(env!("OUT_DIR"), "/bundled_ergogen_models.rs"));
@@ -17,13 +18,25 @@ pub(crate) fn bundled_model(id: &str) -> Option<&'static BundledModel> {
 pub(crate) async fn generated_model_ids(
     document: &boardstudio_core::model::ProjectDoc,
 ) -> Result<Vec<String>, String> {
+    generated_model_ids_with_module(document, layout_generator_module().await?)
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub(crate) async fn generated_model_asset_ids_for_paths(
+    paths: &[String],
+) -> Result<Vec<Option<String>>, String> {
+    model_asset_ids_for_paths_with_module(paths, layout_generator_module().await?)
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+async fn layout_generator_module() -> Result<wasm_bindgen::JsValue, String> {
     use js_sys::Function;
     use wasm_bindgen::{JsCast, JsValue};
     use wasm_bindgen_futures::JsFuture;
 
     let url = crate::runtime::resource_url("assets/layout-generators/src/index.js")?;
     let importer = Function::new_with_args("url", "return import(url)");
-    let module = JsFuture::from(
+    JsFuture::from(
         importer
             .call1(&JsValue::NULL, &url.into())
             .map_err(|error| format!("Could not load Ergogen generator metadata: {error:?}"))?
@@ -31,9 +44,27 @@ pub(crate) async fn generated_model_ids(
             .map_err(|error| format!("Could not load Ergogen generator metadata: {error:?}"))?,
     )
     .await
-    .map_err(|error| format!("Could not load Ergogen generator metadata: {error:?}"))?;
+    .map_err(|error| format!("Could not load Ergogen generator metadata: {error:?}"))
+}
 
-    generated_model_ids_with_module(document, module)
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+fn model_asset_ids_for_paths_with_module(
+    paths: &[String],
+    module: wasm_bindgen::JsValue,
+) -> Result<Vec<Option<String>>, String> {
+    use js_sys::{Array, Function, JsString};
+    use wasm_bindgen::{JsCast, JsValue};
+
+    let resolver = js_sys::Reflect::get(&module, &JsString::from("modelAssetIdsForPaths"))
+        .map_err(|error| format!("Ergogen model path resolver is unavailable: {error:?}"))?
+        .dyn_into::<Function>()
+        .map_err(|error| format!("Ergogen model path resolver is unavailable: {error:?}"))?;
+    let paths = Array::from_iter(paths.iter().map(|path| JsValue::from_str(path)));
+    let result = resolver
+        .call1(&module, &paths)
+        .map_err(|error| format!("Could not resolve Ergogen model paths: {error:?}"))?;
+    serde_wasm_bindgen::from_value(result)
+        .map_err(|error| format!("Ergogen model path results are invalid: {error}"))
 }
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
@@ -191,6 +222,7 @@ pub(crate) async fn bundled_model_bytes(id: &str) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::{BUNDLED_MODELS, BundledModel, bundled_model};
+    use sha2::{Digest, Sha256};
     use std::collections::BTreeSet;
 
     #[test]
@@ -209,6 +241,8 @@ mod tests {
         for model in models {
             assert!(model.id.starts_with("ergogen:model:"));
             assert!(model.url_path.starts_with("assets/ergogen-models/model-"));
+            assert_eq!(model.sha256.len(), 64);
+            assert!(model.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()));
             assert!(
                 !model
                     .url_path
@@ -221,6 +255,22 @@ mod tests {
                     .split('/')
                     .any(|segment| segment.is_empty() || matches!(segment, "." | ".."))
             );
+        }
+    }
+
+    #[test]
+    fn catalogue_digest_matches_the_exact_staged_vendor_source_file() {
+        let vendor_root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ergogen/library/vendor");
+        for model in BUNDLED_MODELS {
+            let bytes = std::fs::read(vendor_root.join(model.source_relative_path))
+                .expect("catalogue source file is available");
+            let digest = Sha256::digest(&bytes);
+            let digest = digest
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            assert_eq!(model.sha256, digest, "{}", model.id);
         }
     }
 
@@ -273,7 +323,7 @@ mod tests {
 
 #[cfg(all(test, target_arch = "wasm32", feature = "page"))]
 mod wasm_tests {
-    use super::generated_model_ids_with_module;
+    use super::{generated_model_ids_with_module, model_asset_ids_for_paths_with_module};
     use boardstudio_core::model::{PartDefinition, ProjectDoc};
     use js_sys::Function;
     use serde_json::json;
@@ -325,6 +375,39 @@ mod wasm_tests {
         assert_eq!(
             generated_model_ids_with_module(&document, module).unwrap(),
             vec!["local-switch"]
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn native_preview_paths_use_the_packaged_ergogen_asset_identity_helper() {
+        let url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
+            Some(url) => url,
+            None => panic!("run scripts/web/test-portable-models.mjs to provide packaged module"),
+        };
+        let importer = Function::new_with_args("url", "return import(url)");
+        let module = JsFuture::from(
+            importer
+                .call1(&JsValue::NULL, &url.into())
+                .unwrap()
+                .dyn_into::<js_sys::Promise>()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        let paths = vec![
+            "${KIPRJMOD}/models/boardstudio/kiswitch/SW_Cherry_MX_PCB.stp".to_owned(),
+            "${KIPRJMOD}/models/boardstudio/thqwgd001/THQWGD001-rotation.stp".to_owned(),
+            "${EG_INFUSED_KIM_3D_MODELS}/diode/example.wrl".to_owned(),
+            "C:/untrusted/model.step".to_owned(),
+        ];
+        assert_eq!(
+            model_asset_ids_for_paths_with_module(&paths, module).unwrap(),
+            vec![
+                Some("ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp".to_owned()),
+                Some("ergogen:model:thqwgd001/THQWGD001-rotation.stp".to_owned()),
+                Some("ergogen:model:infused-kim/diode/example.wrl".to_owned()),
+                None,
+            ]
         );
     }
 }

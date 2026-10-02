@@ -130,11 +130,19 @@ pub(crate) struct ResolvedModelAsset {
     pub(crate) id: String,
     pub(crate) sha256: String,
     pub(crate) filename: String,
+    pub(crate) source: ModelAssetSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ModelAssetSource {
+    Document,
+    Packaged { url_path: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum AssetSelection {
     Archived(ResolvedModelAsset),
+    Packaged(ResolvedModelAsset),
     MissingDocumentAsset { asset_id: String },
     MissingBundledProvider { asset_id: String },
     NoAssetId,
@@ -164,6 +172,7 @@ pub(crate) fn select_model_asset(
             id: asset.id.clone(),
             sha256: asset.sha256.clone(),
             filename: asset.name.clone(),
+            source: ModelAssetSource::Document,
         });
     }
 
@@ -235,11 +244,12 @@ impl ModelFormat {
 }
 
 /// Ports supplied by Runtime and RendererPageHost. `load_verified_bytes`
-/// accepts a SHA identity only; decoding callbacks consume verified bytes.
+/// accepts an exact source descriptor; decoding callbacks consume verified bytes.
 /// STEP uses the existing identity-checked CAD worker rather than a second
 /// parser implementation in presentation code.
 pub(crate) struct ModelDeliveryPorts {
-    pub(crate) load_verified_bytes: Rc<dyn Fn(String) -> ModelFuture<Option<VerifiedModelBytes>>>,
+    pub(crate) load_verified_bytes:
+        Rc<dyn Fn(ResolvedModelAsset) -> ModelFuture<Option<VerifiedModelBytes>>>,
     pub(crate) decode_stl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
     pub(crate) decode_wrl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
     pub(crate) read_step:
@@ -262,7 +272,7 @@ impl ModelDeliveryPorts {
         &self,
         asset: &ResolvedModelAsset,
     ) -> Result<Option<VerifiedModelBytes>, String> {
-        let result = (self.load_verified_bytes)(asset.sha256.clone()).await?;
+        let result = (self.load_verified_bytes)(asset.clone()).await?;
         if let Some(bytes) = &result
             && !bytes.sha256().eq_ignore_ascii_case(&asset.sha256)
         {
@@ -665,7 +675,7 @@ impl ModelDeliveryAdapter {
                 continue;
             };
             let asset = match selection {
-                AssetSelection::Archived(asset) => asset.clone(),
+                AssetSelection::Archived(asset) | AssetSelection::Packaged(asset) => asset.clone(),
                 AssetSelection::MissingDocumentAsset { asset_id } => {
                     direct.insert(
                         model.id.clone(),
@@ -884,6 +894,7 @@ pub(crate) fn resolve_preview_assets(
     native_path_assets: &BTreeMap<String, String>,
     document: &ProjectDoc,
     ergogen_model_asset_id: impl Fn(&str) -> Option<String>,
+    packaged_asset: impl Fn(&str) -> Option<ResolvedModelAsset>,
 ) -> Vec<(String, AssetSelection)> {
     models
         .iter()
@@ -895,6 +906,12 @@ pub(crate) fn resolve_preview_assets(
                 &document.assets,
                 |path| ergogen_model_asset_id(path),
             );
+            let selection = match selection {
+                AssetSelection::MissingBundledProvider { asset_id } => packaged_asset(&asset_id)
+                    .map(AssetSelection::Packaged)
+                    .unwrap_or(AssetSelection::MissingBundledProvider { asset_id }),
+                selection => selection,
+            };
             (model.id.clone(), selection)
         })
         .collect()
@@ -1005,6 +1022,7 @@ mod tests {
                 id: "native".into(),
                 sha256: "b".into(),
                 filename: "native.wrl".into(),
+                source: ModelAssetSource::Document,
             })
         );
         let reference = BoardReference {
@@ -1027,6 +1045,7 @@ mod tests {
                 id: "attached".into(),
                 sha256: "a".into(),
                 filename: "attached.stl".into(),
+                source: ModelAssetSource::Document,
             })
         );
         assert_eq!(
@@ -1036,6 +1055,44 @@ mod tests {
             AssetSelection::MissingBundledProvider {
                 asset_id: "ergogen:model:vendor/missing.stl".into()
             }
+        );
+    }
+
+    #[test]
+    fn accepted_kiswitch_preview_path_resolves_to_the_known_packaged_descriptor() {
+        let path = "${KIPRJMOD}/models/boardstudio/kiswitch/SW_Cherry_MX_PCB.stp";
+        let id = "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp";
+        let document = ProjectDoc::empty("case-models", "Case model path test");
+        let resolved = resolve_preview_assets(
+            &[model("mesh-row", "SW1", path)],
+            None,
+            &BTreeMap::new(),
+            &document,
+            |preview_path| (preview_path == path).then(|| id.to_owned()),
+            |asset_id| {
+                (asset_id == id).then(|| ResolvedModelAsset {
+                    id: id.to_owned(),
+                    sha256: "a".repeat(64),
+                    filename: "SW_Cherry_MX_PCB.stp".to_owned(),
+                    source: ModelAssetSource::Packaged {
+                        url_path: "assets/ergogen-models/model-test.stp".to_owned(),
+                    },
+                })
+            },
+        );
+        assert_eq!(
+            resolved,
+            vec![(
+                "mesh-row".to_owned(),
+                AssetSelection::Packaged(ResolvedModelAsset {
+                    id: id.to_owned(),
+                    sha256: "a".repeat(64),
+                    filename: "SW_Cherry_MX_PCB.stp".to_owned(),
+                    source: ModelAssetSource::Packaged {
+                        url_path: "assets/ergogen-models/model-test.stp".to_owned(),
+                    },
+                })
+            )]
         );
     }
 
@@ -1056,6 +1113,7 @@ mod tests {
                 id: "asset-1".into(),
                 sha256: "ab".into(),
                 filename: "part.stl".into(),
+                source: ModelAssetSource::Document,
             })
         );
     }
@@ -1221,10 +1279,11 @@ mod tests {
         let digest = sha256_hex(&bytes);
         let expected_digest = digest.clone();
         let ports = ModelDeliveryPorts {
-            load_verified_bytes: Rc::new(move |sha| {
+            load_verified_bytes: Rc::new(move |asset| {
                 let bytes = bytes.clone();
                 let expected_digest = expected_digest.clone();
                 Box::pin(async move {
+                    let sha = asset.sha256;
                     if sha != expected_digest {
                         return Err("unexpected SHA".into());
                     }
@@ -1246,6 +1305,7 @@ mod tests {
                     id: "asset-1".into(),
                     sha256: digest.clone(),
                     filename: "switch.stl".into(),
+                    source: ModelAssetSource::Document,
                 }),
             );
         }

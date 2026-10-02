@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
     env, fs,
@@ -137,13 +138,23 @@ fn generate_bundled_ergogen_models(output: &Path) {
         };
         let token = stable_model_token(&relative);
         let url_path = format!("assets/ergogen-models/model-{token:016x}.{extension}");
+        let source_bytes = fs::read(source_path).unwrap_or_else(|error| {
+            panic!(
+                "could not read packaged Ergogen model {}: {error}",
+                source_path.display()
+            )
+        });
+        let sha256 = Sha256::digest(source_bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
         assert!(
             emitted_paths.insert(url_path.clone()),
             "bundled model staging path collision: {url_path}"
         );
         rows.push_str(&format!(
-            "    BundledModel {{ id: {:?}, filename: {:?}, media_type: {:?}, source_relative_path: {:?}, url_path: {:?} }},\n",
-            id, filename, media_type, relative, url_path
+            "    BundledModel {{ id: {:?}, filename: {:?}, media_type: {:?}, source_relative_path: {:?}, url_path: {:?}, sha256: {:?} }},\n",
+            id, filename, media_type, relative, url_path, sha256
         ));
     }
     let source = format!("pub(super) static BUNDLED_MODELS: &[BundledModel] = &[\n{rows}];\n");

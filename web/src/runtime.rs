@@ -1026,12 +1026,60 @@ impl Runtime {
         );
         let native_paths =
             crate::presentation::model_delivery::native_model_path_assets(&preview.path_assets);
+        let unique_model_paths = preview
+            .preview
+            .models
+            .iter()
+            .map(|model| model.path.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let model_asset_ids =
+            match crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
+                .await
+            {
+                Ok(model_asset_ids) => model_asset_ids,
+                Err(error) => {
+                    let owns_pending = self.native_model_delivery.borrow().pending.as_ref()
+                        == Some(&preview.owner);
+                    if owns_pending {
+                        self.native_model_delivery.borrow_mut().pending = None;
+                        self.changed();
+                    }
+                    return Err(error);
+                }
+            };
+        if model_asset_ids.len() != unique_model_paths.len() {
+            let owns_pending =
+                self.native_model_delivery.borrow().pending.as_ref() == Some(&preview.owner);
+            if owns_pending {
+                self.native_model_delivery.borrow_mut().pending = None;
+                self.changed();
+            }
+            return Err("Ergogen returned an incomplete model path mapping".into());
+        }
+        let ergogen_ids_by_path = unique_model_paths
+            .into_iter()
+            .zip(model_asset_ids)
+            .collect::<BTreeMap<_, _>>();
         let selections = crate::presentation::model_delivery::resolve_preview_assets(
             &preview.preview.models,
             None,
             &native_paths,
             &preview.accepted_document,
-            |_| None,
+            |path| ergogen_ids_by_path.get(path).cloned().flatten(),
+            |asset_id| {
+                crate::bundled_models::bundled_model(asset_id).map(|model| {
+                    crate::presentation::model_delivery::ResolvedModelAsset {
+                        id: model.id.to_owned(),
+                        sha256: model.sha256.to_owned(),
+                        filename: model.filename.to_owned(),
+                        source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                            url_path: model.url_path.to_owned(),
+                        },
+                    }
+                })
+            },
         )
         .into_iter()
         .collect::<BTreeMap<_, _>>();
@@ -1152,7 +1200,8 @@ impl Runtime {
         is_current: Rc<dyn Fn() -> bool>,
     ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
         use crate::presentation::model_delivery::{
-            MeshArrays, ModelDeliveryPorts, ModelFuture, VerifiedModelBytes,
+            MeshArrays, ModelAssetSource, ModelDeliveryPorts, ModelFuture, ResolvedModelAsset,
+            VerifiedModelBytes,
         };
         let scope = preview.owner.scope.clone();
         let token = preview.owner.snapshot_token;
@@ -1165,12 +1214,13 @@ impl Runtime {
         let lease_for_load = lease.clone();
         let current_for_load = is_current.clone();
         let load_verified_bytes = Rc::new(
-            move |sha256: String| -> ModelFuture<Option<VerifiedModelBytes>> {
+            move |asset: ResolvedModelAsset| -> ModelFuture<Option<VerifiedModelBytes>> {
                 let weak = weak.clone();
                 let scope = scope_for_load.clone();
                 let lease = lease_for_load.clone();
                 let is_current = current_for_load.clone();
                 Box::pin(async move {
+                    let sha256 = asset.sha256.clone();
                     let runtime = weak
                         .upgrade()
                         .ok_or_else(|| "Case runtime was closed".to_owned())?;
@@ -1178,14 +1228,38 @@ impl Runtime {
                         return Err("Case model asset request became stale before loading".into());
                     }
                     let cached = runtime.assets.borrow().get(&sha256).cloned();
-                    let bytes = match cached {
-                        Some(bytes) => Some(bytes),
-                        None => runtime
-                            .store
-                            .load_asset(sha256.clone())
-                            .await
-                            .map_err(|error| error.to_string())?
-                            .map(|bytes| bytes.to_vec()),
+                    let (bytes, cache_packaged) = match (asset.source.clone(), cached) {
+                        (ModelAssetSource::Document, Some(bytes)) => (Some(bytes.to_vec()), false),
+                        (ModelAssetSource::Document, None) => (
+                            runtime
+                                .store
+                                .load_asset(sha256.clone())
+                                .await
+                                .map_err(|error| error.to_string())?
+                                .map(|bytes| bytes.to_vec()),
+                            false,
+                        ),
+                        (ModelAssetSource::Packaged { .. }, Some(bytes)) => {
+                            (Some(bytes.to_vec()), false)
+                        }
+                        (ModelAssetSource::Packaged { url_path }, None) => {
+                            let descriptor_matches = crate::bundled_models::bundled_model(
+                                &asset.id,
+                            )
+                            .is_some_and(|model| {
+                                model.url_path == url_path && model.sha256 == asset.sha256
+                            });
+                            if !descriptor_matches {
+                                return Err(
+                                    "Packaged model descriptor no longer matches the catalogue"
+                                        .into(),
+                                );
+                            }
+                            (
+                                Some(crate::bundled_models::bundled_model_bytes(&asset.id).await?),
+                                true,
+                            )
+                        }
                     };
                     if !is_current()
                         || !lease.is_active()
@@ -1193,9 +1267,14 @@ impl Runtime {
                     {
                         return Err("Case model asset request became stale after loading".into());
                     }
-                    bytes
-                        .map(|bytes| VerifiedModelBytes::verify(bytes, &sha256))
-                        .transpose()
+                    let Some(bytes) = bytes else {
+                        return Ok(None);
+                    };
+                    let verified = VerifiedModelBytes::verify(bytes.clone(), &sha256)?;
+                    if cache_packaged {
+                        runtime.assets.borrow_mut().insert(sha256, bytes);
+                    }
+                    Ok(Some(verified))
                 })
             },
         );

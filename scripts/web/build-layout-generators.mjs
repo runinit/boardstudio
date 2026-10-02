@@ -14,7 +14,7 @@ const assets = resolve(destination);
 const input = await readFile(join(root, 'ergogen/src/index.ts'), 'utf8');
 const catalogue = await readFile(join(root, 'ergogen/generated/catalogue.mjs'));
 const output = stripTypeScriptTypes(input);
-const entrypoint = "export { isErgogen, parameters, render } from './layout-generators/src/index.js';\n";
+const entrypoint = "export { isErgogen, modelAssetIdsForPaths, parameters, render } from './layout-generators/src/index.js';\n";
 await mkdir(join(assets, 'layout-generators/src'), { recursive: true });
 await mkdir(join(assets, 'layout-generators/generated'), { recursive: true });
 await writeFile(join(assets, 'layout-generators/src/index.js'), output);
@@ -23,10 +23,11 @@ await writeFile(join(assets, 'layout-generators.js'), entrypoint);
 const service = await import(pathToFileURL(join(assets, 'layout-generators.js')).href);
 const mxDefaults = service.parameters?.('ceoloide/switch_mx');
 if (typeof service.isErgogen !== 'function' || typeof service.render !== 'function'
+  || typeof service.modelAssetIdsForPaths !== 'function'
   || typeof service.parameters !== 'function' || !service.isErgogen('ceoloide/switch_mx')
   || mxDefaults?.keycap_width?.value !== 18 || mxDefaults?.keycap_height?.value !== 18
   || mxDefaults?.include_keycap?.value !== true) {
-  throw new Error('Packaged generator service must expose isErgogen/render/parameters and the MX preview defaults');
+  throw new Error('Packaged generator service must expose isErgogen/modelAssetIdsForPaths/render/parameters and the MX preview defaults');
 }
 console.log('Verified packaged generator service and ceoloide/switch_mx preview defaults');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');

@@ -308,6 +308,11 @@ export function modelAssetId(path: string): string | undefined {
   return undefined;
 }
 
+/** Resolve a batch of preview model paths using the same rules as modelAssetId. */
+export function modelAssetIdsForPaths(paths: readonly string[]): (string | null)[] {
+  return paths.map((path) => modelAssetId(path) ?? null);
+}
+
 export function modelAssetIds(definition: PartDefinition, part?: Part): string[] {
   const paths = render(definition, { part }).flatMap((form) =>
     form[0] === 'footprint' || form[0] === 'module'
