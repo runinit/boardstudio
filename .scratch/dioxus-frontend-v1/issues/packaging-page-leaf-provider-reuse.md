@@ -4,13 +4,13 @@
 
 **Blocked by:** Independent Spec/Standards clearance of this expansion contract and concrete page-only dependency proof for every proposed leaf. The existing helper source is integrated and clear; its real full-build/reuse qualification stays required. No whole workbench parent blocks this narrowly scoped optimization.
 
-**Status:** implementing; independent planning clearance retained in packaging-contextual-leaf-planning-review-b2c5cc99-20261002.md; exact leaf dependency audit remains required
+**Status:** isolated implementation complete; independent source review and helper-matched full baseline pending
 
 **Parent acceptance joins:** Existing packaging root/subpath/offline/provider provenance and relevant feature paired behavior/history/save-reopen gates remain unchanged. All62 canonical parents remain open according to their own criteria.
 
-- [ ] Independently audit the proposed bounded leaf set against page and worker entry points, alternate references and existing native test aliases; enumerate approved inputs without a wildcard.
-- [ ] Keep all shared registrations, manifest/configuration, helper and provider dependencies frozen; reject new source paths or altered alternate-reference inputs before staging.
-- [ ] Preserve the existing production config and exact provider path/hash guards, with meaningful negative regressions and normal/optimized Python verification.
+- [x] Planning review cleared the bounded leaves. The implementation now enumerates exactly Layout (`layout_workspace.rs`, `objects/layout_toolbar.rs`, `objects/layout_transform_toolbar.rs`, `workspace_composition.rs`), PCB (`pcb_wiring/part_input_settings.rs`), and Parts (`parts_definition_name.rs`), in addition to the previous panels/CSS inputs. It has no presentation wildcard; the `lib.rs` core-worker `layout_align_geometry.rs` alias remains outside the allowlist.
+- [x] Protect `main.rs`, `lib.rs`, `presentation.rs`, and the relevant objects/PCB/Parts module parents as unchanged proof inputs. Changed leaves compare module, `cfg`, `cfg_attr`, `path`, and include registration signatures with the helper-matched full source commit. Source additions/deletions and alternate-reference changes reject before output creation.
+- [x] Preserve the existing production-config and exact provider path/hash guards. Retain the original reuse regressions and add positive exact-leaf, forbidden-alias, and module/cfg/path/include mutation cases. Normal and optimized Python checks pass on this implementation revision.
 - [ ] Review the exact implementation, bootstrap its own real full baseline, then run a representative real eight-command candidate with truthful full22 inherited lineage.
 - [ ] Verify the changed visible control and paired reference, plus root/subpath/offline packaging and identical provider inventories; retain measured times and all remaining gates.
 - [ ] Root owns the serial helper/build join; Luna High owns isolated implementation, Sol6.1 High independently reviews. Append RF-009 mitigation/proof limitations; do not infer architectural closure.

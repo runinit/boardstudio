@@ -30,6 +30,12 @@ SOURCE_BYTES = {
     **PROOF,
     "web/src/presentation/panels.rs": b"panels before",
     "web/src/presentation/panels_scroll_tests.rs": b"scroll tests before",
+    "web/src/presentation/layout_workspace.rs": b'#[cfg(target_arch = "wasm32")]\n#[path = "layout.rs"]\nmod existing;\ninclude!("leaf.rs");\n',
+    "web/src/presentation/objects/layout_toolbar.rs": b"layout toolbar before",
+    "web/src/presentation/objects/layout_transform_toolbar.rs": b"layout transform toolbar before",
+    "web/src/presentation/workspace_composition.rs": b"workspace composition before",
+    "web/src/presentation/pcb_wiring/part_input_settings.rs": b"part input inspector before",
+    "web/src/parts_definition_name.rs": b"parts definition name editor before",
     "web/assets/m1.css": b"css before",
     "web/src/runtime.rs": b"shared runtime",
     "web/Cargo.lock": b"locked dependencies",
@@ -41,6 +47,7 @@ SOURCE_BYTES = {
 HEAD_BYTES = {**SOURCE_BYTES,
               "web/src/presentation/panels.rs": b"panels after",
               "web/src/presentation/panels_scroll_tests.rs": b"scroll tests after",
+              "web/src/presentation/objects/layout_toolbar.rs": b"layout toolbar after",
               "web/assets/m1.css": b"css after"}
 
 
@@ -157,8 +164,9 @@ class PageOnlyReuseTests(TestCase):
             return [sys.executable, str(root / "scripts/stage-ergogen-models.py"), "--source-root", str(root / "ergogen/library/vendor"), "--destination", str(web / "assets/ergogen-models"), "--manifest", str(baseline / "ergogen-models-catalog.json")]
         raise AssertionError(label)
 
-    def mock_environment(self, root, provenance, current=None):
+    def mock_environment(self, root, provenance, current=None, head=None):
         current = current or {name: sha(body) for name, body in SOURCE_BYTES.items()}
+        head = head or HEAD_BYTES
         def check_output(command, **kwargs):
             if command[:2] == ["git", "rev-parse"]:
                 return "b" * 40 if kwargs.get("text") else b"b" * 40
@@ -170,7 +178,7 @@ class PageOnlyReuseTests(TestCase):
                 return ("\0".join(current) + "\0").encode()
             if command[0] == "git" and command[1] == "show":
                 revision, path = command[2].split(":", 1)
-                return (HEAD_BYTES if revision == "HEAD" else SOURCE_BYTES)[path]
+                return (head if revision == "HEAD" else SOURCE_BYTES)[path]
             raise AssertionError(f"unexpected command in guard fixture: {command}")
         return [
             patch.object(BUILD, "REPO", root),
@@ -281,10 +289,66 @@ class PageOnlyReuseTests(TestCase):
             current["web/src/presentation/panels.rs"] = sha(b"panels after")
             current["web/src/presentation/panels_scroll_tests.rs"] = sha(b"scroll tests after")
             current["web/assets/m1.css"] = sha(b"css after")
+            current["web/src/presentation/objects/layout_toolbar.rs"] = sha(b"layout toolbar after")
             with self.subTest("permitted delta"), self._patches(self.mock_environment(root, {}, current)):
                 checked = BUILD.validate_reuse("candidate", "full-fixture")
-                self.assertEqual(checked[6], ["web/assets/m1.css", "web/src/presentation/panels.rs", "web/src/presentation/panels_scroll_tests.rs"])
+                self.assertEqual(checked[6], [
+                    "web/assets/m1.css",
+                    "web/src/presentation/objects/layout_toolbar.rs",
+                    "web/src/presentation/panels.rs",
+                    "web/src/presentation/panels_scroll_tests.rs",
+                ])
                 self.assertFalse(checked[0].exists())
+
+    def test_page_leaf_inventory_is_exact_and_excludes_worker_test_alias(self):
+        expected = {
+            "layout-command-pill": {
+                "web/src/presentation/layout_workspace.rs",
+                "web/src/presentation/objects/layout_toolbar.rs",
+                "web/src/presentation/objects/layout_transform_toolbar.rs",
+                "web/src/presentation/workspace_composition.rs",
+            },
+            "pcb-part-input-inspector": {
+                "web/src/presentation/pcb_wiring/part_input_settings.rs",
+            },
+            "parts-definition-name-editor": {
+                "web/src/parts_definition_name.rs",
+            },
+        }
+        self.assertEqual({name: set(paths) for name, paths in BUILD.PAGE_ONLY_LEAF_PATHS.items()}, expected)
+        self.assertEqual(
+            BUILD.PAGE_ONLY_ALLOWLIST,
+            frozenset({
+                "web/src/presentation/panels.rs",
+                "web/src/presentation/panels_scroll_tests.rs",
+                "web/assets/m1.css",
+                *(path for paths in expected.values() for path in paths),
+            }),
+        )
+        self.assertNotIn("web/src/presentation/objects/layout_align_geometry.rs", BUILD.PAGE_ONLY_ALLOWLIST)
+
+    def test_allowed_leaf_module_cfg_path_and_include_registration_drift_rejects(self):
+        path = "web/src/presentation/layout_workspace.rs"
+        baseline = SOURCE_BYTES[path]
+        cases = (
+            ("module", baseline.replace(b"mod existing;", b"mod added;")),
+            ("cfg", baseline.replace(b'target_arch = "wasm32"', b'feature = "core-worker"')),
+            ("path", baseline.replace(b'layout.rs', b'worker.rs')),
+            ("include", baseline.replace(b'include!("leaf.rs")', b'include!("worker.rs")')),
+        )
+        for label, mutated in cases:
+            with self.subTest(registration=label), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                baseline_dir, _ = self.make_baseline(root)
+                head = dict(HEAD_BYTES)
+                head[path] = mutated
+                current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
+                current[path] = sha(mutated)
+                with self._patches(self.mock_environment(root, {}, current, head)):
+                    with self.assertRaisesRegex(ValueError, "module/cfg/path/include registration changed"):
+                        BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertFalse((root / "web/target/builds/candidate").exists())
+                self.assertTrue((baseline_dir / "provenance.json").exists())
 
     def test_docs_only_source_identity_change_can_reuse_explicitly(self):
         with TemporaryDirectory() as temporary:
@@ -441,6 +505,7 @@ class PageOnlyReuseTests(TestCase):
     def test_provider_shared_and_config_changes_reject_before_output_creation(self):
         cases = (
             ("web/src/runtime.rs", b"changed runtime"),
+            ("web/src/lib.rs", b"changed core-worker alias registration"),
             ("web/Cargo.lock", b"changed lock"),
             ("ergogen/generated/catalogue.mjs", b"changed consumed catalogue"),
             ("web/src/presentation/panels.rs", b"allowed panel"),

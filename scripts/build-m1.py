@@ -15,21 +15,45 @@ REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
 BUILD_ROOT = WEB / "target" / "builds"
 
-# Reuse is safe only for these audited presentation inputs. Keep this exact and
-# narrow: other presentation modules can be compiled into workers or tests.
-PAGE_ONLY_ALLOWLIST = {
+# Reuse is safe only for these exact, audited, already-mounted page leaves.
+# Keep this enumerated: other presentation modules can be compiled into workers
+# or native test aliases. In particular, layout_align_geometry.rs has a
+# core-worker test alias and is intentionally outside this list.
+PAGE_ONLY_LEAF_PATHS = {
+    "layout-command-pill": (
+        "web/src/presentation/layout_workspace.rs",
+        "web/src/presentation/objects/layout_toolbar.rs",
+        "web/src/presentation/objects/layout_transform_toolbar.rs",
+        "web/src/presentation/workspace_composition.rs",
+    ),
+    "pcb-part-input-inspector": (
+        "web/src/presentation/pcb_wiring/part_input_settings.rs",
+    ),
+    "parts-definition-name-editor": (
+        "web/src/parts_definition_name.rs",
+    ),
+}
+PAGE_ONLY_ALLOWLIST = frozenset({
     "web/src/presentation/panels.rs",
     "web/src/presentation/panels_scroll_tests.rs",
     "web/assets/m1.css",
-}
+    *(path for paths in PAGE_ONLY_LEAF_PATHS.values() for path in paths),
+})
+# Parent registration files are held byte-identical to the full baseline. The
+# inner registration signature below additionally prevents an allowlisted leaf
+# from changing its own module, cfg, path, or include graph.
 PAGE_ONLY_PROOF_PATHS = (
     "web/src/main.rs",
     "web/src/lib.rs",
     "web/src/presentation.rs",
+    "web/src/presentation/objects.rs",
+    "web/src/presentation/pcb_wiring.rs",
+    "web/src/presentation/parts.rs",
     "web/Cargo.toml",
     "web/build.rs",
     "scripts/build-m1.py",
 )
+PAGE_ONLY_RUST_LEAVES = frozenset(path for path in PAGE_ONLY_ALLOWLIST if path.endswith(".rs"))
 REUSED_PROVIDER_PREFIXES = (
     "assets/cad/",
     "assets/cad-worker/",
@@ -65,6 +89,55 @@ ROOT_BUILD_INPUTS = frozenset({
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def rust_module_registration_signature(source):
+    """Hash module/cfg/path/include registration while ignoring leaf behavior."""
+    if isinstance(source, bytes):
+        source = source.decode("utf-8")
+    registrations = []
+    pending_attributes = []
+    collecting_attribute = False
+    attribute_depth = 0
+    module_decl = re.compile(r"^(?:(?:pub(?:\([^)]*\))?)\s+)?mod\s+[A-Za-z_]\w*\s*(?:;|\{)")
+    include_call = re.compile(r"\binclude(?:_str|_bytes)?!\s*\(")
+    registration_attribute = re.compile(r"^#\[\s*(?:cfg|cfg_attr|path)\b")
+
+    lines = source.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index].strip()
+        index += 1
+        if collecting_attribute:
+            pending_attributes.append(line)
+            attribute_depth += line.count("[") - line.count("]")
+            if attribute_depth <= 0:
+                collecting_attribute = False
+            continue
+        if registration_attribute.match(line):
+            pending_attributes.append(line)
+            attribute_depth = line.count("[") - line.count("]")
+            collecting_attribute = attribute_depth > 0
+            if not collecting_attribute:
+                tail = line[line.rfind("]") + 1:].strip()
+                if module_decl.match(tail) or include_call.search(tail):
+                    registrations.append("\n".join(pending_attributes))
+                    pending_attributes.clear()
+            continue
+        if module_decl.match(line):
+            registrations.append("\n".join((*pending_attributes, line)))
+        elif include_call.search(line):
+            include_lines = [line]
+            depth = line.count("(") - line.count(")")
+            while depth > 0 and index < len(lines):
+                next_line = lines[index].strip()
+                index += 1
+                include_lines.append(next_line)
+                depth += next_line.count("(") - next_line.count(")")
+            registrations.append("\n".join((*pending_attributes, *include_lines)))
+        pending_attributes.clear()
+
+    return hashlib.sha256("\n".join(registrations).encode()).hexdigest()
 
 
 def sources():
@@ -305,6 +378,7 @@ def validate_reuse(build_id, baseline_id):
         raise ValueError("baseline does not contain every audited page-only input")
     # Tie allowed prior bytes back to the recorded source commit. The baseline
     # source manifest alone is not enough when the working tree has page edits.
+    registration_signatures = {}
     for path in changed:
         try:
             baseline_bytes = subprocess.check_output(
@@ -316,8 +390,15 @@ def validate_reuse(build_id, baseline_id):
         if hashlib.sha256(baseline_bytes).hexdigest() != old[path]:
             raise ValueError(f"baseline source manifest does not match its recorded commit: {path}")
         if hashlib.sha256(head_bytes).hexdigest() != current[path]:
-            raise ValueError(f"page-only input has uncommitted changes: {path}")
-    return output, baseline, provenance, provenance_path, provenance_hash, current, changed, tools, command_log_hashes
+            raise ValueError(f"audited page-leaf input has uncommitted changes: {path}")
+        if path in PAGE_ONLY_RUST_LEAVES:
+            baseline_registration = rust_module_registration_signature(baseline_bytes)
+            head_registration = rust_module_registration_signature(head_bytes)
+            if baseline_registration != head_registration:
+                raise ValueError(f"page-leaf module/cfg/path/include registration changed: {path}")
+            registration_signatures[path] = head_registration
+    return (output, baseline, provenance, provenance_path, provenance_hash, current,
+            changed, tools, command_log_hashes, registration_signatures)
 
 
 def ignore_rebuilt_assets(directory, names):
@@ -331,7 +412,8 @@ def ignore_rebuilt_assets(directory, names):
 
 def build_reuse(build_id, baseline_id):
     (output, baseline, base_provenance, baseline_provenance_path,
-     baseline_provenance_hash, source_before, changed, tools, command_log_hashes) = validate_reuse(build_id, baseline_id)
+     baseline_provenance_hash, source_before, changed, tools, command_log_hashes,
+     registration_signatures) = validate_reuse(build_id, baseline_id)
     # All guards run before this point. Reserve output only after validation.
     output.mkdir(parents=True, exist_ok=False)
     (output / "tmp").mkdir()
@@ -360,8 +442,12 @@ def build_reuse(build_id, baseline_id):
             for row in base_provenance["commands"]
         ],
         "changed_allowlisted_inputs": changed,
+        "audited_page_leaf_inputs": {
+            name: list(paths) for name, paths in PAGE_ONLY_LEAF_PATHS.items()
+        },
+        "changed_leaf_registration_signatures": registration_signatures,
         "dependency_proof": {
-            "statement": "main.rs registers presentation only for wasm32+page; panels is private to presentation; scroll tests compile only for wasm tests; m1.css is linked only by the page and staged as a site asset.",
+            "statement": "The exact enumerated Layout command-pill, PCB part-input Inspector, and Parts definition-name editor leaves are already mounted through unchanged main/presentation/objects/pcb_wiring/parts registrations. Leaf module/cfg/path/include registrations are compared with the full baseline. The core-worker lib.rs test alias for layout_align_geometry.rs remains unchanged and is not eligible. Existing panels/scroll-test/CSS paths retain their prior proof.",
             "source_hashes": {path: source_before[path] for path in PAGE_ONLY_PROOF_PATHS},
         },
         "sources": source_before,
