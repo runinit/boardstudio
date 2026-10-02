@@ -2,6 +2,9 @@
 //!
 //! Case is the first consumer. Its wrapper owns the Case-to-renderer projection;
 //! this module owns only renderer controls, transient view state and host lifetime.
+use super::case_assembly_layers::{
+    CaseAssemblyLayers, physical_component_layers, standard_assembly_layers,
+};
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_model_lifecycle::ProjectionInputs;
 use crate::case_preview::NativePreviewSnapshot;
@@ -221,13 +224,15 @@ pub(crate) fn CaseSharedViewer(
     else {
         return rsx! { p { role: "alert", "3D preview source is unavailable." } };
     };
+    let (source_scope, source_token) = source.scope_token();
+    let matching_preview = preview
+        .as_ref()
+        .filter(|preview| preview_matches_source(&preview.owner, source_scope, source_token));
+    let matching_model_rows = matching_preview.and(model_rows.as_ref());
     let inputs = ProjectionInputs {
         source: source.pointer(),
-        preview: preview
-            .as_ref()
-            .map_or(0, |preview| Rc::as_ptr(preview) as usize),
-        models: model_rows
-            .as_ref()
+        preview: matching_preview.map_or(0, |preview| Rc::as_ptr(preview) as usize),
+        models: matching_model_rows
             .map(|rows| {
                 rows.delivered
                     .iter()
@@ -264,8 +269,8 @@ pub(crate) fn CaseSharedViewer(
             &source,
             identity.clone(),
             &theme,
-            preview.as_deref(),
-            model_rows.as_ref(),
+            matching_preview.map(Rc::as_ref),
+            matching_model_rows,
         ) {
             Ok(projection) => {
                 let projection = Rc::new(projection);
@@ -287,9 +292,21 @@ pub(crate) fn CaseSharedViewer(
         let source = source.clone();
         Rc::new(move || source.is_current(&runtime))
     });
+    let assembly_layers = standard_assembly_layers(
+        projection
+            .layers
+            .iter()
+            .filter(|(id, _)| id != "pcb")
+            .cloned(),
+    );
+    let component_layers = matching_preview.map_or_else(Vec::new, |preview| {
+        physical_component_layers(&preview.preview.models, matching_model_rows)
+    });
     rsx! {
         SharedViewer {
             projection,
+            assembly_layers,
+            component_layers,
             selected_layer,
             display,
             theme,
@@ -320,6 +337,13 @@ impl ViewerSource {
         match self {
             Self::Cad(scene) => Rc::as_ptr(scene) as usize,
             Self::Native(preview) => Rc::as_ptr(preview) as usize,
+        }
+    }
+
+    fn scope_token(&self) -> (&Scope, SnapshotToken) {
+        match self {
+            Self::Cad(scene) => (&scene.scope, scene.token),
+            Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
         }
     }
 
@@ -371,6 +395,14 @@ fn project_source(
             project_native_preview(preview, identity, theme, model_rows)
         }
     }
+}
+
+fn preview_matches_source(
+    preview: &crate::case_preview::CasePreviewOwnerIdentity,
+    source_scope: &Scope,
+    source_token: SnapshotToken,
+) -> bool {
+    preview.scope == *source_scope && preview.snapshot_token == source_token
 }
 
 fn project_case_scene(
@@ -660,6 +692,8 @@ impl PointerOwner {
 #[component]
 fn SharedViewer(
     projection: Rc<RendererSceneProjection>,
+    assembly_layers: Vec<super::case_assembly_layers::CaseAssemblyLayer>,
+    component_layers: Vec<super::case_assembly_layers::CaseComponentLayer>,
     selected_layer: String,
     display: CaseDisplay,
     theme: String,
@@ -1526,6 +1560,7 @@ fn SharedViewer(
     let right = host.clone();
     let zoom_in = host.clone();
     let zoom_out = host.clone();
+    let assembly_change_display = change_display.clone();
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
@@ -1617,17 +1652,25 @@ fn SharedViewer(
                     }
                 }
             }
-            canvas {
-                style: "width:100%;height:100%;display:block",
-                tabindex: "0", role: "img",
-                "aria-label": "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display.",
-                onmounted: mount_host,
-                onpointerdown: on_pointer_down,
-                onpointermove: on_pointer_move,
-                onpointerup: on_pointer_up,
-                onpointercancel: on_pointer_cancel,
-                onlostpointercapture: on_pointer_cancel,
-                onwheel: on_wheel,
+            div { class: "m1-case-view-canvas-shell",
+                canvas {
+                    style: "width:100%;height:100%;display:block",
+                    tabindex: "0", role: "img",
+                    "aria-label": "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display.",
+                    onmounted: mount_host,
+                    onpointerdown: on_pointer_down,
+                    onpointermove: on_pointer_move,
+                    onpointerup: on_pointer_up,
+                    onpointercancel: on_pointer_cancel,
+                    onlostpointercapture: on_pointer_cancel,
+                    onwheel: on_wheel,
+                }
+                CaseAssemblyLayers {
+                    assembly: assembly_layers,
+                    components: component_layers,
+                    display: display.clone(),
+                    on_display_change: assembly_change_display,
+                }
             }
             p { role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
             details {
@@ -1846,6 +1889,41 @@ mod tests {
             projection_generation: 4,
             renderer_sequence: 6,
         }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn physical_preview_rows_are_qualified_by_source_scope_and_token() {
+        let viewer = identity();
+        let owner = crate::case_preview::CasePreviewOwnerIdentity {
+            scope: viewer.scope.clone(),
+            snapshot_token: viewer.snapshot_token,
+            accepted_revision: 11,
+            accepted_scene_identity: 12,
+            viewer_instance: 13,
+            projection_generation: 14,
+            batch_generation: 15,
+            core_executor_epoch: 16,
+            core_worker_identity: 17,
+            request_token: "case-preview-1".to_owned(),
+        };
+
+        assert!(preview_matches_source(
+            &owner,
+            &viewer.scope,
+            viewer.snapshot_token
+        ));
+        assert!(!preview_matches_source(
+            &owner,
+            &viewer.scope,
+            SnapshotToken(viewer.snapshot_token.0 + 1)
+        ));
+        let mut other_scope = viewer.scope.clone();
+        other_scope.board_id = "board-2".to_owned();
+        assert!(!preview_matches_source(
+            &owner,
+            &other_scope,
+            viewer.snapshot_token
+        ));
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
