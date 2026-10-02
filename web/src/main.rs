@@ -10,6 +10,9 @@ mod runtime;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod operation_outcomes;
 
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod mechanical_feedback;
+
 #[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
 #[path = "presentation/instance_selection.rs"]
 mod instance_selection;
@@ -25,7 +28,7 @@ mod renderer_host_source_sync;
 #[path = "presentation/case_display.rs"]
 mod case_display;
 
-#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "presentation/closure_clearance.rs"]
 mod closure_clearance;
 

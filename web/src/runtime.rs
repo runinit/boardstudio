@@ -3,7 +3,9 @@ use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
     SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
 };
-use boardstudio_core::model::{ArchiveReply, ProjectDoc};
+use boardstudio_core::model::{
+    ArchiveReply, CoreReply, CoreRequest, MechanicalAssembly, MechanicalConfiguration, ProjectDoc,
+};
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use boardstudio_web::{
     cad_jobs::{
@@ -156,7 +158,146 @@ impl Runtime {
         self.operation_outcomes.observe(operation)
     }
 
+    /// Resolve mechanical settings against the exact accepted source and the proposed canonical
+    /// document. The proposal carrier exists only for the existing effective-case projection;
+    /// it is never installed in Session or any accepted/display authority.
+    pub(crate) async fn resolve_mechanical_settings(
+        &self,
+        accepted: AcceptedSnapshot,
+        scope: Scope,
+        proposed: ProjectDoc,
+    ) -> Result<(MechanicalAssembly, MechanicalConfiguration), String> {
+        validate_mechanical_source(&accepted, &scope)?;
+        if proposed.id != accepted.document.id
+            || proposed.revision != accepted.document.revision
+            || proposed.physical_instance_id != accepted.document.physical_instance_id
+            || !mechanical_document_targets_scope(&proposed, &scope)
+        {
+            return Err(
+                "The proposed mechanical settings do not match the accepted board scope.".into(),
+            );
+        }
+        self.ensure_mechanical_source_current(&accepted, &scope)?;
+
+        // This temporary carrier lets the established projection apply physical-instance
+        // defaults (including wireless battery defaults) without granting it Session authority.
+        let proposal_projection_input = AcceptedSnapshot {
+            token: accepted.token,
+            session_epoch: accepted.session_epoch,
+            document: std::sync::Arc::new(proposed),
+            scene: accepted.scene.clone(),
+        };
+        let effective_document =
+            boardstudio_web::cad_jobs::captured_case_document(&proposal_projection_input, &scope)
+                .map_err(|error| {
+                format!("Could not project proposed mechanical settings: {error:?}")
+            })?;
+        drop(proposal_projection_input);
+        let configuration = effective_document
+            .mechanical
+            .clone()
+            .filter(|configuration| configuration.board_id == scope.board_id)
+            .ok_or_else(|| {
+                "The selected board has no effective mechanical configuration to resolve."
+                    .to_owned()
+            })?;
+        if effective_document.physical_instance_id != scope.instance_id {
+            return Err(
+                "The effective mechanical document resolved another physical instance.".into(),
+            );
+        }
+
+        // Physical contours come from the real accepted scene. Its projection performs the
+        // required X reflection and winding reversal for flipped instances; never reflect twice.
+        let contours = boardstudio_web::cad_jobs::captured_case_scene(&accepted, &scope)
+            .map_err(|error| format!("Could not project accepted case contours: {error:?}"))?
+            .board_contours
+            .into_iter()
+            .find(|board| board.board_id == scope.board_id)
+            .map_or_else(Vec::new, |board| board.contours);
+
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch().0;
+        self.ensure_mechanical_source_current(&accepted, &scope)?;
+        let current_core = self.core.borrow().clone();
+        if self.session.borrow().core_executor_epoch().0 != executor_epoch
+            || !Rc::ptr_eq(&core, &current_core)
+        {
+            return Err("The Core worker changed before mechanical resolution started.".into());
+        }
+
+        let request_id = format!("mechanical-settings-{}", self.operation().0);
+        let request = CoreRequest::ResolveMechanical {
+            id: request_id.clone(),
+            document: effective_document,
+            contours,
+        };
+        let executor_epoch_string = executor_epoch.to_string();
+        let reply = core
+            .request(&request_id, &executor_epoch_string, &request)
+            .await;
+
+        self.ensure_mechanical_source_current(&accepted, &scope)?;
+        let current_core = self.core.borrow().clone();
+        if self.session.borrow().core_executor_epoch().0 != executor_epoch
+            || !Rc::ptr_eq(&core, &current_core)
+        {
+            return Err("The Core worker changed during mechanical resolution.".into());
+        }
+        let reply = reply.map_err(|error| format!("Mechanical resolution failed: {error}"))?;
+
+        let assembly = match reply {
+            CoreReply::MechanicalResolved { id, assembly } if id == request_id => assembly,
+            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+            CoreReply::MechanicalResolved { .. } | CoreReply::Error { .. } => {
+                return Err("Core returned a mechanical reply for another request.".into());
+            }
+            _ => return Err("Core returned an unexpected mechanical-resolution reply.".into()),
+        };
+        if assembly.revision != accepted.document.revision
+            || assembly.case.revision != accepted.document.revision
+        {
+            return Err("Core resolved mechanical settings for another document revision.".into());
+        }
+
+        // Findings and empty closure results are valid resolver output. CAD readiness is an
+        // independent export/generation gate and does not belong in this read-only resolver.
+        Ok((assembly, configuration))
+    }
+
+    fn ensure_mechanical_source_current(
+        &self,
+        accepted: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<(), String> {
+        let model = self.model();
+        let Some(current) = model.accepted.as_ref() else {
+            return Err("The accepted mechanical source is no longer open.".into());
+        };
+        if self.scope().as_ref() != Some(scope)
+            || scope.session_epoch != accepted.session_epoch
+            || scope.document_id != accepted.document.id
+            || current.session_epoch != accepted.session_epoch
+            || current.token != accepted.token
+            || current.document.id != accepted.document.id
+            || current.document.revision != accepted.document.revision
+            || current.scene.revision != accepted.scene.revision
+            || accepted.scene.revision != accepted.document.revision
+        {
+            return Err("The accepted mechanical source changed during resolution.".into());
+        }
+        Ok(())
+    }
+
     pub fn submit(self: &Rc<Self>, event: Event) {
+        if matches!(&event, Event::StartGeneration { .. })
+            && self.mechanical_mount_initialization_pending()
+        {
+            self.report(
+                "Finish preparing mounting locations before generating the mechanical assembly.",
+            );
+            return;
+        }
         let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
         if self.scope() != previous_scope {
@@ -454,7 +595,44 @@ impl Runtime {
             .filter(|scene| self.scope() == Some(scene.scope.clone()))
             .cloned()
     }
+    /// An existing resolved stack with suggested mounts must finish its saved initialization
+    /// before a dependent generation or STEP capture. Archive saving remains independent.
+    fn mechanical_mount_initialization_pending(&self) -> bool {
+        let model = self.model();
+        let Some(accepted) = model.accepted.as_ref() else {
+            return false;
+        };
+        let Some(scope) = self.scope() else {
+            return false;
+        };
+        let scene = self.cad_scene();
+        if !scene.as_ref().is_some_and(|scene| {
+            scene.scope == scope
+                && scene.token == accepted.token
+                && scene.exact
+                && scene
+                    .mechanical
+                    .as_ref()
+                    .is_some_and(|assembly| !assembly.suggested_mounts.is_empty())
+        }) {
+            return false;
+        }
+        boardstudio_web::cad_jobs::captured_case_document(accepted, &scope).is_ok_and(|document| {
+            document.mechanical.as_ref().is_some_and(|configuration| {
+                configuration.board_id == scope.board_id
+                    && configuration.closure_mounts.is_none()
+                    && configuration.mount != boardstudio_core::model::MechanicalMount::Gasket
+            })
+        })
+    }
+
     pub fn export_step(self: &Rc<Self>) {
+        if self.mechanical_mount_initialization_pending() {
+            self.report(
+                "Finish preparing mounting locations before exporting the mechanical assembly.",
+            );
+            return;
+        }
         let Some(scope) = self.scope() else {
             return;
         };
@@ -899,6 +1077,44 @@ impl Drop for Runtime {
             worker.close();
         }
         self.core.borrow().close();
+    }
+}
+
+fn validate_mechanical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
+    if scope.session_epoch != accepted.session_epoch
+        || scope.document_id != accepted.document.id
+        || accepted.scene.revision != accepted.document.revision
+    {
+        return Err("The accepted mechanical source does not match its scope or revision.".into());
+    }
+    if !mechanical_document_targets_scope(&accepted.document, scope) {
+        return Err(
+            "The accepted mechanical source does not contain the selected board scope.".into(),
+        );
+    }
+    Ok(())
+}
+
+fn mechanical_document_targets_scope(document: &ProjectDoc, scope: &Scope) -> bool {
+    if !document
+        .boards
+        .iter()
+        .any(|board| board.id == scope.board_id)
+    {
+        return false;
+    }
+    match scope.instance_id.as_deref() {
+        None => true,
+        Some(instance_id) => document.hardware.as_ref().is_some_and(|hardware| {
+            hardware
+                .instances
+                .iter()
+                .filter(|instance| {
+                    instance.id == instance_id && instance.board_id == scope.board_id
+                })
+                .count()
+                == 1
+        }),
     }
 }
 

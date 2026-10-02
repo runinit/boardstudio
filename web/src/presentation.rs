@@ -8,6 +8,9 @@ mod inspector;
 mod instance_selection;
 mod keymap;
 mod library;
+mod mechanical_settings;
+mod mechanical_settings_controller;
+mod mechanical_settings_mount;
 mod objects;
 mod panels;
 mod parts;
@@ -19,6 +22,8 @@ pub(crate) use case_viewer::CaseViewer;
 use inspector::Inspector;
 use keymap::{KeymapCanvas, KeymapPanel};
 use library::Library;
+pub(crate) use mechanical_settings::MechanicalSettings;
+pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
 use objects::Objects;
 use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
 use parts::{PartsInspectorPanel, PartsLibraryPanel, PartsQuery, PartsSelection};
@@ -726,6 +731,165 @@ fn Editor() -> Element {
         },
     );
     let keymap_view = keymap_projection.read().clone();
+    let on_show_mechanical_board = {
+        let runtime = runtime.clone();
+        let captured_scope = current_scope.clone();
+        let captured_generation = (adapter.generation)();
+        let adapter = adapter.clone();
+        EventHandler::new(move |board_id: String| {
+            let Some(scope) = captured_scope.as_ref() else {
+                return;
+            };
+            if runtime.scope().as_ref() != Some(scope)
+                || (adapter.generation)() != captured_generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            if !snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == board_id)
+            {
+                return;
+            }
+            let instance_id = instance_selection::resolve(
+                &snapshot.document,
+                snapshot.session_epoch,
+                &board_id,
+                instance_preference.read().as_ref(),
+            )
+            .map(str::to_owned);
+            if scope.board_id == board_id && scope.instance_id == instance_id {
+                return;
+            }
+            let cleanup = adapter
+                .cleanup
+                .borrow()
+                .as_ref()
+                .map(|(_, cleanup)| cleanup.clone());
+            if let Some(cleanup) = cleanup {
+                cleanup();
+            }
+            let mut selected_context = adapter.selected_context;
+            let mut anchor_scope = adapter.anchor_scope;
+            selected_context.set(None);
+            anchor_scope.set(None);
+            runtime.submit(Event::Navigate {
+                operation_id: runtime.operation(),
+                board_id,
+                instance_id,
+            });
+        })
+    };
+    let on_show_mechanical_finding = {
+        let runtime = runtime.clone();
+        let captured_scope = current_scope.clone();
+        let captured_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
+        let captured_generation = (adapter.generation)();
+        let generation = adapter.generation;
+        let mut workspace = workspace;
+        let mut inspect_open = inspect_open;
+        let mut case_selection = case_viewer::CaseSelection {
+            body: case_body_selection,
+            layer: case_layer_selection,
+            display: case_display,
+        };
+        EventHandler::new(move |finding_id: String| {
+            let Some(scope) = captured_scope.as_ref() else {
+                return;
+            };
+            let model = runtime.model();
+            if generation() != captured_generation
+                || runtime.scope().as_ref() != Some(scope)
+                || !instance_selection.is_current(&model)
+                || model
+                    .accepted
+                    .as_ref()
+                    .is_none_or(|current| Some(current.token) != captured_token)
+            {
+                return;
+            }
+            let Some(scene) = runtime
+                .cad_scene()
+                .filter(|scene| &scene.scope == scope && Some(scene.token) == captured_token)
+            else {
+                return;
+            };
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            let captured_document = &snapshot.document;
+            let Some(assembly) = scene.mechanical.as_ref() else {
+                return;
+            };
+            let Some(finding) = assembly
+                .diagnostics
+                .iter()
+                .find(|finding| finding.id == finding_id)
+            else {
+                return;
+            };
+            if let Some(layer) = assembly
+                .stack
+                .iter()
+                .find(|layer| finding.target_ids.contains(&layer.id))
+            {
+                case_selection.select_layer(scope.clone(), layer.id.clone());
+                workspace.set("Case");
+            } else if let Some(body) = captured_document.case_bodies.iter().find(|body| {
+                body.board_id == scope.board_id && finding.target_ids.contains(&body.id)
+            }) {
+                case_selection.body.set(Some(case_viewer::BodySelection {
+                    scope: scope.clone(),
+                    body_id: body.id.clone(),
+                }));
+                workspace.set("Case");
+            } else {
+                let Some(board) = captured_document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == scope.board_id)
+                else {
+                    return;
+                };
+                let part_ids = finding
+                    .target_ids
+                    .iter()
+                    .filter(|id| board.part_ids.contains(id))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if !part_ids.is_empty() {
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids,
+                        range_part_ids: Vec::new(),
+                        mode: SelectionMode::Replace,
+                    });
+                    workspace.set("Layout");
+                }
+            }
+            inspect_open.set(true);
+            runtime.report(finding.message.clone());
+        })
+    };
+    let mechanical_settings = mechanical_settings_mount::use_mechanical_settings_mount(
+        runtime.clone(),
+        adapter.generation,
+        workspace,
+        instance_selection,
+        case_viewer::CaseSelection {
+            body: case_body_selection,
+            layer: case_layer_selection,
+            display: case_display,
+        },
+        on_show_mechanical_finding,
+        on_show_mechanical_board,
+    );
     let Some(render_scope) = current_scope.clone() else {
         return rsx! {};
     };
@@ -1940,7 +2104,7 @@ fn Editor() -> Element {
                         if instance_scope_pending {
                             p { role: "status", "Selecting physical assembly…" }
                         } else {
-                            CasePanel {}
+                            CasePanel { mechanical_settings: mechanical_settings.clone() }
                         }
                     } else if active_workspace == "Export" {
                         ExportPanel {}

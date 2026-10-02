@@ -26,6 +26,22 @@ pub(super) struct CaseSelection {
     pub(super) display: Signal<BTreeMap<String, CaseDisplay>>,
 }
 
+impl CaseSelection {
+    pub(super) fn layer_id(self, scope: &Scope) -> String {
+        self.layer
+            .read()
+            .as_ref()
+            .filter(|selection| &selection.scope == scope)
+            .map(|selection| selection.id.clone())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn select_layer(mut self, scope: Scope, id: String) {
+        self.body.set(None);
+        self.layer.set(Some(LayerSelection { scope, id }));
+    }
+}
+
 #[component]
 pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
     let runtime = use_context::<Rc<Runtime>>();

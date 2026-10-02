@@ -1,6 +1,8 @@
 //! Private read-only presentation and field intents for the Case mechanical stack.
 //! Root owns accepted-state admission and commits every intent through Runtime.
-use boardstudio_application::{Scope, SnapshotToken};
+pub(crate) use crate::mechanical_feedback::{
+    MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
+};
 use boardstudio_core::model::{
     MechanicalBottomStyle, MechanicalMount, MechanicalSwitchFamily, PlateMethod, Severity, Vec2,
 };
@@ -9,20 +11,6 @@ use dioxus_web::WebEventExt;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalSettingsIdentity {
-    pub(crate) editor_instance_id: u64,
-    /// Advances whenever the mounted Case presentation is superseded, including away-and-back
-    /// navigation that returns to an equal Scope.
-    pub(crate) scope_generation: u64,
-    pub(crate) scope: Scope,
-    pub(crate) snapshot_token: SnapshotToken,
-    pub(crate) revision: u64,
-    pub(crate) active_board_id: String,
-    /// The accepted configuration's board, or the active board for Configure.
-    pub(crate) configuration_board_id: String,
-}
 
 /// Narrow accepted values used by this control group; it is not an editable
 /// configuration copy and deliberately excludes every field this ticket leaves alone.
@@ -89,6 +77,21 @@ pub(crate) enum MechanicalDimension {
     OpeningAllowance,
 }
 
+fn is_dimension_field(field_id: &str) -> bool {
+    [
+        MechanicalDimension::PlateThickness,
+        MechanicalDimension::PlateFoamThickness,
+        MechanicalDimension::PcbThickness,
+        MechanicalDimension::BottomFoamThickness,
+        MechanicalDimension::BottomThickness,
+        MechanicalDimension::WallThickness,
+        MechanicalDimension::Clearance,
+        MechanicalDimension::OpeningAllowance,
+    ]
+    .iter()
+    .any(|field| field.field_id() == field_id)
+}
+
 impl MechanicalDimension {
     fn field_id(self) -> &'static str {
         match self {
@@ -114,6 +117,7 @@ impl MechanicalDimension {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum MechanicalSettingsPatch {
     Enable,
+    InitializeClosures,
     Disable,
     SetMethod(PlateMethod),
     SetMount(MechanicalMount),
@@ -134,6 +138,7 @@ impl MechanicalSettingsPatch {
     fn field_id(&self) -> String {
         match self {
             Self::Enable => "configure".to_owned(),
+            Self::InitializeClosures => "initialize-closures".to_owned(),
             Self::Disable => "disable".to_owned(),
             Self::SetMethod(_) => "method".to_owned(),
             Self::SetMount(_) => "mount".to_owned(),
@@ -156,23 +161,6 @@ pub(crate) struct MechanicalSettingsRequest {
     pub(crate) patch: MechanicalSettingsPatch,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MechanicalSettingsFeedbackState {
-    Pending,
-    Saved,
-    Failed,
-}
-
-/// Root echoes this full request identity and the field owner in all states.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct MechanicalSettingsFeedback {
-    pub(crate) identity: MechanicalSettingsIdentity,
-    pub(crate) request_id: u64,
-    pub(crate) field_id: String,
-    pub(crate) state: MechanicalSettingsFeedbackState,
-    pub(crate) message: Option<String>,
-}
-
 #[derive(Props, Clone, PartialEq)]
 pub(crate) struct MechanicalSettingsProps {
     pub(crate) identity: MechanicalSettingsIdentity,
@@ -190,6 +178,7 @@ pub(crate) struct MechanicalSettingsProps {
     /// Bounded per-request feedback keeps a rejected raced submit from replacing the
     /// currently admitted operation's Pending/Saved response.
     pub(crate) feedback: Rc<[MechanicalSettingsFeedback]>,
+    pub(crate) summary_feedback: Option<MechanicalSettingsFeedback>,
     pub(crate) on_request: EventHandler<MechanicalSettingsRequest>,
     pub(crate) on_select_layer: EventHandler<String>,
     pub(crate) on_show_finding: EventHandler<String>,
@@ -206,25 +195,23 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
         .is_some_and(|values| values.board_id == identity.active_board_id);
     let mismatch = props.mismatch.as_ref();
     let owner_key = format!(
-        "{}:{}:{}:{}:{}:{:?}",
+        "{}:{}:{}:{}:{}:{}:{:?}",
         identity.editor_instance_id,
         identity.scope_generation,
+        identity.presentation_generation,
         identity.scope.session_epoch.0,
         identity.scope.document_id,
         identity.scope.board_id,
         identity.scope.instance_id,
     );
-    let current_feedback = props
-        .feedback
-        .iter()
-        .filter(|feedback| {
-            feedback.identity.editor_instance_id == identity.editor_instance_id
-                && feedback.identity.scope_generation == identity.scope_generation
-                && feedback.identity.scope == identity.scope
-                && feedback.identity.active_board_id == identity.active_board_id
-                && feedback.identity.configuration_board_id == identity.configuration_board_id
-        })
-        .max_by_key(|feedback| feedback.request_id);
+    let current_feedback = props.summary_feedback.as_ref().filter(|feedback| {
+        feedback.identity.editor_instance_id == identity.editor_instance_id
+            && feedback.identity.scope_generation == identity.scope_generation
+            && feedback.identity.presentation_generation == identity.presentation_generation
+            && feedback.identity.scope == identity.scope
+            && feedback.identity.active_board_id == identity.active_board_id
+            && feedback.identity.configuration_board_id == identity.configuration_board_id
+    });
 
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
@@ -244,10 +231,27 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
             } else if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
                 if let Some(feedback) = current_feedback {
-                    match feedback.state {
-                        MechanicalSettingsFeedbackState::Pending => p { role: "status", "Saving mechanical settings…" },
-                        MechanicalSettingsFeedbackState::Saved => p { role: "status", "Mechanical settings saved." },
-                        MechanicalSettingsFeedbackState::Failed => if let Some(message) = feedback.message.as_deref() { p { role: "alert", "{message}" } },
+                    if feedback.state == MechanicalSettingsFeedbackState::Pending {
+                        p { role: "status", "Saving mechanical settings…" }
+                    } else if feedback.state == MechanicalSettingsFeedbackState::Saved {
+                        p { role: "status", "Mechanical settings saved." }
+                    } else if !is_dimension_field(&feedback.field_id)
+                        && let Some(message) = feedback.message.as_deref()
+                    {
+                        p { role: "alert", "{message}" }
+                        if feedback.field_id == "initialize-closures" {
+                            button {
+                                r#type: "button",
+                                disabled: !props.editable,
+                                onclick: {
+                                    let identity = props.identity.clone();
+                                    let mut sequence = props.request_sequence;
+                                    let on_request = props.on_request;
+                                    move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::InitializeClosures)
+                                },
+                                "Retry mounting locations"
+                            }
+                        }
                     }
                 }
                 if !props.editable {
@@ -489,7 +493,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                             span { "Switch fit family" }
                             select {
                                 disabled: !props.editable,
-                                value: "{profile.family.map(family_id).unwrap_or("")}",
+                                value: profile.family.map(family_id).unwrap_or(""),
                                 onchange: {
                                     let definition_id = profile.definition_id.clone();
                                     let identity = props.identity.clone();
@@ -584,7 +588,7 @@ fn DimensionControls(props: DimensionControlsProps) -> Element {
             props.values.opening_allowance,
         ),
     ];
-    let mut request_sequence = props.request_sequence;
+    let request_sequence = props.request_sequence;
     rsx! {
         fieldset { class: "m1-mechanical-group", disabled: !props.editable,
             legend { "Dimensions and clearances · mm" }
@@ -626,7 +630,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
     let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitted = use_signal(|| None::<MechanicalSettingsRequest>);
-    let mut field_status = use_signal(|| None::<String>());
+    let mut field_status = use_signal(|| None::<String>);
     let mut previous_accepted = use_signal(|| props.value);
 
     let saved_value = props.value;
@@ -690,7 +694,6 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 error_for_ack.set(None);
                 status_for_ack.set(None);
                 submitted_for_ack.set(None);
-                return;
             }
         },
     ));
@@ -699,9 +702,15 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         let identity = props.identity.clone();
         let field = props.field;
         let accepted = props.value;
-        let mut sequence = props.request_sequence;
+        let sequence = props.request_sequence;
         let on_request = props.on_request;
         move || {
+            let mut sequence = sequence;
+            let mut error = error;
+            let mut field_status = field_status;
+            let mut submitted = submitted;
+            let mut dirty = dirty;
+            let mut draft = draft;
             let text = draft();
             if submitted().is_some() {
                 return;
@@ -794,7 +803,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 }
                 small { "mm" }
             }
-            if let Some(error) = error_text { small { role: "alert", "{error}" } }
+            if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
             if let Some(status) = status_text { small { role: "status", "{status}" } }
         }
     }
@@ -817,11 +826,11 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
             } else {
                 div { class: "m1-mechanical-stack",
                     for row in props.layers.iter() {
-                        let id = row.id.clone();
+                        { let id = row.id.clone();
                         let label = row.label.clone();
                         let selected = props.selected_layer == id;
                         let callback = props.on_select_layer;
-                        button {
+                        rsx! { button {
                             key: "{id}",
                             r#type: "button",
                             class: if selected { "m1-mechanical-layer is-selected" } else { "m1-mechanical-layer" },
@@ -830,6 +839,7 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
                             strong { "{label}" }
                             span { "{row.thickness:.2} mm" }
                             small { "Z {row.z:.2}" }
+                        } }
                         }
                     }
                 }
@@ -854,16 +864,17 @@ fn Diagnostics(props: DiagnosticsProps) -> Element {
             }
             ul {
                 for row in props.findings.iter() {
-                    let id = row.id.clone();
+                    { let id = row.id.clone();
                     let severity = severity_label(&row.severity);
                     let callback = props.on_show_finding;
-                    li { key: "{id}",
+                    rsx! { li { key: "{id}",
                         span { "{severity}: {row.message}" }
                         button {
                             r#type: "button",
                             onclick: move |_| callback.call(id.clone()),
                             "Show"
                         }
+                    } }
                     }
                 }
             }

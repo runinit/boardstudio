@@ -32,6 +32,30 @@ thread_local! {
     static PROJECT_CATALOGUE_CACHE: RefCell<Vec<CachedProjectCatalogue>> = const { RefCell::new(Vec::new()) };
 }
 
+/// Reuse the normalized bundled catalogue for project-owned closure projection.
+/// Project overrides never replace this generator template.
+pub(super) async fn load_mounting_hole_definition()
+-> Result<Rc<boardstudio_core::model::PartDefinition>, String> {
+    let entries = catalogue::load_bundled(false).await?;
+    let mut matches = entries.iter().filter(|entry| {
+        entry.source == catalogue::CatalogueSource::Ergogen
+            && entry
+                .definition
+                .generator
+                .as_ref()
+                .is_some_and(|generator| generator.source == "ceoloide/mounting_hole_npth")
+    });
+    let definition = matches
+        .next()
+        .ok_or_else(|| "Bundled mounting-hole template is unavailable.".to_string())?
+        .definition
+        .clone();
+    if matches.next().is_some() {
+        return Err("Bundled mounting-hole template is ambiguous.".into());
+    }
+    Ok(definition)
+}
+
 /// Place inside the existing Objects panel when Parts is the active workspace.
 #[component]
 pub(super) fn PartsLibraryPanel(
