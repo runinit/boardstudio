@@ -127,7 +127,8 @@
           "status": "Bounded current defect; focus ownership architecture proposal deferred."
         }
       ],
-      "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted."
+      "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
+      "parts_name_draft_20261002": "Source comparison found Dioxus token/revision-keyed Name draft resets on unrelated accepted edits while React DraftInput resets only accepted value changes. Required parity repair splits stable target/value draft identity from current accepted capture; no stale admission waiver. Independent review and mounted regression remain open."
     },
     {
       "id": "RF-002",
@@ -254,7 +255,13 @@
           "observation": "Accepted PCB preview and3D viewer ready, but0of90 decoded withNo model asset ID is mapped. Existing bundled-byte provider used by archive is absent from Case model.path descriptor resolver/fetch ports. Narrow adapter must share verified digest mesh cache and real safe path mapping; provider availability is not frontend integration proof. Newmatrixproducer additionally reports unsafeKIPRJMOD path, separate defect under diagnosis.",
           "status": "Actual browser defect confirmed; adapter implementation active;90/90/pick/reopen gate open. No structural refactor or parent waiver."
         }
-      ]
+      ],
+      "current_case_fixture_20261002": {
+        "source": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
+        "fixture": "docs/migration/evidence/new-keyboard-guide-paired-20261002/new17-final-oracle-accepted-project.json",
+        "sha256": "658e2488ef3ac2514646f177c99b6c12f9f47561bd9a42211f72a93d1609b77a",
+        "observation": "Fresh4\u00d74 MX matrix Case preview conversion rejects KIPRJMOD model path; reproduced independently. Distinct from frozen packaged model-fetch adapter; generator loop/diagnosis active, cause not yet established."
+      }
     },
     {
       "id": "RF-004",
