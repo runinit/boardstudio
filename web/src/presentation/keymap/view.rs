@@ -5,19 +5,19 @@ use boardstudio_core::{
 };
 use std::rc::Rc;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(in crate::presentation) struct KeymapView {
     pub layers: Vec<KeymapLayerLabel>,
     pub keys: Vec<KeymapKey>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(in crate::presentation) struct KeymapLayerLabel {
     pub id: Rc<str>,
     pub name: Rc<str>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(in crate::presentation) struct KeymapKey {
     pub id: Rc<str>,
     pub reference: Rc<str>,
