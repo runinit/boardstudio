@@ -1,0 +1,145 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/case-model-path-prefix-fix-20261002/web)
+warning: fields `contours` and `path_assets` are never read
+  --> src/case_preview.rs:87:16
+   |
+83 | pub(crate) struct NativePreviewSnapshot {
+   |                   --------------------- fields in this struct
+...
+87 |     pub(crate) contours: Vec<boardstudio_core::model::Contour>,
+   |                ^^^^^^^^
+88 |     pub(crate) path_assets: BTreeMap<String, String>,
+   |                ^^^^^^^^^^^
+   |
+   = note: `NativePreviewSnapshot` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `prepare_artifact` is never used
+   --> src/case_preview.rs:510:15
+    |
+510 | pub(crate) fn prepare_artifact(id: String, capture: &NativePreviewCapture) -> ArtifactRequest {
+    |               ^^^^^^^^^^^^^^^^
+
+warning: associated items `new` and `is_current_owner` are never used
+  --> src/presentation/model_delivery.rs:37:19
+   |
+36 | impl ModelOwnerIdentity {
+   | ----------------------- associated items in this implementation
+37 |     pub(crate) fn new(
+   |                   ^^^
+...
+64 |     pub(crate) fn is_current_owner(
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> src/presentation/model_delivery.rs:98:19
+   |
+97 | impl ModelBatchIdentity {
+   | ----------------------- associated function in this implementation
+98 |     pub(crate) fn new(
+   |                   ^^^
+
+warning: fields `positions`, `normals`, and `colors` are never read
+   --> src/presentation/model_delivery.rs:321:16
+    |
+320 | pub(crate) struct ValidatedMesh {
+    |                   ------------- fields in this struct
+321 |     pub(crate) positions: Rc<[f32]>,
+    |                ^^^^^^^^^
+322 |     pub(crate) normals: Rc<[f32]>,
+    |                ^^^^^^^
+323 |     pub(crate) colors: Option<Rc<[f32]>>,
+    |                ^^^^^^
+    |
+    = note: `ValidatedMesh` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: constant `PITCH_MM` is never used
+ --> src/matrix_setup_operation.rs:5:7
+  |
+5 | const PITCH_MM: f64 = 19.05;
+  |       ^^^^^^^^
+
+warning: constant `MAX_MATRIX_CELLS` is never used
+ --> src/matrix_setup_operation.rs:6:7
+  |
+6 | const MAX_MATRIX_CELLS: u32 = 4096;
+  |       ^^^^^^^^^^^^^^^^
+
+warning: enum `MatrixSetupPreset` is never used
+ --> src/matrix_setup_operation.rs:9:17
+  |
+9 | pub(crate) enum MatrixSetupPreset {
+  |                 ^^^^^^^^^^^^^^^^^
+
+warning: struct `MatrixSetupRequest` is never constructed
+  --> src/matrix_setup_operation.rs:21:19
+   |
+21 | pub(crate) struct MatrixSetupRequest {
+   |                   ^^^^^^^^^^^^^^^^^^
+
+warning: methods `as_str` and `config` are never used
+  --> src/matrix_setup_operation.rs:28:19
+   |
+27 | impl MatrixSetupPreset {
+   | ---------------------- methods in this implementation
+28 |     pub(crate) fn as_str(self) -> &'static str {
+   |                   ^^^^^^
+...
+41 |     fn config(self) -> PresetConfig {
+   |        ^^^^^^
+
+warning: struct `PresetConfig` is never constructed
+  --> src/matrix_setup_operation.rs:95:8
+   |
+95 | struct PresetConfig {
+   |        ^^^^^^^^^^^^
+
+warning: struct `PreparedMatrix` is never constructed
+   --> src/matrix_setup_operation.rs:102:19
+    |
+102 | pub(crate) struct PreparedMatrix {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `next_matrix_id` is never used
+   --> src/matrix_setup_operation.rs:107:15
+    |
+107 | pub(crate) fn next_matrix_id(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `prepare_matrix` is never used
+   --> src/matrix_setup_operation.rs:142:15
+    |
+142 | pub(crate) fn prepare_matrix(
+    |               ^^^^^^^^^^^^^^
+
+warning: function `required_catalogue_definition` is never used
+   --> src/matrix_setup_operation.rs:320:4
+    |
+320 | fn required_catalogue_definition<'a>(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `snapshot_definition` is never used
+   --> src/matrix_setup_operation.rs:337:4
+    |
+337 | fn snapshot_definition(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: `boardstudio-web` (bin "boardstudio-web" test) generated 16 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.27s
+     Running unittests src/main.rs (web/target/debug/deps/boardstudio_web-c4538c4ed2f66b4b)
+
+running 13 tests
+test model_delivery::tests::asset_selection_obeys_attached_then_native_then_ergogen_precedence ... ok
+test model_delivery::tests::accepted_kiswitch_preview_path_resolves_to_the_known_packaged_descriptor ... ok
+test model_delivery::tests::core_archived_preview_path_preserves_document_asset_precedence ... ok
+test model_delivery::tests::core_packaged_preview_path_joins_the_native_table_to_its_exact_descriptor ... ok
+test model_delivery::tests::failed_current_task_is_removed_for_retry ... ok
+test model_delivery::tests::format_selection_is_case_insensitive_and_rejects_other_extensions ... ok
+test model_delivery::tests::mesh_validation_requires_complete_finite_matching_buffers ... ok
+test model_delivery::tests::native_export_path_table_is_inverted_for_preview_model_rows ... ok
+test model_delivery::tests::batch_delivery_decodes_each_sha_once_and_keeps_model_row_ids ... ok
+test model_delivery::tests::new_batch_replaces_pending_task_and_old_token_cannot_settle_it ... ok
+test model_delivery::tests::cache_is_bounded_and_reports_evicted_pending_task_token ... ok
+test model_delivery::tests::row_merge_preserves_exact_preview_model_ids_and_references ... ok
+test model_delivery::tests::verified_bytes_reject_wrong_digest_and_bounds ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 83 filtered out; finished in 0.00s

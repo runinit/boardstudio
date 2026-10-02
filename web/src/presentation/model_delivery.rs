@@ -161,7 +161,17 @@ pub(crate) fn select_model_asset(
 ) -> AssetSelection {
     let asset_id = reference
         .and_then(|item| item.model_assets.get(model_path).cloned())
-        .or_else(|| native_path_assets.get(model_path).cloned())
+        .or_else(|| {
+            native_path_assets
+                .get(model_path)
+                .or_else(|| {
+                    // Core emits project-prefixed model paths from the export-relative table.
+                    model_path
+                        .strip_prefix("${KIPRJMOD}/")
+                        .and_then(|path| native_path_assets.get(path))
+                })
+                .cloned()
+        })
         .or_else(|| ergogen_model_asset_id(model_path));
     let Some(asset_id) = asset_id else {
         return AssetSelection::NoAssetId;
@@ -1093,6 +1103,63 @@ mod tests {
                     },
                 })
             )]
+        );
+    }
+
+    #[test]
+    fn core_packaged_preview_path_joins_the_native_table_to_its_exact_descriptor() {
+        let id = "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp";
+        let bundled = crate::bundled_models::bundled_model(id).unwrap();
+        assert_eq!(
+            bundled.url_path,
+            "assets/ergogen-models/model-dd931656985824ce.stp"
+        );
+        let source = BTreeMap::from([(id.to_owned(), bundled.url_path.to_owned())]);
+        let native = native_model_path_assets(&source);
+        let path = format!("${{KIPRJMOD}}/{}", bundled.url_path);
+        let expected = ResolvedModelAsset {
+            id: id.to_owned(),
+            sha256: bundled.sha256.to_owned(),
+            filename: bundled.filename.to_owned(),
+            source: ModelAssetSource::Packaged {
+                url_path: bundled.url_path.to_owned(),
+            },
+        };
+        let resolved = resolve_preview_assets(
+            &[model("preview-switch-row", "SW1", &path)],
+            None,
+            &native,
+            &ProjectDoc::empty("case-models", "Case model path test"),
+            |_| None,
+            |asset_id| (asset_id == id).then(|| expected.clone()),
+        );
+        assert_eq!(
+            resolved,
+            vec![(
+                "preview-switch-row".to_owned(),
+                AssetSelection::Packaged(expected)
+            )]
+        );
+    }
+
+    #[test]
+    fn core_archived_preview_path_preserves_document_asset_precedence() {
+        let source = BTreeMap::from([("asset-1".to_owned(), "models/hash.stl".to_owned())]);
+        let native = native_model_path_assets(&source);
+        assert_eq!(
+            select_model_asset(
+                "${KIPRJMOD}/models/hash.stl",
+                None,
+                &native,
+                &[asset("asset-1", "ab", "part.stl")],
+                |_| Some("ergogen:model:other.stl".into()),
+            ),
+            AssetSelection::Archived(ResolvedModelAsset {
+                id: "asset-1".into(),
+                sha256: "ab".into(),
+                filename: "part.stl".into(),
+                source: ModelAssetSource::Document,
+            })
         );
     }
 
