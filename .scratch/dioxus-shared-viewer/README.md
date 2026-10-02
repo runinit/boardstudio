@@ -7,3 +7,5 @@ Before dispatch, prove the private page-side renderer contract and crate call pa
 The ticket is in [issues/01-common-viewer-contract.md](issues/01-common-viewer-contract.md). Source notes and initial/final independent Astra planning reviews are retained in `evidence/`.
 
 A six-stream paired acceptance child is drafted at [09: Paired viewer acceptance across six workbench streams](issues/09-six-workspace-paired-viewer-acceptance.md). It includes PCB through the F5.8 acceptance path; the task-graph edge remains a coordinator decision and no existing join is waived.
+
+The Case baseline assembly source/owner reconciliation is documented in the [pre-CAD preview specification](drafts/10-pre-cad-case-pcb-preview-owner.md) and [source evidence](evidence/pre-cad-baseline-20261002/source-reconciliation.md). Issues [07](issues/07-case-imported-board-model-delivery.md) and [08](issues/08-case-generated-board-model-delivery.md) are amended for exact-hash review; their shared provider/producer ownership remains singular. Issue08's native accepted-preview capability must be available before Issue12's renderer consumer, without requiring generated mechanical Case CAD.
