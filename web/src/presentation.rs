@@ -3,16 +3,20 @@ mod inspector;
 mod library;
 mod objects;
 mod panels;
+mod selection;
 
 use inspector::Inspector;
 use library::Library;
 use objects::Objects;
 use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
+use selection::{ReentrancyReset, SelectionAdapter};
 mod footprint_graphics;
 
 use crate::{cad_presentation::CasePanel, runtime::Runtime};
-use boardstudio_application::{Durability, Event, SelectionMode};
-use boardstudio_core::model::{Matrix, Part, PartDefinition, Position, Vec2};
+use boardstudio_application::{Durability, Event, Scope, SelectionMode};
+use boardstudio_core::model::{
+    EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use footprint_graphics::FootprintGraphics;
@@ -27,6 +31,9 @@ use web_sys::{HtmlElement, SvgElement};
 #[derive(Clone)]
 struct Drag {
     pointer: i64,
+    scope: Scope,
+    generation: u64,
+    gesture_generation: Option<u64>,
     origin: Vec2,
     client_x: f64,
     client_y: f64,
@@ -61,15 +68,106 @@ pub fn App() -> Element {
     };
     let version = use_signal(|| 0u64);
     let active = use_hook(|| Rc::new(Cell::new(true)));
+    let selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
+    let anchor_scope = use_signal(|| None::<Scope>);
+    let scope_generation = use_signal(|| 0u64);
+    let adapter = use_hook({
+        move || SelectionAdapter::new(selected_context, anchor_scope, scope_generation)
+    });
+    let observed_scope = use_hook({
+        let runtime = runtime.clone();
+        move || Rc::new(RefCell::new(runtime.scope()))
+    });
+    let reconciling_scope = use_hook(|| Rc::new(Cell::new(false)));
     use_hook({
         let runtime = runtime.clone();
         let active = active.clone();
+        let weak_runtime = Rc::downgrade(&runtime);
+        let adapter = adapter.clone();
+        let observed_scope = observed_scope.clone();
+        let reconciling_scope = reconciling_scope.clone();
         move || {
             runtime.subscribe(Rc::new(move || {
-                if active.get() {
-                    let mut signal = version;
-                    signal += 1;
+                if !active.get() {
+                    return;
                 }
+                let Some(runtime) = weak_runtime.upgrade() else {
+                    return;
+                };
+                let Some(_reset) = ReentrancyReset::enter(reconciling_scope.clone()) else {
+                    return;
+                };
+                let mut selected_context = adapter.selected_context;
+                let mut anchor_scope = adapter.anchor_scope;
+                let mut generation = adapter.generation;
+                let next_scope = runtime.scope();
+                let previous_scope = {
+                    let mut observed = observed_scope.borrow_mut();
+                    std::mem::replace(&mut *observed, next_scope.clone())
+                };
+                if previous_scope != next_scope {
+                    selected_context.set(None);
+                    anchor_scope.set(None);
+                    generation += 1;
+                    let cleanup = adapter
+                        .cleanup
+                        .borrow()
+                        .as_ref()
+                        .map(|(_, cleanup)| cleanup.clone());
+                    if let Some(cleanup) = cleanup {
+                        cleanup();
+                    }
+                }
+
+                let model = runtime.model();
+                let invalid_context =
+                    adapter
+                        .selected_context
+                        .read()
+                        .as_ref()
+                        .is_some_and(|selected| {
+                            next_scope.as_ref() != Some(&selected.scope)
+                                || !selection::context_is_current(
+                                    &model,
+                                    &selected.scope,
+                                    &selected.context,
+                                )
+                        });
+                if invalid_context {
+                    selected_context.set(None);
+                    anchor_scope.set(None);
+                }
+
+                let eligible = selection::eligible_live_ids(&model);
+                let selected_ids: Vec<_> = model
+                    .selected_part_ids
+                    .iter()
+                    .filter(|id| eligible.iter().any(|allowed| allowed == *id))
+                    .cloned()
+                    .collect();
+                if selected_ids != model.selected_part_ids {
+                    anchor_scope.set(None);
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids: selected_ids,
+                        range_part_ids: Vec::new(),
+                        mode: SelectionMode::Replace,
+                    });
+                }
+                if let Some(scope) = next_scope.as_ref() {
+                    let current = runtime.model();
+                    if (adapter.anchor_scope)().as_ref() == Some(scope)
+                        && current.selection_anchor_id.as_ref().is_none_or(|anchor| {
+                            !selection::eligible_live_ids(&current)
+                                .iter()
+                                .any(|id| id == anchor)
+                        })
+                    {
+                        anchor_scope.set(None);
+                    }
+                }
+                let mut signal = version;
+                signal += 1;
             }))
         }
     });
@@ -86,6 +184,7 @@ pub fn App() -> Element {
     let _ = version();
     use_context_provider(|| runtime.clone());
     use_context_provider(|| version);
+    use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
     let layer_visibility = LayerVisibility {
@@ -438,6 +537,7 @@ fn durability_state(durability: &Durability) -> &'static str {
 #[component]
 fn Editor() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let adapter = use_context::<SelectionAdapter>();
     let _ = use_context::<Signal<u64>>()();
     let workspace = use_context::<WorkspaceState>().0;
     let layer_visibility = use_context::<LayerVisibility>();
@@ -472,6 +572,10 @@ fn Editor() -> Element {
         "--m1-left-track:{left_track};--m1-right-track:{right_track};{left_width}{right_width}"
     );
     let model = runtime.model();
+    let Some(render_scope) = runtime.scope() else {
+        return rsx! {};
+    };
+    let render_generation = (adapter.generation)();
     let zoom_percent = model.camera.zoom * 100.0;
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
@@ -531,6 +635,151 @@ fn Editor() -> Element {
     }
     let visible_ids: Rc<Vec<String>> =
         Rc::new(visible.iter().map(|part| part.id.clone()).collect());
+    let select_tree = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let generation = render_generation;
+        move |request| {
+            if (adapter.generation)() == generation {
+                selection::submit_context(&runtime, &adapter, request);
+            }
+        }
+    };
+    let nudge_tree =
+        {
+            let runtime = runtime.clone();
+            let adapter = adapter.clone();
+            let generation = render_generation;
+            let mut inspect_open = inspect_open;
+            move |request: objects::TreeNudgeRequest| {
+                if runtime.scope().as_ref() != Some(&request.scope)
+                    || (adapter.generation)() != generation
+                    || !((request.dx == 0 && request.dy.abs() == 1)
+                        || (request.dy == 0 && request.dx.abs() == 1))
+                {
+                    return;
+                }
+                let model = runtime.model();
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return;
+                };
+                let Some(part) = snapshot
+                    .document
+                    .parts
+                    .iter()
+                    .find(|part| part.id == request.part_id)
+                else {
+                    return;
+                };
+                if part.locked == Some(true) {
+                    return;
+                }
+                let Some(board) = snapshot
+                    .document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == model.active_board_id)
+                else {
+                    return;
+                };
+                if !board.part_ids.contains(&part.id) {
+                    return;
+                }
+                let Some(context) = objects::context_for_part(&model, &part.id) else {
+                    return;
+                };
+                if !matches!(
+                    context,
+                    objects::TreeContext::Key { .. }
+                        | objects::TreeContext::Component {
+                            matrix_id: None,
+                            ..
+                        }
+                ) {
+                    return;
+                }
+                let selected_ids = if model.selected_part_ids.contains(&part.id) {
+                    model.selected_part_ids.clone()
+                } else {
+                    vec![part.id.clone()]
+                };
+                let eligible = selection::eligible_live_ids(&model);
+                let moving: Vec<_> =
+                    selected_ids
+                        .iter()
+                        .filter(|id| eligible.iter().any(|candidate| candidate == *id))
+                        .filter_map(|id| {
+                            snapshot.document.parts.iter().find(|candidate| {
+                                candidate.id == *id && candidate.locked != Some(true)
+                            })
+                        })
+                        .collect();
+                if moving.is_empty() {
+                    return;
+                }
+                let step = if request.large_step { 1.0 } else { 0.1 };
+                let positions: Vec<_> = moving
+                    .iter()
+                    .map(|part| Position {
+                        id: part.id.clone(),
+                        at: Vec2 {
+                            x: part.pose.at.x + f64::from(request.dx) * step,
+                            y: part.pose.at.y + f64::from(request.dy) * step,
+                        },
+                    })
+                    .collect();
+                let moving_ids: Vec<_> = moving.iter().map(|part| part.id.clone()).collect();
+                let mut selected_context = adapter.selected_context;
+                selected_context.set(Some(objects::ScopedTreeContext {
+                    scope: request.scope.clone(),
+                    context,
+                }));
+                let mut anchor_scope = adapter.anchor_scope;
+                anchor_scope.set(None);
+                runtime.submit(Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: moving_ids.clone(),
+                    range_part_ids: Vec::new(),
+                    mode: SelectionMode::Replace,
+                });
+                let current = runtime.model();
+                if runtime.scope().as_ref() != Some(&request.scope) {
+                    return;
+                }
+                if current.selection_anchor_id.as_ref() == moving_ids.first()
+                    && current.selection_anchor_id.as_ref().is_some_and(|anchor| {
+                        selection::eligible_live_ids(&current).contains(anchor)
+                    })
+                {
+                    anchor_scope.set(Some(request.scope));
+                }
+                inspect_open.set(true);
+                let operation_id = runtime.operation();
+                runtime.submit(Event::Edit {
+                    operation_id,
+                    command: EditCommand {
+                        base_revision: snapshot.document.revision,
+                        transaction_id: format!("tree-nudge-{}", operation_id.0),
+                        phase: EditPhase::Commit,
+                        target_ids: moving_ids,
+                        operation: EditOperation::MoveParts { positions },
+                    },
+                });
+                let direction = match (request.dx, request.dy) {
+                    (-1, 0) => "left",
+                    (1, 0) => "right",
+                    (0, 1) => "up",
+                    (0, -1) => "down",
+                    _ => return,
+                };
+                runtime.report(format!(
+                    "{} moved {direction} {step:.1} mm. Position X {:.1}, Y {:.1} mm.",
+                    part.reference,
+                    part.pose.at.x + f64::from(request.dx) * step,
+                    part.pose.at.y + f64::from(request.dy) * step,
+                ));
+            }
+        };
     let points: Vec<_> = visible.iter().map(|p| p.pose.at).collect();
     let min_x = points.iter().map(|p| p.x).reduce(f64::min).unwrap_or(-50.0) - 20.0;
     let max_x = points.iter().map(|p| p.x).reduce(f64::max).unwrap_or(50.0) + 20.0;
@@ -544,6 +793,111 @@ fn Editor() -> Element {
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let drag = use_hook(|| Rc::new(RefCell::new(None::<Drag>)));
     let space_down = use_hook(|| Rc::new(Cell::new(false)));
+    let navigate = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let drag = drag.clone();
+        let svg = svg.clone();
+        let generation = render_generation;
+        let mut selected_context = adapter.selected_context;
+        let mut anchor_scope = adapter.anchor_scope;
+        move |(captured_scope, board_id, instance_id): (Scope, String, Option<String>)| {
+            if runtime.scope().as_ref() != Some(&captured_scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            let valid_board = model.accepted.as_ref().is_some_and(|snapshot| {
+                snapshot
+                    .document
+                    .boards
+                    .iter()
+                    .any(|board| board.id == board_id)
+                    && instance_id.as_ref().is_none_or(|instance_id| {
+                        snapshot.document.hardware.as_ref().is_some_and(|hardware| {
+                            hardware.instances.iter().any(|instance| {
+                                instance.id == *instance_id && instance.board_id == board_id
+                            })
+                        })
+                    })
+            });
+            if !valid_board {
+                return;
+            }
+            if captured_scope.board_id == board_id && captured_scope.instance_id == instance_id {
+                return;
+            }
+            selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&captured_scope));
+            selected_context.set(None);
+            anchor_scope.set(None);
+            runtime.submit(Event::Navigate {
+                operation_id: runtime.operation(),
+                board_id,
+                instance_id,
+            });
+        }
+    };
+    let cleanup_registration = use_hook({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let drag = drag.clone();
+        let svg = svg.clone();
+        let space_down = space_down.clone();
+        move || {
+            let id = adapter.next_cleanup_id.get();
+            adapter.next_cleanup_id.set(id.wrapping_add(1).max(1));
+            let weak_runtime = Rc::downgrade(&runtime);
+            let weak_drag = Rc::downgrade(&drag);
+            let weak_svg = Rc::downgrade(&svg);
+            let weak_space = Rc::downgrade(&space_down);
+            let cleanup: selection::Cleanup = Rc::new(move || {
+                let (Some(runtime), Some(drag), Some(svg), Some(space_down)) = (
+                    weak_runtime.upgrade(),
+                    weak_drag.upgrade(),
+                    weak_svg.upgrade(),
+                    weak_space.upgrade(),
+                ) else {
+                    return;
+                };
+                space_down.set(false);
+                let pending = drag.borrow_mut().take();
+                if let Some(pending) = pending {
+                    if let Some(element) = svg.borrow().as_ref() {
+                        let _ = element.release_pointer_capture(pending.pointer as i32);
+                    }
+                    if pending.active && !pending.pan {
+                        selection::cancel_drag_if_owned(&runtime, &pending);
+                    }
+                }
+            });
+            *adapter.cleanup.borrow_mut() = Some((id, cleanup));
+            id
+        }
+    });
+    use_drop({
+        let adapter = adapter.clone();
+        move || {
+            let mut registered = adapter.cleanup.borrow_mut();
+            if registered
+                .as_ref()
+                .is_some_and(|(id, _)| id == &cleanup_registration)
+            {
+                registered.take();
+            }
+        }
+    });
+    let selected_tree_context = adapter.selected_context.read().clone().filter(|selected| {
+        selected.scope == render_scope
+            && selection::context_is_current(&model, &selected.scope, &selected.context)
+    });
+    let show_position_inspector = selected_tree_context.as_ref().is_none_or(|selected| {
+        let resolved = selection::resolve_context(&model, &selected.context);
+        resolved.is_some_and(|ids| {
+            ids.len() == 1 && model.selected_part_ids.as_slice() == ids.as_slice()
+        }) && (matches!(&selected.context, objects::TreeContext::Key { .. })
+            || matches!(&selected.context, objects::TreeContext::Component { .. }))
+    });
     let mount = {
         let runtime = runtime.clone();
         let svg = svg.clone();
@@ -562,6 +916,8 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let svg = svg.clone();
         let drag = drag.clone();
+        let adapter = adapter.clone();
+        let render_scope = render_scope.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
@@ -573,6 +929,41 @@ fn Editor() -> Element {
             else {
                 return;
             };
+            if current.scope != render_scope || current.generation != render_generation {
+                return;
+            }
+            if runtime.scope().as_ref() != Some(&current.scope)
+                || (adapter.generation)() != current.generation
+            {
+                if let Some(element) = svg.borrow().as_ref() {
+                    let _ = element.release_pointer_capture(pointer.pointer_id());
+                }
+                let mut stored = drag.borrow_mut();
+                if stored.as_ref().is_some_and(|stored| {
+                    stored.pointer == current.pointer
+                        && stored.scope == current.scope
+                        && stored.generation == current.generation
+                }) {
+                    stored.take();
+                }
+                return;
+            }
+            if current.active
+                && !current.pan
+                && !selection::owns_session_gesture(&runtime, &current)
+            {
+                if let Some(element) = svg.borrow().as_ref() {
+                    let _ = element.release_pointer_capture(pointer.pointer_id());
+                }
+                drag.borrow_mut().take();
+                return;
+            }
+            // A pan owns only the camera delta calculated on pointerup. It has no
+            // part targets and must never sample a lingering Session gesture that
+            // happens to reuse this DOM pointer ID.
+            if current.pan {
+                return;
+            }
             let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
                 return;
             };
@@ -582,11 +973,23 @@ fn Editor() -> Element {
                 if dx * dx + dy * dy < 16.0 {
                     return;
                 }
+                if runtime.model().gesture.is_some() {
+                    drag.borrow_mut().take();
+                    if let Some(element) = svg.borrow().as_ref() {
+                        let _ = element.release_pointer_capture(pointer.pointer_id());
+                    }
+                    return;
+                }
+                let target_ids: Vec<_> = current
+                    .positions
+                    .iter()
+                    .map(|position| position.id.clone())
+                    .collect();
                 let operation = runtime.operation();
                 runtime.submit(Event::GestureBegin {
                     operation_id: operation,
                     pointer_id: current.pointer,
-                    target_ids: current.positions.iter().map(|p| p.id.clone()).collect(),
+                    target_ids: target_ids.clone(),
                     transaction_id: format!("drag-{}", operation.0),
                     start: current.positions.clone(),
                     pitch: Vec2 { x: 19.05, y: 19.05 },
@@ -595,11 +998,22 @@ fn Editor() -> Element {
                     gap: None,
                     alt: pointer.alt_key(),
                 });
-                if runtime.model().gesture.is_none() {
+                let fresh = runtime.model();
+                let gesture = fresh.gesture.filter(|gesture| {
+                    gesture.pointer_id == current.pointer && gesture.target_ids == target_ids
+                });
+                if gesture.as_ref().is_none_or(|_| {
+                    runtime.scope().as_ref() != Some(&current.scope)
+                        || (adapter.generation)() != current.generation
+                }) {
                     drag.borrow_mut().take();
+                    if let Some(element) = svg.borrow().as_ref() {
+                        let _ = element.release_pointer_capture(pointer.pointer_id());
+                    }
                     return;
                 }
                 current.active = true;
+                current.gesture_generation = gesture.map(|gesture| gesture.generation);
                 *drag.borrow_mut() = Some(current.clone());
             }
             runtime.submit(Event::GestureSample {
@@ -613,6 +1027,8 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let svg = svg.clone();
         let drag = drag.clone();
+        let adapter = adapter.clone();
+        let render_scope = render_scope.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
@@ -624,34 +1040,64 @@ fn Editor() -> Element {
             else {
                 return;
             };
-            if current.pan {
-                let surface = svg.borrow();
-                let Some(element) = surface.as_ref() else {
-                    return;
-                };
-                let rect = element.get_bounding_client_rect();
-                if rect.width() > 0.0 && rect.height() > 0.0 {
-                    let scale = (rect.width() / width).min(rect.height() / height);
-                    if scale <= 0.0 {
-                        return;
-                    }
-                    let camera = runtime.model().camera;
-                    runtime.submit(Event::SetCamera {
-                        operation_id: runtime.operation(),
-                        center: Vec2 {
-                            x: current.camera.x
-                                - (f64::from(pointer.client_x()) - current.client_x) / scale,
-                            y: current.camera.y
-                                + (f64::from(pointer.client_y()) - current.client_y) / scale,
-                        },
-                        zoom: camera.zoom,
-                    });
+            if current.scope != render_scope || current.generation != render_generation {
+                return;
+            }
+            if runtime.scope().as_ref() != Some(&current.scope)
+                || (adapter.generation)() != current.generation
+            {
+                if let Some(element) = svg.borrow().as_ref() {
+                    let _ = element.release_pointer_capture(pointer.pointer_id());
+                }
+                let mut stored = drag.borrow_mut();
+                if stored.as_ref().is_some_and(|stored| {
+                    stored.pointer == current.pointer
+                        && stored.scope == current.scope
+                        && stored.generation == current.generation
+                }) {
+                    stored.take();
                 }
                 return;
             }
-            if current.pan {
+            if current.active
+                && !current.pan
+                && !selection::owns_session_gesture(&runtime, &current)
+            {
+                if let Some(element) = svg.borrow().as_ref() {
+                    let _ = element.release_pointer_capture(pointer.pointer_id());
+                }
                 drag.borrow_mut().take();
-            } else if current.active
+                return;
+            }
+            if current.pan {
+                if let Some(element) = svg.borrow().as_ref() {
+                    let rect = element.get_bounding_client_rect();
+                    if rect.width() > 0.0 && rect.height() > 0.0 {
+                        let scale = (rect.width() / width).min(rect.height() / height);
+                        if scale > 0.0 {
+                            let camera = runtime.model().camera;
+                            runtime.submit(Event::SetCamera {
+                                operation_id: runtime.operation(),
+                                center: Vec2 {
+                                    x: current.camera.x
+                                        - (f64::from(pointer.client_x()) - current.client_x)
+                                            / scale,
+                                    y: current.camera.y
+                                        + (f64::from(pointer.client_y()) - current.client_y)
+                                            / scale,
+                                },
+                                zoom: camera.zoom,
+                            });
+                        }
+                    }
+                }
+                drag.borrow_mut().take();
+                if let Some(element) = svg.borrow().as_ref() {
+                    let _ = element.release_pointer_capture(pointer.pointer_id());
+                }
+                return;
+            }
+            if current.active
                 && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
             {
                 runtime.submit(Event::GestureEnd {
@@ -660,24 +1106,42 @@ fn Editor() -> Element {
                     alt: pointer.alt_key(),
                 });
             } else if current.active {
-                runtime.submit(Event::GestureCancel {
-                    pointer_id: current.pointer,
-                });
+                selection::cancel_drag_if_owned(&runtime, &current);
             }
             drag.borrow_mut().take();
+            if let Some(element) = svg.borrow().as_ref() {
+                let _ = element.release_pointer_capture(pointer.pointer_id());
+            }
         }
     };
     let cancel_pointer = {
         let runtime = runtime.clone();
+        let svg = svg.clone();
         let drag = drag.clone();
-        move |_| {
-            if let Some(current) = drag.borrow_mut().take()
+        let render_scope = render_scope.clone();
+        move |event: PointerEvent| {
+            let pointer_id = event
+                .data()
+                .try_as_web_event()
+                .map(|event| event.pointer_id());
+            let Some(current) = drag.borrow().clone().filter(|current| {
+                current.scope == render_scope
+                    && current.generation == render_generation
+                    && pointer_id.is_none_or(|pointer| current.pointer == i64::from(pointer))
+            }) else {
+                return;
+            };
+            drag.borrow_mut().take();
+            if let Some(element) = svg.borrow().as_ref() {
+                let _ = element.release_pointer_capture(current.pointer as i32);
+            }
+            if current.scope == render_scope
+                && current.generation == render_generation
+                && runtime.scope().as_ref() == Some(&current.scope)
                 && current.active
                 && !current.pan
             {
-                runtime.submit(Event::GestureCancel {
-                    pointer_id: current.pointer,
-                });
+                selection::cancel_drag_if_owned(&runtime, &current);
             }
         }
     };
@@ -688,20 +1152,19 @@ fn Editor() -> Element {
     use_effect(use_reactive((&active_workspace,), {
         let runtime = runtime.clone();
         let drag = drag.clone();
+        let svg = svg.clone();
+        let space_down = space_down.clone();
+        let render_scope = render_scope.clone();
         move |_| {
-            if let Some(current) = drag.borrow_mut().take()
-                && current.active
-                && !current.pan
-            {
-                runtime.submit(Event::GestureCancel {
-                    pointer_id: current.pointer,
-                });
-            }
+            space_down.set(false);
+            selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
         }
     }));
     let keyboard = {
         let runtime = runtime.clone();
         let drag = drag.clone();
+        let svg = svg.clone();
+        let render_scope = render_scope.clone();
         let space_down = space_down.clone();
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
@@ -711,14 +1174,8 @@ fn Editor() -> Element {
                 space_down.set(true);
                 event.prevent_default();
             } else if key == "Escape" {
-                if let Some(current) = drag.borrow_mut().take()
-                    && current.active
-                    && !current.pan
-                {
-                    runtime.submit(Event::GestureCancel {
-                        pointer_id: current.pointer,
-                    });
-                }
+                space_down.set(false);
+                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
             } else if (modifiers.ctrl() || modifiers.meta()) && key.eq_ignore_ascii_case("z") {
                 event.prevent_default();
                 runtime.submit(if modifiers.shift() {
@@ -748,11 +1205,19 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let svg = svg.clone();
         let space_down = space_down.clone();
+        let scope = render_scope.clone();
+        let adapter = adapter.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
-            if !space_down.get() || pointer.button() != 0 {
+            if !space_down.get()
+                || pointer.button() != 0
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != render_generation
+                || drag.borrow().is_some()
+                || runtime.model().gesture.is_some()
+            {
                 return;
             }
             pointer.prevent_default();
@@ -765,6 +1230,9 @@ fn Editor() -> Element {
             }
             *drag.borrow_mut() = Some(Drag {
                 pointer: i64::from(pointer.pointer_id()),
+                scope: scope.clone(),
+                generation: render_generation,
+                gesture_generation: None,
                 origin: Vec2::default(),
                 client_x: f64::from(pointer.client_x()),
                 client_y: f64::from(pointer.client_y()),
@@ -778,7 +1246,14 @@ fn Editor() -> Element {
     let wheel = {
         let runtime = runtime.clone();
         let svg = svg.clone();
+        let scope = render_scope.clone();
+        let adapter = adapter.clone();
         move |event: WheelEvent| {
+            if runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != render_generation
+            {
+                return;
+            }
             let Some(wheel) = event.data().try_as_web_event() else {
                 return;
             };
@@ -831,7 +1306,9 @@ fn Editor() -> Element {
                 }
             }
             div { class: "m1-editor-body", style: "{panel_layout_style}",
-                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings, Objects {} }
+                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
+                    Objects { selected_context: adapter.selected_context, on_select: select_tree, on_navigate: navigate, on_nudge: nudge_tree }
+                }
                 section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
                     if active_workspace == "Layout" {
                         div { class: "m1-canvas-toolbar",
@@ -867,8 +1344,31 @@ fn Editor() -> Element {
                                             };
                                             let size = resolved_matrix_keycap(member, cell_definition, matrix);
                                             let pose = cell.pose;
-                                            let selected = cell.member_id.as_ref().is_some_and(|id| model.selected_part_ids.contains(id));
-                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}" } }
+                                            let cell_context = objects::TreeContext::Key { matrix_id: matrix.id.clone(), row: cell.row, column: cell.column };
+                                            let selected = cell.member_id.as_ref().is_some_and(|id| model.selected_part_ids.contains(id))
+                                                || selected_tree_context.as_ref().is_some_and(|selected| selected.context == cell_context);
+                                            let matrix_id = matrix.id.clone();
+                                            let cell_row = cell.row;
+                                            let cell_column = cell.column;
+                                            let runtime = runtime.clone();
+                                            let adapter = adapter.clone();
+                                            let space_down = space_down.clone();
+                                            let scope = render_scope.clone();
+                                            let generation = render_generation;
+                                            let range_ids = visible_ids.as_ref().clone();
+                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
+                                                onpointerdown: move |event: PointerEvent| {
+                                                    let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                                    if pointer.button() != 0 { return; }
+                                                    if space_down.get() { return; }
+                                                    pointer.prevent_default();
+                                                    pointer.stop_propagation();
+                                                    let current = runtime.model();
+                                                    let Some(context) = objects::context_for_cell(&current, &matrix_id, cell_row, cell_column) else { return; };
+                                                    let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
+                                                    selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, range_ids.clone());
+                                                }
+                                            } }
                                         }
                                     }
                                 }
@@ -900,29 +1400,48 @@ fn Editor() -> Element {
                                 let footprints_on = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
                                 let id = part.id.clone();
                                 let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone(); let space_down = space_down.clone();
+                                let adapter = adapter.clone(); let render_scope_for_hit = render_scope.clone();
+                                let mut selected_context = adapter.selected_context;
+                                let generation_for_hit = render_generation;
                                 let range_ids = visible_ids.clone();
                                 rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
+                                        if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }
+                                        if drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
                                         pointer.prevent_default(); pointer.stop_propagation();
-                                        if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
                                         if space_down.get() {
-                                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), origin: Vec2::default(), client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions: vec![], active: true, pan: true, camera: runtime.model().camera.center });
+                                            if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
+                                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin: Vec2::default(), client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions: vec![], active: true, pan: true, camera: runtime.model().camera.center });
                                             return;
                                         }
-                                        let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else { return; };
+                                        let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
+                                            if let Some(surface) = svg.borrow().as_ref() { let _ = surface.release_pointer_capture(pointer.pointer_id()); }
+                                            return;
+                                        };
                                         let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
                                         let current = runtime.model();
+                                        let Some(context) = objects::context_for_part(&current, &id) else { return; };
                                         if !current.selected_part_ids.contains(&id) || mode != SelectionMode::Replace {
-                                            let range_part_ids = if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { vec![] };
-                                            runtime.submit(Event::SelectParts { operation_id: runtime.operation(), part_ids: vec![id.clone()], range_part_ids, mode });
+                                            selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
+                                        } else {
+                                            let anchor_valid = (adapter.anchor_scope)().as_ref() == Some(&render_scope_for_hit)
+                                                && current.selection_anchor_id.as_ref() == Some(&id)
+                                                && selection::eligible_live_ids(&current).contains(&id);
+                                            if !anchor_valid {
+                                                selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context, SelectionMode::Add, Vec::new());
+                                            } else {
+                                                selected_context.set(Some(objects::ScopedTreeContext { scope: render_scope_for_hit.clone(), context }));
+                                            }
                                         }
                                         let current = runtime.model();
                                         if !current.selected_part_ids.contains(&id) { return; }
                                         let Some(snapshot) = current.accepted else { return; };
                                         let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
-                                        *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
+                                        if positions.is_empty() { return; }
+                                        if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
+                                        *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
                                     },
                                     polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
                                     if footprints_on {
@@ -964,7 +1483,14 @@ fn Editor() -> Element {
                     }
                 }
                 if active_workspace == "Layout" {
-                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings, Inspector {} }
+                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
+                        if let Some(selected) = selected_tree_context.as_ref()
+                            && let Some(label) = objects::context_label(&model, &selected.context)
+                        {
+                            p { class: "m1-selected-context", "Selected: {label}" }
+                        }
+                        if show_position_inspector { Inspector {} }
+                    }
                 }
             }
             footer { class: "m1-editor-footer",
