@@ -6,7 +6,6 @@ use dioxus::prelude::*;
 #[derive(Clone, PartialEq)]
 pub(in crate::presentation) struct LayoutTransformMenuMount {
     pub properties_available: bool,
-    pub position_has_rotation: bool,
     pub column_available: bool,
     pub row_available: bool,
     pub on_selection_kind: EventHandler<LayoutSelectionKind>,
@@ -19,11 +18,7 @@ pub(in crate::presentation) fn LayoutTransformToolbar(
     open_menu: Signal<Option<LayoutCommandMenu>>,
 ) -> Element {
     let is_open = open_menu() == Some(LayoutCommandMenu::Transform);
-    let position_label = if mount.position_has_rotation {
-        "Position & rotation"
-    } else {
-        "Position"
-    };
+    let position_label = "Position & rotation";
 
     rsx! {
         details {

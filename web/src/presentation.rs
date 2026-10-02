@@ -3499,9 +3499,6 @@ fn Editor() -> Element {
                 )
             }) && (show_position_inspector
                 || matrix_transform_inspector.projection.is_some());
-            let position_has_rotation = selected_tree_context.as_ref().is_some_and(|selected| {
-                !matches!(&selected.context, objects::TreeContext::Column { .. })
-            });
             let on_show_properties = EventHandler::new({
                 let runtime = runtime.clone();
                 let adapter = adapter.clone();
@@ -3521,7 +3518,6 @@ fn Editor() -> Element {
             });
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
-                position_has_rotation,
                 column_available: supports_kind(objects::LayoutSelectionKind::Column),
                 row_available: supports_kind(objects::LayoutSelectionKind::Row),
                 on_selection_kind: workspace_callbacks.layout_selection_kind,
