@@ -290,6 +290,7 @@ pub(super) fn KeycapsCanvas(
                             transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
                             role: "button",
                             tabindex: "0",
+                            "aria-pressed": selected,
                             "aria-label": "Edit key {reference}",
                             onclick: move |event| {
                                 event.stop_propagation();
@@ -343,12 +344,17 @@ pub(super) fn KeycapsKeyList(
 ) -> Element {
     let mut query = use_signal(String::new);
     let normalized_query = query().to_lowercase();
+    // Match React's resolved selected key: an ID outside this accepted projection
+    // has no selected option, without emitting a selection change.
+    let selected_value = selected_key_id
+        .filter(|id| view.keys.iter().any(|key| key.id.as_ref() == id.as_str()))
+        .unwrap_or_default();
     let visible_keys = view
         .keys
         .iter()
         .filter(|key| key.search_text.contains(normalized_query.as_str()))
         .collect::<Vec<_>>();
-    let selected_value = selected_key_id.unwrap_or_default();
+    let no_visible_keys = visible_keys.is_empty();
     rsx! {
         section { class: "m1-keycaps-key-list", "aria-label": "Keycaps key selection",
             label {
@@ -366,21 +372,28 @@ pub(super) fn KeycapsKeyList(
                     "aria-label": "Selected key",
                     value: "{selected_value}",
                     onchange: move |event| on_select_key.call(event.value()),
-                    option { value: "", "Choose on the layout…" }
-                    for key in visible_keys {
-                        let binding_label = if key.binding_label.is_empty() {
-                            "Unassigned"
-                        } else {
-                            key.binding_label.as_ref()
-                        };
-                        option {
-                            value: "{key.id}",
-                            "{key.reference} · {binding_label}"
+                    option { value: "", selected: selected_value.is_empty(), "Choose on the layout…" }
+                    for key in &visible_keys {
+                        {
+                            let binding_label = if key.binding_label.is_empty() {
+                                "Unassigned"
+                            } else {
+                                key.binding_label.as_ref()
+                            };
+                            let selected = selected_value.as_str() == key.id.as_ref();
+                            rsx! {
+                                option {
+                                    key: "{key.id}",
+                                    value: "{key.id}",
+                                    selected,
+                                    "{key.reference} · {binding_label}"
+                                }
+                            }
                         }
                     }
                 }
             }
-            if !query().is_empty() && visible_keys.is_empty() {
+            if !query().is_empty() && no_visible_keys {
                 p { role: "status", "No matching keys." }
             }
         }
@@ -578,7 +591,6 @@ mod tests {
             "matrix/m/member",
             "matrix/m/",
             "matrix/m/nested/member",
-            "not-on-board",
             "other",
         ]));
         document.definitions.push(definition(
