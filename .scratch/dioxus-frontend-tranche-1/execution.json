@@ -1,0 +1,98 @@
+{
+  "scope": "All62frontendworkpackages; continuous parallel frontier",
+  "authority": "2026-10-02 user: lets implement and automatically create more tickets via agents",
+  "baseline": "d7c766d6",
+  "status": "running",
+  "automatic_ticket_creation": true,
+  "routine_ticket_publication_authorized": true,
+  "current_tranche": "dioxus-frontend-tranche-1",
+  "tasks": [
+    {
+      "id": "T1-01",
+      "parent": "INT.1",
+      "issue": "issues/01-private-workspace-composition.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-02",
+      "parent": "F2.1",
+      "issue": "issues/02-saved-keyboards.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-03",
+      "parent": "F2.1",
+      "issue": "issues/03-saved-search.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-medium"
+    },
+    {
+      "id": "T1-04",
+      "parent": "F2.1",
+      "issue": "issues/04-sofle-demo-copies.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-05",
+      "parent": "F2.1",
+      "issue": "issues/05-measured-demo-copies.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-06",
+      "parent": "F2.1",
+      "issue": "issues/06-module-review-demo.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-07",
+      "parent": "F2.3",
+      "issue": "issues/07-desktop-panel-modes.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-08",
+      "parent": "F2.3",
+      "issue": "issues/08-panel-resize.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-09",
+      "parent": "F2.3",
+      "issue": "issues/09-compact-drawers.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-10",
+      "parent": "F3.1",
+      "issue": "issues/10-layout-object-tree.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-11",
+      "parent": "F3.1",
+      "issue": "issues/11-outline-tree-navigation.md",
+      "status": "ready-for-agent",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T1-12",
+      "parent": "F3.1",
+      "issue": "issues/12-rectangular-selection.md",
+      "status": "ready-for-agent",
+      "agent_profile": "astra-debug"
+    }
+  ],
+  "policy": "Two Luna authors plus independent verifier, rotating Astra reviews; root+3slotcap; exact private ownership; no wholetranchebarrier.",
+  "approval_limits": "Public API/schema/member visibility changes, destructive operations, unrelated config changes and final production adoption retain existing explicit decisions.",
+  "ticket_generation": "Prepare runnable or soon-runnable bounded children through agents, check true blocker edges and parent coverage, integrate one file per ticket automatically; preserve original parent acceptance and RF handoff."
+}

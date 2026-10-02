@@ -22,7 +22,7 @@
       "depends_on": [],
       "priority": "P0",
       "effort": "S",
-      "status": "planned",
+      "status": "implementing",
       "acceptance": "Existing session/runtime remains authoritative; private workspace read-model/callback slots, scope/draft keys and shared panel/control contracts let the first F2/F3 slices mount without parallel edits to the same shell. Preserve working F1/F3a behavior. No general framework or public API expansion.",
       "boundary_status": "Private presentation composition only; existing events/model/types suffice.",
       "external_gates": [],
@@ -2555,5 +2555,7 @@
     "boundary_slices": 2
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
-  "agent_policy_date": "2026-10-02"
+  "agent_policy_date": "2026-10-02",
+  "execution_authority": "2026-10-02 user authorized implementation and automatic agent-created next tickets.",
+  "execution_state": "../dioxus-frontend-tranche-1/execution.json"
 }

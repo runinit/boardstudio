@@ -1,3 +1,11 @@
+# First frontend tickets — implementation authorized
+
+The reviewed twelve tickets are published in `issues`; original drafts below are
+preserved as planning history. The user authorized implementation and automatic
+follow-on ticket creation on 2026-10-02. See [authority](AUTHORITY.md) and
+[current execution](execution.json). The full62-item graph continues to govern
+scope and parent acceptance.
+
 # Proposed first frontend tickets
 
 **First wave only: 12 draft child tickets beneath four of the 62 existing work packages.**

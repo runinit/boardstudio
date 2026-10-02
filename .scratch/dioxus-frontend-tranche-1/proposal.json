@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "status": "draft-awaiting-breakdown-approval",
+  "status": "published; implementation authorized",
   "scope": "First runnable tranche only: INT.1, F2.1, F2.3, F3.1",
   "baseline": "530e60dd",
   "executable_source": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "parent_graph": "../dioxus-frontend-v1/tasks.json",
   "parent_graph_modified": false,
-  "publication_approved": false,
+  "publication_approved": true,
   "implementation_started": false,
   "skill": "/home/chris/.agents/skills/to-tickets/SKILL.md",
   "ticket_count": 12,
@@ -25,7 +25,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "The existing library, Objects panel and Inspect panel run through small private page components while the current editor continues to behave the same. This is the bounded prefactor before the visible tickets.",
       "acceptance": [
         "Review and compile the concrete same-page-crate inputs/actions, using the current accepted read model, scope identity and one Runtime/Session. Keep one root subscription and one document/history authority; do not add a general UI framework or widen member/API visibility.",
@@ -35,7 +35,8 @@
       ],
       "blocking_rationale": {},
       "draft_path": "drafts/01-private-workspace-composition.md",
-      "publication_path": "issues/01-private-workspace-composition.md"
+      "publication_path": "issues/01-private-workspace-composition.md",
+      "issue_path": "issues/01-private-workspace-composition.md"
     },
     {
       "number": 2,
@@ -49,7 +50,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "Your keyboards displays usable saved-project cards and opens the chosen keyboard through the existing storage/session flow.",
       "acceptance": [
         "Show the current keyboard once, followed by saved keyboards in reference name order, with reference name fallback, key/board summaries, thumbnail geometry, current marker and accessible open action.",
@@ -62,7 +63,8 @@
         "1": "Uses the reviewed private library slot, current-project inputs and existing open callback."
       },
       "draft_path": "drafts/02-saved-keyboards.md",
-      "publication_path": "issues/02-saved-keyboards.md"
+      "publication_path": "issues/02-saved-keyboards.md",
+      "issue_path": "issues/02-saved-keyboards.md"
     },
     {
       "number": 3,
@@ -76,7 +78,7 @@
       "author_profile": "luna-medium",
       "verifier_profile": "luna-medium",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "Users can search the saved-keyboard cards, clear the search and open a matching result.",
       "acceptance": [
         "Match reference case-insensitive, trimmed name filtering, including the current keyboard, Untitled keyboard fallback, Clear search and No keyboards match your search.",
@@ -88,7 +90,8 @@
         "2": "Filters and opens the real saved-card list delivered by ticket 02."
       },
       "draft_path": "drafts/03-saved-search.md",
-      "publication_path": "issues/03-saved-search.md"
+      "publication_path": "issues/03-saved-search.md",
+      "issue_path": "issues/03-saved-search.md"
     },
     {
       "number": 4,
@@ -102,7 +105,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "The demo section offers Sofle v2, RGB and Choc as real editable copies with the reference card previews and summaries.",
       "acceptance": [
         "Add the shared demo catalogue/card integration and the three Sofle variants using the existing authoritative document/provider behavior. Keep the already available REVIUNG41 entry usable until its measured-demo family is completed.",
@@ -115,7 +118,8 @@
         "2": "Reuses the integrated project-card component, library route and validated open feedback from ticket 02."
       },
       "draft_path": "drafts/04-sofle-demo-copies.md",
-      "publication_path": "issues/04-sofle-demo-copies.md"
+      "publication_path": "issues/04-sofle-demo-copies.md",
+      "issue_path": "issues/04-sofle-demo-copies.md"
     },
     {
       "number": 5,
@@ -129,7 +133,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "Every measured keyboard in the reference demo catalogue is visible and starts a faithful editable project.",
       "acceptance": [
         "Include Corne, Lily58, Sweep, Chocofi, REVIUNG41, Totem, KLOR, Cantor, GH60, Discipline, Mysterium, Voyager97, Voyager104, Plaid and Lumberjack using the exact reference display names and catalogue order.",
@@ -141,7 +145,8 @@
         "4": "Extends the proved demo-copy action and shared catalogue integration; it does not reimplement that lifecycle."
       },
       "draft_path": "drafts/05-measured-demo-copies.md",
-      "publication_path": "issues/05-measured-demo-copies.md"
+      "publication_path": "issues/05-measured-demo-copies.md",
+      "issue_path": "issues/05-measured-demo-copies.md"
     },
     {
       "number": 6,
@@ -155,7 +160,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "The VIK module review demo starts as an editable project that preserves its above/below mounted-module configuration.",
       "acceptance": [
         "Show the reference VIK module review card with its exact name, preview and summary; open the real reference-equivalent project and local assets through the shared fresh-copy action.",
@@ -167,7 +172,8 @@
         "4": "Uses the proved fresh-copy demo action and catalogue/card integration."
       },
       "draft_path": "drafts/06-module-review-demo.md",
-      "publication_path": "issues/06-module-review-demo.md"
+      "publication_path": "issues/06-module-review-demo.md",
+      "issue_path": "issues/06-module-review-demo.md"
     },
     {
       "number": 7,
@@ -181,7 +187,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "Objects and Inspect support the reference desktop panel modes and remember their preferences.",
       "acceptance": [
         "Implement both panels with the reference default pinned layout and pin/auto-hide/collapse controls, rail reveal behavior, independent panel state and reference menu dismissal/focus return.",
@@ -193,7 +199,8 @@
         "1": "Uses the private panel composition slot and coordinator-owned frame from ticket 01."
       },
       "draft_path": "drafts/07-desktop-panel-modes.md",
-      "publication_path": "issues/07-desktop-panel-modes.md"
+      "publication_path": "issues/07-desktop-panel-modes.md",
+      "issue_path": "issues/07-desktop-panel-modes.md"
     },
     {
       "number": 8,
@@ -207,7 +214,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "Users can resize Objects and Inspect while keeping the canvas usable and retaining the chosen width.",
       "acceptance": [
         "Match Objects bounds of 200\u2013420 CSS px and Inspect bounds of 280\u2013480 CSS px; match the reference 20 px ArrowLeft/ArrowRight steps with side-correct direction and accessible separator values.",
@@ -219,7 +226,8 @@
         "7": "Extends the real panel mode/width/preferences controller and frame geometry."
       },
       "draft_path": "drafts/08-panel-resize.md",
-      "publication_path": "issues/08-panel-resize.md"
+      "publication_path": "issues/08-panel-resize.md",
+      "issue_path": "issues/08-panel-resize.md"
     },
     {
       "number": 9,
@@ -233,7 +241,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "At compact widths, users can open, interact with and dismiss Objects and Inspect without losing keyboard focus.",
       "acceptance": [
         "Match the side-specific compact breakpoints: Objects at 980 CSS px and Inspect at 820 CSS px, including the intermediate layout with only one compact side.",
@@ -245,7 +253,8 @@
         "7": "Reuses the actual panel visibility/focus owner and preserved desktop preferences; desktop resize ticket 08 is not a start blocker."
       },
       "draft_path": "drafts/09-compact-drawers.md",
-      "publication_path": "issues/09-compact-drawers.md"
+      "publication_path": "issues/09-compact-drawers.md",
+      "issue_path": "issues/09-compact-drawers.md"
     },
     {
       "number": 10,
@@ -259,7 +268,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "Objects shows the active canonical board\u2019s matrices, row/column groups, keys, cell components and standalone components with synchronized canvas selection.",
       "acceptance": [
         "Use stable IDs, reference labels/counts, row/column grouping and independent disclosure controls. Preserve linked-half/matrix grouping and existing five-layer visibility behavior.",
@@ -273,7 +282,8 @@
         "1": "Uses the reviewed tree slot, read model and selection/navigation callback boundary."
       },
       "draft_path": "drafts/10-layout-object-tree.md",
-      "publication_path": "issues/10-layout-object-tree.md"
+      "publication_path": "issues/10-layout-object-tree.md",
+      "issue_path": "issues/10-layout-object-tree.md"
     },
     {
       "number": 11,
@@ -287,7 +297,7 @@
       "author_profile": "luna-high",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "The Layout tree exposes the active board\u2019s outline, Generated and saved versions, and applicable bridges; users can activate a version and locate a bridge in the real canvas.",
       "acceptance": [
         "Render reference outline/version labels and active/fixed status with independent disclosure. Show only applicable bridges, including their matrix occurrences without creating duplicate bridge identities.",
@@ -300,7 +310,8 @@
         "10": "Adds outline rows/actions to the real integrated tree and shared selected-context presentation."
       },
       "draft_path": "drafts/11-outline-tree-navigation.md",
-      "publication_path": "issues/11-outline-tree-navigation.md"
+      "publication_path": "issues/11-outline-tree-navigation.md",
+      "issue_path": "issues/11-outline-tree-navigation.md"
     },
     {
       "number": 12,
@@ -314,7 +325,7 @@
       "author_profile": "astra-debug",
       "verifier_profile": "luna-high",
       "reviewer_profile": "astra-review",
-      "status": "draft-awaiting-breakdown-approval",
+      "status": "ready-for-agent",
       "outcome": "Shift selects the reference rectangular key range, while Ctrl/Cmd toggles and tree/canvas selection remain consistent across scope changes.",
       "acceptance": [
         "First reproduce the current mismatch: a matrix rectangle whose correct members differ from the flattened linear interval. Preserve a failing regression for that expected reason before applying the repair.",
@@ -328,7 +339,9 @@
         "10": "Uses the integrated semantic tree context and live-membership adapter so repaired canvas ranges and tree selection have one consistent interpretation."
       },
       "draft_path": "drafts/12-rectangular-selection.md",
-      "publication_path": "issues/12-rectangular-selection.md"
+      "publication_path": "issues/12-rectangular-selection.md",
+      "issue_path": "issues/12-rectangular-selection.md"
     }
-  ]
+  ],
+  "authorization": "2026-10-02: user requested implementation and automatic agent-created follow-on tickets."
 }
