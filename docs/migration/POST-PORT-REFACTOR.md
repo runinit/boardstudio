@@ -90,6 +90,8 @@ Evidence: [keycaps.rs](../../cad/wasm/src/model/keycaps.rs), [lib.rs](../../cad/
 
 The Case/shared-viewer audit provides a second capability-to-host example: a private model-delivery helper exists, but it is not registered/called by the page, and the current scene projection supplies empty model/surface/hole inputs. Generated CAD body meshes therefore do not demonstrate PCB model delivery. Keep implementation status distinct from source presence and public behavior; see the [audit](../../.scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md).
 
+The paired Case journey on the exact imported layered-Sofle archive confirms that gap at the public UI: TypeScript shows its 90/90 model assembly after adding the default plate, while Dioxus has a blank Case canvas and reports “selected board is not ready for case generation”. The React physical assembly viewer exists independently of generated case-body geometry; Dioxus currently routes Case display through generated `CadScene` readiness. Preserve this as a distinct viewer workflow blocker under F7 and keep the case preparation gate separate. See the [paired results and screenshots](../../.scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md).
+
 ## RF-004
 
 **Immutable export tokens do not model export-owned commits** — architecture / transaction theory. confirmed contract mismatch for PCB workflow.

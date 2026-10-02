@@ -192,6 +192,12 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md",
           "observation": "The Case shared-viewer projection sends empty board surfaces, holes and model arrays, while model_delivery.rs contains private selection/decode code but is not registered or called from the page presentation. The candidate displayed generated CAD body meshes without PCB/model meshes. This separates an existing helper source from its absent producer/provider/scene wiring and from the public no-mesh result.",
           "status": "current F7.3 model-delivery integration remains open; no public API change inferred"
+        },
+        {
+          "source": "Paired TypeScript/Dioxus Case journey on imported-layered-sofle.boardstudio (SHA-256 5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df)",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md",
+          "observation": "At revision 9 with Left PCB/left instance selected and the default plate added, TypeScript renders its 90/90 physical model assembly while the Dioxus canvas is blank and reports that the selected board is not ready. The reference assembly preview is independent of generated case-body geometry; Dioxus currently requires a generated CadScene and its readiness path before CaseViewer can display anything. This confirms the existing RF-003 provider/projection gap with the exact paired fixture and records the separate blocked readiness message.",
+          "status": "confirmed F7 Case public behavior blocker; new reviewed viewer child and generation/recovery journey required; not architectural acceptance"
         }
       ]
     },
