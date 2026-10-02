@@ -13,8 +13,18 @@ pub(in crate::presentation) struct MirroredPairCanvasOverlayProps {
 pub(in crate::presentation) fn MirroredPairCanvasOverlay(
     props: MirroredPairCanvasOverlayProps,
 ) -> Element {
+    let owner = props.projection.owner.clone();
+    let on_cancel = props.on_cancel;
     rsx! {
-        div { class: "m1-mirrored-pair-canvas-overlay",
+        div {
+            class: "m1-mirrored-pair-canvas-overlay",
+            onkeydown: move |event| {
+                if event.key().to_string() == "Escape" {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    on_cancel.call(owner.clone());
+                }
+            },
             MirroredPairForm {
                 key: "{props.projection.owner.open_id}",
                 projection: props.projection,

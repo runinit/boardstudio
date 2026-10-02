@@ -4418,6 +4418,15 @@ fn Editor() -> Element {
                         }
                     },
                     {workspace_composition::toolbar(toolbar_input)}
+                    if active_workspace == "Layout"
+                        && let Some(projection) = mirrored_pair.form.clone()
+                    {
+                        objects::MirroredPairCanvasOverlay {
+                            projection,
+                            on_cancel: mirrored_pair.on_cancel,
+                            on_preview: mirrored_pair.on_preview,
+                        }
+                    }
                     if active_workspace == "Layout" {
                         svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,

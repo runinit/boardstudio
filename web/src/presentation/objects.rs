@@ -42,7 +42,7 @@ pub(in crate::presentation) use matrix_transform_controller::{
 };
 pub(in crate::presentation) use matrix_transform_inspector::MatrixTransformInspector;
 pub(in crate::presentation) use mirrored_pair::{
-    MirroredPairCreated, MirroredPairForm, MirroredPairMount, MirroredPairMove,
+    MirroredPairCanvasOverlay, MirroredPairCreated, MirroredPairMount, MirroredPairMove,
 };
 pub(in crate::presentation) use mirrored_pair_controller::use_mirrored_pair;
 pub(in crate::presentation) use tree::TreeContext;
@@ -433,16 +433,6 @@ fn LayoutAddObjectEntry(
                 on_create: mount.on_create,
             }
           }
-        }
-        if let Some(mount) = mirrored_pair.as_ref()
-            && let Some(projection) = mount.form.clone()
-        {
-            MirroredPairForm {
-                key: "{projection.owner.open_id}",
-                projection,
-                on_cancel: mount.on_cancel,
-                on_preview: mount.on_preview,
-            }
         }
     }
 }

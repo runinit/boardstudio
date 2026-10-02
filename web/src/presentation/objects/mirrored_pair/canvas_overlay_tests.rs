@@ -1,0 +1,231 @@
+//! Browser coverage for the mounted canvas composition and form ownership.
+use super::*;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_test::*;
+
+wasm_bindgen_test_configure!(run_in_browser);
+
+fn owner(open_id: u64) -> MirroredPairOwner {
+    MirroredPairOwner {
+        editor_instance_id: 7,
+        open_id,
+        scope_generation: 11,
+        scope: boardstudio_application::Scope {
+            session_epoch: boardstudio_application::SessionEpoch(13),
+            document_id: "mirror-overlay-fixture".into(),
+            board_id: "board-current".into(),
+            instance_id: None,
+        },
+        board_id: "board-current".into(),
+        snapshot_token: boardstudio_application::SnapshotToken(17),
+        revision: 19,
+    }
+}
+
+fn projection(
+    owner: MirroredPairOwner,
+    values: MirroredPairFormValues,
+) -> MirroredPairFormProjection {
+    MirroredPairFormProjection {
+        owner,
+        values,
+        editable: true,
+        error: None,
+        status: None,
+    }
+}
+
+fn composition() -> Element {
+    let mut active = use_signal(|| true);
+    let mut current = use_signal(|| projection(owner(1), MirroredPairFormValues::default()));
+    let mut previewed = use_signal(|| None::<MirroredPairRequest>);
+    let mut cancelled = use_signal(|| None::<MirroredPairOwner>);
+    rsx! {
+        aside { id: "mirror-overlay-objects", "Objects navigation" }
+        section { id: "mirror-overlay-workspace", class: "m1-workspace-content",
+            div { id: "mirror-overlay-canvas", "Layout canvas" }
+            if active() {
+                MirroredPairCanvasOverlay {
+                    projection: current(),
+                    on_cancel: move |owner| { cancelled.set(Some(owner)); active.set(false); },
+                    on_preview: move |request: MirroredPairRequest| {
+                        current.set(projection(request.owner.clone(), MirroredPairFormValues {
+                            left_name: request.left_name.clone(),
+                            right_name: request.right_name.clone(),
+                            rows: request.rows.to_string(),
+                            columns: request.columns.to_string(),
+                            preset: request.preset,
+                            gap_mm: request.gap_mm.to_string(),
+                        }));
+                        previewed.set(Some(request));
+                        active.set(false);
+                    },
+                }
+            }
+            button { id: "mirror-overlay-return", onclick: move |_| active.set(true), "Return to form" }
+            button {
+                id: "mirror-overlay-new-owner",
+                onclick: move |_| {
+                    current.set(projection(owner(2), MirroredPairFormValues::default()));
+                    active.set(true);
+                },
+                "Open new form",
+            }
+            if let Some(request) = previewed() {
+                output {
+                    id: "mirror-overlay-preview-result",
+                    "data-owner": "{request.owner.open_id}:{request.owner.scope_generation}:{request.owner.revision}",
+                    "data-values": "{request.left_name}|{request.rows}|{request.columns}|{request.gap_mm}",
+                }
+            }
+            if let Some(owner) = cancelled() {
+                output {
+                    id: "mirror-overlay-cancel-result",
+                    "data-owner": "{owner.open_id}:{owner.scope_generation}:{owner.revision}:{owner.scope.document_id}:{owner.board_id}",
+                }
+            }
+        }
+    }
+}
+
+fn element(selector: &str) -> web_sys::HtmlElement {
+    let found = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(selector)
+        .unwrap();
+    let found =
+        found.unwrap_or_else(|| panic!("missing mounted test element for selector: {selector}"));
+    found.dyn_into().unwrap()
+}
+
+async fn rendered() {
+    gloo_timers::future::TimeoutFuture::new(80).await;
+}
+
+fn set_input(selector: &str, value: &str) {
+    let input = element(selector);
+    input
+        .dyn_ref::<web_sys::HtmlInputElement>()
+        .unwrap()
+        .set_value(value);
+    let event = web_sys::Event::new("input").unwrap();
+    event.init_event_with_bubbles("input", true);
+    input.dispatch_event(&event).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("mirror-overlay-test-root");
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(composition),
+        dioxus_web::Config::new().rootnode(root.into()),
+    );
+    rendered().await;
+
+    let in_workspace =
+        element("#mirror-overlay-workspace > .m1-mirrored-pair-canvas-overlay").is_connected();
+    let absent_from_objects = document
+        .query_selector("#mirror-overlay-objects .m1-mirrored-pair-canvas-overlay")
+        .unwrap()
+        .is_none();
+    set_input(
+        "#mirror-overlay-workspace input[aria-label='Left layout name']",
+        "Kept left draft",
+    );
+    rendered().await;
+    set_input(
+        "#mirror-overlay-workspace input[aria-label='Mirrored pair rows']",
+        "4",
+    );
+    rendered().await;
+    set_input(
+        "#mirror-overlay-workspace input[aria-label='Mirrored pair columns']",
+        "6",
+    );
+    rendered().await;
+    element("#mirror-overlay-workspace button[type='submit']").click();
+    rendered().await;
+    let preview = element("#mirror-overlay-preview-result");
+    let preview_owner = preview.get_attribute("data-owner").unwrap();
+    let preview_values = preview.get_attribute("data-values").unwrap();
+
+    element("#mirror-overlay-return").click();
+    rendered().await;
+    let retained_left = element("#mirror-overlay-workspace input[aria-label='Left layout name']")
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap()
+        .value();
+    let retained_rows = element("#mirror-overlay-workspace input[aria-label='Mirrored pair rows']")
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap()
+        .value();
+
+    let left = element("#mirror-overlay-workspace input[aria-label='Left layout name']");
+    let escape_options = web_sys::KeyboardEventInit::new();
+    escape_options.set_bubbles(true);
+    escape_options.set_key("Escape");
+    let escape =
+        web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape_options)
+            .unwrap();
+    left.dispatch_event(&escape).unwrap();
+    rendered().await;
+    let escaped_owner = element("#mirror-overlay-cancel-result")
+        .get_attribute("data-owner")
+        .unwrap();
+    let hidden_after_escape = document
+        .query_selector("#mirror-overlay-workspace .m1-mirrored-pair-canvas-overlay")
+        .unwrap()
+        .is_none();
+
+    element("#mirror-overlay-new-owner").click();
+    rendered().await;
+    let reset_left = element("#mirror-overlay-workspace input[aria-label='Left layout name']")
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap()
+        .value();
+    element("#mirror-overlay-workspace footer button[type='button']").click();
+    rendered().await;
+    let clicked_cancel_owner = element("#mirror-overlay-cancel-result")
+        .get_attribute("data-owner")
+        .unwrap();
+
+    assert_eq!((in_workspace, absent_from_objects), (true, true));
+    assert_eq!(preview_owner, "1:11:19");
+    assert_eq!(preview_values, "Kept left draft|4|6|24");
+    assert_eq!(
+        (retained_left.as_str(), retained_rows.as_str()),
+        ("Kept left draft", "4")
+    );
+    assert!(
+        hidden_after_escape,
+        "Escape from a focused form field must cancel the current setup owner"
+    );
+    assert_eq!(
+        escaped_owner,
+        "1:11:19:mirror-overlay-fixture:board-current"
+    );
+    assert_eq!(
+        reset_left, "Left half",
+        "a new open_id must remount the keyed form and reset its local draft"
+    );
+    assert_eq!(
+        clicked_cancel_owner,
+        "2:11:19:mirror-overlay-fixture:board-current"
+    );
+}
+
+#[wasm_bindgen_test]
+fn overlay_styles_keep_bounded_canvas_and_compact_geometry() {
+    let css = include_str!("../../../../assets/m1.css");
+    assert!(css.contains(".m1-mirrored-pair-canvas-overlay"));
+    assert!(css.contains("width: min(380px, 100%)"));
+    assert!(css.contains("max-height: calc(100% - 40px)"));
+    assert!(css.contains("@media (max-width: 520px)"));
+    assert!(css.contains(".m1-mirrored-pair-canvas-overlay { padding: 8px; }"));
+    assert!(css.contains("max-height: calc(100% - 16px); padding: 18px"));
+}
