@@ -1,0 +1,10 @@
+{
+  "fixture": "docs/migration/evidence/new-keyboard-guide-paired-20261002/new17-final-oracle-accepted-project.json",
+  "sha256": "658e2488ef3ac2514646f177c99b6c12f9f47561bd9a42211f72a93d1609b77a",
+  "source_commit": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
+  "url": "http://127.0.0.1:34723/boardstudio/",
+  "session": "new17-dioxus-34723-final-c8a853a97c72",
+  "read": "Existing IndexedDB database list verified; readonly projects.get(3ae9b7d4-77fc-4783-abb9-5cc63dc4d10b); no session/document mutation.",
+  "symptom": "Case board preview failed: Ergogen preview conversion failed: Ergogen model has no safe exported path: ${KIPRJMOD}/models/boardstudio/kiswitch/SW_Cherry_MX_PCB.stp",
+  "status": "Separate production generator diagnosis active; no fix or parent acceptance claimed."
+}

@@ -1,0 +1,1180 @@
+{
+  "assets": [],
+  "boards": [
+    {
+      "id": "50eb9949-f37b-472f-9f21-ad1698454290",
+      "name": "Main board",
+      "netIds": [],
+      "outlineIds": [
+        "a5312df7-64fb-4fb3-9263-8995c1b0bd04"
+      ],
+      "partIds": [
+        "matrix/matrix-1/r0c0",
+        "matrix/matrix-1/r0c0/diode",
+        "matrix/matrix-1/r0c1",
+        "matrix/matrix-1/r0c1/diode",
+        "matrix/matrix-1/r0c2",
+        "matrix/matrix-1/r0c2/diode",
+        "matrix/matrix-1/r0c3",
+        "matrix/matrix-1/r0c3/diode",
+        "matrix/matrix-1/r1c0",
+        "matrix/matrix-1/r1c0/diode",
+        "matrix/matrix-1/r1c1",
+        "matrix/matrix-1/r1c1/diode",
+        "matrix/matrix-1/r1c2",
+        "matrix/matrix-1/r1c2/diode",
+        "matrix/matrix-1/r1c3",
+        "matrix/matrix-1/r1c3/diode",
+        "matrix/matrix-1/r2c0",
+        "matrix/matrix-1/r2c0/diode",
+        "matrix/matrix-1/r2c1",
+        "matrix/matrix-1/r2c1/diode",
+        "matrix/matrix-1/r2c2",
+        "matrix/matrix-1/r2c2/diode",
+        "matrix/matrix-1/r2c3",
+        "matrix/matrix-1/r2c3/diode",
+        "matrix/matrix-1/r3c0",
+        "matrix/matrix-1/r3c0/diode",
+        "matrix/matrix-1/r3c1",
+        "matrix/matrix-1/r3c1/diode",
+        "matrix/matrix-1/r3c2",
+        "matrix/matrix-1/r3c2/diode",
+        "matrix/matrix-1/r3c3",
+        "matrix/matrix-1/r3c3/diode"
+      ],
+      "thickness": 1.6
+    }
+  ],
+  "caseBodies": [],
+  "constraints": [],
+  "definitions": [
+    {
+      "courtyard": [
+        {
+          "x": -6.03,
+          "y": -2.05
+        },
+        {
+          "x": 6.03,
+          "y": -2.05
+        },
+        {
+          "x": 6.03,
+          "y": 6.223
+        },
+        {
+          "x": -6.03,
+          "y": 6.223
+        }
+      ],
+      "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+      "envelopeSource": {
+        "courtyard": "generated",
+        "keycap": "generated"
+      },
+      "generator": {
+        "parameters": {
+          "hotswap": false,
+          "include_keycap": true,
+          "reversible": false,
+          "side": "B",
+          "solder": true
+        },
+        "source": "ceoloide/switch_mx",
+        "version": "bundled-1"
+      },
+      "id": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "keycap": {
+        "x": 18,
+        "y": 18
+      },
+      "kind": "switch",
+      "matrixTerminals": {
+        "column": "to",
+        "row": "from"
+      },
+      "name": "switch mx",
+      "pads": [
+        {
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "drill": 4.1,
+          "id": "pad-0",
+          "number": "",
+          "plated": false,
+          "rotation": 0,
+          "shape": "circle",
+          "size": {
+            "x": 4.1,
+            "y": 4.1
+          }
+        },
+        {
+          "at": {
+            "x": 5.08,
+            "y": 0
+          },
+          "drill": 1.9,
+          "id": "pad-1",
+          "number": "",
+          "plated": false,
+          "rotation": 0,
+          "shape": "circle",
+          "size": {
+            "x": 1.9,
+            "y": 1.9
+          }
+        },
+        {
+          "at": {
+            "x": -5.08,
+            "y": 0
+          },
+          "drill": 1.9,
+          "id": "pad-2",
+          "number": "",
+          "plated": false,
+          "rotation": 0,
+          "shape": "circle",
+          "size": {
+            "x": 1.9,
+            "y": 1.9
+          }
+        },
+        {
+          "at": {
+            "x": 2.54,
+            "y": 5.08
+          },
+          "drill": 1.4986,
+          "id": "pad-3",
+          "number": "1",
+          "shape": "circle",
+          "size": {
+            "x": 2.286,
+            "y": 2.286
+          }
+        },
+        {
+          "at": {
+            "x": -3.81,
+            "y": 2.54
+          },
+          "drill": 1.4986,
+          "id": "pad-4",
+          "number": "2",
+          "shape": "circle",
+          "size": {
+            "x": 2.286,
+            "y": 2.286
+          }
+        }
+      ],
+      "terminals": {
+        "from": [
+          "pad-3"
+        ],
+        "to": [
+          "pad-4"
+        ]
+      }
+    },
+    {
+      "courtyard": [
+        {
+          "x": -2.1,
+          "y": -0.6
+        },
+        {
+          "x": 2.1,
+          "y": -0.6
+        },
+        {
+          "x": 2.1,
+          "y": 0.6
+        },
+        {
+          "x": -2.1,
+          "y": 0.6
+        }
+      ],
+      "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+      "envelopeSource": {
+        "courtyard": "generated",
+        "keycap": null
+      },
+      "generator": {
+        "parameters": {
+          "include_tht": false,
+          "reversible": false,
+          "side": "B"
+        },
+        "source": "ceoloide/diode_tht_sod123",
+        "version": "bundled-1"
+      },
+      "id": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "kind": "passive",
+      "name": "diode tht sod123",
+      "pads": [
+        {
+          "at": {
+            "x": -1.65,
+            "y": 0
+          },
+          "id": "pad-0",
+          "number": "1",
+          "rotation": 0,
+          "shape": "rect",
+          "size": {
+            "x": 0.9,
+            "y": 1.2
+          }
+        },
+        {
+          "at": {
+            "x": 1.65,
+            "y": 0
+          },
+          "id": "pad-1",
+          "number": "2",
+          "rotation": 0,
+          "shape": "rect",
+          "size": {
+            "x": 0.9,
+            "y": 1.2
+          }
+        }
+      ],
+      "terminals": {
+        "from": [
+          "pad-1"
+        ],
+        "to": [
+          "pad-0"
+        ]
+      }
+    }
+  ],
+  "format": "boardstudio/v2",
+  "id": "3ae9b7d4-77fc-4783-abb9-5cc63dc4d10b",
+  "materials": [
+    {
+      "id": "pla",
+      "name": "PLA",
+      "thickness": 3
+    }
+  ],
+  "matrices": [
+    {
+      "boardId": "50eb9949-f37b-472f-9f21-ad1698454290",
+      "cells": [
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 0,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 0,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 1,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 0,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 2,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 0,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 3,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 0,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 0,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 1,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 1,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 1,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 2,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 1,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 3,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 1,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 0,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 2,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 1,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 2,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 2,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 2,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 3,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 2,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 0,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 3,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 1,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 3,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 2,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 3,
+          "variant": "preset/mx-solder/south"
+        },
+        {
+          "assemblies": [
+            {
+              "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+              "id": "diode",
+              "offset": {
+                "x": 7.4,
+                "y": -1.5
+              },
+              "rotation": 90,
+              "side": "back"
+            }
+          ],
+          "assembliesLocal": true,
+          "column": 3,
+          "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+          "enabled": true,
+          "rotation": 0,
+          "row": 3,
+          "variant": "preset/mx-solder/south"
+        }
+      ],
+      "columns": 4,
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "edgeGap": {
+        "x": 1,
+        "y": 1
+      },
+      "id": "matrix-1",
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "partIds": [
+        "matrix/matrix-1/r0c0",
+        "matrix/matrix-1/r0c0/diode",
+        "matrix/matrix-1/r0c1",
+        "matrix/matrix-1/r0c1/diode",
+        "matrix/matrix-1/r0c2",
+        "matrix/matrix-1/r0c2/diode",
+        "matrix/matrix-1/r0c3",
+        "matrix/matrix-1/r0c3/diode",
+        "matrix/matrix-1/r1c0",
+        "matrix/matrix-1/r1c0/diode",
+        "matrix/matrix-1/r1c1",
+        "matrix/matrix-1/r1c1/diode",
+        "matrix/matrix-1/r1c2",
+        "matrix/matrix-1/r1c2/diode",
+        "matrix/matrix-1/r1c3",
+        "matrix/matrix-1/r1c3/diode",
+        "matrix/matrix-1/r2c0",
+        "matrix/matrix-1/r2c0/diode",
+        "matrix/matrix-1/r2c1",
+        "matrix/matrix-1/r2c1/diode",
+        "matrix/matrix-1/r2c2",
+        "matrix/matrix-1/r2c2/diode",
+        "matrix/matrix-1/r2c3",
+        "matrix/matrix-1/r2c3/diode",
+        "matrix/matrix-1/r3c0",
+        "matrix/matrix-1/r3c0/diode",
+        "matrix/matrix-1/r3c1",
+        "matrix/matrix-1/r3c1/diode",
+        "matrix/matrix-1/r3c2",
+        "matrix/matrix-1/r3c2/diode",
+        "matrix/matrix-1/r3c3",
+        "matrix/matrix-1/r3c3/diode"
+      ],
+      "pitch": {
+        "x": 19.05,
+        "y": 19.05
+      },
+      "rows": 4
+    }
+  ],
+  "name": "New17 Final Oracle",
+  "nets": [],
+  "outline": [
+    {
+      "id": "a5312df7-64fb-4fb3-9263-8995c1b0bd04",
+      "kind": "part-envelope",
+      "margin": 4,
+      "operation": "add",
+      "partIds": [
+        "matrix/matrix-1/r0c0",
+        "matrix/matrix-1/r0c0/diode",
+        "matrix/matrix-1/r0c1",
+        "matrix/matrix-1/r0c1/diode",
+        "matrix/matrix-1/r0c2",
+        "matrix/matrix-1/r0c2/diode",
+        "matrix/matrix-1/r0c3",
+        "matrix/matrix-1/r0c3/diode",
+        "matrix/matrix-1/r1c0",
+        "matrix/matrix-1/r1c0/diode",
+        "matrix/matrix-1/r1c1",
+        "matrix/matrix-1/r1c1/diode",
+        "matrix/matrix-1/r1c2",
+        "matrix/matrix-1/r1c2/diode",
+        "matrix/matrix-1/r1c3",
+        "matrix/matrix-1/r1c3/diode",
+        "matrix/matrix-1/r2c0",
+        "matrix/matrix-1/r2c0/diode",
+        "matrix/matrix-1/r2c1",
+        "matrix/matrix-1/r2c1/diode",
+        "matrix/matrix-1/r2c2",
+        "matrix/matrix-1/r2c2/diode",
+        "matrix/matrix-1/r2c3",
+        "matrix/matrix-1/r2c3/diode",
+        "matrix/matrix-1/r3c0",
+        "matrix/matrix-1/r3c0/diode",
+        "matrix/matrix-1/r3c1",
+        "matrix/matrix-1/r3c1/diode",
+        "matrix/matrix-1/r3c2",
+        "matrix/matrix-1/r3c2/diode",
+        "matrix/matrix-1/r3c3",
+        "matrix/matrix-1/r3c3/diode"
+      ],
+      "settings": {
+        "bridgeWidth": 10,
+        "corners": "sharp",
+        "size": 2
+      }
+    }
+  ],
+  "parameters": {},
+  "parts": [
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r0c0",
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW1",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r0c0/diode",
+      "pose": {
+        "at": {
+          "x": 7.4,
+          "y": -1.5
+        },
+        "rotation": 90
+      },
+      "reference": "SW2",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r0c1",
+      "pose": {
+        "at": {
+          "x": 19.05,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW3",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r0c1/diode",
+      "pose": {
+        "at": {
+          "x": 26.450000000000003,
+          "y": -1.5
+        },
+        "rotation": 90
+      },
+      "reference": "SW4",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r0c2",
+      "pose": {
+        "at": {
+          "x": 38.1,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW5",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r0c2/diode",
+      "pose": {
+        "at": {
+          "x": 45.5,
+          "y": -1.5
+        },
+        "rotation": 90
+      },
+      "reference": "SW6",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r0c3",
+      "pose": {
+        "at": {
+          "x": 57.150000000000006,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW7",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r0c3/diode",
+      "pose": {
+        "at": {
+          "x": 64.55000000000001,
+          "y": -1.5
+        },
+        "rotation": 90
+      },
+      "reference": "SW8",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r1c0",
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 19.05
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW9",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r1c0/diode",
+      "pose": {
+        "at": {
+          "x": 7.4,
+          "y": 17.55
+        },
+        "rotation": 90
+      },
+      "reference": "SW10",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r1c1",
+      "pose": {
+        "at": {
+          "x": 19.05,
+          "y": 19.05
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW11",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r1c1/diode",
+      "pose": {
+        "at": {
+          "x": 26.450000000000003,
+          "y": 17.55
+        },
+        "rotation": 90
+      },
+      "reference": "SW12",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r1c2",
+      "pose": {
+        "at": {
+          "x": 38.1,
+          "y": 19.05
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW13",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r1c2/diode",
+      "pose": {
+        "at": {
+          "x": 45.5,
+          "y": 17.55
+        },
+        "rotation": 90
+      },
+      "reference": "SW14",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r1c3",
+      "pose": {
+        "at": {
+          "x": 57.150000000000006,
+          "y": 19.05
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW15",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r1c3/diode",
+      "pose": {
+        "at": {
+          "x": 64.55000000000001,
+          "y": 17.55
+        },
+        "rotation": 90
+      },
+      "reference": "SW16",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r2c0",
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 38.1
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW17",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r2c0/diode",
+      "pose": {
+        "at": {
+          "x": 7.4,
+          "y": 36.6
+        },
+        "rotation": 90
+      },
+      "reference": "SW18",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r2c1",
+      "pose": {
+        "at": {
+          "x": 19.05,
+          "y": 38.1
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW19",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r2c1/diode",
+      "pose": {
+        "at": {
+          "x": 26.450000000000003,
+          "y": 36.6
+        },
+        "rotation": 90
+      },
+      "reference": "SW20",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r2c2",
+      "pose": {
+        "at": {
+          "x": 38.1,
+          "y": 38.1
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW21",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r2c2/diode",
+      "pose": {
+        "at": {
+          "x": 45.5,
+          "y": 36.6
+        },
+        "rotation": 90
+      },
+      "reference": "SW22",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r2c3",
+      "pose": {
+        "at": {
+          "x": 57.150000000000006,
+          "y": 38.1
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW23",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r2c3/diode",
+      "pose": {
+        "at": {
+          "x": 64.55000000000001,
+          "y": 36.6
+        },
+        "rotation": 90
+      },
+      "reference": "SW24",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r3c0",
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 57.150000000000006
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW25",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r3c0/diode",
+      "pose": {
+        "at": {
+          "x": 7.4,
+          "y": 55.650000000000006
+        },
+        "rotation": 90
+      },
+      "reference": "SW26",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r3c1",
+      "pose": {
+        "at": {
+          "x": 19.05,
+          "y": 57.150000000000006
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW27",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r3c1/diode",
+      "pose": {
+        "at": {
+          "x": 26.450000000000003,
+          "y": 55.650000000000006
+        },
+        "rotation": 90
+      },
+      "reference": "SW28",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r3c2",
+      "pose": {
+        "at": {
+          "x": 38.1,
+          "y": 57.150000000000006
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW29",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r3c2/diode",
+      "pose": {
+        "at": {
+          "x": 45.5,
+          "y": 55.650000000000006
+        },
+        "rotation": 90
+      },
+      "reference": "SW30",
+      "side": "back"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/switch",
+      "id": "matrix/matrix-1/r3c3",
+      "pose": {
+        "at": {
+          "x": 57.150000000000006,
+          "y": 57.150000000000006
+        },
+        "rotation": 0
+      },
+      "properties": {
+        "variant": "preset/mx-solder/south"
+      },
+      "reference": "SW31",
+      "side": "front"
+    },
+    {
+      "definitionId": "assembly-preset-mx-solder-south-matrix-1-0/definition/diode",
+      "id": "matrix/matrix-1/r3c3/diode",
+      "pose": {
+        "at": {
+          "x": 64.55000000000001,
+          "y": 55.650000000000006
+        },
+        "rotation": 90
+      },
+      "reference": "SW32",
+      "side": "back"
+    }
+  ],
+  "revision": 2,
+  "scripts": []
+}
