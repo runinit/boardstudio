@@ -196,8 +196,8 @@
         {
           "source": "Paired TypeScript/Dioxus Case journey on imported-layered-sofle.boardstudio (SHA-256 5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df)",
           "evidence": ".scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md",
-          "observation": "At revision 9 with Left PCB/left instance selected and the default plate added, TypeScript renders its 90/90 physical model assembly while the Dioxus canvas is blank and reports that the selected board is not ready. The reference assembly preview is independent of generated case-body geometry; Dioxus currently requires a generated CadScene and its readiness path before CaseViewer can display anything. This confirms the existing RF-003 provider/projection gap with the exact paired fixture and records the separate blocked readiness message.",
-          "status": "confirmed F7 Case public behavior blocker; new reviewed viewer child and generation/recovery journey required; not architectural acceptance"
+          "observation": "At revision 9 with Left PCB/left instance selected and the default plate added, TypeScript renders its 90/90 physical model assembly while the Dioxus canvas is blank, confirming the baseline physical-model projection gap. Before adding a body, React Update preview is disabled, while Dioxus Generate case is enabled and preparation_request rejects it. The exact archive has zero case bodies and no effective per-instance/shared mechanical config, so React generation success was not reproduced and is not claimed.",
+          "status": "confirmed F7 Case public behavior blocker; separate viewer projection and UI readiness-predicate child slices required; not architectural acceptance"
         }
       ]
     },

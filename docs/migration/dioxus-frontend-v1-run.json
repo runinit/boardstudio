@@ -1,7 +1,7 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Six streams retain all 62 parent criteria. Private composition, Keymap tabs/contours, Matrix Inspector and first Keycaps 2D surface are mounted. Targeted Keymap remount regression is browser-green; Matrix name/rows, Undo/Redo and saved reopen are demonstrated. Full workbench and parent acceptance remain open.",
+  "status": "Six streams retain all 62 parent criteria. Keycaps settings and Case contextual tree/Inspector are mounted; PCB Wiring has a reviewed Inspector mount. Strict WASM Clippy, formatting and 22 native tests pass at the integrated Case/Keycaps/PCB source. Paired Case evidence establishes a missing Dioxus 90/90 baseline assembly view and an enabled generation action that its own readiness check rejects; the exact fixture's React Update preview is disabled too. F7 and all parent acceptance remain open.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
@@ -20,7 +20,8 @@
         "contract_sha256": "3a701acb2dc75bc72f5753fc4bf8b639ebbdd908482c0bd0455a88f17b845c88",
         "review": ".scratch/dioxus-case-workspace/evidence/contextual-workspace-issue09/review.md",
         "review_sha256": "8512f8e709ff3c1b383451fd4f3ee6c80bb9642358b33cce241aae7e4766dc68",
-        "status": "implementation in progress; public paired acceptance open"
+        "status": "Case contextual tree/Inspector mounted and independently reviewed; strict WASM compiler green; paired public journey confirms absent 90/90 physical model projection and a Dioxus enabled-action/readiness mismatch; exact fixture is also generation-ineligible in React; parent acceptance open",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md"
       },
       "keymap_first_surface": {
         "source_commit": "98188448",
@@ -44,24 +45,40 @@
         "placement_correction": "4f7b8aa9",
         "status": "mounted and built; first physical scene/selection summary visible; legacy inherited-Matrix selection bug is an explicitly recorded Q1 deviation; settings and full F6C acceptance open",
         "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md"
+      },
+      "case_keycaps_pcb_integrated": {
+        "source_commit": "fc5e17e3526afe8a2c55efe9afdbc0f0faff3efa",
+        "integrated_head_after_evidence": "f4ad4c1a",
+        "status": "Case contextual mount, Keycaps settings Inspector and PCB Wiring Inspector mounted; Case mount independently reviewed; PCB hook boundary correction standards-cleared",
+        "checks": {
+          "strict_wasm_clippy": "all-targets/-D warnings passed at fc5e17e",
+          "native_page_tests": "22 passed, 0 failed at fc5e17e; page WASM-only presentation tests compile but do not execute on this native target",
+          "formatting": "cargo fmt --check passed at fc5e17e"
+        },
+        "build": "frontend-case-keycaps-pcb-reviewgreen-20261002 at fc5e17e: 8 successful commands; 988 verified source hashes",
+        "demo": "http://127.0.0.1:34695/",
+        "subpath": "http://127.0.0.1:34695/boardstudio/",
+        "paired_browser_acceptance": "Same imported layered Sofle archive SHA-256 5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df opened in fresh isolated profiles. Case tree and contextual Inspector controls are present. After adding the default plate, TypeScript shows 90/90 physical models and Dioxus remains blank, confirming the baseline physical-model projection gap under RF-003. Separately, before adding a body, React Update preview is disabled while Dioxus Generate case is enabled and then rejected by preparation_request; the archive has no admitted physical-instance configuration/case bodies, so its React generation-success report was not reproduced. F7 and all parents remain open.",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md",
+        "build_evidence": "web/target/builds/frontend-case-keycaps-pcb-reviewgreen-20261002/provenance.json"
       }
     },
     "canonical_parent_count": 62,
     "canonical_graph_changed": false,
     "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved",
     "current_integration": {
-      "commit": "a896cd493ab31a9894c740ca131379409fc49735",
+      "commit": "f4ad4c1a",
       "checks": {
-        "native_page_tests": "34 passed at23214cc4 (12 library +22 binary); WASM UI tests not executed by native target",
-        "strict_wasm_clippy": "all-targets/-D warnings passed at23214cc4 after retained bounded compiler/lint fixes",
-        "formatting": "passed at92db0b8f; a896cd49 changes CSS only"
+        "native_page_tests": "22 passed at fc5e17e; page WASM-only presentation tests compile but do not execute on this native target",
+        "strict_wasm_clippy": "all-targets/-D warnings passed at fc5e17e after the PCB Inspector was moved behind an RSX component boundary",
+        "formatting": "cargo fmt --check and git diff --check passed at fc5e17e"
       },
-      "build": "frontend-matrix-keycaps-styled-20261002 at a896cd49: 8 successful commands; 983 verified source hashes",
-      "demo": "http://127.0.0.1:34693/",
-      "subpath": "http://127.0.0.1:34693/boardstudio/",
-      "paired_browser_acceptance": "Targeted Keymap selected-option remount green at92db0b8f. Matrix name/rows and Undo/Redo/save-reopen demonstrated; styled form and Rows0 validation/Escape inspected at a896cd49. Keycaps scene shown; shared matrix-to-key mismatch diagnosed as confirmed legacy stale-closure bug. Correct Dioxus single-key behavior retained under Q1 with paired intent oracle. No whole parent closed.",
-      "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
-      "build_evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/frontend-matrix-keycaps-styled-20261002-provenance.json"
+      "build": "frontend-case-keycaps-pcb-reviewgreen-20261002 at fc5e17e: 8 successful commands; 988 verified source hashes",
+      "demo": "http://127.0.0.1:34695/",
+      "subpath": "http://127.0.0.1:34695/boardstudio/",
+      "paired_browser_acceptance": "Earlier targeted Keymap selected-option remount remains green at 92db0b8f; Matrix name/rows, Undo/Redo/reopen remain demonstrated; shared matrix-to-key mismatch remains a confirmed legacy bug exception. Exact-fixture Case paired evidence confirms the missing Dioxus 90/90 physical-model view and an enabled-action/readiness mismatch; React generation success was not reproduced. Case, PCB, Keycaps settings and whole-parent acceptance remain open.",
+      "evidence": ".scratch/dioxus-frontend-v1/evidence/case-readiness-parity-20261002/RESULTS.md",
+      "build_evidence": "web/target/builds/frontend-case-keycaps-pcb-reviewgreen-20261002/provenance.json"
     },
     "agent_parallelism": {
       "user_concurrency_ceiling": 30,
@@ -73,7 +90,7 @@
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "Six streams retain all 62 parent criteria. Private composition, Keymap tabs/contours, Matrix Inspector and first Keycaps 2D surface are mounted. Targeted Keymap remount regression is browser-green; Matrix name/rows, Undo/Redo and saved reopen are demonstrated. Full workbench and parent acceptance remain open.",
+  "current_milestone": "Six streams retain all 62 parent criteria. Keycaps settings and contextual Case/PCB roots are mounted, with strict WASM/native checks and a fresh 988-hash build. Paired Case review confirms the missing Dioxus 90/90 model assembly and an enabled-action/readiness mismatch; the exact fixture is generation-ineligible in both apps. Layout toolbar/Outline and Project actions are the next reviewed integration slices. No full parent acceptance is closed.",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
