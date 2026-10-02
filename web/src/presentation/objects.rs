@@ -3,9 +3,15 @@ use boardstudio_application::{ReadModel, Scope, SelectionMode};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
+mod layout_toolbar;
 mod matrix_inspector;
 mod matrix_inspector_controller;
 mod tree;
+pub(in crate::presentation) use layout_toolbar::{
+    GestureSnapInputs, LayoutSelectionKind, LayoutSelectionProjection, LayoutSelectionSnapStatus,
+    LayoutSelectionSnapToolbar, LayoutSnapIntent, LayoutSnapSettings, TreeCellAnchor,
+    context_for_selection_kind, gesture_snap_inputs,
+};
 pub(in crate::presentation) use matrix_inspector::MatrixInspector;
 pub(in crate::presentation) use matrix_inspector_controller::{
     MatrixInspectorMount, use_matrix_inspector,
