@@ -580,7 +580,7 @@ fn used_pins(plan: &ElectricalPlan) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::SessionEpoch;
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
 
     #[test]
     fn executor_restart_invalidates_same_accepted_wiring_identity() {

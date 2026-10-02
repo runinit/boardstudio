@@ -359,9 +359,12 @@ mod wasm_tests {
 
     #[wasm_bindgen_test]
     async fn reversible_proposal_uses_the_packaged_gateron_normalizer() {
-        let module_url = option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL").expect(
-            "run scripts/web/test-physical-setup-proposal.mjs to provide packaged module URL",
-        );
+        let module_url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
+            Some(url) => url,
+            None => panic!(
+                "run scripts/web/test-physical-setup-proposal.mjs to provide packaged module URL"
+            ),
+        };
         let module = import_ergogen_module(module_url)
             .await
             .expect("import generated layout-generator asset");
