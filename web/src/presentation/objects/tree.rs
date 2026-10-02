@@ -2,7 +2,7 @@ use boardstudio_core::model::{Board, Layout, Matrix, MatrixScene, Part, ProjectD
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum TreeContext {
+pub(in crate::presentation) enum TreeContext {
     Board {
         board_id: String,
     },
@@ -1066,7 +1066,7 @@ pub(super) fn context_label(
                     return Some(part.reference.clone());
                 }
             }
-            if let (Some(matrix_id), Some(row), Some(column), Some(assembly_id)) =
+            if let (Some(_), Some(row), Some(column), Some(assembly_id)) =
                 (matrix_id, row, column, assembly_id)
             {
                 return Some(format!(

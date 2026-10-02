@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
 mod tree;
-pub(super) use tree::TreeContext;
+pub(in crate::presentation) use tree::TreeContext;
 use tree::{Grouping, TreeKind};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,6 +157,15 @@ pub(super) fn Objects(
                             let toggle_item = item.clone();
                             let select_item = item.clone();
                             let keyboard_item = item.clone();
+                            let disclosure_label = format!(
+                                "{} {}",
+                                if item.expanded == Some(true) {
+                                    "Collapse"
+                                } else {
+                                    "Expand"
+                                },
+                                item.label
+                            );
                             let select_on_click = on_select.clone();
                             let select_on_key = on_select.clone();
                             let nudge_on_key = on_nudge.clone();
@@ -168,7 +177,7 @@ pub(super) fn Objects(
                                         button {
                                             id: "{tree_item_id}-disclosure",
                                             class: "m1-tree-disclosure",
-                                            "aria-label": "{if item.expanded == Some(true) { "Collapse" } else { "Expand" }} {item.label}",
+                                            "aria-label": "{disclosure_label}",
                                             "aria-expanded": "{item.expanded == Some(true)}",
                                             onclick: move |_| toggle_tree(expanded, &toggle_item.id),
                                             if item.expanded == Some(true) { "⌄" } else { "›" }
@@ -306,7 +315,6 @@ fn tree_glyph(kind: TreeKind) -> Element {
                 path { d: "M4 4h4M8 8h4" }
             } else {
                 path { d: "M2 2h8v3h4v9H2z" }
-                if kind == TreeKind::LayoutGroup { path { d: "M2 8h12" } }
             }
         }
     }
