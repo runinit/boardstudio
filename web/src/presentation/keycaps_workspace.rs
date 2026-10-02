@@ -2,6 +2,7 @@
 use super::keycaps_scene::{
     KeycapsCanvas, KeycapsKeyList, KeycapsMatrixList, KeycapsSelectedSummary, KeycapsView,
 };
+use super::keycaps_settings::{KeycapsSettingsActions, KeycapsSettingsEditor, SelectedKeySettings};
 use super::objects;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use boardstudio_core::model::Contour;
@@ -21,6 +22,7 @@ pub(super) struct InspectorInput {
     pub(super) view: Option<Rc<KeycapsView>>,
     pub(super) selected_key_id: Option<String>,
     pub(super) on_select_key: EventHandler<String>,
+    pub(super) settings_editor: Option<(SelectedKeySettings, KeycapsSettingsActions)>,
 }
 
 pub(super) fn objects(input: SharedObjectsInput) -> Element {
@@ -79,6 +81,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
     if let Some(view) = input.view {
+        let settings_editor = input.settings_editor;
         rsx! {
             section { class: "m1-keycaps-inspector", "aria-label": "Keycaps inspector",
                 KeycapsMatrixList { view: view.clone() }
@@ -90,6 +93,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 KeycapsSelectedSummary {
                     view,
                     selected_key_id: input.selected_key_id,
+                }
+                if let Some((selected, actions)) = settings_editor {
+                    KeycapsSettingsEditor { selected, actions }
                 }
             }
         }

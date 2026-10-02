@@ -8,6 +8,7 @@ mod context_summary;
 mod inspector;
 mod instance_selection;
 mod keycaps_scene;
+mod keycaps_settings;
 mod keycaps_workspace;
 mod keymap;
 mod keymap_workspace;
@@ -835,6 +836,27 @@ fn Editor() -> Element {
                 token: snapshot.token,
                 revision: snapshot.document.revision,
             });
+    let keycaps_edit_source = current_scope
+        .as_ref()
+        .filter(|scope| {
+            active_board_scope_matches(&model, scope) && instance_selection.is_current(&model)
+        })
+        .and_then(|scope| {
+            model
+                .accepted
+                .as_ref()
+                .map(|snapshot| keycaps_settings::KeycapsEditSource {
+                    scope: scope.clone(),
+                    token: snapshot.token,
+                    revision: snapshot.document.revision,
+                })
+        });
+    let keycaps_settings_actions = keycaps_settings::use_keycaps_settings_actions(
+        runtime.clone(),
+        keycaps_edit_source,
+        workspace,
+        adapter.generation,
+    );
     // Keep the operation observer alive even when the workspace panel is hidden.
     let layer_actions = keymap::use_layer_operations(
         runtime.clone(),
@@ -2596,13 +2618,27 @@ fn Editor() -> Element {
             })
         }
         "PCB" => workspace_composition::WorkspaceInspectorInput::Pcb,
-        "Keycaps" => workspace_composition::WorkspaceInspectorInput::Keycaps(
-            keycaps_workspace::InspectorInput {
-                view: keycaps_view.clone(),
-                selected_key_id: model.selected_part_ids.first().cloned(),
-                on_select_key: workspace_callbacks.keycaps_select,
-            },
-        ),
+        "Keycaps" => {
+            let selected_key_id = model.selected_part_ids.first().cloned();
+            let settings_editor = keycaps_view.as_deref().and_then(|view| {
+                let selected = keycaps_settings::project_selected_key(
+                    &document,
+                    view,
+                    selected_key_id.as_deref(),
+                )?;
+                keycaps_settings_actions
+                    .clone()
+                    .map(|actions| (selected, actions))
+            });
+            workspace_composition::WorkspaceInspectorInput::Keycaps(Box::new(
+                keycaps_workspace::InspectorInput {
+                    view: keycaps_view.clone(),
+                    selected_key_id,
+                    on_select_key: workspace_callbacks.keycaps_select,
+                    settings_editor,
+                },
+            ))
+        }
         _ => workspace_composition::WorkspaceInspectorInput::Layout(
             layout_workspace::InspectorInput {
                 context_title: context_summary
