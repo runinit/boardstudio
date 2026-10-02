@@ -39,6 +39,21 @@ impl CaseSelection {
     pub(super) fn select_layer(mut self, scope: Scope, id: String) {
         self.layer.set(Some(LayerSelection { scope, id }));
     }
+
+    pub(super) fn display_value(self, scope: &Scope) -> CaseDisplay {
+        let key = display_key(scope);
+        self.display
+            .read()
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| read_display(&key))
+    }
+
+    pub(super) fn save_display(self, scope: &Scope, display: CaseDisplay) {
+        let key = display_key(scope);
+        self.display.write().insert(key.clone(), display.clone());
+        persist_display(&key, &display);
+    }
 }
 
 #[component]
@@ -47,15 +62,7 @@ pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
     let instance_selection = use_context::<InstanceSelection>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
-    let key = format!(
-        "boardstudio:case-display:{}:{}",
-        scene.scope.document_id,
-        scene
-            .scope
-            .instance_id
-            .as_deref()
-            .unwrap_or(&scene.scope.board_id),
-    );
+    let key = display_key(&scene.scope);
     let initial_display = use_hook({
         let key = key.clone();
         move || read_display(&key)
@@ -66,20 +73,23 @@ pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
         .get(&key)
         .cloned()
         .unwrap_or(initial_display);
-    let selected_body_layer = selection
-        .body
+    // The Case editor keeps its independently selected authored body, but a
+    // newer explicit tree/viewer layer choice owns the viewer highlight.
+    let selected_layer = selection
+        .layer
         .read()
         .as_ref()
-        .filter(|selected| selected.scope == scene.scope && is_layer(&scene, &selected.body_id))
-        .map(|selected| selected.body_id.clone());
-    let selected_layer = selected_body_layer
+        .filter(|selected| selected.scope == scene.scope && is_layer(&scene, &selected.id))
+        .map(|selected| selected.id.clone())
         .or_else(|| {
             selection
-                .layer
+                .body
                 .read()
                 .as_ref()
-                .filter(|selected| selected.scope == scene.scope && is_layer(&scene, &selected.id))
-                .map(|selected| selected.id.clone())
+                .filter(|selected| {
+                    selected.scope == scene.scope && is_layer(&scene, &selected.body_id)
+                })
+                .map(|selected| selected.body_id.clone())
         })
         .unwrap_or_default();
     let on_signal = {
@@ -127,27 +137,23 @@ pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
     };
     let on_display_change = {
         let runtime = runtime.clone();
-        let scene = scene.clone();
-        let key = key.clone();
-        let mut selection = selection;
+        let expected_scene = scene.clone();
+        let scope = scene.scope.clone();
+        let selection = selection;
         move |event: super::shared_viewer::ScopedDisplayChange| {
             if !event.is_current()
-                || !source_is_current(&runtime, instance_selection, &scene, &event.identity)
+                || !source_is_current(
+                    &runtime,
+                    instance_selection,
+                    &expected_scene,
+                    &event.identity,
+                )
             {
                 return;
             }
             // Keep the entire preference value, including temporarily absent
             // geometry, so a regenerated scene or Undo can restore its display.
-            selection
-                .display
-                .write()
-                .insert(key.clone(), event.display.clone());
-            if let Some(storage) =
-                web_sys::window().and_then(|window| window.local_storage().ok().flatten())
-            {
-                let encoded = serde_json::json!({ "hidden": event.display.hidden, "colors": event.display.colors });
-                let _ = storage.set_item(&key, &encoded.to_string());
-            }
+            selection.save_display(&scope, event.display.clone());
         }
     };
     rsx! {
@@ -218,5 +224,22 @@ fn read_display(key: &str) -> CaseDisplay {
                     .collect()
             })
             .unwrap_or_default(),
+    }
+}
+
+fn display_key(scope: &Scope) -> String {
+    format!(
+        "boardstudio:case-display:{}:{}",
+        scope.document_id,
+        scope.instance_id.as_deref().unwrap_or(&scope.board_id),
+    )
+}
+
+fn persist_display(key: &str, display: &CaseDisplay) {
+    if let Some(storage) =
+        web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+    {
+        let encoded = serde_json::json!({ "hidden": display.hidden, "colors": display.colors });
+        let _ = storage.set_item(key, &encoded.to_string());
     }
 }
