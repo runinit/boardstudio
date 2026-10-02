@@ -269,3 +269,8 @@ RF-009 gains source-backed reconciliation from the [next-ticket review](../../.s
 RF-010 now has [confirmed public evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/contracts-active/open-supersession-diagnosis.md): after pending A and unavailable newer B, releasing the real A worker reply adopts A and persists its active-project identity. Delayed-send and delayed-reply variants fail; no-B control passes. Full T1-02 correctness remains current work. A provider-load sequence alone cannot control the eventual adoption owner or retain worker history.
 
 RF-002 gains the [tolerant discovery proposal](../../.scratch/dioxus-frontend-tranche-1/evidence/contracts-active/tolerant-listing-api-proposal.md). One malformed typed record currently rejects the complete library list; the page binary cannot recover its identity through existing public BrowserStore information. This is an explicit source boundary, not approval for a public API change. Pure card projection, corrected panel preferences, and tree hierarchy continue independently.
+
+
+### Cards and panel review handoff
+
+RF-001 gains a concrete immutable-ownership observation from the [cards/panels Standards review](../../.scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/cards-panels-standards.md): Library copied complete accepted and saved documents during Runtime repaints. The bounded correction retains shared `Arc<ProjectDoc>` snapshots and borrows the saved signal; strict WASM Clippy passes, independent review/browser verification remain pending. Repaint allocation cost is unmeasured and stays a post-port validation question. The two new panel regressions remain current correctness work, with no deferred-refactoring waiver.

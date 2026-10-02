@@ -41,6 +41,14 @@
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
         "INT.1"
+      ],
+      "handoff_evidence": [
+        {
+          "source": "2030c9a3",
+          "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/cards-panels-standards.md",
+          "observation": "Saved Library presentation deep-copied accepted ProjectDoc and all saved documents on Runtime repaints. Bounded correction uses existing immutable Arc document snapshots and borrows saved-list signal. Strict WASM Clippy passes; browser review pending; allocation latency remains unmeasured.",
+          "status": "current correction under review; retain immutable presentation ownership/allocation follow-up"
+        }
       ]
     },
     {
