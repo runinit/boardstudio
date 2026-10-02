@@ -819,7 +819,7 @@ fn Editor() -> Element {
                     board_id.as_ref(),
                     layer_id.as_ref(),
                 )?;
-                Some((view, accepted_board_contours(snapshot, board_id)))
+                Some((view, accepted_board_contours(snapshot, &board_id)))
             }
         },
     ));
@@ -833,8 +833,8 @@ fn Editor() -> Element {
                 if token.as_ref() != Some(&snapshot.token) {
                     return None;
                 }
-                let view = keycaps_scene::project(snapshot, scope.as_ref()?, board_id)?;
-                Some((view, accepted_board_contours(snapshot, board_id)))
+                let view = keycaps_scene::project(snapshot, scope.as_ref()?, &board_id)?;
+                Some((view, accepted_board_contours(snapshot, &board_id)))
             }
         },
     ));

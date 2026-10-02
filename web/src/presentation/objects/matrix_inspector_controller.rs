@@ -1,7 +1,7 @@
 //! Fresh accepted-source admission and exact operation acknowledgement for matrix fields.
 use super::matrix_inspector::{
     MatrixEditFeedback, MatrixEditField, MatrixEditRequest, MatrixEditState, MatrixEditValue,
-    MatrixInspectorOwner, MatrixInspectorProjection, MatrixInspectorProps, MatrixNameTarget,
+    MatrixInspectorOwner, MatrixInspectorProjection, MatrixNameTarget,
 };
 use super::{ScopedTreeContext, TreeContext};
 use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};

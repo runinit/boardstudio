@@ -378,12 +378,12 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
 
     let on_keydown = {
         let commit = commit.clone();
-        move |event: KeyboardEvent| match event.data().key().as_str() {
-            "Enter" => {
+        move |event: KeyboardEvent| match event.data().key() {
+            Key::Enter => {
                 event.prevent_default();
                 commit();
             }
-            "Escape" => {
+            Key::Escape => {
                 event.prevent_default();
                 draft.set(props.value.clone());
                 draft_baseline.set(props.baseline.clone());
