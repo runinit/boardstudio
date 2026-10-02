@@ -342,10 +342,11 @@ pub(super) fn KeycapsKeyList(
     on_select_key: EventHandler<String>,
 ) -> Element {
     let mut query = use_signal(String::new);
+    let normalized_query = query().to_lowercase();
     let visible_keys = view
         .keys
         .iter()
-        .filter(|key| key.search_text.contains(&query().to_lowercase()) || query().is_empty())
+        .filter(|key| key.search_text.contains(normalized_query.as_str()))
         .collect::<Vec<_>>();
     let selected_value = selected_key_id.unwrap_or_default();
     rsx! {
