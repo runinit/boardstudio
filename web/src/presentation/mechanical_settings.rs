@@ -30,6 +30,7 @@ pub(crate) struct MechanicalSettingsValues {
     pub(crate) wall_thickness: f64,
     pub(crate) clearance: f64,
     pub(crate) opening_allowance: f64,
+    pub(crate) internal_gasket: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -50,6 +51,8 @@ pub(crate) struct MechanicalLayerRow {
     pub(crate) label: String,
     pub(crate) z: f64,
     pub(crate) thickness: f64,
+    /// Present only when the exact current Case assembly contains a body with this ID.
+    pub(crate) resolved_body_thickness: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -213,6 +216,33 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             && feedback.identity.configuration_board_id == identity.configuration_board_id
     });
 
+    if let Some(values) = props.values.as_ref().filter(|values| {
+        values.board_id == identity.active_board_id
+            && values.board_id == identity.configuration_board_id
+    }) && let Some(layer) = props
+        .layers
+        .iter()
+        .find(|layer| layer.id == props.selected_layer)
+        && contextual_layer_fields(&layer.id, values).is_some()
+    {
+        return rsx! {
+            ContextualLayerInspector {
+                identity: props.identity.clone(),
+                request_sequence,
+                values: values.clone(),
+                layer: layer.clone(),
+                editable: props.editable,
+                disabled_reason: props.disabled_reason.clone(),
+                feedback: props.feedback.clone(),
+                findings: props.findings.clone(),
+                on_request: props.on_request,
+                on_select_layer: props.on_select_layer,
+                on_show_finding: props.on_show_finding,
+                owner_key: owner_key.clone(),
+            }
+        };
+    }
+
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
             h2 { "Case construction" }
@@ -331,6 +361,159 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Enable)
                     },
                     "Configure mechanical stack"
+                }
+            }
+        }
+    }
+}
+
+fn contextual_layer_fields(
+    id: &str,
+    values: &MechanicalSettingsValues,
+) -> Option<Vec<(MechanicalDimension, &'static str, f64)>> {
+    Some(match id {
+        "plate" => vec![(
+            MechanicalDimension::PlateThickness,
+            "Plate thickness",
+            values.plate_thickness,
+        )],
+        "pcb" => vec![(
+            MechanicalDimension::PcbThickness,
+            "PCB thickness",
+            values.pcb_thickness,
+        )],
+        "plate-foam" => vec![(
+            MechanicalDimension::PlateFoamThickness,
+            "Plate foam",
+            values.plate_foam_thickness,
+        )],
+        "bottom-foam" => vec![(
+            MechanicalDimension::BottomFoamThickness,
+            "Bottom foam",
+            values.bottom_foam_thickness,
+        )],
+        "bottom" => vec![
+            (
+                MechanicalDimension::BottomThickness,
+                "Bottom thickness",
+                values.bottom_thickness,
+            ),
+            (
+                MechanicalDimension::WallThickness,
+                "Wall thickness",
+                values.wall_thickness,
+            ),
+            (
+                MechanicalDimension::Clearance,
+                "Clearance",
+                values.clearance,
+            ),
+        ],
+        "retainer" => vec![
+            (
+                MechanicalDimension::WallThickness,
+                "Wall thickness",
+                values.wall_thickness,
+            ),
+            (
+                MechanicalDimension::Clearance,
+                "Clearance",
+                values.clearance,
+            ),
+        ],
+        _ => return None,
+    })
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct ContextualLayerInspectorProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    values: MechanicalSettingsValues,
+    layer: MechanicalLayerRow,
+    editable: bool,
+    disabled_reason: Option<String>,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    findings: Rc<[MechanicalFindingRow]>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    on_select_layer: EventHandler<String>,
+    on_show_finding: EventHandler<String>,
+    owner_key: String,
+}
+
+#[component]
+fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
+    let title = match props.layer.id.as_str() {
+        "bottom" => "Bottom case",
+        "retainer" => "Top case",
+        _ => props.layer.label.as_str(),
+    };
+    let fields = contextual_layer_fields(&props.layer.id, &props.values).unwrap_or_default();
+    let errors: Rc<[MechanicalFindingRow]> = Rc::from(
+        props
+            .findings
+            .iter()
+            .filter(|finding| finding.severity == Severity::Error)
+            .cloned()
+            .collect::<Vec<_>>(),
+    );
+    rsx! {
+        section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+            button {
+                r#type: "button",
+                class: "m1-mechanical-context-return",
+                onclick: move |_| props.on_select_layer.call(String::new()),
+                "Assembly settings"
+            }
+            h2 { "{title}" }
+            fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+                for (field, label, value) in fields {
+                    DimensionField {
+                        key: "{props.owner_key}:context:{props.layer.id}:{field.field_id()}",
+                        identity: props.identity.clone(),
+                        request_sequence: props.request_sequence,
+                        on_request: props.on_request,
+                        feedback: props.feedback.clone(),
+                        field,
+                        label,
+                        value,
+                        editable: props.editable,
+                    }
+                }
+                if let Some(reason) = props.disabled_reason.as_deref() {
+                    p { role: "status", "{reason}" }
+                }
+            }
+            if let Some(thickness) = props.layer.resolved_body_thickness {
+                p { class: "m1-mechanical-help", "Resolved thickness {thickness:.2} mm." }
+            }
+            if props.values.internal_gasket && matches!(props.layer.id.as_str(), "retainer" | "bottom") {
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-context-hardware",
+                    onclick: move |_| props.on_select_layer.call(String::new()),
+                    "Edit shared closure hardware"
+                }
+            }
+            if !errors.is_empty() {
+                section { class: "m1-mechanical-group", aria_label: "Fit issues",
+                    h3 { "Fit issues" }
+                    ul {
+                        for finding in errors.iter() {
+                            { let id = finding.id.clone();
+                            let message = finding.message.clone();
+                            let on_show_finding = props.on_show_finding;
+                            rsx! { li { key: "{id}",
+                                span { "{message}" }
+                                button {
+                                    r#type: "button",
+                                    onclick: move |_| on_show_finding.call(id.clone()),
+                                    "Show"
+                                }
+                            } }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -981,5 +1164,264 @@ fn severity_label(value: &Severity) -> &'static str {
         Severity::Error => "Error",
         Severity::Warning => "Warning",
         Severity::Info => "Info",
+    }
+}
+
+#[cfg(test)]
+mod contextual_layer_tests {
+    use super::*;
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn test_page() -> Element {
+        let mut selected_layer = use_signal(|| "plate".to_owned());
+        let mut shown_finding = use_signal(String::new);
+        let request_sequence = use_signal(|| 0_u64);
+        let identity = MechanicalSettingsIdentity {
+            editor_instance_id: 1,
+            scope_generation: 1,
+            presentation_generation: 1,
+            scope: Scope {
+                session_epoch: SessionEpoch(1),
+                document_id: "document".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            snapshot_token: SnapshotToken(1),
+            revision: 1,
+            active_board_id: "board".into(),
+            configuration_board_id: "board".into(),
+        };
+        let values = MechanicalSettingsValues {
+            board_id: "board".into(),
+            method: PlateMethod::Printed,
+            mount: MechanicalMount::Rigid,
+            bottom_style: MechanicalBottomStyle::Shell,
+            middle_frame: false,
+            integrated_plate_frame: false,
+            plate_thickness: 1.5,
+            plate_foam_thickness: 0.0,
+            pcb_thickness: 1.6,
+            bottom_foam_thickness: 0.0,
+            bottom_thickness: 2.0,
+            wall_thickness: 2.0,
+            clearance: 0.2,
+            opening_allowance: 0.0,
+            internal_gasket: true,
+        };
+        let layers = Rc::from([
+            MechanicalLayerRow {
+                id: "plate".into(),
+                label: "Plate".into(),
+                z: 0.0,
+                thickness: 1.5,
+                resolved_body_thickness: Some(1.5),
+            },
+            MechanicalLayerRow {
+                id: "pcb".into(),
+                label: "PCB".into(),
+                z: 0.0,
+                thickness: 1.6,
+                resolved_body_thickness: None,
+            },
+            MechanicalLayerRow {
+                id: "plate-foam".into(),
+                label: "Plate foam".into(),
+                z: 0.0,
+                thickness: 0.5,
+                resolved_body_thickness: None,
+            },
+            MechanicalLayerRow {
+                id: "bottom-foam".into(),
+                label: "Bottom foam".into(),
+                z: 0.0,
+                thickness: 0.5,
+                resolved_body_thickness: None,
+            },
+            MechanicalLayerRow {
+                id: "bottom".into(),
+                label: "Bottom".into(),
+                z: 0.0,
+                thickness: 3.0,
+                resolved_body_thickness: Some(3.0),
+            },
+            MechanicalLayerRow {
+                id: "retainer".into(),
+                label: "Top case".into(),
+                z: 0.0,
+                thickness: 0.0,
+                resolved_body_thickness: None,
+            },
+        ]);
+        let findings = Rc::from([
+            MechanicalFindingRow {
+                id: "current-error".into(),
+                severity: Severity::Error,
+                message: "Current clearance error".into(),
+            },
+            MechanicalFindingRow {
+                id: "current-warning".into(),
+                severity: Severity::Warning,
+                message: "Current warning".into(),
+            },
+        ]);
+        rsx! {
+            MechanicalSettings {
+                identity,
+                request_sequence,
+                values: Some(values),
+                profiles: Rc::from([]),
+                layers,
+                findings,
+                selected_layer: selected_layer(),
+                mismatch: None,
+                editable: true,
+                disabled_reason: None,
+                feedback: Rc::from([]),
+                summary_feedback: None,
+                on_request: move |_| {},
+                on_select_layer: move |id| selected_layer.set(id),
+                on_show_finding: move |id| shown_finding.set(id),
+                on_show_configured_board: move |_| {},
+            }
+            div { id: "case-contextual-selected-finding", "{shown_finding}" }
+        }
+    }
+
+    fn element(selector: &str) -> web_sys::HtmlElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    async fn rendered() {
+        gloo_timers::future::TimeoutFuture::new(60).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn selected_plate_uses_contextual_inspector_and_returns_to_assembly_settings() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(include_str!("../../assets/m1.css")));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-contextual-mechanical-settings-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(test_page),
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        rendered().await;
+
+        let panel =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings");
+        let text = panel.text_content().unwrap_or_default();
+        assert!(text.contains("Plate"));
+        assert!(text.contains("Assembly settings"));
+        assert!(text.contains("Plate thickness"));
+        assert!(text.contains("Resolved thickness 1.50 mm."));
+        assert!(text.contains("Current clearance error"));
+        assert!(!text.contains("Current warning"));
+        assert!(!text.contains("Case construction"));
+        assert!(!text.contains("Bottom thickness"));
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-group[aria-label='Fit issues'] button").click();
+        rendered().await;
+        assert_eq!(
+            element("#case-contextual-selected-finding")
+                .text_content()
+                .as_deref(),
+            Some("current-error")
+        );
+
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+            .click();
+        rendered().await;
+        let text =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+                .text_content()
+                .unwrap_or_default();
+        assert!(text.contains("Case construction"));
+
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(2)").click();
+        rendered().await;
+        let text =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+                .text_content()
+                .unwrap_or_default();
+        assert!(text.contains("PCB thickness"));
+        assert!(!text.contains("Plate thickness"));
+        assert!(!text.contains("Resolved thickness"));
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+            .click();
+        rendered().await;
+
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(3)").click();
+        rendered().await;
+        let text =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+                .text_content()
+                .unwrap_or_default();
+        assert!(text.contains("Plate foam"));
+        assert!(!text.contains("PCB thickness"));
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+            .click();
+        rendered().await;
+
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(4)").click();
+        rendered().await;
+        let text =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+                .text_content()
+                .unwrap_or_default();
+        assert!(text.contains("Bottom foam"));
+        assert!(!text.contains("PCB thickness"));
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+            .click();
+        rendered().await;
+
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(5)").click();
+        rendered().await;
+        let text =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+                .text_content()
+                .unwrap_or_default();
+        assert!(text.contains("Bottom case"));
+        assert!(text.contains("Bottom thickness"));
+        assert!(text.contains("Wall thickness"));
+        assert!(text.contains("Clearance"));
+        assert!(text.contains("Resolved thickness 3.00 mm."));
+        assert!(text.contains("Edit shared closure hardware"));
+        assert!(!text.contains("Plate thickness"));
+        assert!(!text.contains("Current warning"));
+
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-hardware")
+            .click();
+        rendered().await;
+        let text =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+                .text_content()
+                .unwrap_or_default();
+        assert!(text.contains("Case construction"));
+
+        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(6)").click();
+        rendered().await;
+        let text =
+            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+                .text_content()
+                .unwrap_or_default();
+        assert!(text.contains("Top case"));
+        assert!(text.contains("Wall thickness"));
+        assert!(text.contains("Clearance"));
+        assert!(!text.contains("Resolved thickness"));
+        assert!(!text.contains("Plate thickness"));
     }
 }

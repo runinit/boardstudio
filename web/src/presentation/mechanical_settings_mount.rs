@@ -617,6 +617,12 @@ fn project_scene_rows(
             label: mechanical_layer_label(&layer.id, internal_gasket),
             z: layer.z,
             thickness: layer.thickness,
+            resolved_body_thickness: assembly
+                .case
+                .bodies
+                .iter()
+                .find(|body| body.body.id == layer.id)
+                .map(|body| body.body.thickness),
         })
         .collect();
     let findings: Vec<_> = assembly
@@ -693,6 +699,7 @@ fn settings_values(configuration: &MechanicalConfiguration) -> MechanicalSetting
         wall_thickness: configuration.wall_thickness,
         clearance: configuration.clearance,
         opening_allowance: configuration.opening_allowance.unwrap_or(0.0),
+        internal_gasket: configuration.internal_gasket.is_some(),
     }
 }
 
