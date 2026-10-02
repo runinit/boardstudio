@@ -195,6 +195,53 @@ impl Runtime {
         }
         self.session.borrow().read_model().clone()
     }
+    /// Ask the existing Core worker to project candidate matrices with its authoritative
+    /// layout geometry. This is a private preview path; candidates are never installed in Session.
+    pub(crate) async fn project_matrices(
+        &self,
+        base_revision: u64,
+        matrices: Vec<boardstudio_core::model::Matrix>,
+    ) -> Result<Vec<boardstudio_core::model::MatrixScene>, String> {
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let core = self.core.borrow().clone();
+        let request_id = format!("matrix-projection-{}", self.operation().0);
+        let expected_ids: Vec<_> = matrices.iter().map(|matrix| matrix.id.clone()).collect();
+        let request = CoreRequest::ProjectMatrices {
+            id: request_id.clone(),
+            base_revision,
+            matrices,
+        };
+        let reply = core
+            .request(&request_id, &executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Matrix preview failed: {error}"))?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow())
+        {
+            return Err("The Core worker changed during matrix preview.".into());
+        }
+        match reply {
+            CoreReply::MatrixProjections {
+                id,
+                revision,
+                matrix_scenes,
+            } if id == request_id && revision == base_revision => {
+                let actual_ids: Vec<_> = matrix_scenes
+                    .iter()
+                    .map(|scene| scene.matrix_id.clone())
+                    .collect();
+                if actual_ids != expected_ids {
+                    return Err("Core returned a different matrix preview set.".into());
+                }
+                Ok(matrix_scenes)
+            }
+            CoreReply::Error { id, message, .. } if id == request_id => Err(message),
+            CoreReply::MatrixProjections { .. } | CoreReply::Error { .. } => {
+                Err("Core returned a stale matrix preview reply.".into())
+            }
+            _ => Err("Core returned an unexpected matrix preview reply.".into()),
+        }
+    }
     pub fn status(&self) -> String {
         self.status.borrow().clone()
     }

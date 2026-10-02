@@ -68,6 +68,7 @@ pub(in crate::presentation) struct MirroredPairMount {
     pub owns_canvas: bool,
     pub on_open: EventHandler<()>,
     pub on_cancel: EventHandler<MirroredPairOwner>,
+    pub on_return_to_form: EventHandler<MirroredPairOwner>,
     pub on_preview: EventHandler<MirroredPairRequest>,
     pub on_move: EventHandler<MirroredPairMove>,
     pub on_commit: EventHandler<MirroredPairMove>,
@@ -78,6 +79,8 @@ pub(in crate::presentation) struct MirroredPairMount {
 pub(in crate::presentation) struct MirroredPairPlacement {
     pub owner: MirroredPairOwner,
     pub pair: MirroredPairProjection,
+    pub left_scene: boardstudio_core::model::MatrixScene,
+    pub right_scene: boardstudio_core::model::MatrixScene,
 }
 
 #[derive(Clone, Debug, PartialEq)]

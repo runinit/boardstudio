@@ -1390,22 +1390,17 @@ fn Editor() -> Element {
             };
             if snapshot.token != created.result_token
                 || snapshot.document.revision != created.result_revision
+                || snapshot.token == created.owner.snapshot_token
+                || snapshot.document.revision <= created.owner.revision
                 || snapshot.document.id != created.owner.scope.document_id
                 || snapshot.session_epoch != created.owner.scope.session_epoch
                 || model.active_board_id != created.owner.board_id
                 || model.active_instance_id != created.owner.scope.instance_id
-                || !crate::mirrored_pair_geometry::result_snapshot_is_current(
-                    crate::mirrored_pair_geometry::PairSnapshotIdentity {
-                        base_token: created.owner.snapshot_token,
-                        base_revision: created.owner.revision,
-                        result_token: created.result_token,
-                        result_revision: created.result_revision,
-                        accepted_token: snapshot.token,
-                        accepted_revision: snapshot.document.revision,
-                    },
-                    model.lifecycle == Lifecycle::Ready,
-                    &model.durability,
-                )
+                || model.lifecycle != Lifecycle::Ready
+                || model.durability
+                    != (Durability::Saved {
+                        revision: created.result_revision,
+                    })
                 || !snapshot
                     .document
                     .matrices
@@ -3319,7 +3314,7 @@ fn Editor() -> Element {
                 let owner = placement.owner.clone();
                 if key == "Escape" {
                     event.prevent_default();
-                    mirrored_pair.on_cancel.call(owner);
+                    mirrored_pair.on_return_to_form.call(owner);
                     return;
                 }
                 if key == "Enter" {
@@ -4214,12 +4209,12 @@ fn Editor() -> Element {
                             if let Some(active_pair) = mirrored_pair.placement.as_ref() {
                                 {
                                     let pair = &active_pair.pair;
-                                    let left_cells = crate::mirrored_pair_geometry::preview_cells(&pair.matrix);
-                                    let right_cells = crate::mirrored_pair_geometry::preview_cells(&pair.right_preview);
+                                    let left_cells = crate::mirrored_pair_geometry::preview_cells(&active_pair.left_scene, &pair.matrix);
+                                    let right_cells = crate::mirrored_pair_geometry::preview_cells(&active_pair.right_scene, &pair.right_preview);
                                     let line_half_height = f64::from(pair.matrix.rows) * pair.matrix.pitch.y / 2.0 + 16.0;
                                     rsx! {
-                                        g { class: "m1-mirrored-pair-preview", "aria-label": "Mirrored pair placement preview",
-                                            line { class: "m1-mirror-pair-axis", x1: "{pair.axis_x}", x2: "{pair.axis_x}", y1: "{pair.center.y - line_half_height}", y2: "{pair.center.y + line_half_height}" }
+                                        g { class: "m1-mirrored-pair-preview", "aria-label": "Mirrored pair placement preview", transform: "translate({pair.center.x} {pair.center.y})",
+                                            line { class: "m1-mirror-pair-axis", x1: "0", x2: "0", y1: "{-line_half_height}", y2: "{line_half_height}" }
                                             for cell in left_cells {
                                                 g { key: "left-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
                                                     rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }

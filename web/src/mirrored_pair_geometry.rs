@@ -1,6 +1,5 @@
 //! Private geometry for projecting a mirrored pair before Core commits the source matrix.
-use boardstudio_application::{Durability, SnapshotToken};
-use boardstudio_core::model::{Layout, LayoutMirrorLink, Matrix, Mirror, Vec2};
+use boardstudio_core::model::{Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, Vec2};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MirroredPairProjection {
@@ -36,139 +35,25 @@ pub(crate) struct PairPreviewCell {
     pub size: Vec2,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct PairSnapshotIdentity {
-    pub base_token: SnapshotToken,
-    pub base_revision: u64,
-    pub result_token: SnapshotToken,
-    pub result_revision: u64,
-    pub accepted_token: SnapshotToken,
-    pub accepted_revision: u64,
-}
-
-pub(crate) fn result_snapshot_is_current(
-    identity: PairSnapshotIdentity,
-    ready: bool,
-    durability: &Durability,
-) -> bool {
-    identity.result_token != identity.base_token
-        && identity.result_revision > identity.base_revision
-        && identity.accepted_token == identity.result_token
-        && identity.accepted_revision == identity.result_revision
-        && ready
-        && *durability
-            == (Durability::Saved {
-                revision: identity.result_revision,
-            })
-}
-
-/// Build preview-only cell poses for the newly prepared, unmodified matrix. These poses mirror
-/// Core's fresh-matrix projection; this helper intentionally does not project live edits.
-pub(crate) fn preview_cells(matrix: &Matrix) -> Vec<PairPreviewCell> {
-    let mut cells = Vec::with_capacity((matrix.rows * matrix.columns) as usize);
-    for row in 0..matrix.rows {
-        for column in 0..matrix.columns {
-            let cell = matrix
-                .cells
-                .iter()
-                .find(|cell| cell.row == row && cell.column == column);
-            if cell.is_some_and(|cell| !cell.enabled) {
-                continue;
-            }
-            let mut x = f64::from(column) * matrix.pitch.x
-                + matrix
-                    .row_offsets
-                    .get(row as usize)
-                    .copied()
-                    .unwrap_or_default()
-                    .x
-                + matrix
-                    .column_offsets
-                    .get(column as usize)
-                    .copied()
-                    .unwrap_or_default()
-                    .x
-                + cell.and_then(|cell| cell.offset).unwrap_or_default().x;
-            let mut y = f64::from(row) * matrix.pitch.y
-                + matrix
-                    .row_offsets
-                    .get(row as usize)
-                    .copied()
-                    .unwrap_or_default()
-                    .y
-                + matrix
-                    .column_offsets
-                    .get(column as usize)
-                    .copied()
-                    .unwrap_or_default()
-                    .y
-                + cell.and_then(|cell| cell.offset).unwrap_or_default().y
-                + matrix
-                    .column_staggers
-                    .iter()
-                    .take(column as usize + 1)
-                    .sum::<f64>();
-            for index in (0..(column as usize + 1).min(matrix.column_splays.len())).rev() {
-                let angle = matrix
-                    .column_splays
-                    .get(index)
-                    .copied()
-                    .unwrap_or(0.0)
-                    .to_radians();
-                if angle == 0.0 {
-                    continue;
-                }
-                let pivot = matrix
-                    .column_origins
-                    .get(index)
-                    .copied()
-                    .flatten()
-                    .unwrap_or(Vec2 {
-                        x: index as f64 * matrix.pitch.x,
-                        y: matrix.column_staggers.iter().take(index + 1).sum::<f64>(),
-                    });
-                let (sin, cos) = angle.sin_cos();
-                let dx = x - pivot.x;
-                let dy = y - pivot.y;
-                x = pivot.x + dx * cos - dy * sin;
-                y = pivot.y + dx * sin + dy * cos;
-            }
-            if matrix.mirror == Some(Mirror::X) {
-                x = -x;
-            }
-            if matrix.mirror == Some(Mirror::Y) {
-                y = -y;
-            }
-            let rotation = matrix.rotation.unwrap_or(0.0).to_radians();
-            let (sin, cos) = rotation.sin_cos();
-            let edge_gap = matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
-            cells.push(PairPreviewCell {
-                row,
-                column,
-                center: Vec2 {
-                    x: matrix.origin.x + x * cos - y * sin,
-                    y: matrix.origin.y + x * sin + y * cos,
-                },
-                rotation: matrix.rotation.unwrap_or(0.0)
-                    + matrix
-                        .column_splays
-                        .iter()
-                        .take(column as usize + 1)
-                        .sum::<f64>()
-                        * if matches!(matrix.mirror, Some(Mirror::X | Mirror::Y)) {
-                            -1.0
-                        } else {
-                            1.0
-                        }
-                    + cell.and_then(|cell| cell.rotation).unwrap_or(0.0),
-                size: Vec2 {
-                    x: (matrix.pitch.x - edge_gap.x).max(1.0),
-                    y: (matrix.pitch.y - edge_gap.y).max(1.0),
-                },
-            });
-        }
-    }
-    cells
+/// Adapt Core's projected scene to the canvas preview, adding only the visual key bounds.
+/// Cell locations and rotations always come from `CoreRequest::ProjectMatrices`.
+pub(crate) fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCell> {
+    let edge_gap = matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
+    scene
+        .cells
+        .iter()
+        .filter(|cell| cell.enabled)
+        .map(|cell| PairPreviewCell {
+            row: cell.row,
+            column: cell.column,
+            center: cell.pose.at,
+            rotation: cell.pose.rotation,
+            size: Vec2 {
+                x: (matrix.pitch.x - edge_gap.x).max(1.0),
+                y: (matrix.pitch.y - edge_gap.y).max(1.0),
+            },
+        })
+        .collect()
 }
 
 /// Matches React `pairAt`: inset both halves from the shared axis by half the requested key-edge
@@ -256,7 +141,10 @@ pub(crate) fn project_mirrored_pair(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::Mirror;
+    use boardstudio_core::{
+        CoreEngine,
+        model::{CoreReply, CoreRequest, Mirror},
+    };
 
     fn matrix() -> Matrix {
         serde_json::from_value(serde_json::json!({
@@ -270,9 +158,33 @@ mod tests {
             "partIds": [],
             "boardId": "board",
             "edgeGap": { "x": 1.0, "y": 1.0 },
-            "cells": []
+            "rowOffsets": [{ "x": 2.0, "y": 3.0 }, { "x": -1.0, "y": 4.0 }, { "x": 0.0, "y": -2.0 }],
+            "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": -0.5 }, { "x": 0.0, "y": 0.0 }],
+            "columnStaggers": [0.5, 1.25],
+            "columnSplays": [0.0, 12.0],
+            "columnOrigins": [null, { "x": 20.0, "y": 3.0 }],
+            "rotation": 8.0,
+            "cells": [
+                { "row": 0, "column": 1, "enabled": true, "offset": { "x": 0.25, "y": 0.75 }, "rotation": 2.0, "assemblies": [] },
+                { "row": 1, "column": 3, "enabled": false, "assemblies": [] }
+            ]
         }))
         .unwrap()
+    }
+
+    fn core_project(matrix: Matrix) -> MatrixScene {
+        let mut core = CoreEngine::new();
+        match core.handle(CoreRequest::ProjectMatrices {
+            id: "pair-preview".into(),
+            base_revision: 0,
+            matrices: vec![matrix],
+        }) {
+            CoreReply::MatrixProjections { matrix_scenes, .. } => matrix_scenes
+                .into_iter()
+                .next()
+                .expect("Core returns one matrix projection"),
+            reply => panic!("Core did not project the preview matrix: {reply:?}"),
+        }
     }
 
     fn request() -> MirroredPairGeometryInput {
@@ -358,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_cells_stay_reflected_about_the_created_link_axis() {
+    fn canvas_preview_uses_core_projected_cell_poses_for_both_mirrored_halves() {
         let projection = project_mirrored_pair(
             matrix(),
             &ids(),
@@ -367,100 +279,40 @@ mod tests {
                 right_name: "Right".into(),
                 gap_mm: 24.0,
             },
-            Vec2 { x: 12.0, y: -8.0 },
+            Vec2::default(),
         )
         .unwrap();
-        let left = preview_cells(&projection.matrix);
-        let right = preview_cells(&projection.right_preview);
+        let left_scene = core_project(projection.matrix.clone());
+        let right_scene = core_project(projection.right_preview.clone());
+        let left = preview_cells(&left_scene, &projection.matrix);
+        let right = preview_cells(&right_scene, &projection.right_preview);
         assert_eq!(left.len(), right.len());
-        for (left_cell, right_cell) in left.iter().zip(&right) {
-            assert_eq!(
-                (left_cell.row, left_cell.column),
-                (right_cell.row, right_cell.column)
-            );
-            assert!(
-                (left_cell.center.x + right_cell.center.x - 2.0 * projection.axis_x).abs() < 1e-9
-            );
-            assert!((left_cell.center.y - right_cell.center.y).abs() < 1e-9);
+        assert!(left.len() < (projection.matrix.rows * projection.matrix.columns) as usize);
+        for (preview, projected) in left
+            .iter()
+            .zip(left_scene.cells.iter().filter(|cell| cell.enabled))
+        {
+            assert_eq!(preview.center, projected.pose.at);
+            assert_eq!(preview.rotation, projected.pose.rotation);
         }
-    }
-
-    #[test]
-    fn created_pair_selection_requires_exact_advanced_saved_result() {
-        let base = SnapshotToken(4);
-        let result = SnapshotToken(5);
-        let saved = Durability::Saved { revision: 12 };
-        assert!(result_snapshot_is_current(
-            PairSnapshotIdentity {
-                base_token: base,
-                base_revision: 11,
-                result_token: result,
-                result_revision: 12,
-                accepted_token: result,
-                accepted_revision: 12,
-            },
-            true,
-            &saved
-        ));
-        assert!(!result_snapshot_is_current(
-            PairSnapshotIdentity {
-                base_token: base,
-                base_revision: 11,
-                result_token: result,
-                result_revision: 12,
-                accepted_token: base,
-                accepted_revision: 11,
-            },
-            true,
-            &saved
-        ));
-        assert!(!result_snapshot_is_current(
-            PairSnapshotIdentity {
-                base_token: base,
-                base_revision: 11,
-                result_token: base,
-                result_revision: 12,
-                accepted_token: base,
-                accepted_revision: 12,
-            },
-            true,
-            &saved
-        ));
-        assert!(!result_snapshot_is_current(
-            PairSnapshotIdentity {
-                base_token: base,
-                base_revision: 11,
-                result_token: result,
-                result_revision: 11,
-                accepted_token: result,
-                accepted_revision: 11,
-            },
-            true,
-            &saved
-        ));
-        assert!(!result_snapshot_is_current(
-            PairSnapshotIdentity {
-                base_token: base,
-                base_revision: 11,
-                result_token: result,
-                result_revision: 12,
-                accepted_token: result,
-                accepted_revision: 12,
-            },
-            false,
-            &saved
-        ));
-        assert!(!result_snapshot_is_current(
-            PairSnapshotIdentity {
-                base_token: base,
-                base_revision: 11,
-                result_token: result,
-                result_revision: 12,
-                accepted_token: result,
-                accepted_revision: 12,
-            },
-            true,
-            &Durability::Saving { revision: 12 },
-        ));
+        for (preview, projected) in right
+            .iter()
+            .zip(right_scene.cells.iter().filter(|cell| cell.enabled))
+        {
+            assert_eq!(preview.center, projected.pose.at);
+            assert_eq!(preview.rotation, projected.pose.rotation);
+        }
+        assert!(
+            left_scene
+                .cells
+                .iter()
+                .any(|cell| { cell.row == 0 && cell.column == 1 && cell.pose.rotation != 0.0 })
+        );
+        assert!(
+            right_scene
+                .cells
+                .iter()
+                .any(|cell| { cell.row == 0 && cell.column == 1 && cell.pose.rotation != 0.0 })
+        );
     }
 }

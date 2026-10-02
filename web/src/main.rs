@@ -80,6 +80,9 @@ mod matrix_transform_operation;
 mod matrix_setup_operation;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod mirrored_pair_lifecycle;
+
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod matrix_transform_lifecycle;
 
 fn main() {

@@ -5,10 +5,8 @@ use super::mirrored_pair::{
 };
 use crate::{
     matrix_setup_operation::{MatrixSetupRequest, next_matrix_id, prepare_matrix},
-    mirrored_pair_geometry::{
-        MirroredPairGeometryInput, MirroredPairIds, PairSnapshotIdentity, project_mirrored_pair,
-        result_snapshot_is_current,
-    },
+    mirrored_pair_geometry::{MirroredPairGeometryInput, MirroredPairIds, project_mirrored_pair},
+    mirrored_pair_lifecycle::{PairFormStage, PairFormState, PairResultGuard},
     operation_outcomes::OutcomeSlot,
     runtime::Runtime,
 };
@@ -29,6 +27,7 @@ struct PendingPair {
     right_matrix_id: String,
     left_layout: Layout,
     right_layout: Layout,
+    transaction_id: String,
 }
 
 #[derive(Clone)]
@@ -61,7 +60,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
     });
     let open_id = use_signal(|| 0u64);
     let open = use_signal(|| None::<MirroredPairOwner>);
-    let draft = use_signal(MirroredPairFormValues::default);
+    let form_state = use_signal(|| PairFormState::new(MirroredPairFormValues::default()));
     let preparing = use_signal(|| None::<MirroredPairOwner>);
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
@@ -73,7 +72,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
         {
             let runtime = runtime.clone();
             let mut open = open;
-            let mut draft = draft;
+            let mut form_state = form_state;
             let mut preparing = preparing;
             let mut error = error;
             let mut status = status;
@@ -87,6 +86,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
                     &mut PairSettlement {
                         pending: &mut pending,
                         open: &mut open,
+                        form_state: &mut form_state,
                         error: &mut error,
                         status: &mut status,
                         placement: &mut placement,
@@ -105,7 +105,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
                     placement.set(None);
                     error.set(None);
                     status.set(None);
-                    draft.set(MirroredPairFormValues::default());
+                    form_state.set(PairFormState::new(MirroredPairFormValues::default()));
                 }
                 if pending.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
@@ -120,6 +120,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 {
                     preparing.set(None);
                     placement.set(None);
+                    form_state.write().stage = PairFormStage::Setup;
                     error.set(Some("The accepted board changed. Cancel this setup and reopen it before placing a pair.".into()));
                     status.set(None);
                 }
@@ -131,7 +132,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let runtime = runtime.clone();
         let mut open = open;
         let mut open_id = open_id;
-        let mut draft = draft;
+        let mut form_state = form_state;
         let mut error = error;
         let mut status = status;
         move |_| {
@@ -156,7 +157,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 .checked_add(1)
                 .expect("mirrored pair identity exhausted");
             open_id.set(next);
-            draft.set(MirroredPairFormValues::default());
+            form_state.set(PairFormState::new(MirroredPairFormValues::default()));
             error.set(None);
             status.set(None);
             open.set(Some(MirroredPairOwner {
@@ -173,12 +174,15 @@ pub(in crate::presentation) fn use_mirrored_pair(
 
     let on_cancel = use_callback({
         let mut open = open;
-        let mut draft = draft;
+        let mut form_state = form_state;
         let mut preparing = preparing;
         let mut placement = placement;
         let mut error = error;
         let mut status = status;
         move |owner: MirroredPairOwner| {
+            if form_state.read().stage == PairFormStage::Placement {
+                return;
+            }
             let active = open.read().as_ref() == Some(&owner)
                 || placement
                     .read()
@@ -188,7 +192,36 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 open.set(None);
                 preparing.set(None);
                 placement.set(None);
-                draft.set(MirroredPairFormValues::default());
+                form_state.set(PairFormState::new(MirroredPairFormValues::default()));
+                error.set(None);
+                status.set(None);
+            }
+        }
+    });
+
+    let on_return_to_form = use_callback({
+        let runtime = runtime.clone();
+        let mut form_state = form_state;
+        let mut placement = placement;
+        let mut error = error;
+        let mut status = status;
+        move |owner: MirroredPairOwner| {
+            if pending.read().is_some()
+                || workspace() != "Layout"
+                || scope_generation() != owner.scope_generation
+                || !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
+            {
+                return;
+            }
+            let placement_matches = placement
+                .read()
+                .as_ref()
+                .is_some_and(|active| active.owner == owner);
+            if !placement_matches {
+                return;
+            }
+            if form_state.write().return_to_setup() {
+                placement.set(None);
                 error.set(None);
                 status.set(None);
             }
@@ -198,7 +231,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
     let on_preview = use_callback({
         let runtime = runtime.clone();
         let alive = alive.clone();
-        let mut draft = draft;
+        let mut form_state = form_state;
         let mut preparing = preparing;
         let mut error = error;
         let mut status = status;
@@ -207,6 +240,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 || pending.read().is_some()
                 || preparing.read().is_some()
                 || placement.read().is_some()
+                || !form_state.read().setup_is_editable()
                 || request.owner.editor_instance_id != editor_instance_id
                 || workspace() != "Layout"
                 || scope_generation() != request.owner.scope_generation
@@ -262,13 +296,16 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 request.preset.as_str(),
                 reversible,
             );
-            draft.set(MirroredPairFormValues {
-                left_name: request.left_name.clone(),
-                right_name: request.right_name.clone(),
-                rows: request.rows.to_string(),
-                columns: request.columns.to_string(),
-                preset: request.preset,
-                gap_mm: request.gap_mm.to_string(),
+            form_state.set(PairFormState {
+                stage: PairFormStage::Preparing,
+                values: MirroredPairFormValues {
+                    left_name: request.left_name.clone(),
+                    right_name: request.right_name.clone(),
+                    rows: request.rows.to_string(),
+                    columns: request.columns.to_string(),
+                    preset: request.preset,
+                    gap_mm: request.gap_mm.to_string(),
+                },
             });
             preparing.set(Some(request.owner.clone()));
             error.set(None);
@@ -280,6 +317,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
             let runtime = runtime.clone();
             let mut preparing = preparing;
             let mut placement = placement;
+            let mut form_state = form_state;
             let mut error = error;
             let mut status = status;
             let alive = alive.clone();
@@ -287,35 +325,49 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 if !alive.get() {
                     return;
                 }
-                let templates = match crate::presentation::parts::load_matrix_templates(reversible)
-                    .await
-                {
-                    Ok(templates) => templates,
-                    Err(message) => {
-                        if alive.get()
-                            && pair_owner_is_current(
-                                &runtime,
-                                &owner,
-                                workspace(),
-                                scope_generation(),
-                                &open,
-                            )
-                        {
-                            preparing.set(None);
-                            error.set(Some(message));
-                            status.set(None);
-                        } else if alive.get() {
-                            clear_preparing(&mut preparing, &owner, &open, &mut error, &mut status);
+                let templates =
+                    match crate::presentation::parts::load_matrix_templates(reversible).await {
+                        Ok(templates) => templates,
+                        Err(message) => {
+                            if alive.get()
+                                && pair_owner_is_current(
+                                    &runtime,
+                                    &owner,
+                                    workspace(),
+                                    scope_generation(),
+                                    &open,
+                                )
+                            {
+                                preparing.set(None);
+                                form_state.write().stage = PairFormStage::Setup;
+                                error.set(Some(message));
+                                status.set(None);
+                            } else if alive.get() {
+                                clear_preparing(
+                                    &mut preparing,
+                                    &mut form_state,
+                                    &owner,
+                                    &open,
+                                    &mut error,
+                                    &mut status,
+                                );
+                            }
+                            return;
                         }
-                        return;
-                    }
-                };
+                    };
                 if !alive.get() {
                     return;
                 }
                 if !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
                 {
-                    clear_preparing(&mut preparing, &owner, &open, &mut error, &mut status);
+                    clear_preparing(
+                        &mut preparing,
+                        &mut form_state,
+                        &owner,
+                        &open,
+                        &mut error,
+                        &mut status,
+                    );
                     return;
                 }
                 let mut prepared = match prepare_matrix(
@@ -332,6 +384,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
                     Ok(prepared) => prepared,
                     Err(message) => {
                         preparing.set(None);
+                        form_state.write().stage = PairFormStage::Setup;
                         error.set(Some(message));
                         status.set(None);
                         return;
@@ -348,7 +401,14 @@ pub(in crate::presentation) fn use_mirrored_pair(
                         scope_generation(),
                         &open,
                     ) {
-                        clear_preparing(&mut preparing, &owner, &open, &mut error, &mut status);
+                        clear_preparing(
+                            &mut preparing,
+                            &mut form_state,
+                            &owner,
+                            &open,
+                            &mut error,
+                            &mut status,
+                        );
                         return;
                     }
                     let normalized = match crate::presentation::parts::normalize_matrix_definition(
@@ -368,11 +428,13 @@ pub(in crate::presentation) fn use_mirrored_pair(
                                 )
                             {
                                 preparing.set(None);
+                                form_state.write().stage = PairFormStage::Setup;
                                 error.set(Some(message));
                                 status.set(None);
                             } else if alive.get() {
                                 clear_preparing(
                                     &mut preparing,
+                                    &mut form_state,
                                     &owner,
                                     &open,
                                     &mut error,
@@ -392,7 +454,14 @@ pub(in crate::presentation) fn use_mirrored_pair(
                         scope_generation(),
                         &open,
                     ) {
-                        clear_preparing(&mut preparing, &owner, &open, &mut error, &mut status);
+                        clear_preparing(
+                            &mut preparing,
+                            &mut form_state,
+                            &owner,
+                            &open,
+                            &mut error,
+                            &mut status,
+                        );
                         return;
                     }
                     *definition = normalized;
@@ -402,7 +471,14 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 }
                 if !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
                 {
-                    clear_preparing(&mut preparing, &owner, &open, &mut error, &mut status);
+                    clear_preparing(
+                        &mut preparing,
+                        &mut form_state,
+                        &owner,
+                        &open,
+                        &mut error,
+                        &mut status,
+                    );
                     return;
                 }
                 let mut matrices = accepted.document.matrices.clone();
@@ -435,10 +511,70 @@ pub(in crate::presentation) fn use_mirrored_pair(
                     Ok(pair) => pair,
                     Err(message) => {
                         preparing.set(None);
+                        form_state.write().stage = PairFormStage::Setup;
                         error.set(Some(message));
                         status.set(None);
                         return;
                     }
+                };
+                let preview_scenes = match runtime
+                    .project_matrices(
+                        accepted.document.revision,
+                        vec![pair.matrix.clone(), pair.right_preview.clone()],
+                    )
+                    .await
+                {
+                    Ok(scenes) => scenes,
+                    Err(message) => {
+                        if alive.get()
+                            && pair_owner_is_current(
+                                &runtime,
+                                &owner,
+                                workspace(),
+                                scope_generation(),
+                                &open,
+                            )
+                        {
+                            preparing.set(None);
+                            form_state.write().stage = PairFormStage::Setup;
+                            error.set(Some(message));
+                            status.set(None);
+                        } else if alive.get() {
+                            clear_preparing(
+                                &mut preparing,
+                                &mut form_state,
+                                &owner,
+                                &open,
+                                &mut error,
+                                &mut status,
+                            );
+                        }
+                        return;
+                    }
+                };
+                if !alive.get() {
+                    return;
+                }
+                if !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
+                {
+                    clear_preparing(
+                        &mut preparing,
+                        &mut form_state,
+                        &owner,
+                        &open,
+                        &mut error,
+                        &mut status,
+                    );
+                    return;
+                }
+                let [left_scene, right_scene] = preview_scenes.as_slice() else {
+                    preparing.set(None);
+                    form_state.write().stage = PairFormStage::Setup;
+                    error.set(Some(
+                        "Core returned an incomplete mirrored-pair preview.".into(),
+                    ));
+                    status.set(None);
+                    return;
                 };
                 placement.set(Some(ActivePair {
                     owner: owner.clone(),
@@ -446,8 +582,14 @@ pub(in crate::presentation) fn use_mirrored_pair(
                     matrix: prepared.matrix,
                     definitions: prepared.definitions,
                     ids,
-                    placement: MirroredPairPlacement { owner, pair },
+                    placement: MirroredPairPlacement {
+                        owner,
+                        pair,
+                        left_scene: left_scene.clone(),
+                        right_scene: right_scene.clone(),
+                    },
                 }));
+                form_state.write().stage = PairFormStage::Placement;
                 preparing.set(None);
                 error.set(None);
                 status.set(Some(
@@ -501,6 +643,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let runtime = runtime.clone();
         let mut placement = placement;
         let mut pending = pending;
+        let mut form_state = form_state;
         let mut status = status;
         let mut error = error;
         move |request: super::mirrored_pair::MirroredPairMove| {
@@ -545,6 +688,10 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 }
             };
             let operation_id = runtime.operation();
+            let transaction_id = format!(
+                "mirrored-pair-{}-{}-{}",
+                editor_instance_id, owner.open_id, operation_id.0
+            );
             let outcome = runtime.observe_operation(operation_id);
             let pending_pair = PendingPair {
                 owner: owner.clone(),
@@ -554,19 +701,18 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 right_matrix_id: active.ids.right_matrix_id.clone(),
                 left_layout: layout_left.clone(),
                 right_layout: layout_right.clone(),
+                transaction_id: transaction_id.clone(),
             };
             pending.set(Some(pending_pair));
             placement.set(None);
+            form_state.write().stage = PairFormStage::Pending;
             status.set(Some("Creating mirrored pair…".into()));
             error.set(None);
             runtime.submit(Event::Edit {
                 operation_id,
                 command: EditCommand {
                     base_revision: snapshot.document.revision,
-                    transaction_id: format!(
-                        "mirrored-pair-{}-{}-{}",
-                        editor_instance_id, owner.open_id, operation_id.0
-                    ),
+                    transaction_id,
                     phase: EditPhase::Commit,
                     target_ids: vec![
                         matrix.id.clone(),
@@ -592,18 +738,24 @@ pub(in crate::presentation) fn use_mirrored_pair(
         }
     });
 
-    let form = open.read().clone().map(|owner| {
-        let editable = pending.read().is_none()
-            && preparing.read().is_none()
-            && pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open);
-        MirroredPairFormProjection {
-            owner,
-            values: draft.read().clone(),
-            editable,
-            error: error.read().clone(),
-            status: status.read().clone(),
-        }
-    });
+    let form_state_value = form_state.read().clone();
+    let form = if form_state_value.setup_is_visible() {
+        open.read().clone().map(|owner| {
+            let editable = form_state_value.setup_is_editable()
+                && pending.read().is_none()
+                && preparing.read().is_none()
+                && pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open);
+            MirroredPairFormProjection {
+                owner,
+                values: form_state_value.values.clone(),
+                editable,
+                error: error.read().clone(),
+                status: status.read().clone(),
+            }
+        })
+    } else {
+        None
+    };
     let placement_projection = placement
         .read()
         .as_ref()
@@ -625,6 +777,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
         owns_canvas,
         on_open,
         on_cancel,
+        on_return_to_form,
         on_preview,
         on_move,
         on_commit,
@@ -718,6 +871,7 @@ fn next_layout_id(layouts: &[Layout], prefix: &str) -> String {
 
 fn clear_preparing(
     preparing: &mut Signal<Option<MirroredPairOwner>>,
+    form_state: &mut Signal<PairFormState<MirroredPairFormValues>>,
     owner: &MirroredPairOwner,
     open: &Signal<Option<MirroredPairOwner>>,
     error: &mut Signal<Option<String>>,
@@ -725,6 +879,7 @@ fn clear_preparing(
 ) {
     if preparing.read().as_ref() == Some(owner) {
         preparing.set(None);
+        form_state.write().stage = PairFormStage::Setup;
         status.set(None);
         if open.read().as_ref() == Some(owner) {
             error.set(Some(
@@ -738,6 +893,7 @@ fn clear_preparing(
 struct PairSettlement<'a> {
     pending: &'a mut Signal<Option<PendingPair>>,
     open: &'a mut Signal<Option<MirroredPairOwner>>,
+    form_state: &'a mut Signal<PairFormState<MirroredPairFormValues>>,
     error: &'a mut Signal<Option<String>>,
     status: &'a mut Signal<Option<String>>,
     placement: &'a mut Signal<Option<ActivePair>>,
@@ -765,6 +921,9 @@ fn settle_pending(
     if !same_lineage {
         finish_pending(signals.pending, signals.status, &waiting);
         signals.open.set(None);
+        signals
+            .form_state
+            .set(PairFormState::new(MirroredPairFormValues::default()));
         signals.placement.set(None);
         signals.error.set(None);
         return;
@@ -774,6 +933,9 @@ fn settle_pending(
             let Some(snapshot) = model.accepted.as_ref() else {
                 finish_pending(signals.pending, signals.status, &waiting);
                 signals.open.set(None);
+                signals
+                    .form_state
+                    .set(PairFormState::new(MirroredPairFormValues::default()));
                 return;
             };
             if matches!(model.durability, Durability::Failed { .. })
@@ -783,6 +945,7 @@ fn settle_pending(
                 )
             {
                 finish_pending(signals.pending, signals.status, &waiting);
+                signals.form_state.write().stage = PairFormStage::Setup;
                 if workspace == "Layout"
                     && scope_generation == waiting.owner.scope_generation
                     && signals.open.read().as_ref() == Some(&waiting.owner)
@@ -792,18 +955,30 @@ fn settle_pending(
                 }
                 return;
             }
-            if !result_snapshot_is_current(
-                PairSnapshotIdentity {
+            let exact_result = crate::mirrored_pair_lifecycle::accepted_saved_result_is_current(
+                &PairResultGuard {
+                    transaction_id: waiting.transaction_id.clone(),
                     base_token: waiting.owner.snapshot_token,
                     base_revision: waiting.owner.revision,
-                    result_token: snapshot.token,
-                    result_revision: snapshot.document.revision,
-                    accepted_token: snapshot.token,
-                    accepted_revision: snapshot.document.revision,
                 },
+                &snapshot.scene.transaction_id,
+                snapshot.token,
+                snapshot.document.revision,
                 model.lifecycle == Lifecycle::Ready,
                 &model.durability,
-            ) {
+            );
+            if !exact_result {
+                finish_pending(signals.pending, signals.status, &waiting);
+                signals.placement.set(None);
+                signals.form_state.write().stage = PairFormStage::Setup;
+                if workspace == "Layout"
+                    && scope_generation == waiting.owner.scope_generation
+                    && signals.open.read().as_ref() == Some(&waiting.owner)
+                {
+                    signals.error.set(Some(
+                        "The board advanced after saving this pair, so it was not selected. Review the saved layout before continuing.".into(),
+                    ));
+                }
                 return;
             }
             let created = snapshot
@@ -828,6 +1003,7 @@ fn settle_pending(
                     .any(|layout| layout == &waiting.right_layout);
             finish_pending(signals.pending, signals.status, &waiting);
             if !created {
+                signals.form_state.write().stage = PairFormStage::Setup;
                 if workspace == "Layout"
                     && scope_generation == waiting.owner.scope_generation
                     && signals.open.read().as_ref() == Some(&waiting.owner)
@@ -848,6 +1024,9 @@ fn settle_pending(
                 return;
             }
             signals.open.set(None);
+            signals
+                .form_state
+                .set(PairFormState::new(MirroredPairFormValues::default()));
             signals.error.set(None);
             signals.on_created.call(MirroredPairCreated {
                 owner: waiting.owner.clone(),
@@ -865,6 +1044,7 @@ fn settle_pending(
         | TerminalOutcome::BlockedByRecovery(message)
         | TerminalOutcome::ExecutorFailed(message) => {
             finish_pending(signals.pending, signals.status, &waiting);
+            signals.form_state.write().stage = PairFormStage::Setup;
             if workspace == "Layout"
                 && scope_generation == waiting.owner.scope_generation
                 && runtime.scope().as_ref() == Some(&waiting.owner.scope)
@@ -876,6 +1056,7 @@ fn settle_pending(
         }
         TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
             finish_pending(signals.pending, signals.status, &waiting);
+            signals.form_state.write().stage = PairFormStage::Setup;
             if workspace == "Layout"
                 && scope_generation == waiting.owner.scope_generation
                 && signals.open.read().as_ref() == Some(&waiting.owner)
