@@ -12,6 +12,10 @@ pub(super) struct ToolbarInput {
     pub(super) on_toggle_footprints: EventHandler<()>,
     pub(super) on_retry_save: EventHandler<()>,
     pub(super) on_recover_saved: EventHandler<()>,
+    pub(super) selection_kind: objects::LayoutSelectionKind,
+    pub(super) snap_settings: objects::LayoutSnapSettings,
+    pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
 }
 
 pub(super) struct InspectorInput {
@@ -35,6 +39,12 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
         div { class: "m1-canvas-toolbar",
+            objects::LayoutSelectionSnapToolbar {
+                selection_kind: input.selection_kind,
+                snap_settings: input.snap_settings,
+                on_selection_kind: input.on_selection_kind,
+                on_snap_intent: input.on_snap_intent,
+            }
             if let Some(indicator) = input.selection_indicator.as_ref() {
                 span { class: "m1-selection-indicator", "{indicator}" }
             }

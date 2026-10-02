@@ -38,7 +38,9 @@ use selection::{ReentrancyReset, SelectionAdapter};
 mod footprint_graphics;
 
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Durability, Event, Scope, SelectionMode};
+use boardstudio_application::{
+    AcceptedSnapshot, Durability, Event, Scope, SelectionMode, SnapshotToken,
+};
 use boardstudio_core::model::{
     Contour, EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
 };
@@ -66,6 +68,21 @@ struct Drag {
     active: bool,
     pan: bool,
     camera: Vec2,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LayoutOwnerIdentity {
+    scope: Option<Scope>,
+    token: Option<SnapshotToken>,
+    revision: Option<u64>,
+    generation: u64,
+    workspace: &'static str,
+}
+
+#[derive(Clone)]
+struct OwnedTreeCellAnchor {
+    owner: LayoutOwnerIdentity,
+    cell: objects::TreeCellAnchor,
 }
 
 #[derive(Clone, Copy)]
@@ -118,6 +135,8 @@ struct WorkspaceCallbackSlots {
     pcb_empty_hit: EventHandler<MouseEvent>,
     pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
     pcb_wiring_edit_board: EventHandler<()>,
+    layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
     case_action: EventHandler<case_workspace::TreeAction>,
     case_display: EventHandler<case_workspace::DisplayRequest>,
     keymap_layer: EventHandler<String>,
@@ -709,6 +728,188 @@ fn active_board_scope_matches(model: &boardstudio_application::ReadModel, scope:
         })
 }
 
+fn current_layout_owner(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+) -> LayoutOwnerIdentity {
+    let model = runtime.model();
+    LayoutOwnerIdentity {
+        scope: runtime.scope(),
+        token: model.accepted.as_ref().map(|snapshot| snapshot.token),
+        revision: model
+            .accepted
+            .as_ref()
+            .map(|snapshot| snapshot.document.revision),
+        generation: (adapter.generation)(),
+        workspace: workspace(),
+    }
+}
+
+fn layout_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+) -> bool {
+    if current_layout_owner(runtime, workspace, adapter) != *owner || owner.workspace != "Layout" {
+        return false;
+    }
+    let model = runtime.model();
+    owner
+        .scope
+        .as_ref()
+        .is_some_and(|scope| active_board_scope_matches(&model, scope))
+}
+
+fn tree_cell_anchor_for_owner(
+    anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
+    owner: &LayoutOwnerIdentity,
+) -> Option<objects::TreeCellAnchor> {
+    anchor
+        .borrow()
+        .as_ref()
+        .filter(|stored| stored.owner == *owner)
+        .map(|stored| stored.cell.clone())
+}
+
+fn update_tree_cell_anchor(
+    anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
+    owner: &LayoutOwnerIdentity,
+    model: &boardstudio_application::ReadModel,
+    context: Option<&objects::TreeContext>,
+) {
+    if owner.workspace != "Layout" {
+        anchor.borrow_mut().take();
+        return;
+    }
+    let (Some(scope), Some(token), Some(revision), Some(context)) =
+        (owner.scope.as_ref(), owner.token, owner.revision, context)
+    else {
+        anchor.borrow_mut().take();
+        return;
+    };
+    if !active_board_scope_matches(model, scope)
+        || model.accepted.as_ref().is_none_or(|snapshot| {
+            snapshot.token != token || snapshot.document.revision != revision
+        })
+    {
+        anchor.borrow_mut().take();
+        return;
+    }
+    let exact_cell = match context {
+        objects::TreeContext::Key {
+            matrix_id,
+            row,
+            column,
+        }
+        | objects::TreeContext::Component {
+            matrix_id: Some(matrix_id),
+            row: Some(row),
+            column: Some(column),
+            ..
+        } => Some(objects::TreeCellAnchor {
+            matrix_id: matrix_id.clone(),
+            row: *row,
+            column: *column,
+        }),
+        _ => None,
+    };
+    if let Some(cell) = exact_cell {
+        if objects::context_for_cell(model, &cell.matrix_id, cell.row, cell.column).is_some() {
+            *anchor.borrow_mut() = Some(OwnedTreeCellAnchor {
+                owner: owner.clone(),
+                cell,
+            });
+            return;
+        }
+        anchor.borrow_mut().take();
+        return;
+    }
+    let retained = tree_cell_anchor_for_owner(anchor, owner);
+    let compatible = retained.as_ref().is_some_and(|cell| {
+        objects::context_for_selection_kind(
+            model,
+            context,
+            objects::LayoutSelectionKind::Key,
+            Some(cell),
+        )
+        .is_some()
+    });
+    if !compatible {
+        anchor.borrow_mut().take();
+    }
+}
+
+fn matrix_snap_parameters(
+    model: &boardstudio_application::ReadModel,
+    scope: &Scope,
+    adapter: &SelectionAdapter,
+    retained_cell: Option<&objects::TreeCellAnchor>,
+) -> (Option<Vec2>, Option<f64>) {
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return (None, None);
+    };
+    let context = adapter
+        .selected_context
+        .read()
+        .clone()
+        .filter(|selected| {
+            selected.scope == *scope
+                && selection::context_is_current(model, scope, &selected.context)
+        })
+        .map(|selected| selected.context)
+        .or_else(|| {
+            model
+                .selected_part_ids
+                .first()
+                .and_then(|part_id| objects::context_for_part(model, part_id))
+        });
+    let Some(context) = context else {
+        return (None, None);
+    };
+    let matrix_id = match &context {
+        objects::TreeContext::Matrix { matrix_id }
+        | objects::TreeContext::Row { matrix_id, .. }
+        | objects::TreeContext::Column { matrix_id, .. }
+        | objects::TreeContext::Key { matrix_id, .. }
+        | objects::TreeContext::Component {
+            matrix_id: Some(matrix_id),
+            ..
+        } => matrix_id,
+        objects::TreeContext::Component {
+            part_id: Some(_),
+            matrix_id: None,
+            ..
+        } => {
+            let Some(cell) = retained_cell.filter(|cell| {
+                objects::context_for_selection_kind(
+                    model,
+                    &context,
+                    objects::LayoutSelectionKind::Key,
+                    Some(cell),
+                )
+                .is_some()
+            }) else {
+                return (None, None);
+            };
+            &cell.matrix_id
+        }
+        objects::TreeContext::Board { .. }
+        | objects::TreeContext::LayoutGroup { .. }
+        | objects::TreeContext::Component { .. } => return (None, None),
+    };
+    let Some(matrix) = snapshot
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == *matrix_id)
+    else {
+        return (None, None);
+    };
+    (Some(matrix.pitch), matrix.edge_gap.map(|gap| gap.x))
+}
+
 fn durability_state(durability: &Durability) -> &'static str {
     match durability {
         Durability::Saved { .. } => "saved",
@@ -741,6 +942,8 @@ fn Editor() -> Element {
         pcb_empty_hit: EventHandler::new(|_: MouseEvent| {}),
         pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
         pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
+        layout_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
+        layout_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
         case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
         case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
@@ -773,6 +976,11 @@ fn Editor() -> Element {
     use_context_provider(|| case_selection);
     let case_tree_expanded = use_signal(BTreeSet::<String>::new);
     let workspace = use_context::<WorkspaceState>().0;
+    let active_workspace = workspace();
+    let render_generation = (adapter.generation)();
+    let mut layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
+    let mut layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
+    let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
         version,
@@ -784,7 +992,6 @@ fn Editor() -> Element {
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
     let mut keymap_layer_id = use_signal(|| "base".to_owned());
-    let active_workspace = workspace();
     let has_inspector = matches!(
         active_workspace,
         "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
@@ -829,6 +1036,28 @@ fn Editor() -> Element {
     let model = runtime.model();
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
+    let layout_owner = LayoutOwnerIdentity {
+        scope: current_scope.clone(),
+        token: accepted_token,
+        revision: model
+            .accepted
+            .as_ref()
+            .map(|snapshot| snapshot.document.revision),
+        generation: render_generation,
+        workspace: active_workspace,
+    };
+    use_effect(use_reactive((&layout_owner,), {
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        move |(owner,)| {
+            let stale = tree_cell_anchor
+                .borrow()
+                .as_ref()
+                .is_some_and(|anchor| anchor.owner != owner);
+            if stale {
+                tree_cell_anchor.borrow_mut().take();
+            }
+        }
+    }));
     let active_board_id = model.active_board_id.clone();
     let layer_source =
         current_scope
@@ -1110,7 +1339,6 @@ fn Editor() -> Element {
     let Some(render_scope) = current_scope.clone() else {
         return rsx! {};
     };
-    let render_generation = (adapter.generation)();
     let zoom_percent = model.camera.zoom * 100.0;
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
@@ -1173,6 +1401,8 @@ fn Editor() -> Element {
     let select_tree = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
         let generation = render_generation;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
@@ -1197,6 +1427,12 @@ fn Editor() -> Element {
                 | objects::TreeContext::Component { .. } => (true, true),
             };
             let scope = request.scope.clone();
+            update_tree_cell_anchor(
+                &tree_cell_anchor,
+                &owner,
+                &runtime.model(),
+                Some(&request.context),
+            );
             selection::submit_context(&runtime, &adapter, request);
             if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
                 return;
@@ -1207,6 +1443,97 @@ fn Editor() -> Element {
             if open_inspect {
                 inspect_open.set(true);
             }
+        }
+    };
+    let on_layout_selection_kind = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let workspace = workspace;
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        let mut selection_kind = layout_selection_kind;
+        move |kind: objects::LayoutSelectionKind| {
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            selection_kind.set(kind);
+            let model = runtime.model();
+            let Some(scope) = owner.scope.as_ref() else {
+                tree_cell_anchor.borrow_mut().take();
+                return;
+            };
+            let Some(selected) = adapter
+                .selected_context
+                .read()
+                .clone()
+                .filter(|selected| selected.scope == *scope)
+            else {
+                tree_cell_anchor.borrow_mut().take();
+                return;
+            };
+            if !selection::context_is_current(&model, scope, &selected.context) {
+                tree_cell_anchor.borrow_mut().take();
+                return;
+            }
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let Some(projection) = objects::context_for_selection_kind(
+                &model,
+                &selected.context,
+                kind,
+                retained.as_ref(),
+            ) else {
+                return;
+            };
+            if !selection::context_is_current(&model, scope, &projection.context) {
+                return;
+            }
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&projection.context));
+            selection::submit_context(
+                &runtime,
+                &adapter,
+                objects::TreeSelectRequest {
+                    scope: scope.clone(),
+                    context: projection.context,
+                    mode: SelectionMode::Replace,
+                },
+            );
+            if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                objects_open.set(false);
+                inspect_open.set(true);
+            }
+        }
+    };
+    let on_layout_snap_intent = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let workspace = workspace;
+        let owner = layout_owner.clone();
+        let mut snap_settings = layout_snap_settings;
+        move |intent: objects::LayoutSnapIntent| {
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            let mut settings = snap_settings.read().clone();
+            match intent {
+                objects::LayoutSnapIntent::SetFraction(value)
+                    if [0.0, 0.125, 0.25, 0.5, 1.0, -1.0, -0.5, -0.1].contains(&value) =>
+                {
+                    settings.snap_fraction = value;
+                }
+                objects::LayoutSnapIntent::SetGeometrySnap(enabled) => {
+                    settings.geometry_snap = enabled;
+                }
+                objects::LayoutSnapIntent::SetGapSnap(enabled) => {
+                    settings.gap_snap = enabled;
+                }
+                objects::LayoutSnapIntent::SetGapOverride(value) => {
+                    settings.gap_override = value;
+                }
+                objects::LayoutSnapIntent::SetFraction(_) => return,
+            }
+            snap_settings.set(settings);
         }
     };
     let on_keymap_select = {
@@ -2007,6 +2334,10 @@ fn Editor() -> Element {
         let drag = drag.clone();
         let adapter = adapter.clone();
         let render_scope = render_scope.clone();
+        let workspace = workspace;
+        let owner = layout_owner.clone();
+        let snap_settings = layout_snap_settings;
+        let tree_cell_anchor = tree_cell_anchor.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
@@ -2069,6 +2400,25 @@ fn Editor() -> Element {
                     }
                     return;
                 }
+                if !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+                    || owner.scope.as_ref() != Some(&current.scope)
+                {
+                    drag.borrow_mut().take();
+                    if let Some(element) = svg.borrow().as_ref() {
+                        let _ = element.release_pointer_capture(pointer.pointer_id());
+                    }
+                    return;
+                }
+                let current_model = runtime.model();
+                let retained_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+                let (matrix_pitch, matrix_gap) = matrix_snap_parameters(
+                    &current_model,
+                    &current.scope,
+                    &adapter,
+                    retained_cell.as_ref(),
+                );
+                let settings = snap_settings.read().clone();
+                let snap = objects::gesture_snap_inputs(&settings, matrix_pitch, matrix_gap);
                 let target_ids: Vec<_> = current
                     .positions
                     .iter()
@@ -2081,10 +2431,10 @@ fn Editor() -> Element {
                     target_ids: target_ids.clone(),
                     transaction_id: format!("drag-{}", operation.0),
                     start: current.positions.clone(),
-                    pitch: Vec2 { x: 19.05, y: 19.05 },
-                    snap_fraction: 0.25,
-                    geometry_snap: true,
-                    gap: None,
+                    pitch: snap.pitch,
+                    snap_fraction: snap.snap_fraction,
+                    geometry_snap: snap.geometry_snap,
+                    gap: snap.gap,
                     alt: pointer.alt_key(),
                 });
                 let fresh = runtime.model();
@@ -2424,6 +2774,12 @@ fn Editor() -> Element {
         .pcb_wiring_edit_board
         .replace(Box::new(on_pcb_wiring_edit_board));
     workspace_callbacks
+        .layout_selection_kind
+        .replace(Box::new(on_layout_selection_kind));
+    workspace_callbacks
+        .layout_snap_intent
+        .replace(Box::new(on_layout_snap_intent));
+    workspace_callbacks
         .case_action
         .replace(Box::new(on_case_action));
     workspace_callbacks
@@ -2566,6 +2922,10 @@ fn Editor() -> Element {
                 on_toggle_footprints: workspace_callbacks.toggle_footprints,
                 on_retry_save: workspace_callbacks.retry_save,
                 on_recover_saved: workspace_callbacks.recover_saved,
+                selection_kind: layout_selection_kind(),
+                snap_settings: layout_snap_settings.read().clone(),
+                on_selection_kind: workspace_callbacks.layout_selection_kind,
+                on_snap_intent: workspace_callbacks.layout_snap_intent,
             })
         }
         "PCB" => workspace_composition::WorkspaceToolbarInput::Pcb,
@@ -2728,6 +3088,19 @@ fn Editor() -> Element {
             },
         ),
     };
+    let active_part_position = model.selected_part_ids.first().and_then(|selected_id| {
+        visible
+            .iter()
+            .find(|part| part.id == *selected_id)
+            .map(|part| {
+                scene
+                    .transforms
+                    .iter()
+                    .find(|transform| transform.id == part.id)
+                    .map(|transform| transform.pose.at)
+                    .unwrap_or(part.pose.at)
+            })
+    });
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
@@ -2789,6 +3162,10 @@ fn Editor() -> Element {
                                             let scope = render_scope.clone();
                                             let generation = render_generation;
                                             let range_ids = visible_ids.clone();
+                                            let selection_kind = layout_selection_kind;
+                                            let owner = layout_owner.clone();
+                                            let workspace = workspace;
+                                            let tree_cell_anchor = tree_cell_anchor.clone();
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
                                                     let Some(pointer) = event.data().try_as_web_event() else { return; };
@@ -2797,7 +3174,13 @@ fn Editor() -> Element {
                                                     pointer.prevent_default();
                                                     pointer.stop_propagation();
                                                     let current = runtime.model();
-                                                    let Some(context) = objects::context_for_cell(&current, &matrix_id, cell_row, cell_column) else { return; };
+                                                    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) { return; }
+                                                    let Some(hit_context) = objects::context_for_cell(&current, &matrix_id, cell_row, cell_column) else { return; };
+                                                    update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
+                                                    let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+                                                    let context = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref())
+                                                        .map(|projection| projection.context)
+                                                        .unwrap_or(hit_context);
                                                     let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
                                                     selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
                                                 }
@@ -2837,6 +3220,10 @@ fn Editor() -> Element {
                                 let mut selected_context = adapter.selected_context;
                                 let generation_for_hit = render_generation;
                                 let range_ids = visible_ids.clone();
+                                let selection_kind = layout_selection_kind;
+                                let owner = layout_owner.clone();
+                                let workspace = workspace;
+                                let tree_cell_anchor = tree_cell_anchor.clone();
                                 rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
@@ -2855,9 +3242,19 @@ fn Editor() -> Element {
                                         };
                                         let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
                                         let current = runtime.model();
-                                        let Some(context) = objects::context_for_part(&current, &id) else { return; };
-                                        if !current.selected_part_ids.contains(&id) || mode != SelectionMode::Replace {
-                                            selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
+                                        if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) { return; }
+                                        let Some(hit_context) = objects::context_for_part(&current, &id) else { return; };
+                                        update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
+                                        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+                                        let projection = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref());
+                                        let target_ids = projection.as_ref().map(|projection| projection.part_ids.clone())
+                                            .unwrap_or_else(|| selection::resolve_context(&current, &hit_context).unwrap_or_default());
+                                        let context = projection.map(|projection| projection.context).unwrap_or(hit_context);
+                                        if !current.selected_part_ids.contains(&id)
+                                            || mode != SelectionMode::Replace
+                                            || target_ids != current.selected_part_ids
+                                        {
+                                            selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context.clone(), mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
                                         } else {
                                             let anchor_valid = (adapter.anchor_scope)().as_ref() == Some(&render_scope_for_hit)
                                                 && current.selection_anchor_id.as_ref() == Some(&id)
@@ -2925,6 +3322,15 @@ fn Editor() -> Element {
                 button { "aria-label": "Undo", onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M8 6 4 10l4 4M4 10h7a5 5 0 0 1 5 5" } } }
                 button { "aria-label": "Redo", onclick: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m12 6 4 4-4 4m4-4H9a5 5 0 0 0-5 5" } } }
                 span { "{document.name} · Revision {document.revision} · {durability_label(&model.durability)}" }
+                if active_workspace == "Layout" {
+                    objects::LayoutSelectionSnapStatus {
+                        snap_settings: layout_snap_settings.read().clone(),
+                        active_part_position,
+                    }
+                    if let Some(guide) = model.snap_guide.as_ref() {
+                        span { class: "m1-layout-snap-guide", role: "status", "{guide.label}" }
+                    }
+                }
                 span { "{zoom_percent:.0}%" }
             }
         }

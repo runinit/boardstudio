@@ -428,7 +428,7 @@ pub(in crate::presentation) fn LayoutSelectionSnapToolbar(
         div { class: "m1-layout-command-controls", role: "toolbar", aria_label: "Layout commands",
             details { class: "m1-layout-select-menu",
                 summary { "Select: {selection_kind.label()}" }
-                div { role: "group", aria_label: "Selection scope",
+                div { class: "m1-layout-select-popover", role: "group", aria_label: "Selection scope",
                     for kind in LayoutSelectionKind::ALL {
                         button {
                             r#type: "button",
@@ -441,57 +441,59 @@ pub(in crate::presentation) fn LayoutSelectionSnapToolbar(
             }
             details { class: "m1-layout-snap-menu",
                 summary { "Snap" }
-                label { "Snap increment"
-                    select {
-                        "aria-label": "Snap increment",
-                        value: "{settings.snap_fraction}",
-                        onchange: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f64>()
-                                && value.is_finite()
-                                && SNAP_STEPS.iter().any(|(step, _, _)| *step == value)
-                            {
-                                on_snap_intent.call(LayoutSnapIntent::SetFraction(value));
+                div { class: "m1-layout-snap-popover",
+                    label { "Snap increment"
+                        select {
+                            "aria-label": "Snap increment",
+                            value: "{settings.snap_fraction}",
+                            onchange: move |event: FormEvent| {
+                                if let Ok(value) = event.value().parse::<f64>()
+                                    && value.is_finite()
+                                    && SNAP_STEPS.iter().any(|(step, _, _)| *step == value)
+                                {
+                                    on_snap_intent.call(LayoutSnapIntent::SetFraction(value));
+                                }
+                            },
+                            for (fraction, value, label) in SNAP_STEPS {
+                                option { value: "{value}", selected: settings.snap_fraction == fraction, "{label}" }
                             }
-                        },
-                        for (fraction, value, label) in SNAP_STEPS {
-                            option { value: "{value}", selected: settings.snap_fraction == fraction, "{label}" }
                         }
                     }
-                }
-                label { class: "m1-layout-snap-check",
-                    input {
-                        r#type: "checkbox",
-                        checked: settings.geometry_snap,
-                        onchange: move |event: FormEvent| {
-                            on_snap_intent.call(LayoutSnapIntent::SetGeometrySnap(event.checked()));
-                        },
+                    label { class: "m1-layout-snap-check",
+                        input {
+                            r#type: "checkbox",
+                            checked: settings.geometry_snap,
+                            onchange: move |event: FormEvent| {
+                                on_snap_intent.call(LayoutSnapIntent::SetGeometrySnap(event.checked()));
+                            },
+                        }
+                        "Geometry snap"
                     }
-                    "Geometry snap"
-                }
-                label { class: "m1-layout-snap-check",
-                    input {
-                        r#type: "checkbox",
-                        checked: settings.gap_snap,
-                        disabled: !settings.geometry_snap,
-                        onchange: move |event: FormEvent| {
-                            on_snap_intent.call(LayoutSnapIntent::SetGapSnap(event.checked()));
-                        },
+                    label { class: "m1-layout-snap-check",
+                        input {
+                            r#type: "checkbox",
+                            checked: settings.gap_snap,
+                            disabled: !settings.geometry_snap,
+                            onchange: move |event: FormEvent| {
+                                on_snap_intent.call(LayoutSnapIntent::SetGapSnap(event.checked()));
+                            },
+                        }
+                        "Envelope gap"
                     }
-                    "Envelope gap"
-                }
-                label { class: "m1-layout-gap-field", "Gap (mm)"
-                    input {
-                        r#type: "number",
-                        min: "0",
-                        step: "any",
-                        "aria-label": "Snap gap",
-                        value: "{settings.gap_override}",
-                        oninput: move |event: FormEvent| {
-                            on_snap_intent.call(LayoutSnapIntent::SetGapOverride(event.value()));
-                        },
+                    label { class: "m1-layout-gap-field", "Gap (mm)"
+                        input {
+                            r#type: "number",
+                            min: "0",
+                            step: "any",
+                            "aria-label": "Snap gap",
+                            value: "{settings.gap_override}",
+                            oninput: move |event: FormEvent| {
+                                on_snap_intent.call(LayoutSnapIntent::SetGapOverride(event.value()));
+                            },
+                        }
                     }
+                    p { "Shared by Layout, drawing and perimeter editing. Unit steps use matrix pitch; mm steps use world coordinates. Hold Alt to bypass snapping." }
                 }
-                p { "Shared by Layout, drawing and perimeter editing. Unit steps use matrix pitch; mm steps use world coordinates. Hold Alt to bypass snapping." }
             }
         }
     }
