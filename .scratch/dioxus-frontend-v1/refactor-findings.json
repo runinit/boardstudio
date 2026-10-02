@@ -520,7 +520,6 @@
       ],
       "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",
       "current_diagnosis_20261002": {
-        "indexeddb": "Actual Chromium production transaction_completion duplicate-key \u2192 error \u2192 abort reproduces closure invoked recursively or after being dropped. Astra repair active; original repeated Matrix save abort cause remains unknown. Fresh34726 stress12 creations/history/reloads has no JS errors. Historical failed session preserved.",
         "outline": "Current34727 paired Bridge selection blanks canvas at755% while React461% renders selected bridge. Isolated regression/camera repair assigned; copy/delete/Undo/reopen bounded journey green, full outline acceptance open."
       }
     },
@@ -928,6 +927,38 @@
           "observation": "f65 browser axe reports zero candidate violations after tree item ownership repair. Contrast remains incomplete; actual assistive technology remains unverified.",
           "status": "bounded mitigation/evidence update; broad structural refactor deferred"
         }
+      ]
+    },
+    {
+      "id": "RF-014",
+      "title": "Host callback ownership must survive browser terminal events",
+      "category": "architecture / asynchronous lifecycle",
+      "confidence": "confirmed production defect",
+      "impact_priority": "high",
+      "status": "minimal repair integrated d5eaafaf; independent source review clear; fresh full package/public acceptance pending",
+      "discovered": "2026-10-02",
+      "baseline": "3c0cd7de2dadc6184c6b1771fbe0837a2aa2235a",
+      "workflows": [
+        "F2",
+        "F3",
+        "F9"
+      ],
+      "evidence": [
+        "web/src/host/storage.rs",
+        ".scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/FINDING.md",
+        ".scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/expanded-red.log",
+        ".scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/green.log"
+      ],
+      "observation": "Bubbling request error settled transaction future before abort, dropping installed callback; unpolled observer cancellation also left dropped closures, and a handled request error falsely reported transaction failure. Three real production Chromium reds; five repaired greens verify durability, rollback, attribution and detachment. Historical initial Matrix save abort cause remains unknown; failed profile preserved.",
+      "impact": "Secondary exceptions and incorrect persistence failure disposition obscure the initial transaction result.",
+      "during_port": "Terminal-only completion/abort settlement plus private RAII callback detachment; preserve caller/native abort attribution.",
+      "post_port_proposal": "Audit callback-backed host future ownership where lifecycle changes; consider a consistent private observer owner. Do not infer all observers defective.",
+      "validation_needed": "Full provider/package rebuild and current public save/history/reopen checks; original initial-abort investigation remains separate.",
+      "decision": "Required current correctness fixed without public API widening; broader host lifecycle audit deferred.",
+      "follow_up_owner": "F9 host lifecycle qualification",
+      "linked_tasks": [
+        "F2.2",
+        "F3.2"
       ]
     }
   ]

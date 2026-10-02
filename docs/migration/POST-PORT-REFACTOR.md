@@ -35,6 +35,7 @@ Temporary storage pressure also exposed an execution reliability cost: inactive 
 | [RF-011](#rf-011) | CAD revision envelope has a JavaScript safe-integer ceiling | confirmed CAD-only technical limit; low-probability scale risk | low | F7, F8 |
 | [RF-012](#rf-012) | Renderer host relies on reflective method names and partial capability wrappers | confirmed wrapper shape; maintenance risk needs measurement | medium | F3, F4, F6, F7 |
 | [RF-013](#rf-013) | Object tree containers have invalid required-child semantics | confirmed inherited critical axe violation in candidate and React | high | F3, F9 |
+| [RF-014](#rf-014) | Host callback ownership must survive browser terminal events | confirmed production defect; minimal source repair reviewed/integrated | high | F2, F3, F9 |
 
 ## RF-001
 
@@ -446,3 +447,9 @@ Integrated source `7be1770d` adds reviewed Case model delivery/picking and Matri
 
 
 Frontend next candidate119c9d059c002057e73b3fd3a36648a9681c9cd6 is served at34724(root/subpath), eight page packaging commands/1280source hashes/145assets each. Keymap selected-owner reset has independent source clearance; actual paired browser acceptance is running. RF003 confirmed Case0/90 despite acceptedpreviewready; the existing packaged provider lacks Case descriptor/fetch integration. RF001 retains MatrixCancel focusBODY versusReactSetupguideheading. PartsName andPCBgenericInspector implementers active; no canonical parent closure.
+
+## RF-014
+
+A real IndexedDB request error can precede transaction abort or be handled while the transaction commits. The prior observer settled on that intermediate event and dropped closures still installed in the browser. Cancellation before polling also left invalid callbacks. Three real Chromium production regressions failed; five pass after terminal-only settlement and private callback detachment. Independent source review is clear and repair `d5eaafaf` is integrated. Full packaging/public checks remain open, and the original Matrix save abort cause remains unknown.
+
+Retain this ownership rule for the later host lifecycle audit without assuming other observers are defective. [Exact finding and red/green evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/FINDING.md).
