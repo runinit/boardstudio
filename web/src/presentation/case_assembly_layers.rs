@@ -66,6 +66,44 @@ pub(crate) fn standard_assembly_layers(
     layers
 }
 
+/// Keep configured mechanical stack entries visible even when the current CAD
+/// result has no corresponding body. Only generated bodies can be toggled.
+pub(crate) fn assembly_layers_with_stack(
+    generated: impl IntoIterator<Item = (String, String)>,
+    configured_stack_ids: impl IntoIterator<Item = String>,
+) -> Vec<CaseAssemblyLayer> {
+    let generated = generated.into_iter().collect::<Vec<_>>();
+    let generated_ids = generated
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect::<Vec<_>>();
+    let mut layers = standard_assembly_layers(generated);
+
+    for id in configured_stack_ids {
+        let row_id = if id == "pcb" { "PCB" } else { id.as_str() };
+        if layers.iter().any(|layer| layer.id == row_id) {
+            continue;
+        }
+        let label = match id.as_str() {
+            "plate" => "Plate".to_owned(),
+            "plate-foam" => "Plate foam".to_owned(),
+            "bottom-foam" => "Bottom foam".to_owned(),
+            "bottom" => "Bottom".to_owned(),
+            _ => id.clone(),
+        };
+        layers.push(CaseAssemblyLayer {
+            id: row_id.to_owned(),
+            label,
+            availability: if generated_ids.contains(&id) || id == "pcb" {
+                LayerAvailability::Available
+            } else {
+                LayerAvailability::Unavailable("No generated geometry".to_owned())
+            },
+        });
+    }
+    layers
+}
+
 /// Project the accepted preview rows into layer controls without changing their
 /// order or substituting references/asset paths for renderer model IDs.
 pub(crate) fn physical_component_layers(
@@ -286,7 +324,10 @@ mod tests {
 
     fn layer_menu_composition() -> Element {
         let mut display = use_signal(CaseDisplay::default);
-        let assembly = standard_assembly_layers(std::iter::empty());
+        let assembly = assembly_layers_with_stack(
+            [("plate".into(), "Plate body".into())],
+            ["battery".into(), "plate".into()],
+        );
         let components = vec![
             CaseComponentLayer {
                 id: "switch-mesh-1".into(),
@@ -389,6 +430,24 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    fn configured_stack_keeps_unmeshed_battery_unavailable_and_generated_plate_available() {
+        let layers = assembly_layers_with_stack(
+            [("plate".into(), "Plate body".into())],
+            ["battery".into(), "plate".into()],
+        );
+
+        let battery = layers.iter().find(|layer| layer.id == "battery").unwrap();
+        assert_eq!(battery.label, "battery");
+        assert_eq!(
+            battery.availability,
+            LayerAvailability::Unavailable("No generated geometry".into())
+        );
+        let plate = layers.iter().find(|layer| layer.id == "plate").unwrap();
+        assert_eq!(plate.label, "Plate body");
+        assert_eq!(plate.availability, LayerAvailability::Available);
+    }
+
+    #[wasm_bindgen_test]
     async fn layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
@@ -407,6 +466,15 @@ mod tests {
         assert!(list.has_attribute("hidden"));
         assert_eq!(computed_display(&list), "none");
         assert_eq!(list.get_bounding_client_rect().height(), 0.0);
+        let battery = element("#m1-case-assembly-layers-list [aria-label='Show battery']");
+        assert!(battery.has_attribute("disabled"));
+        assert_eq!(
+            battery.get_attribute("aria-pressed").as_deref(),
+            Some("false")
+        );
+        let plate = element("#m1-case-assembly-layers-list [aria-label='Hide Plate body']");
+        assert!(!plate.has_attribute("disabled"));
+        assert_eq!(plate.get_attribute("aria-pressed").as_deref(), Some("true"));
 
         element("#m1-case-assembly-layers-trigger").click();
         rendered().await;

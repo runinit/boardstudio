@@ -3,7 +3,7 @@
 //! Case is the first consumer. Its wrapper owns the Case-to-renderer projection;
 //! this module owns only renderer controls, transient view state and host lifetime.
 use super::case_assembly_layers::{
-    CaseAssemblyLayers, physical_component_layers, standard_assembly_layers,
+    CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
 };
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_model_lifecycle::ProjectionInputs;
@@ -292,13 +292,30 @@ pub(crate) fn CaseSharedViewer(
         let source = source.clone();
         Rc::new(move || source.is_current(&runtime))
     });
-    let assembly_layers = standard_assembly_layers(
-        projection
-            .layers
-            .iter()
-            .filter(|(id, _)| id != "pcb")
-            .cloned(),
-    );
+    let generated_layers = projection
+        .layers
+        .iter()
+        .filter(|(id, _)| id != "pcb")
+        .cloned();
+    let configured_stack_ids = match &source {
+        ViewerSource::Cad(scene)
+            if scene.scope == identity.scope && scene.token == identity.snapshot_token =>
+        {
+            scene
+                .mechanical
+                .as_ref()
+                .map(|mechanical| {
+                    mechanical
+                        .stack
+                        .iter()
+                        .map(|layer| layer.id.clone())
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+        ViewerSource::Cad(_) | ViewerSource::Native(_) => Vec::new(),
+    };
+    let assembly_layers = assembly_layers_with_stack(generated_layers, configured_stack_ids);
     let component_layers = matching_preview.map_or_else(Vec::new, |preview| {
         physical_component_layers(&preview.preview.models, matching_model_rows)
     });
