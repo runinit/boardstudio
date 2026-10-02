@@ -105,6 +105,12 @@
           "post_port_follow_up": "Assess shared tested owner/lifecycle seams only after parity; explicitly distinguish pure projection tests from mounted Runtime effect coverage.",
           "validation": "Mount source/retry assessment and delayed operation settlement; prove bounded requests, saved/failed transitions, hidden-panel survival, and context-scoped feedback. Retain red-before-fix and exact built-browser proof.",
           "status": "Concrete bugs under current repair; broader lifecycle/test architecture proposal deferred."
+        },
+        {
+          "source": "Keycaps4d9196; corrected F5 source05b4611b integrated83700272",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md",
+          "observation": "The Keycaps mounted native harness substituted scope-cancelled Dioxus spawn for browser detached wasm_bindgen_futures::spawn_local, masking post-Editor-unmount access to disposed Signals. A render-time EventHandler::new also retains a new callback until scope drop according to installed Dioxus0.7.10. Current fixes require alive/drop guard before Signal access and use_callback; the F5 observer/admission fixes have source-integration clearance and executed native/WASM checks.",
+          "status": "Keycaps lifetime/test corrections active; F5 source integrated, mounted browser gate open. Broader common ownership abstraction remains deferred."
         }
       ]
     },

@@ -118,14 +118,25 @@
         "keycaps_fit_findings": "448c3274693b611ad747d0461de1b18d88245fb8"
       },
       "layout": "Exact reviewed issue07 Transform and issue08 Align now implementing in parallel isolated branches; issue09 command-pill integration follows working controls. Pointer-tools and parent acceptance open.",
-      "pcb": "Proposal ticket05 Spec clear; new lint suppressions/existing-member visibility changes require source correction. Ticket06 prepared for actual guided Project/Case placements; paired acceptance open.",
-      "keymap": "F5.2b requires version-value subscription, target-qualified feedback, actual F6 Element slot, and owner-level tests; source repairs underway before F6K.4b UI.",
-      "keycaps": "Astra source reviews confirm self-invalidating assessment effect consistent with activation hang, latest-result currentness and finding-group parity gaps; active bug fixes and mounted/browser regressions required.",
+      "pcb": "Ticket05 corrected tested prerequisite integrated83700272; ticket06 production activation+Case inspector controls implementing; guided Project placement waits on missing guide capability.",
+      "keymap": "Corrected F5.2b source integrated83700272, with numeric notification subscription, feedback identity, Element slot and real Session/Core tests; F6K.4b mounted UI/browser implementing.",
+      "keycaps": "Corrected assessment loop4d candidate building; final source review requires unmount guard, bounded retry callback and test privacy/suppression repair before integration. Browser activation and paired acceptance open.",
       "case": "Native pre-CadScene PcbPreview is required for Sofle baseline. Existing issue08 producer/issue07 provider contracts being refined to accepted physical document/contours; no duplicate producer.",
       "parts_project": "Packaged opaque Ergogen byte provider prerequisite now assigned to Parts/Project for reviewed ticketing and implementation; capability01 owns private bool input; F8 checkbox is later integration join.",
       "source_reviews": {
         "spec": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md",
         "standards": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md"
+      },
+      "source_integration": {
+        "commit": "837002729024475796cdc0fb99089ac86d6b33e7",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/integration-report.md",
+        "checks": {
+          "native_page_tests": "12 library + 36 binary passed",
+          "strict_wasm_clippy": "all-targets -D warnings passed",
+          "formatting": "cargo fmt --check and git diff --check passed",
+          "source_equivalence": "13 merged source blobs equal reviewed final PCB/F5 commits"
+        },
+        "acceptance": "Source integration only. PCB06 must activate test-scoped proposal path in production; F6 mounted asynchronous and full paired browser gates remain open."
       }
     }
   },

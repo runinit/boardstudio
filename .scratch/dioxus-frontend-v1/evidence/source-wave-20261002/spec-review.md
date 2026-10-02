@@ -35,3 +35,41 @@ RF: no new distinct refactoring takeaway observed. Carry RF-006 for canonical-bo
 3. **P2 — settled finding grouping/labels do not match the reference.** `keycaps_fit.rs:217-256` emits one article per raw finding and labels a matching key `reference · key`. Pinned React `FindingList.tsx` uses severity-sorted/deduplicated `presentedFindings`, groups by target label, and `findings.ts` labels parts with definition names and supports outline/body targets. Contract requires “groups/labels them with the established finding presentation rules.” Navigation can remain ticket 02; presentation parity cannot.
 
 The recorded CPU hang and missing paired finding/clean/edit/Undo/Redo/reopen plus delayed/error lifecycle evidence remain acceptance blockers. Native resolver tests and successful builds do not waive them. RF: carry RF-003/RF-006/RF-009; no new RF ID proposed. Reactive-loop correction is current correctness work, not deferred refactoring.
+
+## F5.2b corrected-source re-review — `ebe58a38b250e6ba35b683aa7f03155a3e8046a4`
+
+**Source-integration clearance: clear for the private handoff, with no new actionable source Spec finding observed. Full F5.2b/F5 acceptance: still open.**
+
+Reviewed the exact delta from `6fe8fb875585fca7fba4636cf1a9696e55b5406f` to `ebe58a38b250e6ba35b683aa7f03155a3e8046a4`. Worktree HEAD is now merge `22c154bf4bb3aaf9f9df07c3c60b126862cc1474`; its delta from the reviewed source commit changes documentation/evidence only, so the tested source remains identical.
+
+- **Feedback target correction verified.** `FirmwarePositionFeedbackTarget` retains the complete UI Scope, scope generation and key ID. Editor composition filters feedback against current scope/generation/projected key membership every render. Saved/Failed/Pending feedback can no longer be blindly forwarded into another board, physical instance or session. Stable feedback identity excludes admission token/revision, allowing a matching target to retain settlement across accepted plan refresh. The new visibility regression covers refreshed identity, other board/instance/generation and missing key.
+- **Actual Element slot verified.** `PcbWiringInspectorProps::firmware_controls` is an `Element`, forwarded by workspace composition and rendered inside board Wiring between resolver controls and plan details. Root supplies an empty element until the F6-owned initial consumer mounts. This is now a real composition seam, not unused data props. F6 controls and its separately owned stylesheet/root link are not implemented or accepted by this commit; they remain initial-consumer integration work.
+- **Owner-path evidence materially improved, but not complete.** The new test opens a real `Session` through `CoreEngine` and persistence, uses the production admission helper, observes an exact `OperationOutcomes` slot before submitting `SetKeyBinding`, drives Core and save completion, and asserts the accepted binding/revision and exact terminal outcome. It also rejects stale board and executor inputs. This is valid Session/Core evidence, not a mounted Runtime/Dioxus test. Failure/fresh retry, hidden/unmounted consumer settlement, event-time stale callback admission and delayed asynchronous effect execution remain mandatory mounted regressions.
+- **Numeric version dependency verified.** The observer reads `let observed_version = version()` and passes that numeric value into `use_reactive`; it no longer supplies a stable Signal handle as the external dependency.
+
+Executed: `cargo test --locked --manifest-path web/Cargo.toml --no-default-features --features page firmware_position_projection -- --nocapture` — all six targeted tests passed. No WASM/browser/build checks were rerun in this review. Existing row-order/auxiliary-overlap and full handoff acceptance requirements are not waived.
+
+Retain the mounted async browser regression as a mandatory F6 initial-consumer gate before claiming the handoff complete, including target changes, hide/unmount, accepted revision/plan advancement, persistence failure/new retry, and truthful accepted-value display. Paired controls/edit/Undo/Redo/reopen and F5.2/F8.2 joins remain open. RF: no new distinct takeaway; retain RF-001/RF-006/RF-009 and the real Session-versus-mounted-owner verification distinction.
+
+## PCB05 corrected-source re-review — `9e9459a5826514d7cb060cac7a073cafcb834582`
+
+**Source-integration clearance: clear as an explicitly test-scoped prerequisite. Production accepted-callable gate: not yet satisfied.** Exact worktree HEAD matches this commit and is clean. No actionable new proposal-rule finding observed.
+
+Existing catalogue loader/import/catalogue/normalization helpers return to their original private visibility. The correction removes dead-code allowances. `main.rs` registers the native proposal module only under `feature=page,test`; `parts.rs` and the new catalogue proposal adapter additionally require WASM tests. Consequently a normal page binary has no callable proposal builder at this commit. Ticket05 must not be marked fully accepted, nor may its ticket06 dependency be reported as an already-live production port.
+
+The packaged WASM test does invoke the real generated module, then the parts proposal adapter, catalogue-owned proposal dispatcher and common `physical_setup::propose` rules. Eligible definitions use the same `construction_definition_with_support` function as production catalogue normalization. This is real package execution with shared implementation, but the proposal dispatcher itself is currently absent from production. Its test does not establish Runtime ownership, production resource-URL loading or an Editor-mounted consumer.
+
+Ticket06 can legitimately activate this source without widening existing members: compile the same modules/functions for the actual WASM page consumer; keep package acquisition and proposal preparation within catalogue ownership; let a Parts-owned bridge/controller consume the existing `pub(super)` proposal seam and expose only the new, purpose-specific Editor mount/intent seam allocated by the coordinator. Existing private loader/normalizer functions need not become visible to siblings or root. Do not duplicate the tested proposal/normalization logic in that activation. Production async acquisition must be followed by the full ticket06 source recheck before submission, with exact operation, durability and accepted-selection verification.
+
+Executed targeted native check: `cargo test --locked --manifest-path web/Cargo.toml --features page physical_setup -- --nocapture` — seven proposal tests passed. The recorded real-module WASM and strict-check evidence was inspected, not rerun here. Re-run the shared packaged test and production WASM checks when ticket06 activates the consumer. F5.6a paired controls/history/reopen and all parent joins remain mandatory. No new refactoring takeaway; carry RF-006/RF-009 and ticket06's RF-001 owner boundary.
+
+## F5.2b final narrow acknowledgment — `05b4611b8a8adcdd02f89a53a0efab70bfab5394`
+
+**Source-integration Spec clearance retained; no new actionable finding.** Clean worktree HEAD matches this exact commit. Compared with previously cleared `ebe58a38b250e6ba35b683aa7f03155a3e8046a4`, the executable change replaces the many-argument admission call and its Clippy allowance with private `FirmwarePositionAdmission` fields. Every prior identity predicate and production call-site value is preserved; the tests use the same struct. Documentation-only intervening merge does not alter the reviewed source behavior.
+
+Exact current file SHA-256:
+
+- `web/src/firmware_position_projection.rs`: `3210f494edde856e4265e65938c8c7a31fe21cf18f01365aad3cb86a9d334ec6`
+- `web/src/presentation/pcb_wiring/controller.rs`: `48258f7f15cb7cc0ad656a47d311f7473b38eac8d58d7eb3ca6d4aefb47b3136`
+
+Reran the same targeted native firmware-position command after this correction: all six tests pass. This source may be integrated and released to the F6 initial consumer. The previous acknowledgment's full-ticket limits remain unchanged: production F6 control/stylesheet mounting and mandatory mounted async Runtime/Dioxus regression, paired edit/Undo/Redo/reopen and F5.2/F8.2 joins are still open. No new refactoring takeaway; no gate is waived.
