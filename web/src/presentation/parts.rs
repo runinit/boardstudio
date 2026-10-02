@@ -1,6 +1,8 @@
 //! Read-only Parts catalogue and selected-definition presentation slots.
 mod catalogue;
 mod details;
+#[cfg(any(target_arch = "wasm32", test))]
+mod mechanical_profile_editor;
 #[cfg(target_arch = "wasm32")]
 mod mechanical_profile_ui;
 #[cfg(all(test, target_arch = "wasm32"))]
@@ -8,6 +10,11 @@ mod physical_setup;
 mod preview;
 mod standard_profile_lifetime;
 
+#[cfg(any(target_arch = "wasm32", test))]
+use mechanical_profile_editor::{
+    AcceptedProfileOwner, CurrentProfileScope, DetachedProfileSpawner, ManualProfileEditor,
+    ManualProfileEditorPorts, StandardProfileFuture, StandardProfileRequester,
+};
 pub(in crate::presentation) use preview::PartsPreviewPanel;
 pub(super) use standard_profile_lifetime::PartsStandardProfileLifetime;
 
