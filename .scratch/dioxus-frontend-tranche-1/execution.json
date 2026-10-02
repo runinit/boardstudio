@@ -11,8 +11,14 @@
       "id": "T1-01",
       "parent": "INT.1",
       "issue": "issues/01-private-workspace-composition.md",
-      "status": "ready-for-agent",
-      "agent_profile": "luna-high"
+      "status": "implementing: contract review before extraction",
+      "agent_profile": "luna-high",
+      "author_agent": "/root/implement_private_seam",
+      "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-int1-20261002",
+      "baseline": "f3bb02a3",
+      "author_profile": "luna-high",
+      "reviewer_agent": "/root/astra_agent_policy_review",
+      "reviewer_profile": "astra-review"
     },
     {
       "id": "T1-02",
@@ -94,5 +100,15 @@
   ],
   "policy": "Two Luna authors plus independent verifier, rotating Astra reviews; root+3slotcap; exact private ownership; no wholetranchebarrier.",
   "approval_limits": "Public API/schema/member visibility changes, destructive operations, unrelated config changes and final production adoption retain existing explicit decisions.",
-  "ticket_generation": "Prepare runnable or soon-runnable bounded children through agents, check true blocker edges and parent coverage, integrate one file per ticket automatically; preserve original parent acceptance and RF handoff."
+  "ticket_generation": "Prepare runnable or soon-runnable bounded children through agents, check true blocker edges and parent coverage, integrate one file per ticket automatically; preserve original parent acceptance and RF handoff.",
+  "planning_agent": {
+    "agent": "/root/prepare_next_frontier",
+    "profile": "luna-medium",
+    "scope": [
+      "F4.1",
+      "F5.1",
+      "F6K.1"
+    ],
+    "status": "preparing next bounded tickets automatically"
+  }
 }

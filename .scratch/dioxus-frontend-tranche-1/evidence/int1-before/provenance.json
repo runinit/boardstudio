@@ -1,0 +1,14 @@
+{
+  "executable_source": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
+  "build": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-f44a3d1b-20261001",
+  "artifact_hashes_verified": 102,
+  "command": "python3 .scratch/dioxus-frontend-v1/evidence/layout-layers/browser-qa.py frontend-int1-before http://127.0.0.1:34643/ .scratch/dioxus-frontend-tranche-1/evidence/int1-before",
+  "exit_code": 0,
+  "result": "default keycaps, five layers, footprint details/shared state, camera/history, cap selection/edit/Undo, workspace retention, desktop/compact themes/focus pass",
+  "server": {
+    "pid": 1190604,
+    "url": "http://127.0.0.1:34643/",
+    "owner": "this run"
+  },
+  "scope": "Baseline before behavior-preserving INT.1 extraction; no claim of new UI completeness."
+}

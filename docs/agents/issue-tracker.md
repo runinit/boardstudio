@@ -70,3 +70,17 @@ and High for specified state/gesture/async/adapter work. Follow the
 packets only for runnable work, retain all acceptance/review/RF gates, and record
 requested versus observable runtime settings. Do not change global model/provider
 configuration or invent a per-agent Fast parameter.
+
+
+### Automatic frontend ticket frontier
+
+On 2026-10-02 the user authorized implementation and automatic creation of next
+bounded tickets through agents. The [authority](../../.scratch/dioxus-frontend-tranche-1/AUTHORITY.md),
+[published tickets](../../.scratch/dioxus-frontend-tranche-1/issues/01-private-workspace-composition.md)
+and [execution state](../../.scratch/dioxus-frontend-tranche-1/execution.json) govern
+this run. Apply to-tickets vertical slicing, true blockers and per-file publication;
+routine ticket breakdown/publication no longer requires another user quiz.
+Check actual source contracts and use independent review before dispatch. Keep
+shared composition serial and prepare next eligible work while current agents
+implement/verify. Existing public API, format/member visibility and cutover
+approvals remain separate. Every handoff continues to record RF takeaways.
