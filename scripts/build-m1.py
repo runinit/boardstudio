@@ -62,6 +62,7 @@ def main():
     run("renderer", ["wasm-pack", "build", REPO / "renderer", "--target", "web", "--out-dir", output / "renderer", "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"])
     run("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"])
     run("fixtures", ["node", REPO / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"])
+    run("ergogen-catalogue", ["pnpm", "--dir", "ergogen", "run", "prepare:catalog"])
     run("layout-generators", ["node", REPO / "scripts/web/build-layout-generators.mjs", WEB / "assets"])
     run("preview-generator", ["node", REPO / "scripts/web/build-preview-generator.mjs", WEB / "assets"])
     run("ergogen-models", [sys.executable, REPO / "scripts/stage-ergogen-models.py",
