@@ -47,6 +47,9 @@ mod closure_clearance;
 #[path = "matrix_transform_operation.rs"]
 mod matrix_transform_operation;
 
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod matrix_transform_lifecycle;
+
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
     dioxus::launch(app);

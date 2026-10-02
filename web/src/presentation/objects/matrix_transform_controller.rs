@@ -4,6 +4,7 @@ use super::matrix_transform_inspector::{
     MatrixTransformRequest, MatrixTransformState,
 };
 use super::{ScopedTreeContext, TreeContext};
+use crate::matrix_transform_lifecycle::{AcceptedIdentity, PendingSettlement, pending_settlement};
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, build_operation,
 };
@@ -175,6 +176,24 @@ pub(in crate::presentation) fn use_matrix_transform_inspector(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
+            if !(AcceptedIdentity {
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+            })
+            .admits(AcceptedIdentity {
+                token: request.snapshot_token,
+                revision: request.revision,
+            }) {
+                publish_feedback(
+                    &mut feedback,
+                    &request,
+                    MatrixTransformState::Failed,
+                    Some(
+                        "The accepted document changed. Review the current field and retry.".into(),
+                    ),
+                );
+                return;
+            }
             let Some(current_baseline) = field_value(&current.fields, request.field) else {
                 return;
             };
@@ -515,15 +534,21 @@ fn settle_pending(
     };
     let model = runtime.model();
     let scope = runtime.scope();
-    if scope.as_ref() != Some(&waiting.request.owner.scope)
-        || scope_generation != waiting.request.owner.scope_generation
-    {
-        pending.set(None);
-        feedback.set(Vec::new());
-        return;
-    }
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
+    let target_is_current = scope.as_ref() == Some(&waiting.request.owner.scope)
+        && scope_generation == waiting.request.owner.scope_generation;
+    let outcome = match pending_settlement(waiting.outcome.borrow().clone(), target_is_current) {
+        PendingSettlement::Wait => {
+            if !target_is_current {
+                feedback.set(Vec::new());
+            }
+            return;
+        }
+        PendingSettlement::Suppress => {
+            pending.set(None);
+            feedback.set(Vec::new());
+            return;
+        }
+        PendingSettlement::Settle(outcome) => outcome,
     };
     match outcome {
         TerminalOutcome::Completed => {
