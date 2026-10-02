@@ -1,6 +1,6 @@
 //! Private, typed editor for one accepted Keymap binding.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::KeyBinding;
+use boardstudio_core::model::{EncoderDirection, KeyBinding};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -27,12 +27,70 @@ pub(in crate::presentation) enum BindingField {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::presentation) struct EncoderInputIdentity {
+    pub(in crate::presentation) scope: Scope,
+    pub(in crate::presentation) token: SnapshotToken,
+    pub(in crate::presentation) revision: u64,
+    pub(in crate::presentation) projection_generation: u64,
+    pub(in crate::presentation) electrical_fingerprint: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::presentation) enum BindingTarget {
+    Key {
+        key_id: String,
+    },
+    EncoderRotation {
+        encoder_id: String,
+        direction: EncoderDirection,
+    },
+    EncoderPush {
+        encoder_id: String,
+        key_id: String,
+    },
+}
+
+impl BindingTarget {
+    /// Stable, collision-free component/DOM identity for this complete target.
+    pub(in crate::presentation) fn stable_key(&self) -> String {
+        match self {
+            Self::Key { key_id } => format!("key-{}", hex_bytes(key_id)),
+            Self::EncoderRotation {
+                encoder_id,
+                direction,
+            } => format!(
+                "rotation-{}-{}",
+                match direction {
+                    EncoderDirection::Clockwise => "clockwise",
+                    EncoderDirection::Counterclockwise => "counterclockwise",
+                },
+                hex_bytes(encoder_id),
+            ),
+            Self::EncoderPush { encoder_id, key_id } => {
+                format!("push-{}-{}", hex_bytes(encoder_id), hex_bytes(key_id))
+            }
+        }
+    }
+}
+
+fn hex_bytes(value: &str) -> String {
+    use std::fmt::Write as _;
+
+    let mut encoded = String::with_capacity(value.len() * 2);
+    for byte in value.as_bytes() {
+        let _ = write!(encoded, "{byte:02x}");
+    }
+    encoded
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::presentation) struct BindingEditRequest {
     pub(in crate::presentation) scope: Scope,
     pub(in crate::presentation) admission_token: SnapshotToken,
     pub(in crate::presentation) admission_revision: u64,
     pub(in crate::presentation) active_layer_id: String,
-    pub(in crate::presentation) key_id: String,
+    pub(in crate::presentation) target: BindingTarget,
+    pub(in crate::presentation) input_identity: Option<EncoderInputIdentity>,
     pub(in crate::presentation) field: BindingField,
     pub(in crate::presentation) editor_instance_id: u64,
     pub(in crate::presentation) request_id: u64,
@@ -52,7 +110,8 @@ pub(in crate::presentation) struct BindingEditFeedback {
     pub(in crate::presentation) admission_token: SnapshotToken,
     pub(in crate::presentation) admission_revision: u64,
     pub(in crate::presentation) active_layer_id: String,
-    pub(in crate::presentation) key_id: String,
+    pub(in crate::presentation) target: BindingTarget,
+    pub(in crate::presentation) input_identity: Option<EncoderInputIdentity>,
     pub(in crate::presentation) field: BindingField,
     pub(in crate::presentation) editor_instance_id: u64,
     pub(in crate::presentation) request_id: u64,
@@ -65,7 +124,8 @@ pub(in crate::presentation) struct BindingEditorProps {
     pub(in crate::presentation) admission_token: SnapshotToken,
     pub(in crate::presentation) admission_revision: u64,
     pub(in crate::presentation) active_layer_id: String,
-    pub(in crate::presentation) key_id: String,
+    pub(in crate::presentation) target: BindingTarget,
+    pub(in crate::presentation) input_identity: Option<EncoderInputIdentity>,
     pub(in crate::presentation) key_label: String,
     pub(in crate::presentation) editor_instance_id: u64,
     pub(in crate::presentation) request_sequence: Signal<u64>,
@@ -83,7 +143,8 @@ struct EditContext {
     admission_token: SnapshotToken,
     admission_revision: u64,
     active_layer_id: String,
-    key_id: String,
+    target: BindingTarget,
+    input_identity: Option<EncoderInputIdentity>,
     editor_instance_id: u64,
     enabled: bool,
 }
@@ -95,7 +156,8 @@ impl From<&BindingEditorProps> for EditContext {
             admission_token: props.admission_token,
             admission_revision: props.admission_revision,
             active_layer_id: props.active_layer_id.clone(),
-            key_id: props.key_id.clone(),
+            target: props.target.clone(),
+            input_identity: props.input_identity.clone(),
             editor_instance_id: props.editor_instance_id,
             enabled: props.enabled,
         }
@@ -121,7 +183,8 @@ fn emit_change(
         admission_token: context.admission_token,
         admission_revision: context.admission_revision,
         active_layer_id: context.active_layer_id.clone(),
-        key_id: context.key_id.clone(),
+        target: context.target.clone(),
+        input_identity: context.input_identity.clone(),
         field,
         editor_instance_id: context.editor_instance_id,
         request_id,
@@ -400,7 +463,11 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
     let context = EditContext::from(&props);
     let value = props.value.clone();
     let behavior = Behavior::from_binding(&value);
-    let datalist_id = format!("m1-keymap-keycodes-{}", props.editor_instance_id);
+    let target_key = props.target.stable_key();
+    let datalist_id = format!(
+        "m1-keymap-keycodes-{}-{target_key}",
+        props.editor_instance_id
+    );
     let keycode_field = binding_keycode(&value);
     let layer_value = binding_layer_id(&value).map(str::to_owned);
     let macro_value = match &value {
@@ -410,7 +477,7 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
     let feedback = props.feedback.as_ref().filter(|feedback| {
         feedback.scope == props.scope
             && feedback.active_layer_id == props.active_layer_id
-            && feedback.key_id == props.key_id
+            && feedback.target == props.target
             && feedback.editor_instance_id == props.editor_instance_id
             && field_exists(&value, feedback.field)
     });
@@ -475,7 +542,7 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
                         props.editor_instance_id,
                         props.active_layer_id,
                         field,
-                        props.key_id,
+                        target_key,
                         accepted_value,
                     );
                     rsx! {
@@ -688,6 +755,38 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn binding_targets_have_distinct_stable_identities() {
+        let targets = [
+            BindingTarget::Key {
+                key_id: "encoder:1".into(),
+            },
+            BindingTarget::EncoderRotation {
+                encoder_id: "encoder:1".into(),
+                direction: EncoderDirection::Clockwise,
+            },
+            BindingTarget::EncoderRotation {
+                encoder_id: "encoder:1".into(),
+                direction: EncoderDirection::Counterclockwise,
+            },
+            BindingTarget::EncoderPush {
+                encoder_id: "encoder:1".into(),
+                key_id: "push:1".into(),
+            },
+        ];
+        let ids: std::collections::HashSet<_> =
+            targets.iter().map(BindingTarget::stable_key).collect();
+
+        assert_eq!(ids.len(), targets.len());
+        assert_ne!(
+            BindingTarget::Key { key_id: "a".into() }.stable_key(),
+            BindingTarget::Key {
+                key_id: "aa".into()
+            }
+            .stable_key()
+        );
+    }
 
     #[test]
     fn layer_defaults_use_stable_non_base_then_first_ids() {
