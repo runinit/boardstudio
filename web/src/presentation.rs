@@ -1335,7 +1335,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let outline_inspector = outline_lifecycle::use_outline_lifecycle(
+    let (outline_inspector, outline_activation) = outline_lifecycle::use_outline_lifecycle(
         runtime.clone(),
         adapter.selected_context,
         workspace,
@@ -1867,7 +1867,11 @@ fn Editor() -> Element {
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |request: objects::TreeSelectRequest| {
-            if (adapter.generation)() != generation
+            if request
+                .outline_action
+                .as_ref()
+                .is_some_and(|action| !action.is_current(&runtime, generation))
+                || (adapter.generation)() != generation
                 || runtime.scope().as_ref() != Some(&request.scope)
                 || !selection::context_is_current(
                     &runtime.model(),
@@ -1899,13 +1903,7 @@ fn Editor() -> Element {
                 objects::TreeContext::Bridge { bridge_id, .. } => Some(bridge_id.clone()),
                 _ => None,
             };
-            let activation = match &request.context {
-                objects::TreeContext::OutlineVersion {
-                    board_id,
-                    version_id,
-                } => Some((board_id.clone(), version_id.clone())),
-                _ => None,
-            };
+            let activation = request.outline_action.clone();
             let scope = request.scope.clone();
             update_tree_cell_anchor(
                 &tree_cell_anchor,
@@ -1917,46 +1915,9 @@ fn Editor() -> Element {
             if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
                 return;
             }
-            if let Some((board_id, version_id)) = activation {
-                let current = runtime.model();
-                let Some(snapshot) = current.accepted.as_ref() else {
-                    return;
-                };
-                let active_version = if let Some(outline) = snapshot
-                    .document
-                    .board_outlines
-                    .iter()
-                    .find(|state| state.board_id == board_id)
-                {
-                    if version_id
-                        .as_ref()
-                        .is_some_and(|id| !outline.versions.iter().any(|version| version.id == *id))
-                    {
-                        return;
-                    }
-                    outline.active_version_id.clone()
-                } else {
-                    if version_id.is_some() {
-                        return;
-                    }
-                    None
-                };
-                if active_version != version_id {
-                    let operation_id = runtime.operation();
-                    runtime.submit(Event::Edit {
-                        operation_id,
-                        command: EditCommand {
-                            base_revision: snapshot.document.revision,
-                            transaction_id: format!("outline-select-{}", operation_id.0),
-                            phase: EditPhase::Commit,
-                            target_ids: vec![board_id.clone()],
-                            operation: EditOperation::SelectOutline {
-                                board_id,
-                                version_id,
-                            },
-                        },
-                    });
-                }
+            if let Some(action) = activation {
+                workspace.set("Layout");
+                outline_activation.call(action);
             }
             if outline_route {
                 workspace.set("Layout");
@@ -2022,6 +1983,7 @@ fn Editor() -> Element {
                     scope: scope.clone(),
                     context: projection.context,
                     mode: SelectionMode::Replace,
+                    outline_action: None,
                 },
             );
             if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {

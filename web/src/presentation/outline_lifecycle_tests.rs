@@ -18,6 +18,7 @@ struct Probe {
     workspace: Rc<Cell<&'static str>>,
     latest: Rc<RefCell<Option<OutlineInspectorProjection>>>,
     context: Rc<RefCell<TreeContext>>,
+    activation: Rc<RefCell<Option<EventHandler<OutlineAction>>>>,
 }
 impl Probe {
     fn projection(&self) -> OutlineInspectorProjection {
@@ -76,7 +77,9 @@ fn host() -> Element {
     if *selected.peek() != next {
         selected.set(next);
     }
-    let projection = use_outline_lifecycle(probe.runtime.clone(), selected, workspace, generation);
+    let (projection, activation) =
+        use_outline_lifecycle(probe.runtime.clone(), selected, workspace, generation);
+    *probe.activation.borrow_mut() = Some(activation);
     *probe.latest.borrow_mut() = projection.clone();
     rsx! { div { if let Some(projection) = projection { OutlineVersionInspector { projection } } } }
 }
@@ -97,6 +100,7 @@ fn mounted() -> (Probe, VirtualDom) {
         generation: Rc::new(Cell::new(1)),
         workspace: Rc::new(Cell::new("Layout")),
         latest: Rc::default(),
+        activation: Rc::default(),
         context: Rc::new(RefCell::new(TreeContext::Outline {
             board_id: "board".into(),
         })),
@@ -283,4 +287,138 @@ fn different_context_hides_inspector_and_rejects_retained_copy() {
     assert!(probe.latest.borrow().is_none());
     old.on_action.call(request);
     assert_eq!(probe.edits(), 0);
+}
+
+fn activation_fixture() -> (Probe, VirtualDom) {
+    let (probe, mut dom) = mounted();
+    install_version(&mut probe.runtime.model.borrow_mut(), "fixed");
+    *probe.context.borrow_mut() = TreeContext::OutlineVersion {
+        board_id: "board".into(),
+        version_id: None,
+    };
+    flush(&probe, &mut dom);
+    (probe, dom)
+}
+fn generated_action(probe: &Probe) -> OutlineAction {
+    OutlineAction::for_tree(
+        probe.runtime.model().accepted.as_ref().unwrap(),
+        &probe.runtime.scope().unwrap(),
+        probe.generation.get(),
+        &probe.context.borrow(),
+    )
+    .unwrap()
+}
+fn activate_generated(probe: &Probe) {
+    probe
+        .activation
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .call(generated_action(probe));
+}
+
+#[test]
+fn activation_requires_saved_source() {
+    let (probe, mut dom) = activation_fixture();
+    probe.runtime.model.borrow_mut().lifecycle = Lifecycle::RecoveryRequired;
+    flush(&probe, &mut dom);
+    activate_generated(&probe);
+    assert_eq!(probe.edits(), 0);
+}
+#[test]
+fn activation_rejects_stale_rendered_token() {
+    let (probe, mut dom) = activation_fixture();
+    let old = generated_action(&probe);
+    let mut replacement = runtime::model("A", 2, 11);
+    install_version(&mut replacement, "fixed");
+    *probe.runtime.model.borrow_mut() = replacement;
+    flush(&probe, &mut dom);
+    assert!(
+        !old.is_current(&probe.runtime, probe.generation.get()),
+        "root admission rejects before changing tree selection"
+    );
+    probe.activation.borrow().as_ref().unwrap().call(old);
+    assert_eq!(probe.edits(), 0);
+}
+#[test]
+fn activation_retains_observed_slot_after_editor_unmount() {
+    let (probe, dom) = activation_fixture();
+    activate_generated(&probe);
+    assert_eq!(probe.edits(), 1);
+    drop(dom);
+    probe.terminal(TerminalOutcome::Completed);
+}
+
+#[test]
+fn activation_rejects_stale_generation_at_refreshed_dispatch() {
+    let (probe, mut dom) = activation_fixture();
+    let old = generated_action(&probe);
+    probe.generation.set(2);
+    flush(&probe, &mut dom);
+    assert!(
+        !old.is_current(&probe.runtime, probe.generation.get()),
+        "root admission rejects before changing tree selection"
+    );
+    probe.activation.borrow().as_ref().unwrap().call(old);
+    assert_eq!(probe.edits(), 0);
+}
+
+#[test]
+fn activation_settles_exact_generated_target_while_hidden() {
+    let (probe, mut dom) = activation_fixture();
+    activate_generated(&probe);
+    activate_generated(&probe);
+    assert_eq!(
+        probe.edits(),
+        1,
+        "one observed pending activation at a time"
+    );
+    assert!(
+        matches!(&probe.runtime.events.borrow()[0], Event::Edit { command, .. } if matches!(&command.operation, EditOperation::SelectOutline { board_id, version_id: None } if board_id == "board"))
+    );
+    probe.workspace.set("Case");
+    flush(&probe, &mut dom);
+    let mut accepted = runtime::model("A", 2, 11);
+    install_version(&mut accepted, "fixed");
+    std::sync::Arc::make_mut(&mut accepted.accepted.as_mut().unwrap().document).board_outlines[0]
+        .active_version_id = None;
+    *probe.runtime.model.borrow_mut() = accepted;
+    probe.terminal(TerminalOutcome::Completed);
+    flush(&probe, &mut dom);
+    assert!(probe.latest.borrow().is_none());
+    probe.workspace.set("Layout");
+    flush(&probe, &mut dom);
+    assert_eq!(probe.projection().feedback.unwrap().state, "saved");
+    activate_generated(&probe);
+    assert_eq!(
+        probe.edits(),
+        1,
+        "already active Generated does not add history"
+    );
+}
+
+#[test]
+fn activation_checks_target_membership_and_selected_version() {
+    let (probe, mut dom) = activation_fixture();
+    *probe.context.borrow_mut() = TreeContext::OutlineVersion {
+        board_id: "board".into(),
+        version_id: Some("missing".into()),
+    };
+    flush(&probe, &mut dom);
+    activate_generated(&probe);
+    assert_eq!(probe.edits(), 0, "missing accepted version cannot activate");
+    let stale = generated_action(&probe);
+    *probe.context.borrow_mut() = TreeContext::OutlineVersion {
+        board_id: "board".into(),
+        version_id: Some("fixed".into()),
+    };
+    flush(&probe, &mut dom);
+    probe.activation.borrow().as_ref().unwrap().call(stale);
+    assert_eq!(
+        probe.edits(),
+        0,
+        "event target must match the selected version"
+    );
+    activate_generated(&probe);
+    assert_eq!(probe.edits(), 0, "already active fixed version is a no-op");
 }

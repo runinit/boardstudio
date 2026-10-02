@@ -8,6 +8,14 @@ use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum OutlineAction {
+    Activate {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        version_id: Option<String>,
+    },
     Copy {
         scope: Scope,
         token: boardstudio_application::SnapshotToken,
@@ -27,6 +35,7 @@ pub(super) enum OutlineAction {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum PendingKind {
+    Activate { version_id: Option<String> },
     Copy { version_id: String },
     Delete { version_id: String },
 }
@@ -75,12 +84,94 @@ pub(super) struct OutlineInspectorProjection {
     generation: u64,
 }
 
+impl OutlineAction {
+    fn envelope(
+        &self,
+    ) -> (
+        &Scope,
+        &boardstudio_application::SnapshotToken,
+        u64,
+        u64,
+        &String,
+    ) {
+        match self {
+            OutlineAction::Activate {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::Copy {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+            }
+            | OutlineAction::Delete {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            } => (scope, token, *revision, *generation, board_id),
+        }
+    }
+
+    pub(super) fn is_current(&self, runtime: &Runtime, generation: u64) -> bool {
+        let (scope, token, revision, captured_generation, board_id) = self.envelope();
+        let model = runtime.model();
+        generation == captured_generation
+            && runtime.scope().as_ref() == Some(scope)
+            && model.accepted.as_ref().is_some_and(|snapshot| {
+                snapshot.token == *token
+                    && snapshot.document.revision == revision
+                    && snapshot.document.id == scope.document_id
+                    && snapshot.session_epoch == scope.session_epoch
+            })
+            && scope.board_id == *board_id
+            && model.lifecycle == Lifecycle::Ready
+            && model.durability == (Durability::Saved { revision })
+            && model.display_preview.is_none()
+            && model.gesture.is_none()
+    }
+
+    pub(super) fn for_tree(
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        generation: u64,
+        context: &super::objects::TreeContext,
+    ) -> Option<Self> {
+        let super::objects::TreeContext::OutlineVersion {
+            board_id,
+            version_id,
+        } = context
+        else {
+            return None;
+        };
+        Some(Self::Activate {
+            scope: scope.clone(),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            generation,
+            board_id: board_id.clone(),
+            version_id: version_id.clone(),
+        })
+    }
+}
+
 pub(super) fn use_outline_lifecycle(
     runtime: Rc<Runtime>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
-) -> Option<OutlineInspectorProjection> {
+) -> (
+    Option<OutlineInspectorProjection>,
+    EventHandler<OutlineAction>,
+) {
     let version = use_context::<Signal<u64>>()();
     let captured_generation = scope_generation();
     let pending = use_signal(|| None::<Pending>);
@@ -167,6 +258,10 @@ pub(super) fn use_outline_lifecycle(
                         .iter()
                         .find(|state| state.board_id == waiting.scope.board_id);
                     let applied = match &waiting.kind {
+                        PendingKind::Activate { version_id } => {
+                            board_state.and_then(|state| state.active_version_id.as_ref())
+                                == version_id.as_ref()
+                        }
                         PendingKind::Copy { version_id } => board_state.is_some_and(|state| {
                             state.active_version_id.as_deref() == Some(version_id)
                                 && state
@@ -249,6 +344,25 @@ pub(super) fn use_outline_lifecycle(
         }
     }));
 
+    (
+        project_inspector(&runtime, action_state, on_action),
+        on_action,
+    )
+}
+
+fn project_inspector(
+    runtime: &Runtime,
+    state: ActionState,
+    on_action: EventHandler<OutlineAction>,
+) -> Option<OutlineInspectorProjection> {
+    let ActionState {
+        pending,
+        feedback,
+        selected_context,
+        workspace,
+        scope_generation,
+        captured_generation,
+    } = state;
     let model = runtime.model();
     let scope = runtime.scope()?;
     if workspace() != "Layout" || scope_generation() != captured_generation {
@@ -358,47 +472,14 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     {
         return;
     }
-    let (action_scope, expected_token, expected_revision, expected_generation, board_id) =
-        match &action {
-            OutlineAction::Copy {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-            }
-            | OutlineAction::Delete {
-                scope,
-                token,
-                revision,
-                generation,
-                board_id,
-                ..
-            } => (scope, token, *revision, *generation, board_id),
-        };
-    if expected_generation != captured_generation || runtime.scope().as_ref() != Some(action_scope)
-    {
+    if !action.is_current(runtime, captured_generation) {
         return;
     }
+    let (action_scope, _, expected_revision, _, board_id) = action.envelope();
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return;
     };
-    if snapshot.token != *expected_token
-        || snapshot.document.revision != expected_revision
-        || snapshot.document.id != action_scope.document_id
-        || snapshot.session_epoch != action_scope.session_epoch
-        || action_scope.board_id != *board_id
-        || model.lifecycle != Lifecycle::Ready
-        || model.durability
-            != (Durability::Saved {
-                revision: expected_revision,
-            })
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-    {
-        return;
-    }
     let selected = selected_context.read().clone();
     let selection_is_current = selected.as_ref().is_some_and(|selected| {
         selected.scope == *action_scope
@@ -417,6 +498,22 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         .iter()
         .find(|state| state.board_id == *board_id);
     let (operation, kind) = match &action {
+        OutlineAction::Activate { version_id, .. } => {
+            if !selected.as_ref().is_some_and(|selected| matches!(&selected.context,
+                super::objects::TreeContext::OutlineVersion { version_id: selected_version, .. } if selected_version == version_id))
+                || version_id.as_ref().is_some_and(|id| !state.is_some_and(|state| state.versions.iter().any(|version| version.id == *id)))
+                || state.and_then(|state| state.active_version_id.as_ref()) == version_id.as_ref()
+            { return; }
+            (
+                EditOperation::SelectOutline {
+                    board_id: board_id.clone(),
+                    version_id: version_id.clone(),
+                },
+                PendingKind::Activate {
+                    version_id: version_id.clone(),
+                },
+            )
+        }
         OutlineAction::Copy { .. } => {
             let next_number = state
                 .into_iter()

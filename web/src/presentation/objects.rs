@@ -46,6 +46,7 @@ pub(super) struct TreeSelectRequest {
     pub scope: Scope,
     pub context: TreeContext,
     pub mode: SelectionMode,
+    pub outline_action: Option<super::outline_lifecycle::OutlineAction>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -89,6 +90,7 @@ pub(super) fn Objects(
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
     let case_workspace = workspace() == "Case";
+    let generation = (use_context::<super::SelectionAdapter>().generation)();
     let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
@@ -249,6 +251,10 @@ pub(super) fn Objects(
                             let nudge_on_key = on_nudge;
                             let click_scope = active_scope.clone();
                             let key_scope = active_scope.clone();
+                            let outline_action = active_scope.as_ref().zip(item.context.as_ref()).and_then(|(scope, context)| super::outline_lifecycle::OutlineAction::for_tree(snapshot, scope, generation, context));
+                            let click_outline_action = outline_action.clone();
+                            let key_outline_action = outline_action;
+
                             rsx! {
                                 div { key: "{item.id}", class: "m1-tree-row", style: "padding-left: {8 + item.level * 14}px",
                                     role: "treeitem",
@@ -274,7 +280,7 @@ pub(super) fn Objects(
                                         onclick: move |_| {
                                             if let Some(context) = select_item.context.clone() {
                                                 if let Some(scope) = click_scope.clone() {
-                                                    select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace });
+                                                    select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: click_outline_action.clone() });
                                                 }
                                                 if select_item.kind == TreeKind::Board && select_item.expanded != Some(true) {
                                                     toggle_tree(expanded, &select_item.id);
@@ -289,7 +295,7 @@ pub(super) fn Objects(
                                                 event.prevent_default();
                                                 if let Some(context) = keyboard_item.context.clone() {
                                                     if let Some(scope) = key_scope.clone() {
-                                                        select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace });
+                                                        select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: key_outline_action.clone() });
                                                     }
                                                     if keyboard_item.kind == TreeKind::Board && keyboard_item.expanded != Some(true) {
                                                         toggle_tree(expanded, &keyboard_item.id);

@@ -354,6 +354,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                     scope: scope.clone(),
                     context,
                     mode: SelectionMode::Replace,
+                    outline_action: None,
                 });
                 let selected = request.as_ref().is_some_and(|request| {
                     current_context
