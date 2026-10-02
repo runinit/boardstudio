@@ -35,6 +35,64 @@ pub(super) type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
 
 #[derive(Clone, Copy)]
 pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
+/// React's library predicate is advisory; Core remains authoritative when SetMatrix is accepted.
+pub(super) fn matrix_input_available(definition: &boardstudio_core::model::PartDefinition) -> bool {
+    let press = if let Some(profile) = definition.input_profile.as_ref() {
+        profile
+            .press
+            .as_ref()
+            .map(|press| (press.row.clone(), press.column.clone(), press.independent))
+    } else {
+        definition
+            .matrix_terminals
+            .as_ref()
+            .map(|press| (press.row.clone(), press.column.clone(), true))
+            .or_else(|| {
+                definition
+                    .generator
+                    .as_ref()
+                    .filter(|generator| generator.source == "ceoloide/rotary_encoder_ec11_ec12")
+                    .map(|_| ("S1".into(), "S2".into(), true))
+            })
+    };
+    let Some((row_terminal, column_terminal, independent)) = press else {
+        return definition.input_profile.is_none()
+            && definition.pads.iter().any(|pad| pad.id == "one")
+            && definition.pads.iter().any(|pad| pad.id == "two");
+    };
+    let pads_for = |terminal: &str| {
+        definition
+            .terminals
+            .get(terminal)
+            .cloned()
+            .unwrap_or_else(|| {
+                definition
+                    .pads
+                    .iter()
+                    .filter(|pad| pad.id == terminal || pad.number == terminal)
+                    .map(|pad| pad.id.clone())
+                    .collect()
+            })
+    };
+    let row = pads_for(&row_terminal);
+    let column = pads_for(&column_terminal);
+    let rotation = definition
+        .input_profile
+        .as_ref()
+        .and_then(|profile| profile.rotary.as_ref())
+        .into_iter()
+        .flat_map(|rotation| [&rotation.a, &rotation.b, &rotation.common])
+        .flat_map(|terminal| pads_for(terminal))
+        .collect::<std::collections::BTreeSet<_>>();
+    independent
+        && !row.is_empty()
+        && !column.is_empty()
+        && row.iter().all(|id| !column.contains(id))
+        && row
+            .iter()
+            .chain(&column)
+            .all(|id| definition.pads.iter().any(|pad| pad.id == *id) && !rotation.contains(id))
+}
 
 #[derive(Clone)]
 struct CatalogueView {
@@ -117,9 +175,9 @@ pub(super) async fn load_matrix_templates(
         .collect())
 }
 
-/// Resolve a controller from the construction-normalized bundled catalogue, then apply the
-/// accepted project definition with the same precedence as the Parts browser.
-pub(super) async fn load_controller_definition(
+/// Resolve any selectable item from the construction-normalized bundled catalogue, then apply
+/// the accepted project definition with the same precedence as the Parts browser.
+pub(super) async fn load_component_definition(
     document: &ProjectDoc,
     definition_id: &str,
 ) -> Result<boardstudio_core::model::PartDefinition, String> {
@@ -129,14 +187,82 @@ pub(super) async fn load_controller_definition(
     let definition = entries
         .iter()
         .find(|entry| entry.definition.id == definition_id)
-        .ok_or_else(|| "The selected controller is no longer in the catalogue.".to_string())?;
-    if !matches!(
-        definition.definition.kind,
-        boardstudio_core::model::PartKind::Controller
-    ) {
-        return Err("The selected catalogue item is not a controller.".into());
-    }
+        .ok_or_else(|| "The selected component is no longer in the catalogue.".to_string())?;
     Ok((*definition.definition).clone())
+}
+
+#[component]
+pub(super) fn AddObjectComponentChooser(
+    snapshot: AcceptedSnapshot,
+    scope: Option<Scope>,
+    on_place: EventHandler<super::part_placement::ComponentPlacementAction>,
+) -> Element {
+    let catalogue = use_catalogue(&snapshot, &scope);
+    let mut query = use_signal(String::new);
+    let content = if let Some(entries) = catalogue.entries {
+        let search = query().trim().to_lowercase();
+        let groups = group_choices(&entries)
+            .iter()
+            .map(|group| {
+                let items = group
+                    .entries
+                    .iter()
+                    .copied()
+                    .filter(|entry| entry.matches(&search, group.label))
+                    .collect::<Vec<_>>();
+                (group.label, items)
+            })
+            .filter(|(_, items)| !items.is_empty())
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
+            rsx! { p { class: "m1-parts-empty", role: "status", "No component definitions are available." } }
+        } else if groups.is_empty() {
+            rsx! { p { class: "m1-parts-empty", role: "status", "No parts match this search." } }
+        } else {
+            rsx! {
+                label { class: "m1-parts-search-label", "Search parts"
+                    input {
+                        class: "m1-parts-search",
+                        type: "search",
+                        "aria-label": "Search parts to place",
+                        placeholder: "Name or category",
+                        value: "{query()}",
+                        oninput: move |event| query.set(event.value()),
+                    }
+                }
+                for (group, items) in groups {
+                    section { key: "{group}", class: "m1-parts-category", "aria-label": "{group}",
+                        h3 { "{group}" }
+                        for entry in items {
+                            { let definition_id = entry.definition.id.clone();
+                              let kind = entry.definition.kind.clone();
+                              let label = preferred_label(&entry.definition);
+                              rsx! {
+                                button {
+                                    key: "{definition_id}",
+                                    class: "m1-parts-catalogue-choice",
+                                    r#type: "button",
+                                    onclick: move |_| on_place.call(
+                                        super::part_placement::ComponentPlacementAction::AddObject {
+                                            definition_id: definition_id.clone(),
+                                            kind: kind.clone(),
+                                        }
+                                    ),
+                                    "{label}"
+                                }
+                              }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else if let Some(error) = catalogue.error {
+        rsx! { p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" } }
+    } else {
+        rsx! { p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" } }
+    };
+    rsx! { div { class: "m1-add-component-chooser", {content} } }
 }
 
 /// Place inside the existing Objects panel when Parts is the active workspace.
@@ -268,7 +394,9 @@ pub(super) fn PartsInspectorPanel(
     scope: Option<Scope>,
     query: PartsQuery,
     selected: PartsSelection,
+    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
     on_place_controller: EventHandler<String>,
+    on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
     controller_placement_enabled: bool,
     placement_busy: bool,
     placement_error: Option<String>,
@@ -329,6 +457,10 @@ pub(super) fn PartsInspectorPanel(
     let selected_layout = layout_target()
         .filter(|id| layouts.iter().any(|layout| layout.id == *id))
         .unwrap_or_default();
+    let apply_to_key = selected_context().as_ref().is_some_and(|selected| {
+        scope.as_ref() == Some(&selected.scope)
+            && matches!(selected.context, super::objects::TreeContext::Key { .. })
+    });
 
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
@@ -337,13 +469,34 @@ pub(super) fn PartsInspectorPanel(
             } else if catalogue.entries.is_none() {
                 p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
             }
-            SelectedDefinition { entry }
+            SelectedDefinition { entry: entry.clone() }
             if let Some(definition) = editable_definition {
                 crate::parts_definition_name::DefinitionNameEditor {
                     snapshot: snapshot.clone(),
                     scope: scope.clone(),
                     selection: selected,
                     definition,
+                }
+            }
+            if !controller_placement_enabled && let Some(entry) = entry.as_ref() {
+                { let definition_id = entry.definition.id.clone();
+                  let kind = entry.definition.kind.clone();
+                  let can_apply = matches!(kind, boardstudio_core::model::PartKind::Switch)
+                      || matrix_input_available(&entry.definition);
+                  rsx! {
+                    button {
+                        class: "m1-parts-place-component",
+                        r#type: "button",
+                        disabled: placement_busy || (apply_to_key && !can_apply),
+                        onclick: move |_| on_place_component.call(
+                            super::part_placement::ComponentPlacementAction::PartsInspector {
+                                definition_id: definition_id.clone(),
+                                kind: kind.clone(),
+                            }
+                        ),
+                        if apply_to_key { "Apply to selected key" } else { "Place component" }
+                    }
+                  }
                 }
             }
             if controller_placement_enabled {
@@ -373,9 +526,9 @@ pub(super) fn PartsInspectorPanel(
                     }
                 }
             }
-            if controller_placement_enabled && let Some(message) = placement_error {
-                p { class: "m1-parts-placement-error", role: "alert", "{message}" }
-            }
+        }
+        if let Some(message) = placement_error {
+            p { class: "m1-parts-placement-error", role: "alert", "{message}" }
         }
     }
 }

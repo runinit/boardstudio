@@ -5,6 +5,7 @@
 use super::{
     canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner},
     objects::{self, LayoutSnapSettings},
+    objects::{ScopedTreeContext, TreeContext},
     parts::{PartsQuery, PartsSelection},
     selection::SelectionAdapter,
     setup_guide::{SetupGuidePreferences, SetupGuideStage},
@@ -15,13 +16,34 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, OutlineFeature, Part, PartDefinition, PartKind, Pose2,
-    ProjectDoc, Side, Vec2,
+    EditCommand, EditOperation, EditPhase, MatrixAssembly, MatrixCell, OutlineFeature, Part,
+    PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
 use dioxus::prelude::*;
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PlacementWorkflow {
+    WiringController,
+    GeneralComponent,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum ComponentPlacementAction {
+    AddObject {
+        definition_id: String,
+        kind: PartKind,
+    },
+    PartsInspector {
+        definition_id: String,
+        kind: PartKind,
+    },
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct PlacementOwner {
@@ -31,12 +53,26 @@ pub(super) struct PlacementOwner {
     pub(super) revision: u64,
     pub(super) scope: Scope,
     pub(super) generation: u64,
+    source_workspace: &'static str,
     pub(super) board_id: String,
     pub(super) part_id: String,
     pub(super) definition_id: String,
     pub(super) reference: String,
     pub(super) layout_id: Option<String>,
     pub(super) at: Vec2,
+    workflow: PlacementWorkflow,
+}
+
+struct PlacementCapture {
+    scope: Scope,
+    generation: u64,
+    part_id: String,
+    definition_id: String,
+    kind: PartKind,
+    workflow: PlacementWorkflow,
+    source_workspace: &'static str,
+    layout_id: Option<String>,
+    at: Vec2,
 }
 
 impl PlacementOwner {
@@ -44,15 +80,18 @@ impl PlacementOwner {
         self.at = at;
     }
 
-    pub(super) fn capture(
-        snapshot: &AcceptedSnapshot,
-        scope: Scope,
-        generation: u64,
-        part_id: String,
-        definition_id: String,
-        layout_id: Option<String>,
-        at: Vec2,
-    ) -> Option<Self> {
+    fn capture(snapshot: &AcceptedSnapshot, request: PlacementCapture) -> Option<Self> {
+        let PlacementCapture {
+            scope,
+            generation,
+            part_id,
+            definition_id,
+            kind,
+            workflow,
+            source_workspace,
+            layout_id,
+            at,
+        } = request;
         if snapshot.document.id != scope.document_id
             || snapshot.session_epoch != scope.session_epoch
             || !snapshot
@@ -63,7 +102,7 @@ impl PlacementOwner {
         {
             return None;
         }
-        let reference = next_controller_reference(&snapshot.document);
+        let reference = next_component_reference(&snapshot.document, &kind);
         let board_id = scope.board_id.clone();
         Some(Self {
             token: snapshot.token,
@@ -72,12 +111,14 @@ impl PlacementOwner {
             revision: snapshot.document.revision,
             scope,
             generation,
+            source_workspace,
             board_id,
             part_id,
             definition_id,
             reference,
             layout_id,
             at,
+            workflow,
         })
     }
 
@@ -97,9 +138,10 @@ impl PlacementOwner {
             && snapshot.document.id == self.project_id
             && snapshot.document.revision == self.revision
             && self.board_id == self.scope.board_id
-            && guide_open
-            && guide_project_id == Some(self.project_id.as_str())
-            && guide_stage_is_wiring
+            && (self.workflow == PlacementWorkflow::GeneralComponent
+                || (guide_open
+                    && guide_project_id == Some(self.project_id.as_str())
+                    && guide_stage_is_wiring))
     }
 }
 
@@ -124,6 +166,27 @@ struct PendingCommit {
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
+#[derive(Clone)]
+struct PendingKeyEdit {
+    operation_id: boardstudio_application::OperationId,
+    outcome: crate::operation_outcomes::OutcomeSlot,
+    scope: Scope,
+    generation: u64,
+    source_workspace: &'static str,
+    selection: ScopedTreeContext,
+}
+
+fn pending_key_edit_matches(current: Option<&PendingKeyEdit>, expected: &PendingKeyEdit) -> bool {
+    current.is_some_and(|current| {
+        current.operation_id == expected.operation_id
+            && current.scope == expected.scope
+            && current.generation == expected.generation
+            && current.source_workspace == expected.source_workspace
+            && current.selection == expected.selection
+            && Rc::ptr_eq(&current.outcome, &expected.outcome)
+    })
+}
+
 fn pending_commit_matches(
     pending: Option<&PendingCommit>,
     operation_id: boardstudio_application::OperationId,
@@ -144,6 +207,7 @@ pub(super) struct PartPlacementMount {
     pub(super) error: Option<String>,
     pub(super) on_choose_controller: EventHandler<()>,
     pub(super) on_place_controller: EventHandler<String>,
+    pub(super) on_place_component: EventHandler<ComponentPlacementAction>,
     pub(super) on_move: EventHandler<Vec2>,
     pub(super) on_commit: EventHandler<Vec2>,
     pub(super) on_cancel: EventHandler<()>,
@@ -296,6 +360,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
     let committing = use_signal(|| None::<PendingCommit>);
+    let mut key_edit = use_signal(|| None::<PendingKeyEdit>);
     let error = use_signal(|| None::<String>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -347,7 +412,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         }
     };
 
-    let on_place_controller = {
+    let start_placement = {
         let runtime = runtime.clone();
         let mut active = active;
         let query = parts_query;
@@ -357,196 +422,430 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let alive = alive.clone();
         let adapter_for_async = adapter.clone();
         let canvas_interaction = canvas_interaction.clone();
-        move |definition_id: String| {
-            let current_model = runtime.model();
-            let admission = PlacementAdmission::capture(
-                &runtime,
-                generation(),
-                workspace(),
-                "Layout",
-                guide_preferences(),
-            );
-            if active.read().as_ref().is_some_and(|placement| {
-                !owner_is_live(&placement.owner, &runtime, &current_model, admission)
-            }) {
-                active.set(None);
-            }
-            let current_model = runtime.model();
-            let admission = PlacementAdmission::capture(
-                &runtime,
-                generation(),
-                workspace(),
-                "Parts",
-                guide_preferences(),
-            );
-            if preparing
-                .read()
-                .as_ref()
-                .is_some_and(|owner| !owner_is_live(owner, &runtime, &current_model, admission))
-            {
-                preparing.set(None);
-            }
-            if active.read().is_some()
-                || preparing.read().is_some()
-                || committing.read().is_some()
-                || workspace() != "Parts"
-            {
-                return;
-            }
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let Some(scope) = runtime.scope() else {
-                return;
-            };
-            let guide_is_live = guide_preferences().as_ref().is_some_and(|preferences| {
-                preferences.open
-                    && preferences.current_stage == SetupGuideStage::Wiring
-                    && preferences.project_id == snapshot.document.id
-            });
-            if !guide_is_live
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-                || model.display_preview.is_some()
-                || model.gesture.is_some()
-                || model.active_board_id != scope.board_id
-            {
-                return;
-            }
-            let part_id = match browser_uuid() {
-                Ok(id) => format!("ui-{id}"),
-                Err(message) => {
-                    error.set(Some(message));
+        Rc::new(RefCell::new(
+            move |definition_id: String,
+                  kind: PartKind,
+                  workflow: PlacementWorkflow,
+                  apply_to_key: bool| {
+                let source_workspace = workspace();
+                if match workflow {
+                    PlacementWorkflow::WiringController => source_workspace != "Parts",
+                    PlacementWorkflow::GeneralComponent => {
+                        !matches!(source_workspace, "Parts" | "Layout")
+                    }
+                } {
                     return;
                 }
-            };
-            let at = grid_snap_point(canvas_center, snap_settings.read().snap_fraction);
-            let layout_id = layout_target().filter(|layout_id| {
-                snapshot
-                    .document
-                    .layouts
-                    .iter()
-                    .any(|layout| layout.id == *layout_id && layout.board_id == scope.board_id)
-            });
-            let Some(owner) = PlacementOwner::capture(
-                snapshot,
-                scope.clone(),
-                generation(),
-                part_id,
-                definition_id.clone(),
-                layout_id,
-                at,
-            ) else {
-                return;
-            };
-            if !canvas_interaction.try_acquire(CanvasInteractionOwner::PartPlacement) {
-                return;
-            }
-            preparing.set(Some(owner.clone()));
-            error.set(None);
-            let accepted = snapshot.clone();
-            let reversible_document = (*snapshot.document).clone();
-            let runtime = runtime.clone();
-            let mut workspace = workspace;
-            let mut active = active;
-            let mut error = error;
-            let alive = alive.clone();
-            let mut adapter = adapter_for_async.clone();
-            let guide = guide_preferences;
-            let mut query = query;
-            let mut preparing = preparing;
-            let load_definition = load_definition.clone();
-            spawn_local(async move {
-                let definition = load_definition(reversible_document, definition_id).await;
-                if !alive.get() {
-                    return;
+                let current_model = runtime.model();
+                let admission = PlacementAdmission::capture(
+                    &runtime,
+                    generation(),
+                    workspace(),
+                    "Layout",
+                    guide_preferences(),
+                );
+                if active.read().as_ref().is_some_and(|placement| {
+                    !owner_is_live(&placement.owner, &runtime, &current_model, admission)
+                }) {
+                    active.set(None);
                 }
-                if preparing.read().as_ref() != Some(&owner) {
+                let current_model = runtime.model();
+                let admission = PlacementAdmission::capture(
+                    &runtime,
+                    generation(),
+                    workspace(),
+                    preparing
+                        .read()
+                        .as_ref()
+                        .map_or("Parts", |owner| owner.source_workspace),
+                    guide_preferences(),
+                );
+                if preparing
+                    .read()
+                    .as_ref()
+                    .is_some_and(|owner| !owner_is_live(owner, &runtime, &current_model, admission))
+                {
+                    preparing.set(None);
+                }
+                if active.read().is_some()
+                    || preparing.read().is_some()
+                    || committing.read().is_some()
+                    || key_edit.read().is_some()
+                    || workspace() != source_workspace
+                {
                     return;
                 }
                 let model = runtime.model();
-                let still_owned = owner_is_live(
-                    &owner,
-                    &runtime,
-                    &model,
-                    PlacementAdmission::capture(
-                        &runtime,
-                        generation(),
-                        workspace(),
-                        "Parts",
-                        guide(),
-                    ),
-                );
-                if !still_owned
-                    || workspace() != "Parts"
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return;
+                };
+                let Some(scope) = runtime.scope() else {
+                    return;
+                };
+                let guide_is_live = guide_preferences().as_ref().is_some_and(|preferences| {
+                    preferences.open
+                        && preferences.current_stage == SetupGuideStage::Wiring
+                        && preferences.project_id == snapshot.document.id
+                });
+                if (workflow == PlacementWorkflow::WiringController && !guide_is_live)
                     || model.lifecycle != Lifecycle::Ready
                     || model.durability
                         != (Durability::Saved {
-                            revision: accepted.document.revision,
+                            revision: snapshot.document.revision,
                         })
+                    || model.display_preview.is_some()
+                    || model.gesture.is_some()
+                    || model.active_board_id != scope.board_id
                 {
-                    preparing.set(None);
                     return;
                 }
-                let definition = match definition {
-                    Ok(definition) => definition,
+                let selected_context = (adapter_for_async.selected_context)();
+                if apply_to_key
+                    && selected_context
+                        .as_ref()
+                        .is_some_and(|selected| matches!(selected.context, TreeContext::Key { .. }))
+                {
+                    let Some(selected) = selected_context else {
+                        return;
+                    };
+                    if selected.scope != scope
+                        || !super::selection::context_is_current(&model, &scope, &selected.context)
+                    {
+                        return;
+                    }
+                    let accepted = snapshot.clone();
+                    let accepted_generation = generation();
+                    let reversible_document = (*snapshot.document).clone();
+                    let runtime = runtime.clone();
+                    let load_definition = load_definition.clone();
+                    let mut error = error;
+                    let current_context = adapter_for_async.selected_context;
+                    let alive = alive.clone();
+                    spawn_local(async move {
+                        let definition =
+                            match load_definition(reversible_document, definition_id).await {
+                                Ok(definition) => definition,
+                                Err(message) => {
+                                    if alive.get()
+                                        && runtime.scope().as_ref() == Some(&scope)
+                                        && workspace() == source_workspace
+                                        && generation() == accepted_generation
+                                        && current_context() == Some(selected.clone())
+                                    {
+                                        error.set(Some(message));
+                                    }
+                                    return;
+                                }
+                            };
+                        if !alive.get() {
+                            return;
+                        }
+                        if definition.kind != kind {
+                            if runtime.scope().as_ref() == Some(&scope)
+                                && workspace() == source_workspace
+                                && generation() == accepted_generation
+                                && current_context() == Some(selected.clone())
+                            {
+                                error.set(Some(
+                                    "The selected component changed before it was applied.".into(),
+                                ));
+                            }
+                            return;
+                        }
+                        let model = runtime.model();
+                        let Some(current) = model.accepted.as_ref() else {
+                            return;
+                        };
+                        if current.token != accepted.token
+                            || current.session_epoch != accepted.session_epoch
+                            || current.document.id != accepted.document.id
+                            || current.document.revision != accepted.document.revision
+                            || model.lifecycle != Lifecycle::Ready
+                            || model.durability
+                                != (Durability::Saved {
+                                    revision: accepted.document.revision,
+                                })
+                            || runtime.scope().as_ref() != Some(&scope)
+                            || current_context() != Some(selected.clone())
+                            || workspace() != source_workspace
+                            || generation() != accepted_generation
+                        {
+                            return;
+                        }
+                        let operation = match selected_key_component_operation(
+                            &current.document,
+                            &scope,
+                            &selected,
+                            &definition,
+                        ) {
+                            Ok(operation) => operation,
+                            Err(message) => {
+                                error.set(Some(message));
+                                return;
+                            }
+                        };
+                        let EditOperation::SetMatrix {
+                            matrix,
+                            definitions,
+                        } = &operation
+                        else {
+                            return;
+                        };
+                        let mut target_ids = vec![matrix.id.clone()];
+                        if definitions.is_some() {
+                            target_ids.push(definition.id.clone());
+                        }
+                        let operation_id = runtime.operation();
+                        let outcome = runtime.observe_operation(operation_id);
+                        let pending = PendingKeyEdit {
+                            operation_id,
+                            outcome: outcome.clone(),
+                            scope: scope.clone(),
+                            generation: accepted_generation,
+                            source_workspace,
+                            selection: selected.clone(),
+                        };
+                        key_edit.set(Some(pending.clone()));
+                        error.set(None);
+                        runtime.submit(Event::Edit {
+                            operation_id,
+                            command: EditCommand {
+                                base_revision: current.document.revision,
+                                transaction_id: format!("component-key-apply-{}", operation_id.0),
+                                phase: EditPhase::Commit,
+                                target_ids,
+                                operation,
+                            },
+                        });
+                        let runtime = runtime.clone();
+                        let mut key_edit = key_edit;
+                        let mut error = error;
+                        let current_context = current_context;
+                        let alive = alive.clone();
+                        spawn_local(async move {
+                            while outcome.borrow().is_none() {
+                                gloo_timers::future::TimeoutFuture::new(16).await;
+                            }
+                            if !alive.get() {
+                                return;
+                            }
+                            if !pending_key_edit_matches(key_edit.read().as_ref(), &pending) {
+                                return;
+                            }
+                            let still_current = runtime.scope().as_ref() == Some(&pending.scope)
+                                && workspace() == pending.source_workspace
+                                && generation() == pending.generation
+                                && current_context() == Some(pending.selection.clone());
+                            key_edit.set(None);
+                            if !still_current {
+                                return;
+                            }
+                            if let Some(message) =
+                                selected_key_edit_failure_message(outcome.borrow().as_ref())
+                            {
+                                error.set(Some(message));
+                            }
+                        });
+                    });
+                    return;
+                }
+                let part_id = match browser_uuid() {
+                    Ok(id) => format!("ui-{id}"),
                     Err(message) => {
-                        preparing.set(None);
                         error.set(Some(message));
                         return;
                     }
                 };
-                let Some(pending) = controller_part(
-                    definition,
-                    owner.part_id.clone(),
-                    owner.reference.clone(),
-                    owner.at,
+                let at = grid_snap_point(canvas_center, snap_settings.read().snap_fraction);
+                let layout_id =
+                    layout_target().filter(|layout_id| {
+                        snapshot.document.layouts.iter().any(|layout| {
+                            layout.id == *layout_id && layout.board_id == scope.board_id
+                        })
+                    });
+                let Some(owner) = PlacementOwner::capture(
+                    snapshot,
+                    PlacementCapture {
+                        scope: scope.clone(),
+                        generation: generation(),
+                        part_id,
+                        definition_id: definition_id.clone(),
+                        kind: kind.clone(),
+                        workflow,
+                        source_workspace,
+                        layout_id,
+                        at,
+                    },
                 ) else {
-                    preparing.set(None);
-                    error.set(Some(
-                        "The selected catalogue item is not a controller.".into(),
-                    ));
                     return;
                 };
-                if !owner_is_live(
-                    &owner,
-                    &runtime,
-                    &model,
-                    PlacementAdmission::capture(
-                        &runtime,
-                        generation(),
-                        workspace(),
-                        "Parts",
-                        guide(),
-                    ),
-                ) {
-                    preparing.set(None);
+                if !canvas_interaction.try_acquire(CanvasInteractionOwner::PartPlacement) {
                     return;
                 }
-                active.set(Some(ActivePartPlacement {
-                    owner,
-                    snap_document: Rc::new(document_with_pending_definition(
-                        &accepted.document,
-                        &pending.definition,
-                    )),
-                    pending,
-                }));
-                preparing.set(None);
-                query.set("controller".into());
-                workspace.set("Layout");
-                adapter.selected_context.set(None);
-                adapter.anchor_scope.set(None);
-                runtime.submit(Event::SelectParts {
-                    operation_id: runtime.operation(),
-                    part_ids: Vec::new(),
-                    range_part_ids: Vec::new(),
-                    mode: SelectionMode::Replace,
+                preparing.set(Some(owner.clone()));
+                error.set(None);
+                let accepted = snapshot.clone();
+                let reversible_document = (*snapshot.document).clone();
+                let runtime = runtime.clone();
+                let mut workspace = workspace;
+                let mut active = active;
+                let mut error = error;
+                let alive = alive.clone();
+                let mut adapter = adapter_for_async.clone();
+                let guide = guide_preferences;
+                let mut query = query;
+                let mut preparing = preparing;
+                let load_definition = load_definition.clone();
+                spawn_local(async move {
+                    let definition = load_definition(reversible_document, definition_id).await;
+                    if !alive.get() {
+                        return;
+                    }
+                    if preparing.read().as_ref() != Some(&owner) {
+                        return;
+                    }
+                    let model = runtime.model();
+                    let still_owned = owner_is_live(
+                        &owner,
+                        &runtime,
+                        &model,
+                        PlacementAdmission::capture(
+                            &runtime,
+                            generation(),
+                            workspace(),
+                            owner.source_workspace,
+                            guide(),
+                        ),
+                    );
+                    if !still_owned
+                        || workspace() != owner.source_workspace
+                        || model.lifecycle != Lifecycle::Ready
+                        || model.durability
+                            != (Durability::Saved {
+                                revision: accepted.document.revision,
+                            })
+                    {
+                        preparing.set(None);
+                        return;
+                    }
+                    let definition = match definition {
+                        Ok(definition) => definition,
+                        Err(message) => {
+                            preparing.set(None);
+                            error.set(Some(message));
+                            return;
+                        }
+                    };
+                    if definition.kind != kind {
+                        preparing.set(None);
+                        error.set(Some(
+                            "The selected component changed before placement.".into(),
+                        ));
+                        return;
+                    }
+                    if workflow == PlacementWorkflow::WiringController
+                        && !matches!(definition.kind, PartKind::Controller)
+                    {
+                        preparing.set(None);
+                        error.set(Some(
+                            "The selected catalogue item is not a controller.".into(),
+                        ));
+                        return;
+                    }
+                    let pending = if workflow == PlacementWorkflow::WiringController {
+                        controller_part(
+                            definition,
+                            owner.part_id.clone(),
+                            owner.reference.clone(),
+                            owner.at,
+                        )
+                    } else {
+                        Some(component_part(
+                            definition,
+                            owner.part_id.clone(),
+                            owner.reference.clone(),
+                            owner.at,
+                        ))
+                    };
+                    let Some(pending) = pending else {
+                        preparing.set(None);
+                        error.set(Some(
+                            "The selected catalogue item is not a controller.".into(),
+                        ));
+                        return;
+                    };
+                    if !owner_is_live(
+                        &owner,
+                        &runtime,
+                        &model,
+                        PlacementAdmission::capture(
+                            &runtime,
+                            generation(),
+                            workspace(),
+                            owner.source_workspace,
+                            guide(),
+                        ),
+                    ) {
+                        preparing.set(None);
+                        return;
+                    }
+                    active.set(Some(ActivePartPlacement {
+                        owner,
+                        snap_document: Rc::new(document_with_pending_definition(
+                            &accepted.document,
+                            &pending.definition,
+                        )),
+                        pending,
+                    }));
+                    preparing.set(None);
+                    if workflow == PlacementWorkflow::WiringController {
+                        query.set("controller".into());
+                    }
+                    workspace.set("Layout");
+                    adapter.selected_context.set(None);
+                    adapter.anchor_scope.set(None);
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids: Vec::new(),
+                        range_part_ids: Vec::new(),
+                        mode: SelectionMode::Replace,
+                    });
                 });
-            });
+            },
+        ))
+    };
+    let on_place_controller = {
+        let start = start_placement.clone();
+        move |definition_id: String| {
+            start.borrow_mut()(
+                definition_id,
+                PartKind::Controller,
+                PlacementWorkflow::WiringController,
+                false,
+            );
+        }
+    };
+    let on_place_component = {
+        let start = start_placement;
+        move |action: ComponentPlacementAction| match action {
+            ComponentPlacementAction::AddObject {
+                definition_id,
+                kind,
+            } => start.borrow_mut()(
+                definition_id,
+                kind,
+                PlacementWorkflow::GeneralComponent,
+                false,
+            ),
+            ComponentPlacementAction::PartsInspector {
+                definition_id,
+                kind,
+            } => start.borrow_mut()(
+                definition_id,
+                kind,
+                PlacementWorkflow::GeneralComponent,
+                true,
+            ),
         }
     };
 
@@ -587,7 +886,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         &cleanup_runtime,
                         observed_generation,
                         observed_workspace,
-                        "Parts",
+                        owner.source_workspace,
                         observed_guide.clone(),
                     ),
                 )
@@ -773,10 +1072,18 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 if success && route_live {
                     selected_context.set(None);
                     anchor_scope.set(None);
-                    workspace.set("PCB");
+                    workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                        "PCB"
+                    } else {
+                        "Layout"
+                    });
                     runtime.submit(Event::SelectParts {
                         operation_id: runtime.operation(),
-                        part_ids: Vec::new(),
+                        part_ids: if owner.workflow == PlacementWorkflow::GeneralComponent {
+                            vec![owner.part_id.clone()]
+                        } else {
+                            Vec::new()
+                        },
                         range_part_ids: Vec::new(),
                         mode: SelectionMode::Replace,
                     });
@@ -787,7 +1094,11 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                         .is_some_and(|accepted| owner_snapshot_is_current(accepted, &owner))
                     && let Some(message) = placement_failure_message(terminal.as_ref())
                 {
-                    workspace.set("Parts");
+                    workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                        "Parts"
+                    } else {
+                        "Layout"
+                    });
                     error.set(Some(message));
                 }
                 canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
@@ -814,7 +1125,12 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 .read()
                 .as_ref()
                 .map(|placement| (placement.owner.clone(), "Layout"))
-                .or_else(|| preparing.read().clone().map(|owner| (owner, "Parts")));
+                .or_else(|| {
+                    preparing
+                        .read()
+                        .clone()
+                        .map(|owner| (owner.clone(), owner.source_workspace))
+                });
             let Some((owner, owner_workspace)) = owner_and_workspace else {
                 return;
             };
@@ -839,7 +1155,11 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             if current {
                 selected_context.set(None);
                 anchor_scope.set(None);
-                workspace.set("PCB");
+                workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                    "PCB"
+                } else {
+                    "Layout"
+                });
                 runtime.submit(Event::SelectParts {
                     operation_id: runtime.operation(),
                     part_ids: Vec::new(),
@@ -866,7 +1186,8 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             ),
         )
     });
-    let busy = preparing.read().is_some() || committing.read().is_some();
+    let busy =
+        preparing.read().is_some() || committing.read().is_some() || key_edit.read().is_some();
     let owns_canvas = busy || projection.is_some();
     use_effect(use_reactive(
         (&version(), &workspace(), &generation(), &owns_canvas),
@@ -885,6 +1206,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         error: error(),
         on_choose_controller: EventHandler::new(on_choose_controller),
         on_place_controller: EventHandler::new(on_place_controller),
+        on_place_component: EventHandler::new(on_place_component),
         on_move,
         on_commit,
         on_cancel: EventHandler::new(on_cancel),
@@ -937,11 +1259,12 @@ fn placement_route_is_current(
             && runtime.scope().as_ref() == Some(&owner.scope)
             && generation == owner.generation
             && workspace == "Layout"
-    }) && preferences.as_ref().is_some_and(|preferences| {
-        preferences.open
-            && preferences.project_id == owner.project_id
-            && preferences.current_stage == SetupGuideStage::Wiring
-    })
+    }) && (owner.workflow == PlacementWorkflow::GeneralComponent
+        || preferences.as_ref().is_some_and(|preferences| {
+            preferences.open
+                && preferences.project_id == owner.project_id
+                && preferences.current_stage == SetupGuideStage::Wiring
+        }))
 }
 
 fn browser_uuid() -> Result<String, String> {
@@ -964,7 +1287,17 @@ pub(super) fn controller_part(
     reference: String,
     at: Vec2,
 ) -> Option<PendingPart> {
-    matches!(definition.kind, PartKind::Controller).then(|| PendingPart {
+    matches!(definition.kind, PartKind::Controller)
+        .then(|| component_part(definition, part_id, reference, at))
+}
+
+pub(super) fn component_part(
+    definition: PartDefinition,
+    part_id: String,
+    reference: String,
+    at: Vec2,
+) -> PendingPart {
+    PendingPart {
         part: Part {
             keycap: None,
             outline: None,
@@ -982,7 +1315,7 @@ pub(super) fn controller_part(
         },
         definition,
         at,
-    })
+    }
 }
 
 pub(super) fn update_pending_part(pending: &mut PendingPart, at: Vec2) {
@@ -1086,14 +1419,11 @@ pub(super) fn placement_operation(
     part: &Part,
     layout_id: Option<&str>,
 ) -> Result<EditOperation, String> {
-    if !matches!(definition.kind, PartKind::Controller) {
-        return Err("Only controller definitions can be placed from the setup guide.".into());
-    }
     if part.definition_id != definition.id || part.id.is_empty() || part.reference.is_empty() {
-        return Err("The prepared controller placement is incomplete.".into());
+        return Err("The prepared component placement is incomplete.".into());
     }
     if accepted.parts.iter().any(|existing| existing.id == part.id) {
-        return Err("The controller placement identity already exists.".into());
+        return Err("The component placement identity already exists.".into());
     }
     let board_index = accepted
         .boards
@@ -1105,7 +1435,7 @@ pub(super) fn placement_operation(
         .iter()
         .any(|existing| existing.reference == part.reference)
     {
-        return Err("The controller reference is already in use.".into());
+        return Err("The component reference is already in use.".into());
     }
 
     let mut proposed = accepted.clone();
@@ -1115,7 +1445,7 @@ pub(super) fn placement_operation(
         .find(|existing| existing.id == definition.id)
     {
         Some(existing) if existing != definition => {
-            return Err("The selected controller definition changed before placement.".into());
+            return Err("The selected component definition changed before placement.".into());
         }
         Some(_) => {}
         None => proposed.definitions.push(definition.clone()),
@@ -1155,17 +1485,117 @@ pub(super) fn placement_operation(
     })
 }
 
-pub(super) fn next_controller_reference(document: &ProjectDoc) -> String {
+pub(super) fn selected_key_component_operation(
+    accepted: &ProjectDoc,
+    scope: &Scope,
+    selection: &ScopedTreeContext,
+    definition: &PartDefinition,
+) -> Result<EditOperation, String> {
+    if selection.scope != *scope {
+        return Err("The selected key belongs to a different board scope.".into());
+    }
+    if scope.document_id != accepted.id
+        || !accepted
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
+    {
+        return Err("The selected board is no longer available.".into());
+    }
+    let TreeContext::Key {
+        matrix_id,
+        row,
+        column,
+    } = &selection.context
+    else {
+        return Err("Select a matrix key before applying this component.".into());
+    };
+    let mut matrix = accepted
+        .matrices
+        .iter()
+        .find(|matrix| {
+            matrix.id == *matrix_id
+                && super::objects::matrix_visible_on_board(accepted, &scope.board_id, matrix_id)
+        })
+        .filter(|matrix| {
+            matrix
+                .board_id
+                .as_deref()
+                .is_none_or(|board_id| board_id == scope.board_id)
+                && *row < matrix.rows
+                && *column < matrix.columns
+        })
+        .cloned()
+        .ok_or_else(|| "The selected matrix key is no longer available.".to_string())?;
+    let current = matrix
+        .cells
+        .iter()
+        .find(|cell| cell.row == *row && cell.column == *column)
+        .cloned();
+    let can_drive_matrix = matches!(definition.kind, PartKind::Switch)
+        || super::parts::matrix_input_available(definition);
+    let mut cell = current.clone().unwrap_or(MatrixCell {
+        row: *row,
+        column: *column,
+        enabled: true,
+        definition_id: None,
+        variant: None,
+        offset: None,
+        rotation: None,
+        assemblies: Vec::new(),
+        assemblies_local: None,
+    });
+    cell.enabled = true;
+    if can_drive_matrix {
+        cell.definition_id = Some(definition.id.clone());
+    } else {
+        let id = format!("library-{}-{}", definition.id, cell.assemblies.len() + 1);
+        cell.assemblies.push(MatrixAssembly {
+            id,
+            definition_id: definition.id.clone(),
+            offset: Vec2::default(),
+            rotation: None,
+            side: None,
+        });
+    }
+    matrix
+        .cells
+        .retain(|existing| existing.row != *row || existing.column != *column);
+    matrix.cells.push(cell);
+    let definitions = match accepted
+        .definitions
+        .iter()
+        .find(|item| item.id == definition.id)
+    {
+        Some(existing) if existing != definition => {
+            return Err("The selected component definition changed before it was applied.".into());
+        }
+        Some(_) => None,
+        None => Some(vec![definition.clone()]),
+    };
+    Ok(EditOperation::SetMatrix {
+        matrix,
+        definitions,
+    })
+}
+
+pub(super) fn next_component_reference(document: &ProjectDoc, kind: &PartKind) -> String {
+    let prefix = match kind {
+        PartKind::Switch => 'S',
+        PartKind::Controller => 'U',
+        PartKind::Encoder => 'E',
+        PartKind::Connector | PartKind::Passive | PartKind::Custom | PartKind::Utility => 'J',
+    };
     let occupied = document
         .parts
         .iter()
-        .filter_map(|part| part.reference.strip_prefix('U'))
+        .filter_map(|part| part.reference.strip_prefix(prefix))
         .filter_map(|number| number.parse::<u32>().ok())
         .collect::<std::collections::BTreeSet<_>>();
     let next = (1..=u32::MAX)
         .find(|candidate| !occupied.contains(candidate))
         .unwrap_or(1);
-    format!("U{next}")
+    format!("{prefix}{next}")
 }
 
 pub(super) fn completion_is_accepted(
@@ -1256,6 +1686,22 @@ fn placement_failure_message(outcome: Option<&TerminalOutcome>) -> Option<String
     }
 }
 
+fn selected_key_edit_failure_message(outcome: Option<&TerminalOutcome>) -> Option<String> {
+    match outcome {
+        Some(
+            TerminalOutcome::Rejected(message)
+            | TerminalOutcome::PersistenceFailed(message)
+            | TerminalOutcome::ExecutorFailed(message)
+            | TerminalOutcome::BlockedByRecovery(message),
+        ) => Some(message.clone()),
+        Some(TerminalOutcome::Completed) => None,
+        Some(
+            TerminalOutcome::Cancelled | TerminalOutcome::Superseded | TerminalOutcome::Closed,
+        )
+        | None => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -1282,6 +1728,28 @@ mod tests {
         .unwrap()
     }
 
+    fn passive_definition(id: &str) -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "name": "Reset switch",
+            "kind": "passive",
+            "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}],
+            "pads": []
+        }))
+        .unwrap()
+    }
+
+    fn switch_definition(id: &str) -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "name": "MX switch",
+            "kind": "switch",
+            "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}],
+            "pads": []
+        }))
+        .unwrap()
+    }
+
     fn fixture() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project", "Keyboard");
         document.outline.push(OutlineFeature::PartEnvelope {
@@ -1303,6 +1771,21 @@ mod tests {
             vias: vec![],
         });
         document
+    }
+
+    fn matrix_fixture() -> boardstudio_core::model::Matrix {
+        serde_json::from_value(serde_json::json!({
+            "id": "matrix-main",
+            "rows": 2,
+            "columns": 3,
+            "pitch": {"x": 19.05, "y": 19.05},
+            "origin": {"x": 0.0, "y": 0.0},
+            "definitionId": "switch:base",
+            "partIds": [],
+            "boardId": "board-main",
+            "cells": []
+        }))
+        .unwrap()
     }
 
     fn accepted(document: ProjectDoc, token: u64) -> AcceptedSnapshot {
@@ -1396,6 +1879,7 @@ mod tests {
         unmounted: Rc<Cell<bool>>,
         latest: Rc<RefCell<Option<PartPlacementMount>>>,
         workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
+        selected_context: Rc<RefCell<Option<Signal<Option<ScopedTreeContext>>>>>,
         guide: Rc<RefCell<Option<Signal<Option<SetupGuidePreferences>>>>>,
         version: Rc<Cell<u64>>,
         loader_reply: Rc<RefCell<Option<Result<PartDefinition, String>>>>,
@@ -1434,6 +1918,7 @@ mod tests {
         *probe.workspace.borrow_mut() = Some(workspace);
         *probe.guide.borrow_mut() = Some(guide);
         let selected_context = use_signal(|| None);
+        *probe.selected_context.borrow_mut() = Some(selected_context);
         let anchor_scope = use_signal(|| None);
         let generation = use_signal(|| 4u64);
         let adapter = SelectionAdapter::new(selected_context, anchor_scope, generation);
@@ -1492,6 +1977,7 @@ mod tests {
             unmounted: Rc::new(Cell::new(false)),
             latest: Rc::default(),
             workspace: Rc::default(),
+            selected_context: Rc::default(),
             guide: Rc::default(),
             version: Rc::new(Cell::new(0)),
             loader_reply: Rc::new(RefCell::new(None)),
@@ -1550,6 +2036,289 @@ mod tests {
         let mount = probe.latest.borrow().as_ref().unwrap().clone();
         assert!(mount.projection.is_some());
         mount
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn general_component_placement_starts_without_the_setup_guide_and_uses_kind_reference() {
+        let (probe, mut dom) = hook_mounted();
+        let mut guide = *probe.guide.borrow().as_ref().unwrap();
+        guide.set(None);
+        flush_hook(&mut dom);
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::AddObject {
+                definition_id: "catalog:reset-switch".into(),
+                kind: PartKind::Passive,
+            });
+        assert!(
+            probe
+                .canvas_interaction
+                .is_owner(CanvasInteractionOwner::PartPlacement)
+        );
+        resolve_loader(&probe, Ok(passive_definition("catalog:reset-switch")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        let mount = probe.latest.borrow().as_ref().unwrap().clone();
+        let placement = mount
+            .projection
+            .expect("generic component enters canvas placement");
+        assert_eq!(placement.pending.part.reference, "J1");
+        assert_eq!(placement.pending.definition.kind, PartKind::Passive);
+        assert_eq!(workspace(&probe), "Layout");
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn parts_inspector_action_applies_selected_key_through_production_edit_handler() {
+        let (probe, mut dom) = hook_mounted();
+        let mut document = (*probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document)
+            .clone();
+        document.matrices.push(matrix_fixture());
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            let accepted = model.accepted.as_mut().unwrap();
+            accepted.document = Arc::new(document);
+            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
+                boardstudio_core::model::MatrixScene {
+                    matrix_id: "matrix-main".into(),
+                    cells: Vec::new(),
+                    columns: Vec::new(),
+                },
+            );
+        }
+        let scope = probe.runtime.scope().unwrap();
+        let selected = ScopedTreeContext {
+            scope: scope.clone(),
+            context: TreeContext::Key {
+                matrix_id: "matrix-main".into(),
+                row: 1,
+                column: 2,
+            },
+        };
+        assert!(super::super::selection::context_is_current(
+            &probe.runtime.model(),
+            &scope,
+            &selected.context,
+        ));
+        let mut selected_context = *probe.selected_context.borrow().as_ref().unwrap();
+        selected_context.set(Some(selected.clone()));
+        let mut workspace_signal = *probe.workspace.borrow().as_ref().unwrap();
+        workspace_signal.set("Parts");
+        probe.runtime.settle_edit_on_submit.set(true);
+        flush_hook(&mut dom);
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::PartsInspector {
+                definition_id: "imported:reset-switch".into(),
+                kind: PartKind::Passive,
+            });
+        resolve_loader(&probe, Ok(passive_definition("imported:reset-switch")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        let edit = probe
+            .runtime
+            .events
+            .borrow()
+            .iter()
+            .find_map(|event| match event {
+                SessionEvent::Edit { command, .. } => Some(command.clone()),
+                _ => None,
+            })
+            .expect("selected-key action submits a real edit");
+        let EditOperation::SetMatrix {
+            matrix,
+            definitions,
+        } = &edit.operation
+        else {
+            panic!("selected-key action commits SetMatrix");
+        };
+        assert_eq!(
+            matrix.cells[0].assemblies[0].definition_id,
+            "imported:reset-switch"
+        );
+        assert_eq!(definitions.as_ref().unwrap()[0].id, "imported:reset-switch");
+        assert_eq!(edit.base_revision, 0);
+        assert_eq!(workspace(&probe), "Parts");
+        assert_eq!(selected_context(), Some(selected));
+        assert!(
+            !probe
+                .canvas_interaction
+                .is_owner(CanvasInteractionOwner::PartPlacement)
+        );
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let mount = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(!mount.busy);
+        assert!(mount.error.is_none());
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn parts_inspector_action_does_not_apply_to_a_key_selected_after_loading_started() {
+        let (probe, mut dom) = hook_mounted();
+        let mut document = (*probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document)
+            .clone();
+        document.matrices.push(matrix_fixture());
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            let accepted = model.accepted.as_mut().unwrap();
+            accepted.document = Arc::new(document);
+            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
+                boardstudio_core::model::MatrixScene {
+                    matrix_id: "matrix-main".into(),
+                    cells: Vec::new(),
+                    columns: Vec::new(),
+                },
+            );
+        }
+        let scope = probe.runtime.scope().unwrap();
+        let selected = ScopedTreeContext {
+            scope: scope.clone(),
+            context: TreeContext::Key {
+                matrix_id: "matrix-main".into(),
+                row: 1,
+                column: 2,
+            },
+        };
+        let mut selected_context = *probe.selected_context.borrow().as_ref().unwrap();
+        selected_context.set(Some(selected));
+        let mut workspace_signal = *probe.workspace.borrow().as_ref().unwrap();
+        workspace_signal.set("Parts");
+        flush_hook(&mut dom);
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::PartsInspector {
+                definition_id: "imported:reset-switch".into(),
+                kind: PartKind::Passive,
+            });
+        let mut selected_context = *probe.selected_context.borrow().as_ref().unwrap();
+        selected_context.set(None);
+        flush_hook(&mut dom);
+        resolve_loader(&probe, Ok(passive_definition("imported:reset-switch")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        assert!(
+            probe
+                .runtime
+                .events
+                .borrow()
+                .iter()
+                .all(|event| { !matches!(event, SessionEvent::Edit { .. }) })
+        );
+        assert_eq!(workspace(&probe), "Parts");
+        assert!(
+            !probe
+                .canvas_interaction
+                .is_owner(CanvasInteractionOwner::PartPlacement)
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn selected_key_edit_rejection_is_reported_to_the_current_parts_owner() {
+        let (probe, mut dom) = hook_mounted();
+        let mut document = (*probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document)
+            .clone();
+        document.matrices.push(matrix_fixture());
+        {
+            let mut model = probe.runtime.model.borrow_mut();
+            let accepted = model.accepted.as_mut().unwrap();
+            accepted.document = Arc::new(document);
+            Arc::make_mut(&mut accepted.scene).matrix_scenes.push(
+                boardstudio_core::model::MatrixScene {
+                    matrix_id: "matrix-main".into(),
+                    cells: Vec::new(),
+                    columns: Vec::new(),
+                },
+            );
+        }
+        let selected = ScopedTreeContext {
+            scope: probe.runtime.scope().unwrap(),
+            context: TreeContext::Key {
+                matrix_id: "matrix-main".into(),
+                row: 1,
+                column: 2,
+            },
+        };
+        let mut selected_context = *probe.selected_context.borrow().as_ref().unwrap();
+        selected_context.set(Some(selected));
+        let mut workspace_signal = *probe.workspace.borrow().as_ref().unwrap();
+        workspace_signal.set("Parts");
+        flush_hook(&mut dom);
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::PartsInspector {
+                definition_id: "imported:reset-switch".into(),
+                kind: PartKind::Passive,
+            });
+        resolve_loader(&probe, Ok(passive_definition("imported:reset-switch")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let operation_id = probe
+            .runtime
+            .events
+            .borrow()
+            .iter()
+            .find_map(|event| match event {
+                SessionEvent::Edit { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            })
+            .expect("selected-key action observes its production edit");
+        assert!(probe.runtime.outcomes.settle(
+            operation_id,
+            TerminalOutcome::Rejected("The matrix input is no longer valid.".into()),
+        ));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        let mount = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(!mount.busy);
+        assert_eq!(
+            mount.error.as_deref(),
+            Some("The matrix input is no longer valid.")
+        );
+        assert_eq!(workspace(&probe), "Parts");
     }
 
     fn submitted_edit(probe: &HookProbe) -> (OperationId, EditOperation) {
@@ -2194,6 +2963,150 @@ mod tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
+    fn standalone_placement_accepts_a_non_controller_and_updates_memberships_atomically() {
+        let mut accepted = fixture();
+        accepted.layouts = vec![
+            boardstudio_core::model::Layout {
+                id: "layout-main".into(),
+                name: "Main".into(),
+                board_id: "board-main".into(),
+                matrix_id: "matrix-main".into(),
+                part_ids: vec![],
+                mirror_link: None,
+            },
+            boardstudio_core::model::Layout {
+                id: "layout-other".into(),
+                name: "Other".into(),
+                board_id: "board-main".into(),
+                matrix_id: "matrix-other".into(),
+                part_ids: vec![],
+                mirror_link: None,
+            },
+        ];
+        let original = accepted.clone();
+        let definition = passive_definition("imported:reset-switch");
+        let placed = part(&definition.id, "part-reset-switch", "J1");
+
+        let proposed = replacement(
+            placement_operation(
+                &accepted,
+                "board-main",
+                &definition,
+                &placed,
+                Some("layout-main"),
+            )
+            .expect("the ordinary component action accepts non-controller definitions"),
+        );
+
+        assert_eq!(proposed.definitions, vec![definition]);
+        assert_eq!(proposed.parts, vec![placed]);
+        assert_eq!(proposed.boards[0].part_ids, vec!["part-reset-switch"]);
+        let OutlineFeature::PartEnvelope { part_ids, .. } = &proposed.outline[0] else {
+            panic!("fixture outline is an envelope");
+        };
+        assert_eq!(part_ids, &["part-reset-switch"]);
+        assert_eq!(proposed.layouts[0].part_ids, vec!["part-reset-switch"]);
+        assert!(proposed.layouts[1].part_ids.is_empty());
+        assert_eq!(
+            accepted, original,
+            "proposal construction does not mutate accepted state"
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn selected_key_application_uses_set_matrix_and_preserves_other_cell_fields() {
+        let mut accepted = fixture();
+        accepted.matrices.push(boardstudio_core::model::Matrix {
+            id: "matrix-main".into(),
+            name: None,
+            rows: 2,
+            columns: 3,
+            pitch: Vec2 { x: 19.05, y: 19.05 },
+            origin: Vec2::default(),
+            definition_id: "switch:base".into(),
+            part_ids: vec![],
+            board_id: Some("board-main".into()),
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_offsets: vec![],
+            column_offsets: vec![],
+            column_staggers: vec![],
+            column_splays: vec![],
+            column_origins: vec![],
+            cells: vec![MatrixCell {
+                row: 1,
+                column: 2,
+                enabled: false,
+                definition_id: None,
+                variant: Some("existing-variant".into()),
+                offset: Some(Vec2 { x: 0.5, y: -0.5 }),
+                rotation: Some(12.0),
+                assemblies: vec![],
+                assemblies_local: Some(true),
+            }],
+        });
+        let scope = Scope {
+            session_epoch: SessionEpoch(7),
+            document_id: "project".into(),
+            board_id: "board-main".into(),
+            instance_id: None,
+        };
+        let selection = ScopedTreeContext {
+            scope: scope.clone(),
+            context: TreeContext::Key {
+                matrix_id: "matrix-main".into(),
+                row: 1,
+                column: 2,
+            },
+        };
+        let original = accepted.clone();
+        let operation = selected_key_component_operation(
+            &accepted,
+            &scope,
+            &selection,
+            &passive_definition("imported:reset-switch"),
+        )
+        .unwrap();
+        let EditOperation::SetMatrix {
+            matrix,
+            definitions,
+        } = operation
+        else {
+            panic!("applying to a selected key uses SetMatrix");
+        };
+        assert_eq!(definitions.unwrap()[0].id, "imported:reset-switch");
+        assert_eq!(matrix.cells.len(), 1);
+        let cell = &matrix.cells[0];
+        assert!(cell.enabled);
+        assert_eq!(cell.variant.as_deref(), Some("existing-variant"));
+        assert_eq!(cell.offset, Some(Vec2 { x: 0.5, y: -0.5 }));
+        assert_eq!(cell.rotation, Some(12.0));
+        assert_eq!(cell.assemblies_local, Some(true));
+        assert_eq!(cell.assemblies[0].id, "library-imported:reset-switch-1");
+        assert_eq!(accepted, original);
+
+        let operation = selected_key_component_operation(
+            &accepted,
+            &scope,
+            &selection,
+            &switch_definition("switch:mx"),
+        )
+        .unwrap();
+        let EditOperation::SetMatrix {
+            matrix,
+            definitions,
+        } = operation
+        else {
+            panic!("switch applies through SetMatrix");
+        };
+        assert_eq!(matrix.cells[0].definition_id.as_deref(), Some("switch:mx"));
+        assert!(matrix.cells[0].assemblies.is_empty());
+        assert_eq!(definitions.unwrap()[0].id, "switch:mx");
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn conflicting_definitions_and_missing_layout_targets_reject_without_mutating_source() {
         let mut accepted = fixture();
         let original = accepted.clone();
@@ -2233,7 +3146,35 @@ mod tests {
             part("existing", "two", "R3"),
             part("existing", "three", "U3"),
         ];
-        assert_eq!(next_controller_reference(&document), "U2");
+        assert_eq!(
+            next_component_reference(&document, &PartKind::Controller),
+            "U2"
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn component_references_use_react_kind_prefixes_and_lowest_free_number() {
+        let mut document = fixture();
+        document.parts = vec![
+            part("existing", "one", "S1"),
+            part("existing", "two", "S3"),
+            part("existing", "three", "U1"),
+            part("existing", "four", "E2"),
+            part("existing", "five", "J1"),
+        ];
+        assert_eq!(next_component_reference(&document, &PartKind::Switch), "S2");
+        assert_eq!(
+            next_component_reference(&document, &PartKind::Controller),
+            "U2"
+        );
+        assert_eq!(
+            next_component_reference(&document, &PartKind::Encoder),
+            "E1"
+        );
+        assert_eq!(
+            next_component_reference(&document, &PartKind::Passive),
+            "J2"
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -2361,12 +3302,17 @@ mod tests {
         };
         let owner = PlacementOwner::capture(
             &initial,
-            scope.clone(),
-            4,
-            "part-controller".into(),
-            "catalog:controller".into(),
-            None,
-            Vec2 { x: 3.0, y: 9.0 },
+            PlacementCapture {
+                scope: scope.clone(),
+                generation: 4,
+                part_id: "part-controller".into(),
+                definition_id: "catalog:controller".into(),
+                kind: PartKind::Controller,
+                workflow: PlacementWorkflow::WiringController,
+                source_workspace: "Parts",
+                layout_id: None,
+                at: Vec2 { x: 3.0, y: 9.0 },
+            },
         )
         .unwrap();
 
@@ -2399,12 +3345,17 @@ mod tests {
         let mut placed = part(&definition.id, "part-controller", "U1");
         let mut owner = PlacementOwner::capture(
             &initial,
-            scope,
-            4,
-            placed.id.clone(),
-            definition.id.clone(),
-            None,
-            Vec2::default(),
+            PlacementCapture {
+                scope,
+                generation: 4,
+                part_id: placed.id.clone(),
+                definition_id: definition.id.clone(),
+                kind: PartKind::Controller,
+                workflow: PlacementWorkflow::WiringController,
+                source_workspace: "Parts",
+                layout_id: None,
+                at: Vec2::default(),
+            },
         )
         .unwrap();
         assert!(owner_snapshot_is_current(&initial, &owner));
@@ -2509,12 +3460,17 @@ mod tests {
         };
         let owner = PlacementOwner::capture(
             &initial,
-            scope,
-            4,
-            "part-controller".into(),
-            "catalog:controller".into(),
-            None,
-            Vec2::default(),
+            PlacementCapture {
+                scope,
+                generation: 4,
+                part_id: "part-controller".into(),
+                definition_id: "catalog:controller".into(),
+                kind: PartKind::Controller,
+                workflow: PlacementWorkflow::WiringController,
+                source_workspace: "Parts",
+                layout_id: None,
+                at: Vec2::default(),
+            },
         )
         .unwrap();
         let operation_id = boardstudio_application::OperationId(41);
