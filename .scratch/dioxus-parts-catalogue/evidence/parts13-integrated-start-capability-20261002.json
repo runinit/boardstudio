@@ -1,0 +1,22 @@
+{
+  "source_commit": "2394b9961a5f7d2dd814f1637cf611185d4449d6",
+  "capability": "Parts12 definition-name leaf is registered and mounted in actual page host; its private Runtime edit/event seam is callable after integration",
+  "files": {
+    "web/src/main.rs": "4bd2d6452caf087d95f627475be8efb12bf2ecaf2c35108d92e50287d3344d17",
+    "web/src/presentation/parts.rs": "7c017d0db047344c7178abc86212b24bfb42b2fb26adb99be24139c9f8285831",
+    "web/src/parts_definition_name.rs": "7a1b83d1e22a331cb79ac65354a4c50d828ea39e3464285797af3a6fdb2f3355",
+    "web/src/runtime.rs": "908b77738b1f4e4613adfdde2fe8daa3b1f1b86309fd871b4d2200f708c5c120"
+  },
+  "checks": {
+    "native_passed": 229,
+    "native_failed": 0,
+    "strict_page_wasm_all_targets": "PASS",
+    "fmt": "PASS",
+    "diff_check": "PASS"
+  },
+  "scope": "Source/callability start receipt only. Parts12 public paired edit/history/save-reopen acceptance remains open. All parent joins retained.",
+  "checks_logs": [
+    "/home/chris/.local/share/boardstudio/retained-tmp/20261002/root-pcb-parts-integrated-native.log",
+    "/home/chris/.local/share/boardstudio/retained-tmp/20261002/root-pcb-parts-integrated-wasm.log"
+  ]
+}
