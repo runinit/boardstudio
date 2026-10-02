@@ -3461,8 +3461,13 @@ fn Editor() -> Element {
                     .unwrap_or(part.pose.at)
             })
     });
-    let guide = guide_preferences()
-        .filter(|preferences| preferences.project_id == document.id && preferences.open);
+    let guide = guide_preferences().filter(|preferences| {
+        preferences.project_id == document.id
+            && preferences.open
+            // Opening Matrix Setup from the guide temporarily reveals the normal Layout
+            // Objects panel; the guide preference remains intact and returns on cancel.
+            && !(active_workspace == "Layout" && matrix_setup.projection.is_some())
+    });
     let name_value = guide_name_draft()
         .filter(|(project_id, _)| project_id == &document.id)
         .map(|(_, name)| name)
@@ -3622,7 +3627,7 @@ fn Editor() -> Element {
                             on_name_commit,
                             on_stage_change,
                             on_open_workspace,
-                            on_open_matrix_setup: None,
+                            on_open_matrix_setup: Some(matrix_setup.on_open),
                             on_choose_controller: None,
                             on_dismiss: on_dismiss_guide,
                             project_controls: if preferences.current_stage
