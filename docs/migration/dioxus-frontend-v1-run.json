@@ -1,17 +1,18 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Parallel frontend implementation active: current Case compact/focus/resize build frontend-case-focus-resize-final-20261002 (e2a84d8b) has a bounded public green for its documented compact panel/keyboard/focus/resize states and root/subpath/offline delivery; broader workspace, actual AT and parent acceptance remain open. Keymap binding editor focused public packet is complete with a focus-continuity difference retained; encoder rotation issue06 implementation has started after independent private target-contract clearance. Case mechanical settings and Macro bounded public packets remain complete with their broader criteria/gates open. Full F2\u2013F9 and all canonical acceptance joins remain open.",
+  "status": "Six-stream private composition and the first Keymap tabs/accepted-outline surface are implemented and mounted at integration 10377780. Root native 34 and strict WASM Clippy pass at 98188448; final formatting and the 8-command/980-hash integrated Keymap build pass at 10377780. Paired browser work found an SW7 selection mismatch after returning from Macros to Keys; candidate correction deba7087 is Spec-clear, with Standards review and fresh green verification pending. Full F2\u2013F9 and all canonical acceptance joins remain open.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "private composition preparation and Case contextual-workspace child are implementing against independently reviewed contracts in isolated worktrees; other stream contracts are in prep/review; no feature or canonical parent acceptance is inferred",
+    "status": "Private six-workspace composition and first Keymap tab/accepted-outline route are implemented and mounted in integration 10377780. Source reviews clear; native34 and strict WASM Clippy pass at 98188448; final formatting and 8-command/980-hash integrated build pass at 10377780. Paired browser work found an SW7 selection mismatch after filtering and returning Macros \u2192 Keys; correction deba7087 is Spec-clear, Standards and fresh green verification pending. The composite route and six-workspace characterization are not paired-accepted; no feature or canonical parent acceptance is inferred.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
         "contract_sha256": "c6550ab551734340be7c58683494925f4087941b9f598f0fd10131396a2f395f",
-        "status": "implementation in progress; preparation only"
+        "status": "implemented and mounted at 10377780; source Spec/Standards clear; integrated build complete; six-workspace paired characterization pending; preparation only",
+        "source_commit": "09563bc16c96d94c574710afc52f53b2731e86f9"
       },
       "case_contextual_workspace": {
         "ticket": ".scratch/dioxus-case-workspace/issues/09-case-contextual-objects-inspector.md",
@@ -20,16 +21,42 @@
         "review": ".scratch/dioxus-case-workspace/evidence/contextual-workspace-issue09/review.md",
         "review_sha256": "8512f8e709ff3c1b383451fd4f3ee6c80bb9642358b33cce241aae7e4766dc68",
         "status": "implementation in progress; public paired acceptance open"
+      },
+      "keymap_first_surface": {
+        "source_commit": "98188448",
+        "status": "Keys/Macros/Encoders tabs and accepted outline/board contour implemented and mounted at 10377780; paired public acceptance pending; no F6K or parent acceptance inferred",
+        "build": "frontend-keymap-parity-20261002: 8 commands, 980 hashes; root/subpath Keymap route verified with 29 keys, 1 outline, 3 tabs and scope switch",
+        "paired_status": "Not accepted: paired SW7 filtered return red; correction deba7087 Spec-clear, Standards/green pending"
       }
     },
     "canonical_parent_count": 62,
     "canonical_graph_changed": false,
-    "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved"
+    "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved",
+    "current_integration": {
+      "commit": "1037778016c8c02f3ebc5971908984a0e7028dda",
+      "checks": {
+        "native_page_tests": "34 passed at 98188448 (12 library + 22 page)",
+        "strict_wasm_clippy": "pass at 98188448",
+        "formatting": "pass at 10377780"
+      },
+      "build": "complete: frontend-keymap-parity-20261002 at 10377780; eight commands, 980 source hashes; immutable candidate 34689",
+      "paired_browser_acceptance": "red observed, not accepted: after filtering SW7 and moving Macros \u2192 Keys, candidate Selected key chooser is empty while binding editor retains SW7; React retains SW7. Correction deba7087 is Spec-clear; Standards and fresh green pending.",
+      "evidence": ".scratch/dioxus-workbench-parity/evidence/integration-handoff-20261002.md",
+      "build_evidence": "/tmp/frontend-parity-reset-20261002/integration/build-keymap.log",
+      "paired_evidence": "/tmp/frontend-parity-reset-20261002/keymap/paired/",
+      "layout_matrix_inspector_source": "candidate c9411 Standards-clear; root mount, integrated build, and public journey pending"
+    },
+    "agent_parallelism": {
+      "user_concurrency_ceiling": 30,
+      "available_session_slots": 11,
+      "includes_coordinator": true,
+      "effective_run_cap": 11
+    }
   },
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "parallel shared-viewer model-delivery slices, completed focused Keymap binding public packet with remaining full F6 gates, and Case mechanical-settings root integration",
+  "current_milestone": "Six-stream composition and first Keymap route integrated; build passes, paired SW7 selection correction pending; all canonical F2\u2013F9 gates unchanged",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
@@ -372,7 +399,7 @@
       "public_qa": "Bounded public compact panel/keyboard/focus/resize packet is green; see compact-focus-resize-final-public/README.md and resize-settlement/ASSESSMENT.md. Root/subpath/offline packaging is green in preview-generator-worker-packaging/RESULTS.md. Retain the immediate transient observation separately from the settled green. This does not close broader workspace, AT, F7.3/INT.2/BND.1 or F7.8 gates."
     }
   },
-  "integration_source_snapshot": "3c83cc0f",
+  "integration_source_snapshot": "1037778016c8c02f3ebc5971908984a0e7028dda",
   "shared_viewer_model_delivery": {
     "parent": "F7.3",
     "status": "Two model-delivery children independently Spec/Standards cleared and published; implementation/public verification open.",
