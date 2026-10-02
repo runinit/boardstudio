@@ -1,0 +1,94 @@
+[INFO]: 🎯  Checking for the Wasm target...
+   Compiling boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/contracts/rust)
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/web)
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/core)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/application)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 57.31s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-7a625c1121b7aea7.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:44993/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 1 test
+test presentation::objects::matrix_setup::focus_tests::matrix_cancel_restores_guide_focus_and_new_form_focuses_rows ... FAIL
+
+failures:
+
+---- presentation::objects::matrix_setup::focus_tests::matrix_cancel_restores_guide_focus_and_new_form_focuses_rows output ----
+    error output:
+        panicked at src/presentation/objects/matrix_setup_focus_tests.rs:83:5:
+        assertion `left == right` failed: guide mount, form mount, draft rerender, and Cancel must preserve their actual focus lifetimes; current focus: BODY
+          left: (false, false, true, false)
+         right: (true, true, true, true)
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:42193/wasm-bindgen-test:1361:25
+            at logError (http://127.0.0.1:42193/wasm-bindgen-test:2238:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:42193/wasm-bindgen-test:1360:57)
+            at boardstudio_web-7a625c1121b7aea7.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[92742]:0x12ab9e9)
+            at boardstudio_web-7a625c1121b7aea7.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[53651]:0x10fe0a4)
+            at boardstudio_web-7a625c1121b7aea7.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[20428]:0xd3592c)
+            at boardstudio_web-7a625c1121b7aea7.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[56415]:0x11282fa)
+            at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[17377]:0xc8bd7d)
+            at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[33553]:0xf42c57)
+            at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[94083]:0x12afa48)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-7a625c1121b7aea7.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[94449]:0x12b052d)
+            at boardstudio_web-7a625c1121b7aea7.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[94392]:0x12b041d)
+            at boardstudio_web-7a625c1121b7aea7.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[93008]:0x12ac90f)
+            at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[17377]:0xc8bdf0)
+            at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[33553]:0xf42c57)
+            at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[94083]:0x12afa48)
+            at boardstudio_web-7a625c1121b7aea7.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[73422]:0x11ffc95)
+            at boardstudio_web-7a625c1121b7aea7.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[55964]:0x112193e)
+            at boardstudio_web-7a625c1121b7aea7.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[15020]:0xbf2e2c)
+            at boardstudio_web-7a625c1121b7aea7.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<(bool, bool, bool, bool), (bool, bool, bool, bool)> (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[43233]:0x103f8c6)
+
+failures:
+
+    presentation::objects::matrix_setup::focus_tests::matrix_cancel_restores_guide_focus_and_new_form_focuses_rows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 4 filtered out; finished in 0.35s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::objects::matrix_setup::focus_tests::matrix_cancel_restores_guide_focus_and_new_form_focuses_rows
+    panicked at src/presentation/objects/matrix_setup_focus_tests.rs:83:5:
+    assertion `left == right` failed: guide mount, form mount, draft rerender, and Cancel must preserve their actual focus lifetimes; current focus: BODY
+      left: (false, false, true, false)
+     right: (true, true, true, true)
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:42193/wasm-bindgen-test:1361:25
+        at logError (http://127.0.0.1:42193/wasm-bindgen-test:2238:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:42193/wasm-bindgen-test:1360:57)
+        at boardstudio_web-7a625c1121b7aea7.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[92742]:0x12ab9e9)
+        at boardstudio_web-7a625c1121b7aea7.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[53651]:0x10fe0a4)
+        at boardstudio_web-7a625c1121b7aea7.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[20428]:0xd3592c)
+        at boardstudio_web-7a625c1121b7aea7.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[56415]:0x11282fa)
+        at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[17377]:0xc8bd7d)
+        at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[33553]:0xf42c57)
+        at boardstudio_web-7a625c1121b7aea7.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:42193/wasm-bindgen-test_bg.wasm:wasm-function[94083]:0x12afa48)
+    
+    
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-7a625c1121b7aea7.wasm matrix_cancel_restores_guide_focus_and_new_form_focuses_rows` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "matrix_cancel_restores_guide_focus_and_new_form_focuses_rows"

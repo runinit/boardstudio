@@ -81,7 +81,11 @@ pub(super) fn ProjectSetupGuide(
         aside { class: "m1-setup-guide", "aria-label": "Setup guide",
             header { class: "m1-setup-guide__header",
                 div {
-                    h2 { "Keyboard setup" }
+                    h2 {
+                        tabindex: "-1",
+                        onmounted: move |event| async move { let _ = event.set_focus(true).await; },
+                        "Keyboard setup"
+                    }
                     p { "A step-by-step guide to your keyboard." }
                 }
                 button { class: "m1-setup-guide__dismiss", r#type: "button", onclick: move |_| on_dismiss.call(()), "Back to objects" }

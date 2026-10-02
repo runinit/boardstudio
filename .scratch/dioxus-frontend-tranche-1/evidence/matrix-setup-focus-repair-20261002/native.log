@@ -1,0 +1,67 @@
+   Compiling boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/contracts/rust)
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/web)
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/core)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-setup-focus-repair-20261002/application)
+warning: struct `BundledModel` is never constructed
+ --> src/bundled_models.rs:2:19
+  |
+2 | pub(crate) struct BundledModel {
+  |                   ^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: static `BUNDLED_MODELS` is never used
+ --> /home/chris/.local/share/boardstudio/worktrees/f56-physical-intents-ticket06-20261002/web/target/debug/build/boardstudio-web-0d582d7570962d38/out/bundled_ergogen_models.rs:1:19
+  |
+1 | pub(super) static BUNDLED_MODELS: &[BundledModel] = &[
+  |                   ^^^^^^^^^^^^^^
+
+warning: function `bundled_model` is never used
+  --> src/bundled_models.rs:12:15
+   |
+12 | pub(crate) fn bundled_model(id: &str) -> Option<&'static BundledModel> {
+   |               ^^^^^^^^^^^^^
+
+warning: struct `PreparedArchive` is never constructed
+ --> src/portable_archive.rs:5:19
+  |
+5 | pub(crate) struct PreparedArchive {
+  |                   ^^^^^^^^^^^^^^^
+
+warning: function `prepare_archive` is never used
+  --> src/portable_archive.rs:10:15
+   |
+10 | pub(crate) fn prepare_archive(
+   |               ^^^^^^^^^^^^^^^
+
+warning: function `hex_digest` is never used
+  --> src/portable_archive.rs:98:4
+   |
+98 | fn hex_digest(bytes: &[u8]) -> String {
+   |    ^^^^^^^^^^
+
+warning: function `referenced_models` is never used
+   --> src/portable_archive.rs:110:15
+    |
+110 | pub(crate) fn referenced_models(
+    |               ^^^^^^^^^^^^^^^^^
+
+warning: `boardstudio-web` (bin "boardstudio-web") generated 7 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 27.87s
+     Running tests/matrix_setup_lifecycle.rs (/home/chris/.local/share/boardstudio/worktrees/f56-physical-intents-ticket06-20261002/web/target/debug/deps/matrix_setup_lifecycle-f978570acb54d324)
+
+running 11 tests
+test operation_outcomes::tests::dropped_view_and_unrelated_completion_do_not_acknowledge_current_view ... ok
+test operation_outcomes::tests::identical_session_rejections_settle_their_own_operations ... ok
+test presentation::tests::nonexistent_physical_instance_cannot_open_matrix_setup ... ok
+test presentation::tests::detached_normalization_after_editor_unmount_never_touches_disposed_signals ... ok
+test presentation::tests::configured_board_instance_can_open_matrix_setup ... ok
+test presentation::tests::changed_accepted_token_during_normalization_never_submits ... ok
+test presentation::tests::completed_creation_without_accepted_snapshot_releases_its_slot ... ok
+test presentation::tests::admitted_outcome_survives_editor_unmount_until_exact_terminal ... ok
+test presentation::tests::hidden_pending_waits_for_exact_terminal_then_releases_without_selection ... ok
+test presentation::tests::completed_old_project_retires_before_replacement_revision_checks ... ok
+test presentation::tests::current_saved_completion_selects_the_created_matrix_exactly_once ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

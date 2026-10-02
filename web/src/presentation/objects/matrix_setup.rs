@@ -100,6 +100,7 @@ pub(in crate::presentation) fn MatrixSetup(props: MatrixSetupProps) -> Element {
                 label { "Rows"
                     input {
                         aria_label: "New matrix rows",
+                        onmounted: move |event| async move { let _ = event.set_focus(true).await; },
                         r#type: "number", min: "1", max: "4096", step: "1", required: true,
                         value: "{rows_value}", disabled: !props.projection.editable,
                         oninput: move |event| rows.set(event.value()),
@@ -184,3 +185,7 @@ impl MatrixSetupPreset {
         })
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "matrix_setup_focus_tests.rs"]
+mod focus_tests;

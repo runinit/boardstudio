@@ -1,0 +1,15 @@
+[INFO]: 🎯  Checking for the Wasm target...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.17s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-7a625c1121b7aea7.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:39665/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 1 test
+test presentation::setup_guide::tests::compact_case_stage_keeps_the_real_guide_visible_until_settings_action ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 4 filtered out; finished in 0.38s
+
