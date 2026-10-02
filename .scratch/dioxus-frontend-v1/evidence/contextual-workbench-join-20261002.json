@@ -1,0 +1,23 @@
+{
+  "source": "173e0b81a51b7c663b177cac4c15eb9ece3671f1",
+  "state": "integration checks passed; next full package not yet started",
+  "case12": {
+    "author": "f6c6a645de6f79650c812bfec6e004f7a6b45c94",
+    "root": "6f7aa4c1",
+    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/case12-source-review-4b43c135-20261002.md",
+    "review_sha256": "fe6e8077831929883537b47a6791a550ba52c21edb1b075b5cc85794e4012fee"
+  },
+  "mirror": {
+    "author": "d0bf3fe22470ccd919e82f78ab6d5e6055058654",
+    "root": "173e0b81",
+    "review": "/home/chris/.local/share/boardstudio/reviews/mirror-canvas-overlay-source-review-d0bf3fe2-sol-20261002.md",
+    "review_sha256": "8374ed68276bca45a27b0fe6fcbf54d7a2ba0080725607e990a69609ebbb3389",
+    "test_receipt_correction": "pending; source CLEAR does not imply handwritten composition proves production Editor geometry"
+  },
+  "joined_check": {
+    "strict_supported_wasm_alltargets": "pass",
+    "elapsed_seconds": 22.51,
+    "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-case-mirror-joined-clippy.log"
+  },
+  "public_gates": "Paired TypeScript and new packaged Dioxus contextual panes, Mirror placement/geometry, edits, Undo/Redo and save-reopen remain open."
+}

@@ -1,0 +1,7 @@
+# Keycaps F6.C3 public receipt correction — 0418cbd9
+
+**Standards CLEAR and Spec CLEAR for bounded docs join** of exact correction `0418cbd9323d3a44dd72200734ab625933ba8079`. Receipt SHA independently verified through frozen Git blob: `30cbf2f52b721d89edfc364d0eda5237f1d88745d9998ba0df436f410a652821`. The two-line docs-only correction records actual Dioxus capture dimensions1280×577, explicitly leaves viewport unrecorded and rejects a matched-viewport visual claim against React1280×940. It replaces the broken React oracle link with its verified absolute retained-home path. Frozen delta and `git diff --check` pass.
+
+This closes the bounded Standards HOLD from `keycaps-f6c3-public-receipt-review-c2b6af7e-20261002.md` (SHA `bc42768c5f5423435dfcf6ac40391411e889338694c7d28b39a2608aebd912b8`). Reuse that review's independent fixture/project/full9d/React source and seven-image hash/visual checks. No behavior or capture is changed by this correction. Both axes personally rechecked without source edits, browser rewalk or delegation.
+
+Safe to join original `c2b6af7e6b47512cdd9dd23056f31cd78840913a` receipt plus this correction as bounded paired Layout size/reflow evidence. Full F6.C3/F3.2/F3.5 joins, F6.C4/INT.2, F6.C5/F6.6, originalf2 provenance, configured finding navigation, matching-viewport visual parity and complete Keycaps/public acceptance remain open. History/input/no-page-error observations retain their author-recorded scope; no independent replay is invented. No new refactoring takeaway.
