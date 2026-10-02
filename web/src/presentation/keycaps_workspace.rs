@@ -101,7 +101,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 if let Some((selected, actions)) = settings_editor {
                     KeycapsSettingsEditor { selected, actions }
                 }
-                KeycapsFitInspector { view, document: input.document, state: input.fit_state, on_retry: input.fit_retry }
+                KeycapsFitInspector { document: input.document, state: input.fit_state, on_retry: input.fit_retry }
             }
         }
     } else {

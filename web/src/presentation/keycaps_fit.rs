@@ -1,7 +1,9 @@
 //! Accepted-snapshot keycap-fit request lifecycle and contextual findings presentation.
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Finding, KeycapResolution, ProjectDoc, Severity};
+use boardstudio_core::model::{
+    Finding, KeycapResolution, ProjectDoc, Scope as FindingScope, Severity,
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
@@ -43,7 +45,7 @@ pub(super) struct KeycapsFitActions {
 }
 
 impl KeycapsFitState {
-    fn begin(source: KeycapsFitSource, previous: Option<&Self>) -> Self {
+    pub(super) fn begin(source: KeycapsFitSource, previous: Option<&Self>) -> Self {
         let accepted = previous
             .filter(|previous| {
                 previous
@@ -60,7 +62,7 @@ impl KeycapsFitState {
         }
     }
 
-    fn finish(&mut self, result: Result<KeycapResolution, String>) {
+    pub(super) fn finish(&mut self, result: Result<KeycapResolution, String>) {
         self.refreshing = false;
         match result {
             Ok(result) if result.revision == self.source.revision => {
@@ -79,10 +81,13 @@ impl KeycapsFitState {
         }
     }
 
-    fn is_current(&self) -> bool {
-        self.accepted
-            .as_ref()
-            .is_some_and(|accepted| accepted.source == self.source)
+    pub(super) fn is_current(&self) -> bool {
+        !self.refreshing
+            && self.error.is_none()
+            && self
+                .accepted
+                .as_ref()
+                .is_some_and(|accepted| accepted.source == self.source)
     }
 }
 
@@ -141,7 +146,6 @@ pub(super) fn use_keycaps_fit(
 
 #[component]
 pub(super) fn KeycapsFitInspector(
-    view: Rc<super::keycaps_scene::KeycapsView>,
     document: Rc<ProjectDoc>,
     state: Option<KeycapsFitState>,
     on_retry: EventHandler<()>,
@@ -152,7 +156,9 @@ pub(super) fn KeycapsFitInspector(
     let accepted = state.as_ref().and_then(|state| state.accepted.as_ref());
     let current = state.as_ref().is_some_and(KeycapsFitState::is_current);
     let findings = accepted.map_or(&[][..], |accepted| accepted.result.findings.as_slice());
-    let title_detail = findings.len().to_string();
+    let groups = grouped_findings(findings, &document);
+    let visible_finding_count: usize = groups.iter().map(|group| group.findings.len()).sum();
+    let title_detail = visible_finding_count.to_string();
 
     rsx! {
         section { class: "m1-keycaps-fit", "aria-label": "Clearance findings",
@@ -193,13 +199,25 @@ pub(super) fn KeycapsFitInspector(
                 if accepted.is_some() && accepted.unwrap().result.specs.is_empty() {
                     p { class: "m1-keycaps-fit-empty", "No generated keycaps are configured for this board." }
                 } else if accepted.is_some() {
-                    p { class: "m1-keycaps-fit-clean", "No active findings for the conservative full switch-travel envelope check." }
+                    p { class: "m1-keycaps-fit-clean",
+                        if current { "No active findings for the conservative full switch-travel envelope check." }
+                        else { "The earlier assessment had no active findings for the conservative full switch-travel envelope check." }
+                    }
                 } else if !state.as_ref().is_some_and(|state| state.refreshing) {
                     p { class: "m1-keycaps-fit-empty", "No fit assessment is available yet." }
                 }
             } else {
-                for finding in findings {
-                    KeycapsFitFinding { finding: finding.clone(), view: view.clone(), document: document.clone() }
+                div { class: "wb-finding-groups",
+                    for group in groups {
+                        section { "aria-label": "{group.label}",
+                            h3 { "{group.label}" }
+                            ul { class: "wb-findings",
+                                for finding in group.findings {
+                                    KeycapsFitFinding { finding, document: document.clone() }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             p { class: "m1-keycaps-fit-note", "Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview." }
@@ -208,45 +226,181 @@ pub(super) fn KeycapsFitInspector(
 }
 
 #[component]
-fn KeycapsFitFinding(
-    finding: Finding,
-    view: Rc<super::keycaps_scene::KeycapsView>,
-    document: Rc<ProjectDoc>,
-) -> Element {
+fn KeycapsFitFinding(finding: Finding, document: Rc<ProjectDoc>) -> Element {
     let (severity, severity_class) = match &finding.severity {
         Severity::Error => ("Error", "error"),
         Severity::Warning => ("Warning", "warning"),
         Severity::Info => ("Information", "info"),
     };
-    let label = finding
-        .target_ids
-        .iter()
-        .find_map(|id| view.keys.iter().find(|key| key.id.as_ref() == id))
-        .map(|key| format!("{} · key", key.reference))
-        .or_else(|| {
-            finding.target_ids.iter().find_map(|id| {
-                document
-                    .matrices
-                    .iter()
-                    .find(|matrix| matrix.id == *id)
-                    .map(|matrix| matrix.name.clone().unwrap_or_else(|| matrix.id.clone()))
-            })
-        })
-        .or_else(|| {
-            finding.target_ids.iter().find_map(|id| {
-                document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == *id)
-                    .map(|board| board.name.clone())
-            })
-        })
-        .unwrap_or_else(|| format!("{:?} review", finding.scope));
+    let fitted = finding.id.ends_with("outline:corners:fitted");
     rsx! {
-        article { class: "m1-keycaps-fit-finding is-{severity_class}", "aria-label": "{severity}: {label}",
-            h3 { "{label}" }
-            strong { "{severity}" }
-            p { "{finding.message}" }
+        li { class: "m1-keycaps-fit-finding is-{severity_class}",
+            span { class: "wb-finding-mark", "aria-hidden": "true" }
+            div {
+                strong { class: "wb-finding-severity", "{severity}" }
+                p { "{finding.message}" }
+                if fitted {
+                    p { "The resulting outline has smaller corners than requested. Review the corner size and nearby spacing." }
+                }
+            }
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct FindingGroup {
+    pub label: String,
+    pub findings: Vec<Finding>,
+}
+
+/// Mirror the established React FindingList oracle: collapse duplicate feature wrappers,
+/// severity-sort the stable result, and group by the first resolved target label.
+pub(super) fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
+    let findings = presented_findings(findings, document);
+    let mut groups: Vec<FindingGroup> = Vec::new();
+    for finding in findings {
+        let label = finding_target_label(&finding, document)
+            .unwrap_or_else(|| format!("{} review", scope_title(&finding.scope)));
+        if let Some(group) = groups.iter_mut().find(|group| group.label == label) {
+            group.findings.push(finding);
+        } else {
+            groups.push(FindingGroup {
+                label,
+                findings: vec![finding],
+            });
+        }
+    }
+    groups
+}
+
+fn presented_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<Finding> {
+    let board_ids: std::collections::HashSet<&str> = document
+        .boards
+        .iter()
+        .map(|board| board.id.as_str())
+        .collect();
+    let mut result: Vec<Finding> = Vec::new();
+    let mut indices = std::collections::HashMap::<String, usize>::new();
+    for finding in findings {
+        let source = finding
+            .id
+            .find(":feature:")
+            .map_or(finding.id.as_str(), |index| {
+                &finding.id[index + ":feature:".len()..]
+            });
+        let mut geometry: Vec<&str> = finding
+            .target_ids
+            .iter()
+            .map(String::as_str)
+            .filter(|id| !board_ids.contains(id))
+            .collect();
+        if geometry.is_empty() {
+            geometry = finding.target_ids.iter().map(String::as_str).collect();
+        }
+        geometry.sort_unstable();
+        let key = serde_json::to_string(&(
+            source,
+            severity_rank(&finding.severity),
+            &finding.message,
+            geometry,
+        ))
+        .expect("finding deduplication key is serializable");
+        if let Some(index) = indices.get(&key).copied() {
+            let existing = &mut result[index];
+            for target_id in &finding.target_ids {
+                if !existing.target_ids.contains(target_id) {
+                    existing.target_ids.push(target_id.clone());
+                }
+            }
+        } else {
+            indices.insert(key, result.len());
+            result.push(finding.clone());
+        }
+    }
+    // Vec::sort_by_key is stable, matching JS Array.sort's stable ordering for equal severity.
+    result.sort_by_key(|finding| severity_rank(&finding.severity));
+    result
+}
+
+fn severity_rank(severity: &Severity) -> u8 {
+    match severity {
+        Severity::Error => 0,
+        Severity::Warning => 1,
+        Severity::Info => 2,
+    }
+}
+
+fn scope_title(scope: &FindingScope) -> &'static str {
+    match scope {
+        FindingScope::Layout => "Layout",
+        FindingScope::Outline => "Outline",
+        FindingScope::Pcb => "Pcb",
+        FindingScope::Case => "Case",
+    }
+}
+
+fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<String> {
+    let active_outline = document.board_outlines.iter().find_map(|owner| {
+        owner
+            .versions
+            .iter()
+            .find(|version| {
+                Some(&version.id) == owner.active_version_id.as_ref()
+                    && version
+                        .geometry
+                        .features
+                        .iter()
+                        .any(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
+            })
+            .map(|version| (owner, version))
+    });
+    let outline = document
+        .outline
+        .iter()
+        .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
+        .or_else(|| {
+            active_outline.and_then(|(_, version)| {
+                version
+                    .geometry
+                    .features
+                    .iter()
+                    .find(|feature| finding.target_ids.iter().any(|id| id == feature.id()))
+            })
+        });
+    let owner = active_outline.map(|(owner, _)| owner);
+    let board = document.boards.iter().find(|board| {
+        finding.target_ids.iter().any(|id| id == &board.id)
+            || owner.is_some_and(|owner| owner.board_id == board.id)
+            || outline.is_some_and(|feature| board.outline_ids.iter().any(|id| id == feature.id()))
+    });
+    let part = document
+        .parts
+        .iter()
+        .find(|part| finding.target_ids.iter().any(|id| id == &part.id));
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| finding.target_ids.iter().any(|id| id == &matrix.id));
+    let body = document
+        .case_bodies
+        .iter()
+        .find(|body| finding.target_ids.iter().any(|id| id == &body.id));
+    if outline.is_some() {
+        return Some(format!(
+            "{} · Outline",
+            board.map_or("Project", |board| board.name.as_str())
+        ));
+    }
+    if let Some(part) = part {
+        let name = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == part.definition_id)
+            .map_or("Component", |definition| definition.name.as_str());
+        return Some(format!("{} · {}", part.reference, name));
+    }
+    matrix
+        .and_then(|matrix| matrix.name.clone())
+        .or_else(|| body.map(|body| body.name.clone()))
+        .or_else(|| board.map(|board| board.name.clone()))
 }
