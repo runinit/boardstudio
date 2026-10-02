@@ -28,7 +28,8 @@ joins and parity defects explicit; it is not a full-guide acceptance claim.
 - The five-stage journey ran Project → Layout → Wiring → Case → Review. Guide
   stage and workspace route advanced together. Finish closed the guide, and
   Project → Setup guide reopened at saved Review. See `react-fresh-02` through
-  `react-fresh-06`.
+  `react-fresh-06`. Review → Case → Wiring → Layout → Project Previous step
+  navigation also persisted each stage (`react-fresh-18` through `21`).
 - At 640×900, the Case guide was visible with Objects open and Case settings
   closed; `Open case settings` hid Objects and revealed Case settings. The
   reliable observation is panel visibility; focus stayed on `BODY` in the
@@ -36,6 +37,9 @@ joins and parity defects explicit; it is not a full-guide acceptance claim.
 - Settled physical changes advanced the React project revision 5→6 for Split,
   6→7 for Reversible (right half flipped), then 7→8 for Wired. See
   `react-fresh-14` through `react-fresh-16`.
+- Reload preserved the same active project, accepted name, revision 8, split /
+  wired / reversible state, and open Project guide stage. See
+  `react-fresh-17-reload.*`.
 
 ### Superseded React captures
 
@@ -70,7 +74,8 @@ in-flight race as an observation, not proof of a persistent React defect.
   each selected stage. Finish closed it; the project menu reopened at saved
   Review. A page reload retained the active project and the last saved
   `open:true,currentStep:layout` route. See `dioxus-fresh-07` through `11`,
-  `17`, and `20`/`21`.
+  `17`, and `20`/`21`. Review → Case → Wiring → Layout → Project Previous step
+  navigation persisted each stage (`dioxus-fresh-22` through `25`).
 
 ## Unresolved parity gates
 
