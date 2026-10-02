@@ -7,6 +7,7 @@ mod case_workspace;
 mod context_summary;
 mod inspector;
 mod instance_selection;
+mod keycaps_fit;
 mod keycaps_scene;
 mod keycaps_settings;
 mod keycaps_workspace;
@@ -1083,6 +1084,26 @@ fn Editor() -> Element {
                     revision: snapshot.document.revision,
                 })
         });
+    let keycaps_fit_source = current_scope
+        .as_ref()
+        .filter(|scope| active_board_scope_matches(&model, scope))
+        .and_then(|scope| {
+            model.accepted.as_ref().map(|snapshot| {
+                let case_preview_current = runtime.cad_scene().is_some_and(|scene| {
+                    scene.exact
+                        && scene.scope == *scope
+                        && scene.token == snapshot.token
+                        && scene.prepared.revision == snapshot.document.revision
+                });
+                keycaps_fit::KeycapsFitSource {
+                    scope: scope.clone(),
+                    token: snapshot.token,
+                    revision: snapshot.document.revision,
+                    case_preview_current,
+                }
+            })
+        });
+    let keycaps_fit_state = keycaps_fit::use_keycaps_fit(runtime.clone(), keycaps_fit_source);
     let keycaps_settings_actions = keycaps_settings::use_keycaps_settings_actions(
         runtime.clone(),
         keycaps_edit_source,
@@ -3100,9 +3121,12 @@ fn Editor() -> Element {
             workspace_composition::WorkspaceInspectorInput::Keycaps(Box::new(
                 keycaps_workspace::InspectorInput {
                     view: keycaps_view.clone(),
+                    document: Rc::new((*document).clone()),
                     selected_key_id,
                     on_select_key: workspace_callbacks.keycaps_select,
                     settings_editor,
+                    fit_state: keycaps_fit_state.state.clone(),
+                    fit_retry: keycaps_fit_state.on_retry,
                 },
             ))
         }

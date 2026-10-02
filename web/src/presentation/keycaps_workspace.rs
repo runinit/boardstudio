@@ -1,4 +1,5 @@
 //! Keycaps-owned workspace surface composition.
+use super::keycaps_fit::{KeycapsFitInspector, KeycapsFitState};
 use super::keycaps_scene::{
     KeycapsCanvas, KeycapsKeyList, KeycapsMatrixList, KeycapsSelectedSummary, KeycapsView,
 };
@@ -20,9 +21,12 @@ pub(super) struct CanvasInput {
 
 pub(super) struct InspectorInput {
     pub(super) view: Option<Rc<KeycapsView>>,
+    pub(super) document: Rc<boardstudio_core::model::ProjectDoc>,
     pub(super) selected_key_id: Option<String>,
     pub(super) on_select_key: EventHandler<String>,
     pub(super) settings_editor: Option<(SelectedKeySettings, KeycapsSettingsActions)>,
+    pub(super) fit_state: Option<KeycapsFitState>,
+    pub(super) fit_retry: EventHandler<()>,
 }
 
 pub(super) fn objects(input: SharedObjectsInput) -> Element {
@@ -91,12 +95,13 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     on_select_key: input.on_select_key,
                 }
                 KeycapsSelectedSummary {
-                    view,
+                    view: view.clone(),
                     selected_key_id: input.selected_key_id,
                 }
                 if let Some((selected, actions)) = settings_editor {
                     KeycapsSettingsEditor { selected, actions }
                 }
+                KeycapsFitInspector { view, document: input.document, state: input.fit_state, on_retry: input.fit_retry }
             }
         }
     } else {

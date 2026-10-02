@@ -24,6 +24,7 @@ pub struct CadScene {
     pub token: SnapshotToken,
     pub snapshot: AcceptedSnapshot,
     pub result: CadResult,
+    pub(crate) prepared: boardstudio_core::model::PreparedCaseAssemblyIR,
     pub mechanical: Option<boardstudio_core::model::MechanicalAssembly>,
     pub exact: bool,
     pub contours: Vec<boardstudio_core::model::Contour>,
@@ -339,6 +340,108 @@ impl Runtime {
             return Err("Core resolved wiring for another board or revision.".into());
         }
         Ok(plan)
+    }
+
+    /// Resolve keycap fit against one accepted canonical board and the matching prepared Case
+    /// preview, if the current physical-instance preview belongs to this exact snapshot.
+    pub(crate) async fn resolve_keycaps_preview(
+        &self,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
+        let accepted = self
+            .model()
+            .accepted
+            .ok_or_else(|| "The accepted Keycaps source is no longer open.".to_owned())?;
+        if accepted.token != token || accepted.document.revision != revision {
+            return Err("The accepted Keycaps source changed before resolution started.".into());
+        }
+        self.ensure_keycaps_source_current(&accepted, &scope)?;
+        let case_preview = self.cad_scene().filter(|scene| {
+            scene.exact
+                && scene.scope == scope
+                && scene.token == accepted.token
+                && scene.snapshot.document.revision == accepted.document.revision
+                && scene.prepared.revision == accepted.document.revision
+        });
+        let cases = case_preview.as_ref().map(|scene| scene.prepared.clone());
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
+        {
+            return Err("The Core worker changed before keycap fit resolution started.".into());
+        }
+
+        let request_id = format!("keycaps-fit-{}", self.operation().0);
+        let request = CoreRequest::ResolveKeycaps {
+            id: request_id.clone(),
+            document: (*accepted.document).clone(),
+            board_id: scope.board_id.clone(),
+            cases,
+        };
+        let reply = core
+            .request(&request_id, &executor_epoch.0.to_string(), &request)
+            .await;
+
+        self.ensure_keycaps_source_current(&accepted, &scope)?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
+        {
+            return Err("The Core worker changed during keycap fit resolution.".into());
+        }
+        let current_case = self.cad_scene().filter(|scene| {
+            scene.exact
+                && scene.scope == scope
+                && scene.token == accepted.token
+                && scene.snapshot.document.revision == accepted.document.revision
+                && scene.prepared.revision == accepted.document.revision
+        });
+        if current_case.as_ref().map(|scene| &scene.prepared)
+            != case_preview.as_ref().map(|scene| &scene.prepared)
+        {
+            return Err("The Case preview changed during keycap fit resolution.".into());
+        }
+
+        let reply = reply.map_err(|error| format!("Keycap fit resolution failed: {error}"))?;
+        let result = match reply {
+            CoreReply::KeycapsResolved { id, result } if id == request_id => result,
+            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+            CoreReply::KeycapsResolved { .. } | CoreReply::Error { .. } => {
+                return Err("Core returned a keycap fit reply for another request.".into());
+            }
+            _ => return Err("Core returned an unexpected keycap fit reply.".into()),
+        };
+        if result.revision != accepted.document.revision {
+            return Err("Core resolved keycap fit for another document revision.".into());
+        }
+        Ok(result)
+    }
+
+    fn ensure_keycaps_source_current(
+        &self,
+        accepted: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<(), String> {
+        let model = self.model();
+        let Some(current) = model.accepted.as_ref() else {
+            return Err("The accepted Keycaps source is no longer open.".into());
+        };
+        if self.scope().as_ref() != Some(scope)
+            || model.active_board_id.as_str() != scope.board_id.as_str()
+            || scope.session_epoch != accepted.session_epoch
+            || scope.document_id != accepted.document.id
+            || current.session_epoch != accepted.session_epoch
+            || current.token != accepted.token
+            || current.document.id != accepted.document.id
+            || current.document.revision != accepted.document.revision
+            || current.scene.revision != accepted.scene.revision
+            || accepted.scene.revision != accepted.document.revision
+        {
+            return Err("The accepted Keycaps source changed during resolution.".into());
+        }
+        Ok(())
     }
 
     fn ensure_electrical_source_current(
@@ -893,6 +996,7 @@ impl Runtime {
                 token: snapshot.token,
                 snapshot: snapshot.clone(),
                 result,
+                prepared: prepared.prepared.clone(),
                 mechanical: prepared.mechanical_assembly.clone(),
                 exact: operation == CadOperation::Exact,
                 contours: contours.clone(),
