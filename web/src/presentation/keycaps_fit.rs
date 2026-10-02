@@ -99,14 +99,14 @@ pub(super) fn use_keycaps_fit(
     use_effect(use_reactive((&source, &retry_generation()), {
         let runtime = runtime.clone();
         move |(source, _retry_generation)| {
+            // Bookkeeping must not subscribe this effect to the signals it updates.
+            let current = (*sequence.peek()).saturating_add(1);
+            sequence.set(current);
             let Some(source) = source else {
-                sequence.set(sequence().saturating_add(1));
                 state.set(None);
                 return;
             };
-            let current = sequence().saturating_add(1);
-            sequence.set(current);
-            let previous = state.read().clone();
+            let previous = state.peek().clone();
             state.set(Some(KeycapsFitState::begin(
                 source.clone(),
                 previous.as_ref(),
@@ -117,21 +117,14 @@ pub(super) fn use_keycaps_fit(
                 let result = runtime
                     .resolve_keycaps_preview(source.scope.clone(), source.token, source.revision)
                     .await;
-                if sequence() != current {
+                if *sequence.peek() != current {
                     return;
                 }
-                let updated = {
-                    let mut current = state.write();
-                    current.as_mut().and_then(|current_state| {
-                        if current_state.source != source {
-                            return None;
-                        }
-                        current_state.finish(result);
-                        Some(current_state.clone())
-                    })
-                };
-                if let Some(updated) = updated {
-                    state.set(Some(updated));
+                let mut current = state.write();
+                if let Some(current_state) = current.as_mut()
+                    && current_state.source == source
+                {
+                    current_state.finish(result);
                 }
             });
         }
