@@ -2,11 +2,13 @@
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::{keymap, objects};
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_core::model::Contour;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
 pub(super) struct CanvasInput {
     pub(super) view: Option<Rc<keymap::KeymapView>>,
+    pub(super) contours: Rc<[Contour]>,
     pub(super) view_box: String,
     pub(super) selected_ids: BTreeSet<String>,
     pub(super) handlers: CanvasEventHandlers,
@@ -66,6 +68,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                 g { transform: "scale(1,-1)",
                     keymap::KeymapCanvas {
                         view,
+                        contours: input.contours,
                         selected_ids: input.selected_ids,
                         on_select_key: input.on_select_key,
                     }
@@ -83,6 +86,68 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         let binding_actions = input.binding_actions;
         let macro_actions = input.macro_actions;
         let layer_actions = input.layer_actions;
+        let keys_editor = if let (Some(binding), Some(key_id)) = (
+            binding_actions.projection.as_ref(),
+            input.selected_key_id.as_ref(),
+        ) {
+            rsx! {
+                keymap::BindingEditor {
+                    key: "{render_scope:?}:{binding.effective_layer_id}:{key_id}:{binding_actions.editor_instance_id}",
+                    scope: render_scope.clone(),
+                    admission_token: input.admission_token,
+                    admission_revision: input.admission_revision,
+                    active_layer_id: binding.effective_layer_id.clone(),
+                    target: keymap::BindingTarget::Key { key_id: key_id.clone() },
+                    input_identity: None,
+                    key_label: binding.key_label.clone(),
+                    editor_instance_id: binding_actions.editor_instance_id,
+                    request_sequence: binding_actions.request_sequence,
+                    value: binding.binding.clone(),
+                    layers: binding.layers.clone(),
+                    macros: binding.macros.clone(),
+                    enabled: binding_actions.enabled,
+                    feedback: binding_actions.feedback.clone(),
+                    on_change: binding_actions.on_change,
+                }
+            }
+        } else {
+            rsx! {}
+        };
+        let macros_editor = if let Some(source) = macro_actions.source.as_ref() {
+            rsx! {
+                keymap::MacroEditor {
+                    key: "{render_scope:?}:macros:{macro_actions.editor_instance_id}",
+                    scope: render_scope.clone(),
+                    scope_generation: input.scope_generation,
+                    source: source.clone(),
+                    sequences: macro_actions.sequences.clone(),
+                    editor_instance_id: macro_actions.editor_instance_id,
+                    request_sequence: macro_actions.request_sequence,
+                    enabled: macro_actions.enabled,
+                    feedback: macro_actions.feedback.clone(),
+                    on_change: macro_actions.on_change,
+                }
+            }
+        } else {
+            rsx! {
+                p { class: "m1-keymap-unavailable", role: "status", "Macro editor is unavailable for the current board." }
+            }
+        };
+        let encoders_editor = if let Some(projection) = binding_actions.encoder_projection.as_ref() {
+            rsx! {
+                keymap::EncoderEditor {
+                    key: "{render_scope:?}:encoders:{projection.effective_layer_id}:{projection.input_identity.projection_generation}:{binding_actions.editor_instance_id}",
+                    projection: projection.clone(),
+                    editor_instance_id: binding_actions.editor_instance_id,
+                    request_sequence: binding_actions.request_sequence,
+                    enabled: binding_actions.enabled,
+                    feedback: binding_actions.feedback.clone(),
+                    on_change: binding_actions.on_change,
+                }
+            }
+        } else {
+            rsx! {}
+        };
         rsx! {
             keymap::KeymapPanel {
                 view,
@@ -94,53 +159,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 selected_key_id: input.selected_key_id.clone(),
                 on_layer: input.on_layer,
                 on_select_key: input.on_select_key,
-                if let (Some(binding), Some(key_id)) = (binding_actions.projection.as_ref(), input.selected_key_id.as_ref()) {
-                    keymap::BindingEditor {
-                        key: "{render_scope:?}:{binding.effective_layer_id}:{key_id}:{binding_actions.editor_instance_id}",
-                        scope: render_scope.clone(),
-                        admission_token: input.admission_token,
-                        admission_revision: input.admission_revision,
-                        active_layer_id: binding.effective_layer_id.clone(),
-                        target: keymap::BindingTarget::Key { key_id: key_id.clone() },
-                        input_identity: None,
-                        key_label: binding.key_label.clone(),
-                        editor_instance_id: binding_actions.editor_instance_id,
-                        request_sequence: binding_actions.request_sequence,
-                        value: binding.binding.clone(),
-                        layers: binding.layers.clone(),
-                        macros: binding.macros.clone(),
-                        enabled: binding_actions.enabled,
-                        feedback: binding_actions.feedback.clone(),
-                        on_change: binding_actions.on_change,
-                    }
-                }
-                if let Some(projection) = binding_actions.encoder_projection.as_ref() {
-                    keymap::EncoderEditor {
-                        key: "{render_scope:?}:encoders:{projection.effective_layer_id}:{projection.input_identity.projection_generation}:{binding_actions.editor_instance_id}",
-                        projection: projection.clone(),
-                        editor_instance_id: binding_actions.editor_instance_id,
-                        request_sequence: binding_actions.request_sequence,
-                        enabled: binding_actions.enabled,
-                        feedback: binding_actions.feedback.clone(),
-                        on_change: binding_actions.on_change,
-                    }
-                }
-                if let Some(source) = macro_actions.source.as_ref() {
-                    keymap::MacroEditor {
-                        key: "{render_scope:?}:macros:{macro_actions.editor_instance_id}",
-                        scope: render_scope.clone(),
-                        scope_generation: input.scope_generation,
-                        source: source.clone(),
-                        sequences: macro_actions.sequences.clone(),
-                        editor_instance_id: macro_actions.editor_instance_id,
-                        request_sequence: macro_actions.request_sequence,
-                        enabled: macro_actions.enabled,
-                        feedback: macro_actions.feedback.clone(),
-                        on_change: macro_actions.on_change,
-                    }
-                } else {
-                    p { class: "m1-keymap-unavailable", role: "status", "Macro editor is unavailable for the current board." }
-                }
+                keys_editor,
+                macros_editor,
+                encoders_editor,
             }
         }
     } else {

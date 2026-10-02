@@ -36,7 +36,7 @@ mod footprint_graphics;
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Event, Scope, SelectionMode};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
+    Contour, EditCommand, EditOperation, EditPhase, Matrix, Part, PartDefinition, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -572,8 +572,16 @@ fn durability_label(durability: &Durability) -> &'static str {
     }
 }
 
-fn keymap_bounds(view: &keymap::KeymapView) -> Option<(f64, f64, f64, f64)> {
+fn keymap_bounds(
+    view: &keymap::KeymapView,
+    contours: &[Contour],
+) -> Option<(f64, f64, f64, f64)> {
     let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    let mut include = |x: f64, y: f64| {
+        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
+            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
+        }));
+    };
     for key in &view.keys {
         let angle = key.pose.rotation.to_radians();
         let (sin, cos) = angle.sin_cos();
@@ -585,9 +593,12 @@ fn keymap_bounds(view: &keymap::KeymapView) -> Option<(f64, f64, f64, f64)> {
         ] {
             let x = key.pose.at.x + local_x * cos - local_y * sin;
             let y = key.pose.at.y + local_x * sin + local_y * cos;
-            bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
-                (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
-            }));
+            include(x, y);
+        }
+    }
+    for contour in contours {
+        for point in &contour.points {
+            include(point.x, point.y);
         }
     }
     bounds
@@ -742,12 +753,26 @@ fn Editor() -> Element {
                 if token.as_ref() != Some(&snapshot.token) {
                     return None;
                 }
-                keymap::project(
+                let view = keymap::project(
                     snapshot,
                     scope.as_ref(),
                     board_id.as_ref(),
                     layer_id.as_ref(),
-                )
+                )?;
+                let contours = snapshot
+                    .scene
+                    .board_contours
+                    .iter()
+                    .find(|board| board.board_id == *board_id)
+                    .map(|board| board.contours.as_slice())
+                    .unwrap_or_else(|| {
+                        if snapshot.document.boards.len() == 1 {
+                            snapshot.scene.contours.as_slice()
+                        } else {
+                            &[]
+                        }
+                    });
+                Some((view, Rc::<[Contour]>::from(contours.to_vec())))
             }
         },
     ));
@@ -756,7 +781,9 @@ fn Editor() -> Element {
         runtime.clone(),
         keymap::BindingProjectionSources {
             source: layer_source.clone(),
-            view: keymap_projection(),
+            view: keymap_projection()
+                .as_ref()
+                .map(|(view, _)| view.clone()),
             encoder_projection: encoder_input_actions.projection,
             current_encoder_projection: encoder_input_actions.current,
         },
@@ -768,7 +795,12 @@ fn Editor() -> Element {
             Rc::new(move || instance_selection.is_current(&runtime.model()))
         },
     );
-    let keymap_view = keymap_projection.read().clone();
+    let keymap_projection = keymap_projection.read().clone();
+    let keymap_view = keymap_projection
+        .as_ref()
+        .map(|(view, _)| view.clone());
+    let keymap_contours = keymap_projection
+        .map(|(_, contours)| contours);
     // Keep macro operation observation alive when another workspace hides the panel.
     let macro_actions = keymap::use_macro_operations(
         runtime.clone(),
@@ -1297,7 +1329,9 @@ fn Editor() -> Element {
             }
         };
     let keymap_rect_bounds = if active_workspace == "Keymap" {
-        keymap_view.as_deref().and_then(keymap_bounds)
+        keymap_view
+            .as_deref()
+            .and_then(|view| keymap_bounds(view, keymap_contours.as_deref().unwrap_or(&[])))
     } else {
         None
     };
@@ -2085,6 +2119,9 @@ fn Editor() -> Element {
         "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
             Box::new(keymap_workspace::CanvasInput {
                 view: keymap_view.clone(),
+                contours: keymap_contours
+                    .clone()
+                    .unwrap_or_else(|| Rc::<[Contour]>::from(Vec::new())),
                 view_box: view_box.clone(),
                 selected_ids: model.selected_part_ids.iter().cloned().collect(),
                 handlers: canvas_handlers,
