@@ -321,8 +321,8 @@ pub(in crate::presentation) fn use_binding_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request_id = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let mut pending = use_signal(|| None::<PendingBindingEdit>);
-    let mut feedback = use_signal(|| None::<BindingFeedbackState>);
+    let pending = use_signal(|| None::<PendingBindingEdit>);
+    let feedback = use_signal(|| None::<BindingFeedbackState>);
 
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
@@ -452,7 +452,7 @@ pub(in crate::presentation) fn use_binding_operations(
                     &snapshot,
                     &source.scope,
                     &source.scope.board_id,
-                    layer_id,
+                    &layer_id,
                     key_id.as_deref()?,
                     view.as_deref()?,
                 )
@@ -490,7 +490,7 @@ pub(in crate::presentation) fn use_binding_operations(
         let pending_guard = pending.read();
         feedback_visible(state, snapshot, projection, pending_guard.as_ref()).then_some(state)
     });
-    let visible_feedback = visible_feedback.map(|state| feedback_for_state(state));
+    let visible_feedback = visible_feedback.map(feedback_for_state);
 
     let on_change = EventHandler::new({
         let runtime = runtime.clone();

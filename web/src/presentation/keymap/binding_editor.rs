@@ -444,8 +444,8 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
                     value: "{behavior.value()}",
                     disabled,
                     onchange: move |event: FormEvent| {
-                        if let Some(next_behavior) = Behavior::from_value(&event.value()) {
-                            if next_behavior != Behavior::Macro || !macros.is_empty() {
+                        if let Some(next_behavior) = Behavior::from_value(&event.value())
+                            && (next_behavior != Behavior::Macro || !macros.is_empty()) {
                                 let binding = choose_behavior(next_behavior, &layers, &macros);
                                 emit_change(
                                     &behavior_context,
@@ -454,7 +454,6 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
                                     BindingField::Behavior,
                                     binding,
                                 );
-                            }
                         }
                     },
                     for (candidate, title) in Behavior::ALL {
@@ -659,13 +658,14 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
                 r#type: "text",
                 list: "{datalist_id}",
                 placeholder: "Search or enter a ZMK keycode",
+                "aria-invalid": "{show_error}",
                 value: "{draft}",
                 disabled: props.disabled,
                 oninput: move |event: FormEvent| draft.set(event.value()),
                 onblur: move |_| {
                     let next = draft().trim().to_owned();
-                    if next != accepted_value {
-                        if let Some(binding) = with_keycode(&binding, if request_field == BindingField::Tap { "tap" } else { "keycode" }, next) {
+                    if next != accepted_value
+                        && let Some(binding) = with_keycode(&binding, if request_field == BindingField::Tap { "tap" } else { "keycode" }, next) {
                             emit_change(
                                 &context,
                                 &mut request_sequence,
@@ -673,7 +673,6 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
                                 field,
                                 binding,
                             );
-                        }
                     }
                 },
             }

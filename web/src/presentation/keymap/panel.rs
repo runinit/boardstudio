@@ -16,6 +16,7 @@ pub(in crate::presentation) fn KeymapPanel(
     on_layer: EventHandler<String>,
     on_layer_operation: EventHandler<KeymapLayerOperation>,
     on_select_key: EventHandler<String>,
+    children: Element,
 ) -> Element {
     let mut query = use_signal(String::new);
     let active_layer = view
@@ -118,10 +119,14 @@ pub(in crate::presentation) fn KeymapPanel(
                 }
                 if key_count == 0 {
                     p { class: "m1-keymap-empty", role: "status", "No keys are available on this board." }
+                } else if let Some(key) = selected {
+                    if no_matches {
+                        p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
+                    }
+                    p { class: "m1-keymap-selected-label", "{key.binding_title}" }
+                    {children}
                 } else if no_matches {
                     p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
-                } else if let Some(key) = selected {
-                    p { class: "m1-keymap-selected-label", "{key.binding_title}" }
                 } else {
                     p { class: "m1-keymap-empty", role: "status", "Select a switch on the layout to inspect its binding." }
                 }

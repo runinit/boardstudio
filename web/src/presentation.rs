@@ -679,7 +679,7 @@ fn Editor() -> Element {
     // Keep the operation observer alive even when the workspace panel is hidden.
     let layer_actions = keymap::use_layer_operations(
         runtime.clone(),
-        layer_source,
+        layer_source.clone(),
         keymap_layer_id,
         workspace,
         adapter.generation,
@@ -713,6 +713,18 @@ fn Editor() -> Element {
             }
         },
     ));
+    let binding_actions = keymap::use_binding_operations(
+        runtime.clone(),
+        layer_source,
+        keymap_projection(),
+        keymap_layer_id,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+    );
     let keymap_view = keymap_projection.read().clone();
     let Some(render_scope) = current_scope.clone() else {
         return rsx! {};
@@ -1952,6 +1964,25 @@ fn Editor() -> Element {
                                     selected_key_id: model.selected_part_ids.first().cloned(),
                                     on_layer: on_keymap_layer.clone(),
                                     on_select_key: on_keymap_select.clone(),
+                                    if let (Some(binding), Some(key_id)) = (binding_actions.projection.as_ref(), model.selected_part_ids.first()) {
+                                        keymap::BindingEditor {
+                                            key: "{render_scope:?}:{binding.effective_layer_id}:{key_id}:{binding_actions.editor_instance_id}",
+                                            scope: render_scope.clone(),
+                                            admission_token: snapshot.token,
+                                            admission_revision: snapshot.document.revision,
+                                            active_layer_id: binding.effective_layer_id.clone(),
+                                            key_id: key_id.clone(),
+                                            key_label: binding.key_label.clone(),
+                                            editor_instance_id: binding_actions.editor_instance_id,
+                                            request_sequence: binding_actions.request_sequence,
+                                            value: binding.binding.clone(),
+                                            layers: binding.layers.clone(),
+                                            macros: binding.macros.clone(),
+                                            enabled: binding_actions.enabled,
+                                            feedback: binding_actions.feedback.clone(),
+                                            on_change: binding_actions.on_change,
+                                        }
+                                    }
                                 }
                             } else {
                                 section { class: "m1-keymap-panel", "aria-label": "Keymap",
