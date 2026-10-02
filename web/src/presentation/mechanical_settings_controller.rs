@@ -395,7 +395,7 @@ impl MechanicalSettingsController {
                 let physical_defaults;
                 let defaults_document = if instance_id.is_some() {
                     physical_defaults = {
-                        let mut document = base_document.clone();
+                        let mut document = base_document.as_ref().clone();
                         document.mechanical = None;
                         document
                     };
