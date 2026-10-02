@@ -323,6 +323,16 @@ mod tests {
             .unwrap()
     }
 
+    fn computed_display(element: &web_sys::Element) -> String {
+        web_sys::window()
+            .unwrap()
+            .get_computed_style(element)
+            .unwrap()
+            .unwrap()
+            .get_property_value("display")
+            .unwrap()
+    }
+
     async fn rendered() {
         gloo_timers::future::TimeoutFuture::new(60).await;
     }
@@ -381,6 +391,9 @@ mod tests {
     #[wasm_bindgen_test]
     async fn layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked() {
         let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(include_str!("../../assets/m1.css")));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-assembly-layer-test-root");
         document.body().unwrap().append_child(&root).unwrap();
@@ -390,8 +403,16 @@ mod tests {
         );
         rendered().await;
 
+        let list = element("#m1-case-assembly-layers-list");
+        assert!(list.has_attribute("hidden"));
+        assert_eq!(computed_display(&list), "none");
+        assert_eq!(list.get_bounding_client_rect().height(), 0.0);
+
         element("#m1-case-assembly-layers-trigger").click();
         rendered().await;
+        assert!(!list.has_attribute("hidden"));
+        assert_eq!(computed_display(&list), "grid");
+        assert!(list.get_bounding_client_rect().height() > 0.0);
         let hidden_component =
             element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']");
         hidden_component.click();
@@ -420,7 +441,9 @@ mod tests {
             .dispatch_event(&event)
             .unwrap();
         rendered().await;
-        assert!(element("#m1-case-assembly-layers-list").has_attribute("hidden"));
+        assert!(list.has_attribute("hidden"));
+        assert_eq!(computed_display(&list), "none");
+        assert_eq!(list.get_bounding_client_rect().height(), 0.0);
         assert_eq!(
             document.active_element().unwrap().id(),
             "m1-case-assembly-layers-trigger"
