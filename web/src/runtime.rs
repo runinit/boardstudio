@@ -1019,15 +1019,7 @@ impl Runtime {
                     .is_some_and(|runtime| runtime.native_preview_snapshot_is_current(&preview))
             }) as Rc<dyn Fn() -> bool>
         };
-        let ports = self.native_model_delivery_ports(
-            preview.owner.scope.clone(),
-            preview.owner.snapshot_token,
-            preview.owner.accepted_revision,
-            preview.owner.viewer_instance,
-            preview.owner.projection_generation,
-            preview.lease.clone(),
-            source_is_current.clone(),
-        );
+        let ports = self.native_model_delivery_ports(&preview, source_is_current.clone());
         let results = self
             .case_model_delivery
             .deliver_models(
@@ -1078,19 +1070,16 @@ impl Runtime {
         if !is_current() || self.scope().as_ref() != Some(&scope) {
             return Err("Case STEP model request became stale before worker setup".into());
         }
-        let worker = match self.cad_worker.borrow().as_ref() {
-            Some((worker_scope, worker)) if worker_scope == &scope && !worker.is_closed() => {
-                worker.clone()
-            }
-            _ => {
-                let worker = Rc::new(
-                    CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
-                        .map_err(|error| error.to_string())?,
-                );
-                *self.cad_worker.borrow_mut() = Some((scope.clone(), worker.clone()));
-                worker
-            }
-        };
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            &scope,
+            |worker| !worker.is_closed(),
+            || {
+                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )?;
         worker.ready().await.map_err(|error| error.to_string())?;
         if !is_current() || self.scope().as_ref() != Some(&scope) {
             return Err("Case STEP model request became stale before dispatch".into());
@@ -1135,17 +1124,18 @@ impl Runtime {
 
     fn native_model_delivery_ports(
         self: &Rc<Self>,
-        scope: Scope,
-        token: SnapshotToken,
-        revision: u64,
-        viewer_instance: u64,
-        projection_generation: u64,
-        lease: Rc<crate::case_preview::CasePreviewOwnerLease>,
+        preview: &crate::case_preview::NativePreviewSnapshot,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> crate::presentation::model_delivery::ModelDeliveryPorts {
         use crate::presentation::model_delivery::{
             MeshArrays, ModelDeliveryPorts, ModelFuture, VerifiedModelBytes,
         };
+        let scope = preview.owner.scope.clone();
+        let token = preview.owner.snapshot_token;
+        let revision = preview.owner.accepted_revision;
+        let viewer_instance = preview.owner.viewer_instance;
+        let projection_generation = preview.owner.projection_generation;
+        let lease = preview.lease.clone();
         let weak = Rc::downgrade(self);
         let scope_for_load = scope.clone();
         let lease_for_load = lease.clone();
@@ -1465,7 +1455,7 @@ impl Runtime {
             "jobs": plan.jobs,
             "reserved_nets": plan.reserved_nets,
             "next_net_index": plan.next_net_index,
-            "paths": plan.model_paths.iter().map(|(id, path)| (id, path)).collect::<Vec<_>>(),
+            "paths": plan.model_paths.iter().collect::<Vec<_>>(),
         });
         self.ensure_preview_owner_current(accepted, &capture.owner, &core, core_epoch)?;
         let worker = if let Some(worker) = self.preview_generator.borrow().as_ref() {

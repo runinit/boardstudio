@@ -72,7 +72,7 @@ pub fn CasePanel(generation_ready: bool) -> Element {
                 p { role: "status", "Accepted PCB preview is ready for the Case viewer." }
             }
             if let Some(preview) = accepted_preview.as_ref()
-                && let Some(rows) = runtime.native_model_delivery(&preview)
+                && let Some(rows) = runtime.native_model_delivery(preview)
             {
                 p { role: "status", "{rows.delivered.len()} of {preview.preview.models.len()} board models decoded." }
                 for failure in rows.failures.iter().take(3) {
@@ -89,7 +89,12 @@ pub fn CasePanel(generation_ready: bool) -> Element {
                 }
             }
             if let Some(scene) = scene {
-                crate::presentation::CaseViewer { key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}", scene }
+                crate::presentation::CaseViewer {
+                    key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}",
+                    scene,
+                    model_rows: accepted_preview.as_ref().and_then(|preview| runtime.native_model_delivery(preview)),
+                    preview: accepted_preview,
+                }
             }
         }
     }

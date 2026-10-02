@@ -45,8 +45,9 @@ async fn bounded_reply(client: &PreviewGeneratorClient, request: &Value) -> Resu
 
 #[wasm_bindgen_test]
 async fn actual_packaged_module_worker_accepts_plain_object_and_correlates_reply() {
-    let url = option_env!("BOARDSTUDIO_TEST_PREVIEW_WORKER_URL")
-        .expect("run scripts/web/test-preview-generator-transport.mjs");
+    let Some(url) = option_env!("BOARDSTUDIO_TEST_PREVIEW_WORKER_URL") else {
+        panic!("run scripts/web/test-preview-generator-transport.mjs");
+    };
     let worker = WorkerSource::new(&format!("import {};", serde_json::to_string(url).unwrap()));
     let client = PreviewGeneratorClient::new(&worker.0).unwrap();
     let request = json!({

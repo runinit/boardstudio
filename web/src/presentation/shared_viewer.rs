@@ -3,6 +3,7 @@
 //! Case is the first consumer. Its wrapper owns the Case-to-renderer projection;
 //! this module owns only renderer controls, transient view state and host lifetime.
 use super::model_delivery::ModelDeliveryRows;
+use crate::case_model_lifecycle::ProjectionInputs;
 use crate::case_preview::NativePreviewSnapshot;
 use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
@@ -96,11 +97,9 @@ impl ScopedDisplayChange {
 struct ViewerOwner {
     active: Cell<bool>,
     identity: RefCell<Option<ViewerIdentity>>,
-    last_projection: Cell<usize>,
-    last_theme: RefCell<String>,
+    last_inputs: RefCell<Option<ProjectionInputs>>,
     projection_generation: Cell<u64>,
     renderer_sequence: Cell<u64>,
-    last_delivery_key: Cell<usize>,
     viewer_instance: u64,
 }
 
@@ -117,41 +116,20 @@ impl ViewerOwner {
         Ok(Rc::new(Self {
             active: Cell::new(true),
             identity: RefCell::new(None),
-            last_projection: Cell::new(0),
-            last_theme: RefCell::new(String::new()),
+            last_inputs: RefCell::new(None),
             projection_generation: Cell::new(0),
             renderer_sequence: Cell::new(0),
-            last_delivery_key: Cell::new(0),
             viewer_instance: next_viewer_instance()?,
         }))
-    }
-
-    fn advance_preview(
-        &self,
-        preview: &Rc<NativePreviewSnapshot>,
-        theme: &str,
-        delivery_key: usize,
-    ) -> Result<ViewerIdentity, String> {
-        self.advance_source(
-            preview.owner.scope.clone(),
-            preview.owner.snapshot_token,
-            Rc::as_ptr(preview) as usize,
-            delivery_key,
-            theme,
-        )
     }
 
     fn advance_source(
         &self,
         scope: Scope,
         token: SnapshotToken,
-        projection_ptr: usize,
-        delivery_key: usize,
-        theme: &str,
+        inputs: &ProjectionInputs,
     ) -> Result<ViewerIdentity, String> {
-        let changed = self.last_projection.get() != projection_ptr
-            || self.last_delivery_key.get() != delivery_key
-            || *self.last_theme.borrow() != theme;
+        let changed = self.last_inputs.borrow().as_ref() != Some(inputs);
         if changed {
             let generation = self
                 .projection_generation
@@ -166,9 +144,7 @@ impl ViewerOwner {
                 .ok_or_else(|| "Renderer scene sequence exhausted".to_owned())?;
             self.projection_generation.set(generation);
             self.renderer_sequence.set(sequence);
-            self.last_projection.set(projection_ptr);
-            self.last_delivery_key.set(delivery_key);
-            *self.last_theme.borrow_mut() = theme.to_owned();
+            *self.last_inputs.borrow_mut() = Some(inputs.clone());
         }
         let identity = ViewerIdentity {
             scope,
@@ -245,8 +221,23 @@ pub(crate) fn CaseSharedViewer(
     else {
         return rsx! { p { role: "alert", "3D preview source is unavailable." } };
     };
-    let delivery_key = model_rows_key(model_rows.as_ref());
-    let identity = match source.identity(&owner, &theme, delivery_key) {
+    let inputs = ProjectionInputs {
+        source: source.pointer(),
+        preview: preview
+            .as_ref()
+            .map_or(0, |preview| Rc::as_ptr(preview) as usize),
+        models: model_rows
+            .as_ref()
+            .map(|rows| {
+                rows.delivered
+                    .iter()
+                    .map(|model| (model.id.clone(), Rc::as_ptr(&model.mesh) as usize))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        theme: theme.clone(),
+    };
+    let identity = match source.identity(&owner, &inputs) {
         Ok(identity) => identity,
         Err(error) => {
             return rsx! { p { role: "alert", "3D preview unavailable: {error}" } };
@@ -254,31 +245,34 @@ pub(crate) fn CaseSharedViewer(
     };
     let projection_cache = use_hook(|| {
         Rc::new(RefCell::new(
-            None::<(ViewerSource, String, usize, Rc<RendererSceneProjection>)>,
+            None::<(
+                ViewerSource,
+                Option<Rc<NativePreviewSnapshot>>,
+                ProjectionInputs,
+                Rc<RendererSceneProjection>,
+            )>,
         ))
     });
-    let projection = if let Some((cached_source, cached_theme, cached_delivery, projection)) =
+    let projection = if let Some((cached_source, _, cached_inputs, projection)) =
         projection_cache.borrow().as_ref()
         && cached_source.same(&source)
-        && cached_theme == &theme
-        && *cached_delivery == delivery_key
+        && cached_inputs == &inputs
     {
         projection.clone()
     } else {
-        let projection_preview = preview.clone().or_else(|| runtime.native_case_preview());
         match project_source(
             &source,
             identity.clone(),
             &theme,
-            projection_preview.as_deref(),
+            preview.as_deref(),
             model_rows.as_ref(),
         ) {
             Ok(projection) => {
                 let projection = Rc::new(projection);
                 *projection_cache.borrow_mut() = Some((
                     source.clone(),
-                    theme.clone(),
-                    delivery_key,
+                    preview.clone(),
+                    inputs.clone(),
                     projection.clone(),
                 ));
                 projection
@@ -322,22 +316,23 @@ impl ViewerSource {
         }
     }
 
+    fn pointer(&self) -> usize {
+        match self {
+            Self::Cad(scene) => Rc::as_ptr(scene) as usize,
+            Self::Native(preview) => Rc::as_ptr(preview) as usize,
+        }
+    }
+
     fn identity(
         &self,
         owner: &ViewerOwner,
-        theme: &str,
-        delivery_key: usize,
+        inputs: &ProjectionInputs,
     ) -> Result<ViewerIdentity, String> {
-        match self {
-            Self::Cad(scene) => owner.advance_source(
-                scene.scope.clone(),
-                scene.token,
-                Rc::as_ptr(scene) as usize,
-                delivery_key,
-                theme,
-            ),
-            Self::Native(preview) => owner.advance_preview(preview, theme, delivery_key),
-        }
+        let (scope, token) = match self {
+            Self::Cad(scene) => (&scene.scope, scene.token),
+            Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
+        };
+        owner.advance_source(scope.clone(), token, inputs)
     }
 
     fn is_current(&self, runtime: &crate::runtime::Runtime) -> bool {
@@ -359,15 +354,6 @@ impl ViewerSource {
             }),
         }
     }
-}
-
-fn model_rows_key(rows: Option<&ModelDeliveryRows>) -> usize {
-    rows.map(|rows| {
-        rows.delivered.iter().fold(0usize, |key, model| {
-            key.rotate_left(5) ^ (Rc::as_ptr(&model.mesh) as usize) ^ model.id.len()
-        })
-    })
-    .unwrap_or_default()
 }
 
 fn project_source(
@@ -1866,8 +1852,7 @@ mod tests {
         let owner = Rc::new(ViewerOwner {
             active: Cell::new(true),
             identity: RefCell::new(Some(identity.clone())),
-            last_projection: Cell::new(1),
-            last_theme: RefCell::new("light".to_owned()),
+            last_inputs: RefCell::new(None),
             projection_generation: Cell::new(identity.projection_generation),
             renderer_sequence: Cell::new(identity.renderer_sequence),
             viewer_instance: identity.viewer_instance,
@@ -1909,8 +1894,7 @@ mod tests {
         let owner = ViewerOwner {
             active: Cell::new(true),
             identity: RefCell::new(Some(current)),
-            last_projection: Cell::new(1),
-            last_theme: RefCell::new("light".to_owned()),
+            last_inputs: RefCell::new(None),
             projection_generation: Cell::new(5),
             renderer_sequence: Cell::new(7),
             viewer_instance: started.viewer_instance,

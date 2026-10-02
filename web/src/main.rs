@@ -2,6 +2,8 @@
 mod bundled_models;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod setup_guide_state;
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod case_model_lifecycle;
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod cad_presentation;

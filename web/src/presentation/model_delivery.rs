@@ -263,10 +263,10 @@ impl ModelDeliveryPorts {
         asset: &ResolvedModelAsset,
     ) -> Result<Option<VerifiedModelBytes>, String> {
         let result = (self.load_verified_bytes)(asset.sha256.clone()).await?;
-        if let Some(bytes) = &result {
-            if !bytes.sha256().eq_ignore_ascii_case(&asset.sha256) {
-                return Err("Model byte provider returned a different SHA-256 asset".into());
-            }
+        if let Some(bytes) = &result
+            && !bytes.sha256().eq_ignore_ascii_case(&asset.sha256)
+        {
+            return Err("Model byte provider returned a different SHA-256 asset".into());
         }
         Ok(result)
     }
@@ -307,7 +307,7 @@ impl TryFrom<MeshArrays> for ValidatedMesh {
     type Error = String;
 
     fn try_from(arrays: MeshArrays) -> Result<Self, Self::Error> {
-        if arrays.positions.is_empty() || arrays.positions.len() % 9 != 0 {
+        if arrays.positions.is_empty() || !arrays.positions.len().is_multiple_of(9) {
             return Err("Model positions must contain complete triangles".into());
         }
         if arrays.normals.len() != arrays.positions.len() {
@@ -558,6 +558,7 @@ pub(crate) fn merge_model_rows(
 }
 
 type TaskKey = (String, u64);
+type PendingModelWaiters = BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>;
 type ModelResult = Result<Rc<ValidatedMesh>, String>;
 type DeliveryTask = Pin<Box<dyn Future<Output = ()> + 'static>>;
 
@@ -627,7 +628,7 @@ impl<T: Clone> Future for WaitCellFuture<T> {
 #[derive(Default)]
 pub(crate) struct ModelDeliveryAdapter {
     cache: Rc<std::cell::RefCell<ModelMeshCache>>,
-    pending: Rc<std::cell::RefCell<BTreeMap<TaskKey, Vec<Rc<WaitCell<ModelResult>>>>>>,
+    pending: Rc<std::cell::RefCell<PendingModelWaiters>>,
 }
 
 impl ModelDeliveryAdapter {

@@ -60,15 +60,15 @@ impl CaseSelection {
 }
 
 #[component]
-pub(crate) fn CaseViewer(scene: Rc<CadScene>) -> Element {
+pub(crate) fn CaseViewer(
+    scene: Rc<CadScene>,
+    preview: Option<Rc<crate::case_preview::NativePreviewSnapshot>>,
+    model_rows: Option<super::model_delivery::ModelDeliveryRows>,
+) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<InstanceSelection>();
     let selection = use_context::<CaseSelection>();
     let theme = use_context::<ResolvedTheme>().0;
-    let preview = runtime.native_case_preview();
-    let model_rows = preview
-        .as_ref()
-        .and_then(|preview| runtime.native_model_delivery(preview));
     let key = display_key(&scene.scope);
     let initial_display = use_hook({
         let key = key.clone();
@@ -216,7 +216,6 @@ pub(crate) fn CasePreviewViewer(
     let on_display_change = {
         let runtime = runtime.clone();
         let preview = preview.clone();
-        let selection = selection;
         let scope = preview.owner.scope.clone();
         move |event: ScopedDisplayChange| {
             if !event.is_current()
