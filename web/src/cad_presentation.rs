@@ -3,29 +3,20 @@ use crate::runtime::Runtime;
 use boardstudio_application::{Event, GenerationStatus};
 use dioxus::prelude::*;
 use std::rc::Rc;
-use wasm_bindgen_futures::spawn_local;
 
 #[component]
 pub fn CasePanel(generation_ready: bool) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let instance_selection = use_context::<crate::presentation::InstanceSelection>();
     let _ = use_context::<Signal<u64>>()();
+    crate::case_preview_lifecycle::use_native_case_preview(
+        runtime.clone(),
+        runtime.native_case_preview_key(),
+    );
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
-    let preview_key = runtime.native_case_preview_key();
-    let preview_runtime = runtime.clone();
-    use_effect(use_reactive((&preview_key,), move |(key,)| {
-        if let Some((scope, token, revision)) = key {
-            let runtime = preview_runtime.clone();
-            spawn_local(async move {
-                let _ = runtime
-                    .prepare_native_case_preview(scope, token, revision)
-                    .await;
-            });
-        }
-    }));
     let generate = runtime.clone();
     let cancel = runtime.clone();
     let scene = runtime.cad_scene();

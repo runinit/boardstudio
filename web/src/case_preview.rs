@@ -89,6 +89,80 @@ pub(crate) struct NativePreviewSnapshot {
     pub(crate) preview: PcbPreview,
 }
 
+/// One owner for pending, accepted and failed native preview state.
+#[derive(Default)]
+pub(crate) struct NativePreviewState {
+    pub(crate) published: Option<Rc<NativePreviewSnapshot>>,
+    pub(crate) pending: Option<(CasePreviewOwnerIdentity, Rc<CasePreviewOwnerLease>)>,
+    pub(crate) error: Option<(CasePreviewOwnerIdentity, String)>,
+    pub(crate) generation: u64,
+}
+
+impl NativePreviewState {
+    pub(crate) fn begin(
+        &mut self,
+        owner: CasePreviewOwnerIdentity,
+        lease: Rc<CasePreviewOwnerLease>,
+    ) {
+        self.retire_leases();
+        self.pending = Some((owner, lease));
+    }
+
+    pub(crate) fn owns(&self, owner: &CasePreviewOwnerIdentity) -> bool {
+        self.published
+            .as_ref()
+            .is_some_and(|preview| preview.lease.matches(owner))
+            || self
+                .pending
+                .as_ref()
+                .is_some_and(|(pending, lease)| pending == owner && lease.matches(owner))
+    }
+
+    pub(crate) fn is_stale(&self, is_current: impl Fn(&CasePreviewOwnerIdentity) -> bool) -> bool {
+        self.published
+            .as_ref()
+            .is_some_and(|preview| !is_current(&preview.owner))
+            || self
+                .pending
+                .as_ref()
+                .is_some_and(|(owner, _)| !is_current(owner))
+            || self
+                .error
+                .as_ref()
+                .is_some_and(|(owner, _)| !is_current(owner))
+    }
+
+    pub(crate) fn cancel(&mut self) {
+        self.retire_leases();
+        self.generation = self.generation.saturating_add(1);
+    }
+
+    fn retire_leases(&mut self) {
+        if let Some(preview) = self.published.take() {
+            preview.lease.invalidate();
+        }
+        if let Some((_, lease)) = self.pending.take() {
+            lease.invalidate();
+        }
+        self.error.take();
+    }
+
+    pub(crate) fn publish(&mut self, preview: NativePreviewSnapshot) -> Result<(), String> {
+        if !self.pending.as_ref().is_some_and(|(owner, lease)| {
+            owner == &preview.owner && lease.matches(owner) && Rc::ptr_eq(lease, &preview.lease)
+        }) || self.generation != preview.owner.projection_generation
+        {
+            preview.lease.invalidate();
+            return Err("The Case preview owner was cancelled before publication".into());
+        }
+        self.published = Some(Rc::new(preview));
+        // The accepted snapshot now owns the same lease as the retired pending slot.
+        self.pending.take();
+        self.error.take();
+        Ok(())
+    }
+}
+
 /// Capture the physical document and contours used by the native preview from
 /// the accepted source projection before mechanical Case preparation/CAD.
 pub(crate) fn capture_native_preview(
@@ -200,17 +274,6 @@ pub(crate) fn accept_native_preview(
         path_assets: capture.path_assets,
         preview,
     })
-}
-
-pub(crate) fn publish_native_preview(
-    published: &mut Option<Rc<NativePreviewSnapshot>>,
-    pending: &mut Option<(CasePreviewOwnerIdentity, Rc<CasePreviewOwnerLease>)>,
-    preview: NativePreviewSnapshot,
-) {
-    *published = Some(Rc::new(preview));
-    // The accepted snapshot now owns this same lease. Retire the pending slot
-    // without cancelling the model deliveries that will borrow its lease.
-    pending.take();
 }
 
 pub(crate) fn prepare_artifact(id: String, capture: &NativePreviewCapture) -> ArtifactRequest {
@@ -419,13 +482,75 @@ mod tests {
     }
 
     #[test]
+    fn pending_scope_away_and_back_cannot_publish_the_old_completion() {
+        let (snapshot, scope) = snapshot(false, false);
+        let capture =
+            capture_native_preview(&snapshot, &scope, 4, 9, 3, 7, "pending".into()).unwrap();
+        let mut state = NativePreviewState {
+            generation: 4,
+            ..Default::default()
+        };
+        state.begin(capture.owner.clone(), capture.lease.clone());
+        let mut away = scope.clone();
+        away.instance_id = Some("another-instance".into());
+        if state.is_stale(|owner| owner.scope == away) {
+            state.cancel();
+        }
+        // Returning to the same source cannot revive the old request's lease.
+        assert_eq!(capture.owner.scope, scope);
+        assert!(
+            !state.owns(&capture.owner),
+            "scope loss must retire a pending-only owner"
+        );
+        assert!(!capture.lease.is_active());
+        assert!(state.generation > capture.owner.projection_generation);
+    }
+
+    #[test]
+    fn cancellation_rejects_late_completion_and_preserves_replacement_owner() {
+        let (snapshot, scope) = snapshot(false, false);
+        let old = capture_native_preview(&snapshot, &scope, 4, 9, 3, 7, "old".into()).unwrap();
+        let mut state = NativePreviewState {
+            generation: 4,
+            ..Default::default()
+        };
+        state.begin(old.owner.clone(), old.lease.clone());
+        state.cancel();
+        let replacement =
+            capture_native_preview(&snapshot, &scope, state.generation, 10, 3, 7, "new".into())
+                .unwrap();
+        state.begin(replacement.owner.clone(), replacement.lease.clone());
+        let old_result = accept_native_preview(
+            old,
+            PcbPreview {
+                revision: 12,
+                thickness: 1.6,
+                contours: vec![],
+                surfaces: vec![],
+                holes: vec![],
+                models: vec![],
+                diagnostics: vec![],
+            },
+        )
+        .unwrap();
+        assert!(state.publish(old_result).is_err());
+        assert!(state.published.is_none());
+        assert!(state.owns(&replacement.owner));
+        assert!(replacement.lease.is_active());
+    }
+
+    #[test]
     fn successful_publication_keeps_the_preview_visible_after_pending_clears() {
         let (snapshot, scope) = snapshot(false, false);
         let capture =
             capture_native_preview(&snapshot, &scope, 4, 9, 3, 7, "preview-9".into()).unwrap();
         let owner = capture.owner.clone();
         let weak = Rc::downgrade(&capture.lease);
-        let mut pending = Some((owner.clone(), capture.lease.clone()));
+        let mut state = NativePreviewState {
+            generation: 4,
+            ..Default::default()
+        };
+        state.begin(owner.clone(), capture.lease.clone());
         let preview = accept_native_preview(
             capture,
             PcbPreview {
@@ -439,12 +564,11 @@ mod tests {
             },
         )
         .unwrap();
-        let mut published = None;
+        state.publish(preview).unwrap();
 
-        publish_native_preview(&mut published, &mut pending, preview);
-
-        assert!(pending.is_none());
-        let visible = published
+        assert!(state.pending.is_none());
+        let visible = state
+            .published
             .as_ref()
             .filter(|preview| preview.lease.matches(&owner));
         assert!(
@@ -452,7 +576,7 @@ mod tests {
             "success must remain visible after pending ownership transfers"
         );
         assert!(weak.upgrade().unwrap().is_active());
-        published.take();
+        state.published.take();
         assert!(weak.upgrade().is_none());
     }
 

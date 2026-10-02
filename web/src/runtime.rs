@@ -89,16 +89,7 @@ pub struct Runtime {
     step_exports: RefCell<BTreeSet<OperationId>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     embed_used_models: Cell<bool>,
-    native_case_preview: RefCell<Option<Rc<crate::case_preview::NativePreviewSnapshot>>>,
-    native_case_preview_pending: RefCell<
-        Option<(
-            crate::case_preview::CasePreviewOwnerIdentity,
-            Rc<crate::case_preview::CasePreviewOwnerLease>,
-        )>,
-    >,
-    native_case_preview_error:
-        RefCell<Option<(crate::case_preview::CasePreviewOwnerIdentity, String)>>,
-    native_case_preview_generation: Cell<u64>,
+    native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
 }
 impl Runtime {
@@ -128,10 +119,7 @@ impl Runtime {
             step_exports: RefCell::new(BTreeSet::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             embed_used_models: Cell::new(true),
-            native_case_preview: RefCell::new(None),
-            native_case_preview_pending: RefCell::new(None),
-            native_case_preview_error: RefCell::new(None),
-            native_case_preview_generation: Cell::new(0),
+            native_case_preview: RefCell::new(Default::default()),
             preview_generator: RefCell::new(None),
         });
         // Reserve the startup open identity synchronously, before any explicit
@@ -193,30 +181,17 @@ impl Runtime {
         }
     }
     fn invalidate_stale_native_case_preview(&self) {
-        let current = self.native_case_preview_key();
         let stale = self
             .native_case_preview
             .borrow()
-            .as_ref()
-            .is_some_and(|preview| {
-                current.as_ref().is_none_or(|(scope, token, revision)| {
-                    preview.owner.scope != *scope
-                        || preview.owner.snapshot_token != *token
-                        || preview.owner.accepted_revision != *revision
-                        || !self.preview_owner_is_current(&preview.owner)
-                })
-            });
+            .is_stale(|owner| self.preview_owner_is_current(owner));
         if stale {
-            if let Some(preview) = self.native_case_preview.borrow_mut().take() {
-                preview.lease.invalidate();
-            }
-            if let Some((_, lease)) = self.native_case_preview_pending.borrow_mut().take() {
-                lease.invalidate();
-            }
-            self.native_case_preview_error.borrow_mut().take();
-            self.native_case_preview_generation
-                .set(self.native_case_preview_generation.get().saturating_add(1));
+            self.cancel_native_case_preview();
         }
+    }
+
+    pub(crate) fn cancel_native_case_preview(&self) {
+        self.native_case_preview.borrow_mut().cancel();
     }
     pub(crate) fn observe_operation(
         &self,
@@ -921,6 +896,7 @@ impl Runtime {
         let accepted = self.model().accepted?;
         self.native_case_preview
             .borrow()
+            .published
             .as_ref()
             .filter(|preview| {
                 preview.lease.matches(&preview.owner)
@@ -932,8 +908,9 @@ impl Runtime {
     }
 
     pub(crate) fn native_case_preview_pending(&self) -> bool {
-        self.native_case_preview_pending
+        self.native_case_preview
             .borrow()
+            .pending
             .as_ref()
             .is_some_and(|(owner, lease)| {
                 lease.matches(owner) && self.preview_owner_is_current(owner)
@@ -941,8 +918,9 @@ impl Runtime {
     }
 
     pub(crate) fn native_case_preview_error(&self) -> Option<String> {
-        self.native_case_preview_error
+        self.native_case_preview
             .borrow()
+            .error
             .as_ref()
             .filter(|(owner, _)| self.preview_owner_is_current(owner))
             .map(|(_, error)| error.clone())
@@ -981,11 +959,12 @@ impl Runtime {
         }
 
         let generation = self
-            .native_case_preview_generation
-            .get()
+            .native_case_preview
+            .borrow()
+            .generation
             .checked_add(1)
             .ok_or_else(|| "Case preview generation identity exhausted".to_owned())?;
-        self.native_case_preview_generation.set(generation);
+        self.native_case_preview.borrow_mut().generation = generation;
         let operation = self.operation().0;
         if operation == 0 || operation > 9_007_199_254_740_991 {
             return Err("Case preview request identity is outside the safe integer range".into());
@@ -1017,12 +996,7 @@ impl Runtime {
             .await;
         match result {
             Ok(preview) if self.preview_owner_is_current(&preview.owner) => {
-                crate::case_preview::publish_native_preview(
-                    &mut self.native_case_preview.borrow_mut(),
-                    &mut self.native_case_preview_pending.borrow_mut(),
-                    preview,
-                );
-                self.native_case_preview_error.borrow_mut().take();
+                self.native_case_preview.borrow_mut().publish(preview)?;
                 self.changed();
                 Ok(())
             }
@@ -1034,10 +1008,10 @@ impl Runtime {
                 let owner_is_current = self.preview_owner_is_current(&capture.owner);
                 capture.lease.invalidate();
                 if owner_is_current {
-                    if let Some((_, lease)) = self.native_case_preview_pending.borrow_mut().take() {
+                    if let Some((_, lease)) = self.native_case_preview.borrow_mut().pending.take() {
                         lease.invalidate();
                     }
-                    *self.native_case_preview_error.borrow_mut() =
+                    self.native_case_preview.borrow_mut().error =
                         Some((capture.owner.clone(), error.clone()));
                     self.report(format!("Case board preview failed: {error}"));
                 }
@@ -1051,14 +1025,7 @@ impl Runtime {
         owner: crate::case_preview::CasePreviewOwnerIdentity,
         lease: Rc<crate::case_preview::CasePreviewOwnerLease>,
     ) {
-        if let Some(previous) = self.native_case_preview.borrow_mut().take() {
-            previous.lease.invalidate();
-        }
-        self.native_case_preview_error.borrow_mut().take();
-        if let Some((_, previous_lease)) = self.native_case_preview_pending.borrow_mut().take() {
-            previous_lease.invalidate();
-        }
-        *self.native_case_preview_pending.borrow_mut() = Some((owner, lease));
+        self.native_case_preview.borrow_mut().begin(owner, lease);
         self.changed();
     }
 
@@ -1072,6 +1039,7 @@ impl Runtime {
             && self
                 .native_case_preview
                 .borrow()
+                .published
                 .as_ref()
                 .is_none_or(|preview| preview.lease.matches(owner))
             && model.accepted.as_ref().is_some_and(|accepted| {
@@ -1083,7 +1051,7 @@ impl Runtime {
                     && std::sync::Arc::as_ptr(&accepted.scene) as usize
                         == owner.accepted_scene_identity
             })
-            && self.native_case_preview_generation.get() == owner.projection_generation
+            && self.native_case_preview.borrow().generation == owner.projection_generation
             && crate::case_preview::same_core_executor(
                 owner.core_executor_epoch,
                 self.session.borrow().core_executor_epoch().0,
@@ -1119,24 +1087,7 @@ impl Runtime {
         &self,
         owner: &crate::case_preview::CasePreviewOwnerIdentity,
     ) -> bool {
-        let matches = |lease: &Rc<crate::case_preview::CasePreviewOwnerLease>| {
-            lease.matches(owner)
-                && lease.identity_matches(
-                    &owner.scope,
-                    owner.snapshot_token,
-                    owner.viewer_instance,
-                    owner.projection_generation,
-                )
-        };
-        self.native_case_preview
-            .borrow()
-            .as_ref()
-            .is_some_and(|preview| matches(&preview.lease))
-            || self
-                .native_case_preview_pending
-                .borrow()
-                .as_ref()
-                .is_some_and(|(pending_owner, lease)| pending_owner == owner && matches(lease))
+        self.native_case_preview.borrow().owns(owner)
     }
 
     async fn run_native_case_preview(

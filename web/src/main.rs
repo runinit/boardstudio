@@ -19,6 +19,9 @@ mod runtime;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod preview_generator;
 
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod case_preview_lifecycle;
+
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod case_preview;
 
