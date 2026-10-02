@@ -1,5 +1,5 @@
 use crate::runtime::Runtime;
-use boardstudio_application::{ReadModel, Scope, SelectionMode};
+use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SelectionMode};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -88,6 +88,22 @@ pub(super) fn context_for_cell(
     tree::context_for_cell(model, matrix_id, row, column)
 }
 
+pub(super) fn matrix_visible_on_board(
+    document: &boardstudio_core::model::ProjectDoc,
+    board_id: &str,
+    matrix_id: &str,
+) -> bool {
+    let board_parts = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| board.part_ids.iter().map(String::as_str).collect())
+        .unwrap_or_default();
+    tree::visible_matrices(document, board_id, &board_parts)
+        .iter()
+        .any(|matrix| matrix.id == matrix_id)
+}
+
 pub(super) fn context_label(model: &ReadModel, context: &TreeContext) -> Option<String> {
     tree::context_label(model, context)
 }
@@ -101,6 +117,8 @@ pub(super) fn Objects(
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
+    on_place_component: Option<EventHandler<super::part_placement::ComponentPlacementAction>>,
+    placement_error: Option<String>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
@@ -186,8 +204,19 @@ pub(super) fn Objects(
     rsx! {
         aside { class: "m1-objects", "aria-label": "Objects",
             header { h2 { "Objects" } }
-            if matrix_setup.is_some() || mirrored_pair.is_some() {
-                LayoutAddObjectEntry { matrix_setup, mirrored_pair }
+            if (matrix_setup.is_some() || mirrored_pair.is_some())
+                && let Some(on_place_component) = on_place_component
+            {
+                LayoutAddObjectEntry {
+                    matrix_setup,
+                    mirrored_pair,
+                    snapshot: snapshot.clone(),
+                    scope: active_scope.clone(),
+                    on_place_component,
+                }
+            }
+            if let Some(error) = placement_error {
+                p { class: "m1-parts-placement-error", role: "alert", "{error}" }
             }
             div { class: "m1-object-navigation",
                 label { "Board"
@@ -376,6 +405,9 @@ pub(super) fn Objects(
 fn LayoutAddObjectEntry(
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
+    snapshot: AcceptedSnapshot,
+    scope: Option<Scope>,
+    on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
 ) -> Element {
     let mut menu_open = use_signal(|| false);
     let open_menu = menu_open();
@@ -395,6 +427,17 @@ fn LayoutAddObjectEntry(
             }
             if open_menu {
                 div { role: "dialog", "aria-label": "Add", class: "m1-layout-add-menu",
+                    section { "aria-label": "Components",
+                        h3 { "Components" }
+                        super::parts::AddObjectComponentChooser {
+                            snapshot,
+                            scope,
+                            on_place: EventHandler::new(move |action| {
+                                menu_open.set(false);
+                                on_place_component.call(action);
+                            }),
+                        }
+                    }
                     section { "aria-label": "Layouts",
                         h3 { "Layouts" }
                         if let Some((can_open, on_open)) = mirrored_open {

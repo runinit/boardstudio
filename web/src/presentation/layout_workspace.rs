@@ -8,6 +8,8 @@ pub(super) struct ObjectsInput {
     pub(super) matrix_setup: objects::MatrixSetupMount,
     pub(super) mirrored_pair: objects::MirroredPairMount,
     pub(super) pair_created: Signal<Option<objects::MirroredPairCreated>>,
+    pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
+    pub(super) placement_error: Option<String>,
 }
 
 pub(super) struct ToolbarInput {
@@ -49,6 +51,8 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 matrix_setup: Some(input.matrix_setup),
                 mirrored_pair: Some(input.mirrored_pair),
                 pair_created: Some(input.pair_created),
+                on_place_component: Some(input.on_place_component),
+                placement_error: input.placement_error,
             }
         }
     }

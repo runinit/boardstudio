@@ -2818,7 +2818,7 @@ fn Editor() -> Element {
             runtime: part_placement::runtime_adapter(runtime.clone()),
             load_definition: Rc::new(|document, definition_id| {
                 Box::pin(async move {
-                    parts::load_controller_definition(&document, &definition_id).await
+                    parts::load_component_definition(&document, &definition_id).await
                 })
             }),
             workspace,
@@ -3925,6 +3925,8 @@ fn Editor() -> Element {
                 matrix_setup: matrix_setup.clone(),
                 mirrored_pair: mirrored_pair.clone(),
                 pair_created: pair_created_selection,
+                on_place_component: part_placement.on_place_component,
+                placement_error: part_placement.error.clone(),
             },
         )),
     };
@@ -4167,7 +4169,9 @@ fn Editor() -> Element {
                 scope: current_scope.clone(),
                 query: parts_query,
                 selected: parts_selection,
+                selected_context: adapter.selected_context,
                 on_place_controller: part_placement.on_place_controller,
+                on_place_component: part_placement.on_place_component,
                 controller_placement_enabled: guide_preferences().as_ref().is_some_and(
                     |preferences| {
                         preferences.open
