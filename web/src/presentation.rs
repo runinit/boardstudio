@@ -1001,6 +1001,13 @@ fn Editor() -> Element {
         adapter.generation,
         matrix_splay_affect,
     );
+    let layout_align = objects::use_layout_align(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+    );
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
@@ -2967,6 +2974,7 @@ fn Editor() -> Element {
                     on_recover_saved: workspace_callbacks.recover_saved,
                     selection_kind: layout_selection_kind(),
                     snap_settings: layout_snap_settings.read().clone(),
+                    align: layout_align.clone(),
                     on_selection_kind: workspace_callbacks.layout_selection_kind,
                     on_snap_intent: workspace_callbacks.layout_snap_intent,
                 },

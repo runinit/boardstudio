@@ -14,6 +14,7 @@ pub(super) struct ToolbarInput {
     pub(super) on_recover_saved: EventHandler<()>,
     pub(super) selection_kind: objects::LayoutSelectionKind,
     pub(super) snap_settings: objects::LayoutSnapSettings,
+    pub(super) align: objects::LayoutAlignMount,
     pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
 }
@@ -46,6 +47,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                 on_selection_kind: input.on_selection_kind,
                 on_snap_intent: input.on_snap_intent,
             }
+            objects::LayoutAlignToolbar { mount: input.align.clone() }
             if let Some(indicator) = input.selection_indicator.as_ref() {
                 span { class: "m1-selection-indicator", "{indicator}" }
             }

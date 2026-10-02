@@ -30,3 +30,7 @@ pub mod renderer_host;
 
 #[cfg(feature = "page")]
 pub mod case_settings;
+
+#[cfg(all(test, feature = "core-worker"))]
+#[path = "presentation/objects/layout_align_geometry.rs"]
+mod layout_align_geometry_tests;

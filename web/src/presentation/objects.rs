@@ -3,12 +3,19 @@ use boardstudio_application::{ReadModel, Scope, SelectionMode};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
+mod layout_align;
+mod layout_align_controller;
+mod layout_align_geometry;
 mod layout_toolbar;
 mod matrix_inspector;
 mod matrix_inspector_controller;
 mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod tree;
+pub(in crate::presentation) use layout_align::{
+    AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, LayoutAlignToolbar,
+};
+pub(in crate::presentation) use layout_align_controller::use_layout_align;
 pub(in crate::presentation) use layout_toolbar::{
     LayoutSelectionKind, LayoutSelectionSnapStatus, LayoutSelectionSnapToolbar, LayoutSnapIntent,
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
