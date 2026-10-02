@@ -49,7 +49,7 @@ impl CaseSelection {
             .unwrap_or_else(|| read_display(&key))
     }
 
-    pub(super) fn save_display(self, scope: &Scope, display: CaseDisplay) {
+    pub(super) fn save_display(mut self, scope: &Scope, display: CaseDisplay) {
         let key = display_key(scope);
         self.display.write().insert(key.clone(), display.clone());
         persist_display(&key, &display);

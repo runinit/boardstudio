@@ -421,6 +421,14 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                             let row_key = row.id.clone();
                             let row_action = row.action.clone();
                             let part_request = row.part_context.clone();
+                            let row_key_for_disclosure = row_key.clone();
+                            let row_action_for_disclosure = row_action.clone();
+                            let row_key_for_click = row_key.clone();
+                            let row_action_for_click = row_action.clone();
+                            let part_request_for_click = part_request.clone();
+                            let row_key_for_key = row_key.clone();
+                            let row_action_for_key = row_action.clone();
+                            let part_request_for_key = part_request.clone();
                             let visibility_id = row.visibility_id.clone();
                             let visible = row.visible;
                             let selected = row.selected;
@@ -467,10 +475,10 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                             id: "{label_id}-disclosure", class: "m1-tree-disclosure",
                                             "aria-label": "{disclosure_label}", "aria-expanded": "{row_expanded == Some(true)}",
                                             onclick: move |_| {
-                                                if let Some(action) = inactive_assembly_navigation(&row_action) {
+                                                if let Some(action) = inactive_assembly_navigation(&row_action_for_disclosure) {
                                                     action_handler.call(action);
                                                 } else {
-                                                    toggle_tree(expanded, &row_key);
+                                                    toggle_tree(expanded, &row_key_for_disclosure);
                                                 }
                                             },
                                             if row_expanded == Some(true) { "⌄" } else { "›" }
@@ -483,32 +491,32 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                         class: if selected { "m1-component selected" } else { "m1-component" },
                                         disabled: !row_selectable,
                                         onclick: move |_| {
-                                            if let Some(action) = row_action.clone() {
+                                            if let Some(action) = row_action_for_click.clone() {
                                                 action_handler.call(action);
                                             }
-                                            if let Some(request) = part_request.clone() {
+                                            if let Some(request) = part_request_for_click.clone() {
                                                 action_handler.call(TreeAction::SelectPcb { scope: scope_for_click.clone() });
                                                 select_handler.call(request);
                                             }
-                                            if matches!(row_action.as_ref(), Some(TreeAction::SelectAssembly { .. }))
-                                                && expanded_for_click.read().contains(&row_key)
+                                            if matches!(row_action_for_click.as_ref(), Some(TreeAction::SelectAssembly { .. }))
+                                                && expanded_for_click.read().contains(&row_key_for_click)
                                             {
-                                                toggle_tree(expanded_for_click, &row_key);
+                                                toggle_tree(expanded_for_click, &row_key_for_click);
                                             }
                                         },
                                         onkeydown: move |event: KeyboardEvent| {
                                             let key = event.data().key().to_string();
                                             if (key == "Enter" || key == " ") && row_selectable {
                                                 event.prevent_default();
-                                                if let Some(action) = row_action.clone() { action_handler.call(action); }
-                                                if let Some(request) = part_request.clone() {
+                                                if let Some(action) = row_action_for_key.clone() { action_handler.call(action); }
+                                                if let Some(request) = part_request_for_key.clone() {
                                                     action_handler.call(TreeAction::SelectPcb { scope: scope_for_key.clone() });
                                                     select_handler.call(request);
                                                 }
-                                                if matches!(row_action.as_ref(), Some(TreeAction::SelectAssembly { .. }))
-                                                    && expanded_for_key.read().contains(&row_key)
+                                                if matches!(row_action_for_key.as_ref(), Some(TreeAction::SelectAssembly { .. }))
+                                                    && expanded_for_key.read().contains(&row_key_for_key)
                                                 {
-                                                    toggle_tree(expanded_for_key, &row_key);
+                                                    toggle_tree(expanded_for_key, &row_key_for_key);
                                                 }
                                             }
                                         },
@@ -547,7 +555,7 @@ pub(super) fn apply_tree_action(
     action: TreeAction,
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
-    case_selection: CaseSelection,
+    mut case_selection: CaseSelection,
     instance_selection: InstanceSelection,
     expected_scope: &Scope,
     expected_token: SnapshotToken,
@@ -799,8 +807,10 @@ fn target_display_is_current(
 }
 
 fn clear_tree_part_selection(runtime: &Rc<Runtime>, adapter: &SelectionAdapter) {
-    adapter.selected_context.set(None);
-    adapter.anchor_scope.set(None);
+    let mut selected_context = adapter.selected_context;
+    selected_context.set(None);
+    let mut anchor_scope = adapter.anchor_scope;
+    anchor_scope.set(None);
     runtime.submit(Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: Vec::new(),
@@ -888,7 +898,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         .as_ref()
         .map(|(scope, _)| scope.clone());
     let scope_for_reset = scope_for_color.clone();
-    let scope_for_visibility = scope_for_color;
+    let scope_for_visibility = scope_for_color.clone();
     let display_id_for_color = active_display_layer.as_ref().map(|(_, id)| id.clone());
     let display_id_for_reset = display_id_for_color.clone();
     let display_id_for_visibility = display_id_for_color.clone();
