@@ -368,23 +368,41 @@ fn is_assembly_snapshot(definition: &PartDefinition) -> bool {
     if definition.kicad_source.is_some() {
         return false;
     }
+    const ASSEMBLY_PREFIX: &str = "assembly-";
     const MARKER: &[u8] = b"/definition/";
-    let Some(marker_position) = definition
-        .id
-        .as_bytes()
+    let id = definition.id.as_str();
+    let bytes = id.as_bytes();
+    let has_assembly_prefix = id
+        .get(..ASSEMBLY_PREFIX.len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(ASSEMBLY_PREFIX));
+    if has_assembly_prefix
+        && bytes
+            .windows(MARKER.len())
+            .enumerate()
+            .any(|(position, candidate)| {
+                position > ASSEMBLY_PREFIX.len()
+                    && candidate.eq_ignore_ascii_case(MARKER)
+                    && id
+                        .get(ASSEMBLY_PREFIX.len()..position)
+                        .is_some_and(js_regex_dot_matches)
+            })
+    {
+        return true;
+    }
+    bytes
         .windows(MARKER.len())
-        .position(|candidate| candidate.eq_ignore_ascii_case(MARKER))
-    else {
-        return false;
-    };
-    let Some(prefix) = definition.id.get(..marker_position) else {
-        return false;
-    };
-    (prefix
-        .get(.."assembly-".len())
-        .is_some_and(|start| start.eq_ignore_ascii_case("assembly-"))
-        && prefix.len() > "assembly-".len())
-        || (marker_position == 36 && is_uuid(prefix))
+        .enumerate()
+        .any(|(position, candidate)| {
+            position == 36
+                && candidate.eq_ignore_ascii_case(MARKER)
+                && id.get(..position).is_some_and(is_uuid)
+        })
+}
+
+fn js_regex_dot_matches(text: &str) -> bool {
+    !text
+        .chars()
+        .any(|character| matches!(character, '\n' | '\r' | '\u{2028}' | '\u{2029}'))
 }
 
 fn is_uuid(value: &str) -> bool {
@@ -513,6 +531,14 @@ mod tests {
     }
 
     #[test]
+    fn assembly_dot_matches_javascript_line_terminator_rules() {
+        for terminator in ["\n", "\r", "\u{2028}", "\u{2029}"] {
+            assert!(!js_regex_dot_matches(&format!("before{terminator}after")));
+        }
+        assert!(js_regex_dot_matches("parent/child"));
+    }
+
+    #[test]
     fn catalog_hides_retired_generator_and_unassigned_assembly_snapshots() {
         let mut definitions = imported_definitions();
         let mut snapshot = definitions[0].clone();
@@ -530,6 +556,16 @@ mod tests {
         nested_snapshot.kicad_source = None;
         nested_snapshot.generator = None;
         definitions.push(nested_snapshot);
+        let mut later_marker_snapshot = definitions[0].clone();
+        later_marker_snapshot.id = "assembly-/definition/x/definition/switch".into();
+        later_marker_snapshot.kicad_source = None;
+        later_marker_snapshot.generator = None;
+        definitions.push(later_marker_snapshot);
+        let mut line_terminator_snapshot = definitions[0].clone();
+        line_terminator_snapshot.id = "assembly-parent\nchild/definition/switch".into();
+        line_terminator_snapshot.kicad_source = None;
+        line_terminator_snapshot.generator = None;
+        definitions.push(line_terminator_snapshot);
         let mut uppercase_uuid_snapshot = definitions[0].clone();
         uppercase_uuid_snapshot.id =
             "A1B2C3D4-E5F6-A1B2-C3D4-E5F6A1B2C3D4/DEFINITION/switch".into();
@@ -558,12 +594,14 @@ mod tests {
             .flat_map(|group| &group.entries)
             .map(|entry| entry.definition.id.as_str())
             .collect::<Vec<_>>();
+        assert!(visible.contains(&"assembly-parent\nchild/definition/switch"));
         assert!(!visible.iter().any(|id| {
             matches!(
                 *id,
                 "assembly-preset-mx-rgb-south-matrix-0/definition/switch"
                     | "ASSEMBLY-x/DEFINITION/switch"
                     | "ASSEMBLY-parent/child/DEFINITION/switch"
+                    | "assembly-/definition/x/definition/switch"
                     | "A1B2C3D4-E5F6-A1B2-C3D4-E5F6A1B2C3D4/DEFINITION/switch"
             )
         }));
