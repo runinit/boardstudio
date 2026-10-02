@@ -2286,7 +2286,6 @@ fn Editor() -> Element {
                     .unwrap_or_else(|| Rc::<[Contour]>::from(Vec::new())),
                 view_box: view_box.clone(),
                 selected_ids: model.selected_part_ids.iter().cloned().collect(),
-                selected_key_id: model.selected_part_ids.first().cloned(),
                 handlers: canvas_handlers,
                 on_select_key: workspace_callbacks.keycaps_select,
             }),
@@ -2349,6 +2348,7 @@ fn Editor() -> Element {
             keycaps_workspace::InspectorInput {
                 view: keycaps_view.clone(),
                 selected_key_id: model.selected_part_ids.first().cloned(),
+                on_select_key: workspace_callbacks.keycaps_select,
             },
         ),
         _ => workspace_composition::WorkspaceInspectorInput::Layout(

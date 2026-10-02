@@ -1,8 +1,8 @@
 //! Keycaps-owned workspace surface composition.
-use super::objects;
 use super::keycaps_scene::{
     KeycapsCanvas, KeycapsKeyList, KeycapsMatrixList, KeycapsSelectedSummary, KeycapsView,
 };
+use super::objects;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use boardstudio_core::model::Contour;
 use dioxus::prelude::*;
@@ -13,7 +13,6 @@ pub(super) struct CanvasInput {
     pub(super) contours: Rc<[Contour]>,
     pub(super) view_box: String,
     pub(super) selected_ids: BTreeSet<String>,
-    pub(super) selected_key_id: Option<String>,
     pub(super) handlers: CanvasEventHandlers,
     pub(super) on_select_key: EventHandler<String>,
 }
@@ -21,6 +20,7 @@ pub(super) struct CanvasInput {
 pub(super) struct InspectorInput {
     pub(super) view: Option<Rc<KeycapsView>>,
     pub(super) selected_key_id: Option<String>,
+    pub(super) on_select_key: EventHandler<String>,
 }
 
 pub(super) fn objects(input: SharedObjectsInput) -> Element {
@@ -43,14 +43,6 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
     if let Some(view) = input.view {
         rsx! {
             section { class: "m1-keycaps-workspace", "aria-label": "Keycaps workspace",
-                div { class: "m1-keycaps-controls",
-                    KeycapsKeyList {
-                        view: view.clone(),
-                        selected_key_id: input.selected_key_id.clone(),
-                        on_select_key: input.on_select_key,
-                    }
-                    KeycapsMatrixList { view: view.clone() }
-                }
                 svg {
                     class: "m1-canvas m1-keycaps-canvas",
                     view_box: "{input.view_box}",
@@ -88,9 +80,17 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
 pub(super) fn inspector(input: InspectorInput) -> Element {
     if let Some(view) = input.view {
         rsx! {
-            KeycapsSelectedSummary {
-                view,
-                selected_key_id: input.selected_key_id,
+            section { class: "m1-keycaps-inspector", "aria-label": "Keycaps inspector",
+                KeycapsMatrixList { view: view.clone() }
+                KeycapsKeyList {
+                    view: view.clone(),
+                    selected_key_id: input.selected_key_id.clone(),
+                    on_select_key: input.on_select_key,
+                }
+                KeycapsSelectedSummary {
+                    view,
+                    selected_key_id: input.selected_key_id,
+                }
             }
         }
     } else {
