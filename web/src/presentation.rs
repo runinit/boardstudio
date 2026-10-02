@@ -23,6 +23,7 @@ mod objects;
 mod panels;
 mod parts;
 mod parts_workspace;
+mod pcb_physical_setup;
 mod pcb_scene;
 mod pcb_wiring;
 mod pcb_workspace;
@@ -100,6 +101,19 @@ pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference
 impl InstanceSelection {
     pub(crate) fn is_current(self, model: &boardstudio_application::ReadModel) -> bool {
         instance_selection::is_current(model, self.0.read().as_ref())
+    }
+
+    pub(crate) fn reconcile(
+        mut self,
+        session_epoch: boardstudio_application::SessionEpoch,
+        document_id: String,
+        explicit_id: String,
+    ) {
+        self.0.set(Some(instance_selection::Preference {
+            session_epoch,
+            document_id,
+            explicit_id,
+        }));
     }
 }
 
@@ -1308,6 +1322,63 @@ fn Editor() -> Element {
             Rc::new(move || instance_selection.is_current(&runtime.model()))
         },
         pcb_wiring_mount.resolution_signal,
+    );
+    // The Project-stage guide slot is coordinator-owned; this remains false until that mount is
+    // supplied and connected. Case inspector intents are active independently.
+    let project_setup_active = false;
+    let physical_setup_mount = pcb_physical_setup::use_controller(
+        runtime.clone(),
+        version,
+        adapter.generation,
+        project_setup_active,
+        instance_selection,
+        Rc::new({
+            let runtime = runtime.clone();
+            let workspace = workspace;
+            let generation = adapter.generation;
+            let selected_context = adapter.selected_context;
+            let project_setup_active = project_setup_active;
+            move |identity: &pcb_physical_setup::OwnerIdentity, strict: bool| {
+                let model = runtime.model();
+                let Some(accepted) = model.accepted.as_ref() else {
+                    return false;
+                };
+                let context_current = match identity.context {
+                    pcb_physical_setup::OwnerContext::ProjectGuide => {
+                        project_setup_active && model.active_board_id == identity.board_id
+                    }
+                    pcb_physical_setup::OwnerContext::CaseInspector => {
+                        let Some(scope) = runtime.scope() else {
+                            return false;
+                        };
+                        workspace() == "Case"
+                            && scope.session_epoch == identity.session_epoch
+                            && scope.document_id == identity.document_id
+                            && scope.board_id == identity.board_id
+                            && (!strict || scope.instance_id == identity.instance_id)
+                            && selected_context.read().as_ref().is_some_and(|selected| {
+                                selected.scope.session_epoch == scope.session_epoch
+                                    && selected.scope.document_id == scope.document_id
+                                    && selected.scope.board_id == scope.board_id
+                                    && (!strict || selected.scope.instance_id == scope.instance_id)
+                            })
+                    }
+                };
+                context_current
+                    && generation() == identity.generation
+                    && accepted.session_epoch == identity.session_epoch
+                    && accepted.document.id == identity.document_id
+                    && (!strict
+                        || (accepted.token == identity.token
+                            && accepted.document.revision == identity.revision
+                            && (identity.context
+                                != pcb_physical_setup::OwnerContext::CaseInspector
+                                || instance_selection.is_current(&model))))
+            }
+        }),
+        Rc::new(|accepted, intent| {
+            Box::pin(parts::prepare_physical_setup_proposal(accepted, intent))
+        }),
     );
     // Keep the operation observer alive even when the workspace panel is hidden.
     let layer_actions = keymap::use_layer_operations(
@@ -3245,6 +3316,7 @@ fn Editor() -> Element {
         )),
         "Case" => workspace_composition::WorkspaceInspectorInput::Case(Box::new(
             case_workspace::InspectorInput {
+                physical_setup: physical_setup_mount.clone(),
                 mechanical_settings: mechanical_settings.clone(),
                 instance_scope_pending,
                 scope: current_scope.clone(),

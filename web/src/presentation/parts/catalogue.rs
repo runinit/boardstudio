@@ -1,4 +1,3 @@
-#[cfg(all(test, target_arch = "wasm32"))]
 use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{PartDefinition, PartKind};
 use serde::Deserialize;
@@ -318,16 +317,37 @@ fn construction_definition_with_support(
 /// Prepare a project setup proposal through catalogue-owned package helpers. The normalizer
 /// implementation and its JS module remain private to this module; callers receive proposals,
 /// not access to the catalogue module or its member functions.
-#[cfg(all(test, target_arch = "wasm32"))]
 pub(super) fn prepare_physical_setup_proposal(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,
-    module: &JsValue,
+    module: Option<&JsValue>,
 ) -> Result<ProjectDoc, String> {
-    prepare_physical_setup_proposal_with_module(accepted, intent, module)
+    use crate::physical_setup::SetupIntent;
+
+    if matches!(intent, SetupIntent::ReversibleLayout(_)) {
+        let module = module
+            .ok_or_else(|| "The packaged construction normalizer is unavailable.".to_string())?;
+        return prepare_physical_setup_proposal_with_module(accepted, intent, module);
+    }
+    crate::physical_setup::propose(accepted, intent, |definition, _| {
+        Ok((definition.clone(), false))
+    })
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
+pub(super) async fn prepare_physical_setup_proposal_from_package(
+    accepted: &ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+) -> Result<ProjectDoc, String> {
+    if matches!(
+        intent,
+        crate::physical_setup::SetupIntent::ReversibleLayout(_)
+    ) {
+        let module = load_ergogen_module().await?;
+        return prepare_physical_setup_proposal(accepted, intent, Some(&module));
+    }
+    prepare_physical_setup_proposal(accepted, intent, None)
+}
+
 fn prepare_physical_setup_proposal_with_module(
     accepted: &ProjectDoc,
     intent: crate::physical_setup::SetupIntent,

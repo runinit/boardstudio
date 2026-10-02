@@ -96,6 +96,7 @@ pub(super) struct CanvasInput {
 }
 
 pub(super) struct InspectorInput {
+    pub(super) physical_setup: super::pcb_physical_setup::PhysicalSetupMount,
     pub(super) mechanical_settings: MechanicalSettingsMount,
     pub(super) instance_scope_pending: bool,
     pub(super) scope: Option<Scope>,
@@ -928,6 +929,36 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 p { role: "status", "Selecting physical assembly…" }
             }
             if !input.instance_scope_pending {
+                section { class: "m1-case-physical-setup", "aria-label": "Physical assembly",
+                    p { "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects." }
+                    if input.physical_setup.projection.topology == boardstudio_core::model::HardwareTopology::Split {
+                        details {
+                            summary { "Assembly setup" }
+                            label { "Half connection"
+                                select {
+                                    "aria-label": "Half connection",
+                                    value: match input.physical_setup.projection.transport { boardstudio_core::model::HardwareTransport::Wired => "wired", _ => "wireless" },
+                                    disabled: input.physical_setup.projection.busy,
+                                    onchange: {
+                                        let on_intent = input.physical_setup.on_intent;
+                                        move |event: FormEvent| {
+                                            let next = if event.value() == "wired" { boardstudio_core::model::HardwareTransport::Wired } else { boardstudio_core::model::HardwareTransport::Wireless };
+                                            on_intent.call(super::pcb_physical_setup::PhysicalSetupIntent::CaseTransport(next));
+                                        }
+                                    },
+                                    option { value: "wireless", "Wireless · local battery on each half" }
+                                    option { value: "wired", "Wired serial · local power on each half" }
+                                }
+                            }
+                            if input.physical_setup.projection.transport == boardstudio_core::model::HardwareTransport::Wired {
+                                p { "Use a straight TRRS cable: tip and ring 2 carry crossed TX/RX, sleeve is ground, ring 1 is unused. Power both halves locally and unplug power before connecting." }
+                            }
+                        }
+                    }
+                    if let Some(feedback) = input.physical_setup.projection.feedback.clone() {
+                        p { role: "status", "{feedback}" }
+                    }
+                }
                 if let Some(props) = input.mechanical_settings.props {
                     {MechanicalSettings(props)}
                 }

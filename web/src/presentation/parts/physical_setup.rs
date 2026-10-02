@@ -10,5 +10,5 @@ pub(super) fn prepare_proposal_with_module(
     intent: SetupIntent,
     module: &wasm_bindgen::JsValue,
 ) -> Result<ProjectDoc, String> {
-    catalogue::prepare_physical_setup_proposal(accepted, intent, module)
+    catalogue::prepare_physical_setup_proposal(accepted, intent, Some(module))
 }

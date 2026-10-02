@@ -61,6 +61,15 @@ pub(super) async fn load_mounting_hole_definition()
     Ok(definition)
 }
 
+/// Narrow Parts-owned bridge for the Editor's physical-setup intent owner. Package loading and
+/// metadata normalization stay private to the catalogue implementation.
+pub(super) async fn prepare_physical_setup_proposal(
+    accepted: ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+) -> Result<ProjectDoc, String> {
+    catalogue::prepare_physical_setup_proposal_from_package(&accepted, intent).await
+}
+
 /// Place inside the existing Objects panel when Parts is the active workspace.
 #[component]
 pub(super) fn PartsLibraryPanel(

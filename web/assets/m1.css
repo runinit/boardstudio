@@ -612,3 +612,26 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keymap-macro legend { padding-inline: 4px; color: var(--wb-ink); overflow-wrap: anywhere; }
 .m1-keymap-macro-step { display: grid; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--wb-rule); border-radius: 4px; background: var(--wb-raised); }
 .m1-keymap-macro-status { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); overflow-wrap: anywhere; }
+
+.m1-case-physical-setup { display: grid; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--wb-rule); }
+.m1-case-physical-setup > p { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); line-height: 1.5; }
+.m1-case-physical-setup details { padding: 8px 0; }
+.m1-case-physical-setup summary { min-height: 36px; cursor: pointer; display: flex; align-items: center; font-weight: 600; }
+.m1-case-physical-setup label { display: grid; gap: 6px; margin-block: 8px; color: var(--wb-muted); font-size: var(--wb-type-label); }
+.m1-case-physical-setup select { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: inherit; }
+.m1-case-physical-setup select:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-case-physical-setup select:disabled { opacity: .58; cursor: not-allowed; }
+@media (max-width: 760px) { .m1-case-physical-setup :is(select, summary) { min-height: 44px; } }
+
+.m1-project-physical-setup { display: grid; gap: 14px; }
+.m1-project-setup-choice { display: grid; gap: 8px; }
+.m1-project-setup-choice > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m1-project-setup-choice button { display: flex; align-items: center; justify-content: center; min-height: 64px; padding: 10px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; background: var(--wb-panel); color: var(--wb-muted); font: inherit; cursor: pointer; }
+.m1-project-setup-choice button:hover:not(:disabled) { color: var(--wb-ink); background: var(--wb-surface-soft); }
+.m1-project-setup-choice button[aria-pressed="true"] { border-color: var(--wb-accent); color: var(--wb-selection-ink); background: var(--wb-selection-surface); }
+.m1-project-setup-choice button:focus-visible, .m1-project-reversible-choice input:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-project-setup-choice button:disabled { opacity: .58; cursor: not-allowed; }
+.m1-project-setup-note { margin: 0; color: var(--wb-muted); font-size: var(--wb-type-label); line-height: 1.5; }
+.m1-project-reversible-choice { display: flex; align-items: center; gap: 8px; min-height: 40px; color: var(--wb-ink); }
+.m1-project-reversible-choice input { accent-color: var(--wb-accent); }
+@media (max-width: 760px) { .m1-project-setup-choice button, .m1-project-reversible-choice { min-height: 44px; } }
