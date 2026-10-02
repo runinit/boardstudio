@@ -1,0 +1,32 @@
+[
+  {
+    "file": "chromium-blob_storage_constants.h",
+    "url": "https://raw.githubusercontent.com/chromium/chromium/154.0.8037.92/storage/browser/blob/blob_storage_constants.h",
+    "sha256": "4b1e439569b6a8b0c06318ef7eab60e7c0188e944418325c79fa69f267633552"
+  },
+  {
+    "file": "chromium-blob_memory_controller.cc",
+    "url": "https://raw.githubusercontent.com/chromium/chromium/154.0.8037.92/storage/browser/blob/blob_memory_controller.cc",
+    "sha256": "04b1e23e7a33803ee14ca6123567d2327f8f8ea1720d576869ae7344ffa664e0"
+  },
+  {
+    "file": "chromium-blob_builder_from_stream.cc",
+    "url": "https://raw.githubusercontent.com/chromium/chromium/154.0.8037.92/storage/browser/blob/blob_builder_from_stream.cc",
+    "sha256": "46932f8132d09fb40efa77b15ff74b459700c7617f16de3273412b344fc14510"
+  },
+  {
+    "file": "chromium-cache.cc",
+    "url": "https://raw.githubusercontent.com/chromium/chromium/154.0.8037.92/third_party/blink/renderer/modules/cache_storage/cache.cc",
+    "sha256": "b34c52efaa9e2f6116663e5432e0f4375f0bc7e4a64d0257307c02956c3a1e0c"
+  },
+  {
+    "file": "chromium-fetch_data_loader.cc",
+    "url": "https://raw.githubusercontent.com/chromium/chromium/154.0.8037.92/third_party/blink/renderer/core/fetch/fetch_data_loader.cc",
+    "sha256": "af1d2859410534c98f184a266a3a0a12ce9e8014a6b2a4de50bdd2707814c2a2"
+  },
+  {
+    "file": "chromium-resource_loader.cc",
+    "url": "https://raw.githubusercontent.com/chromium/chromium/154.0.8037.92/third_party/blink/renderer/platform/loader/fetch/resource_loader.cc",
+    "sha256": "120b2bf67529e51c4cb77e302dddc1cf3ce5d2ee4cf842db842164a103213cc6"
+  }
+]

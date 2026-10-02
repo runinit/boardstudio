@@ -1,0 +1,95 @@
+BoardStudio
+REVIUNG41
+Saved
+Layout
+PCB
+Keymap
+Keycaps
+Case
+Parts
+Export
+Theme
+System
+Light
+Dark
+Objects
+Options
+Board
+Keyboard PCB
+Physical instance
+Canonical board
+main
+Group objects
+Columns
+Rows
+REVIUNG41
+85 parts
+⌄
+Keyboard PCB
+85 parts
+›
+right keys
+Independent
+›
+left keys
+Independent
+›
+thumbs
+Independent
+REVIUNG41
+Footprints
+main-diode-18-right-keys
+main-diode-17-right-keys
+main-diode-13-right-keys
+main-diode-14-right-keys
+main-diode-15-right-keys
+main-diode-16-right-keys
+main-diode-12-right-keys
+main-diode-11-right-keys
+main-diode-7-right-keys
+main-diode-8-right-keys
+main-diode-9-right-keys
+main-diode-10-right-keys
+main-diode-6-right-keys
+main-diode-5-right-keys
+main-diode-1-right-keys
+main-diode-2-right-keys
+main-diode-3-right-keys
+main-diode-4-right-keys
+main-diode-16-left-keys
+main-diode-15-left-keys
+main-diode-14-left-keys
+main-diode-13-left-keys
+main-diode-17-left-keys
+main-diode-18-left-keys
+main-diode-10-left-keys
+main-diode-9-left-keys
+main-diode-8-left-keys
+main-diode-7-left-keys
+main-diode-11-left-keys
+main-diode-12-left-keys
+main-diode-4-left-keys
+main-diode-3-left-keys
+main-diode-2-left-keys
+main-diode-1-left-keys
+main-diode-5-left-keys
+main-diode-6-left-keys
+main-diode-2-thumbs
+main-diode-4-thumbs
+main-diode-5-thumbs
+main-stabilizer-5-thumbs
+main-diode-3-thumbs
+main-diode-1-thumbs
+main-U1
+main-RST
+Layers
+Inspect
+Options
+Position
+
+Select a component to edit its position.
+
+REVIUNG41 · Revision 3 · Saved
+100%
+
+Saved locally.

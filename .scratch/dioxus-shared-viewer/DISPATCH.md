@@ -12,8 +12,24 @@ Use `.scratch/dioxus-frontend-v1/tasks.json`, `workflows/F7.json`, and `issues/0
 
 Record the chosen reachable wrapper location, operation map, scope identity and scene invariants, supported consumer interactions, lifecycle/failure handling, and exact evidence that F7.3 and later consumer integrations need. Do not prescribe a new engine function, public facade, format, or visibility change. If a current exported operation is insufficient, record the smallest concrete gap and affected consumer; do not assume it.
 
+## Prepared source decision (2026-10-02)
+
+The contract is recorded in [`issues/01-common-viewer-contract.md`](issues/01-common-viewer-contract.md).
+
+- **Decision:** use one common viewer and a private page-binary adapter. Existing renderer WASM exports cover the requested operation set. The gap is host mapping: `RendererHost` currently exposes mount/full scene update/camera/disposal but not display state, handles, picking, plane coordinates, or model decode/prepare; its full-scene method also discards the renderer's accepted/stale boolean.
+- **Reachability:** the current Case caller reaches the existing public library host through `boardstudio_web::renderer_host::RendererHost`. The page binary and library remain separate crate roots, so `pub(crate)` library additions cannot serve the binary. F7.3's private page host is planned as a private binary module sourced from the existing `web/src/renderer_host.rs`; the shared adapter/view belongs under `web/src/presentation/`. F7.3 must build the actual binary and demonstrate the module/call path before it claims integration.
+- **Scope and ordering:** guard callbacks/results with `application::Scope` plus a private viewer-instance/projection generation. This extra generation is necessary for Parts: `sampleAssembly` reuses `sample-pcb`, `sample-board`, `sample-N` IDs, and copies source revision even when definition, companion set/order, placement, side, or rotation changes. Allocate a separate strictly increasing renderer scene sequence; do not reuse document, provider-scene, generation, or projection revisions for the renderer's stale-scene guard. Gate same-scope stale async/status/pick/gesture completions too.
+- **Consumer projection:** Layout, Keymap, and Keycaps use the canonical board projection and preserve React's conditional authored/generated Case overlays when `caseDocument === document`; generated mechanical assembly is included only when `generatedCase` is true. They must not attach a different physical Case document's overlays to the canonical scene. Parts uses `sampleAssembly`'s isolated sample project; Case uses the selected physical-instance document/projection when available and never aliases it to the canonical scene.
+- **No widening:** renderer DTOs remain private; no renderer/application API, file format, provider, CAD implementation, or build entrypoint changed as part of F7.1 documentation.
+- **Evidence boundary:** source mapping only. No compiler, browser, public UI, or assistive-technology result is claimed. F7.3's exact downstream verification list is in the issue. No new refactoring takeaway was observed; existing RF-002/RF-012 cover crate placement and the partial reflective host mapping.
+- **Review:** independent Astra review cleared the corrected source contract; retained evidence is in `evidence/source-contract-reviewed-20261002/`. This source clearance permits bounded F7.3 authoring and does not claim integrated viewer acceptance.
+
 ## Graph and handoff
 
 F7.1 `start_after: []`; `acceptance_after: []`. F7.3 starts after F7.1 and retains INT.2 and BND.1 as acceptance joins. The fixture-backed F7.3 implementation remains actionable before those joins; all other F7 dependencies remain unchanged. This planning publication does not close F7.1 or F7.3 acceptance.
 
 Use shared acceptance at `../dioxus-frontend-tranche-1/ACCEPTANCE.md`, including relevant public-route, source, lifecycle, accessibility, and independent review gates. Record “No new refactoring takeaway observed”; existing RF-002/RF-012 already capture the renderer host and crate boundary unless new source evidence changes that conclusion.
+
+## Active bounded Case viewer author
+
+The independently reviewed `issues/02-private-shared-viewer-case-slice.md` is published. Luna High `/root/parts_catalogue_author` owns only isolated worker `frontend-shared-viewer-20261002` renderer_host.rs private mappings and presentation/shared_viewer.rs private modules. The coordinator owns page registration, Case mount, stylesheet and compiler/build orchestration. New operations remain crate-private and existing library API/behavior remains unchanged. Five-consumer and INT.2/BND.1 acceptance joins stay open.

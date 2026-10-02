@@ -1,0 +1,15 @@
+# Independent Standards: private operation outcome observation
+
+Reviewed integration blobs `operation_outcomes.rs` `21e5e15c689001314bacf0e5f8a6663879dc3c70`, `main.rs` `0f473de6d3b08cdd5f76be19c893f29b046ea058`, and `runtime.rs` `7b3758c9a11db84139961022d60b6bbf78686d67`. No compiler/browser/source edits. Tracked diff whitespace check passed.
+
+**No material Standards finding in this bounded observer seam.**
+
+Registration is explicitly before submission of a fresh OperationId. The private registry maps that exact identity to a weak slot; observing the same still-pending operation shares its slot, and unrelated settlement cannot acknowledge it. Terminal handling removes the entry before writing the result, so repeated/late terminal delivery cannot overwrite the completed slot. Consumers own the strong handles; dropping one stops observation without cancelling Session work. Dead weak entries are pruned on the next registration or removed by settlement, and Runtime teardown drops the registry. There is no retained terminal-history collection or Rc cycle.
+
+Runtime writes the terminal outcome before its existing report/changed notification. Superseded gets a notification only when a slot was observed; other terminal outcomes retain existing reporting. The registry and slot borrows are released before notification, avoiding reentrant borrow ownership across App reconciliation. The single Session and existing App subscription remain authoritative. The new main module and method are private to the page binary; `web/src/lib.rs` and public application/provider interfaces are unchanged. This follows `CONSTRAINTS.md` lifecycle ownership and minimal-boundary rules.
+
+Native source tests use actual Session terminal rejection effects and exercise identical-error operations, dropped observation, unrelated completion and a persistence failure slot. Root reports both tests, all 16 native page tests and strict native Clippy passed; I did not rerun them. Those tests establish the portable slot/Session interaction only: native cfg excludes Runtime and page UI. They do not establish WASM compilation, actual Effect::Settled notification wiring, Case mount/unmount freshness or repeated-error/recovery public behavior. Keep those gates open; no WASM pass is claimed.
+
+Reviewed `.scratch/dioxus-frontend-v1/evidence/build-frontend.py` blob `57d637d73f1619ecf9cfe1665424239df849ffe7`: adding only `web/src/runtime.rs` to its page-input allowlist is justified. main.rs includes Runtime only under wasm32+page; lib.rs never includes it. Preserve provider-source and copied-asset assertions. New operation_outcomes.rs/Case files must be staged/committed before the helper’s git ls-files capture, or explicitly hashed: currently untracked files otherwise escape its provenance/final source check. The allowlist change was proposed, not yet applied or build-verified.
+
+RF: this resolves the demonstrated need for operation-correlated private feedback without using global error text. No new architectural refactoring takeaway observed. Case controller/editor findings are not automatically closed by adding the observer.

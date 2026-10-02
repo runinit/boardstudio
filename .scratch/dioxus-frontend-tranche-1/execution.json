@@ -210,7 +210,7 @@
     ],
     "status": "two drafts independently reviewed and automatically published; concrete contracts required"
   },
-  "bounded_ticket_count": 24,
+  "bounded_ticket_count": 25,
   "canonical_parent_count": 62,
   "pending_api_decision": {
     "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
@@ -219,7 +219,7 @@
   },
   "parts_source_status": {
     "parent": "F4.1a",
-    "status": "Parts is mounted in e510dd4c with left catalogue, right Inspector, and typed selected-context summary. Targeted numeric public QA passes. Strict WASM/native Clippy, 14 integrated native tests, formatting and diff checks pass; Parts-specific 8 native source tests are separate. Root/subpath/offline build frontend-parts-context-20261002 is complete and server :34657 is ready. Remaining public proof and ticket acceptance are pending.",
+    "status": "PrivateParts mounted e510dd4c, ARIA repairf65; targeted public proof retained, full Parts preview/fullparent joins open",
     "integrated_source_commit": "e510dd4c",
     "checks": [
       "strict WASM",
@@ -232,7 +232,7 @@
       "8 Parts-specific native source tests"
     ],
     "build": "web/target/builds/frontend-parts-context-20261002",
-    "public_proof": "targeted numeric QA passed; remaining public proof pending",
+    "public_proof": "Same archive pairedcatalogue51names/order and4searchresults matched React; query/choiceworkspacescope checks passed. f65axe0violations/manualcontrastincomplete; actualATopen. Offlineunchangedartifact passes controlleddiskprofilesroot/subpath.",
     "demo_urls": [
       "http://127.0.0.1:34657/",
       "http://127.0.0.1:34657/boardstudio/"
@@ -256,5 +256,29 @@
       "INT.2"
     ],
     "status": "published automatically after corrected independent Spec review; start prerequisites open"
+  },
+  "case_viewer_ticket": {
+    "issue": "../dioxus-shared-viewer/issues/02-private-shared-viewer-case-slice.md",
+    "parent": "F7.3",
+    "start_after": [
+      "F7.1"
+    ],
+    "acceptance_after": [
+      "INT.2",
+      "BND.1"
+    ],
+    "status": "published automatically after independent review; Case vertical slice author dispatch pending; all canonical acceptance joins retained"
+  },
+  "case_keymap_source_status": {
+    "source_commit": "dc81237c",
+    "status": "mounted independentlyreviewed dc81237c; strictWASM/nativechecks pass; freshbuildcomplete; publicverification running",
+    "native_checks": "16 integrated native tests and separate5 actualSession/Core Keymap projection tests",
+    "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current",
+    "public_acceptance": "pending; no canonical parent closure",
+    "build": "frontend-case-keymap-20261002 complete; root/subpath/offline sourcehashes verified",
+    "demo_urls": [
+      "http://127.0.0.1:34663/",
+      "http://127.0.0.1:34663/boardstudio/"
+    ]
   }
 }

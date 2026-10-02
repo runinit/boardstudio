@@ -1,0 +1,1190 @@
+{
+  "original": "/var/tmp/frontend-offline-fix/f65-worker-network.json",
+  "events": [
+    {
+      "method": "Runtime.exceptionThrown",
+      "params": {
+        "timestamp": 1790927246345.384,
+        "exceptionDetails": {
+          "exceptionId": 1,
+          "text": "Uncaught (in promise)",
+          "lineNumber": 0,
+          "columnNumber": 0,
+          "scriptId": "1",
+          "url": "http://127.0.0.1:34659/service-worker.js",
+          "exception": {
+            "type": "object",
+            "subtype": "error",
+            "className": "DOMException",
+            "description": "NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error",
+            "objectId": "7696709907849839957.1.1"
+          },
+          "executionContextId": 1
+        }
+      },
+      "sessionId": "6CF8EBA8A5206C3AFB41DE7F7F5794C0"
+    },
+    {
+      "method": "Runtime.exceptionThrown",
+      "params": {
+        "timestamp": 1790927298895.42,
+        "exceptionDetails": {
+          "exceptionId": 1,
+          "text": "Uncaught (in promise)",
+          "lineNumber": 0,
+          "columnNumber": 0,
+          "scriptId": "1",
+          "url": "http://127.0.0.1:34659/service-worker.js",
+          "exception": {
+            "type": "object",
+            "subtype": "error",
+            "className": "DOMException",
+            "description": "NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error",
+            "objectId": "2597411551141697548.1.1"
+          },
+          "executionContextId": 1
+        }
+      },
+      "sessionId": "F3742289B6BBC852AA291624568D04F1"
+    },
+    {
+      "method": "Runtime.exceptionThrown",
+      "params": {
+        "timestamp": 1790927253252.727,
+        "exceptionDetails": {
+          "exceptionId": 1,
+          "text": "Uncaught (in promise)",
+          "lineNumber": 0,
+          "columnNumber": 0,
+          "scriptId": "1",
+          "url": "http://127.0.0.1:34659/service-worker.js",
+          "exception": {
+            "type": "object",
+            "subtype": "error",
+            "className": "DOMException",
+            "description": "NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error",
+            "objectId": "2651554077500324964.1.1"
+          },
+          "executionContextId": 1
+        }
+      },
+      "sessionId": "162C8EFCCA51DEAE885FDB74E0B51794"
+    },
+    {
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "4",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": true
+          },
+          {
+            "registrationId": "3",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": true
+          },
+          {
+            "registrationId": "2",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": true
+          },
+          {
+            "registrationId": "0",
+            "scopeURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/",
+            "isDeleted": false
+          },
+          {
+            "registrationId": "1",
+            "scopeURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "4",
+            "registrationId": "4",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "redundant",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927298.85829,
+            "controlledClients": [],
+            "targetId": "4D2300EA23E305606E71D7F18ED4D900"
+          },
+          {
+            "versionId": "3",
+            "registrationId": "3",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "redundant",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927253.215779,
+            "controlledClients": [],
+            "targetId": "4D1D71E5AC332A3FDD411C538BF8DFE0"
+          },
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "redundant",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927246.288823,
+            "controlledClients": [],
+            "targetId": "94A597F33088E54D5651F8C508D38285"
+          },
+          {
+            "versionId": "0",
+            "registrationId": "0",
+            "scriptURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/thunk.js",
+            "runningStatus": "stopped",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": []
+          },
+          {
+            "versionId": "1",
+            "registrationId": "1",
+            "scriptURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/background.js",
+            "runningStatus": "stopped",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "Network.responseReceivedExtraInfo",
+      "params": {
+        "requestId": "1461250.197",
+        "blockedCookies": [],
+        "headers": {
+          "Connection": "keep-alive",
+          "Date": "Fri, 02 Oct 2026 07:48:32 GMT",
+          "Keep-Alive": "timeout=5",
+          "Transfer-Encoding": "chunked",
+          "cache-control": "no-store",
+          "content-type": "application/wasm",
+          "x-content-type-options": "nosniff"
+        },
+        "resourceIPAddressSpace": "Loopback",
+        "statusCode": 200,
+        "headersText": "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nDate: Fri, 02 Oct 2026 07:48:32 GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "cookiePartitionKey": {
+          "topLevelSite": "http://127.0.0.1",
+          "hasCrossSiteAncestor": false
+        },
+        "cookiePartitionKeyOpaque": false,
+        "exemptedCookies": []
+      },
+      "sessionId": "7D0ECF69B39F2F8DB03E793AC66185CB"
+    },
+    {
+      "method": "Network.responseReceivedExtraInfo",
+      "params": {
+        "requestId": "1461250.197",
+        "blockedCookies": [],
+        "headers": {
+          "Connection": "keep-alive",
+          "Date": "Fri, 02 Oct 2026 07:48:32 GMT",
+          "Keep-Alive": "timeout=5",
+          "Transfer-Encoding": "chunked",
+          "cache-control": "no-store",
+          "content-type": "application/wasm",
+          "x-content-type-options": "nosniff"
+        },
+        "resourceIPAddressSpace": "Loopback",
+        "statusCode": 200,
+        "headersText": "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nDate: Fri, 02 Oct 2026 07:48:32 GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "cookiePartitionKey": {
+          "topLevelSite": "http://127.0.0.1",
+          "hasCrossSiteAncestor": false
+        },
+        "cookiePartitionKeyOpaque": false,
+        "exemptedCookies": []
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "Network.responseReceived",
+      "params": {
+        "requestId": "1461250.197",
+        "loaderId": "9CC7E8D1273521BE0CCE70006A3E00A3",
+        "timestamp": 140775.123111,
+        "type": "Fetch",
+        "response": {
+          "url": "http://127.0.0.1:34659/assets/boardstudio-web_bg-dxh1d313ef1b5c1fdb.wasm",
+          "status": 200,
+          "statusText": "OK",
+          "headers": {
+            "Transfer-Encoding": "chunked",
+            "cache-control": "no-store",
+            "Keep-Alive": "timeout=5",
+            "Date": "Fri, 02 Oct 2026 07:48:32 GMT",
+            "content-type": "application/wasm",
+            "Connection": "keep-alive",
+            "x-content-type-options": "nosniff"
+          },
+          "mimeType": "application/wasm",
+          "charset": "",
+          "connectionReused": true,
+          "connectionId": 713,
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 34659,
+          "fromDiskCache": false,
+          "fromServiceWorker": false,
+          "fromPrefetchCache": false,
+          "encodedDataLength": 221,
+          "timing": {
+            "requestTime": 140775.117929,
+            "proxyStart": -1,
+            "proxyEnd": -1,
+            "dnsStart": -1,
+            "dnsEnd": -1,
+            "connectStart": -1,
+            "connectEnd": -1,
+            "sslStart": -1,
+            "sslEnd": -1,
+            "workerStart": -1,
+            "workerReady": -1,
+            "workerFetchStart": -1,
+            "workerRespondWithSettled": -1,
+            "sendStart": 0.119,
+            "sendEnd": 0.161,
+            "pushStart": 0,
+            "pushEnd": 0,
+            "receiveHeadersStart": 4.736,
+            "receiveHeadersEnd": 4.769
+          },
+          "responseTime": 1790927312883.503,
+          "protocol": "http/1.1",
+          "alternateProtocolUsage": "unspecifiedReason",
+          "securityState": "secure"
+        },
+        "hasExtraInfo": true,
+        "frameId": "BA0D5B54F76BCF63DDD052B792C5ECEE"
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "Network.responseReceived",
+      "params": {
+        "requestId": "1461250.197",
+        "loaderId": "9CC7E8D1273521BE0CCE70006A3E00A3",
+        "timestamp": 140775.1231,
+        "type": "Fetch",
+        "response": {
+          "url": "http://127.0.0.1:34659/assets/boardstudio-web_bg-dxh1d313ef1b5c1fdb.wasm",
+          "status": 200,
+          "statusText": "OK",
+          "headers": {
+            "Transfer-Encoding": "chunked",
+            "cache-control": "no-store",
+            "Keep-Alive": "timeout=5",
+            "Date": "Fri, 02 Oct 2026 07:48:32 GMT",
+            "content-type": "application/wasm",
+            "Connection": "keep-alive",
+            "x-content-type-options": "nosniff"
+          },
+          "mimeType": "application/wasm",
+          "charset": "",
+          "connectionReused": true,
+          "connectionId": 713,
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 34659,
+          "fromDiskCache": false,
+          "fromServiceWorker": false,
+          "fromPrefetchCache": false,
+          "encodedDataLength": 221,
+          "timing": {
+            "requestTime": 140775.117929,
+            "proxyStart": -1,
+            "proxyEnd": -1,
+            "dnsStart": -1,
+            "dnsEnd": -1,
+            "connectStart": -1,
+            "connectEnd": -1,
+            "sslStart": -1,
+            "sslEnd": -1,
+            "workerStart": -1,
+            "workerReady": -1,
+            "workerFetchStart": -1,
+            "workerRespondWithSettled": -1,
+            "sendStart": 0.119,
+            "sendEnd": 0.161,
+            "pushStart": 0,
+            "pushEnd": 0,
+            "receiveHeadersStart": 4.736,
+            "receiveHeadersEnd": 4.769
+          },
+          "responseTime": 1790927312883.503,
+          "protocol": "http/1.1",
+          "alternateProtocolUsage": "unspecifiedReason",
+          "securityState": "secure"
+        },
+        "hasExtraInfo": true,
+        "frameId": "BA0D5B54F76BCF63DDD052B792C5ECEE"
+      },
+      "sessionId": "7D0ECF69B39F2F8DB03E793AC66185CB"
+    },
+    {
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "5",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "5",
+            "registrationId": "5",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "5",
+            "registrationId": "5",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927312.953094,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "5",
+            "registrationId": "5",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927312.953094,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "5",
+            "registrationId": "5",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927312.953094,
+            "controlledClients": [],
+            "targetId": "F437A5D4FAFEF96B0BFFDF8E129D52AA"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "5",
+            "registrationId": "5",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927312.953094,
+            "controlledClients": [],
+            "targetId": "F437A5D4FAFEF96B0BFFDF8E129D52AA"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "5",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "5",
+            "registrationId": "5",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927312.953094,
+            "controlledClients": [],
+            "targetId": "F437A5D4FAFEF96B0BFFDF8E129D52AA"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "Network.responseReceivedExtraInfo",
+      "params": {
+        "requestId": "1461250.207",
+        "blockedCookies": [],
+        "headers": {
+          "Connection": "keep-alive",
+          "Date": "Fri, 02 Oct 2026 07:48:32 GMT",
+          "Keep-Alive": "timeout=5",
+          "Transfer-Encoding": "chunked",
+          "cache-control": "no-store",
+          "content-type": "application/wasm",
+          "x-content-type-options": "nosniff"
+        },
+        "resourceIPAddressSpace": "Loopback",
+        "statusCode": 200,
+        "headersText": "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nDate: Fri, 02 Oct 2026 07:48:32 GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "cookiePartitionKey": {
+          "topLevelSite": "http://127.0.0.1",
+          "hasCrossSiteAncestor": false
+        },
+        "cookiePartitionKeyOpaque": false,
+        "exemptedCookies": []
+      },
+      "sessionId": "350421338559F6A069840B2355E8EC3D"
+    },
+    {
+      "method": "Network.responseReceived",
+      "params": {
+        "requestId": "1461250.207",
+        "loaderId": "",
+        "timestamp": 140775.211921,
+        "type": "Fetch",
+        "response": {
+          "url": "http://127.0.0.1:34659/assets/boardstudio-web_bg-dxh1d313ef1b5c1fdb.wasm",
+          "status": 200,
+          "statusText": "OK",
+          "headers": {
+            "Transfer-Encoding": "chunked",
+            "cache-control": "no-store",
+            "Keep-Alive": "timeout=5",
+            "Date": "Fri, 02 Oct 2026 07:48:32 GMT",
+            "content-type": "application/wasm",
+            "Connection": "keep-alive",
+            "x-content-type-options": "nosniff"
+          },
+          "mimeType": "application/wasm",
+          "charset": "",
+          "connectionReused": true,
+          "connectionId": 722,
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 34659,
+          "fromDiskCache": false,
+          "fromServiceWorker": false,
+          "fromPrefetchCache": false,
+          "encodedDataLength": 221,
+          "timing": {
+            "requestTime": 140775.208342,
+            "proxyStart": -1,
+            "proxyEnd": -1,
+            "dnsStart": -1,
+            "dnsEnd": -1,
+            "connectStart": -1,
+            "connectEnd": -1,
+            "sslStart": -1,
+            "sslEnd": -1,
+            "workerStart": -1,
+            "workerReady": -1,
+            "workerFetchStart": -1,
+            "workerRespondWithSettled": -1,
+            "sendStart": 0.124,
+            "sendEnd": 0.156,
+            "pushStart": 0,
+            "pushEnd": 0,
+            "receiveHeadersStart": 2.067,
+            "receiveHeadersEnd": 2.089
+          },
+          "responseTime": 1790927312971.247,
+          "protocol": "http/1.1",
+          "alternateProtocolUsage": "unspecifiedReason",
+          "securityState": "secure"
+        },
+        "hasExtraInfo": true
+      },
+      "sessionId": "350421338559F6A069840B2355E8EC3D"
+    },
+    {
+      "method": "Network.loadingFailed",
+      "params": {
+        "requestId": "1461250.207",
+        "timestamp": 140775.229169,
+        "type": "Fetch",
+        "errorText": "net::ERR_FAILED",
+        "canceled": false
+      },
+      "sessionId": "350421338559F6A069840B2355E8EC3D"
+    },
+    {
+      "method": "ServiceWorker.workerErrorReported",
+      "params": {
+        "errorMessage": {
+          "errorMessage": "Failed to register a ServiceWorker for scope ('http://127.0.0.1:34659/') with script ('http://127.0.0.1:34659/service-worker.js'): ServiceWorker failed to install: ServiceWorker failed to handle event (event.waitUntil Promise rejected)",
+          "registrationId": "5",
+          "versionId": "5",
+          "sourceURL": "",
+          "lineNumber": -1,
+          "columnNumber": -1
+        }
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "5",
+            "registrationId": "5",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "redundant",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927312.953094,
+            "controlledClients": [],
+            "targetId": "F437A5D4FAFEF96B0BFFDF8E129D52AA"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerErrorReported",
+      "params": {
+        "errorMessage": {
+          "errorMessage": "Uncaught (in promise) NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error",
+          "registrationId": "5",
+          "versionId": "5",
+          "sourceURL": "http://127.0.0.1:34659/service-worker.js",
+          "lineNumber": 0,
+          "columnNumber": -1
+        }
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "Runtime.exceptionThrown",
+      "params": {
+        "timestamp": 1790927312991.152,
+        "exceptionDetails": {
+          "exceptionId": 1,
+          "text": "Uncaught (in promise)",
+          "lineNumber": 0,
+          "columnNumber": 0,
+          "scriptId": "1",
+          "url": "http://127.0.0.1:34659/service-worker.js",
+          "exception": {
+            "type": "object",
+            "subtype": "error",
+            "className": "DOMException",
+            "description": "NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error",
+            "objectId": "169305544075737779.1.1",
+            "preview": {
+              "type": "object",
+              "subtype": "error",
+              "description": "NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error",
+              "overflow": false,
+              "properties": [
+                {
+                  "name": "stack",
+                  "type": "string",
+                  "value": "NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error"
+                },
+                {
+                  "name": "code",
+                  "type": "number",
+                  "value": "19"
+                },
+                {
+                  "name": "name",
+                  "type": "string",
+                  "value": "NetworkError"
+                },
+                {
+                  "name": "message",
+                  "type": "string",
+                  "value": "Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error"
+                }
+              ]
+            }
+          },
+          "executionContextId": 1
+        }
+      },
+      "sessionId": "350421338559F6A069840B2355E8EC3D"
+    },
+    {
+      "method": "Network.responseReceivedExtraInfo",
+      "params": {
+        "requestId": "1461250.262",
+        "blockedCookies": [],
+        "headers": {
+          "Connection": "keep-alive",
+          "Date": "Fri, 02 Oct 2026 07:48:44 GMT",
+          "Keep-Alive": "timeout=5",
+          "Transfer-Encoding": "chunked",
+          "cache-control": "no-store",
+          "content-type": "application/wasm",
+          "x-content-type-options": "nosniff"
+        },
+        "resourceIPAddressSpace": "Loopback",
+        "statusCode": 200,
+        "headersText": "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nDate: Fri, 02 Oct 2026 07:48:44 GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "cookiePartitionKey": {
+          "topLevelSite": "http://127.0.0.1",
+          "hasCrossSiteAncestor": false
+        },
+        "cookiePartitionKeyOpaque": false,
+        "exemptedCookies": []
+      },
+      "sessionId": "7D0ECF69B39F2F8DB03E793AC66185CB"
+    },
+    {
+      "method": "Network.responseReceivedExtraInfo",
+      "params": {
+        "requestId": "1461250.262",
+        "blockedCookies": [],
+        "headers": {
+          "Connection": "keep-alive",
+          "Date": "Fri, 02 Oct 2026 07:48:44 GMT",
+          "Keep-Alive": "timeout=5",
+          "Transfer-Encoding": "chunked",
+          "cache-control": "no-store",
+          "content-type": "application/wasm",
+          "x-content-type-options": "nosniff"
+        },
+        "resourceIPAddressSpace": "Loopback",
+        "statusCode": 200,
+        "headersText": "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nDate: Fri, 02 Oct 2026 07:48:44 GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "cookiePartitionKey": {
+          "topLevelSite": "http://127.0.0.1",
+          "hasCrossSiteAncestor": false
+        },
+        "cookiePartitionKeyOpaque": false,
+        "exemptedCookies": []
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "Network.responseReceived",
+      "params": {
+        "requestId": "1461250.262",
+        "loaderId": "B9F7F8648450D531FF1A4AD10A872A99",
+        "timestamp": 140787.193164,
+        "type": "Fetch",
+        "response": {
+          "url": "http://127.0.0.1:34659/assets/boardstudio-web_bg-dxh1d313ef1b5c1fdb.wasm",
+          "status": 200,
+          "statusText": "OK",
+          "headers": {
+            "Transfer-Encoding": "chunked",
+            "cache-control": "no-store",
+            "Keep-Alive": "timeout=5",
+            "Date": "Fri, 02 Oct 2026 07:48:44 GMT",
+            "content-type": "application/wasm",
+            "Connection": "keep-alive",
+            "x-content-type-options": "nosniff"
+          },
+          "mimeType": "application/wasm",
+          "charset": "",
+          "connectionReused": true,
+          "connectionId": 909,
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 34659,
+          "fromDiskCache": false,
+          "fromServiceWorker": false,
+          "fromPrefetchCache": false,
+          "encodedDataLength": 221,
+          "timing": {
+            "requestTime": 140787.189787,
+            "proxyStart": -1,
+            "proxyEnd": -1,
+            "dnsStart": -1,
+            "dnsEnd": -1,
+            "connectStart": -1,
+            "connectEnd": -1,
+            "sslStart": -1,
+            "sslEnd": -1,
+            "workerStart": -1,
+            "workerReady": -1,
+            "workerFetchStart": -1,
+            "workerRespondWithSettled": -1,
+            "sendStart": 0.119,
+            "sendEnd": 0.157,
+            "pushStart": 0,
+            "pushEnd": 0,
+            "receiveHeadersStart": 2.177,
+            "receiveHeadersEnd": 2.208
+          },
+          "responseTime": 1790927324952.803,
+          "protocol": "http/1.1",
+          "alternateProtocolUsage": "unspecifiedReason",
+          "securityState": "secure"
+        },
+        "hasExtraInfo": true,
+        "frameId": "BA0D5B54F76BCF63DDD052B792C5ECEE"
+      },
+      "sessionId": "7D0ECF69B39F2F8DB03E793AC66185CB"
+    },
+    {
+      "method": "Network.responseReceived",
+      "params": {
+        "requestId": "1461250.262",
+        "loaderId": "B9F7F8648450D531FF1A4AD10A872A99",
+        "timestamp": 140787.193174,
+        "type": "Fetch",
+        "response": {
+          "url": "http://127.0.0.1:34659/assets/boardstudio-web_bg-dxh1d313ef1b5c1fdb.wasm",
+          "status": 200,
+          "statusText": "OK",
+          "headers": {
+            "Transfer-Encoding": "chunked",
+            "cache-control": "no-store",
+            "Keep-Alive": "timeout=5",
+            "Date": "Fri, 02 Oct 2026 07:48:44 GMT",
+            "content-type": "application/wasm",
+            "Connection": "keep-alive",
+            "x-content-type-options": "nosniff"
+          },
+          "mimeType": "application/wasm",
+          "charset": "",
+          "connectionReused": true,
+          "connectionId": 909,
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 34659,
+          "fromDiskCache": false,
+          "fromServiceWorker": false,
+          "fromPrefetchCache": false,
+          "encodedDataLength": 221,
+          "timing": {
+            "requestTime": 140787.189787,
+            "proxyStart": -1,
+            "proxyEnd": -1,
+            "dnsStart": -1,
+            "dnsEnd": -1,
+            "connectStart": -1,
+            "connectEnd": -1,
+            "sslStart": -1,
+            "sslEnd": -1,
+            "workerStart": -1,
+            "workerReady": -1,
+            "workerFetchStart": -1,
+            "workerRespondWithSettled": -1,
+            "sendStart": 0.119,
+            "sendEnd": 0.157,
+            "pushStart": 0,
+            "pushEnd": 0,
+            "receiveHeadersStart": 2.177,
+            "receiveHeadersEnd": 2.208
+          },
+          "responseTime": 1790927324952.803,
+          "protocol": "http/1.1",
+          "alternateProtocolUsage": "unspecifiedReason",
+          "securityState": "secure"
+        },
+        "hasExtraInfo": true,
+        "frameId": "BA0D5B54F76BCF63DDD052B792C5ECEE"
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "6",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "6",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "Network.responseReceivedExtraInfo",
+      "params": {
+        "requestId": "1461250.272",
+        "blockedCookies": [],
+        "headers": {
+          "Connection": "keep-alive",
+          "Date": "Fri, 02 Oct 2026 07:48:45 GMT",
+          "Keep-Alive": "timeout=5",
+          "Transfer-Encoding": "chunked",
+          "cache-control": "no-store",
+          "content-type": "application/wasm",
+          "x-content-type-options": "nosniff"
+        },
+        "resourceIPAddressSpace": "Loopback",
+        "statusCode": 200,
+        "headersText": "HTTP/1.1 200 OK\r\ncontent-type: application/wasm\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nDate: Fri, 02 Oct 2026 07:48:45 GMT\r\nConnection: keep-alive\r\nKeep-Alive: timeout=5\r\nTransfer-Encoding: chunked\r\n\r\n",
+        "cookiePartitionKey": {
+          "topLevelSite": "http://127.0.0.1",
+          "hasCrossSiteAncestor": false
+        },
+        "cookiePartitionKeyOpaque": false,
+        "exemptedCookies": []
+      },
+      "sessionId": "2B27DEEEFA9FDDA0A341B26938389293"
+    },
+    {
+      "method": "Network.responseReceived",
+      "params": {
+        "requestId": "1461250.272",
+        "loaderId": "",
+        "timestamp": 140787.285294,
+        "type": "Fetch",
+        "response": {
+          "url": "http://127.0.0.1:34659/assets/boardstudio-web_bg-dxh1d313ef1b5c1fdb.wasm",
+          "status": 200,
+          "statusText": "OK",
+          "headers": {
+            "Transfer-Encoding": "chunked",
+            "cache-control": "no-store",
+            "Keep-Alive": "timeout=5",
+            "Date": "Fri, 02 Oct 2026 07:48:45 GMT",
+            "content-type": "application/wasm",
+            "Connection": "keep-alive",
+            "x-content-type-options": "nosniff"
+          },
+          "mimeType": "application/wasm",
+          "charset": "",
+          "connectionReused": true,
+          "connectionId": 911,
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 34659,
+          "fromDiskCache": false,
+          "fromServiceWorker": false,
+          "fromPrefetchCache": false,
+          "encodedDataLength": 221,
+          "timing": {
+            "requestTime": 140787.280841,
+            "proxyStart": -1,
+            "proxyEnd": -1,
+            "dnsStart": -1,
+            "dnsEnd": -1,
+            "connectStart": -1,
+            "connectEnd": -1,
+            "sslStart": -1,
+            "sslEnd": -1,
+            "workerStart": -1,
+            "workerReady": -1,
+            "workerFetchStart": -1,
+            "workerRespondWithSettled": -1,
+            "sendStart": 0.1,
+            "sendEnd": 0.125,
+            "pushStart": 0,
+            "pushEnd": 0,
+            "receiveHeadersStart": 4.129,
+            "receiveHeadersEnd": 4.154
+          },
+          "responseTime": 1790927325045.809,
+          "protocol": "http/1.1",
+          "alternateProtocolUsage": "unspecifiedReason",
+          "securityState": "secure"
+        },
+        "hasExtraInfo": true
+      },
+      "sessionId": "2B27DEEEFA9FDDA0A341B26938389293"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "installed",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [
+              "BA0D5B54F76BCF63DDD052B792C5ECEE"
+            ],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [
+              "BA0D5B54F76BCF63DDD052B792C5ECEE"
+            ],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    },
+    {
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "6",
+            "registrationId": "6",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927325.02489,
+            "controlledClients": [
+              "BA0D5B54F76BCF63DDD052B792C5ECEE"
+            ],
+            "targetId": "5BE04E109A4EE5746E61B2E0E347FD55"
+          }
+        ]
+      },
+      "sessionId": "2E499DEEA25B391F401B32617D0D3D93"
+    }
+  ],
+  "status": {
+    "result": {
+      "type": "object",
+      "value": {
+        "url": "http://127.0.0.1:34659/",
+        "registrations": [
+          {
+            "scope": "http://127.0.0.1:34659/",
+            "active": "activated"
+          }
+        ],
+        "controller": true,
+        "caches": [
+          "boardstudio-m1-offline-path-2f-frontend-parts-context-aria-20261002-root"
+        ]
+      }
+    }
+  }
+}

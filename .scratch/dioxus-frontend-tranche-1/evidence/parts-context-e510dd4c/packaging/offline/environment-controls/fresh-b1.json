@@ -1,0 +1,8 @@
+{
+  "url": "http://127.0.0.1:34651/",
+  "session": "offline-fresh-b1",
+  "opened": "\u2713 BoardStudio\n  http://127.0.0.1:34651/\n",
+  "state": "{\n  \"caches\": [\n    \"boardstudio-m1-offline-path-2f-frontend-panels-47cf655b-20261002-root\"\n  ],\n  \"controller\": true,\n  \"registrations\": [\n    {\n      \"active\": \"activated\",\n      \"scope\": \"http://127.0.0.1:34651/\"\n    }\n  ],\n  \"url\": \"http://127.0.0.1:34651/\"\n}\n",
+  "offline_reload": "http://127.0.0.1:34651/\n",
+  "snapshot": "- heading \"BoardStudio\" [level=1, ref=e1]\n- tab \"Layout\" [selected, ref=e5]\n- tab \"PCB\" [ref=e6]\n- tab \"Keymap\" [ref=e7]\n- tab \"Keycaps\" [ref=e8]\n- tab \"Case\" [ref=e9]\n- tab \"Parts\" [ref=e10]\n- button \"Export\" [ref=e2]\n- combobox \"Theme\" [expanded=false, ref=e11]: System\n  - option \"System\" [selected, ref=e16]\n  - option \"Light\" [ref=e17]\n  - option \"Dark\" [ref=e18]\n- heading \"Open a keyboard\" [level=1, ref=e3]\n- region \"Your keyboards\" [ref=e4]\n  - heading \"Your keyboards\" [level=2, ref=e14]\n  - button \"REVIUNG41 copy\" [ref=e12]\n  - button \"Sofle v2 copy\" [ref=e13]\n  - button \"Import .boardstudio\" [ref=e15]: No file chosen\n"
+}

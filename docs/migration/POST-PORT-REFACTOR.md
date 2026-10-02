@@ -294,3 +294,7 @@ RF-001 gains a concrete immutable-ownership observation from the [cards/panels S
 
 
 RF-009 gains the panel repair lesson: strict compilation did not establish browser boolean-attribute semantics or responsive cascade behavior. Actual DOM/accessibility and supported-viewport red/green checks caught inert="false" disabling visible controls and legacy fixed-grid overrides. Corrected source47cf655b and [evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json) retain the failures and fixes. Broader shared DOM attribute/cascade conformance assessment is a post-port proposal, not a new current gate.
+
+### Case and Keymap integration handoff — 2026-10-02
+
+The [retained handoff](../../.scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md) adds source evidence to RF-001/RF-006 and verification limits to RF-009/RF-013. Draft identity, exact request settlement, Inspector reachability and scroll sizing corrections remain subject to the fresh WASM build and public browser gates. The offline failure was isolated to Chromium blob storage on low-space temporary profiles; the unchanged release passes controlled disk-backed profiles. This is a QA environment condition, not a new application defect. Actual assistive technology and contrast remain open. No measured performance improvement or full parent acceptance is claimed.

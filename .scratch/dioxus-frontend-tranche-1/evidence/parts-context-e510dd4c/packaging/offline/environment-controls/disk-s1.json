@@ -1,0 +1,323 @@
+{
+  "url": "http://127.0.0.1:34659/boardstudio/",
+  "session": "offline-disk-s1",
+  "started": 1790927770060,
+  "verdict": "activated",
+  "state": {
+    "caches": [
+      "boardstudio-m1-offline-path-2f626f61726473747564696f2f-frontend-parts-context-aria-20261002-subpath"
+    ],
+    "controller": true,
+    "regs": [
+      {
+        "active": "activated",
+        "scope": "http://127.0.0.1:34659/boardstudio/"
+      }
+    ],
+    "url": "http://127.0.0.1:34659/boardstudio/"
+  },
+  "events": [
+    {
+      "at": 1790927770120,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "0",
+            "scopeURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/",
+            "isDeleted": false
+          },
+          {
+            "registrationId": "1",
+            "scopeURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770120,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "0",
+            "registrationId": "0",
+            "scriptURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/thunk.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": [],
+            "targetId": "760986D87371AD77CB14A6212F422F6B"
+          },
+          {
+            "versionId": "1",
+            "registrationId": "1",
+            "scriptURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/background.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": [],
+            "targetId": "7F9C35AC5D75FE8A52A91E5589C79CD7"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770196,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "2",
+            "scopeURL": "http://127.0.0.1:34659/boardstudio/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770196,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770198,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770198,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770198,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770213,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "starting",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770213,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "2",
+            "scopeURL": "http://127.0.0.1:34659/boardstudio/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770213,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "running",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770318,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "running",
+            "status": "installed",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770318,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770318,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770319,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [
+              "C4129F07360FCAAE6D3F56766F2A08FF"
+            ],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    },
+    {
+      "at": 1790927770319,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/boardstudio/service-worker.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927770.197401,
+            "controlledClients": [
+              "C4129F07360FCAAE6D3F56766F2A08FF"
+            ],
+            "targetId": "6A65E9E05C4EB94A79F7B7C08CA12B1F"
+          }
+        ]
+      },
+      "sessionId": "AACE910529F9A7E2379238FE6F9B937C"
+    }
+  ],
+  "reload": "http://127.0.0.1:34659/boardstudio/",
+  "snapshot": "- heading \"BoardStudio\" [level=1, ref=e1]\n- tab \"Layout\" [selected, ref=e5]\n- tab \"PCB\" [ref=e6]\n- tab \"Keymap\" [ref=e7]\n- tab \"Keycaps\" [ref=e8]\n- tab \"Case\" [ref=e9]\n- tab \"Parts\" [ref=e10]\n- button \"Export\" [ref=e2]\n- combobox \"Theme\" [expanded=false, ref=e11]: System\n  - option \"System\" [selected, ref=e16]\n  - option \"Light\" [ref=e17]\n  - option \"Dark\" [ref=e18]\n- heading \"Open a keyboard\" [level=1, ref=e3]\n- region \"Your keyboards\" [ref=e4]\n  - heading \"Your keyboards\" [level=2, ref=e14]\n  - button \"REVIUNG41 copy\" [ref=e12]\n  - button \"Sofle v2 copy\" [ref=e13]\n  - button \"Import .boardstudio\" [ref=e15]: No file chosen",
+  "profile": "/var/tmp/frontend-offline-fix/profile-disk-s1"
+}

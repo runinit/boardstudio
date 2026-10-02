@@ -1,0 +1,263 @@
+{
+  "url": "http://127.0.0.1:34659/",
+  "session": "offline-chunked-root",
+  "started": 1790927714076,
+  "verdict": "redundant",
+  "state": {
+    "caches": [
+      "boardstudio-m1-offline-path-2f-frontend-parts-context-aria-20261002-root"
+    ],
+    "controller": false,
+    "regs": [],
+    "url": "http://127.0.0.1:34659/"
+  },
+  "events": [
+    {
+      "at": 1790927714144,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "0",
+            "scopeURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/",
+            "isDeleted": false
+          },
+          {
+            "registrationId": "1",
+            "scopeURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714144,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "0",
+            "registrationId": "0",
+            "scriptURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/thunk.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": [],
+            "targetId": "7971496CF5B2C27E9EA0F3691D1A69F9"
+          },
+          {
+            "versionId": "1",
+            "registrationId": "1",
+            "scriptURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/background.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": [],
+            "targetId": "8EE15565FA3EC6353DCC1EEF89232F01"
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714145,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "2",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714145,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714145,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927714.144565,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714146,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927714.144565,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714146,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927714.144565,
+            "controlledClients": [],
+            "targetId": "F9B9EE2F3F6DF43F1B7F31158E504F79"
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714167,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927714.144565,
+            "controlledClients": [],
+            "targetId": "F9B9EE2F3F6DF43F1B7F31158E504F79"
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714167,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "2",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714167,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927714.144565,
+            "controlledClients": [],
+            "targetId": "F9B9EE2F3F6DF43F1B7F31158E504F79"
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714194,
+      "method": "ServiceWorker.workerErrorReported",
+      "params": {
+        "errorMessage": {
+          "errorMessage": "Failed to register a ServiceWorker for scope ('http://127.0.0.1:34659/') with script ('http://127.0.0.1:34659/service-worker.js'): ServiceWorker failed to install: ServiceWorker failed to handle event (event.waitUntil Promise rejected)",
+          "registrationId": "2",
+          "versionId": "2",
+          "sourceURL": "",
+          "lineNumber": -1,
+          "columnNumber": -1
+        }
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714194,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "redundant",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927714.144565,
+            "controlledClients": [],
+            "targetId": "F9B9EE2F3F6DF43F1B7F31158E504F79"
+          }
+        ]
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    },
+    {
+      "at": 1790927714194,
+      "method": "ServiceWorker.workerErrorReported",
+      "params": {
+        "errorMessage": {
+          "errorMessage": "Uncaught (in promise) NetworkError: Failed to execute 'addAll' on 'Cache': Cache.addAll() encountered a network error",
+          "registrationId": "2",
+          "versionId": "2",
+          "sourceURL": "http://127.0.0.1:34659/service-worker.js",
+          "lineNumber": 0,
+          "columnNumber": -1
+        }
+      },
+      "sessionId": "4F24B7D3CA3E01587675F0D7A824BD0E"
+    }
+  ],
+  "reload": "chrome-error://chromewebdata/",
+  "snapshot": "- heading \"Press space to play\" [level=1, ref=e2]\n- application \"Dino game, press space to play\" [ref=e1] focusable [tabindex]"
+}

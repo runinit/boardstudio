@@ -177,7 +177,7 @@
   "automatic_ticket_frontier": true,
   "implementation_authority": "2026-10-02 user requested implementation and automatic agent-created next tickets",
   "bounded_ticket_tracking": {
-    "published_bounded_tickets": 24,
+    "published_bounded_tickets": 25,
     "canonical_parent_tasks": 62,
     "new_publication_folders": [
       ".scratch/dioxus-shared-viewer",
@@ -217,5 +217,17 @@
         ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json"
       ]
     }
+  },
+  "current_case_keymap_source": {
+    "source_commit": "dc81237c",
+    "checks": "strictWASM/nativeClippy,16nativepage+5separateKeymaptests,fmt/diff,Spec/Standards sourcepass",
+    "build": "frontend-case-keymap-20261002 complete; root/subpath/offline sourcehashes verified",
+    "public_acceptance": "pending",
+    "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current",
+    "demo_urls": [
+      "http://127.0.0.1:34663/",
+      "http://127.0.0.1:34663/boardstudio/"
+    ],
+    "status": "mounted independentlyreviewed dc81237c; strictWASM/nativechecks pass; freshbuildcomplete; publicverification running"
   }
 }

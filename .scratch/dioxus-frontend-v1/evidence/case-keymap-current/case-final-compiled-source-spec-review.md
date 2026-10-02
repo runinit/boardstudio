@@ -1,0 +1,11 @@
+Decision: no new material Spec finding in the compiler-driven corrections. Previous Case source clearances remain valid; compilation/public acceptance are separate gates.
+
+Reviewed dirty `case_bodies.rs` versus HEAD 75139d74bd164695c84683a3174b8ec705ec2763, SHA256 c4e881e4359408867ae4e3befa3fc4037a13738bc196a6cd364533ac8480993b, and current untracked `case_controller.rs`, SHA256 7ae83620f6d9e725664f8bac6ca92be78d72b5473404484e9e4fb4855e9b87fe. No Cargo/compiler, edits or browser work performed.
+
+The owned use_reactive tuple corrections retain the exact identity comparisons and terminal-state predicates. The pending read guard now survives its borrow correctly. Mutable copies of Signal handles inside Rc<dyn Fn> invocations still address the same state: request sequencing, synchronous single-flight admission, dirty tracking and Enter/blur dedup do not become per-call storage.
+
+Precomputing editor_key preserves editor/full-Scope/body identity. Precomputed feedback status/error values retain global-versus-field routing; every Failed path in the current controller supplies a message. Input/Escape handlers now capture owned RequestIdentity values from the rendered field feedback. Escape still restores the accepted value, clears draft/error/dedup/blocked state and dismisses only that request’s error; a new request identity re-enables its own feedback.
+
+Clean accepted-value reconciliation, one-time Saved consumption and request-identity-plus-state Failed retry effects are unchanged. The controller continues to key the complete child subtree by editor/full Scope without token/revision, observe exact operation settlement before submission, reject stale ownership and require expected canonical body/current saved revision before Saved. Its owned token/scope memo conversion and import cleanup do not weaken admission or change projected-versus-canonical ownership.
+
+The released root mount, navigation and mismatch-setting guards retain their separately reviewed source decisions. Fresh strict WASM result and paired public save/history, busy/recovery, scope-switch/late-outcome, keyboard, compact/theme and generated/mismatch evidence remain open. The stricter Ready/saved behavior has no parity waiver; no parent, CAD/API or schema acceptance is inferred. Refactoring: no new takeaway.

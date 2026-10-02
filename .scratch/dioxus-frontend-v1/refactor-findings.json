@@ -48,6 +48,12 @@
           "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/cards-panels-2030c9a3/cards-panels-standards.md",
           "observation": "Saved Library presentation deep-copied accepted ProjectDoc and all saved documents on Runtime repaints. Bounded correction uses existing immutable Arc document snapshots and borrows saved-list signal. Strict WASM Clippy passes; browser review pending; allocation latency remains unmeasured.",
           "status": "current correction under review; retain immutable presentation ownership/allocation follow-up"
+        },
+        {
+          "source": "Case/Keymap current integration; final source commit pending",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+          "observation": "Case/Keymap mounting exposed repeated Inspector reachability predicates; one private has_inspector predicate now gates grid, compact toggle and mount. Keymap projection uses immutable Rc minimal display data. Source corrections reviewed; no measured performance claim.",
+          "status": "bounded mitigation/evidence update; broad structural refactor deferred"
         }
       ]
     },
@@ -123,7 +129,7 @@
       "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
       "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
       "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
-      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
+      "validation_needed": "Every required capability has a verified engine\u2192worker\u2192host\u2192UI trace, same fixture outputs and cancellation/error disposition.",
       "decision": "proposal only; no refactor/API/schema change approved by this entry",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
@@ -244,6 +250,14 @@
         "F7.3",
         "F7.7",
         "F8.5"
+      ],
+      "handoff_evidence": [
+        {
+          "source": "Case/Keymap current integration; final source commit pending",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+          "observation": "Case draft source review found target reuse, clean Undo refresh, repeated rejection retry, overlapping pending feedback and scope-change busy-state defects. Scoped subtree key and request-specific terminal observations correct these in source; browser acceptance remains pending.",
+          "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+        }
       ]
     },
     {
@@ -403,6 +417,12 @@
           "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json",
           "observation": "Actual browser semantics caught inert=false still disabling panel controls and old media declarations replacing variable tracks despite strict compile success; preserve red/green semantics and cascade proof.",
           "confidence": "confirmed corrected browser defects; future shared-conformance proposal needs assessment"
+        },
+        {
+          "source": "Case/Keymap current integration; final source commit pending",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+          "observation": "Native page checks omit wasm-only Dioxus components; actual WASM compiler exposed RSX and closure-ownership errors. Offline candidate controlled green on disk-backed isolated profiles, low-space tmp controls red; retain filesystem condition without production fix.",
+          "status": "bounded mitigation/evidence update; broad structural refactor deferred"
         }
       ]
     },
@@ -547,6 +567,14 @@
         "F3.1",
         "F9.2",
         "F9.3"
+      ],
+      "handoff_evidence": [
+        {
+          "source": "Case/Keymap current integration; final source commit pending",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
+          "observation": "f65 browser axe reports zero candidate violations after tree item ownership repair. Contrast remains incomplete; actual assistive technology remains unverified.",
+          "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+        }
       ]
     }
   ]

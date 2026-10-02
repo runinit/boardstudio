@@ -1,0 +1,38 @@
+F7.1 source contract packet; captured 2026-10-02.
+
+Reviewed issue file: .scratch/dioxus-shared-viewer/issues/01-common-viewer-contract.md
+  reviewed Git blob: 865c3cf0b2bee3b4cd1050a0032078bd7d5a1999
+  packet SHA-256: 7a15f3f7aa67f31e6e9334d0bde1a1ebc7215ef45352ccb063deac47433d1b1a
+Reviewed dispatch file: .scratch/dioxus-shared-viewer/DISPATCH.md
+  reviewed Git blob: 330f860d8f94b5bfa862255d37383dba95c8fbed
+  packet SHA-256: 183613a5ce784f5544411d785a7d805cad4f35963eaee94aa01ee16a934e1109
+Final standards-review report: /tmp/frontend-run/f7-common-viewer-final-standards-review.md
+  packet SHA-256: 977dd769808df5662605a0a322e8f57143a759877c01cb0ee6d67fe0aac56776
+
+Source snapshot commit: 1574d15766d6abe9c02ba1efa89b3ec09ebd5bc6
+Pinned React reference: 5a472a9426e6e38993361da402cd4ec730feb369
+
+Git blob IDs at the source snapshot commit:
+0780c95b8ec62e6396da83204436a89f64e64294  app/src/ui/AssemblyViewer.tsx
+9c183b0b7acb712902ed71e859dd87b10ab7c876  app/src/ui/AssemblyScene.tsx
+7d408a8a2ca2593149a33ff68a38fd7c196cbb8b  app/src/renderClient.ts
+df7114477d2fbf7c31967ae20cf8f2771ce7eaac  app/src/useAssemblyPreview.ts
+60d0a8eb762534b0938045a1c9d736838a6f0ace  app/src/assemblyPreview.ts
+83d557cb18514dec00e7cfd4e9a7012504e9ae4a  app/src/ui/LibraryWorkspace.tsx
+1cee2d12656f67f04f61d2ed91d3503ec7bd8c37  app/src/ui/Workbench.tsx
+3413268c1c5469621ecfb2f16b74e1f40415140d  app/src/ui/useCaseWorkspace.tsx
+9b5ca5566d848e8eedd97be2051c1279e3dbbfa7  app/src/ui/sampleAssembly.ts
+287f65b2432858e317eee53d25801a62ebe36b90  web/src/main.rs
+835b0261d6386dbc3df1dd00dfe38417056fdc28  web/src/presentation.rs
+5e26a919f4a8ceeb9d876ea5b20e31b1f3ec9887  web/src/cad_presentation.rs
+261ef5bfe1dc984f24be44c95873a684c4940968  web/src/renderer_host.rs
+770c592a63b6b6348228f34c9e19848bdbdf462e  web/src/lib.rs
+8bd994be42610e653534b83f3ce280ae8a963a78  renderer/src/wasm.rs
+c01a24342d786d560d64c8253043fd4fcfe86ac2  renderer/src/lib.rs
+01f55c519b639f020a6a08cba543b89af30cceea  application/src/session.rs
+
+SHA-256 of packet files:
+7a15f3f7aa67f31e6e9334d0bde1a1ebc7215ef45352ccb063deac47433d1b1a  reviewed-contract.md
+183613a5ce784f5544411d785a7d805cad4f35963eaee94aa01ee16a934e1109  reviewed-dispatch.md
+977dd769808df5662605a0a322e8f57143a759877c01cb0ee6d67fe0aac56776  final-standards-review.md
+

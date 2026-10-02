@@ -1,0 +1,329 @@
+{
+  "url": "http://127.0.0.1:34659/",
+  "session": "offline-final-r",
+  "profile": "/var/tmp/frontend-offline-fix/profile-final-root",
+  "started": 1790927938600,
+  "verdict": "activated",
+  "state": {
+    "caches": [
+      {
+        "count": 51,
+        "name": "boardstudio-m1-offline-path-2f-frontend-parts-context-aria-20261002-root"
+      }
+    ],
+    "controller": true,
+    "regs": [
+      {
+        "active": "activated",
+        "scope": "http://127.0.0.1:34659/"
+      }
+    ],
+    "url": "http://127.0.0.1:34659/"
+  },
+  "events": [
+    {
+      "at": 1790927938659,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "0",
+            "scopeURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/",
+            "isDeleted": false
+          },
+          {
+            "registrationId": "1",
+            "scopeURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938659,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "0",
+            "registrationId": "0",
+            "scriptURL": "chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/thunk.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": [],
+            "targetId": "35D3E6D955F6BA9A564945D73284CD52"
+          },
+          {
+            "versionId": "1",
+            "registrationId": "1",
+            "scriptURL": "chrome-extension://glbjnfimcajjenihimblfaponejbkoph/background.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": [],
+            "targetId": "74B127F83B0A3DC7E9DF2572D7D95FBF"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938724,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "2",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938724,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 0,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938726,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "stopped",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938727,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": []
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938727,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "new",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938738,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "starting",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938738,
+      "method": "ServiceWorker.workerRegistrationUpdated",
+      "params": {
+        "registrations": [
+          {
+            "registrationId": "2",
+            "scopeURL": "http://127.0.0.1:34659/",
+            "isDeleted": false
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938738,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "installing",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938854,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "installed",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938854,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938854,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [
+              "97D2574BACFD41C63F003BCB871054CB"
+            ],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938855,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activating",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [
+              "97D2574BACFD41C63F003BCB871054CB"
+            ],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    },
+    {
+      "at": 1790927938855,
+      "method": "ServiceWorker.workerVersionUpdated",
+      "params": {
+        "versions": [
+          {
+            "versionId": "2",
+            "registrationId": "2",
+            "scriptURL": "http://127.0.0.1:34659/service-worker.js",
+            "runningStatus": "running",
+            "status": "activated",
+            "scriptLastModified": 0,
+            "scriptResponseTime": 1790927938.725438,
+            "controlledClients": [
+              "97D2574BACFD41C63F003BCB871054CB"
+            ],
+            "targetId": "52F43496CFF97E4CC271C2952B4E43C9"
+          }
+        ]
+      },
+      "sessionId": "464F899D000F98DB247325F5B9559FC9"
+    }
+  ],
+  "reload": "http://127.0.0.1:34659/",
+  "snapshot": "- heading \"BoardStudio\" [level=1, ref=e1]\n- tab \"Layout\" [selected, ref=e5]\n- tab \"PCB\" [ref=e6]\n- tab \"Keymap\" [ref=e7]\n- tab \"Keycaps\" [ref=e8]\n- tab \"Case\" [ref=e9]\n- tab \"Parts\" [ref=e10]\n- button \"Export\" [ref=e2]\n- combobox \"Theme\" [expanded=false, ref=e11]: System\n  - option \"System\" [selected, ref=e16]\n  - option \"Light\" [ref=e17]\n  - option \"Dark\" [ref=e18]\n- heading \"Open a keyboard\" [level=1, ref=e3]\n- region \"Your keyboards\" [ref=e4]\n  - heading \"Your keyboards\" [level=2, ref=e14]\n  - button \"REVIUNG41 copy\" [ref=e12]\n  - button \"Sofle v2 copy\" [ref=e13]\n  - button \"Import .boardstudio\" [ref=e15]: No file chosen",
+  "passed": true
+}

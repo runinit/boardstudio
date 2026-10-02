@@ -1,0 +1,19 @@
+Browser tool: agent-browser 0.38.1
+Browser engine: headless Chromium 154 (agent-browser session metadata)
+Candidate server: 127.0.0.1:34659, launched from web/target/builds/frontend-parts-context-aria-20261002
+Candidate provenance source_commit: f65b0c833694d1980ac71caa21d2f932cf785d53
+Candidate provenance.json SHA-256: 6299a61ce5c2daff97d1c0fadaf144a9c620021adc79365c0133e0f2533c72ef
+Candidate root manifest SHA-256: 524de11900115e9fb8e6e92d215b0deb152bdd2484983255e17a955ad8cc4c58
+Candidate root service-worker.js SHA-256: 9ee11ae27d59e8d7922d033b354c64290726c3422f685986adb691c20964c6a4
+Candidate root page WASM SHA-256: 52cad86c475b8c2fd3a28d1e2187cd74414c03a142f26b2445dad0e87032f433
+Candidate site-root/index.html SHA-256: 2b7385e5071271ad0ef01b7ef7a3524d0b8fd6609e4d2dbce97ef1407a7e3d28
+
+Baseline server: 127.0.0.1:34651, launched from web/target/builds/frontend-panels-47cf655b-20261002
+Baseline provenance source_commit: 47cf655baabde025628f15cae94e5b34e6dabaf4
+Baseline provenance.json SHA-256: 0b002d494b263ac63fa58b4bfb93b3607eaf4a925074b9a22a7435efc806556c
+Baseline root manifest SHA-256: 206c1a79c564c83c8f0d72ea1e04f9a7f74e30a5d94344a8dc124f393087adad
+Baseline root service-worker.js SHA-256: ab60f6366ee6fae99502a152114d0d3670d4017c89ef39625336adadcd351807
+Baseline root page WASM SHA-256: 25e8f3244a4b2edba7ff882eb5b79afd5509584c4b159993c681f9306be058c3
+Baseline site-root/index.html SHA-256: 02e580802bfcb04767c17c2fb04adb7a4409f0532f6b17ae12b312a4fa4d2779
+
+The two commits have identical SHA-256 for `web/src/runtime.rs` (a31deaa5a6aa124f716ac22f6f3ea6604e26fc0ce52d04d7277b8cf7be9ae34f), `web/src/host/offline.rs` (509b8606aa35ded510966ded13cf0f2e43947dd2e529a6b9377802b23c354ca4), and `web/src/service_worker.rs` (e972d7af29d1b3ab2e90b088527218ea2f3a0cd685c02b488bcdfbe059cbcea2). Both were tested through the same local `serve-release.mjs` and browser automation. See `DIAGNOSIS.md` for interpretation limits.
