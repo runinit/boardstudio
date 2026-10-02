@@ -46,7 +46,7 @@ pub(in crate::presentation) fn KeymapPanel(
                     for (index, layer) in view.layers.iter().enumerate() {
                         {
                             let id = layer.id.clone();
-                            let selected_layer = active_layer.is_some_and(|active| active.id == layer.id.as_ref());
+                            let selected_layer = active_layer.is_some_and(|active| active.id.as_ref() == layer.id.as_ref());
                             rsx! {
                                 button {
                                     key: "{id}",
