@@ -56,6 +56,7 @@ pub(crate) fn standard_assembly_layers(
     .collect::<Vec<_>>();
     for (id, label) in generated {
         if id != "pcb" && !layers.iter().any(|layer| layer.id == id) {
+            let label = assembly_layer_label(&id, &label);
             layers.push(CaseAssemblyLayer {
                 id,
                 label,
@@ -84,13 +85,7 @@ pub(crate) fn assembly_layers_with_stack(
         if layers.iter().any(|layer| layer.id == row_id) {
             continue;
         }
-        let label = match id.as_str() {
-            "plate" => "Plate".to_owned(),
-            "plate-foam" => "Plate foam".to_owned(),
-            "bottom-foam" => "Bottom foam".to_owned(),
-            "bottom" => "Bottom".to_owned(),
-            _ => id.clone(),
-        };
+        let label = assembly_layer_label(&id, &id);
         layers.push(CaseAssemblyLayer {
             id: row_id.to_owned(),
             label,
@@ -102,6 +97,16 @@ pub(crate) fn assembly_layers_with_stack(
         });
     }
     layers
+}
+
+fn assembly_layer_label(id: &str, fallback: &str) -> String {
+    match id {
+        "plate" => "Plate".to_owned(),
+        "plate-foam" => "Plate foam".to_owned(),
+        "bottom-foam" => "Bottom foam".to_owned(),
+        "bottom" => "Bottom".to_owned(),
+        _ => fallback.to_owned(),
+    }
 }
 
 /// Project the accepted preview rows into layer controls without changing their
@@ -443,7 +448,7 @@ mod tests {
             LayerAvailability::Unavailable("No generated geometry".into())
         );
         let plate = layers.iter().find(|layer| layer.id == "plate").unwrap();
-        assert_eq!(plate.label, "Plate body");
+        assert_eq!(plate.label, "Plate");
         assert_eq!(plate.availability, LayerAvailability::Available);
     }
 
@@ -472,7 +477,7 @@ mod tests {
             battery.get_attribute("aria-pressed").as_deref(),
             Some("false")
         );
-        let plate = element("#m1-case-assembly-layers-list [aria-label='Hide Plate body']");
+        let plate = element("#m1-case-assembly-layers-list [aria-label='Hide Plate']");
         assert!(!plate.has_attribute("disabled"));
         assert_eq!(plate.get_attribute("aria-pressed").as_deref(), Some("true"));
 
