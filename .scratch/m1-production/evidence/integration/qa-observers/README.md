@@ -1,0 +1,24 @@
+# Final active-restore and physical-instance QA harness
+
+These are test-only artifacts. They do not modify application JavaScript, Rust, the staged HTML, database records, or production storage formats. Use the immutable maintained release directory supplied by the build provenance, and retain its exact source/assets map beside every result.
+
+## Browser observer
+
+`hold-active-project-read.js` is supplied with `agent-browser --init-script` before the first navigation. It wraps the native `IDBRequest.onsuccess` setter and holds exactly one successful request whose source store is `projects` and whose result ID equals the real active-project preference at page start. The IndexedDB request and stored bytes are real; only invocation of that event callback is held. Read `window.__m1Qa` to capture the request source/result and hold count, then call `window.__m1Qa.releaseActiveProjectRead()` to deliver the original event to the real application handler. This does not inspect or call Runtime, Session, or application private state. If the native IDL setter cannot be wrapped, the observer reports `unsupported` and that race must not be claimed.
+
+## Owned asset server
+
+Run `node .scratch/m1-production/evidence/integration/qa-observers/serve-startup-restore-qa.mjs <maintained-build-directory> [port] [--no-sw]`. It serves the exact root/subpath staged files and reports request/gate status at `/__qa/status`. The optional `--no-sw` switch returns 404 for the service-worker scripts and is only for cold worker tests; do not use that origin for offline acceptance.
+
+After the initial UI and Core worker are ready, POST `/__qa/arm-core`, reload, and wait for `/__qa/status` to show a pending core gate. This holds the real fetched `assets/core-worker/m1_core_worker_bg.wasm` response; POST `/__qa/release-core` to return the exact staged bytes. For delayed CAD, first open/save a fixture, POST `/__qa/arm-cad`, start Generate, wait for pending CAD, change board/physical scope, then POST `/__qa/release-cad`. The server counts observed bytes and responses; it does not synthesize module or worker replies.
+
+## Final run matrix
+
+1. Confirm the maintained release source hash, both root/subpath asset maps, single page WASM per prefix, and this server's resolved site paths. Use fresh named browser contexts for `/` and `/boardstudio/`.
+2. On each prefix, open the Sofle copy, wait for save completion, reload online, and confirm the editor, document, Left PCB, and Canonical board restore. Verify each scope's preference/database key is independent. Then use the browser's offline mode, reload the controlled page, and confirm the cached editor restores. This is valid only when the release's service worker controls the page and the response maps prove the exact release assets were staged.
+3. On each prefix, separately remove the active preference and reload: the library should remain usable without a false restore. Separately set the scoped preference to a missing ID and reload: the library and saved copy should remain available with the missing-project status. A simulated preference API exception may use a separate init script; label that result as an injected API-error path, not a browser storage failure.
+4. For the open-order race, open/save Sofle, install the one-shot observer before reloading, and verify it holds the actual startup `projects.get(activeId)` result. Before releasing it, open the REVIUNG demo via its public library control. Capture the explicit open and resulting document in worker message observations; release the delayed IDB callback and confirm the newer explicit document remains active. Record whether the startup core Open was already submitted before the explicit open; do not infer this from the delayed database callback alone.
+5. For worker readiness, start a separate fresh context against the owned `--no-sw` origin, open/save a fixture, arm the core gate, reload, and confirm the exact worker WASM request is pending. Release the exact bytes and verify the startup restore settles. This isolates actual Core WASM readiness from the separately delayed IDB callback.
+6. For stale CAD scope, arm CAD only after a saved fixture is loaded, start Generate, wait for the real CAD WASM request to be held, change physical instance and then board through public selectors, and release the CAD response. Verify canceled work does not populate a stale case result/canvas; verify a fresh same-scope Generate succeeds once the gate is released. Record actual scope labels, visible status, renderer/canvas disposal, and console errors.
+
+Capture viewport snapshots only for affected controls and scope transitions; the focused artifact already covered 390×640 and 920×500 layout, keyboard selection, and raw axe with zero violations plus an SVG contrast incomplete. Do not claim physical screen-reader output or root-tab-close lifecycle from these browser probes.
