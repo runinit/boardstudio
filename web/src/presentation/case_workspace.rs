@@ -168,6 +168,9 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
 
     let mut rows = Vec::new();
     for instance in &instances {
+        let root_scope =
+            assembly_display_scope(&scope, &instance.board_id, instance.instance_id.clone());
+        let root_display = input.case_selection.display_value(&root_scope);
         let root_key = format!("case-assembly:{}", instance.id);
         let active = instance.id == active_root_id && instance.board_id == scope.board_id;
         let collapsed = current_expanded.contains(&root_key);
@@ -186,7 +189,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
             }),
             part_context: None,
             visibility_id: Some("Assembly".into()),
-            visible: is_visible(&display, "Assembly"),
+            visible: is_visible(&root_display, "Assembly"),
         });
         if !active || collapsed {
             continue;
@@ -411,7 +414,21 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                             let expanded_for_key = toggle_scope;
                             let scope_for_click = scope.clone();
                             let scope_for_key = scope.clone();
-                            let scope_for_visibility = scope.clone();
+                            let scope_for_visibility = row_action
+                                .as_ref()
+                                .and_then(|action| match action {
+                                    TreeAction::SelectAssembly {
+                                        scope,
+                                        board_id,
+                                        instance_id,
+                                    } => Some(assembly_display_scope(
+                                        scope,
+                                        board_id,
+                                        instance_id.clone(),
+                                    )),
+                                    _ => None,
+                                })
+                                .unwrap_or_else(|| scope.clone());
                             let action_handler = on_action;
                             let select_handler = on_select;
                             let row_selectable = row.selectable;
@@ -737,7 +754,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
     let display_id_for_visibility = display_id_for_color.clone();
     let visible = active_display_layer
         .as_ref()
-        .is_some_and(|(_, id)| is_visible(&display, id));
+        .is_some_and(|(_, id)| is_inspector_visible(&display, id));
     let color = active_display_layer
         .as_ref()
         .and_then(|(_, id)| display.color(id))
@@ -835,6 +852,21 @@ fn is_visible(display: &CaseDisplay, id: &str) -> bool {
         .all(|alias| display.hidden.contains(alias))
 }
 
+fn is_inspector_visible(display: &CaseDisplay, id: &str) -> bool {
+    !preference_ids(id)
+        .iter()
+        .any(|alias| display.hidden.contains(alias))
+}
+
+fn assembly_display_scope(scope: &Scope, board_id: &str, instance_id: Option<String>) -> Scope {
+    Scope {
+        session_epoch: scope.session_epoch,
+        document_id: scope.document_id.clone(),
+        board_id: board_id.to_owned(),
+        instance_id,
+    }
+}
+
 fn toggle_visibility(selection: CaseSelection, scope: &Scope, id: &str) {
     let mut display = selection.display_value(scope);
     let aliases = preference_ids(id);
@@ -848,6 +880,22 @@ fn toggle_visibility(selection: CaseSelection, scope: &Scope, id: &str) {
         }
     }
     selection.save_display(scope, display);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inspector_visibility_requires_every_alias_to_be_visible_while_tree_uses_all_hidden() {
+        let display = CaseDisplay {
+            hidden: vec!["PCB".into()],
+            ..CaseDisplay::default()
+        };
+
+        assert!(is_visible(&display, "pcb"));
+        assert!(!is_inspector_visible(&display, "pcb"));
+    }
 }
 
 struct CaseRoot {
