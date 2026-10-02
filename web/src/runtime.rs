@@ -997,21 +997,6 @@ impl Runtime {
         if !self.native_preview_snapshot_is_current(&preview) {
             return Ok(());
         }
-        {
-            let mut state = self.native_model_delivery.borrow_mut();
-            if state
-                .published
-                .as_ref()
-                .is_some_and(|(owner, _)| owner == &preview.owner)
-                || state.pending.as_ref() == Some(&preview.owner)
-            {
-                return Ok(());
-            }
-            state.published = None;
-            state.pending = Some(preview.owner.clone());
-        }
-        self.changed();
-
         let owner = crate::presentation::model_delivery::ModelOwnerIdentity::new(
             preview.owner.scope.clone(),
             preview.owner.snapshot_token,
@@ -1034,34 +1019,20 @@ impl Runtime {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let model_asset_ids =
-            match crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
-                .await
-            {
-                Ok(model_asset_ids) => model_asset_ids,
-                Err(error) => {
-                    let owns_pending = self.native_model_delivery.borrow().pending.as_ref()
-                        == Some(&preview.owner);
-                    if owns_pending {
-                        self.native_model_delivery.borrow_mut().pending = None;
-                        self.changed();
-                    }
-                    return Err(error);
-                }
-            };
-        if model_asset_ids.len() != unique_model_paths.len() {
-            let owns_pending =
-                self.native_model_delivery.borrow().pending.as_ref() == Some(&preview.owner);
-            if owns_pending {
-                self.native_model_delivery.borrow_mut().pending = None;
-                self.changed();
-            }
-            return Err("Ergogen returned an incomplete model path mapping".into());
-        }
-        let ergogen_ids_by_path = unique_model_paths
-            .into_iter()
-            .zip(model_asset_ids)
-            .collect::<BTreeMap<_, _>>();
+        let Some(ergogen_ids_by_path) = resolve_native_model_paths(
+            &self.native_model_delivery,
+            &preview.owner,
+            unique_model_paths,
+            || self.native_preview_snapshot_is_current(&preview),
+            || self.changed(),
+            |paths| async move {
+                crate::bundled_models::generated_model_asset_ids_for_paths(&paths).await
+            },
+        )
+        .await?
+        else {
+            return Ok(());
+        };
         let selections = crate::presentation::model_delivery::resolve_preview_assets(
             &preview.preview.models,
             None,
@@ -2131,11 +2102,78 @@ impl Runtime {
 #[derive(Default)]
 struct NativeModelDeliveryState {
     pending: Option<crate::case_preview::CasePreviewOwnerIdentity>,
+    failed: Option<crate::case_preview::CasePreviewOwnerIdentity>,
     published: Option<(
         crate::case_preview::CasePreviewOwnerIdentity,
         crate::presentation::model_delivery::ModelDeliveryRows,
     )>,
 }
+
+/// Admission and mapping completion for the version-triggered Case delivery callback.
+async fn resolve_native_model_paths<
+    F: std::future::Future<Output = Result<Vec<Option<String>>, String>>,
+>(
+    state: &RefCell<NativeModelDeliveryState>,
+    owner: &crate::case_preview::CasePreviewOwnerIdentity,
+    paths: Vec<String>,
+    is_current: impl Fn() -> bool,
+    changed: impl Fn(),
+    resolve: impl FnOnce(Vec<String>) -> F,
+) -> Result<Option<BTreeMap<String, Option<String>>>, String> {
+    if !is_current() {
+        return Ok(None);
+    }
+    {
+        let mut state = state.borrow_mut();
+        if state
+            .published
+            .as_ref()
+            .is_some_and(|(published, _)| published == owner)
+            || state.pending.as_ref() == Some(owner)
+            || state.failed.as_ref() == Some(owner)
+        {
+            return Ok(None);
+        }
+        state.published = None;
+        state.failed = None;
+        state.pending = Some(owner.clone());
+    }
+    changed();
+    let result = resolve(paths.clone()).await.and_then(|ids| {
+        if ids.len() == paths.len() {
+            Ok(ids)
+        } else {
+            Err("Ergogen returned an incomplete model path mapping".into())
+        }
+    });
+    // Mapping imports may outlive the preview lease or a replacement request.
+    // Stale completion must neither retire the replacement nor escape to global status.
+    if !is_current() || state.borrow().pending.as_ref() != Some(owner) {
+        let mut state = state.borrow_mut();
+        if state.pending.as_ref() == Some(owner) {
+            state.pending = None;
+        }
+        return Ok(None);
+    }
+    match result {
+        Ok(ids) => Ok(Some(paths.into_iter().zip(ids).collect())),
+        Err(error) => {
+            {
+                let mut state = state.borrow_mut();
+                state.pending = None;
+                // Runtime::report also notifies the version subscriber. Retain this exact
+                // failure before notifying so it cannot automatically admit itself again.
+                state.failed = Some(owner.clone());
+            }
+            changed();
+            Err(error)
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "native_model_mapping_tests.rs"]
+mod native_model_mapping_tests;
 
 fn validate_preview_worker_envelope(
     reply: &serde_json::Value,

@@ -1,0 +1,149 @@
+   Compiling const-oid v0.10.2
+   Compiling boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/case-model-mapping-failure-repair-20261002/contracts/rust)
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/case-model-mapping-failure-repair-20261002/core)
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/case-model-mapping-failure-repair-20261002/web)
+   Compiling boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/case-model-mapping-failure-repair-20261002/application)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 24s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-f9c248501ec83baf.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:35123/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 2 tests
+test runtime::native_model_mapping_tests::failed_mapping_notifier_does_not_readmit_the_same_preview ... FAIL
+test runtime::native_model_mapping_tests::delayed_old_owner_mapping_failure_cannot_report_into_replacement ... FAIL
+
+failures:
+
+---- runtime::native_model_mapping_tests::failed_mapping_notifier_does_not_readmit_the_same_preview output ----
+    error output:
+        panicked at src/native_model_mapping_tests.rs:66:9:
+        assertion `left == right` failed: a failed preview is terminal until its owner changes
+          left: 8
+         right: 1
+
+        Stack:
+
+        Error
+            at http://127.0.0.1:37455/wasm-bindgen-test:1351:25
+            at logError (http://127.0.0.1:37455/wasm-bindgen-test:2214:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:37455/wasm-bindgen-test:1350:57)
+            at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[92406]:0x12a5243)
+            at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[53519]:0x10f9cdd)
+            at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[20440]:0xd35018)
+            at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[56266]:0x1123ae4)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[17388]:0xc8b2c4)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[33528]:0xf40a9a)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[93748]:0x12a92b2)
+
+
+
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[94112]:0x12a9d84)
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[94055]:0x12a9c74)
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[92671]:0x12a616a)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[17388]:0xc8b337)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[33528]:0xf40a9a)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[93748]:0x12a92b2)
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[73172]:0x11f9fd2)
+            at boardstudio_web-f9c248501ec83baf.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[55829]:0x111d4a6)
+            at boardstudio_web-f9c248501ec83baf.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[15028]:0xbf208a)
+            at boardstudio_web-f9c248501ec83baf.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<i32, i32> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[43735]:0x1048e0a)
+
+---- runtime::native_model_mapping_tests::delayed_old_owner_mapping_failure_cannot_report_into_replacement output ----
+    error output:
+        panicked at src/native_model_mapping_tests.rs:93:5:
+        assertion `left == right` failed: stale failure must not reach the caller's global report callback
+          left: Err("old module import rejected")
+         right: Ok(None)
+
+        Stack:
+
+        Error
+            at http://127.0.0.1:37455/wasm-bindgen-test:1351:25
+            at logError (http://127.0.0.1:37455/wasm-bindgen-test:2214:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:37455/wasm-bindgen-test:1350:57)
+            at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[92406]:0x12a5243)
+            at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[53519]:0x10f9cdd)
+            at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[20440]:0xd35018)
+            at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[56266]:0x1123ae4)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[17388]:0xc8b2c4)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[33528]:0xf40a9a)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[93748]:0x12a92b2)
+
+
+
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[94112]:0x12a9d84)
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[94055]:0x12a9c74)
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[92671]:0x12a616a)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[17388]:0xc8b337)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[33528]:0xf40a9a)
+            at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[93748]:0x12a92b2)
+            at boardstudio_web-f9c248501ec83baf.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[73172]:0x11f9fd2)
+            at boardstudio_web-f9c248501ec83baf.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[55829]:0x111d4a6)
+            at boardstudio_web-f9c248501ec83baf.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[15028]:0xbf208a)
+            at boardstudio_web-f9c248501ec83baf.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<core[f0fd674eaa06beef]::result::Result<core[f0fd674eaa06beef]::option::Option<alloc[ae94343a5edb5677]::collections::btree::map::BTreeMap<alloc[ae94343a5edb5677]::string::String, core[f0fd674eaa06beef]::option::Option<alloc[ae94343a5edb5677]::string::String>>>, alloc[ae94343a5edb5677]::string::String>, core[f0fd674eaa06beef]::result::Result<core[f0fd674eaa06beef]::option::Option<alloc[ae94343a5edb5677]::collections::btree::map::BTreeMap<alloc[ae94343a5edb5677]::string::String, core[f0fd674eaa06beef]::option::Option<alloc[ae94343a5edb5677]::string::String>>>, alloc[ae94343a5edb5677]::string::String>> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[43131]:0x103baf2)
+
+failures:
+
+    runtime::native_model_mapping_tests::failed_mapping_notifier_does_not_readmit_the_same_preview
+    runtime::native_model_mapping_tests::delayed_old_owner_mapping_failure_cannot_report_into_replacement
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 5 filtered out; finished in 0.05s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: runtime::native_model_mapping_tests::failed_mapping_notifier_does_not_readmit_the_same_preview
+    panicked at src/native_model_mapping_tests.rs:66:9:
+    assertion `left == right` failed: a failed preview is terminal until its owner changes
+      left: 8
+     right: 1
+
+    Stack:
+
+    Error
+        at http://127.0.0.1:37455/wasm-bindgen-test:1351:25
+        at logError (http://127.0.0.1:37455/wasm-bindgen-test:2214:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:37455/wasm-bindgen-test:1350:57)
+        at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[92406]:0x12a5243)
+        at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[53519]:0x10f9cdd)
+        at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[20440]:0xd35018)
+        at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[56266]:0x1123ae4)
+        at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[17388]:0xc8b2c4)
+        at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[33528]:0xf40a9a)
+        at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[93748]:0x12a92b2)
+
+
+    Invoking test: runtime::native_model_mapping_tests::delayed_old_owner_mapping_failure_cannot_report_into_replacement
+    panicked at src/native_model_mapping_tests.rs:93:5:
+    assertion `left == right` failed: stale failure must not reach the caller's global report callback
+      left: Err("old module import rejected")
+     right: Ok(None)
+
+    Stack:
+
+    Error
+        at http://127.0.0.1:37455/wasm-bindgen-test:1351:25
+        at logError (http://127.0.0.1:37455/wasm-bindgen-test:2214:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:37455/wasm-bindgen-test:1350:57)
+        at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[92406]:0x12a5243)
+        at boardstudio_web-f9c248501ec83baf.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[53519]:0x10f9cdd)
+        at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[20440]:0xd35018)
+        at boardstudio_web-f9c248501ec83baf.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[56266]:0x1123ae4)
+        at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[17388]:0xc8b2c4)
+        at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[33528]:0xf40a9a)
+        at boardstudio_web-f9c248501ec83baf.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:37455/wasm-bindgen-test_bg.wasm:wasm-function[93748]:0x12a92b2)
+
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-f9c248501ec83baf.wasm native_model_mapping_tests` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.

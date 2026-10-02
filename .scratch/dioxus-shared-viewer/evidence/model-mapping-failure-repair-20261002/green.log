@@ -1,0 +1,16 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/case-model-mapping-failure-repair-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.13s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-f9c248501ec83baf.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:42193/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 5 tests
+test runtime::native_model_mapping_tests::stale_mapping_success_cannot_enter_delivery_or_replace_pending ... ok
+test runtime::native_model_mapping_tests::obsolete_failure_keeps_new_owner_pending_and_emits_no_report ... ok
+test runtime::native_model_mapping_tests::new_preview_retries_after_failure_and_success_keeps_batch_pending ... ok
+test runtime::native_model_mapping_tests::failed_mapping_notifier_does_not_readmit_the_same_preview ... ok
+test runtime::native_model_mapping_tests::delayed_old_owner_mapping_failure_cannot_report_into_replacement ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 5 filtered out; finished in 0.01s
