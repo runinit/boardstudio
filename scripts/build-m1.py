@@ -19,8 +19,16 @@ def digest(path):
 
 def sources():
     paths = subprocess.check_output(["git", "ls-files", "-z"], cwd=REPO).decode().split("\0")
+    # Match the provider's recursive model enumeration, including newly added
+    # source models that have not yet been staged in Git.
+    vendor = REPO / "ergogen/library/vendor"
+    paths = sorted(set(paths) | {
+        path.relative_to(REPO).as_posix()
+        for path in vendor.glob("*/3d_models/**/*")
+        if path.is_file() and path.suffix.lower() in {".step", ".stp", ".stl", ".wrl"}
+    })
     return {name: digest(REPO / name) for name in paths if name and
-            (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/", "app/src/", "app/public/", "scripts/")) or name == "rust-toolchain.toml") and (REPO / name).is_file()}
+            (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/", "kicad/src/", "app/src/", "app/public/", "scripts/", "ergogen/library/vendor/", "ergogen/src/", "ergogen/generated/")) or name == "rust-toolchain.toml") and (REPO / name).is_file()}
 
 
 def main():
@@ -54,6 +62,12 @@ def main():
     run("renderer", ["wasm-pack", "build", REPO / "renderer", "--target", "web", "--out-dir", output / "renderer", "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"])
     run("cad", ["pnpm", "--dir", "cad", "run", "build:wasm"])
     run("fixtures", ["node", REPO / "scripts/prepare-m1-fixtures.mjs", output / "fixtures"])
+    run("layout-generators", ["node", REPO / "scripts/web/build-layout-generators.mjs", WEB / "assets"])
+    run("preview-generator", ["node", REPO / "scripts/web/build-preview-generator.mjs", WEB / "assets"])
+    run("ergogen-models", [sys.executable, REPO / "scripts/stage-ergogen-models.py",
+                           "--source-root", REPO / "ergogen/library/vendor",
+                           "--destination", WEB / "assets/ergogen-models",
+                           "--manifest", output / "ergogen-models-catalog.json"])
     for mode, prefix in [("root", "/"), ("subpath", "/boardstudio/")]:
         public = WEB / "target/dx/boardstudio-web/release/web/public"
         # Dioxus retains prior hashed assets. Preserve them outside this release
