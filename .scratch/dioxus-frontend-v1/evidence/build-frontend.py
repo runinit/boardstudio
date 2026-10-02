@@ -32,6 +32,9 @@ def run(label,args,cwd=ROOT,extra=None):
 run('layout-generators',['node','scripts/web/build-layout-generators.mjs',str(out/'layout-generator-assets')])
 for p in ['ergogen/src/index.ts','ergogen/generated/catalogue.mjs','scripts/web/build-layout-generators.mjs']:
  source[p]=sha(ROOT/p)
+run('preview-generator',['node','scripts/web/build-preview-generator.mjs',str(out/'preview-generator-assets')])
+for p in ['scripts/web/build-preview-generator.mjs','scripts/web/preview-generator-worker.ts','kicad/src/ergogen.ts']:
+ source[p]=sha(ROOT/p)
 for mode,prefix in [('root','/'),('subpath','/boardstudio/')]:
  public=WEB/'target/dx/boardstudio-web/release/web/public'
  if public.exists():shutil.move(public,out/f'previous-dx-public-{mode}')
@@ -45,6 +48,7 @@ for mode,prefix in [('root','/'),('subpath','/boardstudio/')]:
   if p.is_file():target=dest/p.relative_to(public);target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(p,target)
  shutil.copytree(WEB/'assets',dest/'assets',dirs_exist_ok=True)
  shutil.copytree(out/'layout-generator-assets',dest/'assets',dirs_exist_ok=True)
+ shutil.copytree(out/'preview-generator-assets',dest/'assets',dirs_exist_ok=True)
  manifest=out/f'offline-manifest-{mode}.json'
  assets=sorted({str(p.relative_to(dest)) for p in dest.rglob('*') if p.is_file()}|{'service-worker.js','boardstudio_offline_worker.js'})
  manifest.write_text(json.dumps({'version':name+'-'+mode,'assets':assets},indent=2)+'\n')
