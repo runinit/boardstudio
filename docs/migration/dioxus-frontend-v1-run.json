@@ -1,7 +1,7 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Parallel frontend implementation active; F1 and scoped F3a verified; T1-10 hierarchy/unowned public subset passes on 515f390d and typed selected-context summary is mounted on e510dd4c with targeted numeric public QA passed; remaining public proof pending; Parts integration checks/build pass; full F2–F9 remain open",
+  "status": "Parallel frontend implementation active; F1 and scoped F3a verified; T1-10 hierarchy/unowned public subset passes on 515f390d and typed selected-context summary is mounted on e510dd4c with targeted numeric public QA passed; remaining public proof pending; Parts integration checks/build pass; full F2\u2013F9 remain open",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
@@ -10,7 +10,7 @@
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
     "F1": {
-      "status": "verified first increment; full parity remains F2–F9",
+      "status": "verified first increment; full parity remains F2\u2013F9",
       "ticket": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md",
       "depends_on": "M1 implementation"
     },
@@ -177,14 +177,15 @@
   "automatic_ticket_frontier": true,
   "implementation_authority": "2026-10-02 user requested implementation and automatic agent-created next tickets",
   "bounded_ticket_tracking": {
-    "published_bounded_tickets": 23,
+    "published_bounded_tickets": 24,
     "canonical_parent_tasks": 62,
     "new_publication_folders": [
       ".scratch/dioxus-shared-viewer",
       ".scratch/dioxus-case-workspace",
       ".scratch/dioxus-export-workspace"
     ],
-    "parent_completion": "No parent task or milestone is closed by ticket publication or partial implementation evidence."
+    "parent_completion": "No parent task or milestone is closed by ticket publication or partial implementation evidence.",
+    "latest_ticket": ".scratch/dioxus-parts-catalogue/issues/03-isolated-library-preview.md"
   },
   "current_partial_evidence": {
     "T1-10": {
@@ -195,8 +196,8 @@
         ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-hierarchy.json",
         ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-unowned.json"
       ],
-      "accessibility_gate": "Critical aria-required-children remains open in candidate and reference; no waiver. Semantics repair f65b is under independent review, not integrated or accepted. Actual assistive-technology evidence remains a separate gate.",
-      "latest_integrated_source": "e510dd4c",
+      "accessibility_gate": "Private row semantics repair f65b0c83 independently reviewed, integrated and built; fresh browser axe and actual assistive-technology checks remain open. No waiver.",
+      "latest_integrated_source": "f65b0c83",
       "mounted": "Typed selected-context summary is mounted; targeted numeric public QA passes; remaining selected-context public proof is pending.",
       "latest_evidence": [
         ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json",
