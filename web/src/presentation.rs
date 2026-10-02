@@ -992,8 +992,11 @@ fn Editor() -> Element {
                                     for cell in projected.cells.iter().filter(|cell| cell.enabled) {
                                         {
                                             let member = cell.member_id.as_deref().and_then(|id| visible.iter().find(|part| part.id == id));
-                                            let member_definition = member.and_then(|part| definitions.get(part.definition_id.as_str()).copied());
-                                            let size = resolved_matrix_keycap(member, member_definition, matrix);
+                                            let cell_definition = match member {
+                                                Some(part) => definitions.get(part.definition_id.as_str()).copied(),
+                                                None => definitions.get(matrix.definition_id.as_str()).copied(),
+                                            };
+                                            let size = resolved_matrix_keycap(member, cell_definition, matrix);
                                             let pose = cell.pose;
                                             let selected = cell.member_id.as_ref().is_some_and(|id| model.selected_part_ids.contains(id));
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}" } }
