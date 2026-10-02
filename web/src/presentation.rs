@@ -102,7 +102,7 @@ struct OwnedTreeCellAnchor {
 }
 
 #[derive(Clone, Copy)]
-struct WorkspaceState(Signal<&'static str>);
+pub(super) struct WorkspaceState(pub(super) Signal<&'static str>);
 /// The explicit UI preference is separate from Session's effective instance.
 #[derive(Clone, Copy)]
 pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference>>);
@@ -1486,6 +1486,8 @@ fn Editor() -> Element {
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
+    let parts_selection_generation = use_signal(|| 0u64);
+    use_context_provider(|| parts::PartsSelectionGeneration(parts_selection_generation));
     let layout_target: Signal<Option<String>> = use_signal(|| None);
     let mut keymap_layer_id = use_signal(|| "base".to_owned());
     let has_inspector = matches!(

@@ -24,6 +24,9 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 pub(super) type PartsQuery = Signal<String>;
 pub(super) type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
 
+#[derive(Clone, Copy)]
+pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
+
 #[derive(Clone)]
 struct CatalogueView {
     entries: Option<Rc<Vec<CatalogEntry>>>,
@@ -139,6 +142,7 @@ pub(super) fn PartsLibraryPanel(
     on_select: EventHandler<()>,
 ) -> Element {
     let mut view_generation = use_signal(|| 0_u64);
+    let mut generation = use_context::<PartsSelectionGeneration>().0;
     let catalogue = use_catalogue(&snapshot, &scope);
     let content = if let Some(entries) = catalogue.entries {
         let choices = group_choices(&entries);
@@ -171,6 +175,7 @@ pub(super) fn PartsLibraryPanel(
                     oninput: move |event: FormEvent| {
                         query.set(event.value());
                         view_generation.set(view_generation() + 1);
+                        generation.with_mut(|value| *value = value.wrapping_add(1));
                     },
                 }
             }
@@ -200,6 +205,7 @@ pub(super) fn PartsLibraryPanel(
                                             onclick: move |_| {
                                                 selected.set(Some((scope.clone(), id.clone())));
                                                 view_generation.set(view_generation() + 1);
+                                                generation.with_mut(|value| *value = value.wrapping_add(1));
                                                 on_select.call(());
                                             },
                                             "{preferred_label(&entry.definition)}"
