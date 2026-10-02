@@ -4,10 +4,10 @@ This is the Dioxus side of the existing pinned-React Key-size/reflow journey. It
 
 ## Source and fixture identity
 
-- React oracle: `http://127.0.0.1:5173/`, commit `5a472a9426e6e38993361da402cd4ec730feb369`, exact clean run and source evidence in [the React packet](../../../retained-tmp/20261002/keycaps-react-paired-journey-5173.md) (SHA-256 `8b009cfbb3c248a7844ce777c6c4bb0006207a6eafe45b96f5658cf733667727`).
+- React oracle: `http://127.0.0.1:5173/`, commit `5a472a9426e6e38993361da402cd4ec730feb369`, exact clean run and source evidence in [the React packet](/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-react-paired-journey-5173.md) (SHA-256 `8b009cfbb3c248a7844ce777c6c4bb0006207a6eafe45b96f5658cf733667727`).
 - Dioxus candidate: `http://127.0.0.1:34732/`, full-package source commit `9d34f3672f4f05cb3771bc5cd358508b13e9c31f`; build manifest `/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-workbench-parity-joined-20261002/provenance.json`, SHA-256 `4bc856174b33998c5cf99f4c05a8ba35ad7ab4ce7705bfece6510cdd4467544e`. The manifest says `status: complete`, records 1,328 source hashes and 145 packaged assets. Root reports the package/route inventory was independently verified.
 - Candidate server: PID 3303978, `frontend-workbench-parity-joined-server-20261002.py`; root `/home/chris/01_Projects/ts-boardstudio2`, Keycaps build served from `web/target/builds/frontend-workbench-parity-joined-20261002/site-root` with subpath assets served from its `site-subpath`.
-- Browser: isolated `agent-browser` session `keycaps-dioxus-joined-9d34`, URL above, 1280×940. The user’s in-app browser was not navigated.
+- Browser: isolated `agent-browser` session `keycaps-dioxus-joined-9d34`, URL above. The retained Dioxus PNG captures are 1280×577; the browser viewport was not independently recorded, so this is not viewport-matched visual evidence against the 1280×940 React captures. The user’s in-app browser was not navigated.
 - Input archive: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/dioxus-34726-fixture-models-false.boardstudio`, SHA-256 `c6ea3c0f72f999ee6736d1e65b6b2c36105b52c5a8d511285ffdc01695aa9d7e`; embedded project JSON SHA-256 `981c8978101286985b2f5220e8af18a612037f5fc7cd892a52fcb881f39eae7f`. Project ID `m1-sofle-v2-copy`, Sofle v2, revision 9, 140 parts, two boards and keys/thumbs matrices; no authored keycap overrides. This is the distinct retained c6 fixture. Missing original f2 provenance remains missing and unwaived.
 
 ## Dioxus replay result
