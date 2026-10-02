@@ -3,6 +3,8 @@ mod cad_presentation;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod renderer_host_page;
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod runtime;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
@@ -15,6 +17,13 @@ mod instance_selection;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "presentation/footprint_forms.rs"]
 mod footprint_forms;
+
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+mod renderer_host_source_sync;
+
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+#[path = "presentation/case_display.rs"]
+mod case_display;
 
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]

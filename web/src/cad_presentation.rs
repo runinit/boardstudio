@@ -1,20 +1,10 @@
 //! Canvas lifetime and case controls consume immutable session snapshots.
-use crate::runtime::{CadScene, Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Event, GenerationStatus, Lifecycle};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
-use boardstudio_web::{
-    cad_jobs::captured_case_document, case_settings, renderer_host::RendererHost,
-};
+use boardstudio_web::{cad_jobs::captured_case_document, case_settings};
 use dioxus::prelude::*;
-use dioxus_web::WebEventExt;
-use js_sys::{Array, Float32Array, Object, Reflect};
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
-use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::spawn_local;
-use web_sys::HtmlCanvasElement;
+use std::rc::Rc;
 
 #[component]
 pub fn CasePanel() -> Element {
@@ -116,7 +106,7 @@ pub fn CasePanel() -> Element {
             p { role: "status", "aria-live": "polite", "{title}" }
             p { "PCB reference is unpopulated; case bodies use exact CAD geometry." }
             if let Some(scene) = scene {
-                CaseCanvas { key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}", scene }
+                crate::presentation::CaseViewer { key: "{scene.scope.session_epoch.0}:{scene.scope.board_id}:{scene.scope.instance_id:?}", scene }
             }
         }
     }
@@ -199,141 +189,4 @@ fn set_settings(
         }
         Err(error) => runtime.report(error),
     }
-}
-
-#[component]
-fn CaseCanvas(scene: Rc<CadScene>) -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let host = use_hook(|| Rc::new(RefCell::new(None::<RendererHost>)));
-    let alive = use_hook(|| Rc::new(Cell::new(true)));
-    let mounted = use_signal(|| false);
-    let source = use_hook(|| Rc::new(RefCell::new(scene.clone())));
-    *source.borrow_mut() = scene.clone();
-    use_drop({
-        let alive = alive.clone();
-        let host = host.clone();
-        move || {
-            alive.set(false);
-            if let Some(host) = host.borrow_mut().take() {
-                let _ = host.dispose();
-            }
-        }
-    });
-    use_effect(use_reactive((&scene,), {
-        let host = host.clone();
-        let runtime = runtime.clone();
-        move |(scene,)| {
-            if mounted()
-                && let Some(host) = host.borrow().as_ref()
-                && let Err(error) =
-                    scene_input(&scene, true).and_then(|input| host.update_scene(input))
-            {
-                runtime.report(error);
-            }
-        }
-    }));
-    let mount = {
-        let host = host.clone();
-        let alive = alive.clone();
-        let runtime = runtime.clone();
-        let source = source.clone();
-        move |event: MountedEvent| {
-            let Some(canvas) = event
-                .data()
-                .try_as_web_event()
-                .and_then(|value| value.dyn_into::<HtmlCanvasElement>().ok())
-            else {
-                runtime.report("Case canvas is unavailable.");
-                return;
-            };
-            let host = host.clone();
-            let alive = alive.clone();
-            let runtime = runtime.clone();
-            let mut mounted = mounted;
-            let source = source.clone();
-            spawn_local(async move {
-                let input = match scene_input(&source.borrow(), false) {
-                    Ok(value) => value,
-                    Err(error) => {
-                        runtime.report(error);
-                        return;
-                    }
-                };
-                let report = runtime.clone();
-                let current = alive.clone();
-                match RendererHost::mount(
-                    canvas,
-                    input,
-                    Rc::new(move |status| report.report(status)),
-                    Rc::new(move || current.get()),
-                )
-                .await
-                {
-                    Ok(renderer) if alive.get() => {
-                        *host.borrow_mut() = Some(renderer);
-                        mounted.set(true);
-                    }
-                    Ok(renderer) => {
-                        let _ = renderer.dispose();
-                    }
-                    Err(error) if alive.get() => runtime.report(error),
-                    Err(_) => {}
-                }
-            });
-        }
-    };
-    let fit = host.clone();
-    let top = host.clone();
-    let iso = host.clone();
-    let left = host.clone();
-    let right = host.clone();
-    let zoom = host.clone();
-    let zoom_out = host.clone();
-    rsx! {
-        div { class: "m1-case-view",
-            div { role: "group", "aria-label": "Case camera",
-                button { onclick: move |_| { if let Some(host) = fit.borrow().as_ref() { let _ = host.fit(); } }, "Fit case" }
-                button { onclick: move |_| { if let Some(host) = top.borrow().as_ref() { let _ = host.view("top"); } }, "Top view" }
-                button { onclick: move |_| { if let Some(host) = iso.borrow().as_ref() { let _ = host.view("isometric"); } }, "Isometric view" }
-                button { onclick: move |_| { if let Some(host) = left.borrow().as_ref() { let _ = host.orbit(-50.0, 0.0); } }, "Rotate left" }
-                button { onclick: move |_| { if let Some(host) = right.borrow().as_ref() { let _ = host.orbit(50.0, 0.0); } }, "Rotate right" }
-                button { onclick: move |_| { if let Some(host) = zoom.borrow().as_ref() { let _ = host.zoom(0.85); } }, "Zoom in" }
-                button { onclick: move |_| { if let Some(host) = zoom_out.borrow().as_ref() { let _ = host.zoom(1.15); } }, "Zoom out" }
-            }
-            canvas { style: "width:100%;height:320px;display:block", tabindex: "0", role: "img", "aria-label": "Generated case assembly; use camera controls to inspect", onmounted: mount }
-        }
-    }
-}
-fn scene_input(scene: &CadScene, keep_camera: bool) -> Result<JsValue, String> {
-    let document = &scene.snapshot.document;
-    let board = document
-        .boards
-        .iter()
-        .find(|b| b.id == scene.scope.board_id)
-        .ok_or("Case board unavailable")?;
-    let contours = &scene.contours;
-    let stack = scene
-        .mechanical
-        .as_ref()
-        .map(|assembly| assembly.stack.as_slice())
-        .unwrap_or_default();
-    let packet = serde_json::json!({ "revision": scene.result.revision, "kind":"assembly", "theme":"light", "view":"isometric", "keepCamera":keep_camera, "hidden":[], "board": {"revision":scene.result.revision,"thickness":board.thickness,"contours":contours,"surfaces":[],"holes":[],"models":[]}, "models":[], "mechanicalStack":stack });
-    let input = js_sys::JSON::parse(&packet.to_string()).map_err(|e| format!("{e:?}"))?;
-    let bodies = Array::new();
-    for body in &scene.result.bodies {
-        let value = Object::new();
-        let mesh = Object::new();
-        for (name, buffer) in [("positions", &body.positions), ("normals", &body.normals)] {
-            Reflect::set(&mesh, &name.into(), &Float32Array::from(buffer.as_slice()))
-                .map_err(|e| format!("{e:?}"))?;
-        }
-        Reflect::set(&value, &"id".into(), &body.id.clone().into())
-            .map_err(|e| format!("{e:?}"))?;
-        Reflect::set(&value, &"name".into(), &body.name.clone().into())
-            .map_err(|e| format!("{e:?}"))?;
-        Reflect::set(&value, &"mesh".into(), &mesh).map_err(|e| format!("{e:?}"))?;
-        bodies.push(&value);
-    }
-    Reflect::set(&input, &"bodies".into(), &bodies).map_err(|e| format!("{e:?}"))?;
-    Ok(input)
 }

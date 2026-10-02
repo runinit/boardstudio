@@ -7,10 +7,14 @@ not claim F7.3 acceptance or completion of any future consumer adoption.
 
 The author keeps `web/src/renderer_host.rs` byte-exact and adds the shared
 renderer/view under `web/src/presentation/shared_viewer.rs`. The page-only
-`web/src/renderer_host_page.rs` includes that host source unchanged and then
-adds `renderer_host_page_extensions.rs` in the same private module. This gives
-the binary wrapper private access to the common host lifecycle and a retained
-module namespace without adding methods or fields to the library host. The
+`web/src/renderer_host_page.rs` includes a private snapshot of that host, with
+its three leading inner-documentation prefixes normalized to ordinary
+comments to satisfy Rust textual inclusion and exactly the unused unchecked
+update_scene method omitted, and then adds
+`renderer_host_page_extensions.rs` in the same private module. A native
+source-sync test enforces exact equality after that normalization. This gives
+the binary wrapper private access to the common host lifecycle without adding
+methods or fields to the library host. The
 root coordinator owns page-binary module registration, CasePanel composition,
 shared CSS, selection state and persisted display preferences. No public
 library API, Rust model, renderer export, dependency, provider or document
@@ -50,8 +54,9 @@ from real-part selection; renderer IDs never become fabricated domain IDs.
 
 The viewer allocates a unique mount token. Every changed source projection,
 including same-Scope/token provisional-to-exact `Rc<CadScene>` replacement,
-advances projection generation. Every full/prepared/patch renderer call uses
-a third strictly increasing sequence, independent of CAD/provider/document
+advances projection generation. Every current full-scene renderer call uses
+a third strictly increasing sequence; future prepared/patch adoption must
+preserve the same invariant, independent of CAD/provider/document
 revisions.
 
 Every callback/output carries full application `Scope`, source snapshot token,
@@ -74,26 +79,23 @@ mapping remains available for a later workflow owner.
 
 ## Verified renderer capability map
 
-Existing renderer `Renderer` exports are `setScene`, `setPreparedScene`,
-`setPreparedScenePatch` (accepted/stale boolean), `setState`, `setHandles`
-(uploaded count), `pick`, `pointOnPlane` (zero or three `f32` values), `fit`,
-`view`, `orbit`, `zoom` and `dispose`. The same module exports `prepareScene`,
-`decodeStl` and `decodeWrl`. This Case slice maps full-scene acceptance,
-display state, handles, picking, point-on-plane, camera and disposal. Optional
-typed STL/WRL sources are decoded through the cached module only when supplied;
-Case currently supplies none. Prepared-scene and prepared-patch calls are
-represented by typed update variants and routed through the same checked
-submission path; Case currently submits full scenes only. The page-only wrapper
-retains the already imported ES-module namespace after a second cached dynamic
-import, without reinitializing the WASM module. Existing public host method
-signatures and behavior remain unchanged.
+Existing renderer `Renderer` exports include `setScene`, `setPreparedScene`,
+`setPreparedScenePatch`, `setState`, `setHandles`, `pick`, `pointOnPlane`, `fit`,
+`view`, `orbit`, `zoom` and `dispose`; its module also exports `prepareScene`,
+`decodeStl` and `decodeWrl`. The current private Case wrapper consumes only
+full-scene acceptance, display state, empty handle upload, picking,
+point-on-plane, camera and disposal. It has no model-source decoder or
+prepared/patch update variants, because the current Case projection constructs
+none. Prepared scenes, patches and STL/WRL model delivery require reviewed
+consumer inputs and remain open full-F7.3 adoption gates. Earlier unconsumed
+wrapper implementations are retained in the author worker history.
 
-Each renderer scene call consumes a sequence strictly greater than the prior
-upload. The baseline host's initial scene uses the immediately preceding
-sequence; the wrapper then performs the checked submission and returns the
-renderer’s actual boolean. Optional model sources are decoded before that
-checked upload. Case supplies no model sources, so model delivery/retry parity
-has not been demonstrated.
+Each current full-scene upload consumes a sequence strictly greater than the
+prior upload. The baseline lifetime mount uploads the immediately preceding
+sequence; the page wrapper performs the next checked submission and returns
+the renderer's actual acceptance boolean. Existing public host signatures and
+behavior remain unchanged. No cached second module import is needed by this
+bounded path.
 
 The renderer host continues to own ResizeObserver/window/DPR listeners,
 one-shot frame scheduling, context-loss stop, WebGL cleanup and GPU disposal.
@@ -111,11 +113,16 @@ owned by the root Case workspace.
 
 ## Evidence limits and refactor register
 
-This record is source-backed only. The actual page-binary build, library
-checks, paired browser fixture actions, accessibility checks and lifecycle
-fault probes remain required at root integration; none is claimed by this
-author commit. In particular, the source inclusion and binary-only wrapper
-placement still require compiler proof.
+Root integration now passes strict WASM/native Clippy and 24 native page tests,
+including exact host-source synchronization and alias-color regressions.
+Release packaging, paired browser fixture actions, accessibility and lifecycle
+fault probes remain required; these compiler/native results do not establish
+public viewer acceptance or the broader capability gates.
 
 RF: no new refactoring takeaway observed. Existing RF-002 and RF-012 remain
 the relevant crate-boundary and reflective-host findings.
+
+
+## Current Case-first compile boundary
+
+The mounted Case path constructs full scene inputs with no decoded model sources. Its private wrapper therefore implements only the consumed full-scene checked submission, lifecycle, display, picking and camera operations. Prepared scene/patch inputs and STL/WRL model delivery remain required open F7.3 adoption gates; their original worker implementations remain in Git history. This bounded compile path does not claim those capabilities or five-consumer parity. The native sync assertion verifies the exact omitted unchecked update_scene method in addition to the documentation-prefix normalization; the library host remains byte-exact.

@@ -113,13 +113,6 @@ impl RendererHost {
         Ok(Self { inner })
     }
 
-    pub fn update_scene(&self, input: JsValue) -> Result<(), String> {
-        if self.inner.disposed.get() || self.inner.context_lost.get() {
-            return Err("Renderer is no longer active".to_owned());
-        }
-        call_method(&self.inner.renderer, "setScene", &[input]).map_err(js_error)?;
-        schedule_frame(&self.inner).map_err(js_error)
-    }
 
     pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
         self.camera("orbit", &[delta_x.into(), delta_y.into()])

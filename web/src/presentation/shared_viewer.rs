@@ -2,7 +2,7 @@
 //!
 //! Case is the first consumer. Its wrapper owns the Case-to-renderer projection;
 //! this module owns only renderer controls, transient view state and host lifetime.
-use crate::renderer_host_page::{RendererModelSource, RendererPageHost, RendererSceneUpdate};
+use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web::cad_jobs::captured_case_document;
@@ -11,18 +11,14 @@ use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeMap,
     rc::{Rc, Weak},
 };
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{HtmlCanvasElement, PointerEvent};
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct CaseDisplay {
-    pub(crate) hidden: Vec<String>,
-    pub(crate) colors: BTreeMap<String, String>,
-}
+pub(crate) use super::case_display::CaseDisplay;
+use super::case_display::preference_ids;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ViewerIdentity {
@@ -176,9 +172,7 @@ fn next_viewer_instance() -> Result<u64, String> {
 
 struct RendererSceneProjection {
     identity: ViewerIdentity,
-    initial_input: JsValue,
-    update: RendererSceneUpdate,
-    models: Vec<RendererModelSource>,
+    input: JsValue,
     layers: Vec<(String, String)>,
     handles: Vec<ViewerHandle>,
 }
@@ -343,9 +337,7 @@ fn project_case_scene(
     }
     Ok(RendererSceneProjection {
         identity,
-        initial_input: input.clone(),
-        update: RendererSceneUpdate::Full(input),
-        models: Vec::new(),
+        input,
         layers,
         handles: Vec::new(),
     })
@@ -546,11 +538,7 @@ fn SharedViewer(
                 .as_ref()
                 .ok_or_else(|| "3D renderer is not mounted".to_owned())
                 .and_then(|host| {
-                    host.submit_scene(
-                        projection.update.clone(),
-                        &projection.models,
-                        identity.renderer_sequence,
-                    )
+                    host.submit_scene(projection.input.clone(), identity.renderer_sequence)
                 });
             match result {
                 Ok(accepted) => {
@@ -610,22 +598,23 @@ fn SharedViewer(
                     return;
                 }
                 let result =
-                    display_state(display, selected_layer, theme, transient).and_then(|state| {
+                    display_state(&display, &selected_layer, &theme, transient).and_then(|state| {
                         host.borrow()
                             .as_ref()
                             .ok_or_else(|| "3D renderer is not mounted".to_owned())
                             .and_then(|host| host.set_display_state(state))
                     });
-                if let Err(error) = result {
-                    if owner_is_current(&owner, &projection.identity) && (current_source.0)() {
-                        status.set(error.clone());
-                        emit_signal(
-                            &owner,
-                            on_signal,
-                            &projection.identity,
-                            ViewerSignalKind::Failed(error),
-                        );
-                    }
+                if let Err(error) = result
+                    && owner_is_current(&owner, &projection.identity)
+                    && (current_source.0)()
+                {
+                    status.set(error.clone());
+                    emit_signal(
+                        &owner,
+                        on_signal,
+                        &projection.identity,
+                        ViewerSignalKind::Failed(error),
+                    );
                 }
             }
         },
@@ -651,21 +640,23 @@ fn SharedViewer(
                     .ok_or_else(|| "3D renderer is not mounted".to_owned())
                     .and_then(|host| host.set_handles(handles).map(|_| ()))
             });
-            if let Err(error) = result {
-                if owner_is_current(&owner, &projection.identity) && (current_source.0)() {
-                    status.set(error.clone());
-                    emit_signal(
-                        &owner,
-                        on_signal,
-                        &projection.identity,
-                        ViewerSignalKind::Failed(error),
-                    );
-                }
+            if let Err(error) = result
+                && owner_is_current(&owner, &projection.identity)
+                && (current_source.0)()
+            {
+                status.set(error.clone());
+                emit_signal(
+                    &owner,
+                    on_signal,
+                    &projection.identity,
+                    ViewerSignalKind::Failed(error),
+                );
             }
         }
     }));
 
     let mount_host = {
+        let projection = projection.clone();
         let host = host.clone();
         let canvas_state = canvas.clone();
         let owner = owner.clone();
@@ -675,7 +666,6 @@ fn SharedViewer(
         let applied_identity = applied_identity.clone();
         let on_signal = on_signal;
         let mut status = status;
-        let mut mounted = mounted;
         let applied_sequence = applied_sequence.clone();
         move |event: MountedEvent| {
             let Some(element) = event
@@ -706,6 +696,7 @@ fn SharedViewer(
             let mut status = status;
             let mut mounted = mounted;
             let initial_projection = projection.clone();
+            let applied_sequence = applied_sequence.clone();
             if owner_is_current(&owner, &initial_projection.identity) && (live_source.borrow().0)()
             {
                 emit_signal(
@@ -777,9 +768,7 @@ fn SharedViewer(
                         });
                     match RendererPageHost::mount(
                         element.clone(),
-                        request.initial_input.clone(),
-                        request.update.clone(),
-                        &request.models,
+                        request.input.clone(),
                         request.identity.renderer_sequence,
                         status_callback,
                         mount_guard,
@@ -862,6 +851,7 @@ fn SharedViewer(
     };
 
     let on_pointer_down = {
+        let projection = projection.clone();
         let host = host.clone();
         let owner = owner.clone();
         let current_source = current_source.clone();
@@ -871,13 +861,17 @@ fn SharedViewer(
         let handles = projection.handles.clone();
         let applied_identity = applied_identity.clone();
         let mut status = status;
-        move |event: PointerEvent| {
+        move |event: dioxus::prelude::PointerEvent| {
+            let Some(event) = event.data().try_as_web_event() else {
+                return;
+            };
             if !owner_is_current(&owner, &projection.identity) || pointer.borrow().is_some() {
                 return;
             }
             event.prevent_default();
             let (x, y) = pointer_point(&event);
-            let Some(host) = host.borrow().as_ref() else {
+            let host_guard = host.borrow();
+            let Some(host) = host_guard.as_ref() else {
                 return;
             };
             let picked = if (current_source.0)()
@@ -959,6 +953,7 @@ fn SharedViewer(
     };
 
     let on_wheel = {
+        let projection = projection.clone();
         let host = host.clone();
         let owner = owner.clone();
         let current_source = current_source.clone();
@@ -973,8 +968,7 @@ fn SharedViewer(
             };
             wheel.prevent_default();
             let delta = wheel.delta_y();
-            let factor =
-                (f64::from(delta.signum()) * (f64::from(delta.abs()) * 0.001).min(1.0)).exp();
+            let factor = (delta.signum() * (delta.abs() * 0.001).min(1.0)).exp();
             let result = host
                 .borrow()
                 .as_ref()
@@ -995,6 +989,7 @@ fn SharedViewer(
     };
 
     let on_pointer_move = {
+        let projection = projection.clone();
         let host = host.clone();
         let owner = owner.clone();
         let current_source = current_source.clone();
@@ -1003,11 +998,15 @@ fn SharedViewer(
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         let mut status = status;
-        move |event: PointerEvent| {
+        move |event: dioxus::prelude::PointerEvent| {
+            let Some(event) = event.data().try_as_web_event() else {
+                return;
+            };
             if !owner_is_current(&owner, &projection.identity) {
                 return;
             }
-            let Some(host) = host.borrow().as_ref() else {
+            let host_guard = host.borrow();
+            let Some(host) = host_guard.as_ref() else {
                 return;
             };
             let (x, y) = pointer_point(&event);
@@ -1113,6 +1112,7 @@ fn SharedViewer(
     };
 
     let on_pointer_up = {
+        let projection = projection.clone();
         let host = host.clone();
         let owner = owner.clone();
         let runtime = runtime.clone();
@@ -1121,7 +1121,10 @@ fn SharedViewer(
         let on_signal = on_signal;
         let pointer = pointer.clone();
         let canvas = canvas.clone();
-        move |event: PointerEvent| {
+        move |event: dioxus::prelude::PointerEvent| {
+            let Some(event) = event.data().try_as_web_event() else {
+                return;
+            };
             if !owner_is_current(&owner, &projection.identity) {
                 return;
             }
@@ -1206,6 +1209,7 @@ fn SharedViewer(
     };
 
     let on_pointer_cancel = {
+        let projection = projection.clone();
         let host = host.clone();
         let owner = owner.clone();
         let current_source = current_source.clone();
@@ -1213,7 +1217,10 @@ fn SharedViewer(
         let pointer = pointer.clone();
         let canvas = canvas.clone();
         let applied_identity = applied_identity.clone();
-        move |event: PointerEvent| {
+        move |event: dioxus::prelude::PointerEvent| {
+            let Some(event) = event.data().try_as_web_event() else {
+                return;
+            };
             if !owner_is_current(&owner, &projection.identity) {
                 return;
             }
@@ -1272,6 +1279,7 @@ fn SharedViewer(
     };
 
     let select_layer = {
+        let projection = projection.clone();
         let owner = owner.clone();
         let runtime = runtime.clone();
         let current_source = current_source.clone();
@@ -1292,6 +1300,7 @@ fn SharedViewer(
     };
 
     let change_display = {
+        let projection = projection.clone();
         let owner = owner.clone();
         let runtime = runtime.clone();
         let current_source = current_source.clone();
@@ -1311,6 +1320,7 @@ fn SharedViewer(
         }
     };
 
+    let on_pointer_cancel = EventHandler::new(on_pointer_cancel);
     let fit = host.clone();
     let top = host.clone();
     let bottom = host.clone();
@@ -1334,23 +1344,27 @@ fn SharedViewer(
             }
             div { role: "group", "aria-label": "Case display mode",
                 for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
-                    let mut transient = transient;
-                    let label = mode.renderer_value();
-                    button {
-                        "aria-pressed": transient().mode == mode,
-                        onclick: move |_| transient.with_mut(|view| view.mode = mode),
-                        "{label}"
+                    {
+                        let mut transient = transient;
+                        let label = mode.renderer_value();
+                        rsx! { button {
+                            "aria-pressed": transient().mode == mode,
+                            onclick: move |_| transient.with_mut(|view| view.mode = mode),
+                            "{label}"
+                        } }
                     }
                 }
             }
             div { role: "group", "aria-label": "Case assembly view",
                 for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
-                    let mut transient = transient;
-                    let label = view.renderer_value();
-                    button {
-                        "aria-pressed": transient().assembly == view,
-                        onclick: move |_| transient.with_mut(|state| state.assembly = view),
-                        "{label}"
+                    {
+                        let mut transient = transient;
+                        let label = view.renderer_value();
+                        rsx! { button {
+                            "aria-pressed": transient().assembly == view,
+                            onclick: move |_| transient.with_mut(|state| state.assembly = view),
+                            "{label}"
+                        } }
                     }
                 }
             }
@@ -1416,12 +1430,13 @@ fn SharedViewer(
                 summary { "Case layers and colors" }
                 div { role: "group", "aria-label": "Case layers",
                 for (id, label) in &projection.layers {
+                    {
                     let id = id.clone();
                     let label = label.clone();
                     let ids = preference_ids(&id);
                     let visible = !ids.iter().all(|entry| display.hidden.contains(entry));
-                    let color = display.colors.get(&id).cloned().unwrap_or_else(|| "#b0b5bd".to_owned());
-                    let has_color = display.colors.contains_key(&id);
+                    let color = display.color(&id).unwrap_or("#b0b5bd").to_owned();
+                    let has_color = display.has_color(&id);
                     let toggle_next = display.clone();
                     let color_next = display.clone();
                     let reset_next = display.clone();
@@ -1429,19 +1444,23 @@ fn SharedViewer(
                     let select_layer = select_layer.clone();
                     let set_color = change_display.clone();
                     let reset_color = change_display.clone();
+                    let select_id = id.clone();
+                    let toggle_id = id.clone();
+                    let color_id = id.clone();
+                    let reset_id = id.clone();
                     rsx! {
                         div { class: "m1-viewer-layer", key: "{id}",
                             button {
                                 "aria-pressed": selected_layer == id,
-                                onclick: move |_| select_layer(id.clone()),
+                                onclick: move |_| select_layer(select_id.clone()),
                                 "Select {label}"
                             }
                             button {
                                 "aria-pressed": visible,
                                 "aria-label": "Toggle visibility for {label}",
                                 onclick: move |_| {
-                                    let mut next_display = toggle_next;
-                                    let aliases = preference_ids(&id);
+                                    let mut next_display = toggle_next.clone();
+                                    let aliases = preference_ids(&toggle_id);
                                     let is_hidden = aliases.iter().all(|entry| next_display.hidden.contains(entry));
                                     if is_hidden {
                                         next_display.hidden.retain(|entry| !aliases.contains(entry));
@@ -1458,8 +1477,8 @@ fn SharedViewer(
                                 input {
                                     r#type: "color", value: "{color}",
                                     oninput: move |event: FormEvent| {
-                                        let mut next_display = color_next;
-                                        next_display.colors.insert(id.clone(), event.value());
+                                        let mut next_display = color_next.clone();
+                                        next_display.set_color(&color_id, &event.value());
                                         set_color(next_display.clone());
                                     }
                                 }
@@ -1467,13 +1486,14 @@ fn SharedViewer(
                             button {
                                 disabled: !has_color,
                                 onclick: move |_| {
-                                    let mut next_display = reset_next;
-                                    next_display.colors.remove(&id);
+                                    let mut next_display = reset_next.clone();
+                                    next_display.set_color(&reset_id, "");
                                     reset_color(next_display.clone());
                                 },
                                 "Reset color"
                             }
                         }
+                    }
                     }
                 }
                 }
@@ -1584,25 +1604,6 @@ fn handles_value(handles: &[ViewerHandle]) -> Result<JsValue, String> {
         })
         .collect::<Vec<_>>();
     js_sys::JSON::parse(&serde_json::Value::Array(handles).to_string()).map_err(js_error)
-}
-
-fn preference_ids(id: &str) -> Vec<String> {
-    if id == "gaskets" {
-        vec!["Gaskets".to_owned()]
-    } else if id == "pcb" {
-        ["PCB", "Models", "Keycaps", "Copper", "Mask", "Silkscreen"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    } else if id.starts_with("gasket:") {
-        let stem = id
-            .strip_suffix(":upper")
-            .or_else(|| id.strip_suffix(":lower"))
-            .unwrap_or(id);
-        vec![format!("{stem}:lower"), format!("{stem}:upper")]
-    } else {
-        vec![id.to_owned()]
-    }
 }
 
 fn pointer_point(event: &PointerEvent) -> (f64, f64) {

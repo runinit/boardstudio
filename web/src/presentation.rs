@@ -1,6 +1,8 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 mod case_bodies;
 mod case_controller;
+mod case_display;
+mod case_viewer;
 mod context_summary;
 mod inspector;
 mod instance_selection;
@@ -10,8 +12,10 @@ mod objects;
 mod panels;
 mod parts;
 mod selection;
+mod shared_viewer;
 
 use case_controller::CaseBodyInspector;
+pub(crate) use case_viewer::CaseViewer;
 use inspector::Inspector;
 use keymap::{KeymapCanvas, KeymapPanel};
 use library::Library;
@@ -66,6 +70,8 @@ impl InstanceSelection {
 
 #[derive(Clone, Copy)]
 struct ThemeState(Signal<&'static str>);
+#[derive(Clone, Copy)]
+struct ResolvedTheme(Memo<&'static str>);
 #[derive(Clone, Copy)]
 struct LayerVisibility {
     hidden: Signal<BTreeSet<String>>,
@@ -214,6 +220,15 @@ pub fn App() -> Element {
     let theme = use_signal(read_theme_preference);
     let system_theme = use_signal(read_system_theme);
     use_context_provider(|| ThemeState(theme));
+    let resolved_theme = use_memo(move || {
+        let preference = theme();
+        if preference == "system" {
+            system_theme()
+        } else {
+            preference
+        }
+    });
+    use_context_provider(|| ResolvedTheme(resolved_theme));
     let media_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(web_sys::MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>,
@@ -254,13 +269,8 @@ pub fn App() -> Element {
             }
         }
     });
-    use_effect(use_reactive((&theme(), &system_theme()), {
-        move |(preference, system)| {
-            let effective = if preference == "system" {
-                system
-            } else {
-                preference
-            };
+    use_effect(use_reactive((&resolved_theme(),), {
+        move |(effective,)| {
             if let Some(root) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| document.document_element())
@@ -601,6 +611,14 @@ fn Editor() -> Element {
         })
     });
     let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
+    let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
+    let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
+    let case_display = use_signal(std::collections::BTreeMap::new);
+    use_context_provider(|| case_viewer::CaseSelection {
+        body: case_body_selection,
+        layer: case_layer_selection,
+        display: case_display,
+    });
     let workspace = use_context::<WorkspaceState>().0;
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);

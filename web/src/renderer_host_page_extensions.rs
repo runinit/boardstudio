@@ -1,40 +1,16 @@
-use js_sys::{Float32Array, Object, Uint8Array};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RendererModelFormat {
-    Stl,
-    Wrl,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RendererModelSource {
-    pub(crate) id: String,
-    pub(crate) format: RendererModelFormat,
-    pub(crate) bytes: Vec<u8>,
-}
-
-#[derive(Clone)]
-pub(crate) enum RendererSceneUpdate {
-    Full(JsValue),
-    Prepare(JsValue),
-    Prepared(JsValue),
-    PreparedPatch(JsValue),
-}
+use js_sys::{Float32Array, Object};
 
 /// Binary-only renderer handle. The reusable library host stays unchanged;
-/// this wrapper owns the cached ES module namespace needed by page-only calls.
+/// this wrapper submits the current Case full-scene input with checked sequence identity.
 pub(crate) struct RendererPageHost {
     host: RendererHost,
-    module: JsValue,
     last_sequence: Cell<u64>,
 }
 
 impl RendererPageHost {
     pub(crate) async fn mount(
         canvas: HtmlCanvasElement,
-        initial_input: JsValue,
-        update: RendererSceneUpdate,
-        models: &[RendererModelSource],
+        input: JsValue,
         sequence: u64,
         status: Rc<dyn Fn(String)>,
         is_current: Rc<dyn Fn() -> bool>,
@@ -42,30 +18,13 @@ impl RendererPageHost {
         let initial_sequence = sequence
             .checked_sub(1)
             .ok_or_else(|| "Renderer sequence must be positive".to_owned())?;
-        let initial_input = with_scene_sequence(&initial_input, initial_sequence, true)?;
-        let host = RendererHost::mount(canvas, initial_input, status, is_current.clone()).await?;
-        let module = import_renderer_module().await;
-        let module = match module {
-            Ok(module) if is_current() => module,
-            Ok(_) => {
-                let _ = host.dispose();
-                return Err("Renderer mount scope was cancelled".to_owned());
-            }
-            Err(error) => {
-                return match host.dispose() {
-                    Ok(()) => Err(error),
-                    Err(cleanup) => {
-                        Err(format!("{error}; renderer cleanup also failed: {cleanup}"))
-                    }
-                };
-            }
-        };
+        let initial_input = with_scene_sequence(&input, initial_sequence)?;
+        let host = RendererHost::mount(canvas, initial_input, status, is_current).await?;
         let page_host = Self {
             host,
-            module,
             last_sequence: Cell::new(initial_sequence),
         };
-        let accepted = page_host.submit_scene(update, models, sequence)?;
+        let accepted = page_host.submit_scene(input, sequence)?;
         Ok((page_host, accepted))
     }
 
@@ -73,44 +32,17 @@ impl RendererPageHost {
         self.host.dispose()
     }
 
-    pub(crate) fn submit_scene(
-        &self,
-        update: RendererSceneUpdate,
-        models: &[RendererModelSource],
-        sequence: u64,
-    ) -> Result<bool, String> {
+    pub(crate) fn submit_scene(&self, input: JsValue, sequence: u64) -> Result<bool, String> {
         self.ensure_active()?;
         if sequence <= self.last_sequence.get() {
             return Err("Renderer scene sequence must increase".to_owned());
         }
         self.last_sequence.set(sequence);
-        let (method, input) = match update {
-            RendererSceneUpdate::Full(input) => {
-                let input = self.input_with_models(input, models)?;
-                ("setScene", with_scene_sequence(&input, sequence, true)?)
-            }
-            RendererSceneUpdate::Prepare(input) => {
-                let input = self.input_with_models(input, models)?;
-                let input = with_scene_sequence(&input, sequence, true)?;
-                let prepared = self.prepare_scene(input)?;
-                (
-                    "setPreparedScene",
-                    with_scene_sequence(&prepared, sequence, false)?,
-                )
-            }
-            RendererSceneUpdate::Prepared(input) => (
-                "setPreparedScene",
-                with_scene_sequence(&input, sequence, false)?,
-            ),
-            RendererSceneUpdate::PreparedPatch(input) => (
-                "setPreparedScenePatch",
-                with_scene_sequence(&input, sequence, false)?,
-            ),
-        };
-        let accepted = call_method(&self.host.inner.renderer, method, &[input])
+        let input = with_scene_sequence(&input, sequence)?;
+        let accepted = call_method(&self.host.inner.renderer, "setScene", &[input])
             .map_err(js_error)?
             .as_bool()
-            .ok_or_else(|| format!("Renderer {method} returned no scene acceptance result"))?;
+            .ok_or_else(|| "Renderer setScene returned no scene acceptance result".to_owned())?;
         if accepted {
             schedule_frame(&self.host.inner).map_err(js_error)?;
         }
@@ -205,29 +137,6 @@ impl RendererPageHost {
         self.host.fit()
     }
 
-    fn input_with_models(
-        &self,
-        input: JsValue,
-        models: &[RendererModelSource],
-    ) -> Result<JsValue, String> {
-        if models.is_empty() {
-            return Ok(input);
-        }
-        let loaded_models = js_sys::Array::new();
-        for model in models {
-            let mesh = match model.format {
-                RendererModelFormat::Stl => self.decode_stl(&model.bytes)?,
-                RendererModelFormat::Wrl => self.decode_wrl(&model.bytes)?,
-            };
-            let loaded = Object::new();
-            Reflect::set(&loaded, &"id".into(), &model.id.clone().into()).map_err(js_error)?;
-            Reflect::set(&loaded, &"mesh".into(), &mesh).map_err(js_error)?;
-            loaded_models.push(&loaded);
-        }
-        Reflect::set(&input, &"models".into(), &loaded_models).map_err(js_error)?;
-        Ok(input)
-    }
-
     fn ensure_active(&self) -> Result<(), String> {
         if self.host.inner.disposed.get() || self.host.inner.context_lost.get() {
             Err("Renderer is no longer active".to_owned())
@@ -253,43 +162,14 @@ impl RendererPageHost {
         }
         Ok((x, y))
     }
-
-    pub(crate) fn decode_stl(&self, bytes: &[u8]) -> Result<JsValue, String> {
-        self.call_module_function("decodeStl", &[Uint8Array::from(bytes).into()])
-    }
-
-    pub(crate) fn decode_wrl(&self, bytes: &[u8]) -> Result<JsValue, String> {
-        self.call_module_function("decodeWrl", &[Uint8Array::from(bytes).into()])
-    }
-
-    fn prepare_scene(&self, input: JsValue) -> Result<JsValue, String> {
-        self.call_module_function("prepareScene", &[input])
-    }
-
-    fn call_module_function(&self, name: &str, arguments: &[JsValue]) -> Result<JsValue, String> {
-        self.ensure_active()?;
-        let function = Reflect::get(&self.module, &JsValue::from_str(name))
-            .map_err(js_error)?
-            .dyn_into::<Function>()
-            .map_err(js_error)?;
-        let values = Array::new();
-        for argument in arguments {
-            values.push(argument);
-        }
-        function.apply(&self.module, &values).map_err(js_error)
-    }
 }
 
-fn with_scene_sequence(
-    input: &JsValue,
-    sequence: u64,
-    include_board: bool,
-) -> Result<JsValue, String> {
+fn with_scene_sequence(input: &JsValue, sequence: u64) -> Result<JsValue, String> {
     if !input.is_object() || input.is_null() {
         return Err("Renderer scene update must be an object".to_owned());
     }
     let output = Object::new();
-    let keys = Object::keys(input);
+    let keys = Object::keys(input.unchecked_ref::<Object>());
     for index in 0..keys.length() {
         let key = keys.get(index);
         let value = Reflect::get(input, &key).map_err(js_error)?;
@@ -301,35 +181,22 @@ fn with_scene_sequence(
         &JsValue::from_f64(sequence as f64),
     )
     .map_err(js_error)?;
-    if include_board {
-        let board = Reflect::get(input, &"board".into()).map_err(js_error)?;
-        if !board.is_null() && !board.is_undefined() {
-            let board_copy = Object::new();
-            let board_keys = Object::keys(&board);
-            for index in 0..board_keys.length() {
-                let key = board_keys.get(index);
-                let value = Reflect::get(&board, &key).map_err(js_error)?;
-                Reflect::set(&board_copy, &key, &value).map_err(js_error)?;
-            }
-            Reflect::set(
-                &board_copy,
-                &"revision".into(),
-                &JsValue::from_f64(sequence as f64),
-            )
-            .map_err(js_error)?;
-            Reflect::set(&output, &"board".into(), &board_copy).map_err(js_error)?;
+    let board = Reflect::get(input, &"board".into()).map_err(js_error)?;
+    if !board.is_null() && !board.is_undefined() {
+        let board_copy = Object::new();
+        let board_keys = Object::keys(board.unchecked_ref::<Object>());
+        for index in 0..board_keys.length() {
+            let key = board_keys.get(index);
+            let value = Reflect::get(&board, &key).map_err(js_error)?;
+            Reflect::set(&board_copy, &key, &value).map_err(js_error)?;
         }
+        Reflect::set(
+            &board_copy,
+            &"revision".into(),
+            &JsValue::from_f64(sequence as f64),
+        )
+        .map_err(js_error)?;
+        Reflect::set(&output, &"board".into(), &board_copy).map_err(js_error)?;
     }
     Ok(output.into())
-}
-
-async fn import_renderer_module() -> Result<JsValue, String> {
-    let module_url = resource_url("assets/renderer/boardstudio_renderer_wasm.js")?;
-    let import = Function::new_with_args("url", "return import(url)");
-    let module = import
-        .call1(&JsValue::NULL, &JsValue::from_str(&module_url))
-        .map_err(js_error)?
-        .dyn_into::<Promise>()
-        .map_err(js_error)?;
-    JsFuture::from(module).await.map_err(js_error)
 }

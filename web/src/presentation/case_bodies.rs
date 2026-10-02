@@ -145,12 +145,7 @@ struct RequestIdentity {
     field_id: Option<String>,
 }
 
-#[derive(Clone, PartialEq)]
-struct BodySelection {
-    editor_instance_id: u64,
-    scope: Scope,
-    body_id: String,
-}
+use super::case_viewer::{BodySelection, CaseSelection};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NumberRule {
@@ -170,7 +165,7 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     let request_sequence = use_signal(|| 0_u64);
     let pending_request = use_signal(|| None::<RequestIdentity>);
     let submission_busy = use_signal(|| false);
-    let selected_body = use_signal(|| None::<BodySelection>);
+    let selected_body = use_context::<CaseSelection>().body;
 
     let board = props
         .board
@@ -181,9 +176,10 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
         .iter()
         .filter(|body| board.is_some_and(|board| body.board_id == board.id))
         .collect::<Vec<_>>();
-    let selection = selected_body.read().clone().filter(|selected| {
-        selected.editor_instance_id == props.editor_instance_id && selected.scope == props.scope
-    });
+    let selection = selected_body
+        .read()
+        .clone()
+        .filter(|selected| selected.scope == props.scope);
     let selected = selection.as_ref().and_then(|selection| {
         bodies
             .iter()
@@ -265,17 +261,15 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     }));
 
     let mut selection_for_effect = selected_body;
-    let editor_instance_id = props.editor_instance_id;
     let scope = props.scope.clone();
     let saved_add = feedback
         .as_ref()
         .filter(|feedback| feedback.state == CaseBodyEditState::Saved)
         .and_then(|feedback| feedback.created_body_id.clone());
-    use_effect(use_reactive((&saved_add, &scope, &editor_instance_id), {
-        move |(created_body_id, scope, editor_instance_id)| {
+    use_effect(use_reactive((&saved_add, &scope), {
+        move |(created_body_id, scope)| {
             if let Some(body_id) = created_body_id {
                 selection_for_effect.set(Some(BodySelection {
-                    editor_instance_id,
                     scope: scope.clone(),
                     body_id: body_id.clone(),
                 }));
@@ -358,7 +352,6 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
                             let order = format!("{:02}", index + 1);
                             let mut selected_body = selected_body;
                             let scope = props.scope.clone();
-                            let editor_instance_id = props.editor_instance_id;
                             rsx! {
                                 button {
                                     key: "{id}",
@@ -367,7 +360,6 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
                                     disabled: !can_edit,
                                     "aria-pressed": is_active,
                                     onclick: move |_| selected_body.set(Some(BodySelection {
-                                        editor_instance_id,
                                         scope: scope.clone(),
                                         body_id: id.clone(),
                                     })),

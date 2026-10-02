@@ -1,0 +1,13 @@
+# Independent Standards: final Case-first viewer mount
+
+Reviewed dirty integration against `46210543ee210224464602e8fbebfeea02c7bf67`. SHA-256: shared_viewer `1f3ae0ccefc273eba5630ef26e9587004d8121cffe7de79f85f731d2b1915dc6`; case_viewer `ed9f6b2e92659a55cb90f96de328a763c8d19d49d9428631e7af53c99bce8d88`; extensions `877e7c46bad96d664e0caa02da6e608744d0354c4ac6a558ac2031d0f180c35e`; CSS `87ff71924aa3a400ec0318e91f3a488124a4e7c13f804dc8804b5acd30862a42`.
+
+No material code Standards finding remains in the inspected mount. Full-scene submission preserves increasing sequence admission, distinct initial/checked sequence, actual renderer acceptance boolean, context/disposal checks and applied-scene pick guards. Compiler corrections clone Rc handles and retain required borrow guards without geometry copies. No public API widening, allowances, dummy calls or added authority appeared.
+
+Read-only comparison proves the private snapshot equals the original after exactly the asserted update_scene block removal and three documentation-prefix normalizations. The omitted block occurs exactly once. Original library SHA remains `377f45e0ad51f5979dcba152d6b14dec71ea035991ee031b370829b5ac5b06e6`. Native test registration makes this an executable synchronization guard.
+
+Shared Editor-owned body selection now connects inspector tabs and viewer highlights by full Scope/current mesh membership. Fresh mapped nonbody selection clears body selection. Existing weak viewer/current Runtime checks still precede output consumption. Reactive effective theme reaches the renderer; CSS uses existing theme tokens, focus-visible outlines, wrapping controls and compact 44px targets. The private CaseDisplay helper centralizes preference aliases and preserves unrelated entries; no performance claim follows.
+
+**Documentation correction outstanding:** `docs/migration/f7-case-viewer-private-contract.md:86–100` still asserts decoded models, typed prepared/patch variants and a retained second-import module, contradicting its new Case-first boundary. `renderer_host_page_extensions.rs:3–4` repeats the removed module ownership. Rewrite these descriptions as deferred gates rather than simultaneous current behavior claims. Current contract SHA is `37d175028a25044f710846bc7455e70fa623ccbec9c297228cc478bc42595147`.
+
+The inspected strict WASM log ends successfully; this is root-run compiler evidence, not browser acceptance. Public selection/persistence/theme/compact accessibility/lifecycle fault checks, prepared/model adoption and five-consumer parity remain open. RF-002 temporary duplication and RF-012 reflective capability evidence remain open. Diff whitespace passed; no Cargo/browser/source mutation by reviewer.
