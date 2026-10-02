@@ -298,23 +298,31 @@ pub fn App() -> Element {
         let model = runtime_for_creation.model();
         match outcome {
             TerminalOutcome::Completed => {
-                let Some(snapshot) = model.accepted.as_ref() else {
-                    return;
-                };
-                if snapshot.document.id != pending.project_id {
-                    new_keyboard_error.set(
-                        "The new keyboard was superseded before it could open. Try again.".into(),
-                    );
-                    pending_new_keyboard.set(None);
-                    return;
-                }
-                if model.lifecycle != Lifecycle::Ready
-                    || model.durability
-                        != (Durability::Saved {
-                            revision: snapshot.document.revision,
-                        })
-                {
-                    return;
+                let settlement = crate::setup_guide_state::creation_settlement(
+                    &pending.project_id,
+                    model
+                        .accepted
+                        .as_ref()
+                        .map(|snapshot| snapshot.document.id.as_str()),
+                    model.lifecycle == Lifecycle::Ready
+                        && model.accepted.as_ref().is_some_and(|snapshot| {
+                            model.durability
+                                == Durability::Saved {
+                                    revision: snapshot.document.revision,
+                                }
+                        }),
+                );
+                match settlement {
+                    crate::setup_guide_state::CreationSettlement::Wait => return,
+                    crate::setup_guide_state::CreationSettlement::Retire => {
+                        new_keyboard_error.set(
+                            "The new keyboard was superseded before it could open. Try again."
+                                .into(),
+                        );
+                        pending_new_keyboard.set(None);
+                        return;
+                    }
+                    crate::setup_guide_state::CreationSettlement::Reveal => {}
                 }
                 project_created.set(Some(SetupGuideRequest {
                     project_id: pending.project_id.clone(),
@@ -1020,6 +1028,10 @@ fn Editor() -> Element {
         show_configured_board: EventHandler::new(|_: String| {}),
     });
     let runtime = use_context::<Rc<Runtime>>();
+    let mut objects_open = use_signal(|| false);
+    let mut inspect_open = use_signal(|| false);
+    let objects_panel_settings = use_panel_settings(PanelSide::Objects);
+    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector);
     let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
     let created_request = created_request_signal();
     let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
@@ -1064,13 +1076,30 @@ fn Editor() -> Element {
                 if request.start_at_project {
                     guide_workspace.set("Layout");
                 }
+                setup_guide::reveal_panels(
+                    crate::setup_guide_state::GuideReveal::Guide,
+                    objects_open,
+                    inspect_open,
+                    objects_panel_settings,
+                    inspector_panel_settings,
+                );
                 created_request_signal.set(None);
             }
         } else if guide_preferences()
             .as_ref()
             .is_none_or(|preferences| preferences.project_id != *project_id)
         {
-            guide_preferences.set(Some(setup_guide::read_preferences(project_id)));
+            let preferences = setup_guide::read_preferences(project_id);
+            if preferences.open {
+                setup_guide::reveal_panels(
+                    crate::setup_guide_state::GuideReveal::Guide,
+                    objects_open,
+                    inspect_open,
+                    objects_panel_settings,
+                    inspector_panel_settings,
+                );
+            }
+            guide_preferences.set(Some(preferences));
         }
     }));
     let preferences_to_persist = guide_preferences();
@@ -1079,18 +1108,21 @@ fn Editor() -> Element {
             setup_guide::write_preferences(preferences);
         }
     }));
+    let last_accepted_name = use_hook(|| Rc::new(RefCell::new(None::<(String, String)>)));
     let project_name_for_draft = runtime
         .model()
         .accepted
         .as_ref()
         .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
     use_effect(use_reactive!(|project_name_for_draft| {
-        if let Some((project_id, name)) = project_name_for_draft {
-            if guide_name_draft()
-                .as_ref()
-                .is_none_or(|(current_id, _)| current_id != &project_id)
-            {
-                guide_name_draft.set(Some((project_id, name)));
+        if let Some(current) = project_name_for_draft {
+            let changed = crate::setup_guide_state::accepted_name_change(
+                last_accepted_name.borrow().as_ref(),
+                &current,
+            );
+            *last_accepted_name.borrow_mut() = Some(current);
+            if let Some(value) = changed {
+                guide_name_draft.set(Some(value));
             }
         }
     }));
@@ -1156,8 +1188,6 @@ fn Editor() -> Element {
         active_workspace,
         "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
     );
-    let mut objects_open = use_signal(|| false);
-    let mut inspect_open = use_signal(|| false);
     let on_parts_select = {
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
@@ -1166,8 +1196,6 @@ fn Editor() -> Element {
             inspect_open.set(true);
         }
     };
-    let objects_panel_settings = use_panel_settings(PanelSide::Objects);
-    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector);
     let objects_preferences = objects_panel_settings();
     let inspector_preferences = inspector_panel_settings();
     let left_track = if objects_preferences.mode == PanelMode::Pinned {
@@ -3386,7 +3414,6 @@ fn Editor() -> Element {
     let mut guide_preferences_for_stage = guide_preferences;
     let mut guide_workspace_for_stage = workspace;
     let guide_project_id = document.id.clone();
-    let mut guide_objects_for_stage = objects_open;
     let on_stage_change = move |stage: SetupGuideStage| {
         let Some(mut preferences) = guide_preferences_for_stage()
             .filter(|preferences| preferences.project_id == guide_project_id)
@@ -3402,7 +3429,13 @@ fn Editor() -> Element {
             SetupGuideStage::Case => "Case",
             SetupGuideStage::Review => "Export",
         });
-        guide_objects_for_stage.set(true);
+        setup_guide::reveal_panels(
+            crate::setup_guide_state::GuideReveal::Guide,
+            objects_open,
+            inspect_open,
+            objects_panel_settings,
+            inspector_panel_settings,
+        );
         guide_adapter.selected_context.set(None);
         guide_adapter.anchor_scope.set(None);
         guide_runtime.submit(Event::SelectParts {
@@ -3413,12 +3446,32 @@ fn Editor() -> Element {
         });
     };
     let mut guide_workspace_for_action = workspace;
-    let mut guide_objects_for_action = objects_open;
     let mut guide_adapter_for_action = adapter.clone();
     let guide_runtime_for_action = runtime.clone();
+    let settings_project_id = document.id.clone();
     let on_open_workspace = move |target: &'static str| {
         guide_workspace_for_action.set(target);
-        guide_objects_for_action.set(true);
+        setup_guide::reveal_panels(
+            crate::setup_guide_state::GuideReveal::Settings,
+            objects_open,
+            inspect_open,
+            objects_panel_settings,
+            inspector_panel_settings,
+        );
+        let focus_runtime = guide_runtime_for_action.clone();
+        let focus_project_id = settings_project_id.clone();
+        spawn(async move {
+            gloo_timers::future::TimeoutFuture::new(0).await;
+            if *guide_workspace_for_action.peek() == target
+                && focus_runtime
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .is_some_and(|snapshot| snapshot.document.id == focus_project_id)
+            {
+                setup_guide::focus_settings(target);
+            }
+        });
         guide_adapter_for_action.selected_context.set(None);
         guide_adapter_for_action.anchor_scope.set(None);
         guide_runtime_for_action.submit(Event::SelectParts {

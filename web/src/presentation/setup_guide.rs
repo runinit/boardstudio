@@ -134,13 +134,12 @@ pub(super) fn ProjectSetupGuide(
                             oninput: move |event| on_name_change.call(event.value()),
                             onblur: move |_| on_name_commit.call(()),
                             onkeydown: move |event| {
-                                if event.key() == Key::Enter {
-                                    if let Some(input) = event.data().try_as_web_event()
+                                if event.key() == Key::Enter
+                                    && let Some(input) = event.data().try_as_web_event()
                                         .and_then(|event| event.target())
                                         .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
                                     {
                                         let _ = input.blur();
-                                    }
                                 }
                             },
                         }
@@ -268,5 +267,46 @@ pub(crate) fn write_preferences(preferences: &SetupGuidePreferences) {
         web_sys::window().and_then(|window| window.local_storage().ok().flatten())
     {
         let _ = storage.set_item(&key, &value.to_string());
+    }
+}
+
+/// Reveal the requested panel without changing compact-mode stored preferences.
+pub(super) fn reveal_panels(
+    intent: crate::setup_guide_state::GuideReveal,
+    mut objects_open: Signal<bool>,
+    mut inspector_open: Signal<bool>,
+    mut objects_settings: Signal<super::panels::PanelSettings>,
+    mut inspector_settings: Signal<super::panels::PanelSettings>,
+) {
+    let compact = web_sys::window()
+        .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
+        .is_some_and(|query| query.matches());
+    let reveal = crate::setup_guide_state::panel_reveal(intent, compact);
+    if *objects_open.peek() != reveal.objects_open {
+        objects_open.set(reveal.objects_open);
+    }
+    if compact && *inspector_open.peek() != reveal.inspector_open {
+        inspector_open.set(reveal.inspector_open);
+    }
+    if reveal.pin_objects && objects_settings.peek().mode != super::panels::PanelMode::Pinned {
+        objects_settings.with_mut(|settings| settings.mode = super::panels::PanelMode::Pinned);
+    }
+    if reveal.pin_inspector && inspector_settings.peek().mode != super::panels::PanelMode::Pinned {
+        inspector_settings.with_mut(|settings| settings.mode = super::panels::PanelMode::Pinned);
+    }
+}
+
+pub(super) fn focus_settings(workspace: &str) {
+    let selector = if workspace == "Export" {
+        ".m1-workspace-content :is(input, select, button):not(:disabled)"
+    } else {
+        "#m1-inspector-panel-content :is(input, select, button):not(:disabled)"
+    };
+    if let Some(element) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.query_selector(selector).ok().flatten())
+        .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+    {
+        let _ = element.focus();
     }
 }
