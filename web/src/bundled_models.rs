@@ -17,9 +17,7 @@ pub(crate) fn bundled_model(id: &str) -> Option<&'static BundledModel> {
 pub(crate) async fn generated_model_ids(
     document: &boardstudio_core::model::ProjectDoc,
 ) -> Result<Vec<String>, String> {
-    use boardstudio_core::model::{AssemblyMember, Part, PartDefinition};
-    use js_sys::{Function, JsString};
-    use serde::Serialize;
+    use js_sys::Function;
     use wasm_bindgen::{JsCast, JsValue};
     use wasm_bindgen_futures::JsFuture;
 
@@ -34,6 +32,19 @@ pub(crate) async fn generated_model_ids(
     )
     .await
     .map_err(|error| format!("Could not load Ergogen generator metadata: {error:?}"))?;
+
+    generated_model_ids_with_module(document, module)
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+fn generated_model_ids_with_module(
+    document: &boardstudio_core::model::ProjectDoc,
+    module: wasm_bindgen::JsValue,
+) -> Result<Vec<String>, String> {
+    use boardstudio_core::model::{AssemblyMember, Part, PartDefinition};
+    use js_sys::{Function, JsString};
+    use serde::Serialize;
+    use wasm_bindgen::{JsCast, JsValue};
 
     let is_ergogen = module_function(&module, "isErgogen")?;
     let model_asset_ids = module_function(&module, "modelAssetIds")?;
@@ -115,11 +126,8 @@ pub(crate) async fn generated_model_ids(
     ) -> Result<Vec<String>, String> {
         let definition = to_js_value(definition)?;
         let part = to_js_value(part)?;
-        let options = js_sys::Object::new();
-        js_sys::Reflect::set(&options, &JsString::from("part"), &part)
-            .map_err(|error| format!("Could not prepare generated model query: {error:?}"))?;
         let ids = render
-            .call2(module, &definition, &options.into())
+            .call2(module, &definition, &part)
             .map_err(|error| format!("Could not resolve generated model references: {error:?}"))?;
         serde_wasm_bindgen::from_value(ids)
             .map_err(|error| format!("Generated model references are invalid: {error}"))
@@ -138,7 +146,7 @@ pub(crate) async fn generated_model_ids(
             id: member.id.clone(),
             definition_id: definition.id.clone(),
             reference: member.id.clone(),
-            pose: member.pose.clone(),
+            pose: member.pose,
             side: member.side.clone(),
             locked: None,
             properties: None,
@@ -146,7 +154,7 @@ pub(crate) async fn generated_model_ids(
         }
     }
 
-    return Ok(ids);
+    Ok(ids)
 }
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
@@ -259,6 +267,64 @@ mod tests {
             model
                 .source_relative_path
                 .ends_with("trackpoint/TP_Cap_Green_T430.step")
+        );
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
+mod wasm_tests {
+    use super::generated_model_ids_with_module;
+    use boardstudio_core::model::{PartDefinition, ProjectDoc};
+    use js_sys::Function;
+    use serde_json::json;
+    use wasm_bindgen::{JsCast, JsValue};
+    use wasm_bindgen_futures::JsFuture;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    async fn generated_models_use_packaged_generator_part_overrides() {
+        let url = match option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL") {
+            Some(url) => url,
+            None => panic!("run scripts/web/test-portable-models.mjs to provide packaged module"),
+        };
+        let importer = Function::new_with_args("url", "return import(url)");
+        let module = JsFuture::from(
+            importer
+                .call1(&JsValue::NULL, &url.into())
+                .unwrap()
+                .dyn_into::<js_sys::Promise>()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        let catalogue = js_sys::Reflect::get(&module, &"catalogue".into())
+            .unwrap()
+            .dyn_into::<Function>()
+            .unwrap()
+            .call0(&module)
+            .unwrap();
+        let definitions: Vec<PartDefinition> = serde_wasm_bindgen::from_value(catalogue).unwrap();
+        let definition = definitions
+            .into_iter()
+            .find(|definition| definition.id == "ergogen:ceoloide/switch_gateron_ks27_ks33")
+            .unwrap();
+        let mut document = ProjectDoc::empty("models-test", "Generated model override");
+        document.parts.push(
+            serde_json::from_value(json!({
+                "id":"switch", "definitionId":definition.id, "reference":"SW1",
+                "pose":{"at":{"x":0,"y":0},"rotation":0}, "side":"back",
+                "generatorParameters":{
+                    "switch_3dmodel_filename":"boardstudio-asset:local-switch",
+                    "hotswap_3dmodel_filename":"",
+                    "keycap_3dmodel_filename":""
+                }
+            }))
+            .unwrap(),
+        );
+        document.definitions.push(definition);
+        assert_eq!(
+            generated_model_ids_with_module(&document, module).unwrap(),
+            vec!["local-switch"]
         );
     }
 }

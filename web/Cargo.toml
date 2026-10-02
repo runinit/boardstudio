@@ -58,3 +58,6 @@ dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"]
 [[example]]
 name = "case-settings"
 required-features = ["page"]
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3.79"

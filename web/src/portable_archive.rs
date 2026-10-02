@@ -104,7 +104,8 @@ fn hex_digest(bytes: &[u8]) -> String {
 
 /// Resolves all directly persisted bundled references plus the generated
 /// references collected from Ergogen's authoritative `modelAssetIds` export.
-/// Caller-provided generated IDs are validated strictly; saved metadata keeps
+/// Generated IDs already owned by the document use its local assets; other
+/// generated IDs are validated strictly. Saved metadata keeps
 /// React's behavior of including only IDs present in its bundled catalogue.
 pub(crate) fn referenced_models(
     document: &ProjectDoc,
@@ -120,9 +121,12 @@ pub(crate) fn referenced_models(
         }
     };
 
-    // React's generated-definition path is strict: a model emitted by a
-    // supported generator must resolve to a bundled catalogue entry.
+    // Existing document assets own their bytes even when a generator names them.
+    // Only generated references without a local owner require the bundled provider.
     for id in generated_ids {
+        if document.assets.iter().any(|asset| asset.id == id) {
+            continue;
+        }
         if crate::bundled_models::bundled_model(&id).is_none() {
             return Err(format!("Bundled Ergogen model is unavailable: {id}"));
         }
@@ -325,6 +329,22 @@ mod tests {
     }
 
     #[test]
+    fn generated_document_owned_model_does_not_require_a_bundled_provider() {
+        let mut document = ProjectDoc::empty("doc", "local generated model");
+        document.assets.push(Asset {
+            id: "local-switch".into(),
+            name: "local.step".into(),
+            media_type: "model/step".into(),
+            sha256: "00".repeat(32),
+            license: None,
+            source: None,
+        });
+        let models = referenced_models(&document, ["local-switch".to_owned()])
+            .expect("document-owned generated model uses local asset bytes");
+        assert!(models.is_empty());
+    }
+
+    #[test]
     fn generated_unknown_ergogen_model_fails_instead_of_silently_omitting() {
         let error = referenced_models(
             &ProjectDoc::empty("doc", "unknown reference"),
@@ -413,7 +433,7 @@ mod tests {
             .find(|asset| asset.sha256 == hex_digest(&opaque_bytes))
             .unwrap();
         assert!(unpacked_buffers[model_row.buffer_index as usize].is_empty());
-        assert_eq!(archive_option(&enabled.metadata), true);
+        assert!(archive_option(&enabled.metadata));
         assert_eq!(document, original);
 
         let disabled =
@@ -437,7 +457,7 @@ mod tests {
         let restored: ProjectDoc = serde_json::from_str(&project_json).unwrap();
         assert_eq!(restored.assets, original.assets);
         assert_eq!(assets.len(), 1);
-        assert_eq!(archive_option(&disabled.metadata), false);
+        assert!(!archive_option(&disabled.metadata));
 
         let existing_model_bytes = b"already embedded by the document".to_vec();
         let existing_model_hash = hex_digest(&existing_model_bytes);

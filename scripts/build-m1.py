@@ -28,7 +28,7 @@ def sources():
         if path.is_file() and path.suffix.lower() in {".step", ".stp", ".stl", ".wrl"}
     })
     return {name: digest(REPO / name) for name in paths if name and
-            (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/", "kicad/src/", "app/src/", "app/public/", "scripts/", "ergogen/library/vendor/", "ergogen/src/", "ergogen/generated/")) or name == "rust-toolchain.toml") and (REPO / name).is_file()}
+            (name.startswith(("web/", "application/", "core/", "contracts/", "renderer/", "cad/", "kicad/src/", "app/src/", "app/public/", "scripts/", "ergogen/")) or name in {"rust-toolchain.toml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"}) and (REPO / name).is_file()}
 
 
 def main():
