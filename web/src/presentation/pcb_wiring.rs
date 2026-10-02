@@ -1,7 +1,7 @@
-//! Read-only PCB wiring preview and selected-switch terminal projection.
+//! PCB wiring preview plus contextual selected-part connection projection.
 //!
 //! Root owns the accepted-source controller and Runtime request. This leaf receives only a
-//! cheap accepted-document handle, board scope, ordered active selection, and one guarded plan.
+//! cheap accepted-document handle, board scope, active selection, and guarded edit actions.
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
@@ -11,15 +11,63 @@ use dioxus::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
 mod controller;
+mod part_connections;
 use crate::firmware_position_projection;
 pub(in crate::presentation) use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
     FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
 };
 pub(in crate::presentation) use controller::{
-    use_firmware_position_edits, use_pcb_wiring_controller,
+    use_firmware_position_edits, use_pcb_part_net_edits, use_pcb_wiring_controller,
 };
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct PartNetEditIdentity {
+    pub board_id: String,
+    pub ui_scope: Scope,
+    pub part_id: String,
+    pub token: boardstudio_application::SnapshotToken,
+    pub revision: u64,
+    pub generation: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) enum PartNetEditAction {
+    AssignPads {
+        pad_ids: Vec<String>,
+        net_id: Option<String>,
+    },
+    CreateNet {
+        name: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct PartNetEditRequest {
+    pub identity: PartNetEditIdentity,
+    pub action: PartNetEditAction,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) enum PartNetFeedbackState {
+    Saved,
+    Failed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct PartNetFeedback {
+    pub identity: PartNetEditIdentity,
+    pub message: String,
+    pub state: PartNetFeedbackState,
+}
+
+#[derive(Clone, PartialEq)]
+pub(in crate::presentation) struct PartNetActions {
+    pub identity: Option<PartNetEditIdentity>,
+    pub editable: bool,
+    pub feedback: Option<PartNetFeedback>,
+    pub on_edit: EventHandler<PartNetEditRequest>,
+}
 /// A cheap view of the accepted source. Arc identity avoids deep document comparisons in the
 /// Dioxus props diff; the leaf never receives writable Session access.
 #[derive(Clone)]
@@ -135,7 +183,7 @@ struct TerminalRow {
     net_name: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum SelectionView {
     Board,
     Switch {
@@ -143,7 +191,30 @@ enum SelectionView {
         breadcrumb: String,
         terminals: Vec<TerminalRow>,
     },
+    GenericPart {
+        title: String,
+        breadcrumb: String,
+        thickness: f64,
+        placed_parts: usize,
+        assigned_pins: usize,
+        connections: Vec<ConnectionRow>,
+        nets: Vec<NetChoice>,
+    },
     Unsupported,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ConnectionRow {
+    label: String,
+    pad_ids: Vec<String>,
+    selected_net_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NetChoice {
+    id: String,
+    name: String,
+    pin_count: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -162,6 +233,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub firmware_positions: FirmwarePositionProjection,
     pub firmware_feedback: Option<FirmwarePositionFeedback>,
     pub firmware_controls: Element,
+    pub part_net_actions: PartNetActions,
     pub on_firmware_edit: EventHandler<FirmwarePositionEditRequest>,
     pub on_resolve: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
@@ -211,6 +283,7 @@ pub(in crate::presentation) fn firmware_position_projection(
 
 #[component]
 pub(in crate::presentation) fn PcbWiringInspector(props: PcbWiringInspectorProps) -> Element {
+    let new_net_name = use_signal(String::new);
     let display = use_memo(use_reactive((&props.source,), move |(source,)| {
         project_display(&source)
     }));
@@ -229,6 +302,26 @@ pub(in crate::presentation) fn PcbWiringInspector(props: PcbWiringInspectorProps
             breadcrumb,
             terminals,
         } => switch_wiring(title, breadcrumb, terminals, props.on_edit_board_wiring),
+        SelectionView::GenericPart {
+            title,
+            breadcrumb,
+            thickness,
+            placed_parts,
+            assigned_pins,
+            connections,
+            nets,
+        } => generic_part_wiring(GenericPartWiringProps {
+            props: &props,
+            source: &props.source,
+            title,
+            breadcrumb,
+            thickness: *thickness,
+            placed_parts: *placed_parts,
+            assigned_pins: *assigned_pins,
+            connections,
+            nets,
+            new_net_name,
+        }),
         SelectionView::Unsupported => rsx! {},
     }
 }
@@ -314,7 +407,80 @@ fn project_display(source: &PcbWiringSource) -> Option<WiringDisplayProjection> 
                         terminals,
                     }
                 }
-                _ => SelectionView::Unsupported,
+                _ => {
+                    let nets = document
+                        .nets
+                        .iter()
+                        .filter(|net| {
+                            board.net_ids.contains(&net.id)
+                                || net
+                                    .pins
+                                    .iter()
+                                    .any(|pin| board.part_ids.contains(&pin.part_id))
+                        })
+                        .collect::<Vec<_>>();
+                    let connections = definition
+                        .terminals
+                        .iter()
+                        .map(|(name, pad_ids)| ConnectionRow {
+                            label: format!("{name} terminal"),
+                            pad_ids: pad_ids.clone(),
+                            selected_net_id: unique_assigned_net(&nets, part_id, pad_ids),
+                        })
+                        .chain(
+                            definition
+                                .pads
+                                .iter()
+                                .filter(|pad| {
+                                    pad.plated != Some(false)
+                                        && !pad.number.is_empty()
+                                        && !is_ergogen_definition(definition)
+                                        && !definition
+                                            .terminals
+                                            .values()
+                                            .any(|ids| ids.contains(&pad.id))
+                                })
+                                .map(|pad| ConnectionRow {
+                                    label: pad.number.clone(),
+                                    pad_ids: vec![pad.id.clone()],
+                                    selected_net_id: unique_assigned_net(
+                                        &nets,
+                                        part_id,
+                                        std::slice::from_ref(&pad.id),
+                                    ),
+                                }),
+                        )
+                        .collect();
+                    let assigned_pins = nets
+                        .iter()
+                        .map(|net| {
+                            net.pins
+                                .iter()
+                                .filter(|pin| board.part_ids.contains(&pin.part_id))
+                                .count()
+                        })
+                        .sum();
+                    SelectionView::GenericPart {
+                        title: format!("{} · {}", part.reference, definition.name),
+                        breadcrumb: format!("{} / PCB", board.name),
+                        thickness: board.thickness,
+                        placed_parts: board.part_ids.len(),
+                        assigned_pins,
+                        connections,
+                        nets: nets
+                            .into_iter()
+                            .map(|net| NetChoice {
+                                id: net.id.clone(),
+                                name: net.name.clone(),
+                                pin_count: net
+                                    .pins
+                                    .iter()
+                                    .filter(|pin| board.part_ids.contains(&pin.part_id))
+                                    .count(),
+                            })
+                            .collect(),
+                    }
+                }
             }
         }
     };
@@ -326,6 +492,155 @@ fn project_display(source: &PcbWiringSource) -> Option<WiringDisplayProjection> 
         controller_choices,
         selection,
     })
+}
+
+fn unique_assigned_net(nets: &[&Net], part_id: &str, pad_ids: &[String]) -> Option<String> {
+    let assigned = nets
+        .iter()
+        .filter(|net| {
+            net.pins
+                .iter()
+                .any(|pin| pin.part_id == part_id && pad_ids.contains(&pin.pad_id))
+        })
+        .map(|net| net.id.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    (assigned.len() == 1)
+        .then(|| assigned.into_iter().next())
+        .flatten()
+}
+
+// Ergogen catalogue source IDs are serialized as definition IDs. The full package-defined
+// source classification remains owned by the Parts/generator slices.
+fn is_ergogen_definition(definition: &PartDefinition) -> bool {
+    definition.id.starts_with("ergogen:")
+}
+
+struct GenericPartWiringProps<'a> {
+    props: &'a PcbWiringInspectorProps,
+    source: &'a PcbWiringSource,
+    title: &'a str,
+    breadcrumb: &'a str,
+    thickness: f64,
+    placed_parts: usize,
+    assigned_pins: usize,
+    connections: &'a [ConnectionRow],
+    nets: &'a [NetChoice],
+    new_net_name: Signal<String>,
+}
+
+fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
+    let GenericPartWiringProps {
+        props,
+        source,
+        title,
+        breadcrumb,
+        thickness,
+        placed_parts,
+        assigned_pins,
+        connections,
+        nets,
+        mut new_net_name,
+    } = input;
+    let actions = props.part_net_actions.clone();
+    let identity = actions.identity.clone().filter(|identity| {
+        source.active_part_id.as_deref() == Some(identity.part_id.as_str())
+            && source.ui_scope == identity.ui_scope
+            && source.identity.scope.board_id == identity.board_id
+            && source.identity.token == identity.token
+            && source.identity.revision == identity.revision
+    });
+    let add_identity = identity.clone();
+    let add_handler = actions.on_edit;
+    let mut add_name = new_net_name;
+    let add_net = move |event: FormEvent| {
+        event.prevent_default();
+        let name = add_name().trim().to_owned();
+        if name.is_empty() {
+            return;
+        }
+        if let Some(identity) = add_identity.clone() {
+            add_handler.call(PartNetEditRequest {
+                identity,
+                action: PartNetEditAction::CreateNet { name },
+            });
+            add_name.set(String::new());
+        }
+    };
+    rsx! {
+        section { class: "m1-pcb-wiring m1-pcb-part-connections",
+            p { class: "m1-pcb-wiring-breadcrumb", "{breadcrumb}" }
+            h2 { "{title}" }
+            details { class: "m1-pcb-wiring-section",
+                summary { "Board details" }
+                ul {
+                    li { span { "Board thickness" } strong { "{thickness:.2} mm" } }
+                    li { span { "Placed parts" } strong { "{placed_parts}" } }
+                    li { span { "Net assignments" } strong { "{assigned_pins}" } }
+                }
+            }
+            div { class: "m1-pcb-wiring-section",
+                h3 { "Connections" }
+                if connections.is_empty() {
+                    p { class: "m1-pcb-wiring-empty", "This part has no assignable terminals or pads." }
+                } else {
+                    for row in connections {
+                        {
+                            let on_edit = actions.on_edit;
+                            let identity = actions.identity.clone();
+                            let pad_ids = row.pad_ids.clone();
+                            let value = row.selected_net_id.clone().unwrap_or_default();
+                            rsx! {
+                                label { class: "m1-pcb-wiring-assignment", key: "{row.label}",
+                                    span { "{row.label}" }
+                                    select {
+                                        "aria-label": "Net for {row.label}",
+                                        value: "{value}",
+                                        disabled: !actions.editable || identity.is_none(),
+                                        onchange: move |event| {
+                                            let Some(identity) = identity.clone() else { return; };
+                                            on_edit.call(PartNetEditRequest {
+                                                identity,
+                                                action: PartNetEditAction::AssignPads {
+                                                    pad_ids: pad_ids.clone(),
+                                                    net_id: (!event.value().is_empty()).then(|| event.value()),
+                                                },
+                                            });
+                                        },
+                                        option { value: "", "Unmapped" }
+                                        for net in nets {
+                                            option { value: "{net.id}", "{net.name}" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            form { class: "m1-pcb-wiring-assignment m1-pcb-new-net", onsubmit: add_net,
+                input {
+                    "aria-label": "New net name",
+                    placeholder: "New net name",
+                    value: "{new_net_name}",
+                    disabled: !actions.editable || identity.is_none(),
+                    oninput: move |event| new_net_name.set(event.value()),
+                }
+                button { r#type: "submit", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty(), "Add net" }
+            }
+            details { class: "m1-pcb-wiring-section",
+                summary { "Electrical nets ({nets.len()})" }
+                ul {
+                    for net in nets {
+                        li { key: "{net.id}", span { "{net.name}" } small { "{net.pin_count} pins" } }
+                    }
+                    if nets.is_empty() { li { "No nets are assigned to this board." } }
+                }
+            }
+            if let Some(feedback) = actions.feedback {
+                p { role: if matches!(feedback.state, PartNetFeedbackState::Failed) { "alert" } else { "status" }, "{feedback.message}" }
+            }
+        }
+    }
 }
 
 fn definition<'a>(document: &'a ProjectDoc, definition_id: &str) -> Option<&'a PartDefinition> {

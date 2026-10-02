@@ -1492,6 +1492,16 @@ fn Editor() -> Element {
         adapter.generation,
     );
     let pcb_wiring_mount = pcb_wiring::use_pcb_wiring_controller(runtime.clone(), version);
+    let pcb_part_net_actions = pcb_wiring::use_pcb_part_net_edits(
+        runtime.clone(),
+        version,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+    );
     let firmware_position_actions = pcb_wiring::use_firmware_position_edits(
         runtime.clone(),
         version,
@@ -3638,6 +3648,7 @@ fn Editor() -> Element {
                     firmware_positions: firmware_position_projection,
                     firmware_feedback,
                     firmware_controls,
+                    part_net_actions: pcb_part_net_actions.clone(),
                     on_firmware_edit: firmware_position_actions.on_edit,
                     on_resolve: pcb_wiring_mount.on_resolve,
                     on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,

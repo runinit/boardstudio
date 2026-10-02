@@ -10,10 +10,16 @@ use crate::firmware_position_projection::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, Scope};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
+
+use super::{
+    PartNetActions, PartNetEditAction, PartNetEditIdentity, PartNetEditRequest, PartNetFeedback,
+    PartNetFeedbackState,
+    part_connections::{self, PartNetIntent},
+};
 
 #[derive(Clone)]
 struct PendingFirmwarePositionEdit {
@@ -262,6 +268,313 @@ pub(in crate::presentation) fn use_firmware_position_edits(
         feedback: feedback(),
         editable,
         on_edit,
+    }
+}
+
+#[derive(Clone)]
+struct PendingPartNetEdit {
+    identity: PartNetEditIdentity,
+    proposal: ProjectDoc,
+    base_revision: u64,
+    outcome: crate::operation_outcomes::OutcomeSlot,
+}
+
+/// Editor-lifetime admission and exact outcome owner for contextual PCB part-net edits.
+pub(in crate::presentation) fn use_pcb_part_net_edits(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
+    instance_is_current: Rc<dyn Fn() -> bool>,
+) -> PartNetActions {
+    let pending = use_signal(|| None::<PendingPartNetEdit>);
+    let feedback = use_signal(|| None::<PartNetFeedback>);
+    let generation = scope_generation();
+    let observed_version = version();
+
+    use_effect(use_reactive((&observed_version,), {
+        let runtime = runtime.clone();
+        let mut pending = pending;
+        let mut feedback = feedback;
+        move |_| {
+            let Some(waiting) = pending.read().clone() else {
+                return;
+            };
+            let Some(outcome) = waiting.outcome.borrow_mut().take() else {
+                return;
+            };
+            let model = runtime.model();
+            let accepted = model.accepted.as_ref().filter(|accepted| {
+                accepted.session_epoch == waiting.identity.ui_scope.session_epoch
+                    && accepted.document.id == waiting.identity.ui_scope.document_id
+            });
+            let saved_proposal = accepted.is_some_and(|accepted| {
+                let mut expected = waiting.proposal.clone();
+                expected.revision = accepted.document.revision;
+                model.lifecycle == Lifecycle::Ready
+                    && model.durability
+                        == (Durability::Saved {
+                            revision: accepted.document.revision,
+                        })
+                    && accepted.document.revision > waiting.base_revision
+                    && *accepted.document == expected
+            });
+            let (message, state) = match outcome {
+                boardstudio_application::TerminalOutcome::Completed if saved_proposal =>
+                    ("Connection saved.".into(), PartNetFeedbackState::Saved),
+                boardstudio_application::TerminalOutcome::Completed => (
+                    "The edit completed, but its proposal is no longer the accepted project. Retry the connection change.".into(),
+                    PartNetFeedbackState::Failed,
+                ),
+                boardstudio_application::TerminalOutcome::Rejected(message)
+                | boardstudio_application::TerminalOutcome::ExecutorFailed(message)
+                | boardstudio_application::TerminalOutcome::PersistenceFailed(message)
+                | boardstudio_application::TerminalOutcome::BlockedByRecovery(message) =>
+                    (format!("Connection edit failed: {message}"), PartNetFeedbackState::Failed),
+                boardstudio_application::TerminalOutcome::Cancelled
+                | boardstudio_application::TerminalOutcome::Closed
+                | boardstudio_application::TerminalOutcome::Superseded =>
+                    ("Connection edit was cancelled before it could be saved.".into(), PartNetFeedbackState::Failed),
+            };
+            let mut feedback_identity = waiting.identity.clone();
+            if saved_proposal && let Some(accepted) = accepted {
+                feedback_identity.token = accepted.token;
+                feedback_identity.revision = accepted.document.revision;
+            }
+            feedback.set(Some(PartNetFeedback {
+                identity: feedback_identity,
+                message,
+                state,
+            }));
+            pending.set(None);
+        }
+    }));
+
+    let on_edit = use_callback({
+        let runtime = runtime.clone();
+        let mut pending = pending;
+        let mut feedback = feedback;
+        let instance_is_current = instance_is_current.clone();
+        move |request: PartNetEditRequest| {
+            if pending.peek().is_some()
+                || workspace() != "PCB"
+                || scope_generation() != generation
+                || !instance_is_current()
+            {
+                return;
+            }
+            let Some(current_identity) =
+                current_part_net_identity(&runtime, generation, instance_is_current())
+            else {
+                return;
+            };
+            if !request_matches_current_part(&request.identity, &current_identity) {
+                return;
+            }
+            let model = runtime.model();
+            if model.lifecycle != Lifecycle::Ready
+                || model.display_preview.is_some()
+                || model.gesture.is_some()
+                || !matches!(model.durability, Durability::Saved { .. })
+                || model.active_board_id != request.identity.ui_scope.board_id
+                || model.active_instance_id != request.identity.ui_scope.instance_id
+                || model.selected_part_ids.as_slice() != [request.identity.part_id.as_str()]
+                || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
+            {
+                return;
+            }
+            let Some(accepted) = model.accepted.as_ref() else {
+                return;
+            };
+            if accepted.session_epoch != request.identity.ui_scope.session_epoch
+                || accepted.document.id != request.identity.ui_scope.document_id
+                || accepted.token != request.identity.token
+                || accepted.document.revision != request.identity.revision
+                || accepted.scene.revision != accepted.document.revision
+            {
+                return;
+            }
+            let operation_id = runtime.operation();
+            let intent = match request.action {
+                PartNetEditAction::AssignPads { pad_ids, net_id } => {
+                    PartNetIntent::AssignPads { pad_ids, net_id }
+                }
+                PartNetEditAction::CreateNet { name } => PartNetIntent::CreateNet {
+                    net_id: fresh_net_id(&accepted.document, operation_id.0),
+                    name,
+                },
+            };
+            let proposal = match part_connections::propose(
+                &accepted.document,
+                &request.identity.board_id,
+                &request.identity.part_id,
+                intent,
+            ) {
+                Ok(proposal) => proposal,
+                Err(_) => return,
+            };
+            if proposal == *accepted.document {
+                return;
+            }
+            let outcome = runtime.observe_operation(operation_id);
+            let base_revision = accepted.document.revision;
+            pending.set(Some(PendingPartNetEdit {
+                identity: request.identity.clone(),
+                proposal: proposal.clone(),
+                base_revision,
+                outcome,
+            }));
+            feedback.set(None);
+            runtime.submit(Event::Edit {
+                operation_id,
+                command: EditCommand {
+                    base_revision,
+                    transaction_id: format!("pcb-part-net-{}", operation_id.0),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![request.identity.board_id, request.identity.part_id],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(proposal),
+                    },
+                },
+            });
+        }
+    });
+    let identity = current_part_net_identity(&runtime, generation, instance_is_current());
+    let editable = identity.is_some() && workspace() == "PCB" && pending().is_none();
+    let visible_feedback = feedback().filter(|feedback| {
+        identity
+            .as_ref()
+            .is_some_and(|identity| same_part_net_identity(&feedback.identity, identity))
+    });
+    PartNetActions {
+        identity,
+        editable,
+        feedback: visible_feedback,
+        on_edit,
+    }
+}
+
+fn current_part_net_identity(
+    runtime: &Runtime,
+    generation: u64,
+    instance_is_current: bool,
+) -> Option<PartNetEditIdentity> {
+    if !instance_is_current {
+        return None;
+    }
+    let model = runtime.model();
+    let scope = runtime.scope()?;
+    let accepted = model.accepted.as_ref()?;
+    let [part_id] = model.selected_part_ids.as_slice() else {
+        return None;
+    };
+    let board = accepted
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == scope.board_id)?;
+    if model.lifecycle != Lifecycle::Ready
+        || model.display_preview.is_some()
+        || model.gesture.is_some()
+        || !matches!(model.durability, Durability::Saved { .. })
+        || model.active_board_id != scope.board_id
+        || model.active_instance_id != scope.instance_id
+        || accepted.session_epoch != scope.session_epoch
+        || accepted.document.id != scope.document_id
+        || accepted.scene.revision != accepted.document.revision
+        || !board.part_ids.contains(part_id)
+    {
+        return None;
+    }
+    let part = accepted
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == *part_id)?;
+    let definition = accepted
+        .document
+        .definitions
+        .iter()
+        .find(|definition| definition.id == part.definition_id)?;
+    if matches!(
+        &definition.kind,
+        boardstudio_core::model::PartKind::Switch | boardstudio_core::model::PartKind::Controller
+    ) {
+        return None;
+    }
+    Some(PartNetEditIdentity {
+        board_id: scope.board_id.clone(),
+        ui_scope: scope,
+        part_id: part_id.clone(),
+        token: accepted.token,
+        revision: accepted.document.revision,
+        generation,
+    })
+}
+
+fn same_part_net_identity(left: &PartNetEditIdentity, right: &PartNetEditIdentity) -> bool {
+    left == right
+}
+
+fn request_matches_current_part(
+    rendered: &PartNetEditIdentity,
+    current: &PartNetEditIdentity,
+) -> bool {
+    rendered == current
+}
+
+fn fresh_net_id(document: &ProjectDoc, operation: u64) -> String {
+    let mut suffix = 0u64;
+    loop {
+        let id = format!("pcb-net-{operation}-{suffix}");
+        if !document.nets.iter().any(|net| net.id == id) {
+            return id;
+        }
+        suffix = suffix.checked_add(1).expect("net identity space exhausted");
+    }
+}
+
+#[cfg(test)]
+mod part_net_identity_tests {
+    use super::*;
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn identity(
+        board_id: &str,
+        part_id: &str,
+        token: u64,
+        revision: u64,
+        generation: u64,
+    ) -> PartNetEditIdentity {
+        PartNetEditIdentity {
+            board_id: board_id.into(),
+            ui_scope: Scope {
+                session_epoch: SessionEpoch(3),
+                document_id: "project".into(),
+                board_id: board_id.into(),
+                instance_id: None,
+            },
+            part_id: part_id.into(),
+            token: SnapshotToken(token),
+            revision,
+            generation,
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn rendered_part_action_is_rejected_after_board_selection_or_snapshot_changes() {
+        let rendered = identity("left", "left-J2", 7, 12, 4);
+        for current in [
+            identity("right", "left-J2", 7, 12, 4),
+            identity("left", "left-SW1", 7, 12, 4),
+            identity("left", "left-J2", 8, 12, 4),
+            identity("left", "left-J2", 7, 13, 4),
+            identity("left", "left-J2", 7, 12, 5),
+        ] {
+            assert!(!request_matches_current_part(&rendered, &current));
+        }
+        assert!(request_matches_current_part(&rendered, &rendered));
     }
 }
 
