@@ -41,18 +41,45 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 on_navigate: input.shared.on_navigate,
                 on_nudge: input.shared.on_nudge,
             }
+            LayoutAddObjectEntry { mount: input.matrix_setup }
+        }
+    }
+}
+
+#[component]
+fn LayoutAddObjectEntry(mount: objects::MatrixSetupMount) -> Element {
+    let mut menu_open = use_signal(|| false);
+    let open_menu = menu_open();
+    rsx! {
+        div { class: "m1-layout-add-object",
             button {
-                class: "m1-add-matrix",
                 r#type: "button",
-                disabled: !input.matrix_setup.can_open,
-                onclick: move |_| input.matrix_setup.on_open.call(()),
-                "Add key matrix"
+                aria_expanded: open_menu,
+                onclick: move |_| menu_open.set(!menu_open()),
+                "Add object"
             }
-            if let Some(projection) = input.matrix_setup.projection.clone() {
+            if open_menu {
+                div { role: "dialog", "aria-label": "Add", class: "m1-layout-add-menu",
+                    section { "aria-label": "Layouts",
+                        h3 { "Layouts" }
+                        button {
+                            r#type: "button",
+                            disabled: !mount.can_open,
+                            onclick: move |_| {
+                                menu_open.set(false);
+                                mount.on_open.call(());
+                            },
+                            "Matrix…"
+                            small { "Rows, columns & key assemblies" }
+                        }
+                    }
+                }
+            }
+            if let Some(projection) = mount.projection.clone() {
                 objects::MatrixSetup {
                     projection,
-                    on_cancel: input.matrix_setup.on_cancel,
-                    on_create: input.matrix_setup.on_create,
+                    on_cancel: mount.on_cancel,
+                    on_create: mount.on_create,
                 }
             }
         }
