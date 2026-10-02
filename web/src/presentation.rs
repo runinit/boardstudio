@@ -3414,6 +3414,7 @@ fn Editor() -> Element {
                     selected_key_id,
                     on_select_key: workspace_callbacks.keycaps_select,
                     settings_editor,
+                    settings_actions: keycaps_settings_actions.clone(),
                     fit_state: keycaps_fit_state.state.clone(),
                     fit_retry: keycaps_fit_state.on_retry,
                 },

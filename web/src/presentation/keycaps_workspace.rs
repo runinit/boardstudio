@@ -3,7 +3,10 @@ use super::keycaps_fit::{KeycapsFitInspector, KeycapsFitState};
 use super::keycaps_scene::{
     KeycapsCanvas, KeycapsKeyList, KeycapsMatrixList, KeycapsSelectedSummary, KeycapsView,
 };
-use super::keycaps_settings::{KeycapsSettingsActions, KeycapsSettingsEditor, SelectedKeySettings};
+use super::keycaps_settings::{
+    KeycapsBoardSettingsEditor, KeycapsMatrixSettingsEditor, KeycapsSettingsActions,
+    KeycapsSettingsEditor, SelectedKeySettings,
+};
 use super::objects;
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use boardstudio_core::model::Contour;
@@ -25,6 +28,7 @@ pub(super) struct InspectorInput {
     pub(super) selected_key_id: Option<String>,
     pub(super) on_select_key: EventHandler<String>,
     pub(super) settings_editor: Option<(SelectedKeySettings, KeycapsSettingsActions)>,
+    pub(super) settings_actions: Option<KeycapsSettingsActions>,
     pub(super) fit_state: Option<KeycapsFitState>,
     pub(super) fit_retry: EventHandler<()>,
 }
@@ -86,8 +90,19 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
 pub(super) fn inspector(input: InspectorInput) -> Element {
     if let Some(view) = input.view {
         let settings_editor = input.settings_editor;
+        let settings_actions = input.settings_actions;
         rsx! {
             section { class: "m1-keycaps-inspector", "aria-label": "Keycaps inspector",
+                if let Some(actions) = settings_actions.clone() {
+                    KeycapsBoardSettingsEditor { settings: view.board_settings.clone(), actions: actions.clone() }
+                    section { class: "m1-keycaps-settings", "aria-label": "Matrix profiles",
+                        h3 { "Matrix profiles" }
+                        for matrix in view.matrices.iter() {
+                            KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
+                        }
+                        if view.matrices.is_empty() { p { class: "m1-keycaps-empty-note", "Standalone switches use their individual profile override." } }
+                    }
+                }
                 KeycapsMatrixList { view: view.clone() }
                 KeycapsKeyList {
                     view: view.clone(),

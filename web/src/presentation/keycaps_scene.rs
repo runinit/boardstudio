@@ -4,8 +4,8 @@
 //! controlled view over the accepted document and emits stable part IDs only.
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{
-    Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, Part, PartDefinition, PartKind,
-    Pose2, ProjectDoc, Vec2,
+    Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part,
+    PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
 };
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -13,6 +13,7 @@ use std::{collections::BTreeSet, rc::Rc};
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct KeycapsView {
     pub board_id: Rc<str>,
+    pub board_settings: KeycapBoardSettings,
     pub keys: Vec<KeycapsKey>,
     pub matrices: Vec<KeycapsMatrix>,
     pub assigned_count: usize,
@@ -41,6 +42,7 @@ pub(super) enum LegendSource {
 pub(super) struct KeycapsMatrix {
     pub id: Rc<str>,
     pub name: Rc<str>,
+    pub settings: KeycapMatrixSettings,
 }
 
 /// Build the physical Keycaps view from one accepted snapshot and its active board scope.
@@ -65,9 +67,10 @@ pub(super) fn project(
     let board_settings = document
         .keycaps
         .as_ref()
-        .and_then(|settings| settings.boards.get(active_board_id));
-    let board_color =
-        board_settings.map_or(defaults.color.as_str(), |settings| settings.color.as_str());
+        .and_then(|settings| settings.boards.get(active_board_id))
+        .cloned()
+        .unwrap_or(defaults);
+    let board_color = board_settings.color.as_str();
     let keys: Vec<_> = document
         .parts
         .iter()
@@ -131,11 +134,18 @@ pub(super) fn project(
         .map(|matrix| KeycapsMatrix {
             id: Rc::from(matrix.id.as_str()),
             name: Rc::from(matrix.name.as_deref().unwrap_or(&matrix.id)),
+            settings: document
+                .keycaps
+                .as_ref()
+                .and_then(|keycaps| keycaps.matrices.get(&matrix.id))
+                .cloned()
+                .unwrap_or_default(),
         })
         .collect();
 
     Some(Rc::new(KeycapsView {
         board_id: Rc::from(active_board_id),
+        board_settings,
         keys,
         matrices,
         assigned_count,
@@ -658,6 +668,40 @@ mod tests {
         assert_eq!(view.keys[1].size, Vec2 { x: 18.2, y: 18.2 });
         assert_eq!(view.matrices[0].name.as_ref(), "m");
         assert_eq!(view.assigned_count, 0);
+    }
+
+    #[test]
+    fn keycaps_projection_supplies_editable_defaults_without_materializing_config() {
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.boards.push(board(&["matrix/m/a", "matrix/m/b"]));
+        document.parts = vec![
+            part("matrix/m/a", "plain-def", "K1"),
+            part("matrix/m/b", "plain-def", "K2"),
+        ];
+        document
+            .definitions
+            .push(definition("plain-def", "custom", None));
+        document.matrices = vec![matrix("m", None, &["matrix/m/a", "matrix/m/b"], None)];
+        let before = document.clone();
+
+        let view = project(&snapshot(document, vec![]), &scope("board"), "board").unwrap();
+
+        assert_eq!(view.board_settings.color, "#e8e4dc");
+        assert_eq!(view.board_settings.legend_color, "#202630");
+        assert_eq!(view.board_settings.clearance, 0.5);
+        assert_eq!(view.matrices[0].settings.profile, None);
+        assert_eq!(view.matrices[0].settings.mount, None);
+        assert_eq!(view.matrices[0].settings.first_row, 1);
+        assert_eq!(view.matrices[0].settings.wall_thickness, 1.2);
+        assert!(before.keycaps.is_none());
+    }
+
+    #[test]
+    fn contour_points_keeps_coordinates_ordered_for_svg_path_inputs() {
+        assert_eq!(
+            contour_points(&[Vec2 { x: 1.0, y: 2.5 }, Vec2 { x: -3.0, y: 4.0 }]),
+            "1,2.5 -3,4"
+        );
     }
 
     #[test]

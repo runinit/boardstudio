@@ -1,0 +1,40 @@
+{
+  "base_commit": "00893ecf706d98c54784cd30177db861b6690b12",
+  "branch": "codex/keycaps-fit-findings-20261002",
+  "scope": "F6C.2 issue 01 board keycap defaults and issue 02 matrix keycap profiles; no parent joins changed",
+  "source_frozen_for_review": true,
+  "source_files": {
+    "web/src/presentation.rs": "271334e25575b740503c9064ef8063c294a1496faaa4dec0bc5356d9f9afeabf",
+    "web/src/presentation/keycaps_scene.rs": "bd0a03414453958e48a7525320dce652434a497f8d670db1fac133404bef52f1",
+    "web/src/presentation/keycaps_settings.rs": "91acc715e92287132717933c04d69dee7193edf1d89d92b0743f0c7a0ab454ce",
+    "web/src/presentation/keycaps_workspace.rs": "300c98e0d02f9b2f5b75f45eb7730cc582ffa85945aacf3fc5fc62244ea9afa8",
+    "web/assets/m1.css": "395d3cc31ded866d5b71138bb57e0256d77915062d2475ad3f8efe3c5557a65b",
+    "web/tests/keycaps_projection.rs": "ba2f56f91716faecc471b2bcfda2b56b8e0d3eca1130c956584e0903e5d13c16"
+  },
+  "spec_hash": "f25776c673a7404eefe0369f7b04c2e6490b4360dd6cfbe0c79b1fb8cdf12265",
+  "ticket_hashes": {
+    "01-board-keycap-defaults.md": "64e2f8aa800bc59ccd6e2f2182089dae57ec50384376885e98e41029f5e281eb",
+    "02-matrix-keycap-profiles.md": "ece19c86e95d8049cb237d9284306aa2804e5de9aae4c6a94923d7c631d00844"
+  },
+  "patch_sha256": "f05ffecc23e142ff43cb0a03e9f9a085d48cf203d80426bc2eeba45d3601fa1a",
+  "checks": {
+    "cargo_fmt_check": "pass",
+    "native_keycaps_projection_tests": "7/7 pass",
+    "wasm_unit_test_compilation": "pass",
+    "release_wasm_page_check": "pass with 7 unrelated existing unused-variable warnings"
+  },
+  "browser_acceptance": {
+    "status": "bounded paired journey passed for clearance and matrix profile; full acceptance remains open",
+    "fixture_path": "/tmp/keycaps-fit-fixture.boardstudio",
+    "fixture_sha256": "f2c38c70edbb02994c98b8fbd1eadfe99143b5d637916414dbeb4546162324bb",
+    "dioxus_candidate_build": "web/target/builds/frontend-keycaps-settings-20261002-r2 (exact source hashes above; pre-disclosure follow-up)",
+    "candidate_url": "http://127.0.0.1:34725/",
+    "react_reference_url": "http://127.0.0.1:5173/ (root app dev server; source KeycapPanel.tsx SHA-256 f04b1f062cd77bae48696c33bf5722bde0b251160ce5feda31bca3bd9c5e0466)",
+    "journey": "Imported identical Sofle fixture into isolated React and Dioxus browser sessions. Board clearance changed 0.5 to 0.8 and matrix keys profile changed from no generated keycap to Cherry on each. Browser-visible values remained accepted; undo became enabled. Additional matrix and board-color edits, error/retry, collapse/reopen, and save/reopen remain open.",
+    "screenshots": {
+      "react-current-settings.png": "19552474d1ff2e06cd48769a922bbd85f6dddf759cf63307e4ce260301c4f0b8",
+      "dioxus-pre-disclosure-controls.png": "3879c1d79d3fec987f0f7e70a627d8d567e5a4a9c3199fd66bae7f1f74916363"
+    },
+    "historical_mismatch": "An earlier React page at 127.0.0.1:5175 was a stale/wrong app instance and rejected input; it was superseded by fresh isolated runs against the active root app at 5173. Do not count that failed evidence as React parity behavior."
+  }
+}
