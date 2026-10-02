@@ -113,9 +113,6 @@ pub(in crate::presentation) fn use_matrix_inspector(
 
     let on_edit = use_callback({
         let runtime = runtime.clone();
-        let selected_context = selected_context;
-        let workspace = workspace;
-        let scope_generation = scope_generation;
         let context_generation = context_generation.clone();
         let mut last_request_id = last_request_id;
         let mut pending = pending;
@@ -154,10 +151,12 @@ pub(in crate::presentation) fn use_matrix_inspector(
                 &model,
                 live_scope.as_ref(),
                 Some(&selected),
-                editor_instance_id,
-                current_generation,
-                current_scope_generation,
-                current_workspace,
+                MatrixProjectionContext {
+                    editor_instance_id,
+                    context_generation: current_generation,
+                    scope_generation: current_scope_generation,
+                    workspace: current_workspace,
+                },
             ) else {
                 return;
             };
@@ -288,14 +287,23 @@ fn project_current(
         &model,
         scope.as_ref(),
         selected,
-        editor_instance_id,
-        context_generation,
-        scope_generation,
-        workspace,
+        MatrixProjectionContext {
+            editor_instance_id,
+            context_generation,
+            scope_generation,
+            workspace,
+        },
     )
     .map_or((None, false), |(projection, editable)| {
         (Some(projection), editable)
     })
+}
+
+struct MatrixProjectionContext {
+    editor_instance_id: u64,
+    context_generation: u64,
+    scope_generation: u64,
+    workspace: &'static str,
 }
 
 fn project_current_for(
@@ -303,11 +311,14 @@ fn project_current_for(
     model: &boardstudio_application::ReadModel,
     live_scope: Option<&Scope>,
     selected: Option<&ScopedTreeContext>,
-    editor_instance_id: u64,
-    context_generation: u64,
-    scope_generation: u64,
-    workspace: &'static str,
+    context: MatrixProjectionContext,
 ) -> Option<(MatrixInspectorProjection, bool)> {
+    let MatrixProjectionContext {
+        editor_instance_id,
+        context_generation,
+        scope_generation,
+        workspace,
+    } = context;
     if workspace != "Layout" {
         return None;
     }

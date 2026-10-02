@@ -497,6 +497,6 @@ fn owner_key(owner: &MatrixInspectorOwner, field: MatrixEditField) -> String {
         encode(&owner.scope.board_id),
         instance,
         encode(&owner.matrix_id),
-        format!("{target}-{}", field.key()),
+        format_args!("{target}-{}", field.key()),
     )
 }
