@@ -10,6 +10,8 @@ mod setup_guide_state;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod cad_presentation;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod parts_definition_name;
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod physical_setup;
 #[cfg(feature = "page")]
 mod portable_archive;

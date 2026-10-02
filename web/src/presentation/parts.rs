@@ -227,10 +227,25 @@ pub(super) fn PartsInspectorPanel(
             .find(|entry| entry.definition.id == id)
             .cloned()
     });
+    let editable_definition = entry
+        .as_ref()
+        .filter(|entry| {
+            entry.source == catalogue::CatalogueSource::Project
+                && entry.definition.generator.is_none()
+        })
+        .map(|entry| (*entry.definition).clone());
 
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
             SelectedDefinition { entry }
+            if let Some(definition) = editable_definition {
+                crate::parts_definition_name::DefinitionNameEditor {
+                    snapshot: snapshot.clone(),
+                    scope: scope.clone(),
+                    selection: selected,
+                    definition,
+                }
+            }
         }
     }
 }
