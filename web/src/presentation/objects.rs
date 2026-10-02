@@ -70,7 +70,19 @@ pub(super) fn Objects(
     let instance_scope = active_scope.clone();
     let navigate_board = on_navigate;
     let navigate_instance = on_navigate;
-    let expanded = use_signal(BTreeSet::<String>::new);
+    let defaults = tree::default_disclosures(document, &board_id);
+    let mut expanded = use_signal(|| defaults.clone());
+    let disclosure_scope = (
+        snapshot.session_epoch,
+        document.id.clone(),
+        board_id.clone(),
+    );
+    use_effect(use_reactive(
+        (&disclosure_scope, &defaults),
+        move |(_, defaults)| {
+            expanded.write().extend(defaults);
+        },
+    ));
     let mut grouping = use_signal(|| Grouping::from_storage(read_tree_grouping()));
     let visible_count = document
         .boards

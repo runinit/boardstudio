@@ -99,6 +99,20 @@ pub(super) fn visible_matrices<'a>(
         .collect()
 }
 
+pub(super) fn default_disclosures(document: &ProjectDoc, board_id: &str) -> BTreeSet<String> {
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+        return BTreeSet::new();
+    };
+    let board_parts = board.part_ids.iter().map(String::as_str).collect();
+    let mut defaults = BTreeSet::from([format!("board:{board_id}"), format!("layout:{board_id}")]);
+    defaults.extend(
+        visible_matrices(document, board_id, &board_parts)
+            .iter()
+            .map(|matrix| format!("matrix:{}", matrix.id)),
+    );
+    defaults
+}
+
 pub(super) fn build_tree(
     document: &ProjectDoc,
     board_id: &str,
@@ -258,12 +272,11 @@ pub(super) fn build_tree(
                     grouping,
                     expanded,
                     2,
+                    true,
                 );
             }
-            if layouts.is_empty() {
-                for part in &standalone {
-                    append_component(&mut tree, part, &definitions, 2);
-                }
+            for part in &standalone {
+                append_component(&mut tree, part, &definitions, 2);
             }
         }
     }
@@ -304,15 +317,17 @@ pub(super) fn build_tree(
                     .copied()
             })
             .collect();
-        append_components_group(
-            &mut tree,
-            &components,
-            &definitions,
-            board_id,
-            half_label,
-            expanded,
-            if half_level == 0 { 1 } else { 2 },
-        );
+        if has_split {
+            append_components_group(
+                &mut tree,
+                &components,
+                &definitions,
+                board_id,
+                half_label,
+                expanded,
+                if half_level == 0 { 1 } else { 2 },
+            );
+        }
         for layout in half_layouts {
             let layout_key = format!("half:{}", layout.id);
             let is_open = expanded.contains(&layout_key);
@@ -353,7 +368,17 @@ pub(super) fn build_tree(
                         grouping,
                         expanded,
                         child_level,
+                        false,
                     );
+                }
+                if !has_split {
+                    for part in components_by_layout
+                        .get(layout.id.as_str())
+                        .into_iter()
+                        .flatten()
+                    {
+                        append_component(&mut tree, part, &definitions, child_level);
+                    }
                 }
             }
         }
@@ -450,6 +475,7 @@ fn append_matrix(
     grouping: Grouping,
     expanded: &BTreeSet<String>,
     level: usize,
+    include_header: bool,
 ) {
     let projected = scene
         .map(|scene| scene.cells.as_slice())
@@ -480,26 +506,29 @@ fn append_matrix(
         .unwrap_or(0)
         + 1;
     let item_id = format!("matrix:{}", matrix.id);
-    let is_open = expanded.contains(&item_id);
-    tree.push(TreeItem {
-        id: item_id,
-        label: matrix
-            .name
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_owned)
-            .unwrap_or_else(|| format!("Matrix {index}")),
-        detail: Some(format!("{} keys", primary_ids.len())),
-        level,
-        kind: TreeKind::Matrix,
-        context: Some(TreeContext::Matrix {
-            matrix_id: matrix.id.clone(),
-        }),
-        expanded: Some(is_open),
-        primary_id: None,
-        expandable: true,
-    });
+    let is_open = !include_header || expanded.contains(&item_id);
+    if include_header {
+        tree.push(TreeItem {
+            id: item_id,
+            label: matrix
+                .name
+                .as_deref()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned)
+                .unwrap_or_else(|| format!("Matrix {index}")),
+            detail: Some(format!("{} keys", primary_ids.len())),
+            level,
+            kind: TreeKind::Matrix,
+            context: Some(TreeContext::Matrix {
+                matrix_id: matrix.id.clone(),
+            }),
+            expanded: Some(is_open),
+            primary_id: None,
+            expandable: true,
+        });
+    }
+    let child_level = level + usize::from(include_header);
     if !is_open || matrix.rows == 0 || matrix.columns == 0 {
         return;
     }
@@ -544,7 +573,7 @@ fn append_matrix(
             id: id.clone(),
             label,
             detail: Some(format!("{key_count_live} keys")),
-            level: level + 1,
+            level: child_level,
             kind,
             context: Some(context),
             expanded: Some(is_open),
@@ -587,7 +616,7 @@ fn append_matrix(
                         .and_then(|id| live_parts.get(id).map(|part| part.reference.clone()))
                         .unwrap_or_else(|| "Empty slot".into()),
                 ),
-                level: level + 2,
+                level: child_level + 1,
                 kind: TreeKind::Key,
                 context: Some(TreeContext::Key {
                     matrix_id: matrix.id.clone(),
@@ -620,7 +649,7 @@ fn append_matrix(
                             }
                             .into(),
                         ),
-                        level: level + 3,
+                        level: child_level + 2,
                         kind: TreeKind::Component,
                         context: Some(TreeContext::Component {
                             part_id: actual.clone(),
