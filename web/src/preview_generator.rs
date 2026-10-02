@@ -2,6 +2,7 @@
 
 use futures_channel::oneshot;
 use js_sys::Reflect;
+use serde::Serialize;
 use serde_json::Value;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -28,10 +29,19 @@ impl PreviewGeneratorClient {
         let receiving = pending.clone();
         let message = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
             let data = event.data();
-            let Ok(id) = Reflect::get(&data, &"request_id".into()) else {
-                return;
-            };
-            let Some(id) = id.as_f64().filter(|id| id.is_finite() && *id >= 1.0) else {
+            let id = Reflect::get(&data, &"request_id".into())
+                .ok()
+                .and_then(|id| id.as_f64())
+                .filter(|id| {
+                    id.is_finite()
+                        && id.fract() == 0.0
+                        && (1.0..=9_007_199_254_740_991.0).contains(id)
+                });
+            let Some(id) = id else {
+                fail_all(
+                    &receiving,
+                    "Preview worker reply identity is missing or invalid".into(),
+                );
                 return;
             };
             let id = id as u64;
@@ -82,7 +92,7 @@ impl PreviewGeneratorClient {
             }
             pending.insert(request_id, sender);
         }
-        let message = match serde_wasm_bindgen::to_value(request) {
+        let message = match request.serialize(&serde_wasm_bindgen::Serializer::json_compatible()) {
             Ok(message) => message,
             Err(error) => {
                 self.pending.borrow_mut().remove(&request_id);

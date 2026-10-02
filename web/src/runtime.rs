@@ -1017,10 +1017,11 @@ impl Runtime {
             .await;
         match result {
             Ok(preview) if self.preview_owner_is_current(&preview.owner) => {
-                *self.native_case_preview.borrow_mut() = Some(Rc::new(preview));
-                if let Some((_, lease)) = self.native_case_preview_pending.borrow_mut().take() {
-                    lease.invalidate();
-                }
+                crate::case_preview::publish_native_preview(
+                    &mut self.native_case_preview.borrow_mut(),
+                    &mut self.native_case_preview_pending.borrow_mut(),
+                    preview,
+                );
                 self.native_case_preview_error.borrow_mut().take();
                 self.changed();
                 Ok(())

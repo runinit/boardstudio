@@ -202,6 +202,17 @@ pub(crate) fn accept_native_preview(
     })
 }
 
+pub(crate) fn publish_native_preview(
+    published: &mut Option<Rc<NativePreviewSnapshot>>,
+    pending: &mut Option<(CasePreviewOwnerIdentity, Rc<CasePreviewOwnerLease>)>,
+    preview: NativePreviewSnapshot,
+) {
+    *published = Some(Rc::new(preview));
+    // The accepted snapshot now owns this same lease. Retire the pending slot
+    // without cancelling the model deliveries that will borrow its lease.
+    pending.take();
+}
+
 pub(crate) fn prepare_artifact(id: String, capture: &NativePreviewCapture) -> ArtifactRequest {
     ArtifactRequest::PreparePreview {
         id,
@@ -405,6 +416,44 @@ mod tests {
                 .expect_err("stale preview result")
                 .contains("another revision")
         );
+    }
+
+    #[test]
+    fn successful_publication_keeps_the_preview_visible_after_pending_clears() {
+        let (snapshot, scope) = snapshot(false, false);
+        let capture =
+            capture_native_preview(&snapshot, &scope, 4, 9, 3, 7, "preview-9".into()).unwrap();
+        let owner = capture.owner.clone();
+        let weak = Rc::downgrade(&capture.lease);
+        let mut pending = Some((owner.clone(), capture.lease.clone()));
+        let preview = accept_native_preview(
+            capture,
+            PcbPreview {
+                revision: owner.accepted_revision,
+                thickness: 1.6,
+                contours: vec![],
+                surfaces: vec![],
+                holes: vec![],
+                models: vec![],
+                diagnostics: vec![],
+            },
+        )
+        .unwrap();
+        let mut published = None;
+
+        publish_native_preview(&mut published, &mut pending, preview);
+
+        assert!(pending.is_none());
+        let visible = published
+            .as_ref()
+            .filter(|preview| preview.lease.matches(&owner));
+        assert!(
+            visible.is_some(),
+            "success must remain visible after pending ownership transfers"
+        );
+        assert!(weak.upgrade().unwrap().is_active());
+        published.take();
+        assert!(weak.upgrade().is_none());
     }
 
     #[test]
