@@ -30,10 +30,12 @@
     "dioxus_candidate_build": "web/target/builds/frontend-keycaps-settings-20261002-r2 (exact source hashes above; pre-disclosure follow-up)",
     "candidate_url": "http://127.0.0.1:34725/",
     "react_reference_url": "http://127.0.0.1:5173/ (root app dev server; source KeycapPanel.tsx SHA-256 f04b1f062cd77bae48696c33bf5722bde0b251160ce5feda31bca3bd9c5e0466)",
-    "journey": "Imported identical Sofle fixture into isolated React and Dioxus browser sessions. Board clearance changed 0.5 to 0.8 and matrix keys profile changed from no generated keycap to Cherry on each. Browser-visible values remained accepted; undo became enabled. Additional matrix and board-color edits, error/retry, collapse/reopen, and save/reopen remain open.",
+    "journey": "Imported identical Sofle fixture into isolated React and Dioxus browser sessions. Board clearance changed 0.5 to 0.8 and matrix keys profile changed from no generated keycap to Cherry on each. Undo reverted Cherry while retaining clearance; Redo restored Cherry. Reloading the application and reopening Keycaps retained both values in each app. Default keycap and legend colors were visually compared, but editing native color inputs remains unverified because agent-browser cannot reliably address Chrome's picker pseudo-elements.",
     "screenshots": {
       "react-current-settings.png": "19552474d1ff2e06cd48769a922bbd85f6dddf759cf63307e4ce260301c4f0b8",
-      "dioxus-pre-disclosure-controls.png": "3879c1d79d3fec987f0f7e70a627d8d567e5a4a9c3199fd66bae7f1f74916363"
+      "dioxus-pre-disclosure-controls.png": "3879c1d79d3fec987f0f7e70a627d8d567e5a4a9c3199fd66bae7f1f74916363",
+      "react-paired-journey.png": "6d0fd202c5911737884b67263ac6fa3101e7b0d8b09d054ed38e4706c306cab3",
+      "dioxus-paired-journey-pre-disclosure.png": "a8b68787cd11bc25b7672c52f45ce22d9cb4556bc0134227d91a53f67a64daaa"
     },
     "historical_mismatch": "An earlier React page at 127.0.0.1:5175 was a stale/wrong app instance and rejected input; it was superseded by fresh isolated runs against the active root app at 5173. Do not count that failed evidence as React parity behavior."
   }
