@@ -52,6 +52,8 @@ The paired Case exploration at integration source `89b1de8a` confirms the visibl
 
 The confirmed six-stream parity reset has dispatched a bounded private composition extraction against reviewed contract v3. It splits six feature render leaves from the root dispatcher while preserving existing feature-local lifecycle and Runtime ownership; this is a mitigation for the shared edit hotspot, not evidence that the hotspot is resolved. No new architectural takeaway was observed in the contract/review handoff beyond RF-001. See the [retained contract (current SHA-256 `c6550ab5…`)](../../.scratch/dioxus-workbench-parity/evidence/workbench-composition-contract-v3-reviewed.md) and [six-stream ticket (current SHA-256 `7279b6bf…`)](../../.scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md).
 
+PCB scene review at source correction `590140b2` also found that accepted board membership/part projection is rebuilt on selection renders and generator drawing transfers owned parameter and full definition inputs through `FootprintGraphics`. The existing owned-prop boundary is retained; the obvious duplicate local parameter clone may be removed, but broad memoization is deferred until render/allocation cost is measured on a real generated multi-part board. This is an unmeasured design risk, not a performance pass or current assembly blocker. See the [PCB Wiring/context Inspector audit](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/audit.md).
+
 ## RF-002
 
 **Internal browser host types are exposed as crate APIs** — architecture / API design. confirmed observation; future cost is a design risk.
@@ -193,6 +195,10 @@ The current F7.8 consumer list names five workflows while the confirmed migratio
 ### RF-009 encoder initial-value regression evidence
 
 The built encoder candidate at source `e82c039b` / build `frontend-encoder-bindings-20261002` (34685) rendered three unassigned dynamic selectors as `key-press` despite the empty accepted sensor/binding maps; readonly evidence confirmed no document mutation. The narrow declarative `option.selected` correction at source `868edfcb`, build `frontend-encoder-select-fixed-20261002` (34687), now renders `none` in the value and selected options of all three controls. This is a bounded regression/evidence observation; it does not claim a framework-wide issue or broad architecture finding. Genuine archive interaction/recovery and F5.2/F8.2/AT/parent gates remain open. The exact retained paths are in the [encoder regression handoff](../../.scratch/dioxus-keymap-layers/evidence/encoder-select-regression/refactor-handoff.md), [baseline packet](../../.scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/) and [corrected regression packet](../../.scratch/dioxus-keymap-layers/evidence/encoder-select-regression/).
+
+### RF-009 PCB Wiring and selected-switch accounting
+
+The pinned React Sofle flow shows a board-level Wiring plan when nothing or a controller is selected, and a read-only accepted-net/name projection for a selected switch. The current page still contains the PCB placeholder; the new private host-scene leaf awaits root mount and paired public verification. Core already owns `ResolveElectrical`; a private Runtime request/scope adapter and Inspector composition are still required. The proposed F5.2a draft keeps that adapter, the accepted selected-board scope, and the selected-switch context explicit without closing F5.2 or its INT.2 acceptance join. The candidate page observation used an unpinned local server, so it is exploratory only. See the [source/UI audit and packet](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/audit.md) and [draft child](../../.scratch/dioxus-pcb-view/drafts/F5.2a-wiring-preview-and-switch-context.md).
 
 ## RF-010
 

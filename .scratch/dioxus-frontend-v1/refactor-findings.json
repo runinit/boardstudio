@@ -78,6 +78,15 @@
           "evidence": ".scratch/dioxus-workbench-parity/evidence/matrix-keycaps-wave-20261002/RESULTS.md",
           "observation": "Root integration still owns repeated route/callback/stylesheet wiring. Browser found Keycaps list placement and missing Matrix styles despite typed source review; bounded placement and CSS corrections are committed, broader composition redesign deferred.",
           "status": "bounded fixes recorded; shared selection discrepancy under source diagnosis; full acceptance and structural refactor open"
+        },
+        {
+          "source": "PCB host-scene review at source correction 590140b2 against pinned React 5a472a94",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/wiring-context-20261002/audit.md",
+          "observation": "The private scene rebuilds board membership/part projections on selection renders and transfers owned generator parameters plus a full PartDefinition through the existing FootprintGraphics props. Standards triaged broad memoization as an unmeasured risk; do not broaden the PCB parity patch or claim a performance pass.",
+          "current_mitigation": "Keep the existing FootprintGraphics owned-prop boundary and current accepted-source behavior; remove only a clearly redundant local clone if source-safe. No projection cache or interface redesign is authorized by this evidence.",
+          "post_port_follow_up": "Measure selection-driven render frequency and allocations on a real multi-part board with generated footprints before proposing immutable-input memoization or changing the owned prop contract.",
+          "validation": "Profile accepted scene and generator input allocations during selection-only renders; compare output/selection parity and verify document/history/export state remains unchanged.",
+          "status": "unmeasured design risk recorded; no performance-pass or acceptance claim"
         }
       ]
     },
