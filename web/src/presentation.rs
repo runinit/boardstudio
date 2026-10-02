@@ -1355,7 +1355,7 @@ fn Editor() -> Element {
                                             let space_down = space_down.clone();
                                             let scope = render_scope.clone();
                                             let generation = render_generation;
-                                            let range_ids = visible_ids.as_ref().clone();
+                                            let range_ids = visible_ids.clone();
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
                                                     let Some(pointer) = event.data().try_as_web_event() else { return; };
@@ -1366,7 +1366,7 @@ fn Editor() -> Element {
                                                     let current = runtime.model();
                                                     let Some(context) = objects::context_for_cell(&current, &matrix_id, cell_row, cell_column) else { return; };
                                                     let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
-                                                    selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, range_ids.clone());
+                                                    selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
                                                 }
                                             } }
                                         }
