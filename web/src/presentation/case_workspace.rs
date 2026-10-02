@@ -45,6 +45,20 @@ pub(super) enum TreeAction {
     },
 }
 
+#[derive(Clone)]
+pub(super) struct DisplayRequest {
+    pub(super) target_scope: Scope,
+    pub(super) id: String,
+    pub(super) action: DisplayAction,
+}
+
+#[derive(Clone)]
+pub(super) enum DisplayAction {
+    ToggleVisibility,
+    SetColor(String),
+    ResetColor,
+}
+
 pub(super) struct ObjectsInput<'a> {
     pub(super) model: &'a ReadModel,
     pub(super) scope: Option<Scope>,
@@ -59,6 +73,7 @@ pub(super) struct ObjectsInput<'a> {
     pub(super) on_action: EventHandler<TreeAction>,
     pub(super) on_select: EventHandler<TreeSelectRequest>,
     pub(super) on_navigate: EventHandler<(Scope, String, Option<String>)>,
+    pub(super) on_display: EventHandler<DisplayRequest>,
 }
 
 pub(super) struct CanvasInput {
@@ -73,6 +88,7 @@ pub(super) struct InspectorInput {
     pub(super) selected_layer_id: String,
     pub(super) selected_context: Option<ScopedTreeContext>,
     pub(super) on_show_configured_board: EventHandler<String>,
+    pub(super) on_display: EventHandler<DisplayRequest>,
 }
 
 #[derive(Clone)]
@@ -401,7 +417,6 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                             let part_request = row.part_context.clone();
                             let visibility_id = row.visibility_id.clone();
                             let visible = row.visible;
-                            let case_selection = input.case_selection;
                             let selected = row.selected;
                             let row_level = row.level;
                             let row_expanded = row.expanded;
@@ -429,6 +444,7 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                     _ => None,
                                 })
                                 .unwrap_or_else(|| scope.clone());
+                            let display_handler = input.on_display;
                             let action_handler = on_action;
                             let select_handler = on_select;
                             let row_selectable = row.selectable;
@@ -500,7 +516,11 @@ pub(super) fn objects(input: ObjectsInput<'_>) -> Element {
                                             r#type: "button",
                                             "aria-pressed": visible,
                                             "aria-label": "Toggle visibility for {row_label}",
-                                            onclick: move |_| toggle_visibility(case_selection, &scope_for_visibility, &id),
+                                            onclick: move |_| display_handler.call(DisplayRequest {
+                                                target_scope: scope_for_visibility.clone(),
+                                                id: id.clone(),
+                                                action: DisplayAction::ToggleVisibility,
+                                            }),
                                             if visible { "Visible" } else { "Hidden" }
                                         }
                                     }
@@ -662,6 +682,116 @@ pub(super) fn apply_tree_action(
     }
 }
 
+/// Admit display changes against the live Editor owner before writing either
+/// the CaseSelection signal or its existing local-storage preference. The
+/// target may be another real assembly, but must belong to this accepted doc.
+pub(super) fn apply_display_request(
+    request: DisplayRequest,
+    runtime: &Rc<Runtime>,
+    adapter: &SelectionAdapter,
+    case_selection: CaseSelection,
+    instance_selection: InstanceSelection,
+    owner_scope: &Scope,
+    owner_token: SnapshotToken,
+    owner_generation: u64,
+) {
+    if runtime.scope().as_ref() != Some(owner_scope) || (adapter.generation)() != owner_generation {
+        return;
+    }
+    let model = runtime.model();
+    let Some(snapshot) = model.accepted.as_ref().filter(|snapshot| {
+        snapshot.token == owner_token
+            && snapshot.session_epoch == owner_scope.session_epoch
+            && snapshot.document.id == owner_scope.document_id
+            && model.active_board_id == owner_scope.board_id
+            && model.active_instance_id.as_deref() == owner_scope.instance_id.as_deref()
+    }) else {
+        return;
+    };
+    if !instance_selection.is_current(&model)
+        || !target_display_is_current(runtime, snapshot, &request.target_scope, &request.id)
+    {
+        return;
+    }
+
+    let mut display = case_selection.display_value(&request.target_scope);
+    match request.action {
+        DisplayAction::ToggleVisibility => {
+            toggle_visibility_value(&mut display, &request.id);
+        }
+        DisplayAction::SetColor(color) => display.set_color(&request.id, &color),
+        DisplayAction::ResetColor => display.set_color(&request.id, ""),
+    }
+    case_selection.save_display(&request.target_scope, display);
+}
+
+fn target_display_is_current(
+    runtime: &Runtime,
+    snapshot: &boardstudio_application::AcceptedSnapshot,
+    target_scope: &Scope,
+    id: &str,
+) -> bool {
+    if target_scope.session_epoch != snapshot.session_epoch
+        || target_scope.document_id != snapshot.document.id
+        || !snapshot
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == target_scope.board_id)
+    {
+        return false;
+    }
+    let root_exists = target_scope
+        .instance_id
+        .as_deref()
+        .map_or(true, |instance_id| {
+            snapshot.document.hardware.as_ref().is_some_and(|hardware| {
+                hardware.instances.iter().any(|instance| {
+                    instance.id == instance_id && instance.board_id == target_scope.board_id
+                })
+            })
+        });
+    if !root_exists {
+        return false;
+    }
+    if id == "Assembly" || id == "pcb" {
+        return true;
+    }
+    if snapshot
+        .document
+        .case_bodies
+        .iter()
+        .any(|body| body.board_id == target_scope.board_id && body.id == id)
+    {
+        return true;
+    }
+    let board_parts: BTreeSet<&str> = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == target_scope.board_id)
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
+    if snapshot
+        .document
+        .parts
+        .iter()
+        .any(|part| board_parts.contains(part.id.as_str()) && part.reference == id)
+    {
+        return true;
+    }
+    runtime.cad_scene().is_some_and(|scene| {
+        scene.exact
+            && scene.scope == *target_scope
+            && scene.token == snapshot.token
+            && (scene.mechanical.as_ref().is_some_and(|assembly| {
+                assembly.stack.iter().any(|layer| layer.id == id)
+                    || (id == "gaskets" && !assembly.gasket_supports.is_empty())
+            }) || scene.result.bodies.iter().any(|body| body.id == id))
+    })
+}
+
 fn clear_tree_part_selection(runtime: &Rc<Runtime>, adapter: &SelectionAdapter) {
     adapter.selected_context.set(None);
     adapter.anchor_scope.set(None);
@@ -741,9 +871,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         .as_ref()
         .map(|scope| input.case_selection.display_value(scope))
         .unwrap_or_default();
-    let display_for_color = input.case_selection;
-    let display_for_reset = input.case_selection;
-    let display_for_visibility = input.case_selection;
+    let display_for_color = input.on_display;
+    let display_for_reset = input.on_display;
+    let display_for_visibility = input.on_display;
     let scope_for_color = active_display_layer
         .as_ref()
         .map(|(scope, _)| scope.clone());
@@ -771,35 +901,43 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     h3 { "Display" }
                     label { "Colour"
                         input {
-                            r#type: "color", "aria-label": "Part colour", value: "{color}",
-                            oninput: move |event: FormEvent| {
-                                if let (Some(scope), Some(id)) = (&scope_for_color, &display_id_for_color) {
-                                    let mut next = display_for_color.display_value(scope);
-                                    next.set_color(id, &event.value());
-                                    display_for_color.save_display(scope, next);
+                                r#type: "color", "aria-label": "Part colour", value: "{color}",
+                                oninput: move |event: FormEvent| {
+                                    if let (Some(scope), Some(id)) = (&scope_for_color, &display_id_for_color) {
+                                        display_for_color.call(DisplayRequest {
+                                            target_scope: scope.clone(),
+                                            id: id.clone(),
+                                            action: DisplayAction::SetColor(event.value()),
+                                        });
+                                    }
                                 }
-                            }
                         }
                     }
                     button {
                         r#type: "button",
-                        onclick: move |_| {
-                            if let (Some(scope), Some(id)) = (&scope_for_reset, &display_id_for_reset) {
-                                let mut next = display_for_reset.display_value(scope);
-                                next.set_color(id, "");
-                                display_for_reset.save_display(scope, next);
-                            }
+                            onclick: move |_| {
+                                if let (Some(scope), Some(id)) = (&scope_for_reset, &display_id_for_reset) {
+                                    display_for_reset.call(DisplayRequest {
+                                        target_scope: scope.clone(),
+                                        id: id.clone(),
+                                        action: DisplayAction::ResetColor,
+                                    });
+                                }
                         },
                         "Reset colour"
                     }
                     label {
                         input {
                             r#type: "checkbox", checked: visible,
-                            onchange: move |_| {
-                                if let (Some(scope), Some(id)) = (&scope_for_visibility, &display_id_for_visibility) {
-                                    toggle_visibility(display_for_visibility, scope, id);
+                                onchange: move |_| {
+                                    if let (Some(scope), Some(id)) = (&scope_for_visibility, &display_id_for_visibility) {
+                                        display_for_visibility.call(DisplayRequest {
+                                            target_scope: scope.clone(),
+                                            id: id.clone(),
+                                            action: DisplayAction::ToggleVisibility,
+                                        });
+                                    }
                                 }
-                            }
                         }
                         "Visible"
                     }
@@ -867,8 +1005,7 @@ fn assembly_display_scope(scope: &Scope, board_id: &str, instance_id: Option<Str
     }
 }
 
-fn toggle_visibility(selection: CaseSelection, scope: &Scope, id: &str) {
-    let mut display = selection.display_value(scope);
+fn toggle_visibility_value(display: &mut CaseDisplay, id: &str) {
     let aliases = preference_ids(id);
     if aliases.iter().all(|alias| display.hidden.contains(alias)) {
         display.hidden.retain(|hidden| !aliases.contains(hidden));
@@ -879,7 +1016,6 @@ fn toggle_visibility(selection: CaseSelection, scope: &Scope, id: &str) {
             }
         }
     }
-    selection.save_display(scope, display);
 }
 
 #[cfg(test)]
