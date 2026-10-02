@@ -117,13 +117,13 @@
         "remaining T1-10/F3.1 acceptance"
       ],
       "accessibility_gate": {
-        "status": "open; candidate has a critical aria-required-children violation also present in the pinned React reference; no waiver",
+        "status": "Private semantics repair f65b0c83 independently reviewed and built; new browser axe and actual AT remain open",
         "evidence": [
           ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-a11y.json",
           ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-react-a11y.json"
         ]
       },
-      "latest_integrated_source_commit": "e510dd4c"
+      "latest_integrated_source_commit": "f65b0c83"
     },
     {
       "id": "T1-11",
@@ -193,13 +193,13 @@
       "T1-07",
       "T1-10"
     ],
-    "status": "full cards/panels public traces retained; tree public verification queued"
+    "status": "Parts/context and ARIA browser verification active; earlier tree scope and numeric public checks retained"
   },
   "active_contract_reviews": {
     "agent": "/root/review_frontend_contracts",
     "profile": "astra-high",
     "evidence": "evidence/contracts-active",
-    "status": "confirmed open race retained; Astra correcting panel regressions after public red"
+    "status": "Saved-open supersession race open; private ARIA repair independently reviewed and integrated f65b0c83; public accessibility checks pending"
   },
   "next_ticket_review": {
     "agent": "/root/cards_panels_spec",
@@ -210,7 +210,7 @@
     ],
     "status": "two drafts independently reviewed and automatically published; concrete contracts required"
   },
-  "bounded_ticket_count": 23,
+  "bounded_ticket_count": 24,
   "canonical_parent_count": 62,
   "pending_api_decision": {
     "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
@@ -243,5 +243,18 @@
       ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json",
       ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json"
     ]
+  },
+  "parts_preview_ticket": {
+    "issue": "../dioxus-parts-catalogue/issues/03-isolated-library-preview.md",
+    "parent": "F4.4",
+    "start_after": [
+      "F4.1",
+      "F7.1"
+    ],
+    "acceptance_after": [
+      "F7.3",
+      "INT.2"
+    ],
+    "status": "published automatically after corrected independent Spec review; start prerequisites open"
   }
 }
