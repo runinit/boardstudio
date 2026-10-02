@@ -640,56 +640,57 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
     use_effect(use_reactive(
         (&feedback_entries, &saved_value),
         move |(feedback_entries, accepted)| {
-            if *previous_accepted.read() != accepted {
+            let accepted_changed = *previous_accepted.read() != accepted;
+            if accepted_changed {
                 previous_accepted.set(accepted);
-                let waiting = submitted_copy.read().as_ref().is_some_and(|request| {
-                    feedback_entries.iter().any(|feedback| {
-                        feedback.identity == request.identity
-                            && feedback.request_id == request.request_id
-                            && feedback.field_id == request.field_id
-                            && feedback.state == MechanicalSettingsFeedbackState::Pending
-                    })
-                });
-                if waiting {
-                    // The accepted token can advance before persistence settles. Keep this
-                    // field's submitted draft until its exact request receives Saved or Failed.
-                    return;
+            }
+            let Some(request) = submitted_copy.read().clone() else {
+                if accepted_changed {
+                    draft_for_ack.set(accepted.to_string());
+                    dirty_for_ack.set(false);
+                    error_for_ack.set(None);
+                    status_for_ack.set(None);
                 }
+                return;
+            };
+            let feedback = feedback_entries.iter().find(|feedback| {
+                feedback.identity == request.identity
+                    && feedback.request_id == request.request_id
+                    && feedback.field_id == request.field_id
+            });
+            if let Some(feedback) = feedback {
+                match feedback.state {
+                    MechanicalSettingsFeedbackState::Pending => {
+                        // The accepted token can advance before persistence settles. Keep this
+                        // field's submitted draft until its exact request receives Saved or Failed.
+                        status_for_ack.set(Some("Saving…".to_owned()));
+                        return;
+                    }
+                    MechanicalSettingsFeedbackState::Saved => {
+                        draft_for_ack.set(accepted.to_string());
+                        dirty_for_ack.set(false);
+                        error_for_ack.set(None);
+                        status_for_ack.set(Some("Saved".to_owned()));
+                        submitted_for_ack.set(None);
+                        return;
+                    }
+                    MechanicalSettingsFeedbackState::Failed => {
+                        error_for_ack.set(Some(feedback.message.clone().unwrap_or_else(|| {
+                            "This setting was not saved. Review the value and retry.".to_owned()
+                        })));
+                        status_for_ack.set(None);
+                        submitted_for_ack.set(None);
+                        return;
+                    }
+                }
+            }
+            if accepted_changed {
                 draft_for_ack.set(accepted.to_string());
                 dirty_for_ack.set(false);
                 error_for_ack.set(None);
                 status_for_ack.set(None);
                 submitted_for_ack.set(None);
                 return;
-            }
-            let Some(request) = submitted_copy.read().clone() else {
-                return;
-            };
-            let Some(feedback) = feedback_entries.iter().find(|feedback| {
-                feedback.identity == request.identity
-                    && feedback.request_id == request.request_id
-                    && feedback.field_id == request.field_id
-            }) else {
-                return;
-            };
-            match feedback.state {
-                MechanicalSettingsFeedbackState::Pending => {
-                    status_for_ack.set(Some("Saving…".to_owned()))
-                }
-                MechanicalSettingsFeedbackState::Saved => {
-                    draft_for_ack.set(accepted.to_string());
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(Some("Saved".to_owned()));
-                    submitted_for_ack.set(None);
-                }
-                MechanicalSettingsFeedbackState::Failed => {
-                    error_for_ack.set(Some(feedback.message.clone().unwrap_or_else(|| {
-                        "This setting was not saved. Review the value and retry.".to_owned()
-                    })));
-                    status_for_ack.set(None);
-                    submitted_for_ack.set(None);
-                }
             }
         },
     ));

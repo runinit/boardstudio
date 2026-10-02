@@ -44,6 +44,16 @@ pub(crate) struct MechanicalSettingsCurrent {
     pub(crate) durability: Durability,
 }
 
+/// The page's existing effective-case policy is the source for both a fresh Core resolution and
+/// generated boss height (notably the wireless battery default). The reflected/effective document
+/// remains read-only; only this mechanical value is written back through the canonical ownership
+/// mapping.
+#[derive(Clone)]
+pub(crate) struct MechanicalResolution {
+    pub(crate) assembly: MechanicalAssembly,
+    pub(crate) effective_configuration: MechanicalConfiguration,
+}
+
 /// Narrow page ports. `submit_replace` must register the supplied fresh operation with the
 /// existing `Runtime::observe_operation` before submitting one `ReplaceDocument` event.
 /// Returning its exact weak-observed slot is required; a page-wide last-error/status string is
@@ -56,14 +66,14 @@ pub(crate) struct MechanicalSettingsPorts {
             AcceptedSnapshot,
             Scope,
             ProjectDoc,
-        ) -> LocalFuture<Result<MechanicalAssembly, String>>,
+        ) -> LocalFuture<Result<MechanicalResolution, String>>,
     >,
     pub(crate) load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
     pub(crate) next_operation: Rc<dyn Fn() -> OperationId>,
     pub(crate) submit_replace:
         Rc<dyn Fn(OperationId, u64, ProjectDoc) -> Result<OutcomeSlot, String>>,
     pub(crate) project_closure_clearance:
-        Rc<dyn Fn(&ProjectDoc, &PartDefinition) -> Result<ProjectDoc, String>>,
+        Rc<dyn Fn(ProjectDoc, &PartDefinition) -> Result<ProjectDoc, String>>,
     pub(crate) publish: Rc<dyn Fn(MechanicalSettingsFeedback)>,
 }
 
@@ -83,7 +93,7 @@ enum PendingPhase {
         outcome: OutcomeSlot,
         accepted_token: SnapshotToken,
         base_revision: u64,
-        expected: ExpectedCommit,
+        expected: Rc<ExpectedCommit>,
     },
 }
 
@@ -360,7 +370,7 @@ impl MechanicalSettingsController {
                 outcome,
                 accepted_token: current.accepted.token,
                 base_revision: current.accepted.document.revision,
-                expected,
+                expected: Rc::new(expected),
             },
         });
     }
@@ -428,7 +438,13 @@ impl MechanicalSettingsController {
                 if !Self::still_current(&ports, &controller, request) {
                     return Err("The mechanical settings scope changed during mounting-location resolution.".into());
                 }
-                config.closure_mounts = Some(closure_mounts(config, assembly));
+                *config = assembly.effective_configuration;
+                if config.board_id != request.identity.configuration_board_id {
+                    return Err(
+                        "Mechanical resolution returned settings for a different board.".into(),
+                    );
+                }
+                config.closure_mounts = Some(closure_mounts(config, assembly.assembly));
             }
         }
 
@@ -442,7 +458,7 @@ impl MechanicalSettingsController {
             );
         }
         let candidate = persist_configuration(base_document, instance_id, configuration)?;
-        let candidate = (ports.project_closure_clearance)(&candidate, &mounting_hole)?;
+        let candidate = (ports.project_closure_clearance)(candidate, &mounting_hole)?;
         let settings = expected_settings(&candidate, instance_id)?;
         let closure = closure_evidence(&candidate);
         Ok((candidate, ExpectedCommit { settings, closure }))
