@@ -1,0 +1,87 @@
+[INFO]: 🎯  Checking for the Wasm target...
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/inspector-scroll-repair-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.10s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-088f4c47d01809f0.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:33639/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 1 test
+test presentation::panels::scroll_tests::inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu ... FAIL
+
+failures:
+
+---- presentation::panels::scroll_tests::inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu output ----
+    error output:
+        panicked at src/presentation/panels_scroll_tests.rs:59:37:
+        long Inspector content must have a wheel-scrollable ancestor before the clipped editor frame
+
+        Stack:
+
+        Error
+            at http://127.0.0.1:46231/wasm-bindgen-test:1368:25
+            at logError (http://127.0.0.1:46231/wasm-bindgen-test:2255:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:46231/wasm-bindgen-test:1367:57)
+            at boardstudio_web-088f4c47d01809f0.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[93166]:0x12bf3a5)
+            at boardstudio_web-088f4c47d01809f0.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[53899]:0x110fdf1)
+            at boardstudio_web-088f4c47d01809f0.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[20523]:0xd42b0f)
+            at boardstudio_web-088f4c47d01809f0.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[56661]:0x113a01d)
+            at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[17458]:0xc982cd)
+            at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[33712]:0xf52700)
+            at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[94511]:0x12c3438)
+
+
+
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-088f4c47d01809f0.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[94880]:0x12c3f3b)
+            at boardstudio_web-088f4c47d01809f0.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[94823]:0x12c3e2b)
+            at boardstudio_web-088f4c47d01809f0.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[93435]:0x12c02f2)
+            at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[17458]:0xc98340)
+            at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[33712]:0xf52700)
+            at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[94511]:0x12c3438)
+            at boardstudio_web-088f4c47d01809f0.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[73736]:0x12127ef)
+            at boardstudio_web-088f4c47d01809f0.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[56225]:0x11339c6)
+            at boardstudio_web-088f4c47d01809f0.wasm.core[f0fd674eaa06beef]::option::expect_failed (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[56226]:0x1133a03)
+            at boardstudio_web-088f4c47d01809f0.wasm.<core[f0fd674eaa06beef]::option::Option<web_sys[f68343062e9392e8]::features::gen_HtmlElement::HtmlElement>>::expect (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[40914]:0x1017744)
+
+failures:
+
+    presentation::panels::scroll_tests::inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 5 filtered out; finished in 0.10s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::panels::scroll_tests::inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu
+    panicked at src/presentation/panels_scroll_tests.rs:59:37:
+    long Inspector content must have a wheel-scrollable ancestor before the clipped editor frame
+
+    Stack:
+
+    Error
+        at http://127.0.0.1:46231/wasm-bindgen-test:1368:25
+        at logError (http://127.0.0.1:46231/wasm-bindgen-test:2255:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:46231/wasm-bindgen-test:1367:57)
+        at boardstudio_web-088f4c47d01809f0.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[93166]:0x12bf3a5)
+        at boardstudio_web-088f4c47d01809f0.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[53899]:0x110fdf1)
+        at boardstudio_web-088f4c47d01809f0.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[20523]:0xd42b0f)
+        at boardstudio_web-088f4c47d01809f0.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[56661]:0x113a01d)
+        at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[17458]:0xc982cd)
+        at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[33712]:0xf52700)
+        at boardstudio_web-088f4c47d01809f0.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:46231/wasm-bindgen-test_bg.wasm:wasm-function[94511]:0x12c3438)
+
+
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-088f4c47d01809f0.wasm inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu"

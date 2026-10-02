@@ -94,7 +94,8 @@ pub(super) fn InspectorPanel(
     settings: Signal<PanelSettings>,
     children: Element,
 ) -> Element {
-    panel_frame(PanelSide::Inspector, compact_open, settings, children)
+    let body = rsx! { div { class: "m1-inspector-body", {children} } };
+    panel_frame(PanelSide::Inspector, compact_open, settings, body)
 }
 
 fn panel_frame(
@@ -509,3 +510,7 @@ fn remove_outside_listener(listener: &OutsideListener) {
             .remove_event_listener_with_callback("pointerdown", callback.as_ref().unchecked_ref());
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "panels_scroll_tests.rs"]
+mod scroll_tests;

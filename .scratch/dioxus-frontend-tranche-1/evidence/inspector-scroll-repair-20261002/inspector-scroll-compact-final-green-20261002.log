@@ -1,0 +1,13 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/inspector-scroll-repair-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.77s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-088f4c47d01809f0.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:34921/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 2 tests
+test presentation::panels::scroll_tests::compact_inspector_preserves_the_page_scroll_route ... ok
+test presentation::panels::scroll_tests::compact_case_inspector_keeps_its_bounded_overlay_scroll_owner ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.17s

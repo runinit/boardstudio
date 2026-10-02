@@ -1,0 +1,178 @@
+[
+  {
+    "tag": "SUMMARY",
+    "label": null,
+    "text": "Board colors",
+    "rect": {
+      "x": 972,
+      "y": 103,
+      "width": 296,
+      "height": 46,
+      "top": 103,
+      "right": 1268,
+      "bottom": 149,
+      "left": 972
+    },
+    "top": 0
+  },
+  {
+    "tag": "INPUT",
+    "label": "Board keycap color",
+    "text": "",
+    "rect": {
+      "x": 972,
+      "y": 176.390625,
+      "width": 50,
+      "height": 36,
+      "top": 176.390625,
+      "right": 1022,
+      "bottom": 212.390625,
+      "left": 972
+    },
+    "top": 0
+  },
+  {
+    "tag": "INPUT",
+    "label": "Board legend color",
+    "text": "",
+    "rect": {
+      "x": 972,
+      "y": 252.78125,
+      "width": 50,
+      "height": 36,
+      "top": 252.78125,
+      "right": 1022,
+      "bottom": 288.78125,
+      "left": 972
+    },
+    "top": 0
+  },
+  {
+    "tag": "INPUT",
+    "label": "Keycap clearance",
+    "text": "",
+    "rect": {
+      "x": 972,
+      "y": 329.171875,
+      "width": 296,
+      "height": 36,
+      "top": 329.171875,
+      "right": 1268,
+      "bottom": 365.171875,
+      "left": 972
+    },
+    "top": 0
+  },
+  {
+    "tag": "SUMMARY",
+    "label": null,
+    "text": "Matrix profiles",
+    "rect": {
+      "x": 972,
+      "y": 403.171875,
+      "width": 296,
+      "height": 46,
+      "top": 403.171875,
+      "right": 1268,
+      "bottom": 449.171875,
+      "left": 972
+    },
+    "top": 0
+  },
+  {
+    "tag": "SELECT",
+    "label": "Keycap profile for keys",
+    "text": "No generated keycapCherryOEMDCSDSASAHi-P",
+    "rect": {
+      "x": 981,
+      "y": 501.953125,
+      "width": 278,
+      "height": 36,
+      "top": 501.953125,
+      "right": 1259,
+      "bottom": 537.953125,
+      "left": 981
+    },
+    "top": 0
+  },
+  {
+    "tag": "SUMMARY",
+    "label": null,
+    "text": "Profile dimensions & socket",
+    "rect": {
+      "x": 981,
+      "y": 542.953125,
+      "width": 278,
+      "height": 18.84375,
+      "top": 542.953125,
+      "right": 1259,
+      "bottom": 561.796875,
+      "left": 981
+    },
+    "top": 0
+  },
+  {
+    "tag": "SELECT",
+    "label": "Keycap profile for thumbs",
+    "text": "No generated keycapCherryOEMDCSDSASAHi-P",
+    "rect": {
+      "x": 981,
+      "y": 639.578125,
+      "width": 278,
+      "height": 36,
+      "top": 639.578125,
+      "right": 1259,
+      "bottom": 675.578125,
+      "left": 981
+    },
+    "top": 0
+  },
+  {
+    "tag": "SUMMARY",
+    "label": null,
+    "text": "Profile dimensions & socket",
+    "rect": {
+      "x": 981,
+      "y": 680.578125,
+      "width": 278,
+      "height": 18.84375,
+      "top": 680.578125,
+      "right": 1259,
+      "bottom": 699.421875,
+      "left": 981
+    },
+    "top": 0
+  },
+  {
+    "tag": "INPUT",
+    "label": "Find a key",
+    "text": "",
+    "rect": {
+      "x": 985,
+      "y": 463.390625,
+      "width": 270,
+      "height": 36,
+      "top": 463.390625,
+      "right": 1255,
+      "bottom": 499.390625,
+      "left": 985
+    },
+    "top": 425
+  },
+  {
+    "tag": "SELECT",
+    "label": "Selected key",
+    "text": "Choose on the layout…left-keys-SW1 · Una",
+    "rect": {
+      "x": 985,
+      "y": 529.78125,
+      "width": 270,
+      "height": 36,
+      "top": 529.78125,
+      "right": 1255,
+      "bottom": 565.78125,
+      "left": 985
+    },
+    "top": 425
+  }
+]
