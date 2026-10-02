@@ -3952,6 +3952,7 @@ fn Editor() -> Element {
                 }
                 if let Some(active) = mirrored_pair.placement.as_ref() {
                     mirrored_pair.on_return_to_form.call(active.owner.clone());
+                    mirrored_pair.on_cancel.call(active.owner.clone());
                 } else if let Some(form) = mirrored_pair.form.as_ref() {
                     mirrored_pair.on_cancel.call(form.owner.clone());
                 }
