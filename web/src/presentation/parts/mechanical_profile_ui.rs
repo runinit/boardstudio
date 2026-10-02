@@ -1,22 +1,13 @@
 use super::PartsPreviewPanel;
 use crate::parts_mechanical_profile::{
-    ProfileDefinitionSource, ProfileEditCapture, ProfileEditContext, initial_profile,
-    prepare_profile_edit,
+    PendingProfileEdit, ProfileDefinitionSource, ProfileEditCapture, ProfileEditContext,
+    ProfileEditOwner, displayed_mounting_gap, initial_profile, prepare_profile_edit,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{MechanicalPartProfile, PartDefinition, Vec2};
 use dioxus::prelude::*;
 use std::rc::Rc;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ProfileOwner {
-    scope: Option<Scope>,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    definition_id: String,
-    source: ProfileDefinitionSource,
-}
 
 #[derive(Clone, Copy)]
 enum ContourField {
@@ -33,43 +24,52 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
     source: ProfileDefinitionSource,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
-    let owner = ProfileOwner {
-        scope: scope.clone(),
-        session_epoch: snapshot.session_epoch,
-        document_id: snapshot.document.id.clone(),
-        definition_id: definition.id.clone(),
-        source,
-    };
+    let view_id = use_hook({
+        let runtime = runtime.clone();
+        move || runtime.operation()
+    });
+    let owner = ProfileEditOwner::new(view_id, &snapshot, scope.clone(), source, &definition);
+    let runtime_version = use_context::<Signal<u64>>();
+    let _ = runtime_version();
     let editing = use_signal(|| false);
     let capture = use_signal(|| None::<ProfileEditCapture>);
+    let pending = use_signal(|| None::<PendingProfileEdit>);
+    let capture_owner = owner.clone();
     use_effect(use_reactive((&owner,), {
         let mut capture = capture;
-        let snapshot = snapshot.clone();
-        let scope = scope.clone();
         let definition = definition.clone();
         move |(_owner,)| {
             if editing() {
                 capture.set(Some(ProfileEditCapture::new(
-                    &snapshot,
-                    scope.clone(),
-                    source,
+                    capture_owner.clone(),
                     definition.clone(),
                 )));
+            }
+        }
+    }));
+    use_effect(use_reactive((&owner, &runtime_version()), {
+        let runtime = runtime.clone();
+        let mut pending = pending;
+        move |(owner, _)| {
+            if pending
+                .read()
+                .as_ref()
+                .is_some_and(|operation| operation.should_retire(&owner, &runtime.scope()))
+            {
+                pending.set(None);
             }
         }
     }));
     let start_editing = {
         let mut editing = editing;
         let mut capture = capture;
-        let snapshot = snapshot.clone();
+        let owner = owner.clone();
         let scope = scope.clone();
         let definition = definition.clone();
         move |_| {
             selection.set(Some((scope.clone(), definition.id.clone())));
             capture.set(Some(ProfileEditCapture::new(
-                &snapshot,
-                scope.clone(),
-                source,
+                owner.clone(),
                 definition.clone(),
             )));
             editing.set(true);
@@ -86,6 +86,8 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
     let save_profile = {
         let runtime = runtime.clone();
         let selection = selection;
+        let mut pending = pending;
+        let owner = owner.clone();
         let definition = definition.clone();
         move |profile: MechanicalPartProfile| {
             let Some(capture) = capture() else {
@@ -95,20 +97,23 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
             let Some(current) = model.accepted else {
                 return;
             };
+            let operation_id = runtime.operation();
             let Some(event) = prepare_profile_edit(
                 ProfileEditContext {
                     snapshot: &current,
-                    scope: runtime.scope(),
+                    owner: &owner,
+                    runtime_scope: runtime.scope(),
                     selection: selection(),
-                    source,
                     definition: &definition,
                 },
                 &capture,
                 profile,
-                runtime.operation(),
+                operation_id,
             ) else {
                 return;
             };
+            let outcome = runtime.observe_operation(operation_id);
+            pending.set(Some(PendingProfileEdit::new(owner.clone(), outcome)));
             runtime.submit(event);
         }
     };
@@ -159,14 +164,12 @@ fn ManualProfileEditor(
 ) -> Element {
     let mut draft = use_signal(|| initial_profile(&definition, initial.as_ref()));
     let profile = draft.read().clone();
-    let family_details = profile.switch_family.map(|family| {
-        let (datum, thickness) = match family {
-            boardstudio_core::model::MechanicalSwitchFamily::Mx => (5.0, 1.5),
-            boardstudio_core::model::MechanicalSwitchFamily::ChocV1 => (3.5, 1.3),
-            boardstudio_core::model::MechanicalSwitchFamily::ChocV2 => (5.0, 1.5),
-        };
-        (datum - thickness, thickness)
+    let family_details = profile.switch_family.map(|family| match family {
+        boardstudio_core::model::MechanicalSwitchFamily::Mx
+        | boardstudio_core::model::MechanicalSwitchFamily::ChocV2 => 1.5,
+        boardstudio_core::model::MechanicalSwitchFamily::ChocV1 => 1.3,
     });
+    let gap_label = displayed_mounting_gap(&profile).unwrap_or_default();
     rsx! {
         section { class: "m1-parts-fit-editor", "aria-label": "Mechanical fit profile editor",
             header {
@@ -176,8 +179,8 @@ fn ManualProfileEditor(
                 }
                 button { class: "m1-secondary", r#type: "button", onclick: move |_| on_close.call(()), "Cancel" }
             }
-            if let Some((gap, thickness)) = family_details {
-                p { "Mounting gap: {gap:.2} mm with a {thickness:.2} mm plate. Case recalculates the gap for its plate thickness." }
+            if let Some(thickness) = family_details {
+                p { "Mounting gap: {gap_label} mm with a {thickness:.2} mm plate. Case recalculates the gap for its plate thickness." }
             } else {
                 label { class: "m1-parts-fit-field",
                     span { "Plate underside to PCB top (mm)" }
