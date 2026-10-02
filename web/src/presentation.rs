@@ -1,11 +1,15 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+mod footprint_graphics;
+
 use crate::{cad_presentation::CasePanel, runtime::Runtime};
 use boardstudio_application::{Durability, Event, SelectionMode};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Position, Vec2};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
+use footprint_graphics::FootprintGraphics;
 use std::{
     cell::{Cell, RefCell},
+    collections::BTreeSet,
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -36,6 +40,11 @@ type KeyboardHandler = Rc<RefCell<Box<dyn FnMut(KeyboardEvent)>>>;
 struct WorkspaceState(Signal<&'static str>);
 #[derive(Clone, Copy)]
 struct ThemeState(Signal<&'static str>);
+#[derive(Clone, Copy)]
+struct LayerVisibility {
+    hidden: Signal<BTreeSet<String>>,
+    footprints: Signal<bool>,
+}
 
 struct PointerLocation {
     world: Vec2,
@@ -79,6 +88,11 @@ pub fn App() -> Element {
     use_context_provider(|| version);
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
+    let layer_visibility = LayerVisibility {
+        hidden: use_signal(BTreeSet::new),
+        footprints: use_signal(|| false),
+    };
+    use_context_provider(|| layer_visibility);
     let theme = use_signal(read_theme_preference);
     let system_theme = use_signal(read_system_theme);
     use_context_provider(|| ThemeState(theme));
@@ -251,6 +265,62 @@ fn ThemePicker() -> Element {
             option { value: "dark", "Dark" }
         }
     } }
+}
+
+#[component]
+fn CanvasLayers() -> Element {
+    let layers = use_context::<LayerVisibility>();
+    let mut open = use_signal(|| false);
+    let toggle = move |id: &'static str| {
+        if id == "Footprints" {
+            let mut footprints = layers.footprints;
+            footprints.set(!footprints());
+        } else {
+            let mut hidden = layers.hidden;
+            let mut next = (hidden)();
+            if !next.insert(id.to_owned()) {
+                next.remove(id);
+            }
+            hidden.set(next);
+        }
+    };
+    let keydown = move |event: KeyboardEvent| {
+        if event.data().key().to_string() == "Escape" && open() {
+            event.prevent_default();
+            open.set(false);
+            if let Some(trigger) = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.get_element_by_id("m1-layers-trigger"))
+                .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+            {
+                let _ = trigger.focus();
+            }
+        }
+    };
+    let hidden = (layers.hidden)();
+    let entries = ["Keys", "Components", "Keycaps", "Footprints", "Board"];
+    rsx! {
+        section { class: "m1-layers", "data-open": "{open()}", aria_label: "Canvas layers", onkeydown: keydown,
+            button { id: "m1-layers-trigger", class: "m1-layers-trigger", aria_expanded: "{open()}", aria_controls: "m1-layers-list", onclick: move |_| open.set(!open()),
+                "Layers"
+                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } } }
+            }
+            if open() {
+                button { class: "m1-layers-close", onclick: move |_| { open.set(false); if let Some(trigger) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id("m1-layers-trigger")).and_then(|element| element.dyn_into::<HtmlElement>().ok()) { let _ = trigger.focus(); } }, "Close" }
+            }
+            div { id: "m1-layers-list", class: "m1-layer-list", hidden: !open(),
+                for id in entries {
+                    { let visible = if id == "Footprints" { (layers.footprints)() } else { !hidden.contains(id) }; let name = id; let label = format!("{} {name}", if visible { "Hide" } else { "Show" });
+                        rsx! { button { key: "{id}", aria_pressed: "{visible}", aria_label: "{label}", onclick: move |_| toggle(name),
+                            span { class: "m1-layer-swatch", "data-layer": "{id}" }
+                            span { class: "m1-layer-label", "{id}" }
+                            svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 10q8-12 16 0-8 12-16 0Z" }, circle { cx: "10", cy: "10", r: "2.5" }, if !visible { path { d: "m3 17 14-14" } } }
+                        } }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[component]
@@ -526,6 +596,7 @@ fn Editor() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
     let workspace = use_context::<WorkspaceState>().0;
+    let layer_visibility = use_context::<LayerVisibility>();
     let active_workspace = workspace();
     let mut objects_open = use_signal(|| false);
     let mut inspect_open = use_signal(|| false);
@@ -549,6 +620,38 @@ fn Editor() -> Element {
         .filter(|p| board.is_some_and(|b| b.part_ids.contains(&p.id)))
         .cloned()
         .collect();
+    let definitions: std::collections::BTreeMap<_, _> = document
+        .definitions
+        .iter()
+        .map(|definition| (definition.id.as_str(), definition))
+        .collect();
+    let matrices: Vec<_> = document
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            matrix
+                .board_id
+                .as_deref()
+                .is_none_or(|id| id == model.active_board_id)
+        })
+        .collect();
+    let matrix_scenes: std::collections::BTreeMap<_, _> = scene
+        .matrix_scenes
+        .iter()
+        .map(|matrix| (matrix.matrix_id.as_str(), matrix))
+        .collect();
+    let mut matrix_members = BTreeSet::new();
+    for matrix in &matrices {
+        if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
+            matrix_members.extend(
+                projected
+                    .cells
+                    .iter()
+                    .filter(|cell| cell.enabled)
+                    .filter_map(|cell| cell.member_id.as_deref()),
+            );
+        }
+    }
     let visible_ids: Rc<Vec<String>> =
         Rc::new(visible.iter().map(|part| part.id.clone()).collect());
     let points: Vec<_> = visible.iter().map(|p| p.pose.at).collect();
@@ -856,6 +959,9 @@ fn Editor() -> Element {
                     if active_workspace == "Layout" {
                         div { class: "m1-canvas-toolbar",
                             span { "{document.name}" }
+                            { let footprint_pressed = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints"); rsx! {
+                                button { class: "m1-footprints-toggle", aria_pressed: "{footprint_pressed}", onclick: move |_| { let mut footprints = layer_visibility.footprints; footprints.set(!footprints()); }, "Footprints" }
+                            } }
                             if let Durability::Failed { reason, .. } = &model.durability {
                                 p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
                                 button { onclick: move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() }), "Retry save" }
@@ -867,18 +973,62 @@ fn Editor() -> Element {
                         svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     g { transform: "scale(1,-1)",
-                        for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
-                            polygon { points: polygon_points(&contour.points), class: "m1-outline" }
+                        if !(layer_visibility.hidden)().contains("Board") {
+                            for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
+                                polygon { points: polygon_points(&contour.points), class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" } }
+                            }
+                        }
+                        if !(layer_visibility.hidden)().contains("Keys") {
+                            for matrix in &matrices {
+                                if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
+                                    for cell in projected.cells.iter().filter(|cell| cell.enabled) {
+                                        {
+                                            let member = cell.member_id.as_deref().and_then(|id| visible.iter().find(|part| part.id == id));
+                                            let member_definition = member.and_then(|part| definitions.get(part.definition_id.as_str()).copied());
+                                            let base_definition = definitions.get(matrix.definition_id.as_str()).copied();
+                                            let size = member.and_then(|part| part.keycap).or_else(|| member_definition.and_then(|definition| definition.keycap)).or_else(|| base_definition.and_then(|definition| definition.keycap)).unwrap_or(Vec2 {
+                                                x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
+                                                y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
+                                            });
+                                            let pose = cell.pose;
+                                            let selected = cell.member_id.as_ref().is_some_and(|id| model.selected_part_ids.contains(id));
+                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}" } }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         for part in visible.iter().cloned() {
                             {
                                 let pose = scene.transforms.iter().find(|t| t.id == part.id).map(|t| t.pose).unwrap_or(part.pose);
-                                let courtyard = document.definitions.iter().find(|d| d.id == part.definition_id).map(|d| polygon_points(&d.courtyard)).unwrap_or_default();
+                                let definition = definitions.get(part.definition_id.as_str()).copied();
+                                let courtyard = definition.map(|d| polygon_points(&d.courtyard)).unwrap_or_default();
                                 let selected = model.selected_part_ids.contains(&part.id);
+                                let side_transform = if matches!(part.side, boardstudio_core::model::Side::Back) { "scale(-1 1)" } else { "" };
+                                let is_matrix_key = matrix_members.contains(part.id.as_str());
+                                let layer_visible = if is_matrix_key { !(layer_visibility.hidden)().contains("Keys") } else { !(layer_visibility.hidden)().contains("Components") };
+                                let is_encoder = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Encoder) || definition.input_profile.as_ref().is_some_and(|profile| profile.rotary.is_some()));
+                                let keycap = if is_encoder { None } else {
+                                    let standalone_switch = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Switch));
+                                    if is_matrix_key || standalone_switch {
+                                        part.keycap.or_else(|| definition.and_then(|definition| definition.keycap)).or_else(|| {
+                                            if !is_matrix_key { return None; }
+                                            matrices.iter().find_map(|matrix| {
+                                                let projected = matrix_scenes.get(matrix.id.as_str())?;
+                                                projected.cells.iter().find(|cell| cell.enabled && cell.member_id.as_deref() == Some(part.id.as_str())).map(|_| Vec2 {
+                                                    x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
+                                                    y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
+                                                })
+                                            })
+                                        })
+                                    } else { None }
+                                };
+                                let show_keycap = keycap.filter(|_| !(layer_visibility.hidden)().contains("Keycaps"));
+                                let footprints_on = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
                                 let id = part.id.clone();
                                 let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone(); let space_down = space_down.clone();
                                 let range_ids = visible_ids.clone();
-                                rsx! { g { key: "{part.id}", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation})", "data-part-id": "{part.id}",
+                                rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
@@ -902,12 +1052,36 @@ fn Editor() -> Element {
                                         *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
                                     },
                                     polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
-                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", "{part.reference}" }
-                                }}
+                                    if footprints_on {
+                                        if let Some(definition) = definition {
+                                            FootprintGraphics { definition: definition.clone(), parameters: part.generator_parameters.clone() }
+                                            for pad in &definition.pads {
+                                                {
+                                                    let rx = match &pad.shape { boardstudio_core::model::PadShape::Circle | boardstudio_core::model::PadShape::Oval => pad.size.x.min(pad.size.y) / 2.0, boardstudio_core::model::PadShape::Roundrect => pad.size.x.min(pad.size.y) / 4.0, boardstudio_core::model::PadShape::Rect => 0.0 };
+                                                    rsx! { g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
+                                                        if pad.plated != Some(false) { rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" } }
+                                                        if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
+                                                    } }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if let Some(size) = show_keycap {
+                                        { let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0); rsx! { g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
+                                            rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
+                                            rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
+                                        } } }
+                                    }
+                                    if let Some(size) = keycap {
+                                        rect { class: "m1-part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
+                                    }
+                                    if show_keycap.is_none() { text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" } }
+                                }} }
                             }
                         }
                     }
                         }
+                        CanvasLayers {}
                     } else if active_workspace == "Case" {
                         CasePanel {}
                     } else if active_workspace == "Export" {

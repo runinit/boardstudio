@@ -115,15 +115,53 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-component-list .m1-component:hover { background: var(--wb-surface-soft); }
 .m1-component-list .m1-component.selected { border-color: var(--wb-accent); background: var(--wb-selection-surface); }
 .m1-object-kind { flex: none; margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--wb-rule); color: var(--wb-muted); font-size: 12px; }
-.m1-workspace-content { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; background: var(--wb-canvas); }
+.m1-workspace-content { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; background: var(--wb-canvas); container-type: inline-size; }
 .m1-canvas-toolbar { z-index: 1; position: absolute; top: 12px; left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; min-height: 42px; width: fit-content; max-width: calc(100% - 24px); padding: 4px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 8px; background: var(--wb-panel); box-shadow: 0 4px 16px #18233120; }
 .m1-canvas-toolbar span { padding: 0 8px; }
 .m1-save-error { max-width: min(44vw, 440px); margin: 0; color: var(--wb-status-error); font-size: 12px; }
 .m1-canvas { display: block; width: 100%; height: 100%; min-height: 250px; background: var(--wb-canvas); touch-action: none; }
 .m1-outline { fill: var(--wb-geometry-fill); stroke: var(--wb-geometry-board); stroke-width: .3; }
+.m1-outline.is-hole { fill: var(--wb-canvas); stroke: var(--wb-status-error); stroke-dasharray: .8 .55; }
+.m1-matrix-key { fill: color-mix(in srgb, var(--wb-geometry-fill-muted) 55%, transparent); stroke: var(--wb-geometry-outline); stroke-width: .28; pointer-events: none; }
+.m1-matrix-key.is-selected { fill: var(--wb-selection-surface); stroke: var(--wb-accent); stroke-width: .42; }
 .m1-part { fill: var(--wb-geometry-body); stroke: var(--wb-geometry-part); stroke-width: .4; cursor: grab; }
 .m1-part.selected { fill: var(--wb-selection-surface); stroke: var(--wb-accent); stroke-width: .8; }
-.m1-part-label { font-size: 2.8px; fill: var(--wb-geometry-label); pointer-events: none; }
+.m1-scene-part { cursor: grab; }
+.m1-part-label { font: 1.8px var(--wb-mono); fill: var(--wb-geometry-label); pointer-events: none; }
+.m1-part-pad { fill: var(--wb-geometry-part); stroke: none; }
+.m1-part-drill { fill: var(--wb-canvas); stroke: var(--wb-geometry-outline); stroke-width: .1; }
+.m1-footprint-graphic { fill: none; stroke: var(--wb-geometry-graphic); stroke-width: .15; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.m1-footprint-zone { fill: var(--wb-geometry-zone); stroke: var(--wb-geometry-graphic); stroke-width: .12; pointer-events: none; }
+.m1-footprint-keepout { fill: none; stroke: var(--wb-geometry-graphic); stroke-width: .12; stroke-dasharray: .5 .5; pointer-events: none; }
+.m1-footprint-text { fill: var(--wb-geometry-label); font: .8px var(--wb-mono); pointer-events: none; }
+.m1-footprint-graphics-error { fill: var(--wb-status-error); font: 1.5px var(--wb-body); pointer-events: none; }
+.m1-keycap-overlay { pointer-events: none; }
+.m1-keycap-overlay rect { fill: var(--wb-geometry-body); fill-opacity: .75; stroke: var(--wb-geometry-outline); stroke-width: .22; }
+.m1-keycap-overlay .m1-keycap-top { fill-opacity: .25; stroke-width: .14; }
+.m1-keycap-overlay.is-selected rect { stroke: var(--wb-accent); fill: var(--wb-selection-surface); }
+.m1-part-hit-area { fill: transparent; stroke: none; pointer-events: all; cursor: grab; }
+.m1-canvas-toolbar .m1-footprints-toggle { padding: 4px 8px; font-size: 12px; }
+.m1-canvas-toolbar .m1-footprints-toggle[aria-pressed='true'] { color: var(--wb-accent-dark); border-color: var(--wb-accent); background: var(--wb-selection-surface); }
+.m1-layers { position: absolute; z-index: 2; right: 14px; bottom: 14px; display: flex; flex-direction: column; width: 192px; max-height: min(420px, calc(100% - 28px)); overflow: hidden; border: 1px solid var(--wb-rule-strong); border-radius: 12px; background: color-mix(in srgb, var(--wb-panel) 94%, transparent); color: var(--wb-ink); font: 12px var(--wb-body); box-shadow: 0 10px 28px rgb(0 0 0 / 22%); }
+.m1-layers[data-open='false'] { width: auto; border-radius: 999px; }
+.m1-layers button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 6px 10px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.m1-layers button:hover { background: var(--wb-raised); }
+.m1-layers button:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
+.m1-layers button[aria-pressed='false'] { color: var(--wb-muted); }
+.m1-layers svg { margin-left: auto; width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.m1-layers .m1-layers-trigger { font-weight: 600; }
+.m1-layers .m1-layers-close { display: none; }
+.m1-layer-list { min-height: 0; overflow-y: auto; border-top: 1px solid var(--wb-rule); padding: 4px; }
+.m1-layer-list[hidden] { display: none; }
+.m1-layer-list button { display: grid; grid-template-columns: 10px minmax(0, 1fr) 16px; gap: 4px 8px; min-height: 32px; }
+.m1-layer-label { min-width: 0; }
+.m1-layer-swatch { width: 10px; height: 10px; flex-shrink: 0; border-radius: 2px; background: var(--wb-geometry-outline); }
+.m1-layer-swatch[data-layer='Keys'] { background: var(--wb-accent); }
+.m1-layer-swatch[data-layer='Components'] { background: var(--wb-status-warning); }
+.m1-layer-swatch[data-layer='Keycaps'] { background: var(--wb-ink); }
+.m1-layer-swatch[data-layer='Footprints'] { background: var(--wb-geometry-part); }
+.m1-layer-swatch[data-layer='Board'] { background: var(--wb-geometry-board); }
+.m1-layer-list button[aria-pressed='false'] .m1-layer-swatch { opacity: .35; }
 .m1-inspector { overflow: auto; padding-bottom: 16px; }
 .m1-inspector > h2, .m1-inspector > p, .m1-inspector > label, .m1-inspector > button { margin-left: 16px; margin-right: 16px; }
 .m1-inspector > h2 { margin-top: 16px; margin-bottom: 6px; }
@@ -182,6 +220,13 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
   .m1-editor-footer { position: static; order: 4; }
   .m1-status { position: static; }
   .m1-case-panel { min-height: 54svh; }
+}
+@container (max-width: 640px) {
+  .m1-layers { right: 8px; bottom: 8px; width: min(240px, calc(100% - 16px)); max-height: calc(100% - 16px); }
+  .m1-layers[data-open='false'] { width: 100px; }
+  .m1-layers button { min-height: 44px; }
+  .m1-layers .m1-layers-close { display: flex; }
+  .m1-layer-list { max-height: min(360px, 50dvh); }
 }
 @media (max-width: 760px) { html, body, #main { overflow-x: hidden; } }
 @media (max-height: 520px) and (min-width: 761px) {

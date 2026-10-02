@@ -5,6 +5,10 @@ mod presentation;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod runtime;
 
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+#[path = "presentation/footprint_forms.rs"]
+mod footprint_forms;
+
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
     dioxus::launch(app);
