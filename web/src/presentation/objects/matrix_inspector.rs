@@ -377,7 +377,8 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
     };
 
     let on_keydown = {
-        let commit = commit.clone();
+        let mut commit = commit.clone();
+        let accepted_baseline = props.baseline.clone();
         move |event: KeyboardEvent| match event.data().key() {
             Key::Enter => {
                 event.prevent_default();
@@ -386,7 +387,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
             Key::Escape => {
                 event.prevent_default();
                 draft.set(props.value.clone());
-                draft_baseline.set(props.baseline.clone());
+                draft_baseline.set(accepted_baseline.clone());
                 dirty.set(false);
                 stale.set(false);
                 error.set(None);
@@ -448,7 +449,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                         submitted_request_id.set(None);
                     },
                     onblur: {
-                        let commit = commit.clone();
+                        let mut commit = commit.clone();
                         move |_| commit()
                     },
                     onkeydown: on_keydown,
