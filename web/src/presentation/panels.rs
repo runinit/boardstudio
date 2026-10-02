@@ -9,6 +9,29 @@ use web_sys::{Document, HtmlElement, MediaQueryList, Node, PointerEvent};
 
 mod policy;
 
+/// Apply ordinary workspace panel defaults without overriding an explicit reveal.
+pub(super) fn use_workspace_panel_defaults(
+    workspace: &'static str,
+    mut objects_open: Signal<bool>,
+    mut inspector_open: Signal<bool>,
+) -> Signal<Option<&'static str>> {
+    let mut requested_workspace = use_signal(|| None::<&'static str>);
+    use_effect(use_reactive((&workspace,), move |_| {
+        let requested = *requested_workspace.peek();
+        if requested.is_some() {
+            requested_workspace.set(None);
+        }
+        if requested == Some(workspace) {
+            return;
+        }
+        if workspace == "Keymap" || workspace == "Case" {
+            objects_open.set(false);
+            inspector_open.set(true);
+        }
+    }));
+    requested_workspace
+}
+
 type OutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(PointerEvent)>)>>>;
 type MediaChangeListener =
     Rc<RefCell<Option<(MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>>>;

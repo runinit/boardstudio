@@ -1,0 +1,91 @@
+[INFO]: 🎯  Checking for the Wasm target...
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/new17-compact-guide-repair-20261002/web)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.43s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-3c58940bc831989c.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:43985/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 1 test
+test presentation::setup_guide::tests::compact_case_stage_keeps_the_real_guide_visible_until_settings_action ... FAIL
+
+failures:
+
+---- presentation::setup_guide::tests::compact_case_stage_keeps_the_real_guide_visible_until_settings_action output ----
+    error output:
+        panicked at src/presentation/setup_guide/tests.rs:103:5:
+        assertion `left == right` failed: Case readiness detail must appear once
+          left: 2
+         right: 1
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:33563/wasm-bindgen-test:1351:25
+            at logError (http://127.0.0.1:33563/wasm-bindgen-test:2214:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:33563/wasm-bindgen-test:1350:57)
+            at boardstudio_web-3c58940bc831989c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[90301]:0x122fa93)
+            at boardstudio_web-3c58940bc831989c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[52109]:0x108b8b1)
+            at boardstudio_web-3c58940bc831989c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[19879]:0xce01c4)
+            at boardstudio_web-3c58940bc831989c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[54817]:0x10b4d76)
+            at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[16918]:0xc3b6a2)
+            at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[32615]:0xedd8f0)
+            at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[91613]:0x123398e)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-3c58940bc831989c.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[91973]:0x1234443)
+            at boardstudio_web-3c58940bc831989c.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[91916]:0x1234333)
+            at boardstudio_web-3c58940bc831989c.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[90560]:0x123095d)
+            at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[16918]:0xc3b715)
+            at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[32615]:0xedd8f0)
+            at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[91613]:0x123398e)
+            at boardstudio_web-3c58940bc831989c.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[71501]:0x1188509)
+            at boardstudio_web-3c58940bc831989c.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[54401]:0x10aec11)
+            at boardstudio_web-3c58940bc831989c.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[14618]:0xba621f)
+            at boardstudio_web-3c58940bc831989c.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<usize, usize> (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[58283]:0x10e5ede)
+
+failures:
+
+    presentation::setup_guide::tests::compact_case_stage_keeps_the_real_guide_visible_until_settings_action
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 2 filtered out; finished in 0.15s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: presentation::setup_guide::tests::compact_case_stage_keeps_the_real_guide_visible_until_settings_action
+    panicked at src/presentation/setup_guide/tests.rs:103:5:
+    assertion `left == right` failed: Case readiness detail must appear once
+      left: 2
+     right: 1
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:33563/wasm-bindgen-test:1351:25
+        at logError (http://127.0.0.1:33563/wasm-bindgen-test:2214:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:33563/wasm-bindgen-test:1350:57)
+        at boardstudio_web-3c58940bc831989c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[90301]:0x122fa93)
+        at boardstudio_web-3c58940bc831989c.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[52109]:0x108b8b1)
+        at boardstudio_web-3c58940bc831989c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[19879]:0xce01c4)
+        at boardstudio_web-3c58940bc831989c.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[54817]:0x10b4d76)
+        at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[16918]:0xc3b6a2)
+        at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[32615]:0xedd8f0)
+        at boardstudio_web-3c58940bc831989c.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:33563/wasm-bindgen-test_bg.wasm:wasm-function[91613]:0x123398e)
+    
+    
+Error: some tests failed
+error: test failed, to rerun pass `--bin boardstudio-web`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-3c58940bc831989c.wasm compact_case_stage_keeps_the_real_guide_visible_until_settings_action` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.
+Error: Running Wasm tests with wasm-bindgen-test failed
+Caused by: Running Wasm tests with wasm-bindgen-test failed
+Caused by: failed to execute `cargo test`: exited with exit status: 1
+  full command: cd "web" && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner" CHROMEDRIVER="/usr/bin/chromedriver" WASM_BINDGEN_TEST_ONLY_WEB="1" "cargo" "test" "--target" "wasm32-unknown-unknown" "--no-default-features" "--features" "page" "--bin" "boardstudio-web" "--" "compact_case_stage_keeps_the_real_guide_visible_until_settings_action"

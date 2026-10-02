@@ -163,7 +163,6 @@ pub(super) fn ProjectSetupGuide(
                     button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Case), "Continue to case" }
                     button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Layout), "Previous step" }
                 } else if stage == SetupGuideStage::Case {
-                    p { "Optional: configure a case or continue without one." }
                     p { "Configure construction and clearances, then generate geometry when you are ready. PCB and firmware exports are available separately." }
                     button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("Case"), "Open case settings" }
                     button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Review), "Continue to review" }
@@ -270,6 +269,35 @@ pub(crate) fn write_preferences(preferences: &SetupGuidePreferences) {
     }
 }
 
+/// Keep stage navigation and its panel reveal in one production transition.
+pub(super) fn activate_stage(
+    stage: SetupGuideStage,
+    mut workspace: Signal<&'static str>,
+    mut requested_workspace: Signal<Option<&'static str>>,
+    objects_open: Signal<bool>,
+    inspector_open: Signal<bool>,
+    objects_settings: Signal<super::panels::PanelSettings>,
+    inspector_settings: Signal<super::panels::PanelSettings>,
+) {
+    let target = match stage {
+        SetupGuideStage::Project | SetupGuideStage::Layout => "Layout",
+        SetupGuideStage::Wiring => "PCB",
+        SetupGuideStage::Case => "Case",
+        SetupGuideStage::Review => "Export",
+    };
+    if *workspace.peek() != target {
+        requested_workspace.set(Some(target));
+    }
+    workspace.set(target);
+    reveal_panels(
+        crate::setup_guide_state::GuideReveal::Guide,
+        objects_open,
+        inspector_open,
+        objects_settings,
+        inspector_settings,
+    );
+}
+
 /// Reveal the requested panel without changing compact-mode stored preferences.
 pub(super) fn reveal_panels(
     intent: crate::setup_guide_state::GuideReveal,
@@ -310,3 +338,6 @@ pub(super) fn focus_settings(workspace: &str) {
         let _ = element.focus();
     }
 }
+
+#[cfg(test)]
+mod tests;

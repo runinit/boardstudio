@@ -1168,6 +1168,8 @@ fn Editor() -> Element {
     let case_tree_expanded = use_signal(BTreeSet::<String>::new);
     let workspace = use_context::<WorkspaceState>().0;
     let active_workspace = workspace();
+    let requested_workspace_panel =
+        panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
     let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
@@ -2911,17 +2913,11 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let space_down = space_down.clone();
         let render_scope = render_scope.clone();
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
         move |_| {
             space_down.set(false);
             selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
             let mut interaction_version = interaction_version;
             interaction_version += 1;
-            if active_workspace == "Keymap" || active_workspace == "Case" {
-                objects_open.set(false);
-                inspect_open.set(true);
-            }
         }
     }));
     let keyboard = {
@@ -3525,7 +3521,7 @@ fn Editor() -> Element {
     let guide_runtime = runtime.clone();
     let mut guide_adapter = adapter.clone();
     let mut guide_preferences_for_stage = guide_preferences;
-    let mut guide_workspace_for_stage = workspace;
+    let guide_workspace_for_stage = workspace;
     let guide_project_id = document.id.clone();
     let on_stage_change = move |stage: SetupGuideStage| {
         let Some(mut preferences) = guide_preferences_for_stage()
@@ -3536,14 +3532,10 @@ fn Editor() -> Element {
         preferences.current_stage = stage;
         preferences.open = true;
         guide_preferences_for_stage.set(Some(preferences));
-        guide_workspace_for_stage.set(match stage {
-            SetupGuideStage::Project | SetupGuideStage::Layout => "Layout",
-            SetupGuideStage::Wiring => "PCB",
-            SetupGuideStage::Case => "Case",
-            SetupGuideStage::Review => "Export",
-        });
-        setup_guide::reveal_panels(
-            crate::setup_guide_state::GuideReveal::Guide,
+        setup_guide::activate_stage(
+            stage,
+            guide_workspace_for_stage,
+            requested_workspace_panel,
             objects_open,
             inspect_open,
             objects_panel_settings,
