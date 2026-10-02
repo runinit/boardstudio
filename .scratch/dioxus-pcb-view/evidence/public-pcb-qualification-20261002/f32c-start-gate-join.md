@@ -1,0 +1,30 @@
+# F3.2c public gap and capability start gate
+
+**Purpose:** connect the paired PCB Parts observation to the existing F3.2c draft and its current private placement composition. This is a planning/evidence addendum, not a second ticket, a parent acceptance, or an implementation claim.
+
+## Public trigger
+
+At source/build `792e88af` on `http://127.0.0.1:34731/`, Parts search for `smd_0805` exposes the catalogue entry, footprint preview, and selected-definition metadata. It has no general action to place that selected definition. The pinned React route at `http://127.0.0.1:5173/` (`5a472a9426e6e38993361da402cd4ec730feb369`) exposes **Place component**; using it produced the derived J1 fixture recorded in [the paired walkthrough](paired-walkthrough.md). That archive was then consumed by the candidate for the public PCB08 binding journey. This is observable motivation for the already-published [F3.2c issue](../../../dioxus-layout-authoring/issues/03-component-placement.md), not a new PCB08 scope item. The issue SHA-256 is `e18acd7294b1fb63854207e3a399aef7a433ca2111f6d6f989587f115c58874d` and its status is Published; implementation starts after canonical F3.1 is satisfied.
+
+## Canonical and operational gates
+
+- Preserve F3.2's canonical graph record and its sole `start_after: [F3.1]` edge. F3.2c is a child execution ticket only; it does not add dependencies, change any of the 62 parent tasks or close F3.2/F4/PCB acceptance joins.
+- Capability-level work may start when the specific F3.1 inputs consumed by this child are available: active project accepted snapshot and identity, current board/layout scope, selection adapter/scope generation, accepted catalogue/project-definition projection, canvas center/snap settings, and the existing placement/edit-history submission path. It need not wait for all of F3.1, F3.2, or the Parts milestone; fixture-backed work can exercise each required capability.
+- The ticket is published; any final independent review refinement should amend that existing issue in place. Its canonical implementation start gate is F3.1, with the child-specific consumed capabilities listed above. Retain the public paired React/Dioxus journey, same-fixture edit, Undo/Redo, archive reopen, keyboard/pointer/cancel, stale-context, focus, compact and theme checks as ticket acceptance evidence. Source presence, an isolated hook test, or this planning note does not satisfy public acceptance.
+
+## Existing placement seam and non-overlap
+
+The exact shared-source join reviewed at `9d34f3672f4f05cb3771bc5cd358508b13e9c31f` has one private `PartPlacement` arbiter owner and one placement owner mounted by the Layout canvas shell. Its reviewed bounded composition also carries Parts scope-generation signals, accepted project-definition fallback, and the current session operation/history path. Reuse these existing private authorities where their types and behavior fit; do not add an arbiter, independent writable project state, public API, schema field, core operation, or second ID authority. Root/coordinator retains accepted definition projection, ID allocation, typed callback translation, selection/navigation, shared route mount and build integration.
+
+The existing Parts inspector's **Place component** is a narrower guided controller action: it is available only while the matching project's SetupGuide is open at Wiring and the selected definition is a `PartKind::Controller`; it invokes `on_place_controller`. That proves a controller-specific placement route and the shared arbiter integration, not general catalogue placement readiness. Keep it distinct from F3.2c:
+
+1. **Add object → Parts:** selecting a definition starts standalone placement on the active board, including when a key is selected; the destination may be Board/ungrouped or a layout on that board.
+2. **Parts workspace with selected key scope:** selecting an applicable switch/input definition updates the key assembly; another eligible definition appends an attached assembly. Other scopes use standalone placement. Do not route this path through the controller-guide-only action or invent component/key identity.
+
+The implementation owner should be singular across the private component-placement UI module and should consume the already-composed owner/runtime/callback seams; root performs the shared mount and accepted callback wiring serially. The matrix/cell inspector remains responsible for later replacement/removal. Preserve linked/local override semantics. Keep transforms in F3.3 and keycap sizing/reflow in F6C.3. The public PCB press capture was rechecked from the exact original fixture in fresh session `pcb-react-original-20261002-2318ea1a1376`; it shows 70 parts before and after reload, matching the candidate. The source/build provenance packet is `.scratch/dioxus-frontend-v1/evidence/packaging-reuse-public-20261002.json`; exact React fixture provenance is in `.scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/RESULTS.md` and the fixture file itself rehashes to `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
+
+## Qualification limits carried forward
+
+The reviewed packaged Ergogen catalogue has 36 sources and no anchor-typed field. The supported SMD net controls, including `net_3_from`, round-trip in the paired archive and do not demonstrate anchor support. Do not add synthetic catalogue definitions or expand the package/API to make an absent field appear. Preserve the true catalogue readiness and existing RF ledger. No new refactoring takeaway observed in this evidence.
+
+**Review/ownership handoff:** project Parts stream audit owns the single F3.2c implementation packet; Sol 6.1 High reviews the same bounded capability inventory and exact contract. Use the existing draft and update/refine it in place if review identifies a necessary contract correction; do not create a duplicate ticket. Keep source/build frozen while the root package gate runs.
