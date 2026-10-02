@@ -4,9 +4,9 @@ Ticket SHA: `eb2586d81883c19d7576af8d994eabeda309045d6eb5c2f6d5537ec1149b26ea`
 Spec SHA: `b5582c2e4a3b829284f2de6337dd2dfc6bc82daa9a945064c849f2180ee7c1b5`  
 Fixture: layered Sofle archive, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
 
-## React reference
+## Historical React capture (5175; cached page, freshness unverified)
 
-Public app: `http://127.0.0.1:5175/`, isolated `agent-browser` session `layout-align-276a150779db`. Imported the saved archive above. Selected `Key 1.1 left-keys-SW1`; Align chose the first eligible reference, `left-diode-24-keys`. Before each command SW1 was `(9.18, -78.048)` and the reference was `(16.58, -79.548)`. Each command produced one accepted position change, left the reference unchanged, and one Undo restored SW1 to baseline before the next command.
+The earlier capture used `http://127.0.0.1:5175/`, isolated `agent-browser` session `layout-align-276a150779db`. It imported the saved archive above. The listener was absent and browser page was cached, so retain its screenshots/notes as historical only; the freshness-verified comparison is below. Selected `Key 1.1 left-keys-SW1`; Align chose the first eligible reference, `left-diode-24-keys`. Before each command SW1 was `(9.18, -78.048)` and the reference was `(16.58, -79.548)`. Each command produced one accepted position change, left the reference unchanged, and one Undo restored SW1 to baseline before the next command.
 
 | Command | SW1 after command (mm) | Reference after command (mm) |
 |---|---:|---:|
@@ -19,6 +19,22 @@ Public app: `http://127.0.0.1:5175/`, isolated `agent-browser` session `layout-a
 
 Screenshots: [React Align menu](react-align-menu.png), [React baseline](react-baseline.png). The browser JavaScript error buffer was empty after the journey.
 
+
+## Fresh React oracle (5173; paired comparison)
+
+Public app: `http://127.0.0.1:5173/`, fresh named browser session `layout-align-react-live-276a150779db`. The page was served by Vite PID `32534` (`node .../vite.js --host 127.0.0.1`) with working directory `/home/chris/01_Projects/ts-boardstudio2/app`; repository HEAD was exactly `5a472a9426e6e38993361da402cd4ec730feb369`, matching the ticket's pinned React commit. The browser loaded live `/@vite/client`, `/src/main.tsx`, React refresh, and project modules; `navigator.serviceWorker.controller` was null. Root separately verified the relevant TypeScript source blobs against the pin. Imported the exact fixture above (SHA-256 `5b17071a...0776df`) and selected `Key 1.1 left-keys-SW1` on Left PCB. Default reference was `left-diode-24-keys` at `(16.58, -79.548)`. Before each command the target was `(9.18, -78.048)`; each action produced one accepted position change, left the reference unchanged, and Undo restored baseline.
+
+| Command | SW1 after command (mm) | Reference after command (mm) |
+|---|---:|---:|
+| Left | `(24.98, -78.048)` | `(16.58, -79.548)` |
+| Center X | `(16.58, -78.048)` | `(16.58, -79.548)` |
+| Right | `(8.18, -78.048)` | `(16.58, -79.548)` |
+| Top | `(9.18, -86.448)` | `(16.58, -79.548)` |
+| Center Y | `(9.18, -79.548)` | `(16.58, -79.548)` |
+| Bottom | `(9.18, -72.648)` | `(16.58, -79.548)` |
+
+Bottom Undo returned `(9.18, -78.048)`; Redo restored `(9.18, -72.648)`, and reload retained that position and the reference. `agent-browser errors` returned no entries. Console output contained Vite-connected and React DevTools informational messages only. Fresh screenshots: [Align menu](react-live-5173-align-menu.png), [Bottom](react-live-5173-bottom.png), and [Bottom after Redo](react-live-5173-bottom-redo.png). This fresh oracle matches the Dioxus results above exactly; the 5175 material remains separately marked historical.
+
 ## Corrected source verification
 
 The corrected Align lifecycle source is commit `71075e71040728c19eab0d9aa0bedd487e3e133c` (after lifecycle repair `80ad6603` and feature leaf `533f9a50`). It preserves the chosen eligible reference when the workspace or current projection is hidden/unresolved, writes the preference only when it changes, and retires a completed old-scope request before checking the current scope's accepted revision.
@@ -30,7 +46,7 @@ The corrected Align lifecycle source is commit `71075e71040728c19eab0d9aa0bedd48
 - Strict all-target WASM Clippy passed with `-D warnings`.
 - Non-test core-worker check passed. Exploratory core-worker-only tests stop on the existing optional-`sha2` import in `persistence_contract.rs`; this is outside the Align change.
 
-The mounted lifecycle regression exercises the production reconciliation seam in a Dioxus `VirtualDom`; it does not mount the full application hook. The stale-scope regression exercises the extracted settlement gate used directly by the production controller. Full candidate browser behavior remains pending below.
+The mounted lifecycle regression exercises the production reconciliation seam in a Dioxus `VirtualDom`; it does not mount the full application hook. The stale-scope regression exercises the extracted settlement gate used directly by the production controller. The paired public candidate journey is recorded below; the acceptance audit distinguishes this proven key/cell scope from wider F3.3c cases that remain open.
 
 ## Dioxus integrated candidate
 
