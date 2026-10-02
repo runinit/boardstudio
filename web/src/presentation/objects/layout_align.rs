@@ -3,6 +3,7 @@ pub(in crate::presentation) use super::layout_align_geometry::{
     AlignCommand, PendingSettlementGate, alignment_delta, local_matrix_delta,
     pending_settlement_gate, reconcile_reference_choice, transformed_envelope,
 };
+use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::tree::TreeContext;
 use boardstudio_application::{Scope, SnapshotToken};
 use dioxus::prelude::*;
@@ -47,28 +48,36 @@ pub(in crate::presentation) struct LayoutAlignMount {
 }
 
 #[component]
-pub(in crate::presentation) fn LayoutAlignToolbar(mount: LayoutAlignMount) -> Element {
+pub(in crate::presentation) fn LayoutAlignToolbar(
+    mount: LayoutAlignMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+) -> Element {
     let on_align = mount.on_align;
-    let mut open = use_signal(|| false);
+    let is_open = open_menu() == Some(LayoutCommandMenu::Align);
     rsx! {
         details {
-            class: "m1-layout-align-menu",
-            open: open(),
+            class: "m1-layout-command-menu m1-layout-align-menu",
+            "data-layout-menu": "align",
+            open: is_open,
             onkeydown: move |event: KeyboardEvent| {
-                if event.data().key().to_string() == "Escape" && open() {
+                if event.data().key().to_string() == "Escape" && open_menu() == Some(LayoutCommandMenu::Align) {
                     event.prevent_default();
                     event.stop_propagation();
-                    open.set(false);
+                    close_layout_command_menu(open_menu, LayoutCommandMenu::Align);
                 }
             },
             summary {
+                id: "m1-layout-align-trigger",
+                "aria-controls": "m1-layout-align-menu",
+                "aria-expanded": "{is_open}",
                 onclick: move |event: MouseEvent| {
                     event.prevent_default();
-                    open.set(!open());
+                    let mut open_menu = open_menu;
+                    open_menu.set((open_menu() != Some(LayoutCommandMenu::Align)).then_some(LayoutCommandMenu::Align));
                 },
                 "Align"
             }
-            div { class: "m1-layout-align-popover",
+            div { id: "m1-layout-align-menu", class: "m1-layout-align-popover",
                 label { "Reference part"
                     select {
                         "aria-label": "Alignment reference",
@@ -94,10 +103,9 @@ pub(in crate::presentation) fn LayoutAlignToolbar(mount: LayoutAlignMount) -> El
                             disabled: !mount.enabled || mount.busy || mount.selected_reference.is_none(),
                             onclick: {
                                 let action = mount.action.as_ref().map(|action| AlignAction { command, ..action.clone() });
-                                let mut open = open;
                                 move |_| if let Some(action) = action.clone() {
                                     on_align.call(action);
-                                    open.set(false);
+                                    close_layout_command_menu(open_menu, LayoutCommandMenu::Align);
                                 }
                             },
                             "{command.label()}"

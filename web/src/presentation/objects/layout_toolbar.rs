@@ -3,6 +3,9 @@ use super::tree::{self, TreeContext};
 use boardstudio_application::ReadModel;
 use boardstudio_core::model::Vec2;
 use dioxus::prelude::*;
+use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen::{JsCast, closure::Closure};
+use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
 
 const DEFAULT_PITCH_MM: f64 = 19.05;
 
@@ -421,84 +424,290 @@ fn snap_label(fraction: f64) -> &'static str {
         .unwrap_or("Custom")
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::presentation) enum LayoutCommandMenu {
+    Select,
+    Transform,
+    Align,
+    Snap,
+}
+
+impl LayoutCommandMenu {
+    const fn key(self) -> &'static str {
+        match self {
+            Self::Select => "select",
+            Self::Transform => "transform",
+            Self::Align => "align",
+            Self::Snap => "snap",
+        }
+    }
+
+    const fn trigger_id(self) -> &'static str {
+        match self {
+            Self::Select => "m1-layout-select-trigger",
+            Self::Transform => "m1-layout-transform-trigger",
+            Self::Align => "m1-layout-align-trigger",
+            Self::Snap => "m1-layout-snap-trigger",
+        }
+    }
+}
+
+type MenuOutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(WebPointerEvent)>)>>>;
+
+fn remove_menu_outside_listener(listener: &MenuOutsideListener) {
+    if let Some((document, callback)) = listener.borrow_mut().take() {
+        let _ = document
+            .remove_event_listener_with_callback("pointerdown", callback.as_ref().unchecked_ref());
+    }
+}
+
+pub(in crate::presentation) fn close_layout_command_menu(
+    mut open_menu: Signal<Option<LayoutCommandMenu>>,
+    menu: LayoutCommandMenu,
+) {
+    open_menu.set(None);
+    restore_layout_command_focus(menu);
+}
+
+fn restore_layout_command_focus(menu: LayoutCommandMenu) {
+    if let Some(trigger) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id(menu.trigger_id()))
+        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+    {
+        let _ = trigger.focus();
+    }
+}
+
+fn toggle_layout_command_menu(
+    mut open_menu: Signal<Option<LayoutCommandMenu>>,
+    menu: LayoutCommandMenu,
+) {
+    open_menu.set((open_menu() != Some(menu)).then_some(menu));
+}
+
 #[component]
-pub(in crate::presentation) fn LayoutSelectionSnapToolbar(
+pub(in crate::presentation) fn LayoutCommandPill(
+    menu_owner_key: String,
     selection_kind: LayoutSelectionKind,
     snap_settings: LayoutSnapSettings,
+    transform: super::layout_transform_toolbar::LayoutTransformMenuMount,
+    align: super::layout_align::LayoutAlignMount,
     on_selection_kind: EventHandler<LayoutSelectionKind>,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
 ) -> Element {
-    let settings = snap_settings;
+    let open_menu = use_signal(|| None::<LayoutCommandMenu>);
+    let outside_listener = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(Document, Closure<dyn FnMut(WebPointerEvent)>)>,
+        ))
+    });
+
+    use_effect(use_reactive((&menu_owner_key,), move |_| {
+        open_menu.set(None);
+    }));
+    use_effect(use_reactive((&open_menu(),), {
+        let outside_listener = outside_listener.clone();
+        move |(active_menu,)| {
+            remove_menu_outside_listener(&outside_listener);
+            if active_menu.is_none() {
+                return;
+            }
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            let listener_document = document.clone();
+            let mut open_menu = open_menu;
+            let callback = Closure::wrap(Box::new(move |event: WebPointerEvent| {
+                let target = event
+                    .target()
+                    .and_then(|target| target.dyn_into::<Node>().ok());
+                let inside = target.as_ref().is_some_and(|target| {
+                    listener_document
+                        .get_element_by_id("m1-layout-command-pill")
+                        .is_some_and(|pill| pill.contains(Some(target)))
+                });
+                if !inside {
+                    open_menu.set(None);
+                }
+            }) as Box<dyn FnMut(_)>);
+            let _ = document
+                .add_event_listener_with_callback("pointerdown", callback.as_ref().unchecked_ref());
+            *outside_listener.borrow_mut() = Some((document, callback));
+        }
+    }));
+    use_effect(use_reactive((&open_menu(),), move |(active_menu,)| {
+        let Some(menu) = active_menu else {
+            return;
+        };
+        let selector = format!(
+            "[data-layout-menu='{}'] :is(input:not(:disabled), select:not(:disabled), button:not(:disabled))",
+            menu.key()
+        );
+        if let Some(control) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.query_selector(&selector).ok().flatten())
+            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+        {
+            let _ = control.focus();
+        }
+    }));
+    use_drop({
+        let outside_listener = outside_listener.clone();
+        move || remove_menu_outside_listener(&outside_listener)
+    });
+
     rsx! {
-        div { class: "m1-layout-command-controls", role: "toolbar", aria_label: "Layout commands",
-            details { class: "m1-layout-select-menu",
-                summary { "Select: {selection_kind.label()}" }
-                div { class: "m1-layout-select-popover", role: "group", aria_label: "Selection scope",
-                    for kind in LayoutSelectionKind::ALL {
-                        button {
-                            r#type: "button",
-                            aria_pressed: "{kind == selection_kind}",
-                            onclick: move |_| on_selection_kind.call(kind),
-                            "{kind.label()}"
-                        }
+        div { id: "m1-layout-command-pill", class: "m1-layout-command-pill", role: "toolbar", aria_label: "Layout commands",
+            LayoutSelectMenu {
+                open_menu,
+                selection_kind,
+                on_selection_kind,
+            }
+            super::layout_transform_toolbar::LayoutTransformToolbar {
+                open_menu,
+                mount: transform,
+            }
+            super::layout_align::LayoutAlignToolbar {
+                mount: align,
+                open_menu,
+            }
+            LayoutSnapMenu {
+                open_menu,
+                settings: snap_settings,
+                on_snap_intent,
+            }
+        }
+    }
+}
+
+#[component]
+fn LayoutSelectMenu(
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    selection_kind: LayoutSelectionKind,
+    on_selection_kind: EventHandler<LayoutSelectionKind>,
+) -> Element {
+    let is_open = open_menu() == Some(LayoutCommandMenu::Select);
+    rsx! {
+        details {
+            class: "m1-layout-command-menu m1-layout-select-menu",
+            "data-layout-menu": "select",
+            open: is_open,
+            onkeydown: move |event: KeyboardEvent| {
+                if event.data().key().to_string() == "Escape" && open_menu() == Some(LayoutCommandMenu::Select) {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
+                }
+            },
+            summary {
+                id: "m1-layout-select-trigger",
+                "aria-controls": "m1-layout-select-menu",
+                "aria-expanded": "{is_open}",
+                onclick: move |event: MouseEvent| {
+                    event.prevent_default();
+                    toggle_layout_command_menu(open_menu, LayoutCommandMenu::Select);
+                },
+                "Select: {selection_kind.label()}"
+            }
+            div { id: "m1-layout-select-menu", class: "m1-layout-select-popover", role: "group", aria_label: "Selection scope",
+                for kind in LayoutSelectionKind::ALL {
+                    button {
+                        r#type: "button",
+                        aria_pressed: "{kind == selection_kind}",
+                        onclick: move |_| {
+                            on_selection_kind.call(kind);
+                            close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
+                        },
+                        "{kind.label()}"
                     }
                 }
             }
-            details { class: "m1-layout-snap-menu",
-                summary { "Snap" }
-                div { class: "m1-layout-snap-popover",
-                    label { "Snap increment"
-                        select {
-                            "aria-label": "Snap increment",
-                            value: "{settings.snap_fraction}",
-                            onchange: move |event: FormEvent| {
-                                if let Ok(value) = event.value().parse::<f64>()
-                                    && value.is_finite()
-                                    && SNAP_STEPS.iter().any(|(step, _, _)| *step == value)
-                                {
-                                    on_snap_intent.call(LayoutSnapIntent::Fraction(value));
-                                }
-                            },
-                            for (fraction, value, label) in SNAP_STEPS {
-                                option { value: "{value}", selected: settings.snap_fraction == fraction, "{label}" }
-                            }
-                        }
-                    }
-                    label { class: "m1-layout-snap-check",
-                        input {
-                            r#type: "checkbox",
-                            checked: settings.geometry_snap,
-                            onchange: move |event: FormEvent| {
-                                on_snap_intent.call(LayoutSnapIntent::GeometrySnap(event.checked()));
-                            },
-                        }
-                        "Geometry snap"
-                    }
-                    label { class: "m1-layout-snap-check",
-                        input {
-                            r#type: "checkbox",
-                            checked: settings.gap_snap,
-                            disabled: !settings.geometry_snap,
-                            onchange: move |event: FormEvent| {
-                                on_snap_intent.call(LayoutSnapIntent::GapSnap(event.checked()));
-                            },
-                        }
-                        "Envelope gap"
-                    }
-                    label { class: "m1-layout-gap-field", "Gap (mm)"
-                        input {
-                            r#type: "number",
-                            min: "0",
-                            step: "any",
-                            "aria-label": "Snap gap",
-                            value: "{settings.gap_override}",
-                            oninput: move |event: FormEvent| {
-                            on_snap_intent.call(LayoutSnapIntent::GapOverride(event.value()));
-                            },
-                        }
-                    }
-                    p { "Shared by Layout, drawing and perimeter editing. Unit steps use matrix pitch; mm steps use world coordinates. Hold Alt to bypass snapping." }
+        }
+    }
+}
+
+#[component]
+fn LayoutSnapMenu(
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    settings: LayoutSnapSettings,
+    on_snap_intent: EventHandler<LayoutSnapIntent>,
+) -> Element {
+    let is_open = open_menu() == Some(LayoutCommandMenu::Snap);
+    rsx! {
+        details {
+            class: "m1-layout-command-menu m1-layout-snap-menu",
+            "data-layout-menu": "snap",
+            open: is_open,
+            onkeydown: move |event: KeyboardEvent| {
+                if event.data().key().to_string() == "Escape" && open_menu() == Some(LayoutCommandMenu::Snap) {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    close_layout_command_menu(open_menu, LayoutCommandMenu::Snap);
                 }
+            },
+            summary {
+                id: "m1-layout-snap-trigger",
+                "aria-controls": "m1-layout-snap-menu",
+                "aria-expanded": "{is_open}",
+                onclick: move |event: MouseEvent| {
+                    event.prevent_default();
+                    toggle_layout_command_menu(open_menu, LayoutCommandMenu::Snap);
+                },
+                "Snap"
+            }
+            div { id: "m1-layout-snap-menu", class: "m1-layout-snap-popover",
+                label { "Snap increment"
+                    select {
+                        "aria-label": "Snap increment",
+                        value: "{settings.snap_fraction}",
+                        onchange: move |event: FormEvent| {
+                            if let Ok(value) = event.value().parse::<f64>()
+                                && value.is_finite()
+                                && SNAP_STEPS.iter().any(|(step, _, _)| *step == value)
+                            {
+                                on_snap_intent.call(LayoutSnapIntent::Fraction(value));
+                            }
+                        },
+                        for (fraction, value, label) in SNAP_STEPS {
+                            option { value: "{value}", selected: settings.snap_fraction == fraction, "{label}" }
+                        }
+                    }
+                }
+                label { class: "m1-layout-snap-check",
+                    input {
+                        r#type: "checkbox",
+                        checked: settings.geometry_snap,
+                        onchange: move |event: FormEvent| {
+                            on_snap_intent.call(LayoutSnapIntent::GeometrySnap(event.checked()));
+                        },
+                    }
+                    "Geometry snap"
+                }
+                label { class: "m1-layout-snap-check",
+                    input {
+                        r#type: "checkbox",
+                        checked: settings.gap_snap,
+                        disabled: !settings.geometry_snap,
+                        onchange: move |event: FormEvent| {
+                            on_snap_intent.call(LayoutSnapIntent::GapSnap(event.checked()));
+                        },
+                    }
+                    "Envelope gap"
+                }
+                label { class: "m1-layout-gap-field", "Gap (mm)"
+                    input {
+                        r#type: "number",
+                        min: "0",
+                        step: "any",
+                        "aria-label": "Snap gap",
+                        value: "{settings.gap_override}",
+                        oninput: move |event: FormEvent| {
+                            on_snap_intent.call(LayoutSnapIntent::GapOverride(event.value()));
+                        },
+                    }
+                }
+                p { "Shared by Layout, drawing and perimeter editing. Unit steps use matrix pitch; mm steps use world coordinates. Hold Alt to bypass snapping." }
             }
         }
     }
