@@ -37,6 +37,7 @@ mod selection;
 mod setup_guide;
 mod shared_viewer;
 mod workspace_composition;
+mod zmk_firmware_export;
 
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
@@ -49,6 +50,9 @@ use panels::{
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
 use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, SetupGuideStage};
+use zmk_firmware_export::{
+    ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow, use_export_panel_input,
+};
 mod footprint_graphics;
 
 use crate::runtime::Runtime;
@@ -483,7 +487,12 @@ pub fn App() -> Element {
             }
             if runtime.model().accepted.is_some() { Editor {} }
             else { LibraryLanding {} }
-                p { role: "status", "aria-live": "polite", class: "m1-status", "{runtime.status()}" }
+                p {
+                    role: if runtime.status_is_alert() { "alert" } else { "status" },
+                    "aria-live": if runtime.status_is_alert() { "assertive" } else { "polite" },
+                    class: "m1-status",
+                    "{runtime.status()}"
+                }
             if !new_keyboard_error().is_empty() {
                 p { role: "alert", class: "m1-status", "{new_keyboard_error()}" }
             }
@@ -675,7 +684,7 @@ fn LibraryLanding() -> Element {
 }
 
 #[component]
-fn ExportPanel() -> Element {
+fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
@@ -688,6 +697,12 @@ fn ExportPanel() -> Element {
             p { "Create files from the saved keyboard in the current board and instance scope." }
             div { class: "m1-export-actions",
                 button { disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
+            }
+            if let Some(firmware) = zmk_firmware {
+                h2 { "Design files" }
+                div { class: "m1-export-list",
+                    ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export }
+                }
             }
             section { class: "m1-export-portable", "aria-label": "Portable project",
                 h2 { "Portable project" }
@@ -3838,6 +3853,14 @@ fn Editor() -> Element {
                 (adapter.generation)(),
             )
         });
+    let zmk_firmware_export_panel = use_export_panel_input(
+        runtime.clone(),
+        workspace,
+        adapter.generation,
+        pcb_wiring_source.clone(),
+        pcb_wiring_mount.resolution_signal,
+        instance_selection,
+    );
     let case_selected_body_id = case_selection
         .body
         .read()
@@ -4665,7 +4688,7 @@ fn Editor() -> Element {
                         }
                         CanvasLayers {}
                     } else if active_workspace == "Export" {
-                        ExportPanel {}
+                        ExportPanel { zmk_firmware: Some(zmk_firmware_export_panel) }
                     } else if let Some(input) = canvas_input {
                         {workspace_composition::canvas(input)}
                     } else {

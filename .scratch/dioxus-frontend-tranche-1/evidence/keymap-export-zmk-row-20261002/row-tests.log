@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.32s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-538e8e6beb421c11.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:41363/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 3 tests
+Invoking test: presentation::zmk_firmware_export::tests::row_renders_reference_copy_accessible_name_and_ready_marker
+test presentation::zmk_firmware_export::tests::row_renders_reference_copy_accessible_name_and_ready_marker ... ok
+Invoking test: presentation::zmk_firmware_export::tests::only_a_current_ready_board_plan_with_controller_and_assignment_enables_export
+test presentation::zmk_firmware_export::tests::only_a_current_ready_board_plan_with_controller_and_assignment_enables_export ... ok
+Invoking test: presentation::zmk_firmware_export::tests::export_action_requires_the_rendered_workspace_owner_and_accepted_plan
+test presentation::zmk_firmware_export::tests::export_action_requires_the_rendered_workspace_owner_and_accepted_plan ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 34 filtered out; finished in 0.08s
+

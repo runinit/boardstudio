@@ -1,0 +1,22 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.36s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-538e8e6beb421c11.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:38123/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 5 tests
+Invoking test: runtime::firmware_export_tests::worker_replacement_at_resolution_generation_or_packaging_boundary_invalidates_attempt
+test runtime::firmware_export_tests::worker_replacement_at_resolution_generation_or_packaging_boundary_invalidates_attempt ... ok
+Invoking test: runtime::firmware_export_tests::older_export_cannot_replace_a_newer_attempts_report
+test runtime::firmware_export_tests::older_export_cannot_replace_a_newer_attempts_report ... ok
+Invoking test: runtime::firmware_export_tests::generation_and_zip_failures_cannot_produce_deliverable_firmware_bytes
+test runtime::firmware_export_tests::generation_and_zip_failures_cannot_produce_deliverable_firmware_bytes ... ok
+Invoking test: runtime::firmware_export_tests::firmware_failure_announcement_has_explicit_alert_severity_and_stale_owner_is_silent
+test runtime::firmware_export_tests::firmware_failure_announcement_has_explicit_alert_severity_and_stale_owner_is_silent ... ok
+Invoking test: runtime::firmware_export_tests::firmware_completion_is_suppressed_after_project_board_or_snapshot_changes
+test runtime::firmware_export_tests::firmware_completion_is_suppressed_after_project_board_or_snapshot_changes ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 32 filtered out; finished in 0.01s
+
