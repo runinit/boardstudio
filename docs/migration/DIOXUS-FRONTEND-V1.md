@@ -71,7 +71,7 @@ The current Design mode is called Layout in the UI. Move project discovery/impor
 into the project menu, put board/instance and component navigation in Objects,
 position editing in Inspect, and let the canvas occupy the remaining viewport.
 Reuse the bundled Source Sans 3/Source Code Pro, tokens, icons, spacing and focus
-language. Include functional Light/Dark/System preferences and scoped persistence.
+language. Include functional Light/Dark/System preferences and browser-scoped persistence.
 Keep available Layout, Case and exports wired to existing services. Pending tabs
 open clear placeholder panels with a return path and no pretend editing/readiness.
 Tab changes preserve session/history and safely settle or retain drafts. This is

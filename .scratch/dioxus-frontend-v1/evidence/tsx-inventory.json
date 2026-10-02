@@ -108,7 +108,7 @@
         "app/src/ui/ProjectLibrary.test.tsx"
       ],
       "exit_criteria": [
-        "Paired React/Dioxus screenshots and DOM review at desktop and compact sizes; seven-tab order and active/focus state match; placeholder tabs have no document side effects; no new axe violations and manual keyboard/focus checks pass."
+        "Paired React/Dioxus screenshots and DOM review at desktop and compact sizes; six-tab order plus separate Export action and active/focus state match; placeholder tabs have no document side effects; no new axe violations and manual keyboard/focus checks pass."
       ],
       "shared_tsx_dependencies": [],
       "migration_status": "not fully ported; assess per-component parity against the Dioxus candidate during baseline capture",
@@ -861,7 +861,6 @@
       "app/src/ui/usePcbWorkspace.tsx",
       "app/src/ui/useScriptEditor.tsx",
       "app/src/ui/useSetupGuide.ts",
-      "app/src/ui/useWorkbenchNavigation.test.tsx",
       "app/src/ui/useWorkbenchNavigation.ts",
       "app/src/ui/useWorkbenchSelection.ts",
       "app/src/ui/useWorkbenchTheme.ts",
@@ -928,8 +927,7 @@
       "app/src/ui/useWorkbenchNavigation.ts": "Workspace selection/history and navigation state; port as Dioxus state, coordinate scope changes with Rust session.",
       "app/src/ui/useWorkbenchSelection.ts": "Selection presentation state; port while preserving Rust session semantics.",
       "app/src/ui/useWorkbenchTheme.ts": "Theme preference and color scheme; migrate and apply to every Dioxus workspace.",
-      "app/src/ui/useWorkbenchTree.ts": "Tree presentation model; port and preserve grouping/selection.",
-      "app/src/ui/useWorkbenchNavigation.test.tsx": "Verification test, not production hook."
+      "app/src/ui/useWorkbenchTree.ts": "Tree presentation model; port and preserve grouping/selection."
     }
   },
   "non_scope_note": "This is a frontend implementation inventory. Existing Rust document engine, editor session, host storage, renderer, CAD, generator and export services are dependencies to reuse; their implementation is not ported by this frontend roadmap.",
