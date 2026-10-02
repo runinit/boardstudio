@@ -64,14 +64,18 @@ impl LayerEditIntent {
     fn failure_is_still_relevant(
         &self,
         map: Option<&boardstudio_core::model::KeymapConfiguration>,
+        admitted_name: Option<&str>,
     ) -> bool {
         let target =
             map.and_then(|map| map.layers.iter().find(|layer| layer.id == self.layer_id()));
         match self {
             Self::Add { .. } => target.is_none(),
             Self::Rename { layer_id, name } => {
-                target.is_some_and(|layer| layer.name != *name)
-                    || (map.is_none() && layer_id == "base" && name != "Base")
+                target.is_some_and(|layer| Some(layer.name.as_str()) == admitted_name)
+                    || (map.is_none()
+                        && layer_id == "base"
+                        && admitted_name == Some("Base")
+                        && name != "Base")
             }
             Self::Remove { .. } => target.is_some(),
         }
@@ -86,6 +90,7 @@ struct PendingLayerEdit {
     scope_generation: u64,
     operation_id: OperationId,
     request: LayerEditIntent,
+    admitted_name: Option<String>,
     outcome: crate::operation_outcomes::OutcomeSlot,
 }
 
@@ -97,6 +102,7 @@ struct LayerFeedbackState {
     scope_generation: u64,
     operation_id: OperationId,
     request: LayerEditIntent,
+    admitted_name: Option<String>,
     failure_snapshot_token: Option<SnapshotToken>,
     feedback: KeymapLayerFeedback,
 }
@@ -265,16 +271,14 @@ pub(in crate::presentation) fn use_layer_operations(
                 .request
                 .is_applied_to(snapshot.document.keymap.as_ref()))
         .then_some(KeymapLayerFeedback::Saved),
-        KeymapLayerFeedback::Failed(message) => {
-            let current_failure_snapshot = state
-                .failure_snapshot_token
-                .is_none_or(|token| token == snapshot.token);
-            (current_failure_snapshot
-                && state
-                    .request
-                    .failure_is_still_relevant(snapshot.document.keymap.as_ref()))
-            .then(|| KeymapLayerFeedback::Failed(message.clone()))
-        }
+        KeymapLayerFeedback::Failed(message) => failure_is_current(
+            &state.request,
+            state.admitted_name.as_deref(),
+            snapshot.document.keymap.as_ref(),
+            snapshot.token,
+            state.failure_snapshot_token,
+        )
+        .then(|| KeymapLayerFeedback::Failed(message.clone())),
     });
 
     let on_operation = EventHandler::new({
@@ -477,6 +481,7 @@ fn submit_layer_edit(
         scope_generation,
         operation_id,
         request: request.clone(),
+        admitted_name: admitted_name_for_request(&request, snapshot.document.keymap.as_ref()),
         outcome,
     };
     let change = request.change();
@@ -503,6 +508,7 @@ fn feedback_state(waiting: &PendingLayerEdit, feedback: KeymapLayerFeedback) -> 
         scope_generation: waiting.scope_generation,
         operation_id: waiting.operation_id,
         request: waiting.request.clone(),
+        admitted_name: waiting.admitted_name.clone(),
         failure_snapshot_token: None,
         feedback,
     }
@@ -546,6 +552,37 @@ fn failed_feedback(
     identity.failure_snapshot_token = failure_snapshot_token;
     identity.feedback = KeymapLayerFeedback::Failed(message);
     identity
+}
+
+fn admitted_name_for_request(
+    request: &LayerEditIntent,
+    map: Option<&boardstudio_core::model::KeymapConfiguration>,
+) -> Option<String> {
+    let LayerEditIntent::Rename { layer_id, .. } = request else {
+        return None;
+    };
+    map.and_then(|map| {
+        map.layers
+            .iter()
+            .find(|layer| layer.id == *layer_id)
+            .map(|layer| layer.name.clone())
+    })
+    .or_else(|| (map.is_none() && layer_id == "base").then(|| "Base".into()))
+}
+
+fn failure_is_current(
+    request: &LayerEditIntent,
+    admitted_name: Option<&str>,
+    map: Option<&boardstudio_core::model::KeymapConfiguration>,
+    current_token: SnapshotToken,
+    failure_snapshot_token: Option<SnapshotToken>,
+) -> bool {
+    match failure_snapshot_token {
+        Some(acknowledgement_token) => {
+            acknowledgement_token == current_token && !request.is_applied_to(map)
+        }
+        None => request.failure_is_still_relevant(map, admitted_name),
+    }
 }
 
 #[cfg(test)]
@@ -621,6 +658,63 @@ mod tests {
             &failed_add,
             Some(&map),
             "layer-new"
+        ));
+    }
+
+    #[test]
+    fn rejected_rename_feedback_tracks_the_admitted_name_key() {
+        let mut accepted = keymap(&["layer-a"]);
+        accepted.layers[0].name = "Original".into();
+        let request = LayerEditIntent::Rename {
+            layer_id: "layer-a".into(),
+            name: "bad\"name".into(),
+        };
+        let admitted_name = admitted_name_for_request(&request, Some(&accepted));
+
+        assert!(failure_is_current(
+            &request,
+            admitted_name.as_deref(),
+            Some(&accepted),
+            SnapshotToken(2),
+            None,
+        ));
+
+        let mut renamed = accepted.clone();
+        renamed.layers[0].name = "Primary".into();
+        assert!(!failure_is_current(
+            &request,
+            admitted_name.as_deref(),
+            Some(&renamed),
+            SnapshotToken(3),
+            None,
+        ));
+    }
+
+    #[test]
+    fn completed_add_mismatch_survives_a_later_rename_at_acknowledgement_token() {
+        let request = LayerEditIntent::Add {
+            layer_id: "layer-new".into(),
+            name: "Layer 1".into(),
+        };
+        let mut saved = keymap(&["layer-new"]);
+        saved.layers[0].name = "Primary".into();
+        let acknowledgement_token = SnapshotToken(7);
+
+        assert!(!request.is_applied_to(Some(&saved)));
+        assert!(!request.failure_is_still_relevant(Some(&saved), None));
+        assert!(failure_is_current(
+            &request,
+            None,
+            Some(&saved),
+            acknowledgement_token,
+            Some(acknowledgement_token),
+        ));
+        assert!(!failure_is_current(
+            &request,
+            None,
+            Some(&saved),
+            SnapshotToken(8),
+            Some(acknowledgement_token),
         ));
     }
 }
