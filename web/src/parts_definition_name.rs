@@ -784,12 +784,11 @@ mod mounted_tests {
         let runtime = Runtime::new().unwrap();
         let (mut session, mut core) = open_document(document);
         let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = Some(Scope {
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            board_id: "parts-name-board".into(),
-            instance_id: None,
-        });
+        let scope = session.scope();
+        assert!(
+            scope.is_some(),
+            "the mounted editor uses the accepting Session scope"
+        );
         runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
         let state = Rc::new(RefCell::new(None));
         let seed = Rc::new(Seed {
