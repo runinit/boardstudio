@@ -43,7 +43,7 @@ js-sys = "=0.3.106"
 serde-wasm-bindgen = "=0.6.5"
 futures-channel = "=0.3.34"
 web-sys = { version = "=0.3.106", features = [
-  "DedicatedWorkerGlobalScope", "DomException", "ErrorEvent", "Event", "EventTarget", "MessageEvent",
+  "DedicatedWorkerGlobalScope", "DomException", "ErrorEvent", "Event", "EventTarget", "MessageEvent", "KeyboardEventInit",
   "Worker", "WorkerOptions", "WorkerType", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbOpenDbRequest",
   "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStoreParameters", "Storage", "Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlCanvasElement", "SvgElement", "PointerEvent", "KeyboardEvent", "FocusOptions", "DomRect", "Response", "Request", "Blob", "BlobPropertyBag", "Url", "Location", "Node", "File", "FileList", "HtmlInputElement", "ResizeObserver", "MediaQueryList",
   "Cache", "CacheStorage", "ExtendableEvent", "FetchEvent", "Clients", "ServiceWorkerContainer",

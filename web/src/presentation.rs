@@ -1,5 +1,6 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 mod case_bodies;
+mod case_assembly_layers;
 mod case_controller;
 mod case_display;
 mod case_viewer;
