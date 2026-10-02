@@ -3062,11 +3062,23 @@ fn Editor() -> Element {
                     render_generation,
                     &pcb_wiring_mount.resolution,
                 );
+                let firmware_feedback =
+                    firmware_position_actions
+                        .feedback
+                        .clone()
+                        .filter(|feedback| {
+                            feedback.target.is_visible(
+                                &source.ui_scope,
+                                render_generation,
+                                &firmware_positions,
+                            )
+                        });
                 Box::new(pcb_wiring::PcbWiringInspectorProps {
                     source,
                     resolution: pcb_wiring_mount.resolution.clone(),
                     firmware_positions,
-                    firmware_feedback: firmware_position_actions.feedback.clone(),
+                    firmware_feedback,
+                    firmware_controls: rsx! {},
                     on_firmware_edit: firmware_position_actions.on_edit,
                     on_resolve: pcb_wiring_mount.on_resolve,
                     on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,

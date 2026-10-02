@@ -13,8 +13,8 @@ use std::{rc::Rc, sync::Arc};
 mod controller;
 use crate::firmware_position_projection;
 pub(in crate::presentation) use crate::firmware_position_projection::{
-    FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionIdentity,
-    FirmwarePositionProjection, PlanLifecycle,
+    FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
+    FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
 };
 pub(in crate::presentation) use controller::{
     use_firmware_position_edits, use_pcb_wiring_controller,
@@ -161,6 +161,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub resolution: PcbWiringResolution,
     pub firmware_positions: FirmwarePositionProjection,
     pub firmware_feedback: Option<FirmwarePositionFeedback>,
+    pub firmware_controls: Element,
     pub on_firmware_edit: EventHandler<FirmwarePositionEditRequest>,
     pub on_resolve: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
@@ -182,7 +183,7 @@ pub(in crate::presentation) enum FirmwarePositionFeedbackState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct FirmwarePositionFeedback {
-    pub key_id: String,
+    pub target: FirmwarePositionFeedbackTarget,
     pub state: FirmwarePositionFeedbackState,
 }
 
@@ -459,6 +460,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             button { type: "button", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
                 if pending { "Resolving…" } else { "Resolve automatically" }
             }
+            {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {
                 div { class: "m1-pcb-wiring-pin-summary",
                     div { strong { "Used pins" }

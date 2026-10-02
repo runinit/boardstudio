@@ -4,7 +4,9 @@ use super::{
     FirmwarePositionEditRequest, FirmwarePositionFeedback, FirmwarePositionFeedbackState,
     PcbWiringResolution, WiringPlanIdentity, firmware_position_projection,
 };
-use crate::firmware_position_projection::{EditSettlement, EditSettlementSource, settle_edit};
+use crate::firmware_position_projection::{
+    EditSettlement, EditSettlementSource, FirmwarePositionFeedbackTarget, admits_edit, settle_edit,
+};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, Scope};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
@@ -36,8 +38,9 @@ pub(in crate::presentation) fn use_firmware_position_edits(
     let pending = use_signal(|| None::<PendingFirmwarePositionEdit>);
     let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
     let generation = scope_generation();
+    let observed_version = version();
 
-    use_effect(use_reactive((&version,), {
+    use_effect(use_reactive((&observed_version,), {
         let runtime = runtime.clone();
         let mut pending = pending;
         let mut feedback = feedback;
@@ -111,14 +114,14 @@ pub(in crate::presentation) fn use_firmware_position_edits(
                 EditSettlement::Saved => {
                     pending.set(None);
                     feedback.set(Some(FirmwarePositionFeedback {
-                        key_id: waiting.request.key_id,
+                        target: feedback_target(&waiting.request),
                         state: FirmwarePositionFeedbackState::Saved,
                     }));
                 }
                 EditSettlement::Failed(message) => {
                     pending.set(None);
                     feedback.set(Some(FirmwarePositionFeedback {
-                        key_id: waiting.request.key_id,
+                        target: feedback_target(&waiting.request),
                         state: FirmwarePositionFeedbackState::Failed(message),
                     }));
                 }
@@ -194,9 +197,18 @@ pub(in crate::presentation) fn use_firmware_position_edits(
                 generation,
                 super::PlanLifecycle::Current(identity, plan),
             );
-            if current.identity.as_ref() != Some(&request.identity)
-                || !current.keys.iter().any(|key| key.id == request.key_id)
-            {
+            if !admits_edit(
+                &request.identity,
+                &request.key_id,
+                workspace(),
+                scope_generation(),
+                instance_is_current(),
+                runtime.scope().as_ref(),
+                snapshot,
+                runtime.electrical_preview_executor_epoch(),
+                Some(identity),
+                &current,
+            ) {
                 return;
             }
             let operation_id = runtime.operation();
@@ -208,7 +220,7 @@ pub(in crate::presentation) fn use_firmware_position_edits(
                 outcome,
             }));
             feedback.set(Some(FirmwarePositionFeedback {
-                key_id: request.key_id.clone(),
+                target: feedback_target(&request),
                 state: FirmwarePositionFeedbackState::Pending,
             }));
             runtime.submit(Event::Edit {
@@ -237,6 +249,14 @@ pub(in crate::presentation) fn use_firmware_position_edits(
     FirmwarePositionActions {
         feedback: feedback(),
         on_edit,
+    }
+}
+
+fn feedback_target(request: &FirmwarePositionEditRequest) -> FirmwarePositionFeedbackTarget {
+    FirmwarePositionFeedbackTarget {
+        ui_scope: request.identity.ui_scope.clone(),
+        scope_generation: request.identity.scope_generation,
+        key_id: request.key_id.clone(),
     }
 }
 

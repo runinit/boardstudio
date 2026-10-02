@@ -1,5 +1,5 @@
 //! Immutable selected-board firmware-position values projected from an accepted electrical plan.
-use boardstudio_application::{Scope, SnapshotToken, TerminalOutcome};
+use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken, TerminalOutcome};
 use boardstudio_core::{electrical::ElectricalPlan, model::ProjectDoc};
 use std::{collections::BTreeMap, rc::Rc};
 
@@ -16,6 +16,31 @@ pub(crate) struct FirmwarePositionIdentity {
     pub plan: FirmwarePlanIdentity,
     pub ui_scope: Scope,
     pub scope_generation: u64,
+}
+
+/// Stable presentation target for an accepted edit. Plan tokens and revisions are deliberately
+/// excluded so a successful operation remains visible while Runtime refreshes its plan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FirmwarePositionFeedbackTarget {
+    pub ui_scope: Scope,
+    pub scope_generation: u64,
+    pub key_id: String,
+}
+
+impl FirmwarePositionFeedbackTarget {
+    pub(crate) fn is_visible(
+        &self,
+        current_scope: &Scope,
+        current_generation: u64,
+        current_projection: &FirmwarePositionProjection,
+    ) -> bool {
+        self.ui_scope == *current_scope
+            && self.scope_generation == current_generation
+            && current_projection
+                .keys
+                .iter()
+                .any(|key| key.id == self.key_id)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -57,6 +82,44 @@ pub(crate) struct EditSettlementSource<'a> {
     pub durability_failure: Option<&'a str>,
     pub accepted_value: Option<&'a str>,
     pub requested_value: &'a str,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn admits_edit(
+    identity: &FirmwarePositionIdentity,
+    key_id: &str,
+    workspace: &str,
+    current_generation: u64,
+    instance_is_current: bool,
+    runtime_scope: Option<&Scope>,
+    accepted: &AcceptedSnapshot,
+    executor_epoch: u64,
+    current_plan: Option<&FirmwarePlanIdentity>,
+    current_projection: &FirmwarePositionProjection,
+) -> bool {
+    let normalized_scope = Scope {
+        instance_id: None,
+        ..identity.ui_scope.clone()
+    };
+    workspace == "PCB"
+        && instance_is_current
+        && current_generation == identity.scope_generation
+        && runtime_scope == Some(&identity.ui_scope)
+        && accepted.session_epoch == identity.ui_scope.session_epoch
+        && accepted.document.id == identity.ui_scope.document_id
+        && accepted.document.revision == identity.plan.revision
+        && accepted.scene.revision == accepted.document.revision
+        && identity.plan.scope == normalized_scope
+        && identity.plan.token == accepted.token
+        && identity.plan.executor_epoch == executor_epoch
+        && current_plan == Some(&identity.plan)
+        && accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == identity.ui_scope.board_id)
+        && current_projection.identity.as_ref() == Some(identity)
+        && current_projection.keys.iter().any(|key| key.id == key_id)
 }
 
 /// Admission identity is intentionally absent here: after submission, plan/source refresh cannot
@@ -228,6 +291,62 @@ mod tests {
         }
     }
 
+    #[test]
+    fn settled_feedback_survives_plan_refresh_but_not_target_or_key_changes() {
+        let document = document();
+        let identity = identity(&document);
+        let plan = resolve(&document);
+        let ui_scope = Scope {
+            instance_id: Some("main".into()),
+            ..identity.scope.clone()
+        };
+        let projection = project(
+            &document,
+            &identity,
+            &ui_scope,
+            5,
+            PlanLifecycle::Current(&identity, &plan),
+        );
+        let target = FirmwarePositionFeedbackTarget {
+            ui_scope: ui_scope.clone(),
+            scope_generation: 5,
+            key_id: projection.keys[0].id.clone(),
+        };
+
+        // Plan token/revision are intentionally outside this visibility target.
+        let mut refreshed = identity.clone();
+        refreshed.token = SnapshotToken(12);
+        refreshed.revision += 1;
+        let mut refreshed_plan = resolve(&document);
+        refreshed_plan.revision = refreshed.revision;
+        let refreshed_projection = project(
+            &document,
+            &refreshed,
+            &ui_scope,
+            5,
+            PlanLifecycle::Current(&refreshed, &refreshed_plan),
+        );
+        assert!(target.is_visible(&ui_scope, 5, &refreshed_projection));
+
+        let other_board = Scope {
+            board_id: "other".into(),
+            ..ui_scope.clone()
+        };
+        assert!(!target.is_visible(&other_board, 5, &refreshed_projection));
+        let other_instance = Scope {
+            instance_id: Some("other-instance".into()),
+            ..ui_scope.clone()
+        };
+        assert!(!target.is_visible(&other_instance, 5, &refreshed_projection));
+        assert!(!target.is_visible(&ui_scope, 6, &refreshed_projection));
+
+        let no_key_projection = FirmwarePositionProjection {
+            keys: Rc::from([]),
+            ..refreshed_projection
+        };
+        assert!(!target.is_visible(&ui_scope, 5, &no_key_projection));
+    }
+
     fn resolve(document: &ProjectDoc) -> ElectricalPlan {
         boardstudio_core::electrical::resolve(ElectricalPlanRequest {
             document: document.clone(),
@@ -238,6 +357,219 @@ mod tests {
             board_id: Some("main".into()),
             controller_part_id: Some("main/U1".into()),
         })
+    }
+
+    fn core_effect(
+        effects: &[boardstudio_application::Effect],
+    ) -> (
+        boardstudio_application::RequestId,
+        boardstudio_application::ExecutorEpoch,
+        boardstudio_core::model::CoreRequest,
+    ) {
+        effects
+            .iter()
+            .find_map(|effect| match effect {
+                boardstudio_application::Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => Some((*request_id, *executor_epoch, (**request).clone())),
+                _ => None,
+            })
+            .expect("session emits a Core request")
+    }
+
+    fn save_effect(
+        effects: &[boardstudio_application::Effect],
+    ) -> (boardstudio_application::SaveAttemptId, ProjectDoc) {
+        effects
+            .iter()
+            .find_map(|effect| match effect {
+                boardstudio_application::Effect::Persist {
+                    save_attempt_id,
+                    document,
+                    ..
+                } => Some((*save_attempt_id, (**document).clone())),
+                _ => None,
+            })
+            .expect("session emits a persistence request")
+    }
+
+    fn open_ready_session() -> (
+        boardstudio_application::Session,
+        boardstudio_core::CoreEngine,
+    ) {
+        use boardstudio_application::{
+            Completion, Effect, Event, OperationId, SaveResult, Session, TerminalOutcome,
+        };
+        let mut session = Session::new();
+        let mut engine = boardstudio_core::CoreEngine::new();
+        let effects = session.submit(Event::Open {
+            operation_id: OperationId(1),
+            document: document(),
+        });
+        let (request_id, executor_epoch, request) = core_effect(&effects);
+        let reply = engine.handle(request);
+        let effects = session.complete(Completion::Core {
+            request_id,
+            executor_epoch,
+            reply: Box::new(reply),
+        });
+        let (save_attempt_id, _) = save_effect(&effects);
+        let effects = session.complete(Completion::Persist {
+            save_attempt_id,
+            result: SaveResult::Committed,
+        });
+        assert!(effects.iter().any(|effect| matches!(
+            effect,
+            Effect::Settled {
+                operation_id: OperationId(1),
+                outcome: TerminalOutcome::Completed
+            }
+        )));
+        (session, engine)
+    }
+
+    #[test]
+    fn admission_and_exact_session_core_outcome_follow_the_accepted_board() {
+        use boardstudio_application::{
+            Completion, Effect, Event, OperationId, SaveResult, TerminalOutcome,
+        };
+        use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+
+        let (mut session, mut engine) = open_ready_session();
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let runtime_scope = session.scope().unwrap();
+        let board_scope = Scope {
+            instance_id: None,
+            ..runtime_scope.clone()
+        };
+        let plan_identity = FirmwarePlanIdentity {
+            scope: board_scope,
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            executor_epoch: session.core_executor_epoch().0,
+        };
+        let plan = resolve(&snapshot.document);
+        let projection = project(
+            &snapshot.document,
+            &plan_identity,
+            &runtime_scope,
+            3,
+            PlanLifecycle::Current(&plan_identity, &plan),
+        );
+        let key_id = projection
+            .keys
+            .first()
+            .expect("fixture plan has a key")
+            .id
+            .clone();
+        let identity = projection.identity.as_ref().unwrap();
+        assert!(admits_edit(
+            identity,
+            &key_id,
+            "PCB",
+            3,
+            true,
+            Some(&runtime_scope),
+            &snapshot,
+            session.core_executor_epoch().0,
+            Some(&plan_identity),
+            &projection,
+        ));
+        assert!(!admits_edit(
+            identity,
+            &key_id,
+            "PCB",
+            3,
+            true,
+            Some(&Scope {
+                board_id: "stale-board".into(),
+                ..runtime_scope.clone()
+            }),
+            &snapshot,
+            session.core_executor_epoch().0,
+            Some(&plan_identity),
+            &projection,
+        ));
+        assert!(!admits_edit(
+            identity,
+            &key_id,
+            "PCB",
+            3,
+            true,
+            Some(&runtime_scope),
+            &snapshot,
+            session.core_executor_epoch().0 + 1,
+            Some(&plan_identity),
+            &projection,
+        ));
+
+        let outcomes = crate::operation_outcomes::OperationOutcomes::default();
+        let operation_id = OperationId(2);
+        let outcome = outcomes.observe(operation_id);
+        let effects = session.submit(Event::Edit {
+            operation_id,
+            command: EditCommand {
+                base_revision: snapshot.document.revision,
+                transaction_id: "firmware-position-test".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![runtime_scope.board_id.clone(), key_id.clone()],
+                operation: EditOperation::SetKeyBinding {
+                    board_id: runtime_scope.board_id.clone(),
+                    key_id: key_id.clone(),
+                    binding: "&kp Q".into(),
+                },
+            },
+        });
+        let (request_id, executor_epoch, request) = core_effect(&effects);
+        let reply = engine.handle(request);
+        let effects = session.complete(Completion::Core {
+            request_id,
+            executor_epoch,
+            reply: Box::new(reply),
+        });
+        let (save_attempt_id, pending_document) = save_effect(&effects);
+        assert!(
+            outcome.borrow().is_none(),
+            "Core acceptance alone is not a saved outcome"
+        );
+        assert_eq!(pending_document.revision, snapshot.document.revision + 1);
+
+        let effects = session.complete(Completion::Persist {
+            save_attempt_id,
+            result: SaveResult::Committed,
+        });
+        let terminal = effects
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::Settled {
+                    operation_id: id,
+                    outcome,
+                } if *id == operation_id => Some(outcome.clone()),
+                _ => None,
+            })
+            .expect("the exact submitted operation settles");
+        assert!(outcomes.settle(operation_id, terminal));
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        let accepted = session.read_model().accepted.as_ref().unwrap();
+        assert_eq!(accepted.document.revision, snapshot.document.revision + 1);
+        assert_eq!(
+            accepted
+                .document
+                .hardware
+                .as_ref()
+                .unwrap()
+                .boards
+                .iter()
+                .find(|board| board.board_id == identity.ui_scope.board_id)
+                .unwrap()
+                .key_bindings
+                .get(&key_id)
+                .map(String::as_str),
+            Some("&kp Q"),
+        );
     }
 
     #[test]
