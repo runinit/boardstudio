@@ -1,4 +1,5 @@
 use super::{Grouping, TreeContext, TreeKind, build_tree};
+use boardstudio_application::ReadModel;
 use boardstudio_core::model::{BoardOutlineScene, OutlineBridge, ProjectDoc};
 use std::collections::BTreeSet;
 
@@ -23,6 +24,38 @@ fn bridge_scene(board_id: &str, matrix_id: &str, bridge_id: &str) -> BoardOutlin
         }],
         gaps: Vec::new(),
     }
+}
+
+#[test]
+fn stored_row_grouping_and_empty_model_projection_remain_defined() {
+    let document = reviung_document();
+    let mut expanded = super::default_disclosures(&document, "main");
+    expanded.extend([
+        "half-group:main:Left half".to_owned(),
+        "half-group:main:Right half".to_owned(),
+        "half:main-right-keys-layout".to_owned(),
+    ]);
+    let row_grouped = build_tree(
+        &document,
+        "main",
+        Grouping::from_storage(Some("row".into())),
+        &expanded,
+        &[],
+        &[],
+    );
+    assert!(row_grouped.iter().any(|item| item.kind == TreeKind::Row));
+
+    let empty = ReadModel::default();
+    let matrix = TreeContext::Matrix {
+        matrix_id: "main-right-keys".into(),
+    };
+    assert_eq!(super::resolve_selection(&empty, &matrix), None);
+    assert_eq!(super::context_for_part(&empty, "missing-part"), None);
+    assert_eq!(
+        super::context_for_cell(&empty, "main-right-keys", 0, 0),
+        None
+    );
+    assert_eq!(super::context_label(&empty, &matrix), None);
 }
 
 #[test]

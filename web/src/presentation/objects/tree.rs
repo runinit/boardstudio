@@ -408,7 +408,7 @@ pub(super) fn build_tree(
                     expanded,
                     2,
                     true,
-                    &board_id,
+                    board_id,
                     outline_scenes,
                     &format!("matrix:{}", matrix.id),
                 );
@@ -507,7 +507,7 @@ pub(super) fn build_tree(
                         expanded,
                         child_level,
                         false,
-                        &board_id,
+                        board_id,
                         outline_scenes,
                         &layout_key,
                     );
