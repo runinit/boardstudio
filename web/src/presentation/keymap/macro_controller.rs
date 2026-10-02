@@ -6,8 +6,7 @@ use super::macro_editor::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken,
-    TerminalOutcome,
+    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, KeyBinding, KeymapChange, KeymapMacro, MacroChange,
@@ -34,6 +33,8 @@ enum OriginalField {
     WaitMs(u32),
     Steps(Rc<[MacroStep]>),
 }
+
+type PreparedMacroChange = (OriginalField, MacroChange, Option<Rc<[MacroStep]>>);
 
 #[derive(Clone)]
 struct PendingMacroEdit {
@@ -83,8 +84,8 @@ pub(in crate::presentation) fn use_macro_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let mut pending = use_signal(|| None::<PendingMacroEdit>);
-    let mut feedback = use_signal(|| None::<MacroFeedbackState>);
+    let pending = use_signal(|| None::<PendingMacroEdit>);
+    let feedback = use_signal(|| None::<MacroFeedbackState>);
     let cache = use_hook(|| {
         Rc::new(SequenceCache {
             by_macro: RefCell::new(HashMap::new()),
@@ -196,7 +197,6 @@ pub(in crate::presentation) fn use_macro_operations(
                 captured_generation,
                 scope_generation,
             )?;
-            let source = source.as_ref()?;
             let macros = snapshot
                 .document
                 .keymap
@@ -528,7 +528,7 @@ fn normalize_change(
     item: &KeymapMacro,
     request: &MacroEditRequest,
     cache: &SequenceCache,
-) -> Option<(OriginalField, MacroChange, Option<Rc<[MacroStep]>>)> {
+) -> Option<PreparedMacroChange> {
     match (target, change) {
         (MacroEditTarget::Name, MacroChange::Name { value }) if request.step_sequence.is_none() => {
             Some((

@@ -720,7 +720,7 @@ fn Editor() -> Element {
     ));
     let binding_actions = keymap::use_binding_operations(
         runtime.clone(),
-        layer_source,
+        layer_source.clone(),
         keymap_projection(),
         keymap_layer_id,
         workspace,
@@ -731,6 +731,17 @@ fn Editor() -> Element {
         },
     );
     let keymap_view = keymap_projection.read().clone();
+    // Keep macro operation observation alive when another workspace hides the panel.
+    let macro_actions = keymap::use_macro_operations(
+        runtime.clone(),
+        layer_source,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+    );
     let on_show_mechanical_board = {
         let runtime = runtime.clone();
         let captured_scope = current_scope.clone();
@@ -2146,6 +2157,22 @@ fn Editor() -> Element {
                                             feedback: binding_actions.feedback.clone(),
                                             on_change: binding_actions.on_change,
                                         }
+                                    }
+                                    if let Some(source) = macro_actions.source.as_ref() {
+                                        keymap::MacroEditor {
+                                            key: "{render_scope:?}:macros:{macro_actions.editor_instance_id}",
+                                            scope: render_scope.clone(),
+                                            scope_generation: (adapter.generation)(),
+                                            source: source.clone(),
+                                            sequences: macro_actions.sequences.clone(),
+                                            editor_instance_id: macro_actions.editor_instance_id,
+                                            request_sequence: macro_actions.request_sequence,
+                                            enabled: macro_actions.enabled,
+                                            feedback: macro_actions.feedback.clone(),
+                                            on_change: macro_actions.on_change,
+                                        }
+                                    } else {
+                                        p { class: "m1-keymap-unavailable", role: "status", "Macro editor is unavailable for the current board." }
                                     }
                                 }
                             } else {

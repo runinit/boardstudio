@@ -230,7 +230,7 @@ pub(in crate::presentation) fn MacroEditor(props: MacroEditorProps) -> Element {
             for item in macros.iter() {
                 if let Some(sequence) = sequence_for(&props.sequences, &item.id).cloned() {
                     MacroCard {
-                        key: "{}", item.id,
+                        key: "{item.id}",
                         scope: props.scope.clone(),
                         scope_generation: props.scope_generation,
                         editor_instance_id: editor_id,
@@ -362,13 +362,13 @@ fn MacroCard(props: MacroCardProps) -> Element {
                 accepted: value.wait_ms, identity: format!("{:?}:{}:{}:wait:{}", props.scope, props.editor_instance_id, value.id, value.wait_ms),
                 enabled: props.enabled, on_commit: EventHandler::new(wait_change),
             }
-            for (index, step) in value.steps.iter().enumerate() {
+            for (index, _) in value.steps.iter().enumerate() {
                 {
                     let props = props.clone();
                     let macro_id = macro_id.clone();
                     let sequence = sequence.clone();
                     rsx! { StepEditor {
-                        key: "{}", index, index: index,
+                        key: "{index}", index: index,
                         scope: props.scope.clone(), scope_generation: props.scope_generation,
                         admission_token: props.admission_token, admission_revision: props.admission_revision,
                         editor_instance_id: props.editor_instance_id,
@@ -445,6 +445,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
         },
         MacroStep::Wait { .. } => String::new(),
     };
+    let keycode_identity = keycode.clone();
     let stamp_identity = Rc::as_ptr(&sequence) as *const MacroStep as usize;
     let identity = format!(
         "{:?}:{}:{}:{}:{}",
@@ -455,9 +456,9 @@ fn StepEditor(props: StepEditorProps) -> Element {
             label {
                 "Step {index + 1}"
                 select {
-                    aria_label: "{} step {}", props.macro_id, index + 1,
+                    aria_label: format!("{} step {}", props.macro_id, index + 1),
                     value: "{kind}", disabled: !props.enabled,
-                    onchange: { let context = request_context.clone(); move |event| {
+                    onchange: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |event| {
                         let next = match event.value().as_str() {
                             "wait" => MacroStep::Wait { ms: 100 },
                             "press" => press_a(), "release" => release_a(), _ => tap_a(),
@@ -475,7 +476,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
                 NumberDraft {
                     label: "Delay (ms)", aria_label: format!("{} step {} delay", props.macro_id, index + 1),
                     accepted: value, identity: format!("{}:delay:{}", identity, value), enabled: props.enabled,
-                    on_commit: { let context = request_context.clone(); EventHandler::new(move |ms| {
+                    on_commit: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |ms| {
                         request(&context, MacroEditTarget::StepDelay { index }, Some(macro_id.clone()), Some(sequence.clone()),
                             MacroEditChange::Change(MacroChange::Step { index, value: MacroStep::Wait { ms } }));
                     }) },
@@ -483,10 +484,10 @@ fn StepEditor(props: StepEditorProps) -> Element {
             } else {
                 TextDraft {
                     label: "Keycode", aria_label: format!("{} step {} keycode", props.macro_id, index + 1),
-                    accepted: keycode, identity: format!("{}:keycode:{}", identity, keycode), enabled: props.enabled,
+                    accepted: keycode, identity: format!("{}:keycode:{}", identity, keycode_identity), enabled: props.enabled,
                     trim_on_commit: true,
                     commit_if_unchanged: true,
-                    on_commit: { let context = request_context.clone(); let accepted = accepted_step.clone(); EventHandler::new(move |keycode: String| {
+                    on_commit: { let context = request_context.clone(); let accepted = accepted_step.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |keycode: String| {
                         let value = match accepted {
                             MacroStep::Tap { .. } => MacroStep::Tap { binding: boardstudio_core::model::KeyBinding::KeyPress { keycode } },
                             MacroStep::Press { .. } => MacroStep::Press { binding: boardstudio_core::model::KeyBinding::KeyPress { keycode } },
@@ -500,7 +501,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
             }
             button {
                 r#type: "button", disabled: !props.enabled || props.sequence.len() <= 1,
-                onclick: { let context = request_context.clone(); move |_| {
+                onclick: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |_| {
                     if sequence_len <= 1 { return; }
                     request(&context, MacroEditTarget::RemoveStep { index }, Some(macro_id.clone()), Some(sequence.clone()),
                         MacroEditChange::Change(MacroChange::RemoveStep { index }));
