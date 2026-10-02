@@ -1446,6 +1446,7 @@ fn Editor() -> Element {
                 mode: SelectionMode::Replace,
             });
             pair_created_selection.set(Some(created));
+            pin_inspector_on_desktop(inspector_panel_settings);
             objects_open.set(false);
             inspect_open.set(true);
         }
