@@ -147,9 +147,14 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     let in_workspace =
         element("#mirror-overlay-workspace > .m1-mirrored-pair-canvas-overlay").is_connected();
     let absent_from_objects = document
-        .query_selector("#mirror-overlay-objects .m1-mirrored-pair-canvas-overlay")
+        .query_selector("#mirror-overlay-objects .m1-mirrored-pair-setup")
         .unwrap()
         .is_none();
+    let one_form_in_workspace = document
+        .query_selector_all("#mirror-overlay-workspace .m1-mirrored-pair-setup")
+        .unwrap()
+        .length()
+        == 1;
     set_input(
         "#mirror-overlay-workspace input[aria-label='Left layout name']",
         "Kept left draft",
@@ -211,7 +216,10 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .get_attribute("data-owner")
         .unwrap();
 
-    assert_eq!((in_workspace, absent_from_objects), (true, true));
+    assert_eq!(
+        (in_workspace, absent_from_objects, one_form_in_workspace),
+        (true, true, true)
+    );
     assert_eq!(preview_owner, "1:11:19");
     assert_eq!(preview_values, "Kept left draft|4|6|24");
     assert_eq!(
