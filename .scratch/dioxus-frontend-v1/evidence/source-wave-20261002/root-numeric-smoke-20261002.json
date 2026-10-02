@@ -1,0 +1,9 @@
+{
+  "source_commit": "14d1bfeb5228c7a82f3be7ac7fa322ea61b30b02",
+  "build": "frontend-layout-align-wave-20261002",
+  "url": "http://127.0.0.1:34721/",
+  "browser_session": "root-wave-20261002",
+  "journey": "Open fresh Sofle demo; select keys matrix; change Origin X9.18\u219212.18; Tab; Saved revision4; Undo restores9.18 revision5; Redo then reload and reselect keys restores12.18 Saved revision6.",
+  "browser_errors": [],
+  "limits": "Root numeric smoke on fresh demo, not paired same-archive acceptance. Other Matrix field owner-key draft carryover bug remains open, independent Astra repair active; no fullF3.3 acceptance."
+}

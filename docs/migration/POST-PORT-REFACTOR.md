@@ -420,3 +420,8 @@ Keycaps evidence initially attributed a REVIUNG41/Layout screenshot to Sofle/Key
 ### Resumed wave takeaways — 2026-10-02
 
 RF-001/RF-006 retain App-versus-panel pending-outcome ownership, rendered target identity and live guide-stage admission defects. RF-009 records the corrected stale top-level source/demo progress fields. Evidence and disposition are in `.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md`; current fixes and broader refactoring remain distinct, with browser acceptance open.
+
+
+### Frontend continuation source and evidence refresh — 2026-10-02
+
+Integrated source `7be1770d` adds reviewed Case model delivery/picking and MatrixSetup to New/setup guide, physical setup, Keycaps settings and matrix owner fixes. Served build remains `4bbafae0` at 34722 until the new candidate passes source/asset checks. Live React oracle is 5173 at pinned5a472a94; cached5175 evidence is historical. RF001/003/006/009 retain shared composition/effect precedence, distinct renderer/producer identity domains, selected-owner state lifetime, static RSX root-key semantics and source-versus-serving freshness. Compact guide, Keymap and Outline repairs retain independent review and actual paired browser gates. All62 canonical parents remain unchanged and open where not previously accepted. See `.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json`.

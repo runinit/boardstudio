@@ -1424,3 +1424,8 @@ Reviewed numeric Layout fields, firmware positions and the archive/model provide
 ### Reviewed wave demo now served
 
 `frontend-layout-align-wave-20261002` completed22/22 commands from14d1bfeb, with1255 source hashes and145 assets in each root/subpath package verified without mismatches. Served athttp://127.0.0.1:34721/. Root opened Sofle, expanded/selected its matrix and observed real numeric Matrix/Position Inspector controls and mounted Select/Snap/Align toolbar. This is smoke evidence; same-fixture Align journeys are running independently. Release page reports unused RSX key-variable warnings; exact owner-key behavior is queued for audit rather than suppressed. New17 repaired source clears both independent axes, real owner joins/browser still pending.
+
+
+### Frontend continuation source and evidence refresh — 2026-10-02
+
+Integrated source `7be1770d` adds reviewed Case model delivery/picking and MatrixSetup to New/setup guide, physical setup, Keycaps settings and matrix owner fixes. Served build remains `4bbafae0` at 34722 until the new candidate passes source/asset checks. Live React oracle is 5173 at pinned5a472a94; cached5175 evidence is historical. RF001/003/006/009 retain shared composition/effect precedence, distinct renderer/producer identity domains, selected-owner state lifetime, static RSX root-key semantics and source-versus-serving freshness. Compact guide, Keymap and Outline repairs retain independent review and actual paired browser gates. All62 canonical parents remain unchanged and open where not previously accepted. See `.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json`.

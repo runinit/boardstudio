@@ -112,7 +112,14 @@
           "observation": "The Keycaps mounted native harness substituted scope-cancelled Dioxus spawn for browser detached wasm_bindgen_futures::spawn_local, masking post-Editor-unmount access to disposed Signals. A render-time EventHandler::new also retains a new callback until scope drop according to installed Dioxus0.7.10. Current fixes require alive/drop guard before Signal access and use_callback; the F5 observer/admission fixes have source-integration clearance and executed native/WASM checks.",
           "status": "Keycaps lifetime/test corrections active; F5 source integrated, mounted browser gate open. Broader common ownership abstraction remains deferred."
         },
-        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md"
+        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md",
+        {
+          "date": "2026-10-02",
+          "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+          "observation": "Compact Project guide explicit Objects reveal competed with workspace-default effects, hiding active Case stage; actual Chromium component repaired1 covers stage reveal versus settings action. MatrixSetup requires a shared private owner across guide and Objects entry, and logical board authoring must admit a valid physical-instance scope. Broader owner/composition consolidation stays deferred.",
+          "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+        }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted."
     },
@@ -227,6 +234,13 @@
           "source": "Case producer2bf5b534 review 2026-10-02",
           "observation": "Successful publication invalidates the same lease retained by snapshot; default Value serialization yields Maps while worker reads object fields; decoded model helper remains unconsumed. Required current fixes, not proof of a broad redesign.",
           "status": "Astra regression-backed repair active; production packaging prerequisite separately recorded."
+        },
+        {
+          "date": "2026-10-02",
+          "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+          "observation": "Case producer preview leases and renderer viewer identities use independent counters; joining their numeric values is invalid. Model.reference maps rendered picks to accepted board Part while Model.id remains mesh/cache identity. Cold STEP worker RefCell lifetime and same-CAD-scene/new-preview projection cache defects required actual mounted/source regressions. Full90/90 browser gate remains open.",
+          "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
         }
       ]
     },
@@ -476,7 +490,14 @@
           "validation": "Switch between board and physical-instance workspaces while a query is pending; verify board Wiring stays board-scoped and instance mechanical operations retain their captured instance identity.",
           "status": "source-level distinction recorded; root mount, async lifecycle and paired browser checks remain open"
         },
-        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md"
+        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md",
+        {
+          "date": "2026-10-02",
+          "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+          "observation": "Keymap search/tab lifetime must follow accepted selected-owner changes; React keys its Inspector content by board/scope/part, while the Dioxus unscoped query hid newly canvas-selected SW18 behind stale SW17 filter. Actual production-mounted repair6c2468f3 has expected red\u2192green, independent/browser gates remain open.",
+          "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+        }
       ],
       "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open."
     },
@@ -722,7 +743,14 @@
           "observation": "Original4d activation screenshot belonged to REVIUNG41/Layout and its claim was withdrawn. Fresh isolated exact-Sofle clean/Cherry archives verified integrated findings display. Different F6C.2 settings/F6C.4 findings specs collided at spec.md; settings-spec.md preserves both.",
           "mitigation": "Require project identity, exact archive/source/build, actually selected workspace and distinct spec paths; preserve corrected history."
         },
-        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md"
+        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md",
+        {
+          "date": "2026-10-02",
+          "source": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
+          "observation": "Release RSX identity is established by the first template root key; nested component keys were ineffective in Matrix fields and debug hot reload obscured static behavior. Actual mounted production owner switch regression repaired3aac941c and integratedbbab7e05. Source stamps, active serving process and live React oracle must be verified separately: old5175 cached sessions are not live acceptance.",
+          "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+        }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
       "build_cli_takeaway_20261002": "Confirmed tooling gap: build-m1.py treats --help as a valid build ID because hyphens are stripped before alphanumeric validation, starting expensive builds. Multiple authors hit it; preserved incomplete --help directories are not acceptance artifacts. Fix conventional help/invalid-leading-option handling after active source-stamped build, with focused CLI regression; do not mutate script during running provenance guard."
