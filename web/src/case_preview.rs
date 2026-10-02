@@ -9,7 +9,11 @@ use boardstudio_core::model::{
     ArtifactRequest, ExportTarget, PcbPreview, PrepareExportRequest, ProjectDoc,
 };
 use boardstudio_web::cad_jobs::{captured_case_document, captured_case_scene};
-use std::{cell::Cell, collections::BTreeMap, rc::Rc};
+use std::{
+    cell::Cell,
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CasePreviewOwnerIdentity {
@@ -437,7 +441,7 @@ pub(crate) fn capture_native_preview(
         .find(|entry| entry.board_id == scope.board_id)
         .map(|entry| entry.contours.clone())
         .unwrap_or_default();
-    let path_assets = document
+    let mut path_assets = document
         .assets
         .iter()
         .filter_map(|asset| {
@@ -450,6 +454,16 @@ pub(crate) fn capture_native_preview(
             })
         })
         .collect::<BTreeMap<_, _>>();
+    let document_asset_ids = document
+        .assets
+        .iter()
+        .map(|asset| asset.id.as_str())
+        .collect::<BTreeSet<_>>();
+    for (asset_id, path) in crate::bundled_models::preview_model_paths() {
+        if !document_asset_ids.contains(asset_id) {
+            path_assets.insert(asset_id.to_owned(), path.to_owned());
+        }
+    }
     let owner = CasePreviewOwnerIdentity {
         scope: scope.clone(),
         snapshot_token: snapshot.token,
@@ -659,7 +673,59 @@ mod tests {
             captured.path_assets["model-1"],
             format!("models/{}.step", "ab".repeat(32))
         );
+        assert_eq!(
+            captured.path_assets["ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"],
+            "assets/ergogen-models/model-dd931656985824ce.stp"
+        );
+        assert_eq!(
+            captured.request.model_paths["ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"],
+            "assets/ergogen-models/model-dd931656985824ce.stp"
+        );
         assert_eq!(captured.owner.snapshot_token, SnapshotToken(43));
+    }
+
+    #[test]
+    fn native_preview_does_not_substitute_packaged_paths_for_document_owned_ids() {
+        let (mut snapshot, scope) = snapshot(false, false);
+        Arc::make_mut(&mut snapshot.document).assets.push(Asset {
+            id: "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
+            name: "unrecognized-model.bin".into(),
+            media_type: "application/octet-stream".into(),
+            sha256: String::new(),
+            license: None,
+            source: None,
+        });
+
+        let captured = capture_native_preview(&snapshot, &scope, 4, 9, 3, 7, "preview-10".into())
+            .expect("native preview source remains available");
+
+        assert!(
+            !captured
+                .path_assets
+                .contains_key("ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"),
+            "a document-owned but unusable asset must not silently resolve to packaged bytes"
+        );
+    }
+
+    #[test]
+    fn native_preview_preserves_document_path_precedence_for_packaged_model_ids() {
+        let (mut snapshot, scope) = snapshot(false, false);
+        Arc::make_mut(&mut snapshot.document).assets.push(Asset {
+            id: "ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp".into(),
+            name: "local-switch.STEP".into(),
+            media_type: "model/step".into(),
+            sha256: "cd".repeat(32),
+            license: None,
+            source: None,
+        });
+
+        let captured = capture_native_preview(&snapshot, &scope, 4, 9, 3, 7, "preview-11".into())
+            .expect("native preview source remains available");
+
+        assert_eq!(
+            captured.path_assets["ergogen:model:kiswitch/SW_Cherry_MX_PCB.stp"],
+            format!("models/{}.step", "cd".repeat(32))
+        );
     }
 
     #[test]

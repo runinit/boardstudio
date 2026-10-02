@@ -14,6 +14,12 @@ pub(crate) fn bundled_model(id: &str) -> Option<&'static BundledModel> {
     BUNDLED_MODELS.iter().find(|model| model.id == id)
 }
 
+pub(crate) fn preview_model_paths() -> impl Iterator<Item = (&'static str, &'static str)> {
+    BUNDLED_MODELS
+        .iter()
+        .map(|model| (model.id, model.url_path))
+}
+
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub(crate) async fn generated_model_ids(
     document: &boardstudio_core::model::ProjectDoc,
