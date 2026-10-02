@@ -53,6 +53,7 @@ pub(in crate::presentation) struct KeySizeRequest {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::presentation) struct KeySizeFeedback {
+    pub owner: KeySizeOwner,
     pub request_id: u64,
     pub state: KeySizeState,
     pub message: Option<String>,
@@ -168,6 +169,7 @@ pub(in crate::presentation) fn use_key_size(
             last_request.set(request.request_id);
             if pending.read().is_some() {
                 feedback.set(Some(KeySizeFeedback {
+                    owner: request.owner.clone(),
                     request_id: request.request_id,
                     state: KeySizeState::Failed,
                     message: Some(
@@ -202,7 +204,7 @@ pub(in crate::presentation) fn use_key_size(
                 return;
             }
             if !editable {
-                feedback.set(Some(KeySizeFeedback { request_id: request.request_id, state: KeySizeState::Failed,
+                feedback.set(Some(KeySizeFeedback { owner: request.owner.clone(), request_id: request.request_id, state: KeySizeState::Failed,
                     message: Some("The accepted layout is not ready to edit. Wait for it to save, then retry.".into()) }));
                 return;
             }
@@ -231,6 +233,7 @@ pub(in crate::presentation) fn use_key_size(
                 axis: request.axis,
             }) else {
                 feedback.set(Some(KeySizeFeedback {
+                    owner: request.owner.clone(),
                     request_id: request.request_id,
                     state: KeySizeState::Saved,
                     message: None,
@@ -260,6 +263,7 @@ pub(in crate::presentation) fn use_key_size(
                 expected,
             }));
             feedback.set(Some(KeySizeFeedback {
+                owner: request.owner.clone(),
                 request_id: request.request_id,
                 state: KeySizeState::Pending,
                 message: None,
@@ -428,6 +432,10 @@ fn project_for(
     ))
 }
 
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "keycap_size_tests.rs"]
+mod tests;
+
 fn placements(
     document: &ProjectDoc,
     scenes: &[boardstudio_core::model::MatrixScene],
@@ -535,7 +543,7 @@ fn settle(
                         .is_some_and(|current| current.keycap == part.keycap)
                 });
             pending.set(None);
-            feedback.set(Some(KeySizeFeedback { request_id: waiting.request.request_id,
+            feedback.set(Some(KeySizeFeedback { owner: waiting.request.owner.clone(), request_id: waiting.request.request_id,
                 state: if matches { KeySizeState::Saved } else { KeySizeState::Failed },
                 message: (!matches).then(|| "The saved key-size change differs from the requested result. Review the current layout and retry.".into()) }));
         }
@@ -545,6 +553,7 @@ fn settle(
         | TerminalOutcome::ExecutorFailed(message) => {
             pending.set(None);
             feedback.set(Some(KeySizeFeedback {
+                owner: waiting.request.owner.clone(),
                 request_id: waiting.request.request_id,
                 state: KeySizeState::Failed,
                 message: Some(message),
@@ -552,7 +561,7 @@ fn settle(
         }
         TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
             pending.set(None);
-            feedback.set(Some(KeySizeFeedback { request_id: waiting.request.request_id, state: KeySizeState::Failed,
+            feedback.set(Some(KeySizeFeedback { owner: waiting.request.owner.clone(), request_id: waiting.request.request_id, state: KeySizeState::Failed,
                 message: Some("The key-size change did not complete in the active session. Review the current layout and retry.".into()) }));
         }
     }
