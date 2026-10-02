@@ -1,0 +1,12 @@
+  0.00s  INFO Building project...
+  0.65s  INFO Compiled [215/220]: dioxus_cli_config
+  0.79s  INFO Compiled [216/220]: dioxus_devtools
+  0.96s  INFO Compiled [217/220]: dioxus
+  1.09s  INFO Compiled [218/220]: dioxus_web
+  4.42s  INFO Compiled [219/220]: boardstudio_web
+  9.22s  INFO Compiled [220/220]: boardstudio-web
+  9.24s  INFO Bundling app...
+  9.41s  INFO Running wasm-bindgen...
+ 16.88s  INFO Copying asset (1/2): /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web_bg.wasm
+ 16.88s  INFO Copying asset (2/2): /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web.js
+ 16.89s  INFO Client build completed successfully! 🚀 path="/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public"

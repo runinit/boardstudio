@@ -1,6 +1,6 @@
 # F1: Reference shell and theming
 
-**Status:** implementing
+**Status:** implemented and verified first increment; ready for user review
 **Blocked by:** M1 implementation
 **Category:** frontend behavior-preserving port; F1 intentionally replaces the M1 demo layout with the reference shell and authorized temporary placeholders.
 **Reference:** React 5a472a94; Rust base f0ac0a19.
@@ -14,10 +14,10 @@ Project menu, exact six workflow tabs and Export; Objects/canvas/Inspect/footer;
 
 Desktop/compact/theme comparison, keyboard navigation, menu, edit/history retention and existing Case/export paths.
 
-- [ ] Port all scoped TSX/UI-hook behavior through existing service contracts.
-- [ ] Match reference visuals, themes, responsive and interaction states.
-- [ ] Retain affected checks/browser evidence and resolve independent reviews.
-- [ ] Update inventory, integrated source, demo and remaining limits.
+- [x] Port all scoped TSX/UI-hook behavior through existing service contracts.
+- [x] Match reference visuals, themes, responsive and interaction states.
+- [x] Retain affected checks/browser evidence and resolve independent reviews.
+- [x] Update inventory, integrated source, demo and remaining limits.
 
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
@@ -37,3 +37,9 @@ are source responsibilities, not permission to mark whole shared files complete.
 
 F1 covers shell composition/navigation/themes only. Project management remains F2;
 Workbench tree/canvas/inspector and workspace orchestration continue in F3–F8.
+
+## Result
+
+Executable source `24218450`; [handoff and evidence](../evidence/handoff.md).
+All six reviewed shell fixes are resolved. This closes the bounded F1 increment;
+full reference panel/canvas/workspace parity and actual AT remain later gates.

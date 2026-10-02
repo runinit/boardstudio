@@ -1,0 +1,14 @@
+{
+  "tabs": [
+    "Layout",
+    "PCB",
+    "Keymap",
+    "Keycaps",
+    "Case",
+    "Parts"
+  ],
+  "heading": "BoardStudio",
+  "menuOpen": false,
+  "mainCount": 1,
+  "title": "BoardStudio"
+}

@@ -1,7 +1,8 @@
 # Dioxus frontend v1 — complete React interface parity
 
 **Current priority: 100% frontend.** Updated 2026-10-01.
-**Immediate deliverable: F1, the reference workbench shell and theming.**
+**F1 implemented and verified as the first increment; F2 is next.**
+[Demo and evidence](../../.scratch/dioxus-frontend-v1/evidence/handoff.md).
 
 The user clarified that this run is the Dioxus migration: rewrite and port every
 existing TSX screen/component, its presentation behavior, theming and responsive

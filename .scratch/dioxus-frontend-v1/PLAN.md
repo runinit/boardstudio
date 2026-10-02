@@ -3,7 +3,7 @@
 [Roadmap](../../docs/migration/DIOXUS-FRONTEND-V1.md) · [parent spec](spec.md)
 
 Branch: `codex/rust-v1-ui-parity-20261001`, base `f0ac0a19`.
-Current scope is **100% frontend**. Implement F1 now, then progress through the
+Current scope is **100% frontend**. F1 is implemented and verified; F2 is the next frontend milestone in the
 frontend graph. Engine/generator/CAD rewrites are outside this plan.
 
 ```mermaid
@@ -29,7 +29,7 @@ accepted domain contracts. Implement isolated frontend slices, retain public
 browser evidence, and run independent Standards/Spec reviews before acceptance.
 No new API/schema/budget or production cutover follows from a placeholder or plan.
 
-- [ ] F1: [Reference shell and theming](issues/01-shell-theme.md) — implementing; depends on M1 implementation.
+- [x] F1: [Reference shell and theming](issues/01-shell-theme.md) — verified first increment; [handoff](evidence/handoff.md).
 - [ ] F2: [Projects, panels and shared controls](issues/02-projects-shared-ui.md) — planned; depends on F1.
 - [ ] F3: [Complete Layout frontend](issues/03-layout.md) — planned; depends on F2.
 - [ ] F4: [Parts and assembly frontend](issues/04-parts.md) — planned; depends on F2; integrate with F3.

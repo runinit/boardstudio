@@ -1,0 +1,5 @@
+{
+  "online": false,
+  "theme": "dark",
+  "worker": "http://127.0.0.1:34233/service-worker.js"
+}

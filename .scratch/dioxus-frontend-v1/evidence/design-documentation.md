@@ -1,0 +1,11 @@
+Ordinary extension documentation verification — no design-system files changed.
+Sources checked: PRODUCT.md, DESIGN.md, docs/migration/DIOXUS-FRONTEND-V1.md, web/src/presentation.rs, web/assets/m1.css, and /tmp/frontend-impeccable-detect.json. The `.impeccable/design.json` sidecar is absent; existing design files were preserved.
+Palette: Keep the incumbent paired light/dark theme: slate neutral work surfaces, action blue, violet secondary emphasis, teal board geometry, and distinct status colors.
+Type ramp: Source Sans 3 for UI (23px titles, 13px body/section, 12px supporting labels); Source Code Pro for measurements; geometry SVG labels use user-space units, not UI text pixels.
+Named rules: The Paired Foreground Rule; The Geometry Role Rule; The Measurement Rule; The Structural Shadow Rule; The Disclosure Rule.
+Spatial and form rules: Dense three-region workbench, 44px top bar, rule-separated flat panels, compact 4px controls, restrained 5–8px transient surfaces, with narrower-screen workspace adaptation.
+Component rules: Labeled workflow navigation, neutral fields/buttons with blue focus, selected rows using tinted surface plus border, and explicit status/readiness feedback.
+Not canonized or repaired: F1 uses 264px/360px desktop panels and switches to compact navigation at 760px, while incumbent DESIGN.md documents adjustable panels and an 820px transition; the landing card also uses an undocumented 6px radius. These are scoped implementation differences in an ordinary extension, so incumbent docs were left intact. The detector JSON is stale for the current CSS (it reports 11px values where current source uses 12px); SVG's 2.8 user-unit label size is geometry scale, not a UI type token.
+
+Scoped recheck — later CSS-only shell revision
+The later `web/assets/m1.css` sets the compact `.m1-editor-footer` and `.m1-status` to static positioning, preventing overlap with the Undo/Redo footer actions. This preserves the established flat, rule-separated footer/status treatment and changes no palette, typography, shape, or component token guidance. No design-system files were changed; the incumbent DESIGN.md and absent sidecar remain untouched. The scoped CSS change introduces no additional design-system drift.

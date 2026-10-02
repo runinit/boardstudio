@@ -25,11 +25,14 @@
         {
           "path": "app/src/main.tsx",
           "role": "main",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "a71e3e64bf301737a3c1e701542889f784ad12a165b108a45414006877d2695d",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned"
+          "dioxus_owner": "web/src/presentation.rs (F1 shell/navigation/themes only)",
+          "evidence": [
+            "handoff.md",
+            "visual-final/desktop-dark.png"
+          ],
+          "acceptance": "F1 increment verified; remaining shared/workspace responsibilities stay open"
         },
         {
           "path": "app/src/ui/ProjectLibrary.tsx",
@@ -70,11 +73,14 @@
         {
           "path": "app/src/ui/Workbench.tsx",
           "role": "Workbench",
-          "status": "inventory_only",
+          "status": "partial_port",
           "source_sha256": "8c85a0857550c5ba860a4151a1d0a5789b7bcfaf5dbd349f6eadf29e300e6220",
-          "dioxus_owner": null,
-          "evidence": [],
-          "acceptance": "planned"
+          "dioxus_owner": "web/src/presentation.rs (F1 shell/navigation/themes only)",
+          "evidence": [
+            "handoff.md",
+            "visual-final/desktop-dark.png"
+          ],
+          "acceptance": "F1 increment verified; remaining shared/workspace responsibilities stay open"
         },
         {
           "path": "app/src/ui/WorkbenchIcons.tsx",
@@ -931,5 +937,12 @@
     }
   },
   "non_scope_note": "This is a frontend implementation inventory. Existing Rust document engine, editor session, host storage, renderer, CAD, generator and export services are dependencies to reuse; their implementation is not ported by this frontend roadmap.",
-  "coverage_note": "Workbench is split across F1/F2/F3/F5/F6/F7/F8; assignment counts do not imply equal work or completion. Export and crosscutting behavior are embedded in shared components and adjacent TS UI controllers."
+  "coverage_note": "Workbench is split across F1/F2/F3/F5/F6/F7/F8; assignment counts do not imply equal work or completion. Export and crosscutting behavior are embedded in shared components and adjacent TS UI controllers.",
+  "f1_increment": {
+    "source": "242184509c1ec2d97ab0754dd29faa95edf0b342",
+    "status": "verified shell increment, not complete TSX parity",
+    "fully_ported_production_files_claimed": 0,
+    "next": "F2",
+    "evidence": "handoff.md"
+  }
 }

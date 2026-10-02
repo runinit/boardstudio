@@ -106,7 +106,7 @@ See [specification](.scratch/m1-production/spec.md), [task graph](.scratch/m1-pr
 
 [Roadmap](docs/migration/DIOXUS-FRONTEND-V1.md) and [task graph](.scratch/dioxus-frontend-v1/PLAN.md). All existing TSX, theming and frontend behavior; backend rewrites excluded.
 
-- [ ] F1: [Reference shell and theming](.scratch/dioxus-frontend-v1/issues/01-shell-theme.md)
+- [x] F1: [Reference shell and theming](.scratch/dioxus-frontend-v1/issues/01-shell-theme.md) — bounded first increment verified at `24218450`; [handoff](.scratch/dioxus-frontend-v1/evidence/handoff.md). Full UI parity remains F2–F9.
 - [ ] F2: [Projects, panels and shared controls](.scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md)
 - [ ] F3: [Complete Layout frontend](.scratch/dioxus-frontend-v1/issues/03-layout.md)
 - [ ] F4: [Parts and assembly frontend](.scratch/dioxus-frontend-v1/issues/04-parts.md)

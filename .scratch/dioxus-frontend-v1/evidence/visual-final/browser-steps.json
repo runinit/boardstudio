@@ -1,0 +1,1262 @@
+[
+  {
+    "args": [
+      "set",
+      "viewport",
+      "1440",
+      "900"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "deviceScaleFactor": 1.0,
+        "height": 900,
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "mobile": false,
+        "width": 1440
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "select",
+      "select[aria-label=\"Theme\"]",
+      "light"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selected": [
+          "light"
+        ]
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.documentElement.dataset.theme===\"light\""
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "screenshot",
+      "/tmp/frontend-f1-24218450-matrix/desktop-light.png"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "path": "/tmp/frontend-f1-24218450-matrix/desktop-light.png"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "a11y"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 50,
+          "incomplete": 1,
+          "passes": 39,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 85,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW1</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c0\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-18-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"79\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW2</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c1\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-17-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"85\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW3</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c2\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-13-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"91\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW4</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c3\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-14-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"97\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW5</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c4\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-15-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"103\"] > text"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "http://127.0.0.1:34233/",
+        "violations": []
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "select",
+      "select[aria-label=\"Theme\"]",
+      "dark"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selected": [
+          "dark"
+        ]
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.documentElement.dataset.theme===\"dark\""
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "screenshot",
+      "/tmp/frontend-f1-24218450-matrix/desktop-dark.png"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "path": "/tmp/frontend-f1-24218450-matrix/desktop-dark.png"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "a11y"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 50,
+          "incomplete": 1,
+          "passes": 39,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 85,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW1</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c0\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-18-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"79\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW2</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c1\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-17-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"85\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW3</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c2\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-13-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"91\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW4</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c3\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-14-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"97\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW5</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c4\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-15-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"103\"] > text"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "http://127.0.0.1:34233/",
+        "violations": []
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "set",
+      "viewport",
+      "390",
+      "844"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "deviceScaleFactor": 1.0,
+        "height": 844,
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "mobile": false,
+        "width": 390
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "screenshot",
+      "/tmp/frontend-f1-24218450-matrix/compact-dark.png"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "path": "/tmp/frontend-f1-24218450-matrix/compact-dark.png"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      ".m1-project-menu summary"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": ".m1-project-menu summary",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({selectorWidth:document.querySelector(\".m1-workspace-select\").getBoundingClientRect().width,viewport:innerWidth,pageWidth:document.documentElement.scrollWidth,menuOpen:document.querySelector(\".m1-project-menu\").open}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34233/",
+        "result": "{\"selectorWidth\":100,\"viewport\":390,\"pageWidth\":390,\"menuOpen\":true}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "press",
+      "Escape"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "pressed": "Escape"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "!document.querySelector(\".m1-project-menu\").open"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "button[aria-controls=\"m1-objects-panel\"]"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "button[aria-controls=\"m1-objects-panel\"]",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "#m1-object-0"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "#m1-object-0",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "button[aria-controls=\"m1-inspector-panel\"]"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "button[aria-controls=\"m1-inspector-panel\"]",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "scrollintoview",
+      "#m1-position-x"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "scrolled": "#m1-position-x"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({objectsExpanded:document.querySelector(\"button[aria-controls=m1-objects-panel]\").getAttribute(\"aria-expanded\"),inspectExpanded:document.querySelector(\"button[aria-controls=m1-inspector-panel]\").getAttribute(\"aria-expanded\"),inputVisible:document.querySelector(\"#m1-position-x\").getBoundingClientRect().height>0,objectName:document.querySelector(\"#m1-object-0\").getAttribute(\"aria-label\")}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34233/",
+        "result": "{\"objectsExpanded\":\"true\",\"inspectExpanded\":\"true\",\"inputVisible\":true,\"objectName\":\"main-right-keys-SW1, Switch\"}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "scroll",
+      "up",
+      "2000"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "scrolled": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "screenshot",
+      "/tmp/frontend-f1-24218450-matrix/compact-panels-dark.png",
+      "--full"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "path": "/tmp/frontend-f1-24218450-matrix/compact-panels-dark.png"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "button[aria-controls=\"m1-objects-panel\"]"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "button[aria-controls=\"m1-objects-panel\"]",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      "button[aria-controls=\"m1-inspector-panel\"]"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": "button[aria-controls=\"m1-inspector-panel\"]",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "select",
+      "select[aria-label=\"Theme\"]",
+      "light"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selected": [
+          "light"
+        ]
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.documentElement.dataset.theme===\"light\""
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "screenshot",
+      "/tmp/frontend-f1-24218450-matrix/compact-light.png"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "path": "/tmp/frontend-f1-24218450-matrix/compact-light.png"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "a11y"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 54,
+          "incomplete": 1,
+          "passes": 35,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 85,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW1</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c0\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-18-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"79\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW2</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c1\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-17-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"85\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW3</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c2\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-13-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"91\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW4</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c3\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-14-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"97\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-right-keys-SW5</text>",
+                "target": [
+                  "g[data-part-id=\"matrix/main-right-keys/r0c4\"] > text"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<text transform=\"scale(1,-1)\" text-anchor=\"middle\" class=\"m1-part-label\">main-diode-15-right-keys</text>",
+                "target": [
+                  "g[data-dioxus-id=\"103\"] > text"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "http://127.0.0.1:34233/",
+        "violations": []
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({viewport:innerWidth,pageWidth:document.documentElement.scrollWidth,selectorWidth:document.querySelector(\".m1-workspace-select\").getBoundingClientRect().width,headings:document.querySelectorAll(\"h1\").length,mainCount:document.querySelectorAll(\"main\").length,retryButtons:[...document.querySelectorAll(\"button\")].filter(x=>x.textContent.includes(\"Retry save\")).length}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34233/",
+        "result": "{\"viewport\":390,\"pageWidth\":390,\"selectorWidth\":100,\"headings\":1,\"mainCount\":1,\"retryButtons\":0}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "set",
+      "viewport",
+      "920",
+      "500"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "deviceScaleFactor": 1.0,
+        "height": 500,
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "mobile": false,
+        "width": 920
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "screenshot",
+      "/tmp/frontend-f1-24218450-matrix/short-desktop.png"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "path": "/tmp/frontend-f1-24218450-matrix/short-desktop.png"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({width:innerWidth,pageWidth:document.documentElement.scrollWidth,height:innerHeight,pageHeight:document.documentElement.scrollHeight}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34233/",
+        "result": "{\"width\":920,\"pageWidth\":920,\"height\":500,\"pageHeight\":500}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "set",
+      "viewport",
+      "1440",
+      "900"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "deviceScaleFactor": 1.0,
+        "height": 900,
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "mobile": false,
+        "width": 1440
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "select",
+      "select[aria-label=\"Theme\"]",
+      "dark"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selected": [
+          "dark"
+        ]
+      },
+      "error": null
+    }
+  }
+]

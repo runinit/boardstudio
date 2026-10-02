@@ -2,7 +2,7 @@
 
 **Status:** planned
 **Blocked by:** F3, F4
-**Category:** frontend behavior-preserving port; F1 intentionally replaces the M1 demo layout with the reference shell and authorized temporary placeholders.
+**Category:** frontend behavior-preserving port of the pinned React reference.
 **Reference:** React 5a472a94; Rust base f0ac0a19.
 **Authority:** [parent spec](../spec.md), [roadmap](../../../docs/migration/DIOXUS-FRONTEND-V1.md).
 

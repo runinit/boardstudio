@@ -1,0 +1,426 @@
+[
+  {
+    "args": [
+      "open",
+      "http://127.0.0.1:34233/boardstudio/"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": true,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": false,
+          "saveStatus": "not_attempted"
+        },
+        "targetId": "011F20738B853E5CBD866471E91A25C0",
+        "title": "BoardStudio",
+        "url": "http://127.0.0.1:34233/boardstudio/"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "set",
+      "viewport",
+      "390",
+      "844"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "deviceScaleFactor": 1.0,
+        "height": 844,
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "mobile": false,
+        "width": 390
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      ".m1-library-landing"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": ".m1-library-landing",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "click",
+      ".m1-library-landing .m1-library button:first-child"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "clicked": ".m1-library-landing .m1-library button:first-child",
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        }
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      ".m1-canvas"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": ".m1-canvas",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "select",
+      "select[aria-label=\"Theme\"]",
+      "dark"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selected": [
+          "dark"
+        ]
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.documentElement.dataset.theme===\"dark\""
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "navigator.serviceWorker.controller !== null"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({title:document.title,url:location.href,worker:navigator.serviceWorker.controller.scriptURL,theme:document.documentElement.dataset.theme,workspaceWidth:document.querySelector(\".m1-workspace-select\").getBoundingClientRect().width,scrollWidth:document.documentElement.scrollWidth,viewport:innerWidth}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34233/boardstudio/",
+        "result": "{\"title\":\"BoardStudio\",\"url\":\"http://127.0.0.1:34233/boardstudio/\",\"worker\":\"http://127.0.0.1:34233/boardstudio/service-worker.js\",\"theme\":\"dark\",\"workspaceWidth\":100,\"scrollWidth\":390,\"viewport\":390}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "set",
+      "offline",
+      "on"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "offline": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "reload"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "http://127.0.0.1:34233/boardstudio/"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      ".m1-canvas"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "selector": ".m1-canvas",
+        "waited": "selector"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "wait",
+      "--fn",
+      "document.documentElement.dataset.theme===\"dark\""
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "result": true
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "eval",
+      "JSON.stringify(({title:document.title,url:location.href,online:navigator.onLine,theme:document.documentElement.dataset.theme,objects:document.querySelectorAll(\".m1-component-list button\").length,worker:navigator.serviceWorker.controller.scriptURL}))"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "origin": "http://127.0.0.1:34233/boardstudio/",
+        "result": "{\"title\":\"BoardStudio\",\"url\":\"http://127.0.0.1:34233/boardstudio/\",\"online\":false,\"theme\":\"dark\",\"objects\":85,\"worker\":\"http://127.0.0.1:34233/boardstudio/service-worker.js\"}"
+      },
+      "error": null
+    }
+  },
+  {
+    "args": [
+      "set",
+      "offline",
+      "off"
+    ],
+    "exit": 0,
+    "result": {
+      "success": true,
+      "data": {
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 11677035664275010974
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "offline": false
+      },
+      "error": null
+    }
+  }
+]

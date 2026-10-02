@@ -1,16 +1,16 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "F1 implementing; complete frontend roadmap planned",
+  "status": "F1 implemented and verified as first increment; F2\u2013F9 planned",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "F1",
+  "current_milestone": "F2",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
     "F1": {
-      "status": "implementing",
+      "status": "verified first increment; full parity remains F2\u2013F9",
       "ticket": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md",
       "depends_on": "M1 implementation"
     },
@@ -57,5 +57,9 @@
   },
   "m1_acceptance": "open; separate retained ledger",
   "backend_rewrites_in_scope": false,
-  "production_cutover": false
+  "production_cutover": false,
+  "executable_source": "242184509c1ec2d97ab0754dd29faa95edf0b342",
+  "build": "frontend-f1-24218450-20261001",
+  "demo_url": "http://127.0.0.1:34233/",
+  "handoff": ".scratch/dioxus-frontend-v1/evidence/handoff.md"
 }

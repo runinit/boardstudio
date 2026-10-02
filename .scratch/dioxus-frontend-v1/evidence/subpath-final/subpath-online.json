@@ -1,0 +1,9 @@
+{
+  "title": "BoardStudio",
+  "url": "http://127.0.0.1:34233/boardstudio/",
+  "worker": "http://127.0.0.1:34233/boardstudio/service-worker.js",
+  "theme": "dark",
+  "workspaceWidth": 100,
+  "scrollWidth": 390,
+  "viewport": 390
+}
