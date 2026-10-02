@@ -64,6 +64,7 @@ const run = {
   browserUserAgent: null,
   gpuRenderer: null,
   viewport: null,
+  browserProfileAndCache: 'agent-browser isolated named worktree session; candidate and reference use separate sessions; no manual cache or storage clearing; the three per-size navigations reuse their variant session and resource cache naturally',
   startedAt: new Date().toISOString(),
   commands: [],
   sessions: [],
@@ -122,6 +123,47 @@ function evalPage(script) {
   return browser(['eval', '--stdin'], script).result;
 }
 
+function observeStartupAndImportControl() {
+  return evalPage(`(() => {
+    const navigation = performance.getEntriesByType('navigation')[0];
+    const visible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0
+        && rect.width > 0 && rect.height > 0 && !element.closest('[aria-hidden="true"]');
+    };
+    const controls = Array.from(document.querySelectorAll('button, [role="button"], label, a'))
+      .filter(visible)
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        text: (element.getAttribute('aria-label') || element.innerText || element.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 120),
+        title: element.getAttribute('title'),
+        selectorHint: element.id ? '#' + CSS.escape(element.id) : element.className?.toString().slice(0, 120) || null,
+      }));
+    const importControl = controls.find((control) => /\\b(import|open)\\b.*\\b(project|board|file)|\\b(import|open)\\s+\\.boardstudio/i.test(control.text));
+    return {
+      observedAtPerformanceNowMs: performance.now(),
+      navigation: navigation ? {
+        type: navigation.type,
+        startTime: navigation.startTime,
+        fetchStart: navigation.fetchStart,
+        responseStart: navigation.responseStart,
+        domInteractive: navigation.domInteractive,
+        domContentLoadedEventEnd: navigation.domContentLoadedEventEnd,
+        loadEventEnd: navigation.loadEventEnd,
+        duration: navigation.duration,
+        transferSize: navigation.transferSize,
+        encodedBodySize: navigation.encodedBodySize,
+        decodedBodySize: navigation.decodedBodySize,
+      } : null,
+      readyState: document.readyState,
+      importControl,
+      visibleControls: controls,
+      semantics: 'standard Navigation Timing plus a point-in-time observation of visible, accessible-name-bearing DOM controls; observedAtPerformanceNowMs is an upper bound on when the matching control first became visible, not a new gate',
+    };
+  })()`);
+}
+
 const percentile = (samples, fraction) => {
   const sorted = [...samples].sort((a, b) => a - b);
   return sorted[Math.ceil(sorted.length * fraction) - 1];
@@ -131,6 +173,7 @@ try {
   startBrowserSession();
   browser(['open', releaseUrl]);
   browser(['set', 'viewport', '1280', '720']);
+  run.startupObservation = observeStartupAndImportControl();
   const environment = evalPage(`(() => {
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl');
@@ -154,6 +197,7 @@ try {
     assert.equal(createHash('sha256').update(archiveBytes).digest('hex'), fixture.archiveSha256, `${keys}-key archive hash must match the generation manifest`);
 
     browser(['open', releaseUrl]);
+    const pageStartup = observeStartupAndImportControl();
     if (variant === 'reference') {
       browser(['wait', '--fn', 'Boolean(document.querySelector(".wb-project-trigger") || document.querySelector(".wb-open-project"))']);
       if (evalPage('Boolean(document.querySelector(".wb-project-trigger"))')) browser(['click', '.wb-project-trigger']);
@@ -252,6 +296,7 @@ try {
       sessionNumber: run.sessionNumber,
       variant,
       keys,
+      startupObservation: pageStartup,
       partCount: targetCoordinates.partCount,
       targetPartId: targetCoordinates.id,
       targetReference: targetCoordinates.reference,
