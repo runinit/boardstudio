@@ -2,11 +2,13 @@
 //! Root owns accepted-state admission and commits every intent through Runtime.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
-    Finding, MechanicalBottomStyle, MechanicalMount, MechanicalStackLayer, MechanicalSwitchFamily,
-    PlateMethod, Severity, Vec2,
+    MechanicalBottomStyle, MechanicalMount, MechanicalSwitchFamily, PlateMethod, Severity, Vec2,
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::rc::Rc;
+use wasm_bindgen::JsCast;
+use web_sys::HtmlInputElement;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MechanicalSettingsIdentity {
@@ -56,13 +58,17 @@ pub(crate) struct MechanicalProfileChoice {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MechanicalLayerRow {
-    pub(crate) layer: MechanicalStackLayer,
+    pub(crate) id: String,
     pub(crate) label: String,
+    pub(crate) z: f64,
+    pub(crate) thickness: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MechanicalFindingRow {
-    pub(crate) finding: Finding,
+    pub(crate) id: String,
+    pub(crate) severity: Severity,
+    pub(crate) message: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -171,14 +177,16 @@ pub(crate) struct MechanicalSettingsFeedback {
 pub(crate) struct MechanicalSettingsProps {
     pub(crate) identity: MechanicalSettingsIdentity,
     pub(crate) values: Option<MechanicalSettingsValues>,
-    pub(crate) profiles: Vec<MechanicalProfileChoice>,
-    pub(crate) layers: Vec<MechanicalLayerRow>,
-    pub(crate) findings: Vec<MechanicalFindingRow>,
+    pub(crate) profiles: Rc<[MechanicalProfileChoice]>,
+    pub(crate) layers: Rc<[MechanicalLayerRow]>,
+    pub(crate) findings: Rc<[MechanicalFindingRow]>,
     pub(crate) selected_layer: String,
     pub(crate) mismatch: Option<MechanicalBoardMismatch>,
     pub(crate) editable: bool,
     pub(crate) disabled_reason: Option<String>,
-    pub(crate) feedback: Option<MechanicalSettingsFeedback>,
+    /// Bounded per-request feedback keeps a rejected raced submit from replacing the
+    /// currently admitted operation's Pending/Saved response.
+    pub(crate) feedback: Rc<[MechanicalSettingsFeedback]>,
     pub(crate) on_request: EventHandler<MechanicalSettingsRequest>,
     pub(crate) on_select_layer: EventHandler<String>,
     pub(crate) on_show_finding: EventHandler<String>,
@@ -203,13 +211,17 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
         identity.scope.board_id,
         identity.scope.instance_id,
     );
-    let current_feedback = props.feedback.as_ref().filter(|feedback| {
-        feedback.identity.editor_instance_id == identity.editor_instance_id
-            && feedback.identity.scope_generation == identity.scope_generation
-            && feedback.identity.scope == identity.scope
-            && feedback.identity.active_board_id == identity.active_board_id
-            && feedback.identity.configuration_board_id == identity.configuration_board_id
-    });
+    let current_feedback = props
+        .feedback
+        .iter()
+        .filter(|feedback| {
+            feedback.identity.editor_instance_id == identity.editor_instance_id
+                && feedback.identity.scope_generation == identity.scope_generation
+                && feedback.identity.scope == identity.scope
+                && feedback.identity.active_board_id == identity.active_board_id
+                && feedback.identity.configuration_board_id == identity.configuration_board_id
+        })
+        .max_by_key(|feedback| feedback.request_id);
 
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
@@ -450,7 +462,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 struct ProfileGuidanceProps {
     identity: MechanicalSettingsIdentity,
-    profiles: Vec<MechanicalProfileChoice>,
+    profiles: Rc<[MechanicalProfileChoice]>,
     plate_thickness: f64,
     editable: bool,
     request_sequence: Signal<u64>,
@@ -465,7 +477,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
             if props.profiles.is_empty() {
                 p { class: "m1-mechanical-help", "No switch fit profile is available. Select or add a supported switch family in Parts to resolve the plate gap and supported thickness." }
             }
-            for profile in &props.profiles {
+            for profile in props.profiles.iter() {
                 div { class: "m1-mechanical-profile", key: "{profile.definition_id}",
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
@@ -519,7 +531,7 @@ struct DimensionControlsProps {
     values: MechanicalSettingsValues,
     editable: bool,
     disabled_reason: Option<String>,
-    feedback: Option<MechanicalSettingsFeedback>,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
     request_sequence: Signal<u64>,
     on_request: EventHandler<MechanicalSettingsRequest>,
     owner_key: String,
@@ -615,15 +627,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
     let mut previous_accepted = use_signal(|| props.value);
 
     let saved_value = props.value;
-    let feedback_key = props.feedback.as_ref().map(|feedback| {
-        (
-            feedback.identity.clone(),
-            feedback.request_id,
-            feedback.field_id.clone(),
-            feedback.state,
-            feedback.message.clone(),
-        )
-    });
+    let feedback_entries = props.feedback.clone();
     let mut draft_for_ack = draft;
     let mut dirty_for_ack = dirty;
     let mut error_for_ack = error;
@@ -631,8 +635,8 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
     let mut status_for_ack = field_status;
     let submitted_copy = submitted;
     use_effect(use_reactive(
-        (&feedback_key, &saved_value),
-        move |(feedback_key, accepted)| {
+        (&feedback_entries, &saved_value),
+        move |(feedback_entries, accepted)| {
             if *previous_accepted.read() != accepted {
                 previous_accepted.set(accepted);
                 draft_for_ack.set(accepted.to_string());
@@ -645,16 +649,14 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
             let Some(request) = submitted_copy.read().clone() else {
                 return;
             };
-            let Some((identity, request_id, field_id, state, message)) = feedback_key else {
+            let Some(feedback) = feedback_entries.iter().find(|feedback| {
+                feedback.identity == request.identity
+                    && feedback.request_id == request.request_id
+                    && feedback.field_id == request.field_id
+            }) else {
                 return;
             };
-            if request.identity != identity
-                || request.request_id != request_id
-                || request.field_id != field_id
-            {
-                return;
-            }
-            match state {
+            match feedback.state {
                 MechanicalSettingsFeedbackState::Pending => {
                     status_for_ack.set(Some("Saving…".to_owned()))
                 }
@@ -666,7 +668,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     submitted_for_ack.set(None);
                 }
                 MechanicalSettingsFeedbackState::Failed => {
-                    error_for_ack.set(Some(message.unwrap_or_else(|| {
+                    error_for_ack.set(Some(feedback.message.clone().unwrap_or_else(|| {
                         "This setting was not saved. Review the value and retry.".to_owned()
                     })));
                     status_for_ack.set(None);
@@ -749,13 +751,19 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                         move |_| commit()
                     },
                     onkeydown: {
-                        let commit = commit.clone();
                         let accepted = props.value;
                         move |event: KeyboardEvent| {
                             let key = event.data().key().to_string();
                             if key == "Enter" {
                                 event.prevent_default();
-                                commit();
+                                if let Some(input) = event
+                                    .data()
+                                    .try_as_web_event()
+                                    .and_then(|event| event.current_target())
+                                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                {
+                                    let _ = input.blur();
+                                }
                             } else if key == "Escape" {
                                 event.prevent_default();
                                 draft.set(accepted.to_string());
@@ -777,7 +785,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
 
 #[derive(Props, Clone, PartialEq)]
 struct ResolvedStackProps {
-    layers: Vec<MechanicalLayerRow>,
+    layers: Rc<[MechanicalLayerRow]>,
     selected_layer: String,
     on_select_layer: EventHandler<String>,
 }
@@ -791,8 +799,8 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
                 p { role: "status", "The stack appears after the current revision resolves." }
             } else {
                 div { class: "m1-mechanical-stack",
-                    for row in &props.layers {
-                        let id = row.layer.id.clone();
+                    for row in props.layers.iter() {
+                        let id = row.id.clone();
                         let label = row.label.clone();
                         let selected = props.selected_layer == id;
                         let callback = props.on_select_layer;
@@ -803,8 +811,8 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
                             aria_pressed: selected,
                             onclick: move |_| callback.call(if selected { String::new() } else { id.clone() }),
                             strong { "{label}" }
-                            span { "{row.layer.thickness:.2} mm" }
-                            small { "Z {row.layer.z:.2}" }
+                            span { "{row.thickness:.2} mm" }
+                            small { "Z {row.z:.2}" }
                         }
                     }
                 }
@@ -815,7 +823,7 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
 
 #[derive(Props, Clone, PartialEq)]
 struct DiagnosticsProps {
-    findings: Vec<MechanicalFindingRow>,
+    findings: Rc<[MechanicalFindingRow]>,
     on_show_finding: EventHandler<String>,
 }
 
@@ -828,13 +836,12 @@ fn Diagnostics(props: DiagnosticsProps) -> Element {
                 p { "No current mechanical findings." }
             }
             ul {
-                for row in &props.findings {
-                    let finding = &row.finding;
-                    let id = finding.id.clone();
-                    let severity = severity_label(&finding.severity);
+                for row in props.findings.iter() {
+                    let id = row.id.clone();
+                    let severity = severity_label(&row.severity);
                     let callback = props.on_show_finding;
                     li { key: "{id}",
-                        span { "{severity}: {finding.message}" }
+                        span { "{severity}: {row.message}" }
                         button {
                             r#type: "button",
                             onclick: move |_| callback.call(id.clone()),
