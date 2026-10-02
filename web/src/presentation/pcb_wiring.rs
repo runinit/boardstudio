@@ -2,7 +2,7 @@
 //!
 //! Root owns the accepted-source controller and Runtime request. This leaf receives only a
 //! cheap accepted-document handle, board scope, ordered active selection, and one guarded plan.
-use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
+use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
     model::{Net, PartDefinition, PartKind, ProjectDoc},
@@ -11,21 +11,21 @@ use dioxus::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
 mod controller;
-pub(in crate::presentation) use controller::use_pcb_wiring_controller;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::presentation) struct WiringPlanIdentity {
-    pub scope: Scope,
-    pub token: SnapshotToken,
-    pub revision: u64,
-    pub executor_epoch: u64,
-}
+use crate::firmware_position_projection;
+pub(in crate::presentation) use crate::firmware_position_projection::{
+    FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionIdentity,
+    FirmwarePositionProjection, PlanLifecycle,
+};
+pub(in crate::presentation) use controller::{
+    use_firmware_position_edits, use_pcb_wiring_controller,
+};
 
 /// A cheap view of the accepted source. Arc identity avoids deep document comparisons in the
 /// Dioxus props diff; the leaf never receives writable Session access.
 #[derive(Clone)]
 pub(in crate::presentation) struct PcbWiringSource {
     pub identity: WiringPlanIdentity,
+    pub ui_scope: Scope,
     document: Arc<ProjectDoc>,
     active_part_id: Option<String>,
 }
@@ -34,10 +34,15 @@ impl PcbWiringSource {
     pub(in crate::presentation) fn new(
         accepted: &AcceptedSnapshot,
         scope: &Scope,
+        ui_scope: &Scope,
         active_part_id: Option<&str>,
         executor_epoch: u64,
     ) -> Option<Self> {
         if scope.instance_id.is_some()
+            || (Scope {
+                instance_id: None,
+                ..ui_scope.clone()
+            }) != *scope
             || scope.session_epoch != accepted.session_epoch
             || scope.document_id != accepted.document.id
             || accepted.scene.revision != accepted.document.revision
@@ -56,6 +61,7 @@ impl PcbWiringSource {
                 revision: accepted.document.revision,
                 executor_epoch,
             },
+            ui_scope: ui_scope.clone(),
             document: accepted.document.clone(),
             active_part_id: active_part_id.map(str::to_owned),
         })
@@ -67,6 +73,7 @@ impl PartialEq for PcbWiringSource {
         self.identity == other.identity
             && Arc::ptr_eq(&self.document, &other.document)
             && self.active_part_id == other.active_part_id
+            && self.ui_scope == other.ui_scope
     }
 }
 
@@ -152,8 +159,53 @@ struct WiringDisplayProjection {
 pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub source: PcbWiringSource,
     pub resolution: PcbWiringResolution,
+    pub firmware_positions: FirmwarePositionProjection,
+    pub firmware_feedback: Option<FirmwarePositionFeedback>,
+    pub on_firmware_edit: EventHandler<FirmwarePositionEditRequest>,
     pub on_resolve: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct FirmwarePositionEditRequest {
+    pub identity: FirmwarePositionIdentity,
+    pub key_id: String,
+    pub binding: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) enum FirmwarePositionFeedbackState {
+    Pending,
+    Saved,
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct FirmwarePositionFeedback {
+    pub key_id: String,
+    pub state: FirmwarePositionFeedbackState,
+}
+
+pub(in crate::presentation) fn firmware_position_projection(
+    source: &PcbWiringSource,
+    generation: u64,
+    resolution: &PcbWiringResolution,
+) -> FirmwarePositionProjection {
+    let lifecycle = match resolution {
+        PcbWiringResolution::Idle => PlanLifecycle::Idle,
+        PcbWiringResolution::Pending { identity } => PlanLifecycle::Pending(identity),
+        PcbWiringResolution::Current { identity, plan } => PlanLifecycle::Current(identity, plan),
+        PcbWiringResolution::Failed { identity, message } => {
+            PlanLifecycle::Failed(identity, message)
+        }
+    };
+    firmware_position_projection::project(
+        &source.document,
+        &source.identity,
+        &source.ui_scope,
+        generation,
+        lifecycle,
+    )
 }
 
 #[component]

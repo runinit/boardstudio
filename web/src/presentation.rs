@@ -1090,6 +1090,17 @@ fn Editor() -> Element {
         adapter.generation,
     );
     let pcb_wiring_mount = pcb_wiring::use_pcb_wiring_controller(runtime.clone(), version);
+    let firmware_position_actions = pcb_wiring::use_firmware_position_edits(
+        runtime.clone(),
+        version,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+        pcb_wiring_mount.resolution_signal,
+    );
     // Keep the operation observer alive even when the workspace panel is hidden.
     let layer_actions = keymap::use_layer_operations(
         runtime.clone(),
@@ -2852,6 +2863,7 @@ fn Editor() -> Element {
             pcb_wiring::PcbWiringSource::new(
                 snapshot,
                 &board_scope,
+                scope,
                 model.selected_part_ids.first().map(String::as_str),
                 runtime.electrical_preview_executor_epoch(),
             )
@@ -3045,9 +3057,17 @@ fn Editor() -> Element {
         }
         "PCB" => {
             workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
+                let firmware_positions = pcb_wiring::firmware_position_projection(
+                    &source,
+                    render_generation,
+                    &pcb_wiring_mount.resolution,
+                );
                 Box::new(pcb_wiring::PcbWiringInspectorProps {
                     source,
                     resolution: pcb_wiring_mount.resolution.clone(),
+                    firmware_positions,
+                    firmware_feedback: firmware_position_actions.feedback.clone(),
+                    on_firmware_edit: firmware_position_actions.on_edit,
                     on_resolve: pcb_wiring_mount.on_resolve,
                     on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
                 })

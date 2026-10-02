@@ -108,6 +108,9 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
             super::pcb_wiring::PcbWiringInspector {
                 source: input.source,
                 resolution: input.resolution,
+                firmware_positions: input.firmware_positions,
+                firmware_feedback: input.firmware_feedback,
+                on_firmware_edit: input.on_firmware_edit,
                 on_resolve: input.on_resolve,
                 on_edit_board_wiring: input.on_edit_board_wiring,
             }

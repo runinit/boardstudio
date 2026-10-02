@@ -1,15 +1,273 @@
 //! Editor-lifetime owner for automatic, board-scoped electrical plan resolution.
 //! The selected part is intentionally absent from this controller's request identity.
-use super::{PcbWiringResolution, WiringPlanIdentity};
+use super::{
+    FirmwarePositionEditRequest, FirmwarePositionFeedback, FirmwarePositionFeedbackState,
+    PcbWiringResolution, WiringPlanIdentity, firmware_position_projection,
+};
+use crate::firmware_position_projection::{EditSettlement, EditSettlementSource, settle_edit};
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Lifecycle, Scope};
+use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, Scope};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
+struct PendingFirmwarePositionEdit {
+    request: FirmwarePositionEditRequest,
+    base_revision: u64,
+    outcome: crate::operation_outcomes::OutcomeSlot,
+}
+
+pub(in crate::presentation) struct FirmwarePositionActions {
+    pub feedback: Option<FirmwarePositionFeedback>,
+    pub on_edit: EventHandler<FirmwarePositionEditRequest>,
+}
+
+/// Editor-lifetime root owner for legacy SetKeyBinding admission and exact outcome settlement.
+pub(in crate::presentation) fn use_firmware_position_edits(
+    runtime: Rc<Runtime>,
+    version: Signal<u64>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
+    instance_is_current: Rc<dyn Fn() -> bool>,
+    resolution: Signal<PcbWiringResolution>,
+) -> FirmwarePositionActions {
+    let pending = use_signal(|| None::<PendingFirmwarePositionEdit>);
+    let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
+    let generation = scope_generation();
+
+    use_effect(use_reactive((&version,), {
+        let runtime = runtime.clone();
+        let mut pending = pending;
+        let mut feedback = feedback;
+        move |_| {
+            let Some(waiting) = pending.read().clone() else {
+                return;
+            };
+            let Some(outcome) = waiting.outcome.borrow().clone() else {
+                return;
+            };
+            let model = runtime.model();
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            let target_still_current = runtime.scope().as_ref().is_some_and(|scope| {
+                same_feedback_target(scope, &waiting.request.identity.ui_scope)
+            }) && snapshot.session_epoch
+                == waiting.request.identity.ui_scope.session_epoch
+                && snapshot.document.id == waiting.request.identity.ui_scope.document_id
+                && model.active_board_id == waiting.request.identity.ui_scope.board_id
+                && model.active_instance_id == waiting.request.identity.ui_scope.instance_id
+                && snapshot
+                    .document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == waiting.request.identity.ui_scope.board_id)
+                    .is_some_and(|board| {
+                        let part_id = waiting
+                            .request
+                            .key_id
+                            .strip_suffix("/push")
+                            .unwrap_or(&waiting.request.key_id);
+                        board.part_ids.iter().any(|id| id == part_id)
+                            && snapshot
+                                .document
+                                .parts
+                                .iter()
+                                .any(|part| part.id == part_id)
+                    });
+            let saved = model.lifecycle == Lifecycle::Ready
+                && model.durability
+                    == (Durability::Saved {
+                        revision: snapshot.document.revision,
+                    });
+            let durability_failure = match &model.durability {
+                Durability::Failed { reason, .. } => Some(reason.as_str()),
+                _ => None,
+            };
+            let accepted_value = legacy_binding(
+                snapshot,
+                &waiting.request.identity.ui_scope.board_id,
+                &waiting.request.key_id,
+            );
+            match settle_edit(
+                &outcome,
+                EditSettlementSource {
+                    target_is_current: target_still_current,
+                    accepted_is_saved: saved,
+                    accepted_revision: snapshot.document.revision,
+                    base_revision: waiting.base_revision,
+                    durability_failure,
+                    accepted_value,
+                    requested_value: &waiting.request.binding,
+                },
+            ) {
+                EditSettlement::Wait => {}
+                EditSettlement::Suppress => {
+                    pending.set(None);
+                    feedback.set(None);
+                }
+                EditSettlement::Saved => {
+                    pending.set(None);
+                    feedback.set(Some(FirmwarePositionFeedback {
+                        key_id: waiting.request.key_id,
+                        state: FirmwarePositionFeedbackState::Saved,
+                    }));
+                }
+                EditSettlement::Failed(message) => {
+                    pending.set(None);
+                    feedback.set(Some(FirmwarePositionFeedback {
+                        key_id: waiting.request.key_id,
+                        state: FirmwarePositionFeedbackState::Failed(message),
+                    }));
+                }
+            }
+        }
+    }));
+
+    let on_edit = use_callback({
+        let runtime = runtime.clone();
+        let mut pending = pending;
+        let mut feedback = feedback;
+        let instance_is_current = instance_is_current.clone();
+        move |request: FirmwarePositionEditRequest| {
+            if workspace() != "PCB"
+                || !instance_is_current()
+                || scope_generation() != generation
+                || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
+            {
+                return;
+            }
+            let model = runtime.model();
+            if model.lifecycle != Lifecycle::Ready
+                || model.display_preview.is_some()
+                || model.gesture.is_some()
+                || !matches!(model.durability, Durability::Saved { .. })
+                || model.active_board_id != request.identity.ui_scope.board_id
+                || model.active_instance_id != request.identity.ui_scope.instance_id
+            {
+                return;
+            }
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            if snapshot.session_epoch != request.identity.ui_scope.session_epoch
+                || snapshot.document.id != request.identity.ui_scope.document_id
+                || snapshot.token != request.identity.plan.token
+                || snapshot.document.revision != request.identity.plan.revision
+                || runtime.electrical_preview_executor_epoch()
+                    != request.identity.plan.executor_epoch
+                || !snapshot
+                    .document
+                    .boards
+                    .iter()
+                    .any(|board| board.id == request.identity.ui_scope.board_id)
+            {
+                return;
+            }
+            let live_scope = runtime
+                .scope()
+                .unwrap_or_else(|| request.identity.ui_scope.clone());
+            let plan_identity = WiringPlanIdentity {
+                scope: Scope {
+                    instance_id: None,
+                    ..live_scope.clone()
+                },
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                executor_epoch: runtime.electrical_preview_executor_epoch(),
+            };
+            if plan_identity != request.identity.plan {
+                return;
+            }
+            let PcbWiringResolution::Current { identity, plan } = &*resolution.read() else {
+                return;
+            };
+            if identity != &request.identity.plan {
+                return;
+            }
+            let current = firmware_position_projection::project(
+                &snapshot.document,
+                &plan_identity,
+                &request.identity.ui_scope,
+                generation,
+                super::PlanLifecycle::Current(identity, plan),
+            );
+            if current.identity.as_ref() != Some(&request.identity)
+                || !current.keys.iter().any(|key| key.id == request.key_id)
+            {
+                return;
+            }
+            let operation_id = runtime.operation();
+            let outcome = runtime.observe_operation(operation_id);
+            let base_revision = snapshot.document.revision;
+            pending.set(Some(PendingFirmwarePositionEdit {
+                request: request.clone(),
+                base_revision,
+                outcome,
+            }));
+            feedback.set(Some(FirmwarePositionFeedback {
+                key_id: request.key_id.clone(),
+                state: FirmwarePositionFeedbackState::Pending,
+            }));
+            runtime.submit(Event::Edit {
+                operation_id,
+                command: EditCommand {
+                    base_revision,
+                    transaction_id: format!(
+                        "firmware-position-{}-{}",
+                        request.identity.scope_generation, operation_id.0
+                    ),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![
+                        request.identity.ui_scope.board_id.clone(),
+                        request.key_id.clone(),
+                    ],
+                    operation: EditOperation::SetKeyBinding {
+                        board_id: request.identity.ui_scope.board_id,
+                        key_id: request.key_id,
+                        binding: request.binding,
+                    },
+                },
+            });
+        }
+    });
+
+    FirmwarePositionActions {
+        feedback: feedback(),
+        on_edit,
+    }
+}
+
+fn same_feedback_target(current: &Scope, expected: &Scope) -> bool {
+    current.session_epoch == expected.session_epoch
+        && current.document_id == expected.document_id
+        && current.board_id == expected.board_id
+        && current.instance_id == expected.instance_id
+}
+
+fn legacy_binding<'a>(
+    snapshot: &'a AcceptedSnapshot,
+    board_id: &str,
+    key_id: &str,
+) -> Option<&'a str> {
+    snapshot
+        .document
+        .hardware
+        .as_ref()?
+        .boards
+        .iter()
+        .find(|board| board.board_id == board_id)?
+        .key_bindings
+        .get(key_id)
+        .map(String::as_str)
+}
+
+#[derive(Clone)]
 pub(in crate::presentation) struct PcbWiringMount {
     pub resolution: PcbWiringResolution,
+    pub resolution_signal: Signal<PcbWiringResolution>,
     pub on_resolve: EventHandler<()>,
 }
 
@@ -68,6 +326,7 @@ pub(in crate::presentation) fn use_pcb_wiring_controller(
     });
     PcbWiringMount {
         resolution: resolution(),
+        resolution_signal: resolution,
         on_resolve,
     }
 }
