@@ -84,6 +84,7 @@ struct EditContext {
     active_layer_id: String,
     key_id: String,
     editor_instance_id: u64,
+    enabled: bool,
 }
 
 impl From<&BindingEditorProps> for EditContext {
@@ -95,6 +96,7 @@ impl From<&BindingEditorProps> for EditContext {
             active_layer_id: props.active_layer_id.clone(),
             key_id: props.key_id.clone(),
             editor_instance_id: props.editor_instance_id,
+            enabled: props.enabled,
         }
     }
 }
@@ -106,6 +108,9 @@ fn emit_change(
     field: BindingField,
     binding: KeyBinding,
 ) {
+    if !context.enabled {
+        return;
+    }
     let Some(request_id) = sequence().checked_add(1) else {
         return;
     };
@@ -406,7 +411,6 @@ pub(in crate::presentation) fn BindingEditor(props: BindingEditorProps) -> Eleme
             && feedback.active_layer_id == props.active_layer_id
             && feedback.key_id == props.key_id
             && feedback.editor_instance_id == props.editor_instance_id
-            && feedback.request_id == request_sequence()
             && field_exists(&value, feedback.field)
             && (!matches!(feedback.status, BindingEditStatus::Pending)
                 || (feedback.admission_token == props.admission_token
