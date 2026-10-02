@@ -8,7 +8,7 @@ or replace the required INT.2 integration join.
 ## Boundary and API
 
 `web/src/presentation/closure_clearance.rs` provides
-`project_closure_clearance(document, mounting_hole) -> ProjectDoc`.
+`project_closure_clearance(document, mounting_hole) -> Result<ProjectDoc, String>`.
 The caller supplies the current accepted canonical document after its
 configuration/link-policy update and the existing normalized bundled
 `ceoloide/mounting_hole_npth` definition. The helper reads canonical and
@@ -43,6 +43,11 @@ The projection follows `app/src/closureClearance.ts::withClosureClearance`:
   non-generated parts. Remove stale generated membership from layouts and
   rebuild generated board membership while preserving remaining order and
   document fields.
+- Reject numeric `MH` suffixes and requested allocation ranges outside
+  JavaScript's exactly representable integer range (`0..=2^53-1`) with a
+  correctable error before returning a replacement document. This explicit
+  private guard avoids silently generating unstable or duplicate references;
+  the planner does not claim source behavior for unsafe `Number` identities.
 
 The implementation intentionally returns a complete cloned `ProjectDoc` so
 the root Case controller can put the configuration update and its derived
@@ -65,10 +70,13 @@ and preserves its metadata while updating that source-derived pad and bounds.
 
 Native unit tests cover canonical plus flipped-instance deduplication with
 unequal boss diameters and latest-position retention, JavaScript rounding and
-negative-zero behavior, five-decimal boundary handling, non-plated normalized
-definition fields, large valid MH reference allocation, and screw-diameter /
-explicit-empty cleanup. The root task owns compilation and test execution; this
-evidence records no passing test claim. Those checks
+negative-zero behavior, five-decimal boundary handling, complete normalized
+mounting-hole definition output, unrelated other-board/document-data
+preservation, large valid MH reference allocation, and screw-diameter /
+explicit-empty cleanup including board membership. Core-opened fixtures prove
+unsafe suffix and output-count errors leave the accepted document and revision
+untouched. The root task owns compilation and test execution; this evidence
+records no passing test claim. Those checks
 do not establish controller admission, session transaction, persistence, Undo
 / Redo, archive reopen, browser visibility, or public workflow acceptance.
 

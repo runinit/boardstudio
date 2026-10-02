@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 const PART_PREFIX: &str = "case-closure/";
 const DEFINITION_PREFIX: &str = "assembly-closure/definition/";
 const MOUNTING_HOLE_SOURCE: &str = "ceoloide/mounting_hole_npth";
+const MAX_SAFE_JS_INTEGER: u64 = 9_007_199_254_740_991;
 
 #[derive(Clone, Debug)]
 struct Hole {
@@ -24,6 +25,9 @@ struct Hole {
 
 /// Rebuilds only the document-owned closure clearance projection.
 ///
+/// Unsafe or exhausted MH reference ranges return an error before the caller
+/// can submit a replacement document.
+///
 /// `mounting_hole` must be the existing normalized bundled catalogue entry for
 /// `ceoloide/mounting_hole_npth`. Its source identity and unrelated normalized
 /// footprint data are retained while the generator parameters and pad drill
@@ -31,7 +35,7 @@ struct Hole {
 pub(super) fn project_closure_clearance(
     document: &ProjectDoc,
     mounting_hole: &PartDefinition,
-) -> ProjectDoc {
+) -> Result<ProjectDoc, String> {
     let old_part_ids: HashSet<&str> = document
         .parts
         .iter()
@@ -89,21 +93,22 @@ pub(super) fn project_closure_clearance(
         .iter()
         .map(|hole| normalized_mounting_hole(mounting_hole, hole))
         .collect::<Vec<_>>();
-    let next_reference = document
-        .parts
-        .iter()
-        .filter(|part| !old_part_ids.contains(part.id.as_str()))
-        .filter_map(|part| mounting_hole_reference_number(&part.reference))
-        .max()
-        .unwrap_or(0)
-        .saturating_add(1);
+    let next_reference = next_mounting_hole_reference(
+        &document.parts,
+        &old_part_ids,
+        holes.len(),
+    )?;
+    let first_reference = next_reference.unwrap_or_default();
     let parts = holes
         .iter()
         .enumerate()
         .map(|(index, hole)| Part {
             id: format!("{PART_PREFIX}{}", hole.key),
             definition_id: definitions[index].id.clone(),
-            reference: format!("MH{}", next_reference.saturating_add(index as u64)),
+            reference: format!(
+                "MH{}",
+                first_reference + index as u64
+            ),
             pose: Pose2 {
                 at: hole.at,
                 rotation: 0.0,
@@ -121,7 +126,7 @@ pub(super) fn project_closure_clearance(
         .collect::<Vec<_>>();
 
     let mut result = document.clone();
-    result
+    Ok(result)
         .definitions
         .retain(|definition| !definition.id.starts_with(DEFINITION_PREFIX));
     result.definitions.extend(definitions);
@@ -223,12 +228,51 @@ fn normalized_mounting_hole(template: &PartDefinition, hole: &Hole) -> PartDefin
     definition
 }
 
-fn mounting_hole_reference_number(reference: &str) -> Option<u64> {
+fn mounting_hole_reference_suffix(reference: &str) -> Option<&str> {
     let suffix = reference.strip_prefix("MH")?;
     if suffix.is_empty() || !suffix.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
-    suffix.parse::<u64>().ok()
+    Some(suffix)
+}
+
+fn next_mounting_hole_reference(
+    parts: &[Part],
+    owned_ids: &HashSet<&str>,
+    generated_count: usize,
+) -> Result<Option<u64>, String> {
+    if generated_count == 0 {
+        return Ok(None);
+    }
+    let mut maximum = 0_u64;
+    for part in parts.iter().filter(|part| !owned_ids.contains(part.id.as_str())) {
+        let Some(suffix) = mounting_hole_reference_suffix(&part.reference) else {
+            continue;
+        };
+        let value = suffix.parse::<u64>().map_err(|_| {
+            format!(
+                "Mounting-hole reference {} exceeds the supported exact numeric range.",
+                part.reference
+            )
+        })?;
+        if value > MAX_SAFE_JS_INTEGER {
+            return Err(format!(
+                "Mounting-hole reference {} exceeds the supported exact numeric range.",
+                part.reference
+            ));
+        }
+        maximum = maximum.max(value);
+    }
+    let first = maximum.checked_add(1).filter(|value| *value <= MAX_SAFE_JS_INTEGER).ok_or_else(|| {
+        "There are no more exactly representable MH references available. Remove or rename existing mounting-hole references before applying this Case edit.".to_string()
+    })?;
+    let last_offset = u64::try_from(generated_count - 1).map_err(|_| {
+        "The generated closure-hole count exceeds the supported MH reference range.".to_string()
+    })?;
+    first.checked_add(last_offset).filter(|value| *value <= MAX_SAFE_JS_INTEGER).ok_or_else(|| {
+        "The generated closure holes exceed the supported MH reference range. Remove or rename existing mounting-hole references before applying this Case edit.".to_string()
+    })?;
+    Ok(Some(first))
 }
 
 /// Matches Number#toFixed(5) for accepted finite board coordinates.
@@ -326,6 +370,7 @@ fn js_number_to_string(value: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_core::{CoreEngine, model::{CoreReply, CoreRequest}};
     use boardstudio_core::model::{
         Board, HardwareConfiguration, Layout, MechanicalConfiguration, Mount,
         PhysicalBoardInstance,
@@ -369,13 +414,48 @@ mod tests {
         })).unwrap()
     }
 
+    fn document_with_reference(reference: &str, mount_count: usize) -> ProjectDoc {
+        let mut document = ProjectDoc::empty("doc", "Doc");
+        document.boards.push(Board {
+            id: "board".into(), name: "Board".into(), outline_ids: vec![],
+            part_ids: vec!["authored".into()], net_ids: vec![], thickness: 1.6,
+            traces: vec![], vias: vec![],
+        });
+        let definition = hole_template();
+        document.definitions.push(definition.clone());
+        document.parts.push(Part {
+            id: "authored".into(), definition_id: definition.id, reference: reference.into(),
+            pose: Pose2 { at: Vec2 { x: 0.0, y: 0.0 }, rotation: 0.0 }, side: Side::Front,
+            outline: None, keycap: None, locked: None, properties: None, generator_parameters: None,
+        });
+        let mounts = (0..mount_count)
+            .map(|index| mount(
+                Vec2 { x: index as f64 + 10.0, y: 20.0 },
+                MountKind::Hole,
+                2.2,
+                None,
+            ))
+            .collect();
+        document.mechanical = Some(configuration("board", mounts, 0.0));
+        document
+    }
+
+    fn open_core_document(document: ProjectDoc) -> (CoreEngine, ProjectDoc) {
+        let mut engine = CoreEngine::new();
+        match engine.handle(CoreRequest::Open { id: "open".into(), document }) {
+            CoreReply::Scene { document, .. } => (engine, *document),
+            reply => panic!("core rejected accepted-document fixture: {reply:?}"),
+        }
+    }
+
     #[test]
     fn key_rounding_matches_javascript_fixed_decimal_behavior() {
         assert_eq!(js_to_fixed_5(-0.0), "0.00000");
         assert_eq!(js_to_fixed_5(-0.0000001), "-0.00000");
         assert_eq!(js_to_fixed_5(0.015625), "0.01563");
         assert_eq!(js_to_fixed_5(-0.015625), "-0.01563");
-        assert_eq!(mounting_hole_reference_number("MH4294967295"), Some(4_294_967_295));
+        assert_eq!(js_to_fixed_5(1e21), "1e+21");
+        assert_eq!(js_to_fixed_5(-1e21), "-1e+21");
     }
 
     #[test]
@@ -386,6 +466,13 @@ mod tests {
             part_ids: vec!["authored".into(), "case-closure/stale".into()],
             net_ids: vec![], thickness: 1.6, traces: vec![], vias: vec![],
         });
+        document.boards.push(Board {
+            id: "other-board".into(), name: "Other board".into(), outline_ids: vec![],
+            part_ids: vec!["other-authored".into()], net_ids: vec![], thickness: 1.6,
+            traces: vec![], vias: vec![],
+        });
+        document.definitions.push(hole_template());
+        document.parameters.insert("unrelated".into(), serde_json::json!({"preserve": true}));
         document.parts.push(Part {
             id: "authored".into(), definition_id: "authored-def".into(), reference: "MH4294967295".into(),
             pose: Pose2 { at: Vec2 { x: 4.0, y: 5.0 }, rotation: 0.0 }, side: Side::Front,
@@ -420,23 +507,36 @@ mod tests {
             ..HardwareConfiguration::default()
         });
 
-        let projected = project_closure_clearance(&document, &hole_template());
+        let template = hole_template();
+        let projected = project_closure_clearance(&document, &template).unwrap();
         let generated = projected.parts.iter().find(|part| part.id.starts_with(PART_PREFIX)).unwrap();
         assert_eq!(generated.pose.at, Vec2 { x: 10.000001, y: 20.000001 });
         assert_eq!(generated.reference, "MH4294967296");
         let definition = projected.definitions.iter().find(|definition| definition.id == generated.definition_id).unwrap();
-        assert_eq!(definition.generator.as_ref().unwrap().source, MOUNTING_HOLE_SOURCE);
-        assert_eq!(definition.generator.as_ref().unwrap().parameters["hole_drill"], "7.6");
-        assert_eq!(definition.pads[0].drill, Some(7.6));
-        assert_eq!(definition.pads[0].plated, Some(false));
-        assert_eq!(definition.envelope_notice.as_deref(), Some("No closed courtyard is available; the outline uses physical graphics and pad extents."));
-        assert_eq!(definition.courtyard[0], Vec2 { x: -3.8, y: -3.8 });
-        assert_eq!(definition.courtyard[2], Vec2 { x: 3.8, y: 3.8 });
+        let expected_definition = serde_json::from_value::<PartDefinition>(serde_json::json!({
+            "id": generated.definition_id.clone(),
+            "name": "mounting hole npth",
+            "kind": "custom",
+            "pads": [{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
+                "size":{"x":7.6,"y":7.6}, "shape":"circle", "drill":7.6,
+                "plated":false, "rotation":0}],
+            "courtyard": [{"x":-3.8,"y":-3.8},{"x":3.8,"y":-3.8},
+                {"x":3.8,"y":3.8},{"x":-3.8,"y":3.8}],
+            "envelopeSource":{"courtyard":"generated"},
+            "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1",
+                "parameters":{"hole_drill":"7.6", "hole_size":"7.6"}}
+        })).unwrap();
+        assert_eq!(definition, &expected_definition);
+        assert!(projected.definitions.contains(&template));
         assert_eq!(projected.boards[0].part_ids.len(), 2);
         assert_eq!(projected.boards[0].part_ids[0], "authored");
         assert_eq!(projected.boards[0].part_ids[1], generated.id);
+        assert_eq!(projected.boards[1].part_ids.len(), 1);
+        assert_eq!(projected.boards[1].part_ids[0], "other-authored");
         assert_eq!(projected.layouts[0].part_ids.len(), 1);
         assert_eq!(projected.layouts[0].part_ids[0], "authored");
+        assert_eq!(projected.parameters, document.parameters);
         assert!(document.parts.iter().any(|part| part.id == "case-closure/stale"));
         assert_eq!(projected.parts.iter().filter(|part| part.id.starts_with(PART_PREFIX)).count(), 1);
     }
@@ -453,14 +553,15 @@ mod tests {
             vec![mount(Vec2 { x: 1.0, y: 2.0 }, MountKind::Hole, 2.7, Some(9.0))],
             4.0,
         ));
-        let first = project_closure_clearance(&document, &hole_template());
+        let first = project_closure_clearance(&document, &hole_template()).unwrap();
         let part = first.parts.iter().find(|part| part.id.starts_with(PART_PREFIX)).unwrap();
         assert_eq!(first.definitions.iter().find(|definition| definition.id == part.definition_id).unwrap().pads[0].drill, Some(2.7));
         let mut explicit_empty = first.clone();
         explicit_empty.mechanical.as_mut().unwrap().closure_mounts = Some(vec![]);
-        let empty = project_closure_clearance(&explicit_empty, &hole_template());
+        let empty = project_closure_clearance(&explicit_empty, &hole_template()).unwrap();
         assert!(empty.parts.iter().all(|part| !part.id.starts_with(PART_PREFIX)));
         assert!(empty.definitions.iter().all(|definition| !definition.id.starts_with(DEFINITION_PREFIX)));
+        assert!(empty.boards[0].part_ids.is_empty());
     }
 
     #[test]
@@ -489,9 +590,41 @@ mod tests {
             ..HardwareConfiguration::default()
         });
 
-        let projected = project_closure_clearance(&document, &hole_template());
+        let projected = project_closure_clearance(&document, &hole_template()).unwrap();
         let generated = projected.parts.iter().filter(|part| part.id.starts_with(PART_PREFIX)).collect::<Vec<_>>();
         assert_eq!(generated.len(), 1);
         assert_eq!(generated[0].id, "case-closure/board/0.00000/0.00000");
+    }
+
+    #[test]
+    fn unsafe_or_exhausted_mh_references_fail_before_any_core_edit() {
+        for (reference, mount_count) in [
+            ("MH9007199254740992", 1),
+            ("MH18446744073709551616", 1),
+            ("MH9007199254740990", 2),
+        ] {
+            let (mut core, accepted) = open_core_document(document_with_reference(reference, mount_count));
+            let error = project_closure_clearance(&accepted, &hole_template()).unwrap_err();
+            assert!(error.to_ascii_lowercase().contains("reference"), "{error}");
+            assert_eq!(accepted.parts[0].reference, reference);
+            match core.handle(CoreRequest::Snapshot { id: "snapshot".into() }) {
+                CoreReply::Scene { document, .. } => assert_eq!(*document, accepted),
+                reply => panic!("core snapshot failed after rejected planner result: {reply:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn safe_mh_reference_and_output_count_boundaries_remain_allocatable() {
+        let (mut core, accepted) = open_core_document(document_with_reference("MH9007199254740989", 2));
+        let projected = project_closure_clearance(&accepted, &hole_template()).unwrap();
+        let generated = projected.parts.iter().filter(|part| part.id.starts_with(PART_PREFIX)).collect::<Vec<_>>();
+        assert_eq!(generated.len(), 2);
+        assert_eq!(generated[0].reference, "MH9007199254740990");
+        assert_eq!(generated[1].reference, "MH9007199254740991");
+        match core.handle(CoreRequest::Snapshot { id: "snapshot".into() }) {
+            CoreReply::Scene { document, .. } => assert_eq!(*document, accepted),
+            reply => panic!("core snapshot failed after pure projection: {reply:?}"),
+        }
     }
 }
