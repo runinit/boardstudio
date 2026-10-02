@@ -1,0 +1,37 @@
+{
+  "source_commit": "b9748745ec444416136a97d4befd075670ef49b7",
+  "reviewed_pointer_source": "e7d29ce6dd703a4d9b064cb842366538987cf442",
+  "reviewed_decoder_source": "5a0972a2889a702051e9a7ab53b2727db07126e0",
+  "argv": [
+    "python3",
+    "scripts/build-m1.py",
+    "m1-release-20261001-b9748745"
+  ],
+  "cwd": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001",
+  "exit": 0,
+  "commands": 18,
+  "source_hashes_verified": 925,
+  "asset_hashes_verified": true,
+  "one_page_wasm_per_prefix": true,
+  "production_diff_from_review": "",
+  "provenance_sha256": "67b4d9644484477f17f1f827ffc84dfc920bdbdee31715a7f14be6162aef6485",
+  "portable_provenance": "release-b9748745-provenance.json",
+  "verified_at": "2026-10-02T00:09:49.487152+00:00",
+  "inventory": {
+    "root": {
+      "files": 47,
+      "bytes": 50142660,
+      "page_wasm": "assets/boardstudio-web_bg-dxh40971197348f48b4.wasm",
+      "page_wasm_bytes": 9373524,
+      "site": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-b9748745/site-root"
+    },
+    "subpath": {
+      "files": 47,
+      "bytes": 50142698,
+      "page_wasm": "assets/boardstudio-web_bg-dxh40971197348f48b4.wasm",
+      "page_wasm_bytes": 9373524,
+      "site": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/m1-release-20261001-b9748745/site-subpath/boardstudio"
+    }
+  },
+  "scope": "Complete build and exact identities; browser and five-session acceptance recorded separately."
+}

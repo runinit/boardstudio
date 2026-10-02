@@ -3,10 +3,13 @@
 Active run: [remaining M1 production plan](../../.scratch/m1-production/PLAN.md),
 [canonical state](m1-production-run.json) and
 [editable candidate handoff](../../.scratch/m1-production/HANDOFF.md).
-The reviewed implementation is integrated at `8f509433`; its complete release
-build and final root/subpath browser gates pass. Performance and complete
-resource/semantic gates remain in progress; relevant screen-reader testing is blocked. Earlier sections retain historical
-proposals, failures and accepted feasibility work.
+The reviewed implementation includes pointer allocation repairs at `b9748745`.
+Its complete maintained rebuild and bounded root/subpath smoke pass. Active-project
+startup restoration and physical-instance selection are being completed. Earlier `8f509433` build and
+root/subpath browser checks pass, with scoped resource and same-input STEP
+geometry evidence retained. Final five-session timing and unchanged reference
+gates remain pending; relevant screen-reader testing is blocked. Earlier
+sections retain historical proposals, failures and accepted feasibility work.
 
 Initial specification-run base: `96dd51d3e790c28f5554a8c9888a147c8814e2a7`.
 Initial coordinator worktree: `/tmp/boardstudio-migration-specs-review-20261001`.
@@ -930,3 +933,49 @@ See [final release browser evidence](../../.scratch/m1-production/evidence/brows
 [current acceptance](../../.scratch/m1-production/ACCEPTANCE.md) and
 [editable handoff](../../.scratch/m1-production/HANDOFF.md). Earlier checkpoint
 statements retain their contemporaneous failures and pending gates.
+
+
+### Pointer allocation regression and focused repair
+
+Two complete public pointer sessions on `8f509433` fail 100/200-key caps:
+135.3/495.8 ms and 134.4/500.6 ms against unchanged 50/100 ms limits.
+The stopped paired run is ineligible because its reference import navigation
+raced React hydration; the public readiness adapter was repaired separately.
+All failures and partial sessions remain retained.
+
+The presentation repeatedly deep-cloned complete range and keyboard item lists
+for every part. Reviewed commits `9a5b2098` and `e7d29ce6` share those immutable
+lists, preserving ordered selection and Arrow/Home/End/Space/Enter behavior.
+The first fix improves timings but still fails; the combined fix passes one
+focused session at 18.6/24.1/33.3 ms for 30/100/200 keys, with 100 measured
+samples each. This is not five-session or complete-release acceptance.
+Formatting, twelve native web tests, strict WASM page lint, release compilation
+and public selection/keyboard checks pass; independent Standards/Spec reviews
+have no findings. The independent merger integrates the exact source at
+`b9748745`; unique complete rebuild `m1-release-20261001-b9748745` passed all
+18 commands and source/asset verification. Its bounded root/subpath smoke passes.
+Two attempted paired runs stopped on harness availability/readiness failures;
+partial candidate cap passes do not establish the required five-session aggregate.
+
+Same-input default REVIUNG export through the actual TypeScript service yields
+the same five bodies and measured geometry as M1. STEP serialization differs
+in 434 direction/point coefficients (maximum numeric delta about 1e-11);
+independent BRep volume differs by about 5.82e-11 mm³. Exact-byte parity is not
+claimed. The nondefault physical-instance diagnostic and all raw readbacks are
+retained separately. Scoped worker/observer/listener/RAF/URL observations pass
+for tested transitions; root-close and late-import races remain narrower open
+checks. Full M1 acceptance and actual screen-reader testing remain open.
+
+
+### Final story audit: startup restoration and instance navigation
+
+Public browser checks against `b9748745` found that saved Sofle copies retain
+the scoped active-project preference, but online and offline reloads show only
+the library. The editor also exposes only a Board selector despite saved
+physical instances. [The public red record](../../.scratch/m1-production/evidence/integration/startup-restore-instance-red-b9748745.md)
+retains the exact assets, saved document, preference, accessibility snapshots
+and screenshots. Stories 4 and 5 remain under implementation: restoration will
+reuse the existing scoped preference and sequenced saved-open path; an
+accessible Physical instance selector will use the existing Navigate event,
+including an explicit canonical-board choice. No schema or public API change
+is needed. Earlier bounded smoke did not cover these two requirements.

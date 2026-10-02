@@ -15,4 +15,4 @@
 - [x] Supersession, board/project replacement and worker failure settle jobs without corrupting caches.
 - [ ] Real renderer DPR/resize/context-loss/late-import/teardown gates pass on the integrated web package.
 
-See [current acceptance evidence](../ACCEPTANCE.md#current-evidence--final-release-8f509433) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.
+See [current acceptance evidence](../ACCEPTANCE.md#retained-evidence--release-8f509433-and-reviewed-overlays) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.

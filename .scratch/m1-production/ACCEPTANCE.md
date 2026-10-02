@@ -19,7 +19,7 @@ The implementation and completed checks below are attributable to the recorded s
 | Performance | Existing affected CAD/live/UI budgets and controls retained; startup/size/crossing measurements with reference variance, no invented threshold | 06 |
 | Exact integration | Locked builds, native/WASM fmt/strict lint/tests, contracts, repository/boundary, React tests/build/affected browser matrix; source/asset hashes and Standards/Spec reviews | 06 |
 
-## Current evidence — final release `8f509433`
+## Retained evidence — release `8f509433` and reviewed overlays
 
 | Gate | Current outcome and scope | Record |
 | --- | --- | --- |
@@ -27,14 +27,21 @@ The implementation and completed checks below are attributable to the recorded s
 | Session and integer identity | Pass: 13 public native session tests, 12 native web tests; lossless core transport and explicit CAD safe-range rejection | [Final source checks](evidence/integration/final-source-checks/record.json), [decoder checks](evidence/integration/final-decoder-checks/record.json) |
 | Durable storage/archive exchange | Pass on recorded component artifacts: real IndexedDB abort/retry and full-fixture archive exchange; final release scoped databases and reload pass | [Final browser QA](evidence/browser-storage/release-8f509433-final-qa.md) |
 | Offline/deployment | Pass on final root/subpath assets: control, offline reload, cold/missing asset failure, scoped update and unrelated cache preservation | [Final offline record](evidence/offline/release-8f509433-browser.json) |
-| Case/renderer | Both final fixtures generate; focused DPR2, resize, remount, cancellation/retry and visible context-loss stop pass; complete allocation accounting remains open | [Focused renderer](evidence/renderer/focused-2040e23b/README.md), [final QA](evidence/browser-storage/release-8f509433-final-qa.md) |
-| STEP | Final downloads and URL cleanup pass for both fixtures, stale scope suppresses delivery; independent geometry oracle has narrower configured-fixture scope, final REVIUNG solids still need semantic attribution | [Final exports](evidence/renderer/step-exports-8f509433.json), [geometry oracle](evidence/cad-jobs/step-geometry-oracle.json) |
+| Case/renderer | Both final fixtures generate; focused DPR2, resize, remount, cancellation/retry and visible context-loss stop pass; scoped Worker/observer/listener/RAF/URL counts now recorded, late-import disposal now has a separate public race record; actual tab-close observation remains unperformed | [Focused renderer](evidence/renderer/focused-2040e23b/README.md), [final QA](evidence/browser-storage/release-8f509433-final-qa.md), [resource counts](evidence/cad-jobs/final-resource-summary-8f509433.json) |
+| STEP | Final downloads and URL cleanup pass for both fixtures, stale scope suppresses delivery; final REVIUNG mesh and independent BRep readback agree on volume/bounds; configured historical oracle is a different input, same-input default reference geometry now agrees at reader precision; exact STEP bytes differ by tiny decimal coefficient rounding | [Final exports](evidence/renderer/step-exports-8f509433.json), [geometry oracle](evidence/cad-jobs/step-geometry-oracle.json), [final readback](evidence/cad-jobs/readback-final-reviung41-summary.json) |
 | Presentation | Raw axe, contrast, keyboard/pointer and compact views recorded; actual screen-reader interaction blocked on this host | [Assistive technology limitation](#available-assistive-technology--2026-10-01) |
-| Performance | In progress; historical endpoint/environment mismatches remain ineligible, frozen budgets unchanged | [Performance evidence](evidence/performance/) |
+| Performance | Fail on old8f 100/200-key public pointer caps; isolated range-ID fix improves but still fails. Second keyboard-list allocation repair passes one focused session18.6/24.1/33.3ms; complete rebuilt-release five sessions remain pending. Historical endpoint/environment mismatches remain ineligible; budgets unchanged | [Performance evidence](evidence/performance/) |
 | Exact integration | Pass: complete locked build, source/asset verification, native/fmt/strict checks, repository/contracts/boundaries and independent source reviews | [Release provenance](evidence/integration/release-8f509433-provenance.json), [Standards](evidence/review/standards-step-decoder-5a0972a2.md), [Spec](evidence/review/spec-5a0972a2.md) |
 
-Runtime decoder source is `5a0972a2`; final maintained build source is
-`8f509433`. Later evidence/document commits do not change production inputs.
+Runtime decoder source is `5a0972a2`; the latest completed maintained build is
+`b9748745`, including both pointer allocation repairs. Its bounded
+[root/subpath smoke](evidence/integration/final-browser-smoke-b9748745.md) passes.
+The wider `8f509433` observations above retain their exact source scope. Saved
+active-project restoration and physical-instance selection are implementation
+gaps under repair; neither is accepted by the bounded smoke. Failed paired
+performance attempts remain [recorded](evidence/performance/README.md); a valid
+five-session aggregate is still unperformed. Evidence/document commits do not
+change production inputs.
 Component evidence is reused only where relevant source inputs are unchanged;
 final release observations are distinguished explicitly.
 

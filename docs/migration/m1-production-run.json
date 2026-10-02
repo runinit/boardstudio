@@ -1,6 +1,6 @@
 {
   "run": "M1-production-20261001",
-  "status": "Reviewed M1 implementation and final build complete; final browser gates pass; performance/resource verification in progress and screen-reader acceptance blocked",
+  "status": "Reviewed b9748745 complete release and bounded root/subpath smoke pass; active-project startup restoration and physical-instance selector are being completed. Final five-session/reference gates remain pending; screen-reader acceptance blocked.",
   "authority": "User requests remaining M1 to-spec documentation and implementation on 2026-10-01",
   "plan_revision": "M1-production-r1",
   "spec": ".scratch/m1-production/spec.md",
@@ -38,7 +38,7 @@
       ]
     },
     "06": {
-      "status": "Complete final release and browser verification, affected native/fmt/strict WASM checks and independent source reviews pass; raw axe/contrast retained; resource/performance verification in progress and relevant screen reader blocked",
+      "status": "Reviewed pointer repairs pass focused and partial rebuilt-release caps; paired attempts stopped on harness failures. Active-project restoration and physical-instance UI gaps under repair; five-session and unchanged reference gates pending; actual screen reader blocked.",
       "blocked_by": [
         "03",
         "05"
@@ -58,16 +58,18 @@
       "EditOperation::SetMountedModule.host_connector_definition"
     ]
   },
-  "production_source": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+  "production_source": "b9748745ec444416136a97d4befd075670ef49b7",
   "final_build": {
-    "id": "m1-release-20261001-8f509433",
-    "source_commit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
-    "status": "complete \u2014 all 18 commands exit zero, 925 source hashes and all staged hashes verified, 47 files and one page WASM per prefix",
-    "provenance": ".scratch/m1-production/evidence/integration/release-8f509433-provenance.json"
+    "id": "m1-release-20261001-b9748745",
+    "source_commit": "b9748745ec444416136a97d4befd075670ef49b7",
+    "status": "complete \u2014 18 commands exit zero,925 source hashes and all staged hashes verified;47files and onepageWasm perprefix",
+    "provenance": ".scratch/m1-production/evidence/integration/release-b9748745-provenance.json"
   },
-  "runtime_source": "5a0972a2889a702051e9a7ab53b2727db07126e0",
+  "runtime_source": "e7d29ce6dd703a4d9b064cb842366538987cf442",
   "demo": {
-    "root": "http://127.0.0.1:46880/",
-    "subpath": "http://127.0.0.1:46880/boardstudio/"
-  }
+    "root": "http://127.0.0.1:46890/",
+    "subpath": "http://127.0.0.1:46890/boardstudio/"
+  },
+  "decoder_source": "5a0972a2889a702051e9a7ab53b2727db07126e0",
+  "previous_verified_release": "m1-release-20261001-8f509433"
 }

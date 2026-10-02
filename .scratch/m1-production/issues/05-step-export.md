@@ -15,4 +15,4 @@
 - [ ] Cancellation, changed scope, save recovery and worker failure prevent delivery and settle callers.
 - [x] Characterize CAD wide revisions and reject unsupported identity loss; complete integer parity requires explicit compatibility resolution.
 
-See [current acceptance evidence](../ACCEPTANCE.md#current-evidence--final-release-8f509433) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.
+See [current acceptance evidence](../ACCEPTANCE.md#retained-evidence--release-8f509433-and-reviewed-overlays) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.
