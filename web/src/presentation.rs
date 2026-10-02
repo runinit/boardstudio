@@ -27,6 +27,7 @@ mod pcb_scene;
 mod pcb_wiring;
 mod pcb_workspace;
 mod selection;
+mod setup_guide;
 mod shared_viewer;
 mod workspace_composition;
 
@@ -37,11 +38,13 @@ pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
 use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
+use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, SetupGuideStage};
 mod footprint_graphics;
 
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Scope, SelectionMode, SnapshotToken,
+    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SelectionMode, SnapshotToken,
+    TerminalOutcome,
 };
 use boardstudio_core::model::{
     Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
@@ -154,6 +157,9 @@ pub fn App() -> Element {
         Err(error) => return rsx! { main { role: "alert", "Browser startup failed: {error}" } },
     };
     let version = use_signal(|| 0u64);
+    let project_created = use_signal(|| None::<SetupGuideRequest>);
+    let pending_new_keyboard = use_signal(|| None::<PendingNewKeyboard>);
+    let new_keyboard_error = use_signal(String::new);
     let active = use_hook(|| Rc::new(Cell::new(true)));
     let selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
     let anchor_scope = use_signal(|| None::<Scope>);
@@ -268,12 +274,69 @@ pub fn App() -> Element {
             });
         }
     });
-    let _ = version();
+    let observed_version = version();
     use_context_provider(|| runtime.clone());
     use_context_provider(|| version);
+    use_context_provider(|| project_created);
+    use_context_provider(|| pending_new_keyboard);
+    use_context_provider(|| new_keyboard_error);
     use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
+    let runtime_for_creation = runtime.clone();
+    use_effect(use_reactive!(|observed_version| {
+        let _ = observed_version;
+        let mut pending_new_keyboard = pending_new_keyboard;
+        let mut project_created = project_created;
+        let mut new_keyboard_error = new_keyboard_error;
+        let Some(pending) = pending_new_keyboard() else {
+            return;
+        };
+        let Some(outcome) = pending.outcome.borrow().clone() else {
+            return;
+        };
+        let model = runtime_for_creation.model();
+        match outcome {
+            TerminalOutcome::Completed => {
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return;
+                };
+                if snapshot.document.id != pending.project_id {
+                    new_keyboard_error.set(
+                        "The new keyboard was superseded before it could open. Try again.".into(),
+                    );
+                    pending_new_keyboard.set(None);
+                    return;
+                }
+                if model.lifecycle != Lifecycle::Ready
+                    || model.durability
+                        != (Durability::Saved {
+                            revision: snapshot.document.revision,
+                        })
+                {
+                    return;
+                }
+                project_created.set(Some(SetupGuideRequest {
+                    project_id: pending.project_id.clone(),
+                    request_id: pending.project_id,
+                    start_at_project: true,
+                }));
+                pending_new_keyboard.set(None);
+                new_keyboard_error.set(String::new());
+            }
+            TerminalOutcome::Rejected(message)
+            | TerminalOutcome::PersistenceFailed(message)
+            | TerminalOutcome::BlockedByRecovery(message)
+            | TerminalOutcome::ExecutorFailed(message) => {
+                new_keyboard_error.set(message);
+                pending_new_keyboard.set(None);
+            }
+            TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
+                new_keyboard_error.set("The new keyboard could not be opened. Try again.".into());
+                pending_new_keyboard.set(None);
+            }
+        }
+    }));
     let layer_visibility = LayerVisibility {
         hidden: use_signal(BTreeSet::new),
         footprints: use_signal(|| false),
@@ -388,7 +451,10 @@ pub fn App() -> Element {
             }
             if runtime.model().accepted.is_some() { Editor {} }
             else { LibraryLanding {} }
-            p { role: "status", "aria-live": "polite", class: "m1-status", "{runtime.status()}" }
+                p { role: "status", "aria-live": "polite", class: "m1-status", "{runtime.status()}" }
+            if !new_keyboard_error().is_empty() {
+                p { role: "alert", class: "m1-status", "{new_keyboard_error()}" }
+            }
         }
     }
 }
@@ -954,6 +1020,80 @@ fn Editor() -> Element {
         show_configured_board: EventHandler::new(|_: String| {}),
     });
     let runtime = use_context::<Rc<Runtime>>();
+    let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
+    let created_request = created_request_signal();
+    let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
+    let mut guide_name_draft = use_signal(|| None::<(String, String)>);
+    let consumed_guide_requests = use_hook(|| Rc::new(RefCell::new(BTreeSet::<String>::new())));
+    let accepted_project_id = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|snapshot| snapshot.document.id.clone());
+    let mut guide_workspace = use_context::<WorkspaceState>().0;
+    use_effect(use_reactive!(|accepted_project_id, created_request| {
+        let mut created_request_signal = created_request_signal;
+        let Some(project_id) = accepted_project_id.as_ref() else {
+            return;
+        };
+        if let Some(request) = created_request
+            .as_ref()
+            .filter(|request| request.project_id == *project_id)
+        {
+            let already_consumed = consumed_guide_requests
+                .borrow()
+                .contains(&request.request_id);
+            if !already_consumed {
+                consumed_guide_requests
+                    .borrow_mut()
+                    .insert(request.request_id.clone());
+                guide_preferences.set(Some(SetupGuidePreferences {
+                    project_id: project_id.clone(),
+                    open: true,
+                    current_stage: if request.start_at_project {
+                        SetupGuideStage::Project
+                    } else {
+                        guide_preferences()
+                            .filter(|preferences| preferences.project_id == *project_id)
+                            .map(|preferences| preferences.current_stage)
+                            .unwrap_or_else(|| {
+                                setup_guide::read_preferences(project_id).current_stage
+                            })
+                    },
+                }));
+                if request.start_at_project {
+                    guide_workspace.set("Layout");
+                }
+                created_request_signal.set(None);
+            }
+        } else if guide_preferences()
+            .as_ref()
+            .is_none_or(|preferences| preferences.project_id != *project_id)
+        {
+            guide_preferences.set(Some(setup_guide::read_preferences(project_id)));
+        }
+    }));
+    let preferences_to_persist = guide_preferences();
+    use_effect(use_reactive!(|preferences_to_persist| {
+        if let Some(preferences) = preferences_to_persist.as_ref() {
+            setup_guide::write_preferences(preferences);
+        }
+    }));
+    let project_name_for_draft = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
+    use_effect(use_reactive!(|project_name_for_draft| {
+        if let Some((project_id, name)) = project_name_for_draft {
+            if guide_name_draft()
+                .as_ref()
+                .is_none_or(|(current_id, _)| current_id != &project_id)
+            {
+                guide_name_draft.set(Some((project_id, name)));
+            }
+        }
+    }));
     let adapter = use_context::<SelectionAdapter>();
     let version = use_context::<Signal<u64>>();
     let observed_version = version();
@@ -3185,6 +3325,119 @@ fn Editor() -> Element {
                     .unwrap_or(part.pose.at)
             })
     });
+    let guide = guide_preferences()
+        .filter(|preferences| preferences.project_id == document.id && preferences.open);
+    let name_value = guide_name_draft()
+        .filter(|(project_id, _)| project_id == &document.id)
+        .map(|(_, name)| name)
+        .unwrap_or_else(|| document.name.clone());
+    let name_project_id = document.id.clone();
+    let on_name_change = move |name: String| {
+        guide_name_draft.set(Some((name_project_id.clone(), name)));
+    };
+    let name_runtime = runtime.clone();
+    let mut name_draft = guide_name_draft;
+    let expected_document = document.clone();
+    let expected_token = snapshot.token;
+    let on_name_commit = move |_| {
+        let current = name_runtime.model();
+        let Some(current_snapshot) = current.accepted.as_ref() else {
+            return;
+        };
+        if current_snapshot.token != expected_token
+            || current_snapshot.document.id != expected_document.id
+            || current_snapshot.document.revision != expected_document.revision
+        {
+            name_draft.set(Some((
+                current_snapshot.document.id.clone(),
+                current_snapshot.document.name.clone(),
+            )));
+            return;
+        }
+        let proposed = name_draft()
+            .filter(|(project_id, _)| project_id == &expected_document.id)
+            .map(|(_, value)| value.trim().to_owned())
+            .unwrap_or_default();
+        if proposed.is_empty() || proposed == expected_document.name {
+            name_draft.set(Some((
+                expected_document.id.clone(),
+                expected_document.name.clone(),
+            )));
+            return;
+        }
+        let mut replacement = expected_document.as_ref().clone();
+        replacement.name = proposed;
+        let operation_id = name_runtime.operation();
+        name_runtime.submit(Event::Edit {
+            operation_id,
+            command: EditCommand {
+                base_revision: expected_document.revision,
+                transaction_id: format!("project-name-{}", operation_id.0),
+                phase: EditPhase::Commit,
+                target_ids: vec![expected_document.id.clone()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(replacement),
+                },
+            },
+        });
+    };
+    let guide_runtime = runtime.clone();
+    let mut guide_adapter = adapter.clone();
+    let mut guide_preferences_for_stage = guide_preferences;
+    let mut guide_workspace_for_stage = workspace;
+    let guide_project_id = document.id.clone();
+    let mut guide_objects_for_stage = objects_open;
+    let on_stage_change = move |stage: SetupGuideStage| {
+        let Some(mut preferences) = guide_preferences_for_stage()
+            .filter(|preferences| preferences.project_id == guide_project_id)
+        else {
+            return;
+        };
+        preferences.current_stage = stage;
+        preferences.open = true;
+        guide_preferences_for_stage.set(Some(preferences));
+        guide_workspace_for_stage.set(match stage {
+            SetupGuideStage::Project | SetupGuideStage::Layout => "Layout",
+            SetupGuideStage::Wiring => "PCB",
+            SetupGuideStage::Case => "Case",
+            SetupGuideStage::Review => "Export",
+        });
+        guide_objects_for_stage.set(true);
+        guide_adapter.selected_context.set(None);
+        guide_adapter.anchor_scope.set(None);
+        guide_runtime.submit(Event::SelectParts {
+            operation_id: guide_runtime.operation(),
+            part_ids: Vec::new(),
+            range_part_ids: Vec::new(),
+            mode: SelectionMode::Replace,
+        });
+    };
+    let mut guide_workspace_for_action = workspace;
+    let mut guide_objects_for_action = objects_open;
+    let mut guide_adapter_for_action = adapter.clone();
+    let guide_runtime_for_action = runtime.clone();
+    let on_open_workspace = move |target: &'static str| {
+        guide_workspace_for_action.set(target);
+        guide_objects_for_action.set(true);
+        guide_adapter_for_action.selected_context.set(None);
+        guide_adapter_for_action.anchor_scope.set(None);
+        guide_runtime_for_action.submit(Event::SelectParts {
+            operation_id: guide_runtime_for_action.operation(),
+            part_ids: Vec::new(),
+            range_part_ids: Vec::new(),
+            mode: SelectionMode::Replace,
+        });
+    };
+    let mut guide_preferences_for_dismiss = guide_preferences;
+    let guide_project_id_for_dismiss = document.id.clone();
+    let on_dismiss_guide = move |_| {
+        if let Some(mut preferences) = guide_preferences_for_dismiss()
+            .filter(|preferences| preferences.project_id == guide_project_id_for_dismiss)
+        {
+            preferences.open = false;
+            guide_preferences_for_dismiss.set(Some(preferences));
+        }
+    };
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
@@ -3195,7 +3448,27 @@ fn Editor() -> Element {
             }
             div { class: "m1-editor-body", style: "{panel_layout_style}",
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    {workspace_composition::objects(objects_input)}
+                    if let Some(preferences) = guide {
+                        setup_guide::ProjectSetupGuide {
+                            stage: preferences.current_stage,
+                            stage_detail: setup_guide::stage_detail(
+                                preferences.current_stage,
+                                &document,
+                                &model.active_board_id,
+                            ),
+                            project_name: name_value,
+                            on_name_change,
+                            on_name_commit,
+                            on_stage_change,
+                            on_open_workspace,
+                            on_open_matrix_setup: None,
+                            on_choose_controller: None,
+                            on_dismiss: on_dismiss_guide,
+                            project_controls: None,
+                        }
+                    } else {
+                        {workspace_composition::objects(objects_input)}
+                    }
                 }
                 section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
                     onfocusin: move |_| {

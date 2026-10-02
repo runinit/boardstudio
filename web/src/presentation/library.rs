@@ -1,3 +1,4 @@
+use super::setup_guide::{PendingNewKeyboard, SetupGuideRequest};
 use crate::runtime::Runtime;
 use boardstudio_core::model::{PartKind, ProjectDoc};
 use dioxus::prelude::*;
@@ -211,7 +212,33 @@ fn KeyboardCard(document: Arc<ProjectDoc>, current: bool, recovery_required: boo
 #[component]
 pub(super) fn Library() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
-    let _ = use_context::<Signal<u64>>()();
+    let version = use_context::<Signal<u64>>();
+    let _ = version();
+    let project_created = use_context::<Signal<Option<SetupGuideRequest>>>();
+    let pending_new = use_context::<Signal<Option<PendingNewKeyboard>>>();
+    let new_error = use_context::<Signal<String>>();
+    let guide_request_counter = use_signal(|| 0_u64);
+    let start_new: Rc<dyn Fn()> = Rc::new({
+        let runtime = runtime.clone();
+        move || {
+            let mut pending_new = pending_new;
+            let mut new_error = new_error;
+            super::close_project_menu();
+            if pending_new().is_some() {
+                return;
+            }
+            new_error.set(String::new());
+            match runtime.create_new_keyboard() {
+                Ok((project_id, outcome)) => pending_new.set(Some(PendingNewKeyboard {
+                    project_id,
+                    outcome,
+                })),
+                Err(error) => new_error.set(error),
+            }
+        }
+    });
+    let start_new_card = start_new.clone();
+    let start_new_menu = start_new.clone();
     let recovery_required =
         runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired;
     let current = runtime
@@ -219,6 +246,7 @@ pub(super) fn Library() -> Element {
         .accepted
         .as_ref()
         .map(|snapshot| snapshot.document.clone());
+    let current_project_id = current.as_ref().map(|document| document.id.clone());
     let accepted_identity = current.as_ref().map(|document| document.id.clone());
     let mut saved = use_signal(Vec::<Arc<ProjectDoc>>::new);
     let mut status = use_signal(|| ListStatus::Loading);
@@ -291,6 +319,8 @@ pub(super) fn Library() -> Element {
     let reviung = runtime.clone();
     let sofle = runtime.clone();
     let import = runtime.clone();
+    let mut guide_request = project_created;
+    let mut guide_request_counter = guide_request_counter;
     let retry_generations = request_generation.clone();
     rsx! {
         section { class: "m1-library", "aria-label": "Your keyboards",
@@ -312,11 +342,33 @@ pub(super) fn Library() -> Element {
                 }
             }
             div { class: "m1-keyboard-grid",
+                button {
+                    class: "m1-keyboard-tile m1-keyboard-new",
+                    r#type: "button",
+                    aria_label: "Create new keyboard",
+                    disabled: pending_new().is_some(),
+                    onclick: move |_| start_new_card(),
+                    div { class: "m1-keyboard-preview", "aria-hidden": "true", "＋" }
+                    span { class: "m1-keyboard-title", "New keyboard" }
+                    span { class: "m1-keyboard-detail", "Start with guided setup" }
+                }
                 for (document, is_current) in cards {
                     KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required }
                 }
             }
             div { class: "m1-library-actions",
+                button { r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu(), "New project" }
+                if let Some(project_id) = current_project_id {
+                    button { r#type: "button", onclick: move |_| {
+                        guide_request_counter += 1;
+                        guide_request.set(Some(SetupGuideRequest {
+                            project_id: project_id.clone(),
+                            request_id: format!("{}-guide-{}", project_id, guide_request_counter()),
+                            start_at_project: false,
+                        }));
+                        super::close_project_menu();
+                    }, "Setup guide" }
+                }
                 button { r#type: "button", onclick: move |_| { super::close_project_menu(); reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
                 button { r#type: "button", onclick: move |_| { super::close_project_menu(); sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
                 label { "Import .boardstudio"
@@ -329,6 +381,8 @@ pub(super) fn Library() -> Element {
                     }}
                 }
             }
+            if pending_new().is_some() { p { role: "status", "Creating keyboard…" } }
+            if !new_error().is_empty() { p { role: "alert", "{new_error()}" } }
         }
     }
 }

@@ -6,8 +6,8 @@ use boardstudio_application::{
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::{
-        ArchiveReply, CoreReply, CoreRequest, MechanicalAssembly, MechanicalConfiguration,
-        ProjectDoc,
+        ArchiveReply, Board, CoreReply, CoreRequest, Material, MechanicalAssembly,
+        MechanicalConfiguration, Operation, OutlineFeature, OutlineSettings, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -29,13 +29,13 @@ pub struct CadScene {
     pub exact: bool,
     pub contours: Vec<boardstudio_core::model::Contour>,
 }
-use js_sys::{Array, Uint8Array};
+use js_sys::{Array, Function, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, VecDeque},
     rc::Rc,
 };
-use wasm_bindgen::{JsCast, closure::Closure};
+use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{Blob, HtmlAnchorElement, SvgElement, Url};
 
@@ -52,6 +52,20 @@ impl PartialEq for CadScene {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
     }
+}
+
+fn browser_uuid() -> Result<String, String> {
+    let crypto = Reflect::get(&js_sys::global(), &JsValue::from_str("crypto"))
+        .map_err(|error| format!("Could not access browser project identity service: {error:?}"))?;
+    let random_uuid = Reflect::get(&crypto, &JsValue::from_str("randomUUID"))
+        .map_err(|error| format!("Could not access browser project identity service: {error:?}"))?
+        .dyn_into::<Function>()
+        .map_err(|_| "The browser cannot generate a safe project identity.".to_string())?;
+    random_uuid
+        .call0(&crypto)
+        .map_err(|error| format!("Could not generate a project identity: {error:?}"))?
+        .as_string()
+        .ok_or_else(|| "Could not generate a project identity.".to_string())
 }
 
 pub struct Runtime {
@@ -166,6 +180,47 @@ impl Runtime {
         operation: OperationId,
     ) -> crate::operation_outcomes::OutcomeSlot {
         self.operation_outcomes.observe(operation)
+    }
+
+    /// Open a fresh blank keyboard through the normal Session persistence path.
+    pub(crate) fn create_new_keyboard(
+        self: &Rc<Self>,
+    ) -> Result<(String, crate::operation_outcomes::OutcomeSlot), String> {
+        let project_id = browser_uuid()?;
+        let board_id = browser_uuid()?;
+        let outline_id = browser_uuid()?;
+        let mut document = ProjectDoc::empty(&project_id, "Untitled keyboard");
+        document.outline.push(OutlineFeature::PartEnvelope {
+            connections: Vec::new(),
+            settings: OutlineSettings::default(),
+            id: outline_id.clone(),
+            part_ids: Vec::new(),
+            margin: 4.0,
+            operation: Operation::Add,
+        });
+        document.boards.push(Board {
+            id: board_id,
+            name: "Main board".into(),
+            outline_ids: vec![outline_id],
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
+        document.materials.push(Material {
+            id: "pla".into(),
+            name: "PLA".into(),
+            thickness: 3.0,
+        });
+
+        let operation_id = self.operation();
+        let outcome = self.observe_operation(operation_id);
+        self.submit(Event::Open {
+            operation_id,
+            document,
+        });
+        Ok((project_id, outcome))
     }
 
     /// Resolve mechanical settings against the exact accepted source and the proposed canonical
