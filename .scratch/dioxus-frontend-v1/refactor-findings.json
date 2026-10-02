@@ -111,8 +111,10 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md",
           "observation": "The Keycaps mounted native harness substituted scope-cancelled Dioxus spawn for browser detached wasm_bindgen_futures::spawn_local, masking post-Editor-unmount access to disposed Signals. A render-time EventHandler::new also retains a new callback until scope drop according to installed Dioxus0.7.10. Current fixes require alive/drop guard before Signal access and use_callback; the F5 observer/admission fixes have source-integration clearance and executed native/WASM checks.",
           "status": "Keycaps lifetime/test corrections active; F5 source integrated, mounted browser gate open. Broader common ownership abstraction remains deferred."
-        }
-      ]
+        },
+        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md"
+      ],
+      "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted."
     },
     {
       "id": "RF-002",
@@ -473,8 +475,10 @@
           "post_port_follow_up": "Include board, physical-instance and isolated-sample queries in the proposed typed scope/query lifecycle evaluation; preserve each consumer projection and identity independently.",
           "validation": "Switch between board and physical-instance workspaces while a query is pending; verify board Wiring stays board-scoped and instance mechanical operations retain their captured instance identity.",
           "status": "source-level distinction recorded; root mount, async lifecycle and paired browser checks remain open"
-        }
-      ]
+        },
+        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md"
+      ],
+      "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open."
     },
     {
       "id": "RF-007",
@@ -717,8 +721,10 @@
           "source": "Keycaps47a02cff/f622c259/c097ec3e and integratedbd671ae8 browser proof",
           "observation": "Original4d activation screenshot belonged to REVIUNG41/Layout and its claim was withdrawn. Fresh isolated exact-Sofle clean/Cherry archives verified integrated findings display. Different F6C.2 settings/F6C.4 findings specs collided at spec.md; settings-spec.md preserves both.",
           "mitigation": "Require project identity, exact archive/source/build, actually selected workspace and distinct spec paths; preserve corrected history."
-        }
-      ]
+        },
+        ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md"
+      ],
+      "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure."
     },
     {
       "id": "RF-010",

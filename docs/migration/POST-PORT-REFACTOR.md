@@ -416,3 +416,7 @@ At Case producer `2bf5b534`, independent Spec review found that successful publi
 ### RF-009 browser identity and spec path correction
 
 Keycaps evidence initially attributed a REVIUNG41/Layout screenshot to Sofle/Keycaps activation. That claim is withdrawn; the corrected report preserves it and verifies exact project/archive identity and selected workspace on the integrated `bd671ae8` package. Distinct F6C.2 settings and F6C.4 findings documents also collided at `spec.md`; `settings-spec.md` now preserves both. After parity, assess an evidence manifest that ties each claim to fixture identity, selected workspace, source/build and uniquely identified spec, rather than relying on filenames or agent summaries alone.
+
+### Resumed wave takeaways — 2026-10-02
+
+RF-001/RF-006 retain App-versus-panel pending-outcome ownership, rendered target identity and live guide-stage admission defects. RF-009 records the corrected stale top-level source/demo progress fields. Evidence and disposition are in `.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/root-ledger-reconciliation.md`; current fixes and broader refactoring remain distinct, with browser acceptance open.

@@ -1,62 +1,64 @@
-# PCB05 + F5.2b reviewed-source integration — 2026-10-02
+# UI wave serial integration — 2026-10-02
 
-Role: bounded merger under implement-spec. Integration worktree `/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001`, branch `codex/rust-v1-ui-parity-20261001`.
+Integration worktree `/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001`, branch `codex/rust-v1-ui-parity-20261001`.
+Start `bd671ae8db8897388d26ebf973380c69efb9bffd`.
+Released HEAD **`dd79af5ba6bc2af304c1412b29e62f2de8b3f8a8`**.
 
-Starting HEAD: `454c493be293fe61250e2e4abc19191b6570061f`.
-Final HEAD: **`837002729024475796cdc0fb99089ac86d6b33e7`**.
+Integrated only the already Spec+Standards-cleared F6 firmware-position editor:
+- `32dd07c0a5179fa4c995a1da668365b4e11df2d3` -> `8f237d5f` (source)
+- `e4366bdb096f509d18127408f3a0f67f505a6764` -> `dd79af5b` (existing browser evidence)
 
-## Serial source integration
+Both cherry-picks applied cleanly; presentation.rs auto-merge required no manual edits. All four feature leaf files (firmware position choices/presentation, PCB controller, firmware CSS) are byte-identical to the reviewed source. No feature semantics/public API/visibility change, lint suppression or acceptance closure.
 
-| Reviewed/source commit | Integration commit |
-| --- | --- |
-| PCB05 source `0dd1f3ce904dc11ba62d175dba078729d5263472` | `329da6815dd910565f5bbd01f50cf0b266f9f13c` |
-| PCB05 correction `9e9459a5826514d7cb060cac7a073cafcb834582` | `31258f745ab0ac72247ec77240585716eeea62cc` |
-| F5 source `6fe8fb875585fca7fba4636cf1a9696e55b5406f` | `0a576177723fef9daf164e3b495a6a405ea48dd8` |
-| F5 settlement/slot correction `ebe58a38b250e6ba35b683aa7f03155a3e8046a4` | `308087a8913fa8e312b44cddfab844a49f22ac30` |
-| F5 suppression removal `05b4611b8a8adcdd02f89a53a0efab70bfab5394` | `837002729024475796cdc0fb99089ac86d6b33e7` |
+Executed at integrated source:
+- `cargo fmt --manifest-path web/Cargo.toml -- --check`: PASS
+- `cargo test --locked --manifest-path web/Cargo.toml --no-default-features --features page`: **55 pass** (12 library,37 binary,6 mounted Keycaps harness), `/tmp/frontend-ui-wave-native-integration.log`
+- `cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings`: PASS, `/tmp/frontend-ui-wave-wasm-integration.log`
+- `git diff --check`: PASS
+- Original tracked dirty diff is byte-identical and every original untracked path remains present; snapshot `/tmp/frontend-ui-wave-integration-before.json`.
 
-All five cherry-picks succeeded without manual conflict resolution. Git automatically combined the independent `web/src/main.rs` module registrations. The final main module keeps physical_setup test-only and firmware_position_projection available for page tests/WASM, preserving reviewed semantics.
+Source/demo distinction: current source includes F6 at dd79af5b; the latest full build remains root's bd671ae8 `frontend-keycaps-integrated-20261002` served at34720. That demo does not contain the new F6 integration. Existing source-specific browser evidence does not automatically certify this new integrated demo.
 
-Before picking, inspected tracked diff and computed exact intersection of every incoming path against untracked files: **no overlapping untracked file**, and only the unrelated `.scratch/dioxus-case-workspace/README.md` was tracked dirty. That README diff remains intact. All 227 untracked files remain untracked. No stash/reset/discard/removal, history rewriting, public API changes, checker weakening, or source edits were performed. Documentation-only merge commits were not picked.
+Not merged:
+- Numeric07 final f0328aee: Standards repaired-source CLEAR in `/tmp/numeric07-standards-source-review-20261002.md`; independent Spec explicitly pending. Do not integrate until its ack.
+- Provider/archive f3f58a6a: independent Spec pending; complete source findings/red-green/repair report `/tmp/project-archive-provider-standards-review-20261002.md`.
+- Align533f9a50: Standards blocked on two lifecycle defects; `/tmp/layout-align-standards-source-review-20261002.md`.
+- Keycaps docs47a02cff/f622c259: inspected overlap and preserved existing untracked F6C.4 findings `spec.md`.47a02cff would add F6C.2 settings at the same path. Author is committing unique `settings-spec.md` and corrected links; replay equivalent distinct final files without overwriting existing F6C.4 spec.
 
-Source identity verification compared final Git blobs to approved source commits: all eight PCB files (`physical_setup.rs`, Parts module/catalogue/adapter, package test script, Cargo manifest/lock, package.json) match `9e9459a5` exactly; all five F5 files (projection, wiring component/controller, presentation root, workspace composition) match `05b4611b` exactly. The combined main module was inspected separately.
+Root owns subsequent ledger/report copies and source/demo-status reconciliation after this explicit checkout release. No further integration write is in progress by this merger.
 
-## Executed checks on integrated HEAD
+## Numeric07 subsequent source integration
 
-- `cargo fmt --manifest-path web/Cargo.toml -- --check`: **passed**.
-- `cargo test --locked --manifest-path web/Cargo.toml --no-default-features --features page`: **passed**, 12 library + 36 page tests, zero failures/ignored.
-- `cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown -- -D warnings`: **passed**.
-- `git diff --check 454c493b..HEAD`: **passed**.
-- `git diff --check`: **passed**.
+Root released integration at `e1d66c982a80dbe609c880c76d4fa024da5038e9`. Independent Spec explicitly acknowledged final `f0328aee` after Standards re-review; source series then applied serially:
+- `8bc16bc11803266254a1471ee6094d2f7dee5b7d` -> `39b54d38`
+- `79e9fe666213b24f40976d953be795305b51f29a` -> `cb80dbfe`
+- `232289dbf1a0d82187991ba9c03cb12e41e25c5a` -> `a4a6f85a`
+- `f0328aee61b61d19cf37497ee523c5a32882de0c` -> **`ffad6bc4835c7b8b439cdf28663f0624a5e09a94`**.
 
-The exact-source review already reran PCB05 real packaged Gateron WASM proof (1 pass) and seven native proposal tests, plus six F5 projection/admission/SessionCore tests. This integration does not replace mounted browser proof.
+Clean cherry-picks, no manual conflict resolution or visibility/configuration change. Four controller/inspector/operation/lifecycle leaf sources byte-identical to reviewed final. Existing F6/Keycaps joins retained. Original tracked diff unchanged and all original untracked paths preserved (`/tmp/numeric07-integration-before.json`).
 
-## Retained acceptance limits
+Integrated validation: native **67 pass** (19 library,42 binary,6 mounted harness), `/tmp/numeric07-integrated-native.log`; true WASM all-target strict Clippy PASS `/tmp/numeric07-integrated-wasm.log`; cargo fmt check and git diff check PASS. No additional boxing adjustment was required. These checks do not establish the missing numeric paired/mounted browser acceptance.
 
-PCB05 is a tested prerequisite only: ticket06 owns production callable activation, Editor operation lifetime and accepted selection. F5 exposes the reviewed private Element handoff with numeric version subscription; F6 owns mounting controls and delayed save/failure/edit/Undo/Redo/reopen browser acceptance. No source feature ticket or parent is closed by this merge. RF-001/006/009 handoffs and source-review limitations remain as recorded in `/tmp/frontend-wave-source-standards-review-20261002.md`.
+Checkout released again at ffad6bc4. Root's served public candidate remains bd671ae8; the current source now includes both F6 and Numeric07 and needs the next source-wave build before demo-current claims. Provider/Case/Align restrictions above remain until their respective reviews/capabilities clear. Root owns further ledger/document commits.
 
-## Verification scope correction — later all-targets repair
+## Provider/archive/build prerequisite integration
 
-The original WASM Clippy pass above **did not use `--all-targets`**. It covered production page compilation and did not compile WASM test-only code. Running the broader required command at later integration `56a71514` exposed two test-only failures: `option_env_unwrap` in the packaged normalizer test and a missing `SnapshotToken` import in PCB wiring tests. Both were reproduced, minimally fixed in `a02dac961e7bd1644194a35b042dd24dc7ed326f`, and verified by the actual `--target wasm32-unknown-unknown --all-targets -- -D warnings` command. Native48 and real packaged WASM1 also pass. Exact red→green commands and limits: `/tmp/frontend-wasm-test-target-repair-20261002.md`. The original historical pass is retained with this narrower coverage explicitly stated.
+After independent provider Spec ack (`/tmp/project-archive-provider-spec-review-20261002.md`), root authorized only the reviewed provider/source series atop ffad6bc4; unrelated Project menu UI was excluded:
+- `3039423bbbc6ac9a27de50eef76670a57f4b2eb1` -> `9c1cda3c`
+- `fc5d192919249f23e0d78ba02b2d9ef52e6b75e2` -> `1535f726`
+- `8587da86e9570604a5131769a826d900e864a56b` -> `1eb19a06`
+- `f3f58a6aa6cb2c5b8991535449a5c3ed64980bca` -> `95821328`
+- Integration-only duplicate dev-dependency cleanup -> **`9b7008002b69037a4f95f0ab310318e24745b2f3`**.
 
-## Keycaps final-source integration — 2026-10-02
+The first source commit conflicted only in adjacent main.rs module registration: retained existing test-scoped physical_setup and added private portable_archive. Runtime auto-merged; inspected resulting diff, which contains only reviewed archive preparation and private embed preference additions. Reused integration's existing wasm-bindgen-test0.3.79 dependency rather than keep the redundant newly added equivalent cfg table. No runtime feature semantics, source visibility or lint checks changed.
 
-Started from `a02dac961e7bd1644194a35b042dd24dc7ed326f` and serially cherry-picked only these four feature/fix commits:
+Eight provider/build/test leaf blobs exactly equal reviewed f3f58a6a: hashes `/tmp/provider-integrated-source-hashes.json`. The actual build source inventory contains1251 entries, including all consumed Ergogen generator/library/package and root package/lock/workspace inputs: `/tmp/provider-integrated-build-source-manifest.json`. Preserved original tracked dirty diff and every original untracked path (`/tmp/provider-integration-before.json`).
 
-| Source | Integration |
-| --- | --- |
-| `448c3274693b611ad747d0461de1b18d88245fb8` | `ca091ecfe085f447fb5ed207cda1a082674385b3` |
-| `1741404b9a1da02de53dc5523524525324716db3` | `b4249228184ddd156271a7bdcc09cacc58334c7b` |
-| `4d9196d75e272addced891b6988a9dbd330064e4` | `2cd11c9ed185ebb0f5046aef000c73b433e2ee86` |
-| `13533ccf373cbdda0ca0c478744907117ea906cf` | `3061935ee6cd25ff8559023390d8c9f718e2338e` |
+Integrated checks:
+- Native76 pass (19 library,51 binary,6 mounted harness): `/tmp/provider-integrated-native.log`.
+- Actual Rust→freshly packaged Ergogen WASM regression1 pass, verifying per-part override: `/tmp/provider-integrated-package.log`.
+- True all-target WASM strict Clippy PASS: `/tmp/provider-integrated-wasm.log`.
+- Python build-input guard1 + raw-model staging2 PASS (all88 source models/nested paths/aliases).
+- Full fmt and diff checks PASS.
 
-All picks succeeded; presentation root and Cargo manifest merged automatically. Reviewed module, workspace, lifecycle harness, Runtime and CSS blobs match approved `13533ccf` exactly. Shared composition retains firmware controls and both native Dioxus/WASM test dependencies. No incoming path overlapped dirty/untracked work, and unrelated changes were preserved.
-
-Checks at integrated source `3061935e`:
-
-- `cargo fmt --manifest-path web/Cargo.toml -- --check`: passed.
-- `cargo test --locked --manifest-path web/Cargo.toml --no-default-features --features page`: **54 passed** (12 library, 36 page, 6 mounted lifecycle/state tests).
-- `cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings`: passed, including WASM test targets.
-- Committed-wave and working-tree `git diff --check`: passed.
-
-Latest independent Spec/Standards reports and the WASM test-target repair report are copied into `.scratch/dioxus-frontend-v1/evidence/source-wave-20261002/`. This integrates reviewed source only; final candidate browser parity/currentness/failure/edit/Undo/Redo/reopen gates and all parent acceptance remain open.
+Release at9b700800. This is provider02/archive01 prerequisite integration only: F8 UI option, issue16 project-name download filename, and root/subpath/offline paired archive journeys remain open. Existing demo bd671ae8 does not include these sources; next full build is root-owned. Case/Align remain unmerged at their stated open gates. No source writes remain active by this merger.
