@@ -1,3 +1,5 @@
+#[cfg(all(test, target_arch = "wasm32"))]
+use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{PartDefinition, PartKind};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -234,12 +236,12 @@ pub(super) fn preferred_label(definition: &PartDefinition) -> &str {
     }
 }
 
-pub(super) async fn load_ergogen_module() -> Result<JsValue, String> {
+async fn load_ergogen_module() -> Result<JsValue, String> {
     let url = crate::runtime::resource_url("assets/layout-generators/src/index.js")?;
     import_ergogen_module(&url).await
 }
 
-pub(super) async fn import_ergogen_module(url: &str) -> Result<JsValue, String> {
+async fn import_ergogen_module(url: &str) -> Result<JsValue, String> {
     let import = js_sys::Function::new_with_args("url", "return import(url)");
     let promise = import
         .call1(&JsValue::NULL, &url.into())
@@ -249,7 +251,7 @@ pub(super) async fn import_ergogen_module(url: &str) -> Result<JsValue, String> 
     JsFuture::from(promise).await.map_err(js_error)
 }
 
-pub(super) fn call_catalogue(module: &JsValue) -> Result<Vec<PartDefinition>, String> {
+fn call_catalogue(module: &JsValue) -> Result<Vec<PartDefinition>, String> {
     let catalogue = function(module, "catalogue")?;
     let value = catalogue.call0(module).map_err(js_error)?;
     serde_wasm_bindgen::from_value(value)
@@ -265,7 +267,7 @@ fn construction_definition(
         .map(|(definition, _)| definition)
 }
 
-pub(super) fn construction_definition_with_support(
+fn construction_definition_with_support(
     module: &JsValue,
     mut definition: PartDefinition,
     reversible: bool,
@@ -311,6 +313,117 @@ pub(super) fn construction_definition_with_support(
     let normalized = serde_wasm_bindgen::from_value(normalized)
         .map_err(|error| format!("Could not decode normalized {source} definition: {error}"))?;
     Ok((normalized, true))
+}
+
+/// Prepare a project setup proposal through catalogue-owned package helpers. The normalizer
+/// implementation and its JS module remain private to this module; callers receive proposals,
+/// not access to the catalogue module or its member functions.
+#[cfg(all(test, target_arch = "wasm32"))]
+pub(super) fn prepare_physical_setup_proposal(
+    accepted: &ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+    module: &JsValue,
+) -> Result<ProjectDoc, String> {
+    prepare_physical_setup_proposal_with_module(accepted, intent, module)
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+fn prepare_physical_setup_proposal_with_module(
+    accepted: &ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+    module: &JsValue,
+) -> Result<ProjectDoc, String> {
+    use crate::physical_setup::SetupIntent;
+
+    match intent {
+        SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose(
+            accepted,
+            SetupIntent::ReversibleLayout(enabled),
+            |definition, enabled| {
+                construction_definition_with_support(module, definition.clone(), enabled)
+            },
+        ),
+        intent => crate::physical_setup::propose(accepted, intent, |definition, _| {
+            Ok((definition.clone(), false))
+        }),
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod wasm_tests {
+    use super::*;
+    use crate::physical_setup::SetupIntent;
+    use boardstudio_core::model::HardwareConfiguration;
+    use serde_json::json;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    async fn reversible_proposal_uses_the_packaged_gateron_normalizer() {
+        let module_url = option_env!("BOARDSTUDIO_TEST_LAYOUT_GENERATOR_MODULE_URL").expect(
+            "run scripts/web/test-physical-setup-proposal.mjs to provide packaged module URL",
+        );
+        let module = import_ergogen_module(module_url)
+            .await
+            .expect("import generated layout-generator asset");
+        let catalogue = call_catalogue(&module).unwrap();
+        let gateron = catalogue
+            .into_iter()
+            .find(|definition| {
+                definition.generator.as_ref().is_some_and(|generator| {
+                    generator.source == "ceoloide/switch_gateron_ks27_ks33"
+                })
+            })
+            .expect("packaged catalogue contains Gateron KS27/KS33");
+        let original = gateron.clone();
+        let mut document = ProjectDoc::empty("packaged-test", "Packaged module test");
+        document.definitions = vec![gateron.clone()];
+        document.parts.push(
+            serde_json::from_value(json!({
+                "id":"gateron-1","definitionId":gateron.id,"reference":"SW1",
+                "pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front",
+                "generatorParameters":{"reversible":false,"custom":"keep"}
+            }))
+            .unwrap(),
+        );
+        document.hardware = Some(HardwareConfiguration::default());
+        let accepted = document.clone();
+
+        let proposal = super::super::physical_setup::prepare_proposal_with_module(
+            &document,
+            SetupIntent::ReversibleLayout(true),
+            &module,
+        )
+        .expect("prepare reversible project proposal");
+
+        assert_eq!(
+            document, accepted,
+            "proposal does not mutate accepted input"
+        );
+        assert_eq!(
+            document.definitions[0], original,
+            "source definition remains intact"
+        );
+        let generator = proposal.definitions[0].generator.as_ref().unwrap();
+        assert_eq!(generator.parameters.get("reversible"), Some(&json!(true)));
+        assert_eq!(generator.parameters.get("hotswap"), Some(&json!(false)));
+        assert_eq!(generator.parameters.get("solder"), Some(&json!(true)));
+        let part = &proposal.parts[0];
+        assert_eq!(
+            part.generator_parameters
+                .as_ref()
+                .unwrap()
+                .get("reversible"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            part.generator_parameters.as_ref().unwrap().get("custom"),
+            Some(&json!("keep"))
+        );
+        assert_eq!(
+            proposal.parameters.get("reversibleLayout"),
+            Some(&json!(true))
+        );
+    }
 }
 
 fn json_text<T: serde::Serialize>(value: &T) -> Result<String, String> {

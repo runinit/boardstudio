@@ -2,9 +2,9 @@
 
 ## Delivered boundary
 
-The page binary now has a private typed-intent proposal builder. It consumes an immutable `ProjectDoc`, returns a cloned proposal, and never submits a Session event or changes selection. Topology preserves the retained primary's orientation and authored state, keeps electrical board state, falls back from selected primary mechanics to board-matching mechanics to the existing initializer, and creates a fresh secondary from the effective reversible setting. Existing `sharedConstruction` is preserved or initialized from the resolved mechanics. Transport edits touch only transport. Reversible intent writes the project-level flag, normalizes eligible definitions through the existing packaged module, updates only already-present eligible part overrides, and projects all instance flips. Errors leave the accepted input untouched.
+The private typed-intent model proposal builder consumes an immutable `ProjectDoc`, returns a cloned proposal, and never submits a Session event or changes selection. Topology preserves the retained primary's orientation and authored state, keeps electrical board state, falls back from selected primary mechanics to board-matching mechanics to the existing initializer, and creates a fresh secondary from the effective reversible setting. Existing `sharedConstruction` is preserved or initialized from the resolved mechanics. Transport edits touch only transport. Reversible intent writes the project-level flag, normalizes eligible definitions through the existing packaged module, updates only already-present eligible part overrides, and projects all instance flips. Errors leave the accepted input untouched.
 
-The real packaged Gateron JS module is imported in a WASM test and used by the same private normalization adapter as proposal construction. The test observes normalized `reversible`, `hotswap=false`, and `solder=true` output plus project/part projections and immutable source state.
+The real packaged Gateron JS module is imported in a WASM test and used by the same private catalogue normalization helpers as proposal construction. The test observes normalized `reversible`, `hotswap=false`, and `solder=true` output plus project/part projections and immutable source state. The proposal modules/adapters are test-scoped in this prerequisite commit because there is no production caller until ticket 06 mounts the unconditional Editor owner; that dependent slice will compile the same path into the page binary with its first real consumer. This keeps ticket 05 independently warning-clean without adding lint suppressions or widening the catalogue loader/normalizer members.
 
 ## Refactor ledger handoff
 
@@ -21,6 +21,7 @@ The real packaged Gateron JS module is imported in a WASM test and used by the s
 - `cargo check --manifest-path web/Cargo.toml --target wasm32-unknown-unknown --features page --locked`: passed.
 - `cargo build --manifest-path web/Cargo.toml --target wasm32-unknown-unknown --features page --locked`: passed.
 - `cargo fmt --manifest-path web/Cargo.toml -- --check`: passed.
+- Strict `cargo clippy` for both native all-targets and WASM page builds: passed with `-D warnings` and no new lint allowances.
 - `pnpm run build:core` and then `pnpm run check:boundaries`: passed. The first boundary invocation was blocked by the clean worktree's absent generated `core/pkg` artifact; it passed after building that expected artifact.
 
 F5.6a's paired TypeScript/Dioxus browser journey, Editor-lifetime operation owner/selection reconciliation (ticket 06), and F5.6/F5.8 parent joins remain open. No shared ledger or task graph was changed.

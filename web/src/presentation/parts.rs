@@ -1,7 +1,8 @@
 //! Read-only Parts catalogue and selected-definition presentation slots.
 mod catalogue;
 mod details;
-pub(crate) mod physical_setup;
+#[cfg(all(test, target_arch = "wasm32"))]
+mod physical_setup;
 mod preview;
 
 pub(in crate::presentation) use preview::PartsPreviewPanel;
