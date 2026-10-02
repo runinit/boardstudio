@@ -40,6 +40,11 @@ pub(crate) fn LayoutCanonicalViewer() -> Element {
         let runtime = runtime.clone();
         let alive = alive.clone();
         move |(request,)| {
+            runtime.reconcile_layout_source_request(
+                request
+                    .as_ref()
+                    .map(|(scope, token, revision)| (scope, *token, *revision)),
+            );
             let Some((scope, token, revision)) = request else {
                 return;
             };

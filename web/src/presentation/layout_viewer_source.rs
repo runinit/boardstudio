@@ -146,6 +146,29 @@ impl LayoutPreviewState {
         }
     }
 
+    pub(crate) fn retire_unless_request_matches(
+        &mut self,
+        expected: Option<(&Scope, SnapshotToken, u64)>,
+    ) -> bool {
+        let current = self
+            .published
+            .as_ref()
+            .map(|source| &source.owner)
+            .or_else(|| self.pending.as_ref().map(|(owner, _)| owner))
+            .or_else(|| self.error.as_ref().map(|(owner, _)| owner));
+        let Some(current) = current else {
+            return false;
+        };
+        if expected.is_some_and(|(scope, token, revision)| {
+            current.scope == *scope
+                && current.snapshot_token == token
+                && current.accepted_revision == revision
+        }) {
+            return false;
+        }
+        self.retire_generation(current.source_generation)
+    }
+
     pub(crate) fn fail(&mut self, owner: LayoutSourceIdentity, error: String) {
         let is_current_pending = self
             .pending
@@ -718,6 +741,50 @@ mod tests {
         assert!(state.retire_generation(second_generation));
         assert!(state.published.is_none());
         assert!(!second.lease.is_active());
+    }
+
+    #[test]
+    fn source_request_reconciliation_retires_pending_owner_when_scope_disappears_or_changes() {
+        let (snapshot, scope) = accepted(false);
+        let mut state = LayoutPreviewState::default();
+        let generation = state.next_generation().unwrap();
+        let capture = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            generation,
+            "layout-preview-request-reconcile".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&capture);
+
+        assert!(!state.retire_unless_request_matches(Some((
+            &scope,
+            snapshot.token,
+            snapshot.document.revision,
+        ))));
+        assert!(capture.lease.is_active());
+
+        assert!(state.retire_unless_request_matches(None));
+        assert!(!capture.lease.is_active());
+        assert!(state.pending.is_none());
+
+        let next_generation = state.next_generation().unwrap();
+        let next = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            next_generation,
+            "layout-preview-request-reconcile-next".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&next);
+        assert!(state.retire_unless_request_matches(Some((
+            &scope,
+            snapshot.token,
+            snapshot.document.revision + 1,
+        ))));
+        assert!(!next.lease.is_active());
     }
 
     #[test]

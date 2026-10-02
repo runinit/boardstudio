@@ -1556,6 +1556,20 @@ impl Runtime {
         }
     }
 
+    pub(crate) fn reconcile_layout_source_request(
+        &self,
+        expected: Option<(&Scope, SnapshotToken, u64)>,
+    ) {
+        let retired = self
+            .layout_preview
+            .borrow_mut()
+            .retire_unless_request_matches(expected);
+        if retired {
+            self.layout_model_rows.borrow_mut().take();
+            self.changed();
+        }
+    }
+
     fn layout_source_owner_is_current(
         &self,
         owner: &crate::presentation::layout_viewer_source::LayoutSourceIdentity,
