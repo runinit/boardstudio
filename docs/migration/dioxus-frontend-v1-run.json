@@ -82,7 +82,7 @@
       },
       "layout_toolbar_selection_snap": {
         "source_commit": "e2b90c59 + 66662424",
-        "ticket": ".scratch/dioxus-layout-authoring/issues/05-layout-select-snap-toolbar.md (published on codex/frontend-layout-inspector-20261002; publication commit b959e08e)",
+        "ticket": ".scratch/dioxus-layout-authoring/issues/05-layout-select-snap-toolbar.md (reviewed packet published on the integration branch at b9d4a3c2)",
         "status": "root Select/Snap controls mounted with current-scope admission and snap settings; exact paired screenshots document single-pill mismatch, extra candidate filters and absent Transform/Align; gesture edit/Undo/save-reopen not yet proven; F3.3 remains open",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/layout-toolbar-paired-20261002/RESULTS.md"
       }
