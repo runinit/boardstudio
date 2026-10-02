@@ -33,6 +33,7 @@ pub(super) struct InspectorInput {
     pub(super) context_detail: Option<String>,
     pub(super) show_position_inspector: bool,
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
+    pub(super) key_size: objects::KeySizeMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
 }
@@ -106,6 +107,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 feedback: input.matrix_inspector.feedback.clone(),
                 on_edit: input.matrix_inspector.on_edit,
             }
+        }
+        if input.key_size.projection.is_some() {
+            objects::KeySizeControls { mount: input.key_size }
         }
         if input.matrix_transform_inspector.projection.is_some() {
             objects::MatrixTransformInspector {

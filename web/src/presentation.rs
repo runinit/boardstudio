@@ -1346,6 +1346,13 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
+    let key_size = objects::use_key_size(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+    );
     let matrix_splay_affect = use_signal(|| MatrixSplayAffect::Following);
     let matrix_transform_inspector = objects::use_matrix_transform_inspector(
         runtime.clone(),
@@ -4133,6 +4140,7 @@ fn Editor() -> Element {
                     .and_then(|summary| summary.detail.clone()),
                 show_position_inspector,
                 matrix_inspector,
+                key_size,
                 matrix_transform_inspector,
                 outline_inspector: outline_inspector.map(Box::new),
             },

@@ -379,6 +379,15 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-matrix-inspector-heading h2 { margin: 0; color: var(--wb-ink); font-size: var(--wb-type-body); font-weight: 650; }
 .m1-matrix-inspector-heading span { color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-matrix-inspector-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; min-width: 0; }
+.m1-key-size { display: grid; gap: 10px; min-width: 0; padding: 12px 16px 16px; border-bottom: 1px solid var(--wb-rule); color: var(--wb-ink); }
+.m1-key-size-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.m1-key-size-heading output { color: var(--wb-muted); font-variant-numeric: tabular-nums; }
+.m1-key-size-axis { display: grid !important; grid-template-columns: 44px minmax(0, 1fr) 36px; align-items: center; gap: 8px; margin: 0 !important; }
+.m1-key-size-axis input[type="range"] { display: block; width: 100%; min-width: 0; margin: 0; accent-color: var(--wb-accent); }
+.m1-key-size-axis span { color: var(--wb-muted); font-variant-numeric: tabular-nums; }
+.m1-key-size-orientation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.m1-key-size-status, .m1-key-size-error { margin: 0; font-size: var(--wb-type-label); }
+.m1-key-size-error { color: var(--wb-status-error); }
 .m1-matrix-field { display: grid; align-content: start; gap: 5px; min-width: 0; margin: 0; color: var(--wb-muted); font: 500 var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
 .m1-inspector .m1-matrix-field { display: grid; margin: 0; }
 .m1-matrix-field:first-child { grid-column: 1 / -1; }

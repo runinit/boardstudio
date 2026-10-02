@@ -3,6 +3,9 @@ use boardstudio_application::{ReadModel, Scope, SelectionMode};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
+mod keycap_resize;
+mod keycap_size;
+mod keycap_size_controller;
 mod layout_align;
 mod layout_align_controller;
 mod layout_align_geometry;
@@ -17,6 +20,8 @@ mod matrix_transform_inspector;
 mod mirrored_pair;
 mod mirrored_pair_controller;
 mod tree;
+pub(in crate::presentation) use keycap_size::KeySizeControls;
+pub(in crate::presentation) use keycap_size_controller::{KeySizeMount, use_key_size};
 pub(in crate::presentation) use layout_align::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
 };

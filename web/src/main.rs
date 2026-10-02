@@ -71,6 +71,14 @@ mod case_display;
 #[path = "presentation/model_delivery.rs"]
 mod model_delivery;
 
+#[cfg(all(feature = "page", test, not(target_arch = "wasm32")))]
+mod presentation {
+    pub(crate) mod objects {
+        #[path = "keycap_resize.rs"]
+        mod keycap_resize;
+    }
+}
+
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "presentation/closure_clearance.rs"]
 mod closure_clearance;
