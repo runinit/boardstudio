@@ -11,21 +11,30 @@
       "id": "T1-01",
       "parent": "INT.1",
       "issue": "issues/01-private-workspace-composition.md",
-      "status": "implementing: contract review before extraction",
+      "status": "accepted",
       "agent_profile": "luna-high",
       "author_agent": "/root/implement_private_seam",
       "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-int1-20261002",
       "baseline": "f3bb02a3",
       "author_profile": "luna-high",
       "reviewer_agent": "/root/astra_agent_policy_review",
-      "reviewer_profile": "astra-review"
+      "reviewer_profile": "astra-review",
+      "source_commit": "598b2c026941130f9b95ff4fee57353f8eefcb0d",
+      "evidence": "evidence/int1-integrated/record.json",
+      "independent_reviews": [
+        "evidence/int1-integrated/int1-standards-review.md",
+        "evidence/int1-integrated/int1-spec-review.md"
+      ]
     },
     {
       "id": "T1-02",
       "parent": "F2.1",
       "issue": "issues/02-saved-keyboards.md",
-      "status": "ready-for-agent",
-      "agent_profile": "luna-high"
+      "status": "preparing concrete contract before implementation",
+      "agent_profile": "luna-high",
+      "author_agent": "/root/implement_saved_library",
+      "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-library-20261002",
+      "baseline": "598b2c026941130f9b95ff4fee57353f8eefcb0d"
     },
     {
       "id": "T1-03",
@@ -59,8 +68,11 @@
       "id": "T1-07",
       "parent": "F2.3",
       "issue": "issues/07-desktop-panel-modes.md",
-      "status": "ready-for-agent",
-      "agent_profile": "luna-high"
+      "status": "preparing concrete contract before implementation",
+      "agent_profile": "luna-high",
+      "author_agent": "/root/implement_desktop_panels",
+      "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-panels-20261002",
+      "baseline": "598b2c026941130f9b95ff4fee57353f8eefcb0d"
     },
     {
       "id": "T1-08",
@@ -109,6 +121,11 @@
       "F5.1",
       "F6K.1"
     ],
-    "status": "preparing next bounded tickets automatically"
-  }
+    "status": "six follow-on tickets corrected, independently reviewed and published automatically"
+  },
+  "published_follow_on_features": [
+    "dioxus-parts-catalogue",
+    "dioxus-pcb-view",
+    "dioxus-keymap-layers"
+  ]
 }

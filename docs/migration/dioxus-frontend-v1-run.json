@@ -15,7 +15,7 @@
       "depends_on": "M1 implementation"
     },
     "F2": {
-      "status": "planned",
+      "status": "parallel saved-keyboard and panel contracts preparing; full F2 open",
       "ticket": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "depends_on": "Exact start_after / acceptance_after in .scratch/dioxus-frontend-v1/tasks.json",
       "planning_status": "planned and independently reviewed; implementation open",
@@ -141,10 +141,10 @@
   "m1_acceptance": "open; separate retained ledger",
   "backend_rewrites_in_scope": false,
   "production_cutover": false,
-  "executable_source": "f44a3d1b5c1f42786ae0b416db10c0d6e5bebcb3",
-  "build": "frontend-layout-f44a3d1b-20261001",
-  "demo_url": "http://127.0.0.1:34643/",
-  "handoff": ".scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md",
+  "executable_source": "598b2c026941130f9b95ff4fee57353f8eefcb0d",
+  "build": "frontend-int1-598b2c-20261002",
+  "demo_url": "http://127.0.0.1:34645/",
+  "handoff": ".scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/README.md",
   "planning_revision": "2026-10-02",
   "planning_baseline": "c827c4e69389a77b1f0e8d647ce86a4c41529611",
   "planning_status": "workflow plans and independent reviews reconciled; implementation remains open",

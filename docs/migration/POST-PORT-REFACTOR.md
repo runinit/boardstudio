@@ -255,3 +255,10 @@ and machine register.
   alone is not poor design, but broad inventory labels were insufficient to
   establish parity. Retain catalogue-to-action and side-effect evidence after
   the port.
+
+
+## Automatic frontier handoff — 2026-10-02
+
+INT.1 private extraction is accepted with [integrated evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/int1-integrated/README.md). Authors and independent reviewers observed no new refactoring takeaway; the bounded extraction mitigates RF-001/RF-002 while preserving the single root subscriber.
+
+RF-009 gains source-backed reconciliation from the [next-ticket review](../../.scratch/dioxus-parts-catalogue/evidence/astra-final-review.md): catalogue source precedence, eight bundled assembly presets, shared host layer lifetime, virtual/legacy keymap projection, and permitted Base rename. Concrete feature-specific contracts remain required. All original parent joins remain open. These are accounting improvements, not evidence that the planned features are already implemented.
