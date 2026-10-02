@@ -7,15 +7,16 @@ or replace the required INT.2 integration join.
 
 ## Boundary and API
 
-`web/src/presentation/closure_clearance.rs` provides
-`project_closure_clearance(document, mounting_hole) -> Result<ProjectDoc, String>`.
-The caller supplies the current accepted canonical document after its
-configuration/link-policy update and the existing normalized bundled
-`ceoloide/mounting_hole_npth` definition. The helper reads canonical and
-physical-instance closure configurations and returns the complete derived
-projection. The caller remains responsible for building the field patch,
-applying the established canonical/instance policy, admission, submitting one
-`ReplaceDocument`, and checking the saved acknowledgement.
+`web/src/presentation/closure_clearance.rs` provides the production entry point
+`project_owned_closure_clearance(document, mounting_hole) -> Result<ProjectDoc, String>`.
+It consumes the candidate document by value. The caller supplies its current
+accepted canonical document after the configuration/link-policy update and the
+existing normalized bundled `ceoloide/mounting_hole_npth` definition. The
+helper reads canonical and physical-instance closure configurations and
+returns the complete derived projection. The caller remains responsible for
+building the field patch, applying the established canonical/instance policy,
+admission, submitting one `ReplaceDocument`, and checking the saved
+acknowledgement.
 
 The planner performs no resolution, validation, geometry generation, default
 selection, or suggestion initialization. It does not access Runtime, browser
@@ -49,10 +50,17 @@ The projection follows `app/src/closureClearance.ts::withClosureClearance`:
   private guard avoids silently generating unstable or duplicate references;
   the planner does not claim source behavior for unsafe `Number` identities.
 
-The implementation intentionally returns a complete cloned `ProjectDoc` so
-the root Case controller can put the configuration update and its derived
-projection into one existing Session edit. No public API, schema, Rust Core,
-CAD, library-catalogue, or shared component changes are part of this helper.
+The controller owns the one operation-scoped document clone used to combine
+the configuration update and its derived projection in one existing Session
+edit, then transfers that candidate into the planner. The planner retains and
+extends its owned definitions/parts and mutates owned layouts/boards in place;
+it does not clone the complete document or reconstruct cloned collections.
+Only the generated-ID membership set and IDs copied into separate board/layout
+collections are duplicated. A borrowed `project_closure_clearance` wrapper is
+compiled only for native planner fixtures, where it clones the fixture input
+to keep the source-authority assertions unchanged. Production has no borrowed
+entry point. No public API, schema, Rust Core, CAD, library-catalogue, or shared
+component changes are part of this helper.
 
 ## Evidence and limits
 

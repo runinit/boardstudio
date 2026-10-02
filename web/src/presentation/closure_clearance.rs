@@ -32,15 +32,15 @@ struct Hole {
 /// `ceoloide/mounting_hole_npth`. Its source identity and unrelated normalized
 /// footprint data are retained while the generator parameters and pad drill
 /// dimensions are updated to the projected diameter.
-pub(super) fn project_closure_clearance(
-    document: &ProjectDoc,
+pub(super) fn project_owned_closure_clearance(
+    mut document: ProjectDoc,
     mounting_hole: &PartDefinition,
 ) -> Result<ProjectDoc, String> {
-    let old_part_ids: HashSet<&str> = document
+    let old_part_ids: HashSet<String> = document
         .parts
         .iter()
         .filter(|part| part.id.starts_with(PART_PREFIX))
-        .map(|part| part.id.as_str())
+        .map(|part| part.id.clone())
         .collect();
 
     let mut holes = Vec::<Hole>::new();
@@ -120,33 +120,39 @@ pub(super) fn project_closure_clearance(
         })
         .collect::<Vec<_>>();
 
-    let mut result = document.clone();
-    result
+    document
         .definitions
         .retain(|definition| !definition.id.starts_with(DEFINITION_PREFIX));
-    result.definitions.extend(definitions);
-    result
+    document.definitions.extend(definitions);
+    document
         .parts
-        .retain(|part| !old_part_ids.contains(part.id.as_str()));
-    result.parts.extend(parts.iter().cloned());
-    for layout in &mut result.layouts {
+        .retain(|part| !old_part_ids.contains(&part.id));
+    for layout in &mut document.layouts {
         layout
             .part_ids
-            .retain(|part_id| !old_part_ids.contains(part_id.as_str()));
+            .retain(|part_id| !old_part_ids.contains(part_id));
     }
-    for board in &mut result.boards {
+    for board in &mut document.boards {
         board
             .part_ids
-            .retain(|part_id| !old_part_ids.contains(part_id.as_str()));
-        board.part_ids.extend(
-            holes
-                .iter()
-                .zip(&parts)
-                .filter(|(hole, _)| hole.board_id == board.id)
-                .map(|(_, part)| part.id.clone()),
-        );
+            .retain(|part_id| !old_part_ids.contains(part_id));
+        for (hole, part) in holes.iter().zip(&parts) {
+            if hole.board_id == board.id {
+                board.part_ids.push(part.id.clone());
+            }
+        }
     }
-    Ok(result)
+    document.parts.extend(parts);
+    Ok(document)
+}
+
+/// Test adapter that keeps fixture inputs authoritative without changing them.
+#[cfg(test)]
+fn project_closure_clearance(
+    document: &ProjectDoc,
+    mounting_hole: &PartDefinition,
+) -> Result<ProjectDoc, String> {
+    project_owned_closure_clearance(document.clone(), mounting_hole)
 }
 
 fn normalized_mounting_hole(template: &PartDefinition, hole: &Hole) -> PartDefinition {
@@ -249,17 +255,14 @@ fn mounting_hole_reference_suffix(reference: &str) -> Option<&str> {
 
 fn next_mounting_hole_reference(
     parts: &[Part],
-    owned_ids: &HashSet<&str>,
+    owned_ids: &HashSet<String>,
     generated_count: usize,
 ) -> Result<Option<u64>, String> {
     if generated_count == 0 {
         return Ok(None);
     }
     let mut maximum = 0_u64;
-    for part in parts
-        .iter()
-        .filter(|part| !owned_ids.contains(part.id.as_str()))
-    {
+    for part in parts.iter().filter(|part| !owned_ids.contains(&part.id)) {
         let Some(suffix) = mounting_hole_reference_suffix(&part.reference) else {
             continue;
         };
