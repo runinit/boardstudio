@@ -32,7 +32,12 @@
       "svg_paths": 24,
       "saved_revision": 9
     },
-    "offline_root": "controlled editor and saved revision9 observed; initial geometry selector was incorrect, geometry count not claimed"
+    "offline_root": {
+      "controlled": true,
+      "editor": true,
+      "svg_paths": 24,
+      "saved_revision": 9
+    }
   },
   "limits": [
     "Toolbar styling and menu smoke checks only; full frontend and parent acceptance remain open.",
