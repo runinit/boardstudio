@@ -1,6 +1,9 @@
 //! Read-only Parts catalogue and selected-definition presentation slots.
 mod catalogue;
 mod details;
+mod preview;
+
+pub(super) use preview::PartsPreviewPanel;
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::ProjectDoc;

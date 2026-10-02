@@ -11,7 +11,7 @@ use std::{
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-type Drawings = Rc<Vec<Graphic>>;
+pub(super) type Drawings = Rc<Vec<Graphic>>;
 thread_local! {
     // Keys include the complete definition and instance overrides. Pose stays in
     // the parent SVG transform. Bound retention when users edit many definitions.
@@ -22,17 +22,22 @@ fn js_error(error: JsValue) -> String {
     format!("{error:?}")
 }
 
-async fn drawing(
-    mut definition: PartDefinition,
+pub(super) async fn generator_drawings(
+    source_definition: PartDefinition,
     parameters: Option<BTreeMap<String, serde_json::Value>>,
-) -> Result<Drawings, String> {
+    include_keycap: Option<bool>,
+) -> Result<Option<Drawings>, String> {
+    let mut definition = source_definition;
     let Some(generator) = definition.generator.as_mut() else {
-        return Ok(Rc::default());
+        return Ok(None);
     };
     generator.parameters.extend(parameters.unwrap_or_default());
-    generator
-        .parameters
-        .insert("include_keycap".into(), serde_json::Value::Bool(false));
+    if let Some(include_keycap) = include_keycap {
+        generator.parameters.insert(
+            "include_keycap".into(),
+            serde_json::Value::Bool(include_keycap),
+        );
+    }
     let source = generator.source.clone();
     let key = serde_json::to_string(&definition).map_err(|e| e.to_string())?;
     if let Some(result) = CACHE.with(|cache| {
@@ -42,7 +47,7 @@ async fn drawing(
             .find(|(k, _)| k == &key)
             .map(|(_, v)| v.clone())
     }) {
-        return Ok(result);
+        return Ok(Some(result));
     }
     let url = crate::runtime::resource_url("assets/layout-generators.js")?;
     let import = Function::new_with_args("url", "return import(url)");
@@ -63,7 +68,7 @@ async fn drawing(
             .find(|(k, _)| k == &key)
             .map(|(_, v)| v.clone())
     }) {
-        return Ok(result);
+        return Ok(Some(result));
     }
     let is_ergogen = Reflect::get(&module, &"isErgogen".into())
         .map_err(js_error)?
@@ -75,7 +80,7 @@ async fn drawing(
         .as_bool()
         .unwrap_or(false)
     {
-        return Ok(Rc::default());
+        return Ok(None);
     }
     let render = Reflect::get(&module, &"render".into())
         .map_err(js_error)?
@@ -101,7 +106,7 @@ async fn drawing(
         }
         cache.push_back((key, result.clone()));
     });
-    Ok(result)
+    Ok(Some(result))
 }
 
 #[component]
@@ -111,15 +116,18 @@ pub(super) fn FootprintGraphics(
 ) -> Element {
     let graphics = use_resource(use_reactive(
         (&definition, &parameters),
-        |(definition, parameters)| drawing(definition, parameters),
+        |(definition, parameters)| generator_drawings(definition, parameters, Some(false)),
     ));
     match &*graphics.read() {
-        Some(Ok(items)) => rsx! {
+        Some(Ok(Some(items))) => rsx! {
             g { class: "m1-footprint-graphics", "data-status": "ready", "aria-hidden": "true",
                 for (index, graphic) in items.iter().enumerate() {
-                    GraphicElement { key: "{index}", graphic: graphic.clone() }
+                    GraphicElement { key: "{index}", graphic: graphic.clone(), hidden: false }
                 }
             }
+        },
+        Some(Ok(None)) => rsx! {
+            g { class: "m1-footprint-graphics", "data-status": "ready", "aria-hidden": "true" }
         },
         Some(Err(error)) => rsx! {
             g { class: "m1-footprint-graphics-error", "data-status": "error",
@@ -132,7 +140,10 @@ pub(super) fn FootprintGraphics(
 }
 
 #[component]
-fn GraphicElement(graphic: Graphic) -> Element {
+pub(super) fn GraphicElement(graphic: Graphic, hidden: bool) -> Element {
+    if hidden {
+        return rsx! {};
+    }
     let layer = graphic.layer;
     match graphic.shape {
         Shape::Line(a, b) => {
