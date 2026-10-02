@@ -1,17 +1,22 @@
 //! Read-only Parts catalogue and selected-definition presentation slots.
 mod catalogue;
 mod details;
+#[cfg(target_arch = "wasm32")]
+mod mechanical_profile_ui;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod physical_setup;
 mod preview;
 
 pub(in crate::presentation) use preview::PartsPreviewPanel;
 
+use crate::parts_mechanical_profile::ProfileDefinitionSource;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::ProjectDoc;
 use catalogue::{CatalogEntry, catalogue_choices, group_choices, preferred_label};
 use details::SelectedDefinition;
 use dioxus::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use mechanical_profile_ui::PartsMechanicalProfileWorkspace;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 /// Parent-owned interaction state keeps the reference library query and choice
@@ -283,19 +288,36 @@ pub(super) fn PartsPreviewWorkspace(
     let listed_entries = catalogue_choices(&entries);
     let search = query().trim().to_lowercase();
     let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
-    let definition = selected_id.as_deref().and_then(|id| {
+    let entry = selected_id.as_deref().and_then(|id| {
         listed_entries
             .iter()
             .copied()
             .find(|entry| entry.definition.id == id)
-            .map(|entry| entry.definition.clone())
+            .cloned()
     });
+    let Some(entry) = entry else {
+        return rsx! {
+            PartsPreviewPanel {
+                definition: None,
+                scope,
+                snapshot_token: snapshot.token,
+            }
+        };
+    };
+    let source = match entry.source {
+        catalogue::CatalogueSource::Project => ProfileDefinitionSource::Project,
+        catalogue::CatalogueSource::Ergogen | catalogue::CatalogueSource::Imported => {
+            ProfileDefinitionSource::Catalogue
+        }
+    };
 
     rsx! {
-        PartsPreviewPanel {
-            definition,
+        PartsMechanicalProfileWorkspace {
+            snapshot,
             scope,
-            snapshot_token: snapshot.token,
+            selection: selected,
+            definition: (*entry.definition).clone(),
+            source,
         }
     }
 }
