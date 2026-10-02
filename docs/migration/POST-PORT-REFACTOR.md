@@ -192,6 +192,17 @@ Evidence: [tsx-inventory.json](../../.scratch/dioxus-frontend-v1/evidence/tsx-in
 
 The current F7.8 consumer list names five workflows while the confirmed migration scope has six, including PCB. PCB’s existing F5.8 acceptance is the proposed additional F7.8 join; the canonical 62-task graph remains unchanged until coordinator review. The exploratory audit deliberately does not claim same-archive paired parity. See the [Case/shared-viewer audit](../../.scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md) and [parity reset addendum](../../.scratch/dioxus-frontend-v1/issues/07-case-3d-parity-reset-addendum.md).
 
+### RF-006/RF-009 Parts preview source correction handoff
+
+Dioxus 0.7.10 returns cloned `use_hook` state, so plain `Cell`/`RefCell`
+mutations do not persist across renders unless the hook value is a shared
+handle. The Parts preview source correction uses retained `Rc` handles and
+regresses accepted-resource A→B→A identity. Its geometry fixture also records
+that `footprint_forms::point` already converts native KiCad Y before the SVG
+flip; bounds use the projected frame once and preserve the reference origin
+policy. See the [Parts preview handoff](../../.scratch/dioxus-parts-catalogue/evidence/parts-preview-source-corrections/refactor-handoff.md).
+This is source-level RF-006/RF-009 evidence, not a compile or browser result.
+
 ### RF-009 encoder initial-value regression evidence
 
 The built encoder candidate at source `e82c039b` / build `frontend-encoder-bindings-20261002` (34685) rendered three unassigned dynamic selectors as `key-press` despite the empty accepted sensor/binding maps; readonly evidence confirmed no document mutation. The narrow declarative `option.selected` correction at source `868edfcb`, build `frontend-encoder-select-fixed-20261002` (34687), now renders `none` in the value and selected options of all three controls. This is a bounded regression/evidence observation; it does not claim a framework-wide issue or broad architecture finding. Genuine archive interaction/recovery and F5.2/F8.2/AT/parent gates remain open. The exact retained paths are in the [encoder regression handoff](../../.scratch/dioxus-keymap-layers/evidence/encoder-select-regression/refactor-handoff.md), [baseline packet](../../.scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/) and [corrected regression packet](../../.scratch/dioxus-keymap-layers/evidence/encoder-select-regression/).

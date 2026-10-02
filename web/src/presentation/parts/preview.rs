@@ -2,7 +2,7 @@
 use crate::footprint_forms::{Graphic, Shape};
 use crate::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Pad, PadShape, PartDefinition, Side, Vec2};
+use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{
@@ -74,20 +74,10 @@ pub(super) fn PartsPreviewPanel(
             .as_ref()
             .map_or_else(String::new, |definition| definition.id.clone()),
     };
-    let last_input = use_hook(|| RefCell::new(None::<PreviewInput>));
-    let generation_counter = use_hook(|| Cell::new(0_u64));
-    let generation = {
-        let mut previous = last_input.borrow_mut();
-        if previous.as_ref() != Some(&input) {
-            generation_counter.set(generation_counter.get().wrapping_add(1));
-            *previous = Some(input.clone());
-        }
-        generation_counter.get()
-    };
-    let current_owner = PreviewOwner {
-        input: input.clone(),
-        generation,
-    };
+    let last_input = use_hook(|| Rc::new(RefCell::new(None::<PreviewInput>)));
+    let generation_counter = use_hook(|| Rc::new(Cell::new(0_u64)));
+    let current_owner = next_preview_owner(&last_input, &generation_counter, input.clone());
+    let generation = current_owner.generation;
     let source = use_resource(use_reactive(
         (&definition, &input, &generation),
         |(definition, input, generation)| async move {
@@ -192,16 +182,16 @@ pub(super) fn PartsPreviewPanel(
 }
 
 async fn load_preview(definition: Rc<PartDefinition>) -> Result<PreviewContent, PreviewFailure> {
-    if definition.generator.is_none() {
-        return Err(PreviewFailure::Unsupported);
-    }
-    let keycap = keycap_size(&definition);
-    let include_keycap = definition
+    let generator = definition
         .generator
         .as_ref()
-        .and_then(|generator| generator.parameters.get("include_keycap"))
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(true);
+        .ok_or(PreviewFailure::Unsupported)?;
+    let defaults = footprint_graphics::generator_preview_defaults(&generator.source)
+        .await
+        .map_err(PreviewFailure::Failed)?
+        .ok_or(PreviewFailure::Unsupported)?;
+    let keycap = keycap_size(&definition, defaults);
+    let include_keycap = include_keycap(&definition, defaults);
     // React draws the library envelope separately from generator graphics.
     let drawings =
         footprint_graphics::generator_drawings((*definition).clone(), None, keycap.map(|_| false))
@@ -233,10 +223,71 @@ async fn load_preview(definition: Rc<PartDefinition>) -> Result<PreviewContent, 
     })
 }
 
-fn keycap_size(definition: &PartDefinition) -> Option<Vec2> {
-    let keycap = definition.keycap?;
-    (keycap.x.is_finite() && keycap.y.is_finite() && keycap.x > 0.0 && keycap.y > 0.0)
-        .then_some(keycap)
+fn next_preview_owner(
+    last_input: &Rc<RefCell<Option<PreviewInput>>>,
+    generation_counter: &Rc<Cell<u64>>,
+    input: PreviewInput,
+) -> PreviewOwner {
+    let mut previous = last_input.borrow_mut();
+    if previous.as_ref() != Some(&input) {
+        generation_counter.set(generation_counter.get().wrapping_add(1));
+        *previous = Some(input.clone());
+    }
+    PreviewOwner {
+        input,
+        generation: generation_counter.get(),
+    }
+}
+
+fn valid_size(size: Vec2) -> Option<Vec2> {
+    (size.x.is_finite() && size.y.is_finite() && size.x > 0.0 && size.y > 0.0).then_some(size)
+}
+
+fn keycap_size(
+    definition: &PartDefinition,
+    defaults: footprint_graphics::GeneratorPreviewDefaults,
+) -> Option<Vec2> {
+    let saved = definition.keycap.and_then(valid_size);
+    let authored = definition
+        .envelope_source
+        .as_ref()
+        .is_none_or(|source| source.keycap == Some(EnvelopeOrigin::Authored));
+    if authored {
+        if let Some(saved) = saved {
+            return Some(saved);
+        }
+    }
+
+    let parameters = definition
+        .generator
+        .as_ref()
+        .map(|generator| &generator.parameters);
+    let width = parameters
+        .and_then(|parameters| parameters.get("keycap_width"))
+        .and_then(serde_json::Value::as_f64)
+        .or(defaults.keycap_width);
+    let height = parameters
+        .and_then(|parameters| parameters.get("keycap_height"))
+        .and_then(serde_json::Value::as_f64)
+        .or(defaults.keycap_height);
+    let generated = width
+        .zip(height)
+        .map(|(x, y)| Vec2 { x, y })
+        .and_then(valid_size);
+    generated.or(saved)
+}
+
+fn include_keycap(
+    definition: &PartDefinition,
+    defaults: footprint_graphics::GeneratorPreviewDefaults,
+) -> bool {
+    definition
+        .generator
+        .as_ref()
+        .and_then(|generator| generator.parameters.get("include_keycap"))
+        .and_then(serde_json::Value::as_bool)
+        .or(defaults.include_keycap)
+        .unwrap_or(true)
 }
 
 fn rectangle_points(size: Vec2) -> Vec<Vec2> {
@@ -384,6 +435,10 @@ fn view_box(
     for graphic in drawings {
         include_graphic_bounds(&mut bounds, graphic);
     }
+    // The React library preview includes its origin even when every source
+    // coordinate lies on one side of it. Keep empty geometry an error first.
+    bounds.finish()?;
+    bounds.include(0.0, 0.0);
     let (min_x, min_y, max_x, max_y) = bounds.finish()?;
     let margin = 3.0;
     Some(format!(
@@ -431,9 +486,10 @@ impl Bounds {
 
 fn include_graphic_bounds(bounds: &mut Bounds, graphic: &Graphic) {
     let include = |bounds: &mut Bounds, point: &crate::footprint_forms::Point| {
-        // `footprint_forms` stores SVG Y-down coordinates. Normalize them back
-        // to the definition's Y-up frame before the preview's single outer flip.
-        bounds.include(point.0, -point.1);
+        // `footprint_forms::point` already converts native Y into the preview
+        // frame. GraphicElement consumes that value under the one outer flip;
+        // use the same point here rather than applying a second conversion.
+        bounds.include(point.0, point.1);
     };
     match &graphic.shape {
         Shape::Line(start, end) | Shape::Rect(start, end) => {
@@ -446,8 +502,8 @@ fn include_graphic_bounds(bounds: &mut Bounds, graphic: &Graphic) {
             include(bounds, end);
         }
         Shape::Circle(center, radius) => {
-            bounds.include(center.0 - radius, -center.1 - radius);
-            bounds.include(center.0 + radius, -center.1 + radius);
+            bounds.include(center.0 - radius, center.1 - radius);
+            bounds.include(center.0 + radius, center.1 + radius);
         }
         Shape::Polygon(points, _) => {
             for point in points {
@@ -470,12 +526,20 @@ fn render_pad(pad: &Pad, copper_layer: &str, hide_drill: bool, hide_number: bool
             rect { class: "m1-part-pad", "data-layer": "{copper_layer}", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
             if let Some(drill) = pad.drill.filter(|drill| *drill > 0.0)
                 && !hide_drill {
-                circle { class: "m1-part-drill", "data-layer": "Drills", r: "{drill / 2.0}" }
+                circle { class: "{drill_class(pad)}", "data-layer": "Drills", r: "{drill / 2.0}" }
             }
             if !hide_number {
                 text { class: "m1-part-label", "data-layer": "Pad numbers", transform: "scale(1,-1)", text_anchor: "middle", x: "0", y: "{-pad.size.y / 2.0 - 0.7}", "{pad.number}" }
             }
         }
+    }
+}
+
+fn drill_class(pad: &Pad) -> &'static str {
+    if pad.plated == Some(false) {
+        "m1-part-drill is-mechanical"
+    } else {
+        "m1-part-drill"
     }
 }
 
@@ -567,7 +631,8 @@ fn PartsPreviewLayers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{PartGenerator, PartKind};
+    use boardstudio_application::SessionEpoch;
+    use boardstudio_core::model::{EnvelopeSource, PartGenerator, PartKind};
 
     fn definition() -> PartDefinition {
         PartDefinition {
@@ -662,7 +727,25 @@ mod tests {
         };
         assert_eq!(
             view_box(&definition, &drawings, Some(&outline)).as_deref(),
-            Some("-14.000 -17.000 28.000 34.000")
+            Some("-14.000 -12.000 28.000 29.000")
+        );
+    }
+
+    #[test]
+    fn view_box_keeps_the_reference_origin_for_one_sided_graphics() {
+        let mut definition = definition();
+        definition.pads.clear();
+        definition.courtyard.clear();
+        let drawings = vec![Graphic {
+            layer: "F.SilkS".into(),
+            shape: Shape::Line(
+                crate::footprint_forms::Point(5.0, 4.0),
+                crate::footprint_forms::Point(8.0, 7.0),
+            ),
+        }];
+        assert_eq!(
+            view_box(&definition, &drawings, None).as_deref(),
+            Some("-3.000 -10.000 14.000 13.000")
         );
     }
 
@@ -692,20 +775,104 @@ mod tests {
 
     #[test]
     fn stale_async_result_cannot_reclaim_same_definition_after_selection_round_trip() {
-        let input = PreviewInput {
-            scope: None,
+        let input_a = PreviewInput {
+            scope: Some(Scope {
+                session_epoch: SessionEpoch(4),
+                document_id: "doc-a".into(),
+                board_id: "board-a".into(),
+                instance_id: None,
+            }),
             snapshot_token: SnapshotToken(7),
             definition_id: "ergogen:ceoloide/switch_mx".into(),
         };
-        let first_a = PreviewOwner {
-            input: input.clone(),
-            generation: 1,
+        let last_input = Rc::new(RefCell::new(None));
+        let generation_counter = Rc::new(Cell::new(0));
+        let first_a = next_preview_owner(&last_input, &generation_counter, input_a.clone());
+        assert_eq!(
+            next_preview_owner(&last_input, &generation_counter, input_a.clone()),
+            first_a,
+            "an ordinary repaint of the same accepted resource keeps its generation"
+        );
+        let input_b = PreviewInput {
+            definition_id: "ergogen:ceoloide/encoder".into(),
+            ..input_a.clone()
         };
-        let second_a = PreviewOwner {
-            input,
-            generation: 3,
-        };
+        let _b = next_preview_owner(&last_input, &generation_counter, input_b);
+        let second_a = next_preview_owner(&last_input, &generation_counter, input_a.clone());
+        assert_eq!(first_a.generation, 1);
+        assert_eq!(second_a.generation, 3);
         assert!(!owner_is_current(&first_a, &second_a));
+
+        let mut other_scope = input_a.clone();
+        other_scope.scope.as_mut().unwrap().instance_id = Some("right".into());
+        let scoped_owner = next_preview_owner(&last_input, &generation_counter, other_scope);
+        let returned_a = next_preview_owner(&last_input, &generation_counter, input_a);
+        assert_eq!(scoped_owner.generation, 4);
+        assert_eq!(returned_a.generation, 5);
+        assert!(!owner_is_current(&scoped_owner, &returned_a));
+    }
+
+    #[test]
+    fn generated_keycap_uses_retained_dimensions_unless_the_envelope_is_authored() {
+        let defaults = footprint_graphics::GeneratorPreviewDefaults {
+            keycap_width: Some(18.0),
+            keycap_height: Some(18.0),
+            include_keycap: Some(true),
+        };
+        let mut definition = definition();
+        definition.envelope_source = Some(EnvelopeSource {
+            courtyard: None,
+            keycap: Some(EnvelopeOrigin::Generated),
+        });
+        definition
+            .generator
+            .as_mut()
+            .unwrap()
+            .parameters
+            .insert("keycap_width".into(), serde_json::Value::from(19.0));
+        definition
+            .generator
+            .as_mut()
+            .unwrap()
+            .parameters
+            .insert("keycap_height".into(), serde_json::Value::from(20.0));
+        assert_eq!(
+            keycap_size(&definition, defaults),
+            Some(Vec2 { x: 19.0, y: 20.0 })
+        );
+
+        definition.keycap = Some(Vec2 { x: 21.0, y: 22.0 });
+        definition.envelope_source.as_mut().unwrap().keycap = Some(EnvelopeOrigin::Authored);
+        assert_eq!(
+            keycap_size(&definition, defaults),
+            Some(Vec2 { x: 21.0, y: 22.0 })
+        );
+    }
+
+    #[test]
+    fn keycap_visibility_prefers_generator_value_then_retained_default() {
+        let defaults = footprint_graphics::GeneratorPreviewDefaults {
+            include_keycap: Some(false),
+            ..Default::default()
+        };
+        let mut definition = definition();
+        assert!(!include_keycap(&definition, defaults));
+        definition
+            .generator
+            .as_mut()
+            .unwrap()
+            .parameters
+            .insert("include_keycap".into(), serde_json::Value::Bool(true));
+        assert!(include_keycap(&definition, defaults));
+    }
+
+    #[test]
+    fn non_plated_drills_keep_the_mechanical_hole_class() {
+        let mut mechanical = pad("NPTH", Side::Front, Some(1.0));
+        mechanical.plated = Some(false);
+        let plated = pad("PTH", Side::Front, Some(1.0));
+        assert_eq!(drill_class(&mechanical), "m1-part-drill is-mechanical");
+        assert_eq!(drill_class(&plated), "m1-part-drill");
     }
 
     #[test]
