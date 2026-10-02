@@ -125,6 +125,12 @@
           "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/new17-compact-guide-repair-20261002/repair.md",
           "observation": "Guide/form share owner and cancel restores retained preference, but actual browser focus remainsBODY instead ofReactSetupguideheading; source mount correctness does not prove focus restoration afterconditional subtree replacement. Independent Astra correctness repair queued.",
           "status": "Bounded current defect; focus ownership architecture proposal deferred."
+        },
+        {
+          "source": "ae232927",
+          "evidence": ".scratch/dioxus-frontend-v1/integration-handoff-template.md",
+          "observation": "Six private workbench lanes submit exact mount/callback/scope contracts and scoped CSS fragments; root serially integrates declared shared paths and freezes packaging inputs. This mitigates concurrent-write conflicts but does not remove shared presentation/Runtime coupling.",
+          "status": "process mitigation implemented; module-boundary effectiveness and public parity remain open"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -700,6 +706,15 @@
           "current_mitigation": "Addendum and six-stream acceptance child record the required matrix and preserve all existing joins; canonical tasks.json was not edited by this audit.",
           "post_port_follow_up": "Maintain one source/fixture/action ledger for all six streams and their actual viewer applicability.",
           "validation": "Update the coordinator-owned 62-parent graph if accepted, then run same-archive paired journeys through all six workflows with exact build and accepted-document provenance."
+        },
+        {
+          "date": "2026-10-02",
+          "task": "shared integration and packaging throughput",
+          "baseline": "ae232927",
+          "observation": "Configured agent ceiling30 differs from observed live11; completed slots are rotated. Temporary build outputs exhausted /tmp; verified inactive generated targets were preserved under home with original-path symlinks, without deleting source, browser profiles or failed-project state.",
+          "current_mitigation": "Exact queue states distinguish source clearance, packaging, paired verification and acceptance. Page-only provider reuse remains a reviewed proposal; provider changes still require full packaging.",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/shared-integration-routing-20261002.json",
+          "preservation_receipt": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/keymap-inactive-target-preservation.json"
         }
       ],
       "handoff_evidence": [

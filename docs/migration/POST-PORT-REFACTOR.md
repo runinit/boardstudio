@@ -453,3 +453,9 @@ Frontend next candidate119c9d059c002057e73b3fd3a36648a9681c9cd6 is served at3472
 A real IndexedDB request error can precede transaction abort or be handled while the transaction commits. The prior observer settled on that intermediate event and dropped closures still installed in the browser. Cancellation before polling also left invalid callbacks. Three real Chromium production regressions failed; five pass after terminal-only settlement and private callback detachment. Independent source review is clear and repair `d5eaafaf` is integrated. Full packaging/public checks remain open, and the original Matrix save abort cause remains unknown.
 
 Retain this ownership rule for the later host lifecycle audit without assuming other observers are defective. [Exact finding and red/green evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/FINDING.md).
+
+### Shared integration and packaging checkpoint — 2026-10-02
+
+RF-001 now records the private-stream handoff template at `ae232927`: exact mount/callback/scope contracts and scoped styles go through one coordinator. This is a process mitigation; shared presentation/Runtime coupling still needs post-port assessment.
+
+RF-009 records the configured 30-agent ceiling versus the observed 11 active slots, and temporary-disk exhaustion from generated targets. Inactive build targets were preserved on larger storage with original-path symlinks; source, browser profiles and failed-project evidence were preserved. Exact-source page-only provider reuse is being specified; provider changes still require full packaging. These observations do not close parity or release gates.
