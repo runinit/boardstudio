@@ -1,0 +1,103 @@
+- generic [ref=e32] clickable [onclick]
+  - main
+    - sectionheader
+      - button "Project" [expanded=false, ref=e73]
+        - StaticText "New17 Fresh Oracle"
+      - group
+        - DisclosureTriangle "Saved locally" [expanded=false]
+      - tablist "Board workflow"
+        - tab "Layout" [ref=e74]
+        - tab "PCB" [ref=e75]
+        - tab "Keymap" [ref=e76]
+        - tab "Keycaps" [ref=e77]
+        - tab "Case" [selected, ref=e78]
+        - tab "Parts" [ref=e79]
+      - button "Export" [ref=e63]
+        - StaticText "Export"
+    - status "Keyboard movement"
+    - generic
+      - complementary "Setup guide"
+        - StaticText "Setup"
+        - button "Objects options" [expanded=false, ref=e84]
+        - separator "Resize objects" [ref=e80] focusable [tabindex]: 235
+        - region "Project setup guide" [ref=e81]
+          - sectionheader
+            - heading "Setup guide" [level=2, ref=e100]
+            - paragraph
+              - StaticText "Main board"
+            - button "Back to objects" [ref=e101]
+          - paragraph
+            - StaticText "Step 4 of 5. Move between steps freely; your work is kept."
+          - navigation "Setup steps" [ref=e85]
+            - button "1 Project & hardware" [ref=e102]
+              - StaticText "1"
+              - strong
+                - StaticText "Project & hardware"
+            - button "2 Layout & assemblies" [ref=e103]
+              - StaticText "2"
+              - strong
+                - StaticText "Layout & assemblies"
+            - button "3 Controller & wiring" [ref=e104]
+              - StaticText "3"
+              - strong
+                - StaticText "Controller & wiring"
+            - button "4 Case (optional)" [ref=e105]
+              - StaticText "4"
+              - strong
+                - StaticText "Case (optional)"
+            - button "5 Review & export" [ref=e106]
+              - StaticText "5"
+              - strong
+                - StaticText "Review & export"
+          - heading "Case (optional)" [level=3, ref=e86]
+          - paragraph
+            - StaticText "Optional: configure a case or continue without one."
+          - paragraph
+            - StaticText "Configure construction and clearances, then generate geometry when you are ready. PCB and firmware exports are available separately."
+          - button "Open case settings" [ref=e113]
+          - button "Continue to review" [ref=e88]
+          - button "Previous step" [ref=e115]
+      - region "Case canvas" [ref=e64]
+        - toolbar "Case commands"
+          - strong
+            - StaticText "Case"
+          - StaticText "Assembly & components"
+        - generic [ref=e130] clickable [onclick]
+          - region "Case generation" [ref=e131]
+            - heading "Case preview" [level=3, ref=e137]
+            - status
+              - StaticText "Configure a mechanical stack or add a case body to begin."
+            - button "Configure case" [ref=e138]
+        - alert
+          - paragraph
+            - StaticText "Board outline has no resolved contours"
+          - button "Retry preview" [ref=e139]
+      - complementary "Case inspector"
+        - StaticText "Inspect"
+        - button "Inspector options" [expanded=false, ref=e98]
+        - separator "Resize inspector" [ref=e82] focusable [tabindex]: 320
+        - generic
+          - generic
+            - StaticText "Main board / Case"
+          - region "Physical assembly" [ref=e132]
+            - paragraph
+              - StaticText "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects."
+          - heading "Case construction" [level=2, ref=e133]
+          - paragraph
+            - StaticText "Resolve the keyboard stack from assigned part profiles, plate settings, and the case outline."
+          - button "Configure mechanical stack" [ref=e134]
+          - heading "Case stack" [level=2, ref=e135]
+          - button "+ New case body" [ref=e136]
+          - StaticText "Add a case body to generate geometry."
+          - paragraph
+            - StaticText "Add a plate, tray, or lid to begin the case stack."
+          - group
+            - DisclosureTriangle "Routed PCB reference" [expanded=false]
+              - StaticText "Routed PCB reference"
+    - sectionfooter
+      - button "Undo" [ref=e65]
+      - button "Redo" [ref=e66]
+      - StaticText "3D · mm"
+      - StaticText "Drag to orbit · Scroll to zoom"
+      - button "Layout findings: 2" [ref=e72]
+        - StaticText "Layout findings: 2"

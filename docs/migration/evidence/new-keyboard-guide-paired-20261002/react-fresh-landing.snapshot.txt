@@ -1,0 +1,79 @@
+- generic [ref=e1] clickable [onclick]
+  - main
+    - sectionheader
+      - StaticText "Board Studio"
+    - region "Project menu" [ref=e2]
+      - heading "Keyboards" [level=1, ref=e3]
+      - button "New project" [ref=e4]
+      - button "Open project…" [ref=e5]
+      - button "Choose File" [ref=e6]: No file chosen
+      - generic
+        - region "Your keyboards" [ref=e7]
+          - heading "Your keyboards" [level=3, ref=e9]
+          - StaticText "Saved in this browser"
+          - searchbox "Search saved keyboards" [ref=e10]
+          - status
+            - StaticText "Loading saved keyboards…"
+          - button "Create new keyboard" [ref=e11]
+            - StaticText "New keyboard"
+            - StaticText "Start with guided setup"
+        - region "Demo keyboards" [ref=e8]
+          - heading "Demo keyboards" [level=3, ref=e12]
+          - StaticText "Start an editable copy"
+          - button "Start Sofle v2" [ref=e13]
+            - StaticText "Sofle v2"
+            - StaticText "58 keys · 2 boards"
+          - button "Start Sofle RGB" [ref=e14]
+            - StaticText "Sofle RGB"
+            - StaticText "58 keys · 2 boards"
+          - button "Start Sofle Choc" [ref=e15]
+            - StaticText "Sofle Choc"
+            - StaticText "58 keys · 2 boards"
+          - button "Start Corne" [ref=e16]
+            - StaticText "Corne"
+            - StaticText "42 keys · 2 boards"
+          - button "Start Lily58" [ref=e17]
+            - StaticText "Lily58"
+            - StaticText "58 keys · 2 boards"
+          - button "Start Ferris Sweep" [ref=e18]
+            - StaticText "Ferris Sweep"
+            - StaticText "34 keys · 2 boards"
+          - button "Start Chocofi" [ref=e19]
+            - StaticText "Chocofi"
+            - StaticText "36 keys · 2 boards"
+          - button "Start REVIUNG41" [ref=e20]
+            - StaticText "REVIUNG41"
+            - StaticText "41 keys · Single board"
+          - button "Start TOTEM" [ref=e21]
+            - StaticText "TOTEM"
+            - StaticText "38 keys · 2 boards"
+          - button "Start KLOR" [ref=e22]
+            - StaticText "KLOR"
+            - StaticText "42 keys · 2 boards"
+          - button "Start Cantor" [ref=e23]
+            - StaticText "Cantor"
+            - StaticText "42 keys · 2 boards"
+          - button "Start GH60 · ANSI" [ref=e24]
+            - StaticText "GH60 · ANSI"
+            - StaticText "61 keys · Single board"
+          - button "Start Discipline · ANSI" [ref=e25]
+            - StaticText "Discipline · ANSI"
+            - StaticText "68 keys · Single board"
+          - button "Start Mysterium · ANSI" [ref=e26]
+            - StaticText "Mysterium · ANSI"
+            - StaticText "87 keys · Single board"
+          - button "Start Voyager97 · 103-key layout" [ref=e27]
+            - StaticText "Voyager97 · 103-key layout"
+            - StaticText "103 keys · Single board"
+          - button "Start Voyager104 · ANSI" [ref=e28]
+            - StaticText "Voyager104 · ANSI"
+            - StaticText "104 keys · Single board"
+          - button "Start Plaid" [ref=e29]
+            - StaticText "Plaid"
+            - StaticText "48 keys · Single board"
+          - button "Start Lumberjack" [ref=e30]
+            - StaticText "Lumberjack"
+            - StaticText "60 keys · Single board"
+          - button "Start VIK module review · above and below" [ref=e31]
+            - StaticText "VIK module review · above and below"
+            - StaticText "15 keys · Single board"
