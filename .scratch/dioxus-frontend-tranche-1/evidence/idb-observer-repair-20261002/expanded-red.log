@@ -1,0 +1,194 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-idb-lifetime-repair-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.51s
+     Running unittests src/lib.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-4cc319acba029e93.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:44897/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 3 tests
+test host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler ... FAIL
+test host::storage::lifetime_tests::handled_request_error_does_not_report_failed_transaction ... FAIL
+test host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers ... FAIL
+
+failures:
+
+---- host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler output ----
+    error output:
+        panicked at src/host/storage_lifetime_tests.rs:49:5:
+        transaction error followed by abort must retain/clear handlers through terminal: ["Uncaught Error: closure invoked recursively or after being dropped"]
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:34511/wasm-bindgen-test:563:25
+            at logError (http://127.0.0.1:34511/wasm-bindgen-test:1064:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34511/wasm-bindgen-test:562:57)
+            at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[68909]:0xe3976f)
+            at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[40403]:0xcfbacc)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[15504]:0xa208ea)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42515]:0xd1bd98)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a53ac)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70171]:0xe3d07b)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70137]:0xe3cfc8)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[69125]:0xe3a3f1)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a541c)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[55950]:0xdc6982)
+            at boardstudio_web-4cc319acba029e93.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42352]:0xd19900)
+            at boardstudio_web-4cc319acba029e93.wasm.boardstudio_web[af493cbfeea95793]::host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[438]:0x2222ca)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::execute_async::<boardstudio_web[af493cbfeea95793]::host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler::{closure#0}, boardstudio_web[af493cbfeea95793]::host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler>::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[10504]:0x8eb372)
+
+---- host::storage::lifetime_tests::handled_request_error_does_not_report_failed_transaction output ----
+    error output:
+        panicked at src/host/storage_lifetime_tests.rs:143:5:
+        assertion `left == right` failed: a handled request error does not abort a transaction
+          left: Err(PersistError("IndexedDB transaction failed"))
+         right: Ok(())
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:34511/wasm-bindgen-test:563:25
+            at logError (http://127.0.0.1:34511/wasm-bindgen-test:1064:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34511/wasm-bindgen-test:562:57)
+            at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[68909]:0xe3976f)
+            at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[40403]:0xcfbacc)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[15504]:0xa208ea)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42515]:0xd1bd98)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a53ac)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70171]:0xe3d07b)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70137]:0xe3cfc8)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[69125]:0xe3a3f1)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a541c)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[55950]:0xdc6982)
+            at boardstudio_web-4cc319acba029e93.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42352]:0xd19900)
+            at boardstudio_web-4cc319acba029e93.wasm.core[f0fd674eaa06beef]::panicking::assert_failed_inner (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[11294]:0x9243cb)
+            at boardstudio_web-4cc319acba029e93.wasm.core[f0fd674eaa06beef]::panicking::assert_failed::<core[f0fd674eaa06beef]::result::Result<(), boardstudio_web[af493cbfeea95793]::host::storage::PersistError>, core[f0fd674eaa06beef]::result::Result<(), boardstudio_web[af493cbfeea95793]::host::storage::PersistError>> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[32783]:0xc70491)
+
+---- host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers output ----
+    error output:
+        panicked at src/host/storage_lifetime_tests.rs:92:5:
+        dropping an unpolled observer must detach its callbacks: ["Uncaught Error: closure invoked recursively or after being dropped"]
+        
+        Stack:
+        
+        Error
+            at http://127.0.0.1:34511/wasm-bindgen-test:563:25
+            at logError (http://127.0.0.1:34511/wasm-bindgen-test:1064:18)
+            at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34511/wasm-bindgen-test:562:57)
+            at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[68909]:0xe3976f)
+            at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[40403]:0xcfbacc)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[15504]:0xa208ea)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42515]:0xd1bd98)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a53ac)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+        
+        
+    
+    JS exception that was thrown:
+        RuntimeError: unreachable
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::__rust_abort (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70171]:0xe3d07b)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::__rust_start_panic (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70137]:0xe3cfc8)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::rust_panic (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[69125]:0xe3a3f1)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a541c)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+            at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+            at boardstudio_web-4cc319acba029e93.wasm.__rustc[4b1ee1ef74718a7b]::rust_begin_unwind (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[55950]:0xdc6982)
+            at boardstudio_web-4cc319acba029e93.wasm.core[f0fd674eaa06beef]::panicking::panic_fmt (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42352]:0xd19900)
+            at boardstudio_web-4cc319acba029e93.wasm.boardstudio_web[af493cbfeea95793]::host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[538]:0x266651)
+            at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::execute_async::<boardstudio_web[af493cbfeea95793]::host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers::{closure#0}, boardstudio_web[af493cbfeea95793]::host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers>::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[10503]:0x8eb225)
+
+failures:
+
+    host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler
+    host::storage::lifetime_tests::handled_request_error_does_not_report_failed_transaction
+    host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 filtered out; finished in 0.27s
+
+console output:
+    using deprecated parameters for the initialization function; pass a single object instead
+    Invoking test: host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler
+    panicked at src/host/storage_lifetime_tests.rs:49:5:
+    transaction error followed by abort must retain/clear handlers through terminal: ["Uncaught Error: closure invoked recursively or after being dropped"]
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:34511/wasm-bindgen-test:563:25
+        at logError (http://127.0.0.1:34511/wasm-bindgen-test:1064:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34511/wasm-bindgen-test:562:57)
+        at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[68909]:0xe3976f)
+        at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[40403]:0xcfbacc)
+        at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[15504]:0xa208ea)
+        at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42515]:0xd1bd98)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a53ac)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+    
+    
+    Invoking test: host::storage::lifetime_tests::handled_request_error_does_not_report_failed_transaction
+    panicked at src/host/storage_lifetime_tests.rs:143:5:
+    assertion `left == right` failed: a handled request error does not abort a transaction
+      left: Err(PersistError("IndexedDB transaction failed"))
+     right: Ok(())
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:34511/wasm-bindgen-test:563:25
+        at logError (http://127.0.0.1:34511/wasm-bindgen-test:1064:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34511/wasm-bindgen-test:562:57)
+        at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[68909]:0xe3976f)
+        at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[40403]:0xcfbacc)
+        at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[15504]:0xa208ea)
+        at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42515]:0xd1bd98)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a53ac)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+    
+    
+    Invoking test: host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers
+    panicked at src/host/storage_lifetime_tests.rs:92:5:
+    dropping an unpolled observer must detach its callbacks: ["Uncaught Error: closure invoked recursively or after being dropped"]
+    
+    Stack:
+    
+    Error
+        at http://127.0.0.1:34511/wasm-bindgen-test:563:25
+        at logError (http://127.0.0.1:34511/wasm-bindgen-test:1064:18)
+        at __wbg_new_9a14630036bbdb92 (http://127.0.0.1:34511/wasm-bindgen-test:562:57)
+        at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new::__wbg_new_9a14630036bbdb92 externref shim (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[68909]:0xe3976f)
+        at boardstudio_web-4cc319acba029e93.wasm.<<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling::Error>::new (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[40403]:0xcfbacc)
+        at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::panic_handling (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[15504]:0xa208ea)
+        at boardstudio_web-4cc319acba029e93.wasm.<wasm_bindgen_test[dbba4523c43e7f95]::__rt::Context>::new::{closure#0}::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[42515]:0xd1bd98)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_with_hook (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[13284]:0x9a53ac)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::panicking::panic_handler::{closure#0} (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[25640]:0xbb615a)
+        at boardstudio_web-4cc319acba029e93.wasm.std[2b356c9112ee3216]::sys::backtrace::__rust_end_short_backtrace::<std[2b356c9112ee3216]::panicking::panic_handler::{closure#0}, !> (http://127.0.0.1:34511/wasm-bindgen-test_bg.wasm:wasm-function[70014]:0xe3cc4c)
+    
+    
+Error: some tests failed
+error: test failed, to rerun pass `--lib`
+
+Caused by:
+  process didn't exit successfully: `/home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen-test-runner /home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-4cc319acba029e93.wasm 'host::storage::lifetime_tests'` (exit status: 1)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.

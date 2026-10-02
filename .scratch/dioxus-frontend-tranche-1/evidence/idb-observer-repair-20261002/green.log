@@ -1,0 +1,17 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/matrix-idb-lifetime-repair-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.60s
+     Running unittests src/lib.rs (/home/chris/.local/share/boardstudio/worktrees/case-model-delivery-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-4cc319acba029e93.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:36885/`
+Try find `webdriver.json` for configure browser's capabilities:
+Ok
+Loading Wasm module...
+
+running 5 tests
+test host::storage::lifetime_tests::transaction_request_error_does_not_call_dropped_abort_handler ... ok
+test host::storage::lifetime_tests::normal_completion_is_saved_and_detaches_handlers ... ok
+test host::storage::lifetime_tests::handled_request_error_does_not_report_failed_transaction ... ok
+test host::storage::lifetime_tests::explicit_abort_preserves_caller_reason_and_rolls_back ... ok
+test host::storage::lifetime_tests::cancelled_transaction_observer_detaches_registered_handlers ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.31s
+

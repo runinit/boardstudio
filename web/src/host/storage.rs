@@ -577,6 +577,19 @@ fn request_result(
     }
 }
 
+struct TransactionCallbacks {
+    transaction: IdbTransaction,
+    on_complete: Closure<dyn FnMut(Event)>,
+    on_abort: Closure<dyn FnMut(Event)>,
+}
+
+impl Drop for TransactionCallbacks {
+    fn drop(&mut self) {
+        self.transaction.set_oncomplete(None);
+        self.transaction.set_onabort(None);
+    }
+}
+
 fn transaction_completion(
     transaction: &IdbTransaction,
     failure_reason: Rc<RefCell<Option<String>>>,
@@ -589,31 +602,38 @@ fn transaction_completion(
             let _ = sender.send(Ok(()));
         }
     });
-    let abort_sender = sender.clone();
-    let abort_failure_reason = failure_reason.clone();
+    let aborted_transaction = transaction.clone();
     let on_abort = Closure::<dyn FnMut(Event)>::new(move |_| {
-        let reason = abort_failure_reason
-            .borrow_mut()
-            .take()
-            .unwrap_or_else(|| "IndexedDB transaction aborted".into());
-        if let Some(sender) = abort_sender.borrow_mut().take() {
+        let reason = failure_reason.borrow_mut().take().unwrap_or_else(|| {
+            aborted_transaction.error().map_or_else(
+                || "IndexedDB transaction aborted".into(),
+                |error| {
+                    format!(
+                        "IndexedDB transaction aborted: {}: {}",
+                        error.name(),
+                        error.message()
+                    )
+                },
+            )
+        });
+        if let Some(sender) = sender.borrow_mut().take() {
             let _ = sender.send(Err(PersistError(reason)));
         }
     });
-    let error_sender = sender;
-    let on_error = Closure::<dyn FnMut(Event)>::new(move |_| {
-        if let Some(sender) = error_sender.borrow_mut().take() {
-            let _ = sender.send(Err(PersistError("IndexedDB transaction failed".into())));
-        }
-    });
-    transaction.set_oncomplete(Some(on_complete.as_ref().unchecked_ref()));
-    transaction.set_onabort(Some(on_abort.as_ref().unchecked_ref()));
-    transaction.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+    // A request error can be handled without aborting. Only complete/abort are terminal.
+    // Own registration outside the async block so even an unpolled future detaches on drop.
+    let callbacks = TransactionCallbacks {
+        transaction: transaction.clone(),
+        on_complete,
+        on_abort,
+    };
+    transaction.set_oncomplete(Some(callbacks.on_complete.as_ref().unchecked_ref()));
+    transaction.set_onabort(Some(callbacks.on_abort.as_ref().unchecked_ref()));
     async move {
         let result = receiver
             .await
             .map_err(|_| PersistError("IndexedDB transaction callback was abandoned".into()))?;
-        let _ = (&on_complete, &on_abort, &on_error, failure_reason);
+        drop(callbacks);
         result
     }
 }
@@ -643,3 +663,7 @@ fn js_error(value: JsValue) -> PersistError {
         .unwrap_or_else(|| format!("{value:?}"));
     PersistError(message)
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "storage_lifetime_tests.rs"]
+mod lifetime_tests;
