@@ -341,6 +341,7 @@ class PageOnlyReuseTests(TestCase):
             ("macro-emitted-module", baseline + b"\nmacro_rules! add { () => { mod made; } }\nadd!();\n"),
             ("spaced-include", baseline + b'\ninclude ! ("worker.rs");\n'),
             ("cfg-new-function", baseline + b'\n#[cfg(feature = "page")]\nfn added() {}\n'),
+            ("inner-cfg-attribute", b'#![cfg(feature = "page")]\n' + baseline),
             ("new-macro-import", baseline + b"\nuse worker_macros::register_leaf;\n"),
             ("cfg", baseline.replace(b'target_arch = "wasm32"', b'feature = "core-worker"')),
             ("path", baseline.replace(b'layout.rs', b'worker.rs')),
@@ -360,14 +361,38 @@ class PageOnlyReuseTests(TestCase):
                 self.assertFalse((root / "web/target/builds/candidate").exists())
                 self.assertTrue((baseline_dir / "provenance.json").exists())
 
+    def test_unbalanced_function_and_rsx_groups_reject_before_candidate_creation(self):
+        path = "web/src/presentation/layout_workspace.rs"
+        baseline = SOURCE_BYTES[path]
+        cases = (
+            ("unmatched-brace", baseline + b"\nfn unfinished() {\n"),
+            ("mismatched-group", baseline + b"\nfn malformed() ]\n"),
+            ("unmatched-rsx-group", baseline + b'\nfn render() { rsx! { button { "x" } }\n'),
+            ("mismatched-rsx-group", baseline + b'\nfn render() { rsx! { button { "x" ) } } }\n'),
+        )
+        for label, mutated in cases:
+            with self.subTest(group=label), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                baseline_dir, _ = self.make_baseline(root)
+                head = dict(HEAD_BYTES)
+                head[path] = mutated
+                current = {name: sha(data) for name, data in SOURCE_BYTES.items()}
+                current[path] = sha(mutated)
+                with self._patches(self.mock_environment(root, {}, current, head)):
+                    with self.assertRaisesRegex(ValueError, "malformed Rust token stream"):
+                        BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertFalse((root / "web/target/builds/candidate").exists())
+                self.assertTrue((baseline_dir / "provenance.json").exists())
+
     def test_registration_signature_allows_ordinary_rsx_copy_edits(self):
         before = b'''\
 #[component]
 fn CommandPill() -> Element {
-    rsx! { button { "mod include! cfg" } }
+    // unmatched delimiters in comments are not Rust token groups: } ] )
+    rsx! { button { "mod include! cfg [({" } }
 }
 '''
-        after = before.replace(b"mod include! cfg", b"workers still compile")
+        after = before.replace(b"mod include! cfg [({", b"workers still compile )]}")
         self.assertEqual(
             BUILD.rust_module_registration_signature(before),
             BUILD.rust_module_registration_signature(after),

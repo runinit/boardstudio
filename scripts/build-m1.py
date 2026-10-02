@@ -97,7 +97,8 @@ def rust_lex(source):
     Comments and whitespace do not affect the signature. String/raw-string
     literals stay atomic so words such as `mod` in UI copy cannot look like
     declarations. Nested block comments and balanced token groups are handled;
-    malformed strings/comments fail closed.
+    malformed strings/comments and unmatched or mismatched token groups fail
+    closed before any candidate output is created.
     """
     if isinstance(source, bytes):
         source = source.decode("utf-8")
@@ -219,6 +220,16 @@ def rust_module_registration_signature(source):
     safe_expression_macros = {"rsx", "format", "format_args", "vec", "matches"}
     registrations = []
 
+    delimiters = []
+    for _, value in tokens:
+        if value in open_to_close:
+            delimiters.append(open_to_close[value])
+        elif value in ("]", "}", ")"):
+            if not delimiters or value != delimiters.pop():
+                raise ValueError(f"malformed Rust token stream: mismatched delimiter {value!r}")
+    if delimiters:
+        raise ValueError(f"malformed Rust token stream: unmatched delimiter {delimiters[-1]!r}")
+
     def group_end(start):
         if start >= len(values) or values[start] not in open_to_close:
             raise ValueError("unbalanced Rust registration token group")
@@ -254,8 +265,15 @@ def rust_module_registration_signature(source):
     index = 0
     while index < len(values):
         value = values[index]
-        if value == "#" and index + 1 < len(values) and values[index + 1] == "[":
-            end = group_end(index + 1)
+        if (
+            value == "#"
+            and index + 1 < len(values)
+            and (values[index + 1] == "[" or (
+                values[index + 1] == "!" and index + 2 < len(values) and values[index + 2] == "["
+            ))
+        ):
+            attribute_open = index + 2 if values[index + 1] == "!" else index + 1
+            end = group_end(attribute_open)
             registrations.append(tokens[index:end])
             index = end
             continue

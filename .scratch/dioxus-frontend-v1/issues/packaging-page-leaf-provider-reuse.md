@@ -6,7 +6,7 @@
 
 **Status:** isolated implementation complete; independent source review and helper-matched full baseline pending
 
-**Review correction:** Sol's production-path review of the first frozen implementation (`1bdaaf0e`) found Rust registration forms that its line scanner accepted. That scanner is replaced by a comment/string-aware token lexer; the production `validate_reuse` fixture now rejects split declarations, comment-prefixed and nested declarations, macro-emitted modules, spaced includes, new cfg attributes and macro imports before candidate creation. The repaired frozen revision still requires exact independent re-review.
+**Review correction:** Sol's production-path review of the first frozen implementation (`1bdaaf0e`) found Rust registration forms that its line scanner accepted. That scanner is replaced by a comment/string-aware token lexer; the production `validate_reuse` fixture rejects split declarations, comment-prefixed and nested declarations, macro-emitted modules, spaced includes, new cfg attributes and macro imports before candidate creation. Re-review then found inner crate cfg attributes and unmatched/mismatched source groups were not guarded; the current repair includes inner attributes and globally validates delimiter groups, with function/RSX malformed-source regressions. This frozen revision still requires exact independent re-review.
 
 **Parent acceptance joins:** Existing packaging root/subpath/offline/provider provenance and relevant feature paired behavior/history/save-reopen gates remain unchanged. All62 canonical parents remain open according to their own criteria.
 
