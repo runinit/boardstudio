@@ -5,7 +5,8 @@ use super::{
     PcbWiringResolution, WiringPlanIdentity, firmware_position_projection,
 };
 use crate::firmware_position_projection::{
-    EditSettlement, EditSettlementSource, FirmwarePositionFeedbackTarget, admits_edit, settle_edit,
+    EditSettlement, EditSettlementSource, FirmwarePositionAdmission,
+    FirmwarePositionFeedbackTarget, admits_edit, settle_edit,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, Scope};
@@ -200,14 +201,16 @@ pub(in crate::presentation) fn use_firmware_position_edits(
             if !admits_edit(
                 &request.identity,
                 &request.key_id,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
-                runtime.scope().as_ref(),
-                snapshot,
-                runtime.electrical_preview_executor_epoch(),
-                Some(identity),
-                &current,
+                FirmwarePositionAdmission {
+                    workspace: workspace(),
+                    current_generation: scope_generation(),
+                    instance_is_current: instance_is_current(),
+                    runtime_scope: runtime.scope().as_ref(),
+                    accepted: snapshot,
+                    executor_epoch: runtime.electrical_preview_executor_epoch(),
+                    current_plan: Some(identity),
+                    current_projection: &current,
+                },
             ) {
                 return;
             }

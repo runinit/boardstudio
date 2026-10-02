@@ -84,42 +84,50 @@ pub(crate) struct EditSettlementSource<'a> {
     pub requested_value: &'a str,
 }
 
-#[allow(clippy::too_many_arguments)]
+pub(crate) struct FirmwarePositionAdmission<'a> {
+    pub workspace: &'a str,
+    pub current_generation: u64,
+    pub instance_is_current: bool,
+    pub runtime_scope: Option<&'a Scope>,
+    pub accepted: &'a AcceptedSnapshot,
+    pub executor_epoch: u64,
+    pub current_plan: Option<&'a FirmwarePlanIdentity>,
+    pub current_projection: &'a FirmwarePositionProjection,
+}
+
 pub(crate) fn admits_edit(
     identity: &FirmwarePositionIdentity,
     key_id: &str,
-    workspace: &str,
-    current_generation: u64,
-    instance_is_current: bool,
-    runtime_scope: Option<&Scope>,
-    accepted: &AcceptedSnapshot,
-    executor_epoch: u64,
-    current_plan: Option<&FirmwarePlanIdentity>,
-    current_projection: &FirmwarePositionProjection,
+    admission: FirmwarePositionAdmission<'_>,
 ) -> bool {
     let normalized_scope = Scope {
         instance_id: None,
         ..identity.ui_scope.clone()
     };
-    workspace == "PCB"
-        && instance_is_current
-        && current_generation == identity.scope_generation
-        && runtime_scope == Some(&identity.ui_scope)
-        && accepted.session_epoch == identity.ui_scope.session_epoch
-        && accepted.document.id == identity.ui_scope.document_id
-        && accepted.document.revision == identity.plan.revision
-        && accepted.scene.revision == accepted.document.revision
+    admission.workspace == "PCB"
+        && admission.instance_is_current
+        && admission.current_generation == identity.scope_generation
+        && admission.runtime_scope == Some(&identity.ui_scope)
+        && admission.accepted.session_epoch == identity.ui_scope.session_epoch
+        && admission.accepted.document.id == identity.ui_scope.document_id
+        && admission.accepted.document.revision == identity.plan.revision
+        && admission.accepted.scene.revision == admission.accepted.document.revision
         && identity.plan.scope == normalized_scope
-        && identity.plan.token == accepted.token
-        && identity.plan.executor_epoch == executor_epoch
-        && current_plan == Some(&identity.plan)
-        && accepted
+        && identity.plan.token == admission.accepted.token
+        && identity.plan.executor_epoch == admission.executor_epoch
+        && admission.current_plan == Some(&identity.plan)
+        && admission
+            .accepted
             .document
             .boards
             .iter()
             .any(|board| board.id == identity.ui_scope.board_id)
-        && current_projection.identity.as_ref() == Some(identity)
-        && current_projection.keys.iter().any(|key| key.id == key_id)
+        && admission.current_projection.identity.as_ref() == Some(identity)
+        && admission
+            .current_projection
+            .keys
+            .iter()
+            .any(|key| key.id == key_id)
 }
 
 /// Admission identity is intentionally absent here: after submission, plan/source refresh cannot
@@ -469,41 +477,47 @@ mod tests {
         assert!(admits_edit(
             identity,
             &key_id,
-            "PCB",
-            3,
-            true,
-            Some(&runtime_scope),
-            &snapshot,
-            session.core_executor_epoch().0,
-            Some(&plan_identity),
-            &projection,
+            FirmwarePositionAdmission {
+                workspace: "PCB",
+                current_generation: 3,
+                instance_is_current: true,
+                runtime_scope: Some(&runtime_scope),
+                accepted: &snapshot,
+                executor_epoch: session.core_executor_epoch().0,
+                current_plan: Some(&plan_identity),
+                current_projection: &projection,
+            },
         ));
         assert!(!admits_edit(
             identity,
             &key_id,
-            "PCB",
-            3,
-            true,
-            Some(&Scope {
-                board_id: "stale-board".into(),
-                ..runtime_scope.clone()
-            }),
-            &snapshot,
-            session.core_executor_epoch().0,
-            Some(&plan_identity),
-            &projection,
+            FirmwarePositionAdmission {
+                workspace: "PCB",
+                current_generation: 3,
+                instance_is_current: true,
+                runtime_scope: Some(&Scope {
+                    board_id: "stale-board".into(),
+                    ..runtime_scope.clone()
+                }),
+                accepted: &snapshot,
+                executor_epoch: session.core_executor_epoch().0,
+                current_plan: Some(&plan_identity),
+                current_projection: &projection,
+            },
         ));
         assert!(!admits_edit(
             identity,
             &key_id,
-            "PCB",
-            3,
-            true,
-            Some(&runtime_scope),
-            &snapshot,
-            session.core_executor_epoch().0 + 1,
-            Some(&plan_identity),
-            &projection,
+            FirmwarePositionAdmission {
+                workspace: "PCB",
+                current_generation: 3,
+                instance_is_current: true,
+                runtime_scope: Some(&runtime_scope),
+                accepted: &snapshot,
+                executor_epoch: session.core_executor_epoch().0 + 1,
+                current_plan: Some(&plan_identity),
+                current_projection: &projection,
+            },
         ));
 
         let outcomes = crate::operation_outcomes::OperationOutcomes::default();
