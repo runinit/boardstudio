@@ -45,11 +45,144 @@ use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, SvgElement, Url};
 type Notifier = Rc<dyn Fn()>;
 type Frame = (i32, Closure<dyn FnMut(f64)>);
 struct Artifact {
+    operation_id: OperationId,
     bytes: Vec<u8>,
     filename: String,
     media_type: Option<String>,
     scope: Scope,
     token: SnapshotToken,
+    firmware: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeReportSeverity {
+    Status,
+    Alert,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RuntimeReport {
+    message: String,
+    severity: RuntimeReportSeverity,
+}
+
+impl RuntimeReport {
+    fn status(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            severity: RuntimeReportSeverity::Status,
+        }
+    }
+
+    fn alert(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            severity: RuntimeReportSeverity::Alert,
+        }
+    }
+
+    fn clear_alert(&mut self) {
+        if self.severity == RuntimeReportSeverity::Alert {
+            self.message.clear();
+            self.severity = RuntimeReportSeverity::Status;
+        }
+    }
+}
+
+fn firmware_export_terminal_report(
+    capture_is_current: bool,
+    outcome: TerminalOutcome,
+    delivery_error: Option<String>,
+) -> Option<RuntimeReport> {
+    if !capture_is_current {
+        return None;
+    }
+    match outcome {
+        TerminalOutcome::Completed => Some(match delivery_error {
+            Some(error) => RuntimeReport::alert(error),
+            None => RuntimeReport::status("Saved locally."),
+        }),
+        TerminalOutcome::Rejected(reason)
+        | TerminalOutcome::PersistenceFailed(reason)
+        | TerminalOutcome::BlockedByRecovery(reason)
+        | TerminalOutcome::ExecutorFailed(reason) => Some(RuntimeReport::alert(reason)),
+        TerminalOutcome::Cancelled => Some(RuntimeReport::status("Cancelled.")),
+        TerminalOutcome::Closed => Some(RuntimeReport::status("Editor closed.")),
+        TerminalOutcome::Superseded => None,
+    }
+}
+
+fn firmware_export_worker_is_current(
+    expected_epoch: boardstudio_application::ExecutorEpoch,
+    current_epoch: boardstudio_application::ExecutorEpoch,
+    same_worker: bool,
+) -> bool {
+    expected_epoch == current_epoch && same_worker
+}
+
+fn firmware_export_bytes_for_delivery(
+    result: Result<Vec<u8>, String>,
+    owner_is_current: bool,
+    cancelled: bool,
+) -> Result<Vec<u8>, String> {
+    match result {
+        Ok(_) if !owner_is_current || cancelled => {
+            Err("Export scope changed before delivery.".into())
+        }
+        other => other,
+    }
+}
+
+fn firmware_export_capture_matches(
+    capture: &FirmwareExportCapture,
+    scope: Option<&Scope>,
+    snapshot: Option<&FirmwareAcceptedIdentity>,
+) -> bool {
+    scope == Some(&capture.scope)
+        && snapshot.is_some_and(|snapshot| {
+            snapshot.session_epoch == capture.session_epoch
+                && snapshot.document_id == capture.document_id
+                && snapshot.token == capture.token
+                && snapshot.revision == capture.revision
+                && snapshot.scene_revision == capture.revision
+        })
+}
+
+fn firmware_export_is_latest(
+    operation_id: OperationId,
+    latest_operation_id: Option<OperationId>,
+) -> bool {
+    latest_operation_id == Some(operation_id)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FirmwareExportCapture {
+    scope: Scope,
+    token: SnapshotToken,
+    revision: u64,
+    session_epoch: boardstudio_application::SessionEpoch,
+    document_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FirmwareAcceptedIdentity {
+    session_epoch: boardstudio_application::SessionEpoch,
+    document_id: String,
+    token: SnapshotToken,
+    revision: u64,
+    scene_revision: u64,
+}
+
+impl From<&AcceptedSnapshot> for FirmwareAcceptedIdentity {
+    fn from(snapshot: &AcceptedSnapshot) -> Self {
+        Self {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            scene_revision: snapshot.scene.revision,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -91,13 +224,15 @@ pub struct Runtime {
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
-    status: RefCell<String>,
+    status: RefCell<RuntimeReport>,
     open_sequence: Cell<u64>,
     cad_scene: RefCell<Option<Rc<CadScene>>>,
     cad_worker: RefCell<Option<(Scope, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     step_exports: RefCell<BTreeSet<OperationId>>,
-    firmware_exports: RefCell<BTreeSet<OperationId>>,
+    firmware_exports: RefCell<BTreeMap<OperationId, FirmwareExportCapture>>,
+    latest_firmware_export: Cell<Option<OperationId>>,
+    firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::presentation::model_delivery::ModelDeliveryAdapter,
@@ -129,13 +264,17 @@ impl Runtime {
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
             notify: RefCell::new(None),
-            status: RefCell::new("Open a saved keyboard or an editable demo copy.".into()),
+            status: RefCell::new(RuntimeReport::status(
+                "Open a saved keyboard or an editable demo copy.",
+            )),
             open_sequence: Cell::new(0),
             cad_scene: RefCell::new(None),
             cad_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
             step_exports: RefCell::new(BTreeSet::new()),
-            firmware_exports: RefCell::new(BTreeSet::new()),
+            firmware_exports: RefCell::new(BTreeMap::new()),
+            latest_firmware_export: Cell::new(None),
+            firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
@@ -287,7 +426,10 @@ impl Runtime {
         }
     }
     pub fn status(&self) -> String {
-        self.status.borrow().clone()
+        self.status.borrow().message.clone()
+    }
+    pub(crate) fn status_is_alert(&self) -> bool {
+        self.status.borrow().severity == RuntimeReportSeverity::Alert
     }
     pub(crate) fn embed_used_models(&self) -> bool {
         self.archive_export_options.embed_used_models()
@@ -307,7 +449,14 @@ impl Runtime {
         *self.surface.borrow_mut() = Some(surface);
     }
     pub fn report(&self, status: impl Into<String>) {
-        *self.status.borrow_mut() = status.into();
+        self.apply_report(RuntimeReport::status(status));
+    }
+    fn apply_report(&self, report: RuntimeReport) {
+        *self.status.borrow_mut() = report;
+        self.changed();
+    }
+    fn clear_alert(&self) {
+        self.status.borrow_mut().clear_alert();
         self.changed();
     }
     fn changed(&self) {
@@ -876,19 +1025,36 @@ impl Runtime {
                     .operation_outcomes
                     .settle(operation_id, outcome.clone());
                 self.step_exports.borrow_mut().remove(&operation_id);
-                self.firmware_exports.borrow_mut().remove(&operation_id);
+                let firmware_capture = self.firmware_exports.borrow_mut().remove(&operation_id);
+                let delivery_error = self
+                    .firmware_export_delivery_errors
+                    .borrow_mut()
+                    .remove(&operation_id);
                 self.archive_export_options.settle(operation_id);
-                match outcome {
-                    TerminalOutcome::Completed => self.report("Saved locally."),
-                    TerminalOutcome::Rejected(reason)
-                    | TerminalOutcome::PersistenceFailed(reason)
-                    | TerminalOutcome::BlockedByRecovery(reason)
-                    | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
-                    TerminalOutcome::Cancelled => self.report("Cancelled."),
-                    TerminalOutcome::Closed => self.report("Editor closed."),
-                    TerminalOutcome::Superseded => {
-                        if observed {
-                            self.changed();
+                let firmware_owner_is_current = firmware_capture.as_ref().is_some_and(|capture| {
+                    self.firmware_export_capture_is_current(operation_id, capture)
+                });
+                if firmware_capture.is_some() {
+                    if let Some(report) = firmware_export_terminal_report(
+                        firmware_owner_is_current,
+                        outcome,
+                        delivery_error,
+                    ) {
+                        self.apply_report(report);
+                    }
+                } else {
+                    match outcome {
+                        TerminalOutcome::Completed => self.report("Saved locally."),
+                        TerminalOutcome::Rejected(reason)
+                        | TerminalOutcome::PersistenceFailed(reason)
+                        | TerminalOutcome::BlockedByRecovery(reason)
+                        | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
+                        TerminalOutcome::Cancelled => self.report("Cancelled."),
+                        TerminalOutcome::Closed => self.report("Editor closed."),
+                        TerminalOutcome::Superseded => {
+                            if observed {
+                                self.changed();
+                            }
                         }
                     }
                 }
@@ -957,7 +1123,7 @@ impl Runtime {
                 snapshot,
             } => {
                 let is_step_export = self.step_exports.borrow().contains(&operation_id);
-                let is_firmware_export = self.firmware_exports.borrow_mut().remove(&operation_id);
+                let is_firmware_export = self.firmware_exports.borrow().contains_key(&operation_id);
                 let work: Result<ArchiveWorkFuture<'_>, String> =
                     self.archive_export_options.dispatch(
                         operation_id,
@@ -981,6 +1147,14 @@ impl Runtime {
                 let result = match work {
                     Ok(future) => future.await,
                     Err(reason) => Err(reason),
+                };
+                let result = if is_firmware_export {
+                    let owner_is_current =
+                        self.export_current(operation_id, snapshot.token, &scope);
+                    let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
+                    firmware_export_bytes_for_delivery(result, owner_is_current, cancelled)
+                } else {
+                    result
                 };
                 match result {
                     Ok(bytes) => {
@@ -1006,11 +1180,13 @@ impl Runtime {
                         self.artifacts.borrow_mut().insert(
                             artifact_id.clone(),
                             Artifact {
+                                operation_id,
                                 bytes,
                                 filename,
                                 media_type,
                                 scope: scope.clone(),
                                 token: snapshot.token,
+                                firmware: is_firmware_export,
                             },
                         );
                         self.complete(Completion::ExportFinished {
@@ -1047,7 +1223,13 @@ impl Runtime {
                         artifact.media_type.as_deref(),
                     )
                 {
-                    self.report(error);
+                    if artifact.firmware {
+                        self.firmware_export_delivery_errors
+                            .borrow_mut()
+                            .insert(artifact.operation_id, error);
+                    } else {
+                        self.report(error);
+                    }
                 }
                 vec![]
             }
@@ -1070,7 +1252,6 @@ impl Runtime {
             }
             Effect::CancelExport { operation_id } => {
                 self.cancelled_exports.borrow_mut().insert(operation_id);
-                self.firmware_exports.borrow_mut().remove(&operation_id);
                 self.archive_export_options.cancel(operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
@@ -1793,12 +1974,24 @@ impl Runtime {
             self.report("Select a board before exporting ZMK source.");
             return;
         };
-        if self.model().accepted.is_none() {
+        let model = self.model();
+        let Some(snapshot) = model.accepted else {
             self.report("Firmware export requires a ready accepted snapshot.");
             return;
-        }
+        };
+        self.clear_alert();
         let operation_id = self.operation();
-        self.firmware_exports.borrow_mut().insert(operation_id);
+        self.latest_firmware_export.set(Some(operation_id));
+        self.firmware_exports.borrow_mut().insert(
+            operation_id,
+            FirmwareExportCapture {
+                scope: scope.clone(),
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                session_epoch: snapshot.session_epoch,
+                document_id: snapshot.document.id.clone(),
+            },
+        );
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -1836,6 +2029,16 @@ impl Runtime {
                 .accepted
                 .as_ref()
                 .is_some_and(|s| s.token == token)
+    }
+    fn firmware_export_capture_is_current(
+        &self,
+        operation_id: OperationId,
+        capture: &FirmwareExportCapture,
+    ) -> bool {
+        let model = self.model();
+        let accepted = model.accepted.as_ref().map(FirmwareAcceptedIdentity::from);
+        firmware_export_is_latest(operation_id, self.latest_firmware_export.get())
+            && firmware_export_capture_matches(capture, self.scope().as_ref(), accepted.as_ref())
     }
     async fn generate(
         self: &Rc<Self>,
@@ -2320,8 +2523,11 @@ impl Runtime {
             return Err("The accepted project or scene changed during firmware export.".into());
         }
         if let (Some(expected_core), Some(expected_epoch)) = (core, executor_epoch)
-            && (self.session.borrow().core_executor_epoch() != expected_epoch
-                || !Rc::ptr_eq(expected_core, &self.core.borrow().clone()))
+            && !firmware_export_worker_is_current(
+                expected_epoch,
+                self.session.borrow().core_executor_epoch(),
+                Rc::ptr_eq(expected_core, &self.core.borrow().clone()),
+            )
         {
             return Err("The Core worker changed during firmware export.".into());
         }
@@ -2830,4 +3036,155 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
         let _ = Url::revoke_object_url(&url);
     }
     result
+}
+
+#[cfg(test)]
+mod firmware_export_tests {
+    use super::*;
+    use boardstudio_application::{ExecutorEpoch, SessionEpoch};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn capture() -> FirmwareExportCapture {
+        FirmwareExportCapture {
+            scope: Scope {
+                session_epoch: SessionEpoch(5),
+                document_id: "project-a".into(),
+                board_id: "board-a".into(),
+                instance_id: None,
+            },
+            token: SnapshotToken(17),
+            revision: 6,
+            session_epoch: SessionEpoch(5),
+            document_id: "project-a".into(),
+        }
+    }
+
+    fn accepted(capture: &FirmwareExportCapture) -> FirmwareAcceptedIdentity {
+        FirmwareAcceptedIdentity {
+            session_epoch: capture.session_epoch,
+            document_id: capture.document_id.clone(),
+            token: capture.token,
+            revision: capture.revision,
+            scene_revision: capture.revision,
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn firmware_failure_announcement_has_explicit_alert_severity_and_stale_owner_is_silent() {
+        for reason in [
+            "Firmware generation failed: worker rejected the plan.",
+            "Firmware packaging failed: ZIP worker returned no bytes.",
+        ] {
+            let report = firmware_export_terminal_report(
+                true,
+                TerminalOutcome::ExecutorFailed(reason.into()),
+                None,
+            )
+            .expect("current firmware failure is announced");
+            assert_eq!(report.message, reason);
+            assert_eq!(report.severity, RuntimeReportSeverity::Alert);
+        }
+
+        assert!(
+            firmware_export_terminal_report(
+                false,
+                TerminalOutcome::ExecutorFailed("late failure from old project".into()),
+                None,
+            )
+            .is_none()
+        );
+
+        let mut report = RuntimeReport::status(
+            "Firmware generation failed: same text is routine status without typed severity.",
+        );
+        assert_eq!(report.severity, RuntimeReportSeverity::Status);
+        report = firmware_export_terminal_report(
+            true,
+            TerminalOutcome::Completed,
+            Some("Browser refused the firmware download.".into()),
+        )
+        .expect("delivery failure is announced");
+        assert_eq!(report.severity, RuntimeReportSeverity::Alert);
+        report.clear_alert();
+        assert_eq!(report.severity, RuntimeReportSeverity::Status);
+        assert!(report.message.is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    fn firmware_completion_is_suppressed_after_project_board_or_snapshot_changes() {
+        let capture = capture();
+        let accepted = accepted(&capture);
+        assert!(firmware_export_capture_matches(
+            &capture,
+            Some(&capture.scope),
+            Some(&accepted),
+        ));
+
+        let other_board = Scope {
+            board_id: "board-b".into(),
+            ..capture.scope.clone()
+        };
+        assert!(!firmware_export_capture_matches(
+            &capture,
+            Some(&other_board),
+            Some(&accepted),
+        ));
+
+        let mut newer_snapshot = accepted.clone();
+        newer_snapshot.token = SnapshotToken(18);
+        assert!(!firmware_export_capture_matches(
+            &capture,
+            Some(&capture.scope),
+            Some(&newer_snapshot),
+        ));
+
+        let mut other_project = accepted;
+        other_project.document_id = "project-b".into();
+        assert!(!firmware_export_capture_matches(
+            &capture,
+            Some(&capture.scope),
+            Some(&other_project),
+        ));
+    }
+
+    #[wasm_bindgen_test]
+    fn older_export_cannot_replace_a_newer_attempts_report() {
+        let first = OperationId(41);
+        let second = OperationId(42);
+        assert!(firmware_export_is_latest(second, Some(second)));
+        assert!(!firmware_export_is_latest(first, Some(second)));
+        assert!(!firmware_export_is_latest(first, None));
+    }
+
+    #[wasm_bindgen_test]
+    fn worker_replacement_at_resolution_generation_or_packaging_boundary_invalidates_attempt() {
+        let expected = ExecutorEpoch(11);
+        let stages = ["resolution", "generation", "packaging"];
+        for stage in stages {
+            assert!(firmware_export_worker_is_current(expected, expected, true));
+            assert!(
+                !firmware_export_worker_is_current(expected, ExecutorEpoch(12), false),
+                "worker replacement during {stage} must invalidate the export"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn generation_and_zip_failures_cannot_produce_deliverable_firmware_bytes() {
+        for error in [
+            "Firmware generation failed: test worker rejection.",
+            "Firmware packaging failed: test ZIP rejection.",
+        ] {
+            let result = firmware_export_bytes_for_delivery(Err(error.into()), true, false);
+            assert_eq!(result, Err(error.into()));
+        }
+        assert_eq!(
+            firmware_export_bytes_for_delivery(Ok(vec![1, 2, 3]), false, false),
+            Err("Export scope changed before delivery.".into())
+        );
+        assert_eq!(
+            firmware_export_bytes_for_delivery(Ok(vec![1, 2, 3]), true, true),
+            Err("Export scope changed before delivery.".into())
+        );
+    }
 }
