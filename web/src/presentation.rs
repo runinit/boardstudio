@@ -163,10 +163,16 @@ pub fn App() -> Element {
         link { rel: "stylesheet", href: "assets/m1.css" }
         main { class: "m1-workbench",
             header { class: "m1-topbar",
-                span { class: "m1-brand", "aria-label": "BoardStudio", title: "BoardStudio",
+                h1 { class: "m1-brand", title: "BoardStudio",
                     svg { view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4zM8 20l5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
+                    span { class: "m1-visually-hidden", "BoardStudio" }
                 }
-                details { class: "m1-project-menu",
+                details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
+                    if event.data().key().to_string() == "Escape" {
+                        event.prevent_default();
+                        close_project_menu();
+                    }
+                },
                     summary { "{project_name}" }
                     Library {}
                 }
@@ -189,6 +195,28 @@ fn read_theme_preference() -> &'static str {
         .filter(|value| value == "light" || value == "dark")
         .map(|value| if value == "dark" { "dark" } else { "light" })
         .unwrap_or("system")
+}
+
+fn close_project_menu() {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    let Some(menu) = document
+        .query_selector("details.m1-project-menu")
+        .ok()
+        .flatten()
+    else {
+        return;
+    };
+    let _ = menu.remove_attribute("open");
+    if let Some(summary) = menu
+        .query_selector("summary")
+        .ok()
+        .flatten()
+        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+    {
+        let _ = summary.focus();
+    }
 }
 
 fn read_system_theme() -> &'static str {
@@ -381,14 +409,14 @@ fn Objects() -> Element {
                             let click = select.clone();
                             let key_select = select.clone();
                             let items_for_key = items.clone();
-                            rsx! { button { key: "{id}", id: "m1-object-{index}", class: if is_selected { "m1-component selected" } else { "m1-component" }, role: "option", "aria-selected": "{is_selected}", tabindex: if is_selected || (!selected && index == 0) { "0" } else { "-1" }, onclick: move |_| click(id.clone()), onkeydown: move |event: KeyboardEvent| {
+                            rsx! { button { key: "{id}", id: "m1-object-{index}", class: if is_selected { "m1-component selected" } else { "m1-component" }, role: "option", "aria-label": "{reference}, {kind}", "aria-selected": "{is_selected}", tabindex: if is_selected || (!selected && index == 0) { "0" } else { "-1" }, onclick: move |_| click(id.clone()), onkeydown: move |event: KeyboardEvent| {
                                 let key = event.data().key().to_string();
                                 let next = match key.as_str() { "ArrowDown" => Some(index + 1), "ArrowUp" => Some(index.saturating_sub(1)), "Home" => Some(0), "End" => Some(items_for_key.len().saturating_sub(1)), _ => None };
                                 let Some(next) = next.filter(|next| *next < items_for_key.len()) else { return; };
                                 event.prevent_default();
                                 if let Some((_, next_id, _, _, _)) = items_for_key.get(next) { key_select(next_id.clone()); }
                                 if let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-object-{next}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok()) { let _ = element.focus(); }
-                            }, span { "{reference}" span { class: "m1-object-kind", "{kind}" } } } }
+                            }, span { class: "m1-object-reference", "{reference}" } span { class: "m1-object-kind", "{kind}" } } }
                         }
                     }
                 }
@@ -401,10 +429,10 @@ fn Objects() -> Element {
 fn PlaceholderWorkspace(name: &'static str) -> Element {
     let mut workspace = use_context::<WorkspaceState>().0;
     let message = match name {
-        "PCB" => "PCB editing controls will be added in a later Rust frontend phase.",
-        "Keymap" => "Keymap editing controls will be added in a later Rust frontend phase.",
-        "Keycaps" => "Keycap editing controls will be added in a later Rust frontend phase.",
-        _ => "Parts library editing controls will be added in a later Rust frontend phase.",
+        "PCB" => "PCB editing is not available yet in the Rust interface.",
+        "Keymap" => "Keymap editing is not available yet in the Rust interface.",
+        "Keycaps" => "Keycap editing is not available yet in the Rust interface.",
+        _ => "Parts library editing is not available yet in the Rust interface.",
     };
     rsx! { section { class: "m1-placeholder-workspace", h1 { "{name}" }, p { "{message}" }, button { onclick: move |_| workspace.set("Layout"), "Back to Layout" } } }
 }
@@ -475,18 +503,19 @@ fn Library() -> Element {
     let import = runtime.clone();
     rsx! {
         section { class: "m1-library", "aria-label": "Keyboard library",
-            button { onclick: move |_| reviung.open_fixture("reviung41"), "REVIUNG41 copy" }
-            button { onclick: move |_| sofle.open_fixture("sofle"), "Sofle v2 copy" }
+            button { onclick: move |_| { close_project_menu(); reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
+            button { onclick: move |_| { close_project_menu(); sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
             label { "Import .boardstudio"
                 input { r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
                     let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
                     let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
+                    close_project_menu();
                     import.import_file(file);
                     input.set_value("");
                 }}
             }
             for (id, name) in saved() {
-                button { key: "{id}", onclick: { let runtime = runtime.clone(); move |_| runtime.open_saved(id.clone()) }, if recovery_required { "Recover from {name} (discard pending changes)" } else { "{name}" } }
+                button { key: "{id}", onclick: { let runtime = runtime.clone(); move |_| { close_project_menu(); runtime.open_saved(id.clone()); } }, if recovery_required { "Recover from {name} (discard pending changes)" } else { "{name}" } }
             }
         }
     }
@@ -498,6 +527,8 @@ fn Editor() -> Element {
     let _ = use_context::<Signal<u64>>()();
     let workspace = use_context::<WorkspaceState>().0;
     let active_workspace = workspace();
+    let mut objects_open = use_signal(|| false);
+    let mut inspect_open = use_signal(|| false);
     let model = runtime.model();
     let zoom_percent = model.camera.zoom * 100.0;
     let Some(snapshot) = model.accepted.as_ref() else {
@@ -813,13 +844,22 @@ fn Editor() -> Element {
     };
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
-            div { class: "m1-editor-body", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
-                Objects {}
-                main { class: "m1-workspace-content",
+            nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
+                button { "aria-controls": "m1-objects-panel", "aria-expanded": "{objects_open()}", onclick: move |_| objects_open.set(!objects_open()), "Objects" }
+                if active_workspace == "Layout" {
+                    button { "aria-controls": "m1-inspector-panel", "aria-expanded": "{inspect_open()}", onclick: move |_| inspect_open.set(!inspect_open()), "Inspect" }
+                }
+            }
+            div { class: "m1-editor-body",
+                div { id: "m1-objects-panel", class: if objects_open() { "m1-object-slot compact-open" } else { "m1-object-slot compact-closed" }, Objects {} }
+                section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
                     if active_workspace == "Layout" {
                         div { class: "m1-canvas-toolbar",
                             span { "{document.name}" }
-                            button { disabled: !matches!(model.durability, Durability::Failed {..}), onclick: move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() }), "Retry save" }
+                            if let Durability::Failed { reason, .. } = &model.durability {
+                                p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
+                                button { onclick: move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() }), "Retry save" }
+                            }
                             if model.lifecycle == boardstudio_application::Lifecycle::RecoveryRequired {
                                 button { onclick: move |_| recover.recover_saved(), "Reopen last saved version (discard pending changes)" }
                             }
@@ -876,7 +916,9 @@ fn Editor() -> Element {
                         PlaceholderWorkspace { name: active_workspace }
                     }
                 }
-                if active_workspace == "Layout" { Inspector {} }
+                if active_workspace == "Layout" {
+                    div { id: "m1-inspector-panel", class: if inspect_open() { "m1-inspector-slot compact-open" } else { "m1-inspector-slot compact-closed" }, Inspector {} }
+                }
             }
             footer { class: "m1-editor-footer",
                 button { "aria-label": "Undo", onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M8 6 4 10l4 4M4 10h7a5 5 0 0 1 5 5" } } }
