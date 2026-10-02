@@ -38,3 +38,11 @@ No new API/schema/budget or production cutover follows from a placeholder or pla
 - [ ] F7: [Case and 3D frontend](issues/07-case-3d.md) — planned; depends on F3, F4; F5 hardware-dependent views.
 - [ ] F8: [Export frontend and complete journeys](issues/08-export.md) — planned; depends on F5, F6, F7.
 - [ ] F9: [Frontend v1 qualification and React retirement](issues/09-frontend-v1.md) — planned; depends on F1–F8; applicable carried gates.
+
+## User correction: Layout layers and keycap rendering
+
+The missing keycap outlines and layer/footprint controls are being restored now
+as F3a, before the remaining F2 work. This corrects the first demo’s Layout
+presentation without claiming the rest of F3 or 3D assembly is complete.
+See `.scratch/dioxus-frontend-v1/issues/03a-layout-layers.md` and the retained
+reference/red evidence under `evidence/layout-layers/`.

@@ -178,3 +178,11 @@ performance project, new document format or native-host migration is part of thi
 frontend roadmap. Public service gaps discovered while porting a screen become
 explicit dependencies with the smallest required adapter decision; never silently
 replace an unfinished feature with a permanent placeholder.
+
+## User correction: Layout layers and keycap rendering
+
+The missing keycap outlines and layer/footprint controls are being restored now
+as F3a, before the remaining F2 work. This corrects the first demo’s Layout
+presentation without claiming the rest of F3 or 3D assembly is complete.
+See `.scratch/dioxus-frontend-v1/issues/03a-layout-layers.md` and the retained
+reference/red evidence under `evidence/layout-layers/`.

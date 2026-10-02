@@ -1,11 +1,11 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "F1 implemented and verified as first increment; F2\u2013F9 planned",
+  "status": "F1 verified; F3a Layout layers/keycaps/footprints implementing after user correction; full F2\u2013F9 open",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "F2",
+  "current_milestone": "F3a",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
@@ -20,9 +20,10 @@
       "depends_on": "F1"
     },
     "F3": {
-      "status": "planned",
+      "status": "F3a implementing; full milestone open",
       "ticket": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
-      "depends_on": "F2"
+      "depends_on": "F2",
+      "active_slice": ".scratch/dioxus-frontend-v1/issues/03a-layout-layers.md"
     },
     "F4": {
       "status": "planned",
