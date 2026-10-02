@@ -2,10 +2,12 @@
 mod inspector;
 mod library;
 mod objects;
+mod panels;
 
 use inspector::Inspector;
 use library::Library;
 use objects::Objects;
+use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
 mod footprint_graphics;
 
 use crate::{cad_presentation::CasePanel, runtime::Runtime};
@@ -442,6 +444,33 @@ fn Editor() -> Element {
     let active_workspace = workspace();
     let mut objects_open = use_signal(|| false);
     let mut inspect_open = use_signal(|| false);
+    let objects_panel_settings = use_panel_settings(PanelSide::Objects);
+    let inspector_panel_settings = use_panel_settings(PanelSide::Inspector);
+    let objects_preferences = objects_panel_settings();
+    let inspector_preferences = inspector_panel_settings();
+    let left_track = if objects_preferences.mode == PanelMode::Pinned {
+        "min(var(--m1-left-panel-width), calc(45vw - 126px))"
+    } else {
+        "32px"
+    };
+    let right_track = if active_workspace != "Layout" {
+        "0px"
+    } else if inspector_preferences.mode == PanelMode::Pinned {
+        "min(var(--m1-right-panel-width), calc(55vw - 154px))"
+    } else {
+        "32px"
+    };
+    let left_width = objects_preferences
+        .width
+        .map(|width| format!("--m1-left-panel-width:{width}px;"))
+        .unwrap_or_default();
+    let right_width = inspector_preferences
+        .width
+        .map(|width| format!("--m1-right-panel-width:{width}px;"))
+        .unwrap_or_default();
+    let panel_layout_style = format!(
+        "--m1-left-track:{left_track};--m1-right-track:{right_track};{left_width}{right_width}"
+    );
     let model = runtime.model();
     let zoom_percent = model.camera.zoom * 100.0;
     let Some(snapshot) = model.accepted.as_ref() else {
@@ -801,8 +830,8 @@ fn Editor() -> Element {
                     button { "aria-controls": "m1-inspector-panel", "aria-expanded": "{inspect_open()}", onclick: move |_| inspect_open.set(!inspect_open()), "Inspect" }
                 }
             }
-            div { class: "m1-editor-body",
-                div { id: "m1-objects-panel", class: if objects_open() { "m1-object-slot compact-open" } else { "m1-object-slot compact-closed" }, Objects {} }
+            div { class: "m1-editor-body", style: "{panel_layout_style}",
+                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings, Objects {} }
                 section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
                     if active_workspace == "Layout" {
                         div { class: "m1-canvas-toolbar",
@@ -935,7 +964,7 @@ fn Editor() -> Element {
                     }
                 }
                 if active_workspace == "Layout" {
-                    div { id: "m1-inspector-panel", class: if inspect_open() { "m1-inspector-slot compact-open" } else { "m1-inspector-slot compact-closed" }, Inspector {} }
+                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings, Inspector {} }
                 }
             }
             footer { class: "m1-editor-footer",
