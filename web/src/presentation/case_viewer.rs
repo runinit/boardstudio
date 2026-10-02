@@ -331,6 +331,7 @@ fn select_native_preview_model(
             scope: owner.scope.clone(),
             context,
             mode: boardstudio_application::SelectionMode::Replace,
+            outline_action: None,
         },
     );
     true

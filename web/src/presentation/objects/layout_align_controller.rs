@@ -688,7 +688,11 @@ fn context_matrix(context: &TreeContext) -> Option<String> {
         | TreeContext::Column { matrix_id, .. }
         | TreeContext::Key { matrix_id, .. } => Some(matrix_id.clone()),
         TreeContext::Component { matrix_id, .. } => matrix_id.clone(),
-        TreeContext::Board { .. } | TreeContext::LayoutGroup { .. } => None,
+        TreeContext::Board { .. }
+        | TreeContext::LayoutGroup { .. }
+        | TreeContext::Outline { .. }
+        | TreeContext::OutlineVersion { .. }
+        | TreeContext::Bridge { .. } => None,
     }
 }
 
@@ -845,7 +849,11 @@ fn make_edit(
                 },
             ))
         }
-        TreeContext::Board { .. } | TreeContext::LayoutGroup { .. } => None,
+        TreeContext::Board { .. }
+        | TreeContext::LayoutGroup { .. }
+        | TreeContext::Outline { .. }
+        | TreeContext::OutlineVersion { .. }
+        | TreeContext::Bridge { .. } => None,
     }
 }
 
