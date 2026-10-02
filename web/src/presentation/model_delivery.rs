@@ -1,0 +1,831 @@
+//! Private model-asset selection, identity, validation, and bounded mesh reuse.
+//!
+//! Runtime byte access, renderer decoding, STEP reading, viewer composition, and
+//! renderer scene submission are supplied by the page owners. In particular,
+//! model-batch liveness is independent of the renderer's scene sequence.
+
+use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_core::model::{Asset, BoardReference, PcbModel, ProjectDoc};
+use sha2::{Digest, Sha256};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    future::Future,
+    pin::Pin,
+    rc::{Rc, Weak},
+};
+
+use crate::runtime::CadScene;
+
+const MESH_CACHE_CAPACITY: usize = 80;
+const MAX_MODEL_BYTES: usize = 32 * 1024 * 1024;
+
+pub(crate) type ModelFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>> + 'static>>;
+
+/// The owner of model work. Renderer scene submissions intentionally are not
+/// part of this identity: healthy model completions can outlive a newer scene
+/// sequence while remaining attached to this exact Case projection.
+#[derive(Clone)]
+pub(crate) struct ModelOwnerIdentity {
+    scope: Scope,
+    snapshot_token: SnapshotToken,
+    viewer_instance: u64,
+    projection_generation: u64,
+    source_scene: Weak<CadScene>,
+}
+
+impl ModelOwnerIdentity {
+    pub(crate) fn new(
+        scope: Scope,
+        snapshot_token: SnapshotToken,
+        viewer_instance: u64,
+        projection_generation: u64,
+        source_scene: &Rc<CadScene>,
+    ) -> Self {
+        Self {
+            scope,
+            snapshot_token,
+            viewer_instance,
+            projection_generation,
+            source_scene: Rc::downgrade(source_scene),
+        }
+    }
+
+    fn same_owner(&self, other: &Self) -> bool {
+        self.scope == other.scope
+            && self.snapshot_token == other.snapshot_token
+            && self.viewer_instance == other.viewer_instance
+            && self.projection_generation == other.projection_generation
+            && Weak::ptr_eq(&self.source_scene, &other.source_scene)
+    }
+
+    /// Checks the captured projection against the current Case owner. The
+    /// accepted revision remains a separate batch property.
+    pub(crate) fn is_current_owner(
+        &self,
+        current_scope: &Scope,
+        current_token: SnapshotToken,
+        current_viewer_instance: u64,
+        current_projection_generation: u64,
+        current_scene: &Rc<CadScene>,
+    ) -> bool {
+        self.scope == *current_scope
+            && self.snapshot_token == current_token
+            && self.viewer_instance == current_viewer_instance
+            && self.projection_generation == current_projection_generation
+            && self
+                .source_scene
+                .upgrade()
+                .is_some_and(|captured| Rc::ptr_eq(&captured, current_scene))
+    }
+}
+
+/// One request for the model rows of a particular preview under an owner.
+#[derive(Clone)]
+pub(crate) struct ModelBatchIdentity {
+    owner: ModelOwnerIdentity,
+    accepted_revision: u64,
+    batch_generation: u64,
+}
+
+impl ModelBatchIdentity {
+    pub(crate) fn new(
+        owner: ModelOwnerIdentity,
+        accepted_revision: u64,
+        batch_generation: u64,
+    ) -> Self {
+        Self {
+            owner,
+            accepted_revision,
+            batch_generation,
+        }
+    }
+
+    pub(crate) fn is_current(
+        &self,
+        current_owner: &ModelOwnerIdentity,
+        current_revision: u64,
+        current_batch_generation: u64,
+    ) -> bool {
+        self.owner.same_owner(current_owner)
+            && self.accepted_revision == current_revision
+            && self.batch_generation == current_batch_generation
+    }
+
+    pub(crate) fn owner(&self) -> &ModelOwnerIdentity {
+        &self.owner
+    }
+}
+
+/// Resolved document asset identity. The path is deliberately not used as a
+/// byte-store key; only `sha256` crosses the Runtime storage port.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ResolvedModelAsset {
+    pub(crate) id: String,
+    pub(crate) sha256: String,
+    pub(crate) filename: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum AssetSelection {
+    Archived(ResolvedModelAsset),
+    MissingDocumentAsset { asset_id: String },
+    MissingBundledProvider { asset_id: String },
+    NoAssetId,
+}
+
+/// Apply the same source precedence as React's AssemblyPreview: attached
+/// BoardReference mapping, native preview path table, then version-matched
+/// Ergogen path helper. The helper is injected because its packaged source is
+/// owned by the layout-generator build, not duplicated here.
+pub(crate) fn select_model_asset(
+    model_path: &str,
+    reference: Option<&BoardReference>,
+    native_path_assets: &BTreeMap<String, String>,
+    document_assets: &[Asset],
+    ergogen_model_asset_id: impl FnOnce(&str) -> Option<String>,
+) -> AssetSelection {
+    let asset_id = reference
+        .and_then(|item| item.model_assets.get(model_path).cloned())
+        .or_else(|| native_path_assets.get(model_path).cloned())
+        .or_else(|| ergogen_model_asset_id(model_path));
+    let Some(asset_id) = asset_id else {
+        return AssetSelection::NoAssetId;
+    };
+
+    if let Some(asset) = document_assets.iter().find(|asset| asset.id == asset_id) {
+        return AssetSelection::Archived(ResolvedModelAsset {
+            id: asset.id.clone(),
+            sha256: asset.sha256.clone(),
+            filename: asset.name.clone(),
+        });
+    }
+
+    if asset_id.starts_with("ergogen:model:") {
+        AssetSelection::MissingBundledProvider { asset_id }
+    } else {
+        AssetSelection::MissingDocumentAsset { asset_id }
+    }
+}
+
+/// Bytes crossing the page-model adapter must be revalidated even if they
+/// came from the current-import memory map rather than BrowserStore.
+#[derive(Clone, Debug)]
+pub(crate) struct VerifiedModelBytes {
+    bytes: Rc<[u8]>,
+    sha256: String,
+}
+
+impl VerifiedModelBytes {
+    pub(crate) fn verify(bytes: Vec<u8>, expected_sha256: &str) -> Result<Self, String> {
+        if bytes.is_empty() || bytes.len() > MAX_MODEL_BYTES {
+            return Err("Model file must be between 1 byte and 32 MiB".into());
+        }
+        let actual = format!("{:x}", Sha256::digest(&bytes));
+        if !actual.eq_ignore_ascii_case(expected_sha256) {
+            return Err("Model asset failed SHA-256 verification".into());
+        }
+        Ok(Self {
+            bytes: Rc::from(bytes),
+            sha256: actual,
+        })
+    }
+
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub(crate) fn sha256(&self) -> &str {
+        &self.sha256
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ModelFormat {
+    Stl,
+    Wrl,
+    Step,
+}
+
+impl ModelFormat {
+    pub(crate) fn from_filename(filename: &str) -> Result<Self, String> {
+        match filename
+            .rsplit_once('.')
+            .map(|(_, ext)| ext.to_ascii_lowercase())
+        {
+            Some(ext) if ext == "stl" => Ok(Self::Stl),
+            Some(ext) if ext == "wrl" => Ok(Self::Wrl),
+            Some(ext) if ext == "step" || ext == "stp" => Ok(Self::Step),
+            _ => Err("Unsupported model format; use STL, WRL, STEP, or STP".into()),
+        }
+    }
+}
+
+/// Ports supplied by Runtime and RendererPageHost. `load_verified_bytes`
+/// accepts a SHA identity only; decoding callbacks consume verified bytes.
+/// STEP uses the existing identity-checked CAD worker rather than a second
+/// parser implementation in presentation code.
+pub(crate) struct ModelDeliveryPorts {
+    pub(crate) load_verified_bytes: Rc<dyn Fn(String) -> ModelFuture<Option<VerifiedModelBytes>>>,
+    pub(crate) decode_stl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
+    pub(crate) decode_wrl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
+    pub(crate) read_step:
+        Rc<dyn Fn(VerifiedModelBytes, ModelOwnerIdentity) -> ModelFuture<MeshArrays>>,
+}
+
+impl ModelDeliveryPorts {
+    pub(crate) async fn load(
+        &self,
+        asset: &ResolvedModelAsset,
+    ) -> Result<Option<VerifiedModelBytes>, String> {
+        let result = (self.load_verified_bytes)(asset.sha256.clone()).await?;
+        if let Some(bytes) = &result {
+            if !bytes.sha256().eq_ignore_ascii_case(&asset.sha256) {
+                return Err("Model byte provider returned a different SHA-256 asset".into());
+            }
+        }
+        Ok(result)
+    }
+
+    pub(crate) async fn decode(
+        &self,
+        format: ModelFormat,
+        bytes: VerifiedModelBytes,
+        owner: ModelOwnerIdentity,
+    ) -> Result<ValidatedMesh, String> {
+        let arrays = match format {
+            ModelFormat::Stl => (self.decode_stl)(bytes).await?,
+            ModelFormat::Wrl => (self.decode_wrl)(bytes).await?,
+            ModelFormat::Step => (self.read_step)(bytes, owner).await?,
+        };
+        ValidatedMesh::try_from(arrays)
+    }
+}
+
+/// Arrays are held in Rc-backed immutable slices so repeated model rows share
+/// one decoded allocation. Adapters should create/copy JS typed arrays at most
+/// once per decoded asset and retain their JS handles alongside these slices.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct MeshArrays {
+    pub(crate) positions: Vec<f32>,
+    pub(crate) normals: Vec<f32>,
+    pub(crate) colors: Option<Vec<f32>>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ValidatedMesh {
+    pub(crate) positions: Rc<[f32]>,
+    pub(crate) normals: Rc<[f32]>,
+    pub(crate) colors: Option<Rc<[f32]>>,
+}
+
+impl TryFrom<MeshArrays> for ValidatedMesh {
+    type Error = String;
+
+    fn try_from(arrays: MeshArrays) -> Result<Self, Self::Error> {
+        if arrays.positions.is_empty() || arrays.positions.len() % 9 != 0 {
+            return Err("Model positions must contain complete triangles".into());
+        }
+        if arrays.normals.len() != arrays.positions.len() {
+            return Err("Model normals must match the position buffer".into());
+        }
+        if arrays
+            .positions
+            .iter()
+            .chain(&arrays.normals)
+            .any(|value| !value.is_finite())
+        {
+            return Err("Model mesh contains non-finite positions or normals".into());
+        }
+        if let Some(colors) = &arrays.colors {
+            if colors.len() != arrays.positions.len() {
+                return Err("Model RGB colors must match the position buffer".into());
+            }
+            if colors.iter().any(|value| !value.is_finite()) {
+                return Err("Model mesh contains non-finite colors".into());
+            }
+        }
+        Ok(Self {
+            positions: Rc::from(arrays.positions),
+            normals: Rc::from(arrays.normals),
+            colors: arrays.colors.map(Rc::from),
+        })
+    }
+}
+
+#[derive(Clone)]
+enum CacheSlot {
+    Pending {
+        batch: ModelBatchIdentity,
+        task_token: u64,
+    },
+    Ready(Rc<ValidatedMesh>),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum MeshCacheClaim {
+    Reuse(Rc<ValidatedMesh>),
+    JoinPending {
+        task_token: u64,
+    },
+    Start {
+        task_token: u64,
+        /// A replaced task belonged to a superseded batch. The owner should
+        /// settle/cancel that batch's waiters; it must not affect this slot.
+        superseded: Option<EvictedTask>,
+        /// LRU eviction only drops cache retention. A current task still
+        /// completes its live rows even though it can no longer populate the cache.
+        evicted: Option<EvictedTask>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct EvictedTask {
+    pub(crate) sha256: String,
+    pub(crate) task_token: u64,
+}
+
+/// SHA cache with a batch-owned pending slot and token-checked settlement.
+/// Stale completion/failure cannot overwrite or remove a replacement task.
+pub(crate) struct ModelMeshCache {
+    slots: BTreeMap<String, CacheSlot>,
+    recency: VecDeque<String>,
+    next_task_token: u64,
+}
+
+impl Default for ModelMeshCache {
+    fn default() -> Self {
+        Self {
+            slots: BTreeMap::new(),
+            recency: VecDeque::new(),
+            next_task_token: 1,
+        }
+    }
+}
+
+impl ModelMeshCache {
+    pub(crate) fn claim(
+        &mut self,
+        sha256: &str,
+        batch: &ModelBatchIdentity,
+    ) -> Result<MeshCacheClaim, String> {
+        if let Some(slot) = self.slots.get(sha256) {
+            match slot {
+                CacheSlot::Ready(mesh) => {
+                    let mesh = mesh.clone();
+                    self.touch(sha256);
+                    return Ok(MeshCacheClaim::Reuse(mesh));
+                }
+                CacheSlot::Pending {
+                    batch: pending_batch,
+                    task_token,
+                } if pending_batch.same_batch(batch) => {
+                    let task_token = *task_token;
+                    self.touch(sha256);
+                    return Ok(MeshCacheClaim::JoinPending { task_token });
+                }
+                CacheSlot::Pending { .. } => {}
+            }
+        }
+
+        let task_token = self.allocate_task_token()?;
+        let superseded = match self.slots.get(sha256) {
+            Some(CacheSlot::Pending { task_token, .. }) => Some(EvictedTask {
+                sha256: sha256.to_owned(),
+                task_token: *task_token,
+            }),
+            _ => None,
+        };
+        let evicted = self.make_room_for(sha256);
+        self.slots.insert(
+            sha256.to_owned(),
+            CacheSlot::Pending {
+                batch: batch.clone(),
+                task_token,
+            },
+        );
+        self.touch(sha256);
+        Ok(MeshCacheClaim::Start {
+            task_token,
+            superseded,
+            evicted,
+        })
+    }
+
+    pub(crate) fn complete(
+        &mut self,
+        sha256: &str,
+        task_token: u64,
+        mesh: Rc<ValidatedMesh>,
+    ) -> bool {
+        let current = matches!(self.slots.get(sha256),
+            Some(CacheSlot::Pending { task_token: current, .. }) if *current == task_token);
+        if current {
+            self.slots.insert(sha256.to_owned(), CacheSlot::Ready(mesh));
+            self.touch(sha256);
+        }
+        current
+    }
+
+    /// A failed current task is removed so the normal retry can claim a new
+    /// task. A superseded task has no authority to evict the replacement.
+    pub(crate) fn fail(&mut self, sha256: &str, task_token: u64) -> bool {
+        let current = matches!(self.slots.get(sha256),
+            Some(CacheSlot::Pending { task_token: current, .. }) if *current == task_token);
+        if current {
+            self.slots.remove(sha256);
+            self.recency.retain(|key| key != sha256);
+        }
+        current
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.slots.clear();
+        self.recency.clear();
+    }
+
+    fn allocate_task_token(&mut self) -> Result<u64, String> {
+        let token = self.next_task_token;
+        self.next_task_token = token
+            .checked_add(1)
+            .ok_or_else(|| "Model decode task identity exhausted".to_owned())?;
+        Ok(token)
+    }
+
+    fn make_room_for(&mut self, sha256: &str) -> Option<EvictedTask> {
+        if self.slots.contains_key(sha256) || self.slots.len() < MESH_CACHE_CAPACITY {
+            return None;
+        }
+        let victim = self.recency.pop_front()?;
+        let slot = self.slots.remove(&victim)?;
+        match slot {
+            CacheSlot::Pending { task_token, .. } => Some(EvictedTask {
+                sha256: victim,
+                task_token,
+            }),
+            CacheSlot::Ready(_) => None,
+        }
+    }
+
+    fn touch(&mut self, sha256: &str) {
+        self.recency.retain(|key| key != sha256);
+        self.recency.push_back(sha256.to_owned());
+    }
+}
+
+impl ModelBatchIdentity {
+    fn same_batch(&self, other: &Self) -> bool {
+        self.owner.same_owner(&other.owner)
+            && self.accepted_revision == other.accepted_revision
+            && self.batch_generation == other.batch_generation
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct DeliveredModel {
+    pub(crate) id: String,
+    pub(crate) mesh: Rc<ValidatedMesh>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ModelFailure {
+    pub(crate) reference: String,
+    pub(crate) reason: String,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ModelDeliveryRows {
+    pub(crate) delivered: Vec<DeliveredModel>,
+    pub(crate) pending: Vec<String>,
+    pub(crate) failures: Vec<ModelFailure>,
+}
+
+/// Merge successful/error outcomes without substituting asset or reference
+/// IDs for renderer model IDs. Rows preserve the preview's order. Absent
+/// outcomes remain pending instead of being misreported as missing; terminal
+/// provider/asset errors must be supplied explicitly.
+pub(crate) fn merge_model_rows(
+    models: &[PcbModel],
+    outcomes: &BTreeMap<String, Result<Rc<ValidatedMesh>, String>>,
+) -> ModelDeliveryRows {
+    let mut rows = ModelDeliveryRows::default();
+    for model in models {
+        match outcomes.get(&model.id) {
+            Some(Ok(mesh)) => rows.delivered.push(DeliveredModel {
+                id: model.id.clone(),
+                mesh: mesh.clone(),
+            }),
+            Some(Err(reason)) => rows.failures.push(ModelFailure {
+                reference: model.reference.clone(),
+                reason: reason.clone(),
+            }),
+            None => rows.pending.push(model.id.clone()),
+        }
+    }
+    rows
+}
+
+/// Resolve all row asset identities without inventing byte locations. The
+/// document is supplied as a captured snapshot; no separate asset registry is
+/// retained in this module.
+pub(crate) fn resolve_preview_assets(
+    models: &[PcbModel],
+    reference: Option<&BoardReference>,
+    native_path_assets: &BTreeMap<String, String>,
+    document: &ProjectDoc,
+    ergogen_model_asset_id: impl Fn(&str) -> Option<String>,
+) -> Vec<(String, AssetSelection)> {
+    models
+        .iter()
+        .map(|model| {
+            let selection = select_model_asset(
+                &model.path,
+                reference,
+                native_path_assets,
+                &document.assets,
+                |path| ergogen_model_asset_id(path),
+            );
+            (model.id.clone(), selection)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_core::model::{Pose2, Side, Vec2, Vec3};
+
+    fn model(id: &str, reference: &str, path: &str) -> PcbModel {
+        PcbModel {
+            id: id.into(),
+            reference: reference.into(),
+            path: path.into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            offset: Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            rotation: Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            scale: Vec3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+        }
+    }
+
+    fn asset(id: &str, sha256: &str, name: &str) -> Asset {
+        Asset {
+            id: id.into(),
+            name: name.into(),
+            media_type: "model/stl".into(),
+            sha256: sha256.into(),
+            license: None,
+            source: None,
+        }
+    }
+
+    fn valid_arrays() -> MeshArrays {
+        MeshArrays {
+            positions: vec![0.0; 9],
+            normals: vec![1.0; 9],
+            colors: None,
+        }
+    }
+
+    fn batch(generation: u64) -> ModelBatchIdentity {
+        // The cache tests need only stable semantic identity; scene liveness is
+        // covered by the page owner integration which owns CadScene creation.
+        ModelBatchIdentity {
+            owner: ModelOwnerIdentity {
+                scope: Scope {
+                    session_epoch: boardstudio_application::SessionEpoch(1),
+                    document_id: "doc".into(),
+                    board_id: "board".into(),
+                    instance_id: None,
+                },
+                snapshot_token: SnapshotToken(1),
+                viewer_instance: 1,
+                projection_generation: 1,
+                source_scene: Weak::new(),
+            },
+            accepted_revision: 1,
+            batch_generation: generation,
+        }
+    }
+
+    #[test]
+    fn asset_selection_obeys_attached_then_native_then_ergogen_precedence() {
+        let assets = vec![
+            asset("attached", "a", "attached.stl"),
+            asset("native", "b", "native.wrl"),
+            asset("ergogen", "c", "ergogen.stl"),
+        ];
+        let mut mapping = BTreeMap::new();
+        mapping.insert("body.stl".to_owned(), "attached".to_owned());
+        let mut native = BTreeMap::new();
+        native.insert("body.stl".to_owned(), "native".to_owned());
+        let selection = select_model_asset("body.stl", None, &native, &assets, |_| {
+            Some("ergogen".into())
+        });
+        assert_eq!(
+            selection,
+            AssetSelection::Archived(ResolvedModelAsset {
+                id: "native".into(),
+                sha256: "b".into(),
+                filename: "native.wrl".into(),
+            })
+        );
+        let reference = BoardReference {
+            id: "ref".into(),
+            board_id: "board".into(),
+            asset_id: "board-file".into(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            elevation: 0.0,
+            model_assets: mapping,
+        };
+        assert_eq!(
+            select_model_asset("body.stl", Some(&reference), &native, &assets, |_| {
+                Some("ergogen".into())
+            }),
+            AssetSelection::Archived(ResolvedModelAsset {
+                id: "attached".into(),
+                sha256: "a".into(),
+                filename: "attached.stl".into(),
+            })
+        );
+        assert_eq!(
+            select_model_asset("missing.stl", None, &BTreeMap::new(), &[], |_| {
+                Some("ergogen:model:vendor/missing.stl".into())
+            }),
+            AssetSelection::MissingBundledProvider {
+                asset_id: "ergogen:model:vendor/missing.stl".into()
+            }
+        );
+    }
+
+    #[test]
+    fn verified_bytes_reject_wrong_digest_and_bounds() {
+        let bytes = b"model".to_vec();
+        let digest = format!("{:x}", Sha256::digest(&bytes));
+        let verified = VerifiedModelBytes::verify(bytes.clone(), &digest).unwrap();
+        assert_eq!(verified.bytes(), bytes);
+        assert_eq!(verified.sha256(), digest);
+        assert!(VerifiedModelBytes::verify(bytes, "00").is_err());
+        assert!(VerifiedModelBytes::verify(Vec::new(), &digest).is_err());
+    }
+
+    #[test]
+    fn format_selection_is_case_insensitive_and_rejects_other_extensions() {
+        assert_eq!(
+            ModelFormat::from_filename("BODY.STL").unwrap(),
+            ModelFormat::Stl
+        );
+        assert_eq!(
+            ModelFormat::from_filename("body.WrL").unwrap(),
+            ModelFormat::Wrl
+        );
+        assert_eq!(
+            ModelFormat::from_filename("model.STP").unwrap(),
+            ModelFormat::Step
+        );
+        assert!(ModelFormat::from_filename("body.obj").is_err());
+    }
+
+    #[test]
+    fn mesh_validation_requires_complete_finite_matching_buffers() {
+        assert!(ValidatedMesh::try_from(valid_arrays()).is_ok());
+        let mut arrays = valid_arrays();
+        arrays.positions.pop();
+        assert!(ValidatedMesh::try_from(arrays).is_err());
+        let mut arrays = valid_arrays();
+        arrays.normals.pop();
+        assert!(ValidatedMesh::try_from(arrays).is_err());
+        let mut arrays = valid_arrays();
+        arrays.positions[0] = f32::NAN;
+        assert!(ValidatedMesh::try_from(arrays).is_err());
+        let mut arrays = valid_arrays();
+        arrays.colors = Some(vec![0.0; 8]);
+        assert!(ValidatedMesh::try_from(arrays).is_err());
+        let mut arrays = valid_arrays();
+        arrays.colors = Some(vec![f32::INFINITY; 9]);
+        assert!(ValidatedMesh::try_from(arrays).is_err());
+    }
+
+    #[test]
+    fn new_batch_replaces_pending_task_and_old_token_cannot_settle_it() {
+        let mut cache = ModelMeshCache::default();
+        let first = batch(1);
+        let second = batch(2);
+        let MeshCacheClaim::Start {
+            task_token: first_token,
+            ..
+        } = cache.claim("sha", &first).unwrap()
+        else {
+            panic!("first request should start");
+        };
+        assert!(matches!(
+            cache.claim("sha", &first).unwrap(),
+            MeshCacheClaim::JoinPending { task_token } if task_token == first_token
+        ));
+        let MeshCacheClaim::Start {
+            task_token: replacement_token,
+            superseded,
+            ..
+        } = cache.claim("sha", &second).unwrap()
+        else {
+            panic!("new batch must own a replacement task");
+        };
+        assert_ne!(first_token, replacement_token);
+        assert_eq!(
+            superseded,
+            Some(EvictedTask {
+                sha256: "sha".into(),
+                task_token: first_token,
+            })
+        );
+        let mesh = Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap());
+        assert!(!cache.complete("sha", first_token, mesh.clone()));
+        assert!(!cache.fail("sha", first_token));
+        assert!(cache.complete("sha", replacement_token, mesh.clone()));
+        assert!(matches!(
+            cache.claim("sha", &first).unwrap(),
+            MeshCacheClaim::Reuse(cached) if Rc::ptr_eq(&cached, &mesh)
+        ));
+    }
+
+    #[test]
+    fn failed_current_task_is_removed_for_retry() {
+        let mut cache = ModelMeshCache::default();
+        let batch = batch(1);
+        let MeshCacheClaim::Start { task_token, .. } = cache.claim("sha", &batch).unwrap() else {
+            panic!("first request should start");
+        };
+        assert!(cache.fail("sha", task_token));
+        assert!(matches!(
+            cache.claim("sha", &batch).unwrap(),
+            MeshCacheClaim::Start { .. }
+        ));
+    }
+
+    #[test]
+    fn cache_is_bounded_and_reports_evicted_pending_task_token() {
+        let mut cache = ModelMeshCache::default();
+        let owner_batch = batch(1);
+        let mut first_token = None;
+        for index in 0..MESH_CACHE_CAPACITY {
+            let key = format!("sha-{index}");
+            let MeshCacheClaim::Start { task_token, .. } = cache.claim(&key, &owner_batch).unwrap()
+            else {
+                panic!("new key should start");
+            };
+            if index == 0 {
+                first_token = Some(task_token);
+            }
+        }
+        let MeshCacheClaim::Start { evicted, .. } = cache.claim("sha-new", &owner_batch).unwrap()
+        else {
+            panic!("new key should start");
+        };
+        assert_eq!(
+            evicted,
+            Some(EvictedTask {
+                sha256: "sha-0".into(),
+                task_token: first_token.unwrap(),
+            })
+        );
+    }
+
+    #[test]
+    fn row_merge_preserves_exact_preview_model_ids_and_references() {
+        let models = vec![model("renderer-id", "SW8", "body.stl")];
+        let mesh = Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap());
+        let outcomes = BTreeMap::from([("renderer-id".into(), Ok(mesh.clone()))]);
+        let rows = merge_model_rows(&models, &outcomes);
+        assert_eq!(rows.delivered[0].id, "renderer-id");
+        assert!(Rc::ptr_eq(&rows.delivered[0].mesh, &mesh));
+        let pending = merge_model_rows(&models, &BTreeMap::new());
+        assert_eq!(pending.pending, ["renderer-id"]);
+        assert!(pending.failures.is_empty());
+        assert!(pending.delivered.is_empty());
+        let failed = merge_model_rows(
+            &models,
+            &BTreeMap::from([("renderer-id".into(), Err("decode rejected".into()))]),
+        );
+        assert!(failed.pending.is_empty());
+        assert_eq!(failed.failures[0].reference, "SW8");
+        assert_eq!(failed.failures[0].reason, "decode rejected");
+    }
+}
