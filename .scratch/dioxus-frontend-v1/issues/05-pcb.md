@@ -22,3 +22,19 @@ Matched multi-board/physical module workflows, controls and public service calls
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
 scope; never silently remove a frontend behavior when an adapter is missing.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- `app/src/ui/BoardReferencePanel.tsx`
+- `app/src/ui/HardwareInstancesPanel.tsx`
+- `app/src/ui/HardwareReadiness.tsx`
+- `app/src/ui/ModulePcbOverlay.tsx`
+- `app/src/ui/WiringPanel.tsx`
+- `app/src/ui/usePcbWorkspace.tsx`
+
+Existing regression coverage to transfer or retain:
+
+- `app/src/ui/ModulePcbOverlay.test.tsx`

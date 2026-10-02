@@ -22,3 +22,26 @@ Matched settings/live/manual/cancel/retry/error paths, scoped canvas ownership a
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
 scope; never silently remove a frontend behavior when an adapter is missing.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- `app/src/ui/AssemblyScene.tsx`
+- `app/src/ui/AssemblyViewer.tsx`
+- `app/src/ui/CaseChoice.tsx`
+- `app/src/ui/CaseGenerationControls.tsx`
+- `app/src/ui/CaseInspectorPanel.tsx`
+- `app/src/ui/MechanicalAssemblyPanel.tsx`
+- `app/src/ui/ModelPreviewBoundary.tsx`
+- `app/src/ui/useCaseWorkspace.tsx`
+
+Existing regression coverage to transfer or retain:
+
+- `app/src/ui/AssemblyScene.mounts.test.tsx`
+- `app/src/ui/AssemblyScene.test.tsx`
+- `app/src/ui/MechanicalAssemblyPanel.test.tsx`
+- `app/src/ui/MechanicalAssemblyPending.test.tsx`
+- `app/src/ui/ModelPreviewBoundary.test.tsx`
+- `app/src/useCaseGeneration.live.test.tsx`

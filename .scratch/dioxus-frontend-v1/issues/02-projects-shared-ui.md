@@ -22,3 +22,24 @@ Matched project scenarios, confirmations/recovery, preferences, themes, compact 
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
 scope; never silently remove a frontend behavior when an adapter is missing.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- `app/src/main.tsx`
+- `app/src/ui/ProjectLibrary.tsx`
+- `app/src/ui/ProjectStart.tsx`
+- `app/src/ui/SetupChoice.tsx`
+- `app/src/ui/SetupGuide.tsx`
+- `app/src/ui/Workbench.tsx`
+- `app/src/ui/WorkbenchIcons.tsx`
+- `app/src/ui/WorkflowNavigation.tsx`
+- `app/src/ui/WorkspacePanel.tsx`
+- `app/src/ui/Workbench.tsx (shared navigation, panels, responsive frame)`
+- `app/src/main.tsx (global lifecycle and app composition)`
+
+Existing regression coverage to transfer or retain:
+
+- `app/src/ui/ProjectLibrary.test.tsx`

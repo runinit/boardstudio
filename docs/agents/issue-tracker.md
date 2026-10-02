@@ -35,3 +35,13 @@ is accepted at continuation `cd1efb34`; the current remaining M1 task set is
 [canonical state](../migration/m1-production-run.json).
 Root TODO and RUN govern closure after integrated verification; partial native
 or probe evidence never closes the complete production workflow.
+
+## Current Dioxus frontend v1 continuation
+
+The user’s 2026-10-01 clarification makes the active scope frontend-only. The
+[frontend roadmap](../migration/DIOXUS-FRONTEND-V1.md),
+[specification](../../.scratch/dioxus-frontend-v1/spec.md),
+[task graph](../../.scratch/dioxus-frontend-v1/PLAN.md) and
+[current state](../migration/dioxus-frontend-v1-run.json) cover F1–F9.
+Root TODO/RUN remain canonical pointers. M1 acceptance evidence and limits stay
+separate; placeholders do not complete the corresponding full frontend milestone.

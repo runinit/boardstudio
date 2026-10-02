@@ -22,3 +22,11 @@ Every supported export reachable, accepted snapshot contract, complete project-t
 A visible placeholder does not complete F2–F9. Preserve original projects and
 reference source. Backend implementation/format/API changes require separate
 scope; never silently remove a frontend behavior when an adapter is missing.
+
+## Reference ownership
+
+The [file ledger](../evidence/tsx-inventory.json) pins exact reference hashes. These
+are source responsibilities, not permission to mark whole shared files complete.
+
+- `app/src/ui/Workbench.tsx (Export route and panels are nested here)`
+- `app/src/main.tsx (export callbacks and host state composition)`
