@@ -25,6 +25,7 @@ struct PendingBodyEdit {
 #[component]
 pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let instance_selection = use_context::<super::InstanceSelection>();
     let version = use_context::<Signal<u64>>();
     let _ = version();
     let editor_instance_id = use_hook({
@@ -150,6 +151,7 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
         move |request: CaseBodyRequest| {
             submit_body_edit(
                 &runtime,
+                instance_selection,
                 editor_instance_id,
                 &mut pending,
                 &mut feedback,
@@ -267,6 +269,7 @@ fn feedback_for(
 
 fn submit_body_edit(
     runtime: &Rc<Runtime>,
+    instance_selection: super::InstanceSelection,
     editor_instance_id: u64,
     pending: &mut Signal<Option<PendingBodyEdit>>,
     feedback: &mut Signal<Option<CaseBodyEditFeedback>>,
@@ -305,7 +308,8 @@ fn submit_body_edit(
         failed("The accepted Case document is unavailable.".into());
         return;
     };
-    let admitted = live_scope == request.scope
+    let admitted = instance_selection.is_current(&model)
+        && live_scope == request.scope
         && request.scope.board_id == model.active_board_id
         && request.scope.document_id == snapshot.document.id
         && snapshot.session_epoch == request.scope.session_epoch

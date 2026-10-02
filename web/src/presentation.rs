@@ -3,6 +3,7 @@ mod case_bodies;
 mod case_controller;
 mod context_summary;
 mod inspector;
+mod instance_selection;
 mod keymap;
 mod library;
 mod objects;
@@ -53,6 +54,16 @@ struct Drag {
 
 #[derive(Clone, Copy)]
 struct WorkspaceState(Signal<&'static str>);
+/// The explicit UI preference is separate from Session's effective instance.
+#[derive(Clone, Copy)]
+pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference>>);
+
+impl InstanceSelection {
+    pub(crate) fn is_current(self, model: &boardstudio_application::ReadModel) -> bool {
+        instance_selection::is_current(model, self.0.read().as_ref())
+    }
+}
+
 #[derive(Clone, Copy)]
 struct ThemeState(Signal<&'static str>);
 #[derive(Clone, Copy)]
@@ -576,7 +587,20 @@ fn durability_state(durability: &Durability) -> &'static str {
 fn Editor() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let adapter = use_context::<SelectionAdapter>();
-    let _ = use_context::<Signal<u64>>()();
+    let version = use_context::<Signal<u64>>();
+    let observed_version = version();
+    let instance_preference = use_signal(|| {
+        runtime.scope().and_then(|scope| {
+            scope
+                .instance_id
+                .map(|explicit_id| instance_selection::Preference {
+                    session_epoch: scope.session_epoch,
+                    document_id: scope.document_id,
+                    explicit_id,
+                })
+        })
+    });
+    let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
     let workspace = use_context::<WorkspaceState>().0;
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
@@ -1041,7 +1065,9 @@ fn Editor() -> Element {
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let drag = use_hook(|| Rc::new(RefCell::new(None::<Drag>)));
     let space_down = use_hook(|| Rc::new(Cell::new(false)));
-    let navigate = {
+    let interaction_version = use_signal(|| 0_u64);
+    let observed_interaction_version = interaction_version();
+    let navigate_scoped = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let drag = drag.clone();
@@ -1086,6 +1112,101 @@ fn Editor() -> Element {
             });
         }
     };
+    let navigate = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let mut navigate_scoped = navigate_scoped.clone();
+        let generation = render_generation;
+        move |(captured_scope, board_id, requested_instance): (Scope, String, Option<String>)| {
+            if runtime.scope().as_ref() != Some(&captured_scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            if !snapshot
+                .document
+                .boards
+                .iter()
+                .any(|board| board.id == board_id)
+            {
+                return;
+            }
+            if let Some(id) = requested_instance {
+                let valid = snapshot.document.hardware.as_ref().is_some_and(|hardware| {
+                    hardware
+                        .instances
+                        .iter()
+                        .any(|instance| instance.id == id && instance.board_id == board_id)
+                });
+                if !valid {
+                    return;
+                }
+                let mut preference = instance_preference;
+                preference.set(Some(instance_selection::Preference {
+                    session_epoch: snapshot.session_epoch,
+                    document_id: snapshot.document.id.clone(),
+                    explicit_id: id,
+                }));
+            }
+            let instance_id = instance_selection::resolve(
+                &snapshot.document,
+                snapshot.session_epoch,
+                &board_id,
+                instance_preference.read().as_ref(),
+            )
+            .map(str::to_owned);
+            navigate_scoped((captured_scope, board_id, instance_id));
+        }
+    };
+    let preference_version = instance_preference();
+    use_effect(use_reactive(
+        (
+            &observed_version,
+            &preference_version,
+            &observed_interaction_version,
+        ),
+        {
+            let runtime = runtime.clone();
+            let adapter = adapter.clone();
+            let scope = render_scope.clone();
+            let token = snapshot.token;
+            let revision = snapshot.document.revision;
+            let generation = render_generation;
+            let drag = drag.clone();
+            let mut navigate_scoped = navigate_scoped.clone();
+            move |_| {
+                let model = runtime.model();
+                if runtime.scope().as_ref() != Some(&scope)
+                    || (adapter.generation)() != generation
+                    || !instance_selection::can_reconcile(&model)
+                    || drag.borrow().is_some()
+                {
+                    return;
+                }
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return;
+                };
+                if snapshot.token != token || snapshot.document.revision != revision {
+                    return;
+                }
+                let instance_id = instance_selection::resolve(
+                    &snapshot.document,
+                    snapshot.session_epoch,
+                    &scope.board_id,
+                    instance_preference.read().as_ref(),
+                )
+                .map(str::to_owned);
+                if instance_id != scope.instance_id {
+                    navigate_scoped((scope.clone(), scope.board_id.clone(), instance_id));
+                }
+            }
+        },
+    ));
+    let instance_scope_pending = !instance_selection.is_current(&model);
     let on_show_configured_board = {
         let mut navigate = navigate.clone();
         let scope = render_scope.clone();
@@ -1296,6 +1417,8 @@ fn Editor() -> Element {
             else {
                 return;
             };
+            let mut interaction_version = interaction_version;
+            interaction_version += 1;
             if current.scope != render_scope || current.generation != render_generation {
                 return;
             }
@@ -1387,6 +1510,8 @@ fn Editor() -> Element {
             }) else {
                 return;
             };
+            let mut interaction_version = interaction_version;
+            interaction_version += 1;
             drag.borrow_mut().take();
             if let Some(element) = svg.borrow().as_ref() {
                 let _ = element.release_pointer_capture(current.pointer as i32);
@@ -1416,6 +1541,8 @@ fn Editor() -> Element {
         move |_| {
             space_down.set(false);
             selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
+            let mut interaction_version = interaction_version;
+            interaction_version += 1;
             if active_workspace == "Keymap" || active_workspace == "Case" {
                 objects_open.set(false);
                 inspect_open.set(true);
@@ -1438,6 +1565,8 @@ fn Editor() -> Element {
             } else if key == "Escape" {
                 space_down.set(false);
                 selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
+                let mut interaction_version = interaction_version;
+                interaction_version += 1;
             } else if (modifiers.ctrl() || modifiers.meta()) && key.eq_ignore_ascii_case("z") {
                 event.prevent_default();
                 runtime.submit(if modifiers.shift() {
@@ -1757,7 +1886,11 @@ fn Editor() -> Element {
                             p { class: "m1-keymap-unavailable", role: "status", "Keymap is unavailable for the current board." }
                         }
                     } else if active_workspace == "Case" {
-                        CasePanel {}
+                        if instance_scope_pending {
+                            p { role: "status", "Selecting physical assembly…" }
+                        } else {
+                            CasePanel {}
+                        }
                     } else if active_workspace == "Export" {
                         ExportPanel {}
                     } else {
@@ -1783,7 +1916,11 @@ fn Editor() -> Element {
                                 }
                             }
                         } else if active_workspace == "Case" {
-                            CaseBodyInspector { on_show_configured_board: on_show_configured_board.clone() }
+                            if instance_scope_pending {
+                                p { role: "status", "Selecting physical assembly…" }
+                            } else {
+                                CaseBodyInspector { on_show_configured_board: on_show_configured_board.clone() }
+                            }
                         } else {
                             if let Some(summary) = context_summary.as_ref() {
                                 section { class: "m1-selected-context", "aria-label": "Selected context",

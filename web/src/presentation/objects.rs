@@ -58,6 +58,8 @@ pub(super) fn Objects(
     on_nudge: EventHandler<TreeNudgeRequest>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let workspace = use_context::<super::WorkspaceState>().0;
+    let case_workspace = workspace() == "Case";
     let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
@@ -108,6 +110,9 @@ pub(super) fn Objects(
         })
         .unwrap_or_default();
     let active_instance = model.active_instance_id.clone().unwrap_or_default();
+    let instance_pending = !instances
+        .iter()
+        .any(|instance| instance.id == active_instance);
     let current_expanded = expanded.read().clone();
     let items = tree::build_tree(
         document,
@@ -133,15 +138,43 @@ pub(super) fn Objects(
                         for board in &document.boards { option { key: "{board.id}", value: "{board.id}", "{board.name}" } }
                     }
                 }
-                if !instances.is_empty() {
+                if !instances.is_empty() && case_workspace {
+                    div { class: "m1-instance-selection", role: "group", "aria-label": "Physical instance",
+                        span { "Physical instance" }
+                        div { class: "m1-instance-choices",
+                            for instance in &instances {
+                                {
+                                    let id = instance.id.clone();
+                                    let scope = instance_scope.clone();
+                                    let selected = id == active_instance;
+                                    rsx! {
+                                        button {
+                                            key: "{id}", r#type: "button", "aria-pressed": selected,
+                                            onclick: move |_| {
+                                                if let Some(scope) = scope.clone() {
+                                                    navigate_instance.call((scope.clone(), scope.board_id, Some(id.clone())));
+                                                }
+                                            },
+                                            "{instance.name}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if !instances.is_empty() {
                     label { "Physical instance"
                         select { "aria-label": "Physical instance", value: "{active_instance}", onchange: move |event: FormEvent| {
                             if let Some(scope) = instance_scope.clone() {
                                 let value = event.value();
-                                navigate_instance.call((scope.clone(), scope.board_id, (!value.is_empty()).then_some(value)));
+                                if !value.is_empty() {
+                                    navigate_instance.call((scope.clone(), scope.board_id, Some(value)));
+                                }
                             }
                         },
-                            option { value: "", "Canonical board" }
+                            if instance_pending {
+                                option { value: "", disabled: true, "Selecting assembly…" }
+                            }
                             for instance in &instances { option { key: "{instance.id}", value: "{instance.id}", "{instance.name}" } }
                         }
                     }

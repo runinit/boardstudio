@@ -153,6 +153,11 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-object-navigation { display: grid; gap: 7px; padding: 9px 10px; border-bottom: 1px solid var(--wb-rule); }
 .m1-object-navigation label { display: grid; grid-template-columns: 1fr; gap: 4px; color: var(--wb-muted); font-size: 12px; }
 .m1-object-navigation select { width: 100%; height: 30px; color: var(--wb-ink); }
+.m1-instance-selection { display: grid; gap: 4px; color: var(--wb-muted); font-size: 12px; }
+.m1-instance-choices { display: flex; flex-wrap: wrap; gap: 4px; }
+.m1-instance-choices button { flex: 1 1 auto; min-height: 36px; color: var(--wb-ink); text-align: left; overflow-wrap: anywhere; }
+.m1-instance-choices button[aria-pressed="true"] { border-color: var(--wb-accent); background: var(--wb-selection-surface); }
+.m1-instance-choices button:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 .m1-object-tree { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .m1-object-tree-heading { display: flex; justify-content: space-between; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--wb-rule); font-weight: 650; }
 .m1-object-tree-heading span { color: var(--wb-muted); font-weight: 400; white-space: nowrap; }
@@ -325,6 +330,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
   .m1-workflow-tabs { display: none; }
   .m1-workspace-select { display: block; align-self: center; flex: 0 0 100px; width: 100px; max-width: 100px; padding: 5px 5px; }
   .m1-export-tab { min-width: 49px; padding-inline: 3px; }
+  .m1-instance-choices button { min-height: 44px; }
   .m1-compact-panel-controls { display: flex; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--wb-rule); background: var(--wb-panel); }
   .m1-compact-panel-controls button { min-height: 30px; padding: 4px 10px; }
   .m1-editor-body { display: flex; flex-direction: column; overflow: visible; }

@@ -19,6 +19,7 @@ use web_sys::HtmlCanvasElement;
 #[component]
 pub fn CasePanel() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let instance_selection = use_context::<crate::presentation::InstanceSelection>();
     let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
@@ -101,16 +102,16 @@ pub fn CasePanel() -> Element {
         section { class: "m1-case-panel", "aria-label": "Case assembly",
             h2 { "Case assembly" }
             if !has_settings && !mismatch {
-                button { disabled: !can_edit_settings, onclick: move |_| set_settings(&initialize, None), "Add case settings" }
+                button { disabled: !can_edit_settings, onclick: move |_| set_settings(&initialize, instance_selection, None), "Add case settings" }
             }
             if let Ok(config) = settings && !mismatch {
                 label { "Bottom thickness (mm)"
                     input { disabled: !can_edit_settings, r#type: "number", min: "0.1", step: "0.1", value: "{config.bottom_thickness}", onchange: move |event: FormEvent| {
-                        if let Ok(value) = event.value().parse::<f64>() { set_settings(&update, Some(value)); }
+                        if let Ok(value) = event.value().parse::<f64>() { set_settings(&update, instance_selection, Some(value)); }
                     } }
                 }
             }
-            button { onclick: move |_| if let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Generate case" }
+            button { onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Generate case" }
             button { disabled: !matches!(model.generation, GenerationStatus::Preparing {..} | GenerationStatus::Running {..}), onclick: move |_| cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() }), "Cancel generation" }
             p { role: "status", "aria-live": "polite", "{title}" }
             p { "PCB reference is unpopulated; case bodies use exact CAD geometry." }
@@ -120,8 +121,16 @@ pub fn CasePanel() -> Element {
         }
     }
 }
-fn set_settings(runtime: &Rc<Runtime>, bottom: Option<f64>) {
+fn set_settings(
+    runtime: &Rc<Runtime>,
+    instance_selection: crate::presentation::InstanceSelection,
+    bottom: Option<f64>,
+) {
     let model = runtime.model();
+    if !instance_selection.is_current(&model) {
+        runtime.report("Wait for physical assembly selection before changing case settings.");
+        return;
+    }
     let Some(snapshot) = model.accepted else {
         return;
     };
