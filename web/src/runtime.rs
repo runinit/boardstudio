@@ -3,8 +3,12 @@ use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
     SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
 };
-use boardstudio_core::model::{
-    ArchiveReply, CoreReply, CoreRequest, MechanicalAssembly, MechanicalConfiguration, ProjectDoc,
+use boardstudio_core::{
+    electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
+    model::{
+        ArchiveReply, CoreReply, CoreRequest, MechanicalAssembly, MechanicalConfiguration,
+        ProjectDoc,
+    },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use boardstudio_web::{
@@ -263,6 +267,106 @@ impl Runtime {
         // Findings and empty closure results are valid resolver output. CAD readiness is an
         // independent export/generation gate and does not belong in this read-only resolver.
         Ok((assembly, configuration))
+    }
+
+    /// Resolve the accepted PCB's read-only wiring plan through the current Core worker.
+    /// The board scope deliberately has no physical instance; switch selection is not part of
+    /// this plan's lifetime.
+    pub(crate) async fn resolve_electrical_preview(
+        &self,
+        accepted: AcceptedSnapshot,
+        scope: Scope,
+    ) -> Result<ElectricalPlan, String> {
+        validate_electrical_source(&accepted, &scope)?;
+        self.ensure_electrical_source_current(&accepted, &scope)?;
+
+        let configuration = accepted.document.hardware.as_ref().and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|item| item.board_id == scope.board_id)
+        });
+        let request_id = format!("pcb-electrical-{}", self.operation().0);
+        let request = CoreRequest::ResolveElectrical {
+            id: request_id.clone(),
+            request: ElectricalPlanRequest {
+                document: (*accepted.document).clone(),
+                instance_id: None,
+                mode: configuration.map_or(ElectricalMode::Matrix, |item| item.mode),
+                locks: configuration.map_or_else(Default::default, |item| item.locks.clone()),
+                controller_profile: None,
+                board_id: Some(scope.board_id.clone()),
+                controller_part_id: configuration.and_then(|item| item.controller_part_id.clone()),
+            },
+        };
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        self.ensure_electrical_source_current(&accepted, &scope)?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
+        {
+            return Err("The Core worker changed before wiring resolution started.".into());
+        }
+
+        let reply = core
+            .request(&request_id, &executor_epoch.0.to_string(), &request)
+            .await;
+
+        // Recheck both accepted board identity and the exact worker owner before interpreting a
+        // reply. An old worker's reply cannot become current after a restart/reopen ABA.
+        self.ensure_electrical_source_current(&accepted, &scope)?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow().clone())
+        {
+            return Err("The Core worker changed during wiring resolution.".into());
+        }
+        let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
+        let plan = match reply {
+            CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
+            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+            CoreReply::ElectricalResolved { .. } | CoreReply::Error { .. } => {
+                return Err("Core returned a wiring reply for another request.".into());
+            }
+            _ => return Err("Core returned an unexpected wiring-resolution reply.".into()),
+        };
+        if plan.revision != accepted.document.revision
+            || plan.board_id.as_deref() != Some(scope.board_id.as_str())
+            || plan.instance_id.is_some()
+        {
+            return Err("Core resolved wiring for another board or revision.".into());
+        }
+        Ok(plan)
+    }
+
+    fn ensure_electrical_source_current(
+        &self,
+        accepted: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<(), String> {
+        let model = self.model();
+        let Some(current) = model.accepted.as_ref() else {
+            return Err("The accepted PCB wiring source is no longer open.".into());
+        };
+        let current_scope = self.scope();
+        let same_board_scope = current_scope.as_ref().is_some_and(|current| {
+            current.session_epoch == scope.session_epoch
+                && current.document_id == scope.document_id
+                && current.board_id == scope.board_id
+        });
+        if !same_board_scope
+            || model.active_board_id != scope.board_id
+            || scope.instance_id.is_some()
+            || scope.session_epoch != accepted.session_epoch
+            || scope.document_id != accepted.document.id
+            || current.session_epoch != accepted.session_epoch
+            || current.token != accepted.token
+            || current.document.id != accepted.document.id
+            || current.document.revision != accepted.document.revision
+            || current.scene.revision != accepted.scene.revision
+        {
+            return Err("The accepted PCB wiring source changed during resolution.".into());
+        }
+        Ok(())
     }
 
     fn ensure_mechanical_source_current(
@@ -1091,6 +1195,27 @@ fn validate_mechanical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Res
         return Err(
             "The accepted mechanical source does not contain the selected board scope.".into(),
         );
+    }
+    Ok(())
+}
+
+fn validate_electrical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
+    if scope.instance_id.is_some()
+        || scope.session_epoch != accepted.session_epoch
+        || scope.document_id != accepted.document.id
+        || accepted.scene.revision != accepted.document.revision
+    {
+        return Err(
+            "The accepted wiring source does not match its board scope or revision.".into(),
+        );
+    }
+    if !accepted
+        .document
+        .boards
+        .iter()
+        .any(|board| board.id == scope.board_id)
+    {
+        return Err("The selected board is not present in the accepted wiring source.".into());
     }
     Ok(())
 }
