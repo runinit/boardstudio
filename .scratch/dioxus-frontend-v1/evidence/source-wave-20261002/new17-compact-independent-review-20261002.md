@@ -1,0 +1,15 @@
+# Compact New17 independent Spec and Standards reack — 2026-10-02
+
+Exact clean source `ed1f678225bcb405854eb42e704f690a99a10fed`, worktree `new17-compact-guide-repair-20261002`, base defb6fd448ff5a13494ac92d731595a4c158033e. Reviewed against the approved all-five-stage contract: specSHA256 `8596fdd77aac8cdf1460b800e25355f96f9da86779e71e94258d66e8e2073b22`, issue `5b6c1fd94b1228d7434eb3e3cf8353992c8ec02ebfe00bc9d525d544a652488a` verified in integration's planning directory.
+
+**Bounded Spec and Standards repair approval: clear for source integration.** No remaining source blocker found in the reviewed repair. This is not complete New17 or full guide/browser acceptance.
+
+Hashes: presentation.rs `362eac10c2778b95183d33542f83773a79ac25a917ba4b21414adb090e66e61a`; panels.rs `4f39ee1a1525c94e636a452f95fac8aaaadf34b32a69094ae2f812c3c8959a04`; setup_guide.rs `a74df9b6eb2c2e37fdad8294516f06651169d7a8ee5b6129acb3d4915249572d`; tests `23b491c8fce330bfd3263a181026a226449d04ad0b2b2baeabae20414c851bce`.
+
+The actual Editor now calls the extracted production workspace-default hook once and stage actions call the production activate_stage transition. An explicit guide reveal marks the destination workspace only when transitioning; its later workspace effect consumes that marker before normal defaults. Same-workspace reopen still explicitly reveals the guide, while unrelated workspace transitions retain their prior Inspector defaults. The request marker is temporary presentation state, not route/document authority; peek avoids an effect subscription to its own cleanup. Selection/drag cancellation remains in its existing effect; stage selection continues normal Session selection cleanup. Existing compact preference preservation and real settings callback/focus remain. No public visibility, schema, dependency or suppression widening.
+
+The duplicate optional Case sentence was removed from the body while its stage detail and original construction/explanation paragraph remain. No readiness is fabricated.
+
+Read the two saved expected Chromium failures: Objects aria-hidden=true instead of false; duplicate copy count2 instead of1. The test mounts actual ProjectSetupGuide, ObjectsPanel and InspectorPanel, invokes real stage/settings buttons and observes real compact matchMedia, aria-hidden and inert. Independent rerun of the author's exact focused wasm-pack Chromium command passes1/1 in `/tmp/new17-compact-independent-browser-20261002.log` (target cache reused, no source mutation). It also checks ordinary Case navigation and same-workspace guide reopen. This is direct production-composition browser evidence, not a copy of a policy helper. Author's native19+57+6+7+10+20, strict WASM all-target, fmt and diff evidence reused; no redundant broad rebuild.
+
+Root serial integration/current-build provenance, full paired public guide with physical setup and MatrixSetup, focus/accessibility across all stages, and wider acceptance remain open. Existing composition/scope/provenance RF handoff applies; no new RF identity or parent closure. Reviewer did not author this repair.

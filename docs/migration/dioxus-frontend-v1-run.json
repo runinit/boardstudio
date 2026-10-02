@@ -91,28 +91,27 @@
     "canonical_graph_changed": false,
     "capability_start_policy": "child-specific, source/evidence-backed only; original parent criteria and final acceptance joins are preserved",
     "current_integration": {
-      "commit": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+      "commit": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
       "checks": {
         "provider_wave": "76 native tests, actual packaged WASM normalizer1, Python3, strict WASM all-targets passed at9b700800",
         "align_join": "10 mounted lifecycle tests, strict WASM all-targets, WASM page binary, fmt/diff passed at14d1bfeb"
       },
       "build": {
-        "id": "frontend-project-guide-integrated-20261002",
-        "source_commit": "4bbafae0c1d12b765e27b4262d094401c8e8a65a",
-        "url": "http://127.0.0.1:34722/",
-        "subpath": "http://127.0.0.1:34722/boardstudio/",
-        "commands": 8,
-        "source_hashes": 1261,
+        "id": "frontend-case-matrix-integrated-20261002",
+        "source_commit": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
+        "url": "http://127.0.0.1:34723/",
+        "subpath": "http://127.0.0.1:34723/boardstudio/",
+        "commands": 22,
+        "source_hashes": 1278,
+        "source_mismatches": 0,
         "assets_per_site": {
           "root": 145,
           "subpath": 145
         },
-        "scope": "Source-verified New17/physical Project guide build; excludes later Keycaps disclosure, MatrixField owner, Case delivery and MatrixSetup integrations. Full frontend acceptance remains open."
+        "scope": "Verified integrated demo; paired Matrix/guide/Keycaps qualification running. Case bundled-model adapter missing; Keymap owner repair reviewed but not in this candidate. No parent closure."
       },
       "next_build": {
-        "id": "frontend-case-matrix-integrated-20261002",
-        "source_commit": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
-        "status": "queued after remaining reviewed compact-guide integration; no browser evidence yet"
+        "status": "Keymap6c source repair independently clear; next page-only build after serial integration"
       },
       "paired_browser_acceptance": "Bounded source-specific numeric/history, Align anchors and Project guide receipts retained. Full integrated Case90/90/picking, MatrixSetup, Keycaps disclosures, and parents remain open."
     },
@@ -133,14 +132,14 @@
       "pcb": "Physical setup integrated in Project guide and Case; contextual wiring controls still incomplete, next specific contracts under review.",
       "keymap": "Confirmed SW17 filter\u2192SW18 canvas selection mismatch repaired in isolated6c2468f3; actual mounted red/green clear, independent source reack/browser pending. Firmware private operation/adapter contract5b1 under review.",
       "keycaps": "Board/matrix settings and default-open disclosures integrated; paired settings history bounded proof retained; current disclosure/color/browser joins open.",
-      "case": "Reviewed accepted PCB preview/model delivery/pick integration and source checks complete; full90/90 actual browser/model pick/reopen remains open.",
+      "case": "Source delivery/pick integration compiled; actual bundled provider\u2192Case descriptor/fetch bridge absent. Narrow existing-provider adapter reviewed packet pending; full90/90/pick/reopen acceptance open.",
       "parts_project": "New17/setup guide integrated; compact guide fix independently reviewing. Parts first editable-field private adapter child drafted; portable export option source awaits remaining reack/browser.",
       "source_reviews": {
         "spec": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md",
         "standards": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md"
       },
       "source_integration": {
-        "commit": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
+        "commit": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/integration-report.md",
         "checks": {
           "provider_wave": "76 native tests, actual packaged WASM normalizer1, Python3, strict WASM all-targets passed at9b700800",
@@ -149,22 +148,21 @@
         "acceptance": "Source integration only. Full browser workbench parity remains open."
       },
       "current_build": {
-        "id": "frontend-project-guide-integrated-20261002",
-        "source_commit": "4bbafae0c1d12b765e27b4262d094401c8e8a65a",
-        "url": "http://127.0.0.1:34722/",
-        "subpath": "http://127.0.0.1:34722/boardstudio/",
-        "commands": 8,
-        "source_hashes": 1261,
+        "id": "frontend-case-matrix-integrated-20261002",
+        "source_commit": "d425a2dfb56ac2d5576da076bed11272437f1ea2",
+        "url": "http://127.0.0.1:34723/",
+        "subpath": "http://127.0.0.1:34723/boardstudio/",
+        "commands": 22,
+        "source_hashes": 1278,
+        "source_mismatches": 0,
         "assets_per_site": {
           "root": 145,
           "subpath": 145
         },
-        "scope": "Source-verified New17/physical Project guide build; excludes later Keycaps disclosure, MatrixField owner, Case delivery and MatrixSetup integrations. Full frontend acceptance remains open."
+        "scope": "Verified integrated demo; paired Matrix/guide/Keycaps qualification running. Case bundled-model adapter missing; Keymap owner repair reviewed but not in this candidate. No parent closure."
       },
       "next_build": {
-        "id": "frontend-case-matrix-integrated-20261002",
-        "source_commit": "7be1770d60b1482a01a40a09b9e7e9024981bc99",
-        "status": "queued after remaining reviewed compact-guide integration; no browser evidence yet"
+        "status": "Keymap6c source repair independently clear; next page-only build after serial integration"
       }
     },
     "react_oracle_current": {

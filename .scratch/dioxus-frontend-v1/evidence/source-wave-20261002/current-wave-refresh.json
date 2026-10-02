@@ -39,5 +39,12 @@
     "outline": "88025712 source still held: absent snapshot terminal retirement, SessionEpoch ownership, retained exact observer after Editor drop, rendered-intent generation; Astra repair active",
     "keymap": "6c2468f3 repair frozen actual mounted regressions; independent reack pending",
     "compact_guide": "ed1f6782 repair frozen actual Chromium components; independent reack running"
+  },
+  "case_missing_adapter_confirmed": {
+    "source": "d425a2df",
+    "provider": "web/src/bundled_models.rs::bundled_model_bytes exists and archive uses it",
+    "missing_connection": "deliver_native_case_models resolve_preview_assets passes |_| None; select_model_asset rejects ergogen:model IDs absentdocumentassets; deliveryports loadcache/store by SHA only",
+    "required_slice": "Reuse existing packaged provider through private Case asset descriptor/fetch adapter, preserve expected-hash verification and exact current lease; honest hash metadata source required. No second provider or fabricated hashes.",
+    "acceptance": "Actual bundled Sofle90/90 and modelpick\u2192contextualInspector/durable reopen remain open."
   }
 }
