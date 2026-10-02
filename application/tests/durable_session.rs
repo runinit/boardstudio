@@ -975,6 +975,142 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
 }
 
 #[test]
+fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let mut document = fixture();
+    document.boards.push(Board {
+        id: "main".into(),
+        name: "Main".into(),
+        outline_ids: vec![],
+        part_ids: vec!["key".into()],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.hardware = Some(HardwareConfiguration {
+        instances: vec!["left", "right"]
+            .into_iter()
+            .map(|half| PhysicalBoardInstance {
+                id: format!("instance-{half}"),
+                name: format!("{half} instance"),
+                board_id: "main".into(),
+                half: half.into(),
+                role: "primary".into(),
+                flipped: half == "right",
+                controller_part_id: None,
+                mechanical: None,
+                construction_linked: false,
+            })
+            .collect(),
+        ..HardwareConfiguration::default()
+    });
+
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(10),
+        document,
+    });
+    let (request_id, epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch: epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, _) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+
+    let canonical_scope = session.scope().unwrap();
+    assert_eq!(canonical_scope.board_id, "main");
+    assert_eq!(canonical_scope.instance_id, None);
+    let generation_effects = session.submit(Event::StartGeneration {
+        operation_id: OperationId(11),
+        scope: canonical_scope.clone(),
+    });
+    let job_id = generation_effects
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::RunGeneration { job_id, .. } => Some(*job_id),
+            _ => None,
+        })
+        .expect("generation should start in canonical scope");
+    let export_effects = session.submit(Event::StartExport {
+        operation_id: OperationId(12),
+        scope: canonical_scope.clone(),
+    });
+    assert!(export_effects.iter().any(|effect| matches!(
+        effect,
+        Effect::RunExport {
+            operation_id: OperationId(12),
+            ..
+        }
+    )));
+
+    let effects = session.submit(Event::Navigate {
+        operation_id: OperationId(13),
+        board_id: "main".into(),
+        instance_id: Some("instance-left".into()),
+    });
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::CancelJob { job_id: cancelled } if *cancelled == job_id
+    )));
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::CancelExport {
+            operation_id: OperationId(12)
+        }
+    )));
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Settled {
+            operation_id: OperationId(13),
+            outcome: TerminalOutcome::Completed,
+        }
+    )));
+    let physical_scope = session.scope().unwrap();
+    assert_eq!(physical_scope.board_id, "main");
+    assert_eq!(physical_scope.instance_id.as_deref(), Some("instance-left"));
+    assert_ne!(physical_scope, canonical_scope);
+
+    let effects = session.submit(Event::Navigate {
+        operation_id: OperationId(14),
+        board_id: "main".into(),
+        instance_id: None,
+    });
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Settled {
+            operation_id: OperationId(14),
+            outcome: TerminalOutcome::Completed,
+        }
+    )));
+    assert_eq!(session.scope().unwrap(), canonical_scope);
+
+    for (operation_id, board_id, instance_id) in [
+        (15, "missing-board", None),
+        (16, "main", Some("missing-instance")),
+    ] {
+        let effects = session.submit(Event::Navigate {
+            operation_id: OperationId(operation_id),
+            board_id: board_id.into(),
+            instance_id: instance_id.map(str::to_owned),
+        });
+        assert!(effects.iter().any(|effect| matches!(
+            effect,
+            Effect::Settled {
+                operation_id: id,
+                outcome: TerminalOutcome::Rejected(_),
+            } if *id == OperationId(operation_id)
+        )));
+        assert_eq!(session.scope().unwrap(), canonical_scope);
+    }
+}
+
+#[test]
 fn cancelled_export_is_no_longer_current_before_its_async_cancel_effect_runs() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();

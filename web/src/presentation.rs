@@ -147,6 +147,18 @@ fn Editor() -> Element {
         .boards
         .iter()
         .find(|b| b.id == model.active_board_id);
+    let physical_instances: Vec<_> = document
+        .hardware
+        .as_ref()
+        .map(|hardware| {
+            hardware
+                .instances
+                .iter()
+                .filter(|instance| instance.board_id == model.active_board_id)
+                .collect()
+        })
+        .unwrap_or_default();
+    let active_instance_value = model.active_instance_id.clone().unwrap_or_default();
     let visible: Vec<_> = document
         .parts
         .iter()
@@ -311,6 +323,8 @@ fn Editor() -> Element {
     let recover = runtime.clone();
     let export = runtime.clone();
     let navigate = runtime.clone();
+    let navigate_instance = runtime.clone();
+    let instance_board_id = model.active_board_id.clone();
     let keyboard = {
         let runtime = runtime.clone();
         let drag = drag.clone();
@@ -441,6 +455,23 @@ fn Editor() -> Element {
                 label { "Board"
                     select { value: "{model.active_board_id}", onchange: move |event| navigate.submit(Event::Navigate { operation_id: navigate.operation(), board_id: event.value(), instance_id: None }),
                         for board in &document.boards { option { value: "{board.id}", "{board.name}" } }
+                    }
+                }
+                if !physical_instances.is_empty() {
+                    label { "Physical instance"
+                        select { "aria-label": "Physical instance", value: "{active_instance_value}", onchange: move |event: FormEvent| {
+                            let value = event.value();
+                            navigate_instance.submit(Event::Navigate {
+                                operation_id: navigate_instance.operation(),
+                                board_id: instance_board_id.clone(),
+                                instance_id: (!value.is_empty()).then_some(value),
+                            });
+                        },
+                            option { value: "", "Canonical board" }
+                            for instance in &physical_instances {
+                                option { key: "{instance.id}", value: "{instance.id}", "{instance.name}" }
+                            }
+                        }
                     }
                 }
                 button { onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
