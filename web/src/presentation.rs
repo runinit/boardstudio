@@ -5,6 +5,7 @@ mod case_display;
 mod case_viewer;
 mod case_workspace;
 mod context_summary;
+mod firmware_positions;
 mod inspector;
 mod instance_selection;
 mod keycaps_fit;
@@ -363,6 +364,7 @@ pub fn App() -> Element {
     };
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
+        link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         main { class: "m1-workbench",
             header { class: "m1-topbar",
                 h1 { class: "m1-brand", title: "BoardStudio",
@@ -3078,7 +3080,7 @@ fn Editor() -> Element {
         }
         "PCB" => {
             workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
-                let firmware_positions = pcb_wiring::firmware_position_projection(
+                let firmware_position_projection = pcb_wiring::firmware_position_projection(
                     &source,
                     render_generation,
                     &pcb_wiring_mount.resolution,
@@ -3091,15 +3093,23 @@ fn Editor() -> Element {
                             feedback.target.is_visible(
                                 &source.ui_scope,
                                 render_generation,
-                                &firmware_positions,
+                                &firmware_position_projection,
                             )
                         });
+                let firmware_controls = rsx! {
+                    firmware_positions::FirmwareKeymapPanel {
+                        projection: firmware_position_projection.clone(),
+                        feedback: firmware_feedback.clone(),
+                        editable: firmware_position_actions.editable,
+                        on_change: firmware_position_actions.on_edit,
+                    }
+                };
                 Box::new(pcb_wiring::PcbWiringInspectorProps {
                     source,
                     resolution: pcb_wiring_mount.resolution.clone(),
-                    firmware_positions,
+                    firmware_positions: firmware_position_projection,
                     firmware_feedback,
-                    firmware_controls: rsx! {},
+                    firmware_controls,
                     on_firmware_edit: firmware_position_actions.on_edit,
                     on_resolve: pcb_wiring_mount.on_resolve,
                     on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,

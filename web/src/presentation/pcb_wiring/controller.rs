@@ -24,6 +24,7 @@ struct PendingFirmwarePositionEdit {
 
 pub(in crate::presentation) struct FirmwarePositionActions {
     pub feedback: Option<FirmwarePositionFeedback>,
+    pub editable: bool,
     pub on_edit: EventHandler<FirmwarePositionEditRequest>,
 }
 
@@ -249,10 +250,73 @@ pub(in crate::presentation) fn use_firmware_position_edits(
         }
     });
 
+    let editable = firmware_position_editable(
+        &runtime,
+        workspace(),
+        scope_generation(),
+        generation,
+        instance_is_current(),
+        &resolution.read(),
+    );
     FirmwarePositionActions {
         feedback: feedback(),
+        editable,
         on_edit,
     }
+}
+
+fn firmware_position_editable(
+    runtime: &Runtime,
+    workspace: &str,
+    current_generation: u64,
+    captured_generation: u64,
+    instance_is_current: bool,
+    resolution: &PcbWiringResolution,
+) -> bool {
+    if workspace != "PCB" || !instance_is_current || current_generation != captured_generation {
+        return false;
+    }
+    let model = runtime.model();
+    if model.lifecycle != Lifecycle::Ready
+        || model.display_preview.is_some()
+        || model.gesture.is_some()
+        || !matches!(model.durability, Durability::Saved { .. })
+    {
+        return false;
+    }
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return false;
+    };
+    let Some(ui_scope) = runtime.scope() else {
+        return false;
+    };
+    if model.active_board_id != ui_scope.board_id
+        || model.active_instance_id != ui_scope.instance_id
+        || snapshot.session_epoch != ui_scope.session_epoch
+        || snapshot.document.id != ui_scope.document_id
+        || snapshot.scene.revision != snapshot.document.revision
+    {
+        return false;
+    }
+    let mut board_scope = ui_scope.clone();
+    board_scope.instance_id = None;
+    let plan_identity = WiringPlanIdentity {
+        scope: board_scope,
+        token: snapshot.token,
+        revision: snapshot.document.revision,
+        executor_epoch: runtime.electrical_preview_executor_epoch(),
+    };
+    let PcbWiringResolution::Current { identity, plan } = resolution else {
+        return false;
+    };
+    let projection = firmware_position_projection::project(
+        &snapshot.document,
+        &plan_identity,
+        &ui_scope,
+        current_generation,
+        super::PlanLifecycle::Current(identity, plan),
+    );
+    identity == &plan_identity && projection.identity.is_some() && !projection.keys.is_empty()
 }
 
 fn feedback_target(request: &FirmwarePositionEditRequest) -> FirmwarePositionFeedbackTarget {
