@@ -6,7 +6,7 @@
 - Dioxus candidate: `http://127.0.0.1:34731/`, integrated source/build stamp `792e88af` (coordinator-provided); isolated browser session `pcb-public-qualification-7dd31abc1fc4`.
 - React reference: `http://127.0.0.1:5173/`, pinned commit `5a472a9426e6e38993361da402cd4ec730feb369`; isolated browser sessions `pcb-public-react-bbdc227a1db0` and `pcb-public-generic-bbdc227a1db0`.
 - Original paired fixture: `layered-sofle-export.boardstudio`, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
-- React press recheck: isolated browser session `pcb-react-original-20261002-2318ea1a1376` re-imported that exact archive, showed `Left PCB · 70 parts`, selected `left-SW25`, chose Unassigned, then reloaded and verified Unassigned after returning to PCB. This replaces an earlier React press capture taken from the later 71-part derived J1 project; the corrected same-fixture captures are `react-press-unassigned.png` and `react-press-postreload.png`.
+- React press recheck: isolated browser session `pcb-react-original-20261002-2318ea1a1376` re-imported that exact archive, showed `Left PCB · 70 parts`, selected `left-SW25`, chose Unassigned, then reloaded and verified Unassigned after returning to PCB. A second isolated session, `pcb-react-press-before-reload-20261002-2318ea1a1376`, re-imported the same archive and captured the confirmed pre-reload Unassigned state. This replaces an earlier React press capture taken from the later 71-part derived J1 project; both corrected same-fixture captures are 70-part Unassigned states.
 - The source app and candidate sessions used isolated browser storage. The original fixture was not overwritten.
 
 ## Sofle rotary encoder journey
