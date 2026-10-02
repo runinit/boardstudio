@@ -183,7 +183,7 @@ fn panel_frame(
             inert: compact_closed.then_some(""),
             aria_hidden: if compact_closed { "true" } else { "false" },
             onfocusin: move |_| cancel_hide_timer(&timer_focusin),
-            onfocusout: move |_| schedule_hide_timer(side, settings, revealed, hovered, compact, compact_open, timer_focusout.clone()),
+            onfocusout: move |_| schedule_hide_timer(side, settings, revealed, hovered, compact, timer_focusout.clone()),
             if !compact() && current.mode != PanelMode::Pinned {
                 button {
                     id: ids.rail,
@@ -201,7 +201,7 @@ fn panel_frame(
                     },
                     onpointerleave: move |_| {
                         set_bool(hovered, false);
-                        schedule_hide_timer(side, settings, revealed, hovered, compact, compact_open, timer_rail_leave.clone());
+                        schedule_hide_timer(side, settings, revealed, hovered, compact, timer_rail_leave.clone());
                     },
                     onclick: move |_| {
                         cancel_hide_timer(&timer_rail_click);
@@ -227,7 +227,7 @@ fn panel_frame(
                 },
                 onpointerleave: move |_| {
                     set_bool(hovered, false);
-                    schedule_hide_timer(side, settings, revealed, hovered, compact, compact_open, timer_content_leave.clone());
+                    schedule_hide_timer(side, settings, revealed, hovered, compact, timer_content_leave.clone());
                 },
                 onkeydown: move |event: KeyboardEvent| {
                     if event.data().key().to_string() != "Escape" { return; }
@@ -417,7 +417,6 @@ fn schedule_hide_timer(
     revealed: Signal<bool>,
     hovered: Signal<bool>,
     compact: Signal<bool>,
-    compact_open: Signal<bool>,
     timer: Rc<RefCell<Option<Timeout>>>,
 ) {
     cancel_hide_timer(&timer);
@@ -426,7 +425,6 @@ fn schedule_hide_timer(
     }
     let timeout = Timeout::new(280, move || {
         if !compact()
-            && !compact_open()
             && settings().mode != PanelMode::Pinned
             && !hovered()
             && !focus_is_inside(PanelIds::for_side(side))
