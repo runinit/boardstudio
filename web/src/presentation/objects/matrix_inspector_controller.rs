@@ -27,6 +27,8 @@ struct PendingMatrixEdit {
 struct ContextIdentity {
     scope: Scope,
     context: TreeContext,
+    workspace: &'static str,
+    scope_generation: u64,
 }
 
 #[derive(Default)]
@@ -53,6 +55,8 @@ pub(in crate::presentation) fn use_matrix_inspector(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
+    workspace: Signal<&'static str>,
+    scope_generation: Signal<u64>,
 ) -> MatrixInspectorMount {
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -60,9 +64,13 @@ pub(in crate::presentation) fn use_matrix_inspector(
     });
     let context_generation = use_hook(|| Rc::new(RefCell::new(ContextGeneration::default())));
     let selected = selected_context.read().clone();
+    let current_workspace = workspace();
+    let current_scope_generation = scope_generation();
     let observed_identity = selected.as_ref().map(|selected| ContextIdentity {
         scope: selected.scope.clone(),
         context: selected.context.clone(),
+        workspace: current_workspace,
+        scope_generation: current_scope_generation,
     });
     let generation = {
         let mut tracker = context_generation.borrow_mut();
@@ -81,39 +89,45 @@ pub(in crate::presentation) fn use_matrix_inspector(
     let last_request_id = use_signal(|| 0u64);
     let pending = use_signal(|| None::<PendingMatrixEdit>);
     let feedback = use_signal(Vec::<MatrixEditFeedback>::new);
-    let (projection, editable) =
-        project_current(&runtime, selected.as_ref(), editor_instance_id, generation);
+    let (projection, editable) = project_current(
+        &runtime,
+        selected.as_ref(),
+        editor_instance_id,
+        generation,
+        current_scope_generation,
+        current_workspace,
+    );
     let identity = observed_identity.clone();
 
-    use_effect(use_reactive((&version(), &identity), {
-        let runtime = runtime.clone();
-        let selected_context = selected_context;
-        let context_generation = context_generation.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
-        move |(_, _)| {
-            settle_pending(
-                &runtime,
-                selected_context,
-                context_generation.borrow().value,
-                editor_instance_id,
-                &mut pending,
-                &mut feedback,
-            );
-        }
-    }));
+    use_effect(use_reactive(
+        (&version(), &workspace(), &scope_generation(), &identity),
+        {
+            let runtime = runtime.clone();
+            let mut pending = pending;
+            let mut feedback = feedback;
+            move |(_, _, scope_generation, _)| {
+                settle_pending(&runtime, scope_generation, &mut pending, &mut feedback);
+            }
+        },
+    ));
 
-    let on_edit = EventHandler::new({
+    let on_edit = use_callback({
         let runtime = runtime.clone();
         let selected_context = selected_context;
+        let workspace = workspace;
+        let scope_generation = scope_generation;
         let context_generation = context_generation.clone();
         let mut last_request_id = last_request_id;
         let mut pending = pending;
         let mut feedback = feedback;
         move |request: MatrixEditRequest| {
             let current_generation = context_generation.borrow().value;
+            let current_workspace = workspace();
+            let current_scope_generation = scope_generation();
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != current_generation
+                || request.owner.scope_generation != current_scope_generation
+                || current_workspace != "Layout"
                 || request.request_id <= last_request_id()
             {
                 return;
@@ -142,6 +156,8 @@ pub(in crate::presentation) fn use_matrix_inspector(
                 Some(&selected),
                 editor_instance_id,
                 current_generation,
+                current_scope_generation,
+                current_workspace,
             ) else {
                 return;
             };
@@ -259,7 +275,12 @@ fn project_current(
     selected: Option<&ScopedTreeContext>,
     editor_instance_id: u64,
     context_generation: u64,
+    scope_generation: u64,
+    workspace: &'static str,
 ) -> (Option<MatrixInspectorProjection>, bool) {
+    if workspace != "Layout" {
+        return (None, false);
+    }
     let model = runtime.model();
     let scope = runtime.scope();
     project_current_for(
@@ -269,6 +290,8 @@ fn project_current(
         selected,
         editor_instance_id,
         context_generation,
+        scope_generation,
+        workspace,
     )
     .map_or((None, false), |(projection, editable)| {
         (Some(projection), editable)
@@ -282,7 +305,12 @@ fn project_current_for(
     selected: Option<&ScopedTreeContext>,
     editor_instance_id: u64,
     context_generation: u64,
+    scope_generation: u64,
+    workspace: &'static str,
 ) -> Option<(MatrixInspectorProjection, bool)> {
+    if workspace != "Layout" {
+        return None;
+    }
     let scope = live_scope?;
     let selected = selected?;
     if &selected.scope != scope || runtime.scope().as_ref() != Some(scope) {
@@ -341,6 +369,7 @@ fn project_current_for(
             owner: MatrixInspectorOwner {
                 editor_instance_id,
                 context_generation,
+                scope_generation,
                 scope: scope.clone(),
                 matrix_id: matrix.id.clone(),
                 name_target,
@@ -363,32 +392,18 @@ fn project_current_for(
 
 fn settle_pending(
     runtime: &Runtime,
-    selected_context: Signal<Option<ScopedTreeContext>>,
-    context_generation: u64,
-    editor_instance_id: u64,
+    scope_generation: u64,
     pending: &mut Signal<Option<PendingMatrixEdit>>,
     feedback: &mut Signal<Vec<MatrixEditFeedback>>,
 ) {
     let Some(waiting) = pending.read().clone() else {
         return;
     };
-    let selected = selected_context.read().clone();
     let model = runtime.model();
     let scope = runtime.scope();
-    let current = project_current_for(
-        runtime,
-        &model,
-        scope.as_ref(),
-        selected.as_ref(),
-        editor_instance_id,
-        context_generation,
-    );
-    let Some((current, _)) = current else {
-        pending.set(None);
-        feedback.set(Vec::new());
-        return;
-    };
-    if current.owner != waiting.request.owner {
+    if scope.as_ref() != Some(&waiting.request.owner.scope)
+        || scope_generation != waiting.request.owner.scope_generation
+    {
         pending.set(None);
         feedback.set(Vec::new());
         return;

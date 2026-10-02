@@ -43,6 +43,7 @@ pub(in crate::presentation) enum MatrixEditValue {
 pub(in crate::presentation) struct MatrixInspectorOwner {
     pub editor_instance_id: u64,
     pub context_generation: u64,
+    pub scope_generation: u64,
     pub scope: Scope,
     pub matrix_id: String,
     pub name_target: MatrixNameTarget,
@@ -260,7 +261,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 None => {}
             }
 
-            if baseline_for_effect() != *baseline {
+            if baseline_for_effect() != baseline {
                 if dirty_for_effect() {
                     stale_for_effect.set(true);
                 } else {
@@ -486,9 +487,10 @@ fn owner_key(owner: &MatrixInspectorOwner, field: MatrixEditField) -> String {
         MatrixNameTarget::Layout { id } => format!("layout-{}", encode(id)),
     };
     format!(
-        "{}-{}-{}-{}-{}-{}-{}-{}",
+        "{}-{}-{}-{}-{}-{}-{}-{}-{}",
         owner.editor_instance_id,
         owner.context_generation,
+        owner.scope_generation,
         owner.scope.session_epoch.0,
         encode(&owner.scope.document_id),
         encode(&owner.scope.board_id),
