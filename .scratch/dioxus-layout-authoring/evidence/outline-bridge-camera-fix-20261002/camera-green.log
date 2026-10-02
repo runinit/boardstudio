@@ -106,4 +106,3 @@ running 1 test
 test layout_camera::tests::selected_bridge_camera_uses_a_viewport_relative_pan_delta ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
