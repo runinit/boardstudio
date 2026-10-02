@@ -408,6 +408,9 @@ pub(super) fn build_tree(
                     expanded,
                     2,
                     true,
+                    &board_id,
+                    outline_scenes,
+                    &format!("matrix:{}", matrix.id),
                 );
             }
             for part in &standalone {
@@ -504,6 +507,9 @@ pub(super) fn build_tree(
                         expanded,
                         child_level,
                         false,
+                        &board_id,
+                        outline_scenes,
+                        &layout_key,
                     );
                 }
                 if !has_split {
@@ -611,6 +617,9 @@ fn append_matrix(
     expanded: &BTreeSet<String>,
     level: usize,
     include_header: bool,
+    board_id: &str,
+    outline_scenes: &[BoardOutlineScene],
+    occurrence_id: &str,
 ) {
     let projected = scene
         .map(|scene| scene.cells.as_slice())
@@ -664,7 +673,18 @@ fn append_matrix(
         });
     }
     let child_level = level + usize::from(include_header);
-    if !is_open || matrix.rows == 0 || matrix.columns == 0 {
+    if !is_open {
+        return;
+    }
+    append_matrix_bridge_occurrences(
+        tree,
+        board_id,
+        matrix,
+        outline_scenes,
+        occurrence_id,
+        child_level,
+    );
+    if matrix.rows == 0 || matrix.columns == 0 {
         return;
     }
 
@@ -800,6 +820,41 @@ fn append_matrix(
                 }
             }
         }
+    }
+}
+
+fn append_matrix_bridge_occurrences(
+    tree: &mut Vec<TreeItem>,
+    board_id: &str,
+    matrix: &Matrix,
+    outline_scenes: &[BoardOutlineScene],
+    occurrence_id: &str,
+    level: usize,
+) {
+    let Some(scene) = outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)
+    else {
+        return;
+    };
+    for (index, bridge) in scene.bridges.iter().enumerate() {
+        if !bridge.matrix_ids.iter().any(|id| id == &matrix.id) {
+            continue;
+        }
+        tree.push(TreeItem {
+            id: format!("{occurrence_id}:bridge:{}", bridge.id),
+            label: format!("Bridge {}", index + 1),
+            detail: Some(format!("{} mm", bridge.width)),
+            level,
+            kind: TreeKind::Bridge,
+            context: Some(TreeContext::Bridge {
+                board_id: board_id.into(),
+                bridge_id: bridge.id.clone(),
+            }),
+            expanded: None,
+            primary_id: None,
+            expandable: false,
+        });
     }
 }
 
@@ -1271,3 +1326,7 @@ pub(super) fn context_label(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "tree_tests.rs"]
+mod tests;
