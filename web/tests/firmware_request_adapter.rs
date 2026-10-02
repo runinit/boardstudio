@@ -254,3 +254,143 @@ fn module_diagnostics_are_forwarded_while_other_plan_errors_block_export() {
         "No resolved row pin"
     );
 }
+
+fn encoder_plan(id: &str, a: &str, b: &str, rotary_b: Option<&str>) -> ElectricalPlan {
+    let mut result = plan(ElectricalMode::Matrix);
+    let b_terminal = rotary_b.unwrap_or("C");
+    result.peripherals.push(PeripheralRequirement {
+        part_id: id.into(),
+        source: "ceoloide/rotary_encoder_ec11_ec12".into(),
+        kind: "encoder".into(),
+        gpio_terminals: vec![
+            ("A".into(), format!("{id}/encoder/A")),
+            (b_terminal.into(), format!("{id}/encoder/{b_terminal}")),
+        ],
+        fixed_terminals: vec![],
+        rotary: rotary_b.map(|terminal| boardstudio_core::model::RotaryProfile {
+            a: "A".into(),
+            b: terminal.into(),
+            common: "common".into(),
+            steps: Some(24),
+            triggers_per_rotation: Some(4),
+            driver: Some(boardstudio_core::model::EncoderDriver::Ec11),
+        }),
+        press_key_id: None,
+    });
+    result
+        .peripheral_pins
+        .insert(format!("{id}/encoder/A"), a.into());
+    result
+        .peripheral_pins
+        .insert(format!("{id}/encoder/{b_terminal}"), b.into());
+    result
+}
+
+#[test]
+fn split_profiled_encoders_keep_each_plans_identity_and_gpio() {
+    let mut document = document();
+    document.hardware.as_mut().unwrap().transport = HardwareTransport::Wireless;
+    for (left_id, right_id) in [("left-knob", "right-knob"), ("shared-knob", "shared-knob")] {
+        let left = encoder_plan(left_id, "P0.02", "P0.03", Some("C"));
+        let mut right = encoder_plan(right_id, "P1.12", "P1.13", Some("C"));
+        right.instance_id = Some("right-half".into());
+        let (request, _) =
+            firmware_request_adapter::firmware_request(&document, &left, Some(&right)).unwrap();
+        assert_eq!(
+            request.encoder_ids,
+            [left_id],
+            "central sensor membership must match React's current-plan projection"
+        );
+        assert_eq!(request.encoders.len(), 1);
+        assert_eq!(
+            (
+                &*request.encoders[0].id,
+                &*request.encoders[0].a_gpio,
+                &*request.encoders[0].b_gpio
+            ),
+            (left_id, "P0.02", "P0.03")
+        );
+        let peer = request.peripheral.unwrap();
+        assert_eq!(peer.encoder_ids, [right_id]);
+        assert_eq!(peer.encoders.len(), 1);
+        assert_eq!(
+            (
+                &*peer.encoders[0].id,
+                &*peer.encoders[0].a_gpio,
+                &*peer.encoders[0].b_gpio
+            ),
+            (right_id, "P1.12", "P1.13")
+        );
+        assert_eq!(
+            request.hardware.unwrap().physical_instance_id.as_deref(),
+            Some("left-half")
+        );
+        assert_eq!(
+            peer.hardware.unwrap().physical_instance_id.as_deref(),
+            Some("right-half")
+        );
+    }
+}
+
+#[test]
+fn mixed_encoder_profile_failure_is_not_replaced_by_empty_peripheral_overlays() {
+    let document = document();
+    let central = encoder_plan("left-knob", "P0.02", "P0.03", None);
+    // This reviewed rotary profile is valid by itself, but cannot use the legacy
+    // EC11 C-terminal overlay required by a mixed legacy/profiled split.
+    let peripheral = encoder_plan("right-knob", "P0.12", "P0.13", Some("D"));
+    firmware_request_adapter::firmware_request(&document, &peripheral, None).expect(
+        "the recursive profiled peripheral request succeeds before the outer legacy override",
+    );
+    let error = firmware_request_adapter::firmware_request(&document, &central, Some(&peripheral))
+        .expect_err("React throws when the outer peripheral legacy overlay cannot be built");
+    assert_eq!(
+        error,
+        "No resolved GPIO for peripheral function right-knob/encoder/C"
+    );
+}
+
+#[test]
+fn legacy_encoder_uses_resolved_c_terminal_and_shared_sensor_overlay_order() {
+    let mut document = document();
+    document.hardware.as_mut().unwrap().transport = HardwareTransport::Wireless;
+    let legacy = |id: &str| {
+        let mut value = encoder_plan(id, "P0.02", "P0.03", None);
+        // Exact mapping from React firmwareHandoff.test.ts split legacy fixture:
+        // terminal C is encoder-b; it is not the optional B terminal or encoder/C fallback.
+        value.peripherals[0].gpio_terminals = vec![
+            ("A".into(), "encoder-a".into()),
+            ("C".into(), "encoder-b".into()),
+        ];
+        value.peripheral_pins = BTreeMap::from([
+            ("encoder-a".into(), "P0.02".into()),
+            ("encoder-b".into(), "P0.03".into()),
+        ]);
+        value
+    };
+    let (request, _) = firmware_request_adapter::firmware_request(
+        &document,
+        &legacy("left-knob"),
+        Some(&legacy("right-knob")),
+    )
+    .expect("source-matched legacy C terminal is supported");
+    assert_eq!(request.encoder_ids, ["left-knob"]);
+    let peer = request.peripheral.unwrap();
+    assert_eq!(peer.encoder_ids, ["right-knob"]);
+    let sensors = |overlays: &[String]| {
+        overlays
+            .iter()
+            .find(|row| row.contains("zmk,keymap-sensors"))
+            .cloned()
+            .unwrap()
+    };
+    assert_eq!(
+        sensors(&request.peripheral_overlays),
+        sensors(&peer.peripheral_overlays)
+    );
+    for overlays in [&request.peripheral_overlays, &peer.peripheral_overlays] {
+        let text = overlays.join("\n");
+        assert!(text.contains("b-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>"));
+        assert!(text.contains("status = \"disabled\""));
+    }
+}

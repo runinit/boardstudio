@@ -238,7 +238,7 @@ fn build_request(
         physical_instance_id.as_deref(),
     );
     let encoders = if profiled {
-        all_peripherals
+        plan.peripherals
             .iter()
             .filter_map(|item| {
                 if item.kind != "encoder" {
@@ -349,27 +349,28 @@ fn build_request(
             hardware.topology = Default::default();
             hardware.transport = HardwareTransport::None;
             unibody.hardware = Some(hardware);
-            build_request(&unibody, other, None, HardwareTransport::None).map(|(mut request, _)| {
-                let legacy = peripheral_firmware(
-                    &legacy_plan(other, profiled),
-                    if profiled { vec![] } else { sensor_ids.clone() },
-                )
-                .unwrap_or_default();
-                request.peripheral_overlays = legacy.overlays;
-                request.transport = transport_value.clone();
-                request.matrix_row_offset = plan.row_pins.len();
-                request.uart_tx = if transport == HardwareTransport::Wired {
-                    uart_pin(other, "split-rx")
-                } else {
-                    None
-                };
-                request.uart_rx = if transport == HardwareTransport::Wired {
-                    uart_pin(other, "split-tx")
-                } else {
-                    None
-                };
-                Box::new(request)
-            })
+            build_request(&unibody, other, None, HardwareTransport::None).and_then(
+                |(mut request, _)| {
+                    let legacy = peripheral_firmware(
+                        &legacy_plan(other, profiled),
+                        if profiled { vec![] } else { sensor_ids.clone() },
+                    )?;
+                    request.peripheral_overlays = legacy.overlays;
+                    request.transport = transport_value.clone();
+                    request.matrix_row_offset = plan.row_pins.len();
+                    request.uart_tx = if transport == HardwareTransport::Wired {
+                        uart_pin(other, "split-rx")
+                    } else {
+                        None
+                    };
+                    request.uart_rx = if transport == HardwareTransport::Wired {
+                        uart_pin(other, "split-tx")
+                    } else {
+                        None
+                    };
+                    Ok(Box::new(request))
+                },
+            )
         })
         .transpose()?;
     let mut config = peripherals.config;
@@ -381,8 +382,11 @@ fn build_request(
         hardware,
         encoders,
         keymap: document.keymap.clone(),
-        encoder_ids: sensor_ids
-            .into_iter()
+        encoder_ids: plan
+            .peripherals
+            .iter()
+            .filter(|item| item.kind == "encoder")
+            .map(|item| item.part_id.clone())
             .chain(module_encoders.iter().map(|encoder| encoder.id.clone()))
             .collect(),
         controller_profile,
@@ -799,7 +803,7 @@ fn encoder_overlay(
     peripheral: &PeripheralRequirement,
 ) -> Result<String, String> {
     let mut a = gpio_spec(&role_pin(plan, peripheral, "A", "encoder/A")?)?;
-    let mut b = gpio_spec(&role_pin(plan, peripheral, "B", "encoder/C")?)?;
+    let mut b = gpio_spec(&role_pin(plan, peripheral, "C", "encoder/C")?)?;
     a = a.replace("GPIO_ACTIVE_HIGH", "(GPIO_ACTIVE_HIGH | GPIO_PULL_UP)");
     b = b.replace("GPIO_ACTIVE_HIGH", "(GPIO_ACTIVE_HIGH | GPIO_PULL_UP)");
     let name = encoder_label(&peripheral.part_id);
