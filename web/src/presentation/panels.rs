@@ -180,7 +180,7 @@ fn panel_frame(
             "data-side": side.as_str(),
             "data-mode": current.mode.as_str(),
             "data-revealed": if revealed() { "true" } else { "false" },
-            inert: compact_closed,
+            inert: compact_closed.then_some(""),
             aria_hidden: if compact_closed { "true" } else { "false" },
             onfocusin: move |_| cancel_hide_timer(&timer_focusin),
             onfocusout: move |_| schedule_hide_timer(side, settings, revealed, hovered, compact, compact_open, timer_focusout.clone()),
@@ -217,7 +217,7 @@ fn panel_frame(
             div {
                 id: ids.content,
                 class: "m1-panel-content",
-                inert: content_hidden,
+                inert: content_hidden.then_some(""),
                 aria_hidden: if content_hidden { "true" } else { "false" },
                 "data-mode": current.mode.as_str(),
                 "data-revealed": if revealed() { "true" } else { "false" },

@@ -241,7 +241,6 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-case-view canvas { width: 100%; min-width: 280px; min-height: 280px; background: var(--wb-canvas); border: 1px solid var(--wb-rule); }
 .m1-status { flex: 0 0 auto; margin: 0; padding: 5px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-top: 1px solid var(--wb-rule); color: var(--wb-muted); background: var(--wb-panel); font-size: 12px; }
 @media (max-width: 1050px) and (min-width: 761px) {
-  .m1-editor-body { grid-template-columns: 220px minmax(0,1fr) 300px; }
   .m1-workflow-tabs button { min-width: 60px; padding-inline: 7px; }
   .m1-tab-icon { width: 14px; }
 }
@@ -284,7 +283,6 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 }
 @media (max-width: 760px) { html, body, #main { overflow-x: hidden; } }
 @media (max-height: 520px) and (min-width: 761px) {
-  .m1-editor-body { grid-template-columns: 220px minmax(0,1fr) 300px; }
   .m1-canvas { min-height: 0; }
   .m1-component-list { max-height: 52svh; }
 }
