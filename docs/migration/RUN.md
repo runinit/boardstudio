@@ -1076,3 +1076,16 @@ records the continuation work. Original tracked checkout and stash identities
 remain preserved; unrelated untracked content was not hashed.
 
 The user also requires continuous architectural/design/theoretical/quality takeaways. The [post-port refactoring register](POST-PORT-REFACTOR.md) is updated at every workflow handoff and consolidated for the later refactoring phase; it does not broaden this frontend port or waive current gates.
+
+## Frontend model allocation — 2026-10-02
+
+User preference now routes bounded implementation and evidence work to Luna
+low/medium/high, with Astra high/xhigh reserved for independent reviews and bug
+fixing. A Luna Medium readiness audit and Astra High policy review informed the
+[packet/agent policy](../../.scratch/dioxus-frontend-v1/AGENT-ROUTING.md) and
+[all-task routing](../../.scratch/dioxus-frontend-v1/agent-policy.json). The normal
+team is two feature authors plus a verifier, rotating capacity into review.
+The 62 task IDs, graph, acceptance gates and current executable remain unchanged.
+Priority is configured on the host; effective child tiers were not independently
+observed and the spawn interface has no tier parameter. No host configuration
+change or feature implementation was performed in this policy review.

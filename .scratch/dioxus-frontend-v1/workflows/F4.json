@@ -26,7 +26,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.2",
@@ -41,7 +52,7 @@
         "red": "Dioxus Parts has no custom definition form or KiCad/model file import action.",
         "green": "Create a custom definition; import a supported KiCad footprint; edit supported courtyard, pad and profile fields; preserve source-owned geometry, IDs, assets, terminal/net relationships and unrelated document data; reject malformed input locally; commit through one normal edit/Undo/Redo/save/reopen path. Import errors, invalid fields and changed-project async races leave the prior document intact. Do not claim board placement in this slice; F3 owns that public action."
       },
-      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset façade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
+      "boundary_status": "Rust ImportFootprint/compile and normal Edit operations exist; coordinator-owned typed Runtime artifact and model-asset fa\u00e7ade is a required adapter gap; no core contract/schema change. Editing/import/round-trip do not require full F3.",
       "workflow": "F4",
       "owner": "F4 workflow lead",
       "start_after": [
@@ -54,7 +65,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.3",
@@ -82,7 +104,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.4",
@@ -114,7 +147,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.5",
@@ -129,7 +173,7 @@
         "red": "Dioxus Parts has no library-level part-fit profile editor or source-geometry extraction flow.",
         "green": "From a selected part, edit supported purpose, measured dimensions, clearances, evidence and qualification fields; extract only supported mappings from source geometry; show extraction/validation failures and preserve unqualified gates for unknown or unreviewed facts. Reject stale extraction results after selection/scope changes. Save through normal edit/Undo/Redo/save/reopen behavior without asserting case fit or fabrication readiness."
       },
-      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime façade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
+      "boundary_status": "Existing mechanical profile and ArtifactRequest::ExtractMechanical service behavior is available; there is no typed Dioxus Runtime fa\u00e7ade for profile/extraction calls, so coordinator adapter work is required. No schema or backend behavior change; case-level acceptance remains F7.",
       "workflow": "F4",
       "owner": "F4 workflow lead",
       "start_after": [
@@ -142,7 +186,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.6",
@@ -172,7 +227,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.7",
@@ -188,7 +254,7 @@
         "red": "Dioxus Parts has no module catalogue, source preview or module profile editor.",
         "green": "Browse grouped module variants with source/license/readiness metadata; inspect bundled source-board/constituent footprint preview; edit supported definition-level measured volumes, openings, models and rotary profile facts with evidence/qualification states; save through existing module-definition/edit services; show loading/extraction/save errors; reject stale async results after selection/scope change; preserve project assets/source provenance. Mounted placements, connectors, wiring, circuit copies and PCB layer behavior are not claimed by this slice."
       },
-      "boundary_status": "bundled module catalogue, ImportModuleBoard/SetModuleDefinition and profile/extraction services exist; Runtime façade is coordinator-owned; mounted module and PCB presentation remain F5 and physical fit acceptance remains F7",
+      "boundary_status": "bundled module catalogue, ImportModuleBoard/SetModuleDefinition and profile/extraction services exist; Runtime fa\u00e7ade is coordinator-owned; mounted module and PCB presentation remain F5 and physical fit acceptance remains F7",
       "workflow": "F4",
       "owner": "F4 workflow lead",
       "start_after": [
@@ -202,7 +268,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     }
-  ]
+  ],
+  "agent_policy": "../agent-policy.json"
 }

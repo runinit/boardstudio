@@ -1,7 +1,7 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "F1 and scoped F3a implemented and verified; full F2–F9 open",
+  "status": "F1 and scoped F3a implemented and verified; full F2\u2013F9 open",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
@@ -10,7 +10,7 @@
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
     "F1": {
-      "status": "verified first increment; full parity remains F2–F9",
+      "status": "verified first increment; full parity remains F2\u2013F9",
       "ticket": ".scratch/dioxus-frontend-v1/issues/01-shell-theme.md",
       "depends_on": "M1 implementation"
     },
@@ -169,5 +169,8 @@
     "BND.2"
   ],
   "refactoring_takeaways": "docs/migration/POST-PORT-REFACTOR.md",
-  "refactoring_register": ".scratch/dioxus-frontend-v1/refactor-findings.json"
+  "refactoring_register": ".scratch/dioxus-frontend-v1/refactor-findings.json",
+  "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
+  "agent_routing": ".scratch/dioxus-frontend-v1/AGENT-ROUTING.md",
+  "agent_policy_status": "Luna implementation / Astra review and bug-fix routing reviewed; task statuses and executable unchanged"
 }

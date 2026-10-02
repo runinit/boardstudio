@@ -100,7 +100,7 @@
       "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
       "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
       "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
-      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
+      "validation_needed": "Every required capability has a verified engine\u2192worker\u2192host\u2192UI trace, same fixture outputs and cancellation/error disposition.",
       "decision": "proposal only; no refactor/API/schema change approved by this entry",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
@@ -296,6 +296,14 @@
         "F9.1",
         "F9.2",
         "F9.3"
+      ],
+      "follow_up_evidence": [
+        {
+          "date": "2026-10-02",
+          "task": "agent routing/readiness review",
+          "observation": "Corrected stale F2 spec prose claiming no Rust archive output despite an existing Export archive control/Runtime pack path. Work package prose is insufficient for execution unless actual call paths are checked.",
+          "current_mitigation": "Concrete source-checked dispatch packets and full per-packet Standards/Spec coverage; existing archive implementation reused."
+        }
       ]
     },
     {

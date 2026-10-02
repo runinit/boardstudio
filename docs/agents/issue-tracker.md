@@ -59,3 +59,14 @@ source evidence, confidence, impact, current mitigation, later proposal and vali
 Required parity/correctness remains current work; deferred structural cleanup never
 waives acceptance or authorizes unrelated API/schema changes. F9 consolidates the
 register into the post-port refactoring handoff.
+
+### Frontend agent model policy
+
+The user reserves Astra High/Extra High for independent reviews and bug fixing.
+Use Luna Medium for ordinary bounded implementation, Low for mechanical packets,
+and High for specified state/gesture/async/adapter work. Follow the
+[dispatch/model policy](../../.scratch/dioxus-frontend-v1/AGENT-ROUTING.md) and
+[task routing](../../.scratch/dioxus-frontend-v1/agent-policy.json). Prepare exact
+packets only for runnable work, retain all acceptance/review/RF gates, and record
+requested versus observable runtime settings. Do not change global model/provider
+configuration or invent a per-agent Fast parameter.

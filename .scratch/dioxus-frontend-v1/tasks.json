@@ -26,7 +26,19 @@
       "acceptance": "Existing session/runtime remains authoritative; private workspace read-model/callback slots, scope/draft keys and shared panel/control contracts let the first F2/F3 slices mount without parallel edits to the same shell. Preserve working F1/F3a behavior. No general framework or public API expansion.",
       "boundary_status": "Private presentation composition only; existing events/model/types suffice.",
       "external_gates": [],
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": true,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+      }
     },
     {
       "id": "INT.2",
@@ -46,7 +58,19 @@
       "acceptance": "Provide the smallest private scoped dispatch and file/asset/delivery seam, prove it with the first required existing provider call and cancellation/stale/error/resource checks. Individual format/query adapters belong to their consuming visible feature tasks and do not all have to exist before INT.2 completes. Preserve current session/document/revision/board identity and one session/store; no backend rewrite.",
       "boundary_status": "Runtime currently lacks complete workspace facades; existing CoreWorker/BrowserStore/application/provider contracts are present. Verify each concrete call during implementation and record genuine public gaps instead of assuming them.",
       "external_gates": [],
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": true,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+      }
     },
     {
       "id": "BND.1",
@@ -62,7 +86,19 @@
       "acceptance": "Use the existing packaged Rust WASM build_keycaps export; prove a crate-private host/worker request path with a current fixture, revision identity and disposal/cancellation. Core ResolveKeycaps alone and generic Case STEP are insufficient. Document existing CAD asset/build inputs, stable body/legend IDs, scope/revision validation, preview chunk/yield cancellation and non-preemptible STEP late-result suppression. If existing callable capability is genuinely insufficient, leave dependent keycap CAD acceptance open and present the concrete public-contract decision before changing APIs.",
       "boundary_status": "Existing Rust CAD WASM build_keycaps is public and packaged, but current web CAD enum/worker request path lacks keycaps. Prefer private wire/host types, not changes to public web::cad_jobs types. No new engine function or public contract indicated.",
       "external_gates": [],
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": true,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+      }
     },
     {
       "id": "BND.2",
@@ -78,7 +114,19 @@
       "acceptance": "Characterize React export own-commit adoption and current immutable Session export token. Prove a private orchestration using existing accepted edits that preserves resolve/wiring commit/package/protection commit/delivery order, rejects unrelated changes and never protects failed packaging. If existing Session APIs cannot safely express it, record the exact required contract and keep only dependent export acceptance open before an API change.",
       "boundary_status": "Existing application export token has no adopt transition; this is unresolved adapter/contract feasibility, not already-supported semantics. No weakened stale guards or direct second document authority.",
       "external_gates": [],
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": true,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+      }
     },
     {
       "id": "F2.1",
@@ -100,7 +148,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F2.2",
@@ -125,7 +184,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F2.3",
@@ -147,7 +217,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F2.4",
@@ -169,7 +250,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      }
     },
     {
       "id": "F3.1",
@@ -196,7 +289,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      }
     },
     {
       "id": "F3.2",
@@ -223,7 +328,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F3.3",
@@ -254,7 +370,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F3.4",
@@ -282,7 +409,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F3.5",
@@ -309,7 +447,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F3.6",
@@ -342,7 +491,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F3.7",
@@ -387,7 +547,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F3.8",
@@ -415,7 +587,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.1",
@@ -440,7 +623,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.2",
@@ -468,7 +662,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.3",
@@ -496,7 +701,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.4",
@@ -528,7 +744,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.5",
@@ -556,7 +783,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.6",
@@ -586,7 +824,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F4.7",
@@ -616,7 +865,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.1",
@@ -638,7 +898,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.2",
@@ -663,7 +934,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.3",
@@ -692,7 +974,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.4",
@@ -717,7 +1010,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.5",
@@ -742,7 +1046,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.6",
@@ -764,7 +1079,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.7",
@@ -789,7 +1115,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F5.8",
@@ -834,7 +1171,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/05-pcb.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F6K.1",
@@ -859,7 +1208,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      }
     },
     {
       "id": "F6K.2",
@@ -881,7 +1242,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F6K.3",
@@ -908,7 +1280,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F6K.4",
@@ -937,7 +1320,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F6C.1",
@@ -962,7 +1356,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "packet_override_note": "Use High for newly implemented range/focus/scope/lifecycle state; Medium for projection/rendering and proven callback composition."
+      }
     },
     {
       "id": "F6C.2",
@@ -984,7 +1390,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F6C.3",
@@ -1011,7 +1428,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F6C.4",
@@ -1036,7 +1464,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F6C.5",
@@ -1067,7 +1506,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F6.6",
@@ -1112,7 +1562,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F7.1",
@@ -1137,7 +1599,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": true,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+      }
     },
     {
       "id": "F7.2",
@@ -1165,7 +1639,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F7.3",
@@ -1202,7 +1687,19 @@
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
       "boundary_checkpoint": "F7.1 maps present wasm exports to private wrappers; BND.1 resolves the known keycap-service handoff. No demonstrated new public renderer API requirement.",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": true,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+      }
     },
     {
       "id": "F7.4",
@@ -1234,7 +1731,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F7.5",
@@ -1264,7 +1772,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F7.6",
@@ -1295,7 +1814,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F7.7",
@@ -1330,7 +1860,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F7.8",
@@ -1374,7 +1915,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/07-case-3d.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F8.1",
@@ -1399,7 +1952,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F8.2",
@@ -1429,7 +1993,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": true,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "contract_review_reuse": "Accept an exact, still-applicable previously reviewed contract; otherwise review new/changed boundary before edits."
+      }
     },
     {
       "id": "F8.3",
@@ -1467,7 +2043,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F8.4",
@@ -1501,7 +2088,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F8.5",
@@ -1535,7 +2133,18 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true
+      }
     },
     {
       "id": "F8.6",
@@ -1585,7 +2194,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/08-export.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F9.1",
@@ -1603,7 +2224,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F9.2",
@@ -1643,7 +2276,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F9.3",
@@ -1667,7 +2312,19 @@
       ],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-medium",
+        "verifier_profile": "luna-medium",
+        "reviewer_profile": "astra-review",
+        "review_mode": "workflow_batch_eligible",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F9.4",
@@ -1689,7 +2346,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F9.5",
@@ -1711,7 +2380,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F9.6",
@@ -1741,7 +2422,19 @@
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     },
     {
       "id": "F9.7",
@@ -1765,7 +2458,19 @@
       ],
       "spec": ".scratch/dioxus-frontend-v1/issues/09-frontend-v1.md",
       "shared_edit_owner": "integration coordinator",
-      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed."
+      "refactoring_handoff": "Update docs/migration/POST-PORT-REFACTOR.md and .scratch/dioxus-frontend-v1/refactor-findings.json with evidence-backed takeaways or explicitly record none observed.",
+      "agent_routing": {
+        "author_profile": "luna-high",
+        "verifier_profile": "luna-high",
+        "reviewer_profile": "astra-review",
+        "review_mode": "dedicated",
+        "contract_review_before_implementation": false,
+        "requires_dispatch_packet": true,
+        "policy": "AGENT-ROUTING.md",
+        "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
+        "refactoring_handoff_required": true,
+        "author_role_note": "Evidence execution/preparation; Astra independently assesses acceptance, task external gates unchanged."
+      }
     }
   ],
   "conservative_topological_order": [
@@ -1848,5 +2553,7 @@
     "workflow_slices": 58,
     "integration_slices": 2,
     "boundary_slices": 2
-  }
+  },
+  "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
+  "agent_policy_date": "2026-10-02"
 }

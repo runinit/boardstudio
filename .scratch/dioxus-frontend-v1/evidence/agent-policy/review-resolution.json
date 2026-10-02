@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-02",
+  "baseline": "7b7b004e717ce9976d60cc8c0326627b64caa04b",
+  "scope": "agent policy and task readiness; documentation only",
+  "requested_agents": [
+    {
+      "agent": "/root/luna_dispatch_audit",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "medium",
+      "role": "readiness and packet audit"
+    },
+    {
+      "agent": "/root/astra_agent_policy_review",
+      "model": "gpt-6-astra",
+      "reasoning_effort": "high",
+      "role": "independent allocation/review policy assessment"
+    }
+  ],
+  "effective_child_service_tier": "not independently observed",
+  "configuration_changed": false,
+  "resolutions": [
+    "62 graph rows remain unchanged; child dispatch packets required",
+    "INT.1 real same-crate call path and single-session contract reviewed/proven before feature dispatch",
+    "Luna Low excludes new async open/retry, pointer/focus and selection semantics",
+    "two authors plus verifier is default; reviewer slot rotated without growing backlog",
+    "batching retains every included task/packet Standards+Spec and evidence coverage",
+    "Astra fix requires a separate reviewer",
+    "Astra Extra High reserved for material unresolved cases, not blanket maximum effort",
+    "Fast preference distinct from effective runtime metadata; explicit spawn model/effort",
+    "stale F2 archive-provider statement corrected and appended to RF-009"
+  ],
+  "validation": "validation.json",
+  "final_review": "astra-final-review.md",
+  "verdict": "no material policy issues on final saved policy"
+}

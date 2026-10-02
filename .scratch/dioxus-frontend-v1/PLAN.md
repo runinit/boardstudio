@@ -2,7 +2,7 @@
 
 **Updated 2026-10-02. Scope: 100% frontend parity.** F1 shell/themes and the requested F3a Layout correction are verified. Full F2–F9 remain open. This revision plans the remaining implementation; it does not claim new UI completion.
 
-[Milestone roadmap](../../docs/migration/DIOXUS-FRONTEND-V1.md) · [parent specification](spec.md) · [agent ownership and execution](EXECUTION.md) · [62-task graph](tasks.json) · [source coverage](coverage.json) · [planning reviews](evidence/planning/review-resolution.md)
+[Milestone roadmap](../../docs/migration/DIOXUS-FRONTEND-V1.md) · [parent specification](spec.md) · [agent ownership and execution](EXECUTION.md) · [62-task graph](tasks.json) · [source coverage](coverage.json) · [agent models and routing](AGENT-ROUTING.md) · [planning reviews](evidence/planning/review-resolution.md)
 
 Integration branch `codex/rust-v1-ui-parity-20261001`; planning baseline `c827c4e6`; current executable `f44a3d1b`; React reference `5a472a9426e6e38993361da402cd4ec730feb369`. The existing [editable demo/evidence](evidence/layout-layers/handoff.md) is unchanged.
 
@@ -21,9 +21,15 @@ Integration branch `codex/rust-v1-ui-parity-20261001`; planning baseline `c827c4
 
 The 58 workflow slices are supported by two small integration tasks and two early boundary tasks. They do not wait serially for whole preceding milestones. `start_after` in the graph gates dispatch; `acceptance_after` names later real integration joins. A conservative scheduler can use their union, `depends_on`. All workflow scopes require implementation and independent verification/review; planning review does not close them.
 
+## Model allocation
+
+Use **Luna Medium by default**, Low for fixed-oracle mechanical packets, and High for specified state/gesture/async/adapter work. Reserve **Astra High for independent reviews and behavioral bug fixing**, with Extra High for difficult unresolved cases. The 62 rows are work packages (31 L, 29 M, 2 S); dispatch smaller packets with exact files, source/fixture oracle and concrete callbacks. Shared boundaries get a reviewed call-path proof before implementation; routine packets can share a review batch with full coverage.
+
+[Agent policy](AGENT-ROUTING.md) contains the first-wave packet map, cadence, escalation and launch rules; [machine routing](agent-policy.json) assigns every parent task. Fast/priority is the preference and host configuration is already priority, but the exposed spawn call has no tier override. This update does not change host configuration or a running model.
+
 ## First visible tranche
 
-The coordinator establishes INT.1's minimal private shell/read-model/callback seam. Then run three feature agents in parallel on **F2.1 project library**, **F2.3 panels/drawers**, and **F3.1 Layout tree/selection**. Integrate and verify those complete actions in one runnable candidate with paired reference captures. Preserve default keycaps, all five Layout layers and the shared Footprints state already delivered by F3a.
+The coordinator establishes INT.1's minimal private shell/read-model/callback seam. Use two Luna feature authors plus a Luna verifier, rotating in Astra for review. The visible tranche remains **F2.1 project library**, **F2.3 panels/drawers**, and **F3.1 Layout tree/selection**; stagger their bounded packets as slots free. Three simultaneous authors are a short exception only when ownership is disjoint and no verification/review queue is waiting. Integrate and verify those complete actions in one runnable candidate with paired reference captures. Preserve default keycaps, all five Layout layers and the shared Footprints state already delivered by F3a.
 
 Rotate the next slots into Parts catalogue, PCB/Keymap/Keycaps fixture-backed controls and remaining Layout authoring. Run common-viewer mapping (F7.1), the private keycap CAD adapter proof (BND.1), and export commit-lineage proof (BND.2) early. Those investigations can also begin immediately when a slot is free; do not wait until release to discover their boundaries. F9 coverage/test preparation runs alongside the feature work.
 
