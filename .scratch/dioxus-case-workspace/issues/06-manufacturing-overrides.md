@@ -1,4 +1,4 @@
-# Draft F7.4d: Configure per-part manufacturing and stabilizer overrides
+# F7.4d: Configure per-part manufacturing and stabilizer overrides
 
 **Parent:** F7.4 — Mechanical assembly configuration editor.
 
@@ -8,7 +8,7 @@
 
 **Parent acceptance join:** INT.2 remains required for F7.4 integrated acceptance.
 
-**Status:** draft for independent review; not published or counted.
+**Status:** ready-for-agent; independently reviewed and published.
 
 - [ ] Show the four shared layer targets (plate, plate foam, bottom foam, bottom) and one override target for every `document.parts` entry, labelled with that part's reference and definition name. For each target show whether the override is absent or configured; add/remove the override and expose only current method/material/thickness options. Foam remains cut-sheet; shared plate/bottom/foam thickness updates keep their standard process entries synchronized as the source does.
 - [ ] Keep material choices conditional on process and target, preserve the existing material fallback when a method changes, and show the supported constraint-set version. An unsupported saved constraint version remains visible and reports that existing diagnostics block export; do not silently replace it.

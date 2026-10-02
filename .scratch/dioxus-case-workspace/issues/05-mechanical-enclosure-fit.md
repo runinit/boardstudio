@@ -1,4 +1,4 @@
-# Draft F7.4c: Configure enclosure, supports, and fit constraints
+# F7.4c: Configure enclosure, supports, and fit constraints
 
 **Parent:** F7.4 — Mechanical assembly configuration editor.
 
@@ -8,7 +8,7 @@
 
 **Parent acceptance join:** INT.2 remains required for F7.4 integrated acceptance. Viewer-handle edits remain F7.5 and are not accepted by this form ticket.
 
-**Status:** draft for independent review; not published or counted.
+**Status:** ready-for-agent; independently reviewed and published.
 
 - [ ] Edit and remove document-coordinate access openings and their supported polygon vertices, Z and height; preserve minimum three vertices and source defaults for adding a rectangular contour/volume.
 - [ ] For a configured battery envelope, edit size, position, cable exit and cable width; retain the source default envelope when first enabled. Preserve its wireless guidance and the source's represented transport-dependent display; do not infer hardware capability beyond current document state.

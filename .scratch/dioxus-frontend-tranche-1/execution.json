@@ -210,7 +210,7 @@
     ],
     "status": "two drafts independently reviewed and automatically published; concrete contracts required"
   },
-  "bounded_ticket_count": 29,
+  "bounded_ticket_count": 34,
   "canonical_parent_count": 62,
   "pending_api_decision": {
     "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
@@ -300,5 +300,16 @@
       "http://127.0.0.1:34665/",
       "http://127.0.0.1:34665/boardstudio/"
     ]
+  },
+  "case_settings_frontier": {
+    "status": "five independently reviewed bounded tickets published; implementation and canonical parent joins open",
+    "issues": [
+      "../dioxus-case-workspace/issues/03-mechanical-configuration.md",
+      "../dioxus-case-workspace/issues/04-mechanical-profiles.md",
+      "../dioxus-case-workspace/issues/05-mechanical-enclosure-fit.md",
+      "../dioxus-case-workspace/issues/06-manufacturing-overrides.md",
+      "../dioxus-case-workspace/issues/07-direct-manipulation.md"
+    ],
+    "review": "../dioxus-case-workspace/evidence/next-five-tickets-reviewed/case-next-five-final-review.md"
   }
 }

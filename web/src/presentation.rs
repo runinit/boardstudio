@@ -667,6 +667,27 @@ fn Editor() -> Element {
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
     let active_board_id = model.active_board_id.clone();
+    let layer_source =
+        current_scope
+            .clone()
+            .zip(model.accepted.as_ref())
+            .map(|(scope, snapshot)| keymap::LayerSource {
+                scope,
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+            });
+    // Keep the operation observer alive even when the workspace panel is hidden.
+    let layer_actions = keymap::use_layer_operations(
+        runtime.clone(),
+        layer_source,
+        keymap_layer_id,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+    );
     let keymap_layer_value = keymap_layer_id();
     let keymap_projection = use_memo(use_reactive(
         (
@@ -1923,6 +1944,10 @@ fn Editor() -> Element {
                             if let Some(view) = keymap_view.clone() {
                                 KeymapPanel {
                                     view,
+                                    scope: render_scope.clone(),
+                                    layer_operations_enabled: layer_actions.enabled,
+                                    layer_feedback: layer_actions.feedback.clone(),
+                                    on_layer_operation: layer_actions.on_operation,
                                     active_layer_id: keymap_layer_id(),
                                     selected_key_id: model.selected_part_ids.first().cloned(),
                                     on_layer: on_keymap_layer.clone(),

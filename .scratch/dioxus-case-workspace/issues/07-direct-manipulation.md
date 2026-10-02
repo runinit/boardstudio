@@ -1,4 +1,4 @@
-# Draft F7.5: Edit supported Case mounts and gaskets in the viewer
+# F7.5: Edit supported Case mounts and gaskets in the viewer
 
 **Parent:** F7.5 — Case viewer direct-manipulation preview edits.
 
@@ -8,7 +8,7 @@
 
 **Parent acceptance joins:** None beyond F7.5's own slice acceptance. Do not infer F7.8 or F7 viewer closure.
 
-**Status:** draft for independent review; not published or counted.
+**Status:** ready-for-agent; independently reviewed and published.
 
 - [ ] Expose only the existing viewer actions: edit gasket handle placement, unlink the selected paired support, and edit the supported mount targets. Do not add arbitrary 3D object manipulation. Gasket cut length and width remain selected-support numeric Inspector controls from F7.4c; viewer drag is placement, not resizing. Controls are available only when current prepared geometry and source readiness conditions allow the relevant handles.
 - [ ] During gasket dragging, use the current perimeter projection and transient preview path. Cancel if no valid perimeter location exists; a projected move is committed once through the existing mechanical edit path, then fit diagnostics report `fitError` and block preview/export if the placed support does not fit. Do not treat fitError alone as a pre-commit drag rejection: the source explicitly checks fit after placement. For mount dragging, preserve current edge/hole/other-mount constraints; blocked positions cannot commit. A successful move commits exactly once to `SetMechanical` for suspension/closure mounts, `SetCase` for an authored body mount, and the corresponding per-field body/config owner.

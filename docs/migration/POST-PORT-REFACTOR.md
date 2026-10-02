@@ -298,3 +298,13 @@ RF-009 gains the panel repair lesson: strict compilation did not establish brows
 ### Case and Keymap integration handoff — 2026-10-02
 
 The [retained handoff](../../.scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md) adds source evidence to RF-001/RF-006 and verification limits to RF-009/RF-013. Draft identity, exact request settlement, Inspector reachability and scroll sizing corrections remain subject to the fresh WASM build and public browser gates. The offline failure was isolated to Chromium blob storage on low-space temporary profiles; the unchanged release passes controlled disk-backed profiles. This is a QA environment condition, not a new application defect. Actual assistive technology and contrast remain open. No measured performance improvement or full parent acceptance is claimed.
+
+
+### RF-002 private viewer lifetime snapshot follow-up
+
+The Case-first viewer needs private host operations across the library/binary boundary. Rust rejects direct textual inclusion of the library host because of its inner documentation comments. The temporary page host therefore copies the 475-line baseline lifetime implementation with those three comment prefixes normalized and exactly the unused unchecked update_scene method omitted. The library file and public API remain unchanged; a native source-sync test now runs with the page tests and passes. This prevents unnoticed source drift but preserves duplicate ownership until a compatible private boundary can retire the snapshot. Strict WASM/native compilation and the synchronization test pass; public viewer behavior remains a separate gate.
+
+
+### RF-006 layer feedback and test-boundary follow-up
+
+Layer editing distinguishes the stored requested layer ID from its displayed fallback, accepted field-name identity from unrelated snapshot changes, and exact acknowledgement mismatch from rejection feedback. Source review corrected these branches before integration. The Dioxus controller remains a WASM hook: strict WASM checks compile its unit tests, while native Core/Session tests and actual public UI actions prove different seams. After parity, assess whether a private state machine can expose these correlation decisions to native behavioral tests without duplicating domain edits or persistence ownership.

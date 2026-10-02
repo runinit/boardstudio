@@ -1,11 +1,11 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Parallel frontend implementation active; F1 and scoped F3a verified; T1-10 hierarchy/unowned public subset passes on 515f390d and typed selected-context summary is mounted on e510dd4c with targeted numeric public QA passed; remaining public proof pending; Parts integration checks/build pass; full F2\u2013F9 remain open",
+  "status": "Parallel frontend implementation active: Case authored-body and Keymap projection mounts verified in bounded public flows; default physical-instance repair ed242c02 passes 20 native tests, strict WASM/native checks and fresh paired import/navigation/reload checks. Keymap layer editing and Case-first shared viewer are under integration and independent review. Full F2\u2013F9 remain open.",
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
   "base": "f0ac0a19",
   "branch": "codex/rust-v1-ui-parity-20261001",
-  "current_milestone": "parallel F2/F3 frontend continuation",
+  "current_milestone": "parallel Keymap layer editing and Case/shared-viewer frontend continuation",
   "roadmap": "docs/migration/DIOXUS-FRONTEND-V1.md",
   "inventory": ".scratch/dioxus-frontend-v1/evidence/tsx-inventory.json",
   "milestones": {
@@ -229,5 +229,6 @@
       "http://127.0.0.1:34663/boardstudio/"
     ],
     "status": "mounted independentlyreviewed dc81237c; strictWASM/nativechecks pass; freshbuildcomplete; publicverification running"
-  }
+  },
+  "bounded_ticket_count": 34
 }

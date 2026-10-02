@@ -101,6 +101,14 @@
           "post_port_follow_up": "Evaluate host discovery/read-model depth and safe degraded presentation contracts after port.",
           "validation": "Real isolated mixed healthy/damaged/unusable-identity rows, strict-open and unchanged schema/API behavior; transaction errors and stale list guards."
         }
+      ],
+      "handoff_evidence": [
+        {
+          "source": "cdbac522 private host inclusion plus root native source-sync registration",
+          "evidence": "web/src/renderer_host_source_sync.rs",
+          "observation": "The private page host copies the475-line baseline lifetime source with three documentation prefixes normalized and exactly the unused unchecked update_scene method omitted; an executed native equality test guards the precise transformation. The original library host/public API remain unchanged. This duplicates lifetime ownership and should be retired after a compatible private host boundary is designed.",
+          "status": "temporary source bridge; exact native synchronization and strict WASM/native checks pass; public viewer gates remain open"
+        }
       ]
     },
     {
@@ -263,6 +271,12 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/escape-diagnosis/diagnosis.md",
           "observation": "Inherited native positive numeric constraints min0.001+step0.1 mark valid saved thickness3 as stepMismatch in both implementations. Core validation and saved values remain correct; this is a confirmed browser/input semantics gap for post-port review, not a newlyintroduced cancellation defect. Six correctly invoked Escape checks restore accepted 0, focus and unchanged storage. The original blank observation used invalid `press @ref Escape` driver syntax and is retired as application evidence; no application cancellation regression or source fix was found.",
           "status": "recorded; no speculative Escape sourcepatch or silent sharedparity change"
+        },
+        {
+          "source": "reviewed a8c9524 layer controller and integrated root mount",
+          "evidence": ".scratch/dioxus-keymap-layers/evidence/integrated-layer-controls",
+          "observation": "Layer editing required distinct raw requested IDs versus resolved displayed fallback, admission accepted-name keys versus unrelated token advances, and exact acknowledgement-token mismatch feedback. Independent review found and corrected these branches. The controller remains a wasm hook, so native page tests do not execute its UI correlation; actual Core/Session tests and strict wasm compilation are separate from required public UI proof.",
+          "status": "current source corrections clear; public acceptance open; retain later state-machine/test-boundary refactor assessment"
         }
       ]
     },

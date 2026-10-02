@@ -1215,3 +1215,13 @@ The [bounded default-instance repair](../../.scratch/dioxus-case-workspace/issue
 The private Keymap layer controls/controller and Case-first shared viewer are implemented in isolated workers and remain under independent Astra review before root mounting. Review caught resolved-layer fallback admission and error feedback gaps in layer editing, plus pointer-owner cleanup and applied-scene picking guards in the viewer. Authors are correcting these; no unreviewed worker source is presented as integrated or accepted. Five Case settings/manipulation ticket drafts are being reviewed for automatic publication, preserving all 62 canonical parent milestones and their acceptance joins.
 
 The initial Case Escape failure used invalid `press @ref Escape` driver syntax. Correct `press Escape` checks pass and the historical observation is retired as application evidence. The inherited positive-input min/step native-validity mismatch remains recorded separately for post-port refactoring.
+
+
+### Reviewed Case frontier expanded automatically
+
+Five Case tickets for mechanical configuration, profiles, enclosure fit, manufacturing overrides and direct manipulation are independently reviewed and published under `.scratch/dioxus-case-workspace/issues/03`–`07`. The frontier now has 34 bounded tickets while all 62 canonical parent milestones and their acceptance joins remain intact. Source review corrected global versus canonical disable, automatic closure initialization, coupled dimension/profile updates, per-part manufacturing targets and post-placement fit diagnostics. Publication does not close implementation or runtime gates. The exact ed242c02 build also passes fresh offline root/subpath reload with activated controllers and 51 cached entries at each mount.
+
+
+### Layer controls and Case-first viewer mounted
+
+Keymap Add/blur-rename/protected Remove now use the private Editor-lifetime single-flight controller; requested IDs survive removal/rejection, and resolved fallback is used for controls. The Case-first shared viewer is mounted with reactive resolved theme, persisted alias-aware display preferences and shared authored-body selection. Independent root/source reviews clear, strict WASM/native checks and24native page tests pass; four real Core/Session layer edit/history tests also pass. Fresh release and public interaction/persistence/lifecycle verification remain next, and all full parent joins remain open. The viewer currently consumes full scenes with no models or fabricated handles; prepared/patch/model adoption is explicitly still required for fullF7.3.

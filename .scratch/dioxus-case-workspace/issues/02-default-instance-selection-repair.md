@@ -1,6 +1,6 @@
 # 02: Resolve the reference physical-instance selection before using Case scope
 
-**Status:** ready-for-agent; independently reviewed source repair implemented, awaiting fresh public verification.
+**Status:** implemented and independently source-reviewed; fresh original-path, cross-board, reload and no-instance public checks pass. Remaining same-board multi-instance and pending-lifecycle browser gates stay open.
 
 **Kind/owner:** bounded evidenced frontend regression repair; coordinator owns App/Editor composition and navigation. Astra bug-fix routing applies to diagnosis/repair/review; retain independent Standards/Spec and public verifier gates. This ticket repairs the existing frontend selection default; it does not implement or close full F7.7.
 

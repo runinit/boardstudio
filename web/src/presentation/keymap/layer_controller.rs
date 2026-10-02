@@ -146,8 +146,8 @@ pub(in crate::presentation) fn use_layer_operations(
         move || runtime.operation().0
     });
     let captured_generation = scope_generation();
-    let mut pending = use_signal(|| None::<PendingLayerEdit>);
-    let mut feedback = use_signal(|| None::<LayerFeedbackState>);
+    let pending = use_signal(|| None::<PendingLayerEdit>);
+    let feedback = use_signal(|| None::<LayerFeedbackState>);
 
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
@@ -241,7 +241,8 @@ pub(in crate::presentation) fn use_layer_operations(
     );
     let enabled = pending.read().is_none() && current_source.is_some();
     let feedback_snapshot = current_feedback_snapshot(&runtime, source.as_ref());
-    let visible_feedback = feedback.read().as_ref().and_then(|state| {
+    let feedback_guard = feedback.read();
+    let visible_feedback = feedback_guard.as_ref().and_then(|state| {
         let snapshot = feedback_snapshot.as_ref()?;
         (state.editor_instance_id == editor_instance_id
             && source.as_ref().map(|source| &source.scope) == Some(&state.scope)
@@ -253,7 +254,7 @@ pub(in crate::presentation) fn use_layer_operations(
                 snapshot.document.keymap.as_ref(),
                 &active_layer(),
             ))
-        .then(|| (state, snapshot))
+        .then_some((state, snapshot))
     });
     let visible_feedback = visible_feedback.and_then(|(state, snapshot)| match &state.feedback {
         KeymapLayerFeedback::Pending => pending

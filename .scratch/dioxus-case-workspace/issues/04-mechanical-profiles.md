@@ -1,4 +1,4 @@
-# Draft F7.4b: Assign and customize mechanical part profiles
+# F7.4b: Assign and customize mechanical part profiles
 
 **Parent:** F7.4 — Mechanical assembly configuration editor.
 
@@ -8,7 +8,7 @@
 
 **Parent acceptance join:** INT.2 remains required for F7.4 integrated acceptance. This child cannot close F7.4.
 
-**Status:** draft for independent review; not published or counted.
+**Status:** ready-for-agent; independently reviewed and published.
 
 - [ ] Show the selected Case configuration's inherited `PartDefinition` profile and current inferred family by placed part type. Clearly distinguish reusable profiles owned/edited in Parts from Case-specific assignments and overrides; “Edit in Parts” navigates through the current callback and does not duplicate PartDefinition profile editing.
 - [ ] Assign only existing library fit choices to an eligible placed definition: MX switch, Choc v1 switch, Choc v2 switch, MX stabilizer 2u and MX stabilizer 6.25u. Show loading, unavailable, empty and service error states; disable assignment until both a supported source and target are selected and no prior assignment request is pending.
