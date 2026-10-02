@@ -28,6 +28,7 @@
     "check:repo": "node --test scripts/repo-check.test.mjs && node scripts/repo-check.mjs",
     "check": "pnpm run check:repo && pnpm run check:contracts && pnpm run test:contracts && pnpm run test && pnpm run build && pnpm --dir cad check && pnpm run check:boundaries && pnpm run test:e2e && pnpm run test:e2e:pages",
     "test:e2e:pages": "pnpm --dir app test:e2e:pages",
+    "test:web:physical-setup": "node scripts/web/test-physical-setup-proposal.mjs",
     "check:security": "python3 -B scripts/security-audit.test.py && python3 scripts/security-audit.py"
   }
 }

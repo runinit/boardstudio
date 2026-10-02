@@ -46,6 +46,9 @@ web-sys = { version = "=0.3.106", features = [
   "ServiceWorkerGlobalScope", "ServiceWorkerRegistration", "WorkerGlobalScope", "Navigator", "RegistrationOptions", "RequestDestination"
 ] }
 
+[target.wasm32-unknown-unknown.dev-dependencies]
+wasm-bindgen-test = "0.3.79"
+
 [build-dependencies]
 serde_json = "1"
 

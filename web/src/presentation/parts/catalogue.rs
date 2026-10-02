@@ -234,8 +234,12 @@ pub(super) fn preferred_label(definition: &PartDefinition) -> &str {
     }
 }
 
-async fn load_ergogen_module() -> Result<JsValue, String> {
+pub(super) async fn load_ergogen_module() -> Result<JsValue, String> {
     let url = crate::runtime::resource_url("assets/layout-generators/src/index.js")?;
+    import_ergogen_module(&url).await
+}
+
+pub(super) async fn import_ergogen_module(url: &str) -> Result<JsValue, String> {
     let import = js_sys::Function::new_with_args("url", "return import(url)");
     let promise = import
         .call1(&JsValue::NULL, &url.into())
@@ -245,7 +249,7 @@ async fn load_ergogen_module() -> Result<JsValue, String> {
     JsFuture::from(promise).await.map_err(js_error)
 }
 
-fn call_catalogue(module: &JsValue) -> Result<Vec<PartDefinition>, String> {
+pub(super) fn call_catalogue(module: &JsValue) -> Result<Vec<PartDefinition>, String> {
     let catalogue = function(module, "catalogue")?;
     let value = catalogue.call0(module).map_err(js_error)?;
     serde_wasm_bindgen::from_value(value)
@@ -254,11 +258,20 @@ fn call_catalogue(module: &JsValue) -> Result<Vec<PartDefinition>, String> {
 
 fn construction_definition(
     module: &JsValue,
-    mut definition: PartDefinition,
+    definition: PartDefinition,
     reversible: bool,
 ) -> Result<PartDefinition, String> {
+    construction_definition_with_support(module, definition, reversible)
+        .map(|(definition, _)| definition)
+}
+
+pub(super) fn construction_definition_with_support(
+    module: &JsValue,
+    mut definition: PartDefinition,
+    reversible: bool,
+) -> Result<(PartDefinition, bool), String> {
     let Some(generator) = definition.generator.as_mut() else {
-        return Ok(definition);
+        return Ok((definition, false));
     };
     let source = generator.source.clone();
     let is_ergogen = function(module, "isErgogen")?
@@ -267,13 +280,13 @@ fn construction_definition(
         .as_bool()
         .unwrap_or(false);
     if !is_ergogen {
-        return Ok(definition);
+        return Ok((definition, false));
     }
     let parameter_schema = function(module, "parameters")?
         .call1(module, &source.clone().into())
         .map_err(js_error)?;
     if !js_sys::Reflect::has(&parameter_schema, &"reversible".into()).map_err(js_error)? {
-        return Ok(definition);
+        return Ok((definition, false));
     }
 
     generator
@@ -295,8 +308,9 @@ fn construction_definition(
     let normalized = function(module, "normalizeDefinition")?
         .call1(module, &definition)
         .map_err(js_error)?;
-    serde_wasm_bindgen::from_value(normalized)
-        .map_err(|error| format!("Could not decode normalized {source} definition: {error}"))
+    let normalized = serde_wasm_bindgen::from_value(normalized)
+        .map_err(|error| format!("Could not decode normalized {source} definition: {error}"))?;
+    Ok((normalized, true))
 }
 
 fn json_text<T: serde::Serialize>(value: &T) -> Result<String, String> {

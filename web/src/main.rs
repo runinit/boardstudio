@@ -1,5 +1,8 @@
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod cad_presentation;
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+#[allow(dead_code)] // The setup controls consume this proposal module in the next child slice.
+mod physical_setup;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
