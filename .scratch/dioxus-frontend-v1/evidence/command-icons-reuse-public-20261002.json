@@ -1,0 +1,42 @@
+{
+  "source": "8cfd6bb79e9e10b788e007fd428145b1e37095d1",
+  "build": "frontend-command-icons-reuse-20261002",
+  "provenance_sha256": "af1da7332faad3b4f44f5b67e489155a2e0c2609dd398c2066fe64a6af83689e",
+  "urls": [
+    "http://127.0.0.1:34733/",
+    "http://127.0.0.1:34733/boardstudio/"
+  ],
+  "independent_packaging": {
+    "fresh_commands": 8,
+    "inherited_commands": 22,
+    "source_inputs": 1328,
+    "assets_per_route": 145,
+    "provider_files_per_route": 126,
+    "hash_mismatches": 0,
+    "full_seconds": 471.61,
+    "reuse_seconds": 104.66
+  },
+  "browser": {
+    "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+    "paired_screenshot_viewport": [
+      1280,
+      577
+    ],
+    "snap_close_focus": "m1-layout-snap-trigger",
+    "compact_375_document_width": 375,
+    "compact_390_document_width": 390,
+    "compact_390_snap_right": 364.03125,
+    "offline_subpath": {
+      "controlled": true,
+      "editor": true,
+      "svg_paths": 24,
+      "saved_revision": 9
+    },
+    "offline_root": "controlled editor and saved revision9 observed; initial geometry selector was incorrect, geometry count not claimed"
+  },
+  "limits": [
+    "Toolbar styling and menu smoke checks only; full frontend and parent acceptance remain open.",
+    "Missing view-control group and contextual panes remain active implementation work.",
+    "Baseline native246 tests apply to9d; current icon source separately passed strict mixed WASM Clippy and fmt."
+  ]
+}

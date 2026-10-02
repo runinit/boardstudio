@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Six workbench streams active; all 62 canonical parents and RF-001\u2013RF-014 retained. Served comparison remains frontend-layout-pill-css-reuse-20261002 at 34731 (source792e88af). New combined source9d34f367 is independently Standards/Spec CLEAR: Inspector reveal/close controls, mirrored pair, controller placement, canvas interaction ownership, Parts create/name/fit, accepted-selection Keycaps sizing/warnings, and Case assembly/model layers integrated. Final native checks: 246 passed, one historical fixture test ignored; supported mixed page/core-worker WASM strict Clippy and formatting passed. Packaging guards:17 normal+17 optimized reuse tests and source test in both modes passed. Fresh full package frontend-workbench-parity-joined-20261002 complete:22commands/1328sourcehashes/145assets per route, independently verified zero drift; served at34732 root/subpath. Paired browser qualification underway; parent gates remain open. Sol6.1 High reviewers, configured30/live11 concurrency. Public paired journeys and parent acceptance remain open; isolated Parts15/ZMK authors and next capability planning continue.",
+  "status": "The current served comparison is `frontend-command-icons-reuse-20261002` at http://127.0.0.1:34733/ and /boardstudio/ (source `8cfd6bb7`). Independent verification confirms8 fresh commands,22 inherited full-build receipts,1328 source inputs,145 assets and126 unchanged provider files per route, with zero drift. Packaging command span is104.66s versus471.61s full. Current source passed supported mixed page/core-worker WASM strict Clippy and formatting. Actual paired1280\u00d7577 toolbar captures, Snap Close/focus restoration,375/390px containment and saved subpath offline editor reload passed bounded checks. Full parent acceptance remains open. Six streams continue implementing canonical Layout3D, component placement, contextual Case/Keycaps panes, Mirror canvas overlay, Parts standard profiles and ZMK Export. Architectural/refactoring ledger RF-001\u2013RF-014 and all62 canonical parents remain retained. Earlier checkpoint sections below are history.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "Six workbench streams active; all 62 canonical parents and RF-001\u2013RF-014 retained. Served comparison remains frontend-layout-pill-css-reuse-20261002 at 34731 (source792e88af). New combined source9d34f367 is independently Standards/Spec CLEAR: Inspector reveal/close controls, mirrored pair, controller placement, canvas interaction ownership, Parts create/name/fit, accepted-selection Keycaps sizing/warnings, and Case assembly/model layers integrated. Final native checks: 246 passed, one historical fixture test ignored; supported mixed page/core-worker WASM strict Clippy and formatting passed. Packaging guards:17 normal+17 optimized reuse tests and source test in both modes passed. Fresh full package frontend-workbench-parity-joined-20261002 complete:22commands/1328sourcehashes/145assets per route, independently verified zero drift; served at34732 root/subpath. Paired browser qualification underway; parent gates remain open. Sol6.1 High reviewers, configured30/live11 concurrency. Public paired journeys and parent acceptance remain open; isolated Parts15/ZMK authors and next capability planning continue.",
+    "status": "The current served comparison is `frontend-command-icons-reuse-20261002` at http://127.0.0.1:34733/ and /boardstudio/ (source `8cfd6bb7`). Independent verification confirms8 fresh commands,22 inherited full-build receipts,1328 source inputs,145 assets and126 unchanged provider files per route, with zero drift. Packaging command span is104.66s versus471.61s full. Current source passed supported mixed page/core-worker WASM strict Clippy and formatting. Actual paired1280\u00d7577 toolbar captures, Snap Close/focus restoration,375/390px containment and saved subpath offline editor reload passed bounded checks. Full parent acceptance remains open. Six streams continue implementing canonical Layout3D, component placement, contextual Case/Keycaps panes, Mirror canvas overlay, Parts standard profiles and ZMK Export. Architectural/refactoring ledger RF-001\u2013RF-014 and all62 canonical parents remain retained. Earlier checkpoint sections below are history.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -760,12 +760,14 @@
     "acceptance": "partial comparison; full workbench gates remain open"
   },
   "active_source_freeze": {
-    "commit": "9d34f3672f4f05cb3771bc5cd358508b13e9c31f",
-    "build": "frontend-workbench-parity-joined-20261002",
-    "state": "complete and served34732; paired qualification underway",
-    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/final-shared-join-review-9d34f367-20261002.md",
-    "native_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-parity-joined-native.log",
-    "build_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-workbench-parity-joined-console.log",
-    "url": "http://127.0.0.1:34732/"
+    "commit": "8cfd6bb79e9e10b788e007fd428145b1e37095d1",
+    "build": "frontend-command-icons-reuse-20261002",
+    "state": "packaged and independently verified; bounded public checks complete; source lease released for next reviewed integration batch",
+    "url": "http://127.0.0.1:34733/",
+    "subpath_url": "http://127.0.0.1:34733/boardstudio/",
+    "receipt": ".scratch/dioxus-frontend-v1/evidence/command-icons-reuse-public-20261002.json",
+    "build_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-command-icons-reuse-console.log",
+    "baseline_source": "9d34f3672f4f05cb3771bc5cd358508b13e9c31f",
+    "baseline_native_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-parity-joined-native.log"
   }
 }
