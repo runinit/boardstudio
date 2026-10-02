@@ -104,6 +104,10 @@ pub struct Runtime {
     native_model_jobs: RefCell<BTreeSet<String>>,
     preview_generator: RefCell<Option<Rc<crate::preview_generator::PreviewGeneratorClient>>>,
     archive_export_options: ArchiveExportOptions,
+    #[cfg(test)]
+    definition_name_test_state: RefCell<Option<(AcceptedSnapshot, Option<Scope>)>>,
+    #[cfg(test)]
+    definition_name_test_events: RefCell<Vec<Event>>,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
@@ -138,6 +142,10 @@ impl Runtime {
             native_model_jobs: RefCell::new(BTreeSet::new()),
             preview_generator: RefCell::new(None),
             archive_export_options: ArchiveExportOptions::default(),
+            #[cfg(test)]
+            definition_name_test_state: RefCell::new(None),
+            #[cfg(test)]
+            definition_name_test_events: RefCell::new(Vec::new()),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
@@ -168,12 +176,23 @@ impl Runtime {
         OperationId(id)
     }
     pub fn scope(&self) -> Option<boardstudio_application::Scope> {
+        #[cfg(test)]
+        if let Some((_, scope)) = self.definition_name_test_state.borrow().as_ref() {
+            return scope.clone();
+        }
         self.session.borrow().scope()
     }
     pub(crate) fn electrical_preview_executor_epoch(&self) -> u64 {
         self.session.borrow().core_executor_epoch().0
     }
     pub fn model(&self) -> ReadModel {
+        #[cfg(test)]
+        if let Some((snapshot, _)) = self.definition_name_test_state.borrow().as_ref() {
+            return ReadModel {
+                accepted: Some(snapshot.clone()),
+                ..ReadModel::default()
+            };
+        }
         self.session.borrow().read_model().clone()
     }
     pub fn status(&self) -> String {
@@ -610,6 +629,11 @@ impl Runtime {
     }
 
     pub fn submit(self: &Rc<Self>, event: Event) {
+        #[cfg(test)]
+        if self.definition_name_test_state.borrow().is_some() {
+            self.definition_name_test_events.borrow_mut().push(event);
+            return;
+        }
         if matches!(&event, Event::StartGeneration { .. })
             && self.mechanical_mount_initialization_pending()
         {
@@ -629,6 +653,25 @@ impl Runtime {
         }
         self.changed();
         self.drive(effects);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_definition_name_test_state(
+        &self,
+        snapshot: AcceptedSnapshot,
+        scope: Option<Scope>,
+    ) {
+        *self.definition_name_test_state.borrow_mut() = Some((snapshot, scope));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_definition_name_test_event(&self) -> Option<Event> {
+        let mut events = self.definition_name_test_events.borrow_mut();
+        if events.is_empty() {
+            None
+        } else {
+            Some(events.remove(0))
+        }
     }
     fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
         let effects = self.session.borrow_mut().complete(event);

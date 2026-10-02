@@ -25,24 +25,40 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let mut draft = use_signal(|| definition.name.clone());
-        let identity = (
+        let pad_count = definition.pads.len();
+        let mut section_open = use_signal(|| pad_count == 0);
+        let mut section_chosen = use_signal(|| false);
+        let section_owner = (scope.clone(), definition.id.clone());
+        // A fresh accepted snapshot is required at commit time, but it is not
+        // a reason to discard a dirty field draft. React DraftInput keys its
+        // reset to the accepted field value; keep this target identity
+        // independent from the snapshot capture that protects submission.
+        let draft_identity = (
             scope.clone(),
-            snapshot.token,
-            snapshot.session_epoch,
-            snapshot.document.id.clone(),
-            snapshot.document.revision,
             selection(),
             definition.id.clone(),
             definition.name.clone(),
         );
+        let capture_identity = (
+            draft_identity.clone(),
+            snapshot.token,
+            snapshot.session_epoch,
+            snapshot.document.id.clone(),
+            snapshot.document.revision,
+        );
         let mut capture =
             use_signal(|| DefinitionNameCapture::new(&snapshot, scope.clone(), &definition));
-        use_effect(use_reactive((&identity,), {
+        use_effect(use_reactive((&draft_identity,), {
+            let definition = definition.clone();
+            move |(_identity,)| {
+                draft.set(definition.name.clone());
+            }
+        }));
+        use_effect(use_reactive((&capture_identity,), {
             let snapshot = snapshot.clone();
             let scope = scope.clone();
             let definition = definition.clone();
             move |(_identity,)| {
-                draft.set(definition.name.clone());
                 capture.set(DefinitionNameCapture::new(
                     &snapshot,
                     scope.clone(),
@@ -50,10 +66,23 @@ mod ui {
                 ));
             }
         }));
+        use_effect(use_reactive((&pad_count,), move |(pad_count,)| {
+            if !section_chosen() {
+                section_open.set(pad_count == 0);
+            }
+        }));
+        // React keys this Inspector subtree by the selected definition. Keep
+        // the user's disclosure choice through edits to that definition, but
+        // start a newly selected definition from its own pad-count default.
+        use_effect(use_reactive((&section_owner,), {
+            move |(_owner,)| {
+                section_chosen.set(false);
+                section_open.set(pad_count == 0);
+            }
+        }));
 
         let on_blur = {
             let runtime = runtime.clone();
-            let capture = capture.clone();
             let selection = selection;
             move |_| {
                 let model = runtime.model();
@@ -91,16 +120,33 @@ mod ui {
                 }
             }
         };
+        let on_section_toggle = move |event: MouseEvent| {
+            event.prevent_default();
+            section_chosen.set(true);
+            section_open.set(!section_open());
+        };
 
         rsx! {
-            label { class: "m1-parts-definition-name",
-                "Name"
-                input {
-                    aria_label: "Definition name",
-                    value: "{draft()}",
-                    oninput: move |event| draft.set(event.value()),
-                    onblur: on_blur,
-                    onkeydown: on_keydown,
+            details {
+                class: "m1-parts-definition-editor",
+                open: section_open(),
+                summary { onclick: on_section_toggle,
+                    span { "Edit footprint" }
+                    small { "Custom geometry" }
+                }
+                div { class: "m1-parts-definition-editor-body",
+                    section { class: "m1-parts-definition-editor-fields", "aria-label": "Custom component definition editor",
+                        label { class: "m1-parts-definition-name",
+                            "Name"
+                            input {
+                                aria_label: "Definition name",
+                                value: "{draft()}",
+                                oninput: move |event| draft.set(event.value()),
+                                onblur: on_blur,
+                                onkeydown: on_keydown,
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -510,5 +556,403 @@ mod tests {
             .unwrap()
             .is_none()
         );
+    }
+
+    #[test]
+    fn refreshed_capture_commits_dirty_name_against_the_latest_accepted_document() {
+        let original = document();
+        let (mut session, mut core) = open_document(original);
+        let initial = session.read_model().accepted.as_ref().unwrap().clone();
+        let scope = session.scope();
+        let selection = Some((scope.clone(), "selected".into()));
+
+        let mut unrelated_document = initial.document.as_ref().clone();
+        unrelated_document
+            .parameters
+            .insert("unrelated-edit".into(), serde_json::json!(true));
+        let unrelated = Event::Edit {
+            operation_id: OperationId(20),
+            command: EditCommand {
+                base_revision: initial.document.revision,
+                transaction_id: "parts-name-unrelated-edit".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["unrelated".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(unrelated_document),
+                },
+            },
+        };
+        let effects = session.submit(unrelated);
+        advance(&mut session, &mut core, effects);
+        let latest = session.read_model().accepted.as_ref().unwrap().clone();
+        let current_definition = latest
+            .document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == "selected")
+            .unwrap();
+        let refreshed = DefinitionNameCapture::new(&latest, scope.clone(), current_definition);
+        let name_edit = prepare_definition_name_edit(
+            &latest,
+            scope,
+            selection,
+            &refreshed,
+            "Dirty name draft",
+            OperationId(21),
+        )
+        .unwrap()
+        .expect("the dirty field remains admissible with a refreshed accepted capture");
+        let effects = session.submit(name_edit);
+        advance(&mut session, &mut core, effects);
+
+        let accepted = session.read_model().accepted.as_ref().unwrap();
+        assert_eq!(
+            accepted.document.parameters.get("unrelated-edit"),
+            Some(&serde_json::json!(true)),
+            "the name commit must retain the edit accepted while its local draft was dirty"
+        );
+        assert_eq!(
+            accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == "selected")
+                .unwrap()
+                .name,
+            "Dirty name draft"
+        );
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use crate::runtime::Runtime;
+    use boardstudio_application::{
+        Completion, Effect, Event as AppEvent, SaveResult, Scope, Session,
+    };
+    use boardstudio_core::{
+        CoreEngine,
+        model::ProjectDoc,
+        model::{EditCommand, EditOperation, EditPhase},
+    };
+    use dioxus::prelude::*;
+    use std::{cell::RefCell, rc::Rc};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+    use web_sys::{Event as DomEvent, HtmlInputElement};
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct State {
+        snapshot: Signal<AcceptedSnapshot>,
+        scope: Signal<Option<Scope>>,
+        selection: Signal<Option<(Option<Scope>, String)>>,
+        definition: Signal<PartDefinition>,
+        runtime: Rc<Runtime>,
+    }
+
+    struct Seed {
+        snapshot: AcceptedSnapshot,
+        scope: Option<Scope>,
+        selection: Option<(Option<Scope>, String)>,
+        definition: PartDefinition,
+        state: Rc<RefCell<Option<State>>>,
+    }
+
+    fn definition(id: &str, name: &str) -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "name": name,
+            "kind": "custom",
+            "courtyard": [],
+            "pads": []
+        }))
+        .unwrap()
+    }
+
+    fn host() -> Element {
+        let seed = use_context::<Rc<Seed>>();
+        let snapshot = use_signal(|| seed.snapshot.clone());
+        let scope = use_signal(|| seed.scope.clone());
+        let selection = use_signal(|| seed.selection.clone());
+        let definition = use_signal(|| seed.definition.clone());
+        *seed.state.borrow_mut() = Some(State {
+            snapshot,
+            scope,
+            selection,
+            definition,
+            runtime: use_context::<Rc<Runtime>>(),
+        });
+        rsx! {
+            div { "data-snapshot-revision": "{snapshot().document.revision}",
+                DefinitionNameEditor {
+                    snapshot: snapshot(),
+                    scope: scope(),
+                    selection,
+                    definition: definition(),
+                }
+            }
+        }
+    }
+
+    async fn settle() {
+        gloo_timers::future::TimeoutFuture::new(80).await;
+    }
+
+    fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
+        let mut pending = initial;
+        while let Some(effect) = pending.pop() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => {
+                    let reply = core.handle(*request);
+                    pending.extend(session.complete(Completion::Core {
+                        request_id,
+                        executor_epoch,
+                        reply: Box::new(reply),
+                    }));
+                }
+                Effect::Persist {
+                    save_attempt_id, ..
+                } => {
+                    pending.extend(session.complete(Completion::Persist {
+                        save_attempt_id,
+                        result: SaveResult::Committed,
+                    }));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn open_document(document: ProjectDoc) -> (Session, CoreEngine) {
+        let mut session = Session::new();
+        let mut core = CoreEngine::new();
+        let effects = session.submit(AppEvent::Open {
+            operation_id: OperationId(900),
+            document,
+        });
+        advance(&mut session, &mut core, effects);
+        assert!(session.read_model().accepted.is_some());
+        (session, core)
+    }
+
+    fn input() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression input[aria-label='Definition name']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    fn section_is_open() -> bool {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression details")
+            .unwrap()
+            .unwrap()
+            .has_attribute("open")
+    }
+
+    fn type_value(input: &HtmlInputElement, value: &str) {
+        let _ = input.focus();
+        input.set_value(value);
+        let event = DomEvent::new("input").unwrap();
+        event.init_event_with_bubbles_and_cancelable("input", true, true);
+        input.dispatch_event(&event).unwrap();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_name_commit_uses_refreshed_runtime_capture_and_definition_owner_defaults() {
+        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
+        document.definitions = vec![
+            definition("selected", "Original name"),
+            definition("other", "Other definition"),
+        ];
+        let runtime = Runtime::new().unwrap();
+        let (mut session, mut core) = open_document(document);
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let scope = Some(Scope {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            board_id: "parts-name-board".into(),
+            instance_id: None,
+        });
+        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let state = Rc::new(RefCell::new(None));
+        let seed = Rc::new(Seed {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            selection: Some((scope.clone(), "selected".into())),
+            definition: snapshot.document.definitions[0].clone(),
+            state: state.clone(),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("parts-name-mounted-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+
+        let field = input();
+        type_value(&field, "Dirty name draft");
+        settle().await;
+        assert_eq!(input().value(), "Dirty name draft");
+
+        let mut controls = state.borrow().as_ref().unwrap().clone();
+        let initial_revision = snapshot.document.revision;
+        let mut unrelated = snapshot.document.as_ref().clone();
+        unrelated
+            .parameters
+            .insert("independent".into(), serde_json::json!(42));
+        let unrelated_event = AppEvent::Edit {
+            operation_id: controls.runtime.operation(),
+            command: EditCommand {
+                base_revision: snapshot.document.revision,
+                transaction_id: "parts-name-unrelated-edit".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["unrelated".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(unrelated),
+                },
+            },
+        };
+        let effects = session.submit(unrelated_event);
+        advance(&mut session, &mut core, effects);
+        let latest = session.read_model().accepted.as_ref().unwrap().clone();
+        assert!(latest.document.revision > initial_revision);
+        controls
+            .runtime
+            .set_definition_name_test_state(latest.clone(), scope.clone());
+        controls.snapshot.set(latest.clone());
+        settle().await;
+        assert_eq!(
+            input().value(),
+            "Dirty name draft",
+            "an unrelated accepted revision must refresh admission capture without clearing the local field draft"
+        );
+
+        let _ = input().blur();
+        let event = controls
+            .runtime
+            .take_definition_name_test_event()
+            .expect("the mounted blur callback submits through Runtime");
+        let effects = session.submit(event);
+        advance(&mut session, &mut core, effects);
+        let committed = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(
+            committed.document.definitions[0].name, "Dirty name draft",
+            "the mounted blur must submit using the refreshed accepted capture"
+        );
+        assert_eq!(
+            committed.document.parameters.get("independent"),
+            Some(&serde_json::json!(42)),
+            "the production commit must preserve the unrelated accepted edit"
+        );
+
+        let mut latest = committed;
+        let mut renamed = latest.document.as_ref().clone();
+        renamed.definitions[0].name = "Accepted external name".into();
+        let rename_event = AppEvent::Edit {
+            operation_id: controls.runtime.operation(),
+            command: EditCommand {
+                base_revision: latest.document.revision,
+                transaction_id: "parts-name-external-rename".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["selected".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(renamed),
+                },
+            },
+        };
+        let effects = session.submit(rename_event);
+        advance(&mut session, &mut core, effects);
+        latest = session.read_model().accepted.as_ref().unwrap().clone();
+        controls
+            .runtime
+            .set_definition_name_test_state(latest.clone(), scope.clone());
+        controls.snapshot.set(latest.clone());
+        controls
+            .definition
+            .set(latest.document.definitions[0].clone());
+        settle().await;
+        assert_eq!(
+            input().value(),
+            "Accepted external name",
+            "an accepted Name change must synchronize the draft"
+        );
+
+        assert!(section_is_open());
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#parts-name-mounted-regression details summary")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        assert!(!section_is_open());
+
+        controls
+            .selection
+            .set(Some((scope.clone(), "other".into())));
+        controls
+            .definition
+            .set(latest.document.definitions[1].clone());
+        settle().await;
+        assert_eq!(input().value(), "Other definition");
+        assert!(
+            section_is_open(),
+            "a newly selected empty definition uses its own default-open state"
+        );
+
+        let changed_scope = Some(Scope {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            board_id: "another-board".into(),
+            instance_id: None,
+        });
+        controls.scope.set(changed_scope.clone());
+        controls
+            .selection
+            .set(Some((changed_scope, "selected".into())));
+        controls
+            .definition
+            .set(definition("selected", "Scoped target"));
+        settle().await;
+        assert_eq!(input().value(), "Scoped target");
+        root.remove();
     }
 }
