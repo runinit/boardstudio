@@ -1,13 +1,18 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+mod case_bodies;
+mod case_controller;
 mod context_summary;
 mod inspector;
+mod keymap;
 mod library;
 mod objects;
 mod panels;
 mod parts;
 mod selection;
 
+use case_controller::CaseBodyInspector;
 use inspector::Inspector;
+use keymap::{KeymapCanvas, KeymapPanel};
 use library::Library;
 use objects::Objects;
 use panels::{InspectorPanel, ObjectsPanel, PanelMode, PanelSide, use_panel_settings};
@@ -528,6 +533,36 @@ fn durability_label(durability: &Durability) -> &'static str {
     }
 }
 
+fn keymap_bounds(view: &keymap::KeymapView) -> Option<(f64, f64, f64, f64)> {
+    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    for key in &view.keys {
+        let angle = key.pose.rotation.to_radians();
+        let (sin, cos) = angle.sin_cos();
+        for (local_x, local_y) in [
+            (-key.size.x / 2.0, -key.size.y / 2.0),
+            (-key.size.x / 2.0, key.size.y / 2.0),
+            (key.size.x / 2.0, -key.size.y / 2.0),
+            (key.size.x / 2.0, key.size.y / 2.0),
+        ] {
+            let x = key.pose.at.x + local_x * cos - local_y * sin;
+            let y = key.pose.at.y + local_x * sin + local_y * cos;
+            bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
+                (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
+            }));
+        }
+    }
+    bounds
+}
+
+fn keymap_scope_matches(model: &boardstudio_application::ReadModel, scope: &Scope) -> bool {
+    model.active_board_id == scope.board_id
+        && model.active_instance_id == scope.instance_id
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.session_epoch == scope.session_epoch
+                && snapshot.document.id == scope.document_id
+        })
+}
+
 fn durability_state(durability: &Durability) -> &'static str {
     match durability {
         Durability::Saved { .. } => "saved",
@@ -546,7 +581,9 @@ fn Editor() -> Element {
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
+    let mut keymap_layer_id = use_signal(|| "base".to_owned());
     let active_workspace = workspace();
+    let has_inspector = matches!(active_workspace, "Layout" | "Parts" | "Keymap" | "Case");
     let mut objects_open = use_signal(|| false);
     let mut inspect_open = use_signal(|| false);
     let on_parts_select = {
@@ -566,7 +603,7 @@ fn Editor() -> Element {
     } else {
         "32px"
     };
-    let right_track = if active_workspace != "Layout" && active_workspace != "Parts" {
+    let right_track = if !has_inspector {
         "0px"
     } else if inspector_preferences.mode == PanelMode::Pinned {
         "min(var(--m1-right-panel-width), calc(55vw - 154px))"
@@ -586,6 +623,34 @@ fn Editor() -> Element {
     );
     let model = runtime.model();
     let current_scope = runtime.scope();
+    let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
+    let active_board_id = model.active_board_id.clone();
+    let keymap_layer_value = keymap_layer_id();
+    let keymap_projection = use_memo(use_reactive(
+        (
+            &accepted_token,
+            &current_scope,
+            &active_board_id,
+            &keymap_layer_value,
+        ),
+        {
+            let runtime = runtime.clone();
+            move |(token, scope, board_id, layer_id)| {
+                let model = runtime.model();
+                let snapshot = model.accepted.as_ref()?;
+                if token.as_ref() != Some(&snapshot.token) {
+                    return None;
+                }
+                keymap::project(
+                    snapshot,
+                    scope.as_ref(),
+                    board_id.as_ref(),
+                    layer_id.as_ref(),
+                )
+            }
+        },
+    ));
+    let keymap_view = keymap_projection.read().clone();
     let Some(render_scope) = current_scope.clone() else {
         return rsx! {};
     };
@@ -653,9 +718,158 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let generation = render_generation;
-        move |request| {
-            if (adapter.generation)() == generation {
-                selection::submit_context(&runtime, &adapter, request);
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        move |request: objects::TreeSelectRequest| {
+            if (adapter.generation)() != generation
+                || runtime.scope().as_ref() != Some(&request.scope)
+                || !selection::context_is_current(
+                    &runtime.model(),
+                    &request.scope,
+                    &request.context,
+                )
+            {
+                return;
+            }
+            let (close_objects, open_inspect) = match &request.context {
+                objects::TreeContext::Board { .. } => (false, false),
+                objects::TreeContext::LayoutGroup { .. } => (true, false),
+                objects::TreeContext::Matrix { .. }
+                | objects::TreeContext::Row { .. }
+                | objects::TreeContext::Column { .. }
+                | objects::TreeContext::Key { .. }
+                | objects::TreeContext::Component { .. } => (true, true),
+            };
+            let scope = request.scope.clone();
+            selection::submit_context(&runtime, &adapter, request);
+            if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
+                return;
+            }
+            if close_objects {
+                objects_open.set(false);
+            }
+            if open_inspect {
+                inspect_open.set(true);
+            }
+        }
+    };
+    let on_keymap_select = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        move |key_id: String| {
+            if workspace() != "Keymap"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !keymap_scope_matches(&model, &scope) {
+                return;
+            }
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            if key_id.is_empty() {
+                let mut selected_context = adapter.selected_context;
+                selected_context.set(None);
+                let mut anchor_scope = adapter.anchor_scope;
+                anchor_scope.set(None);
+                runtime.submit(Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: Vec::new(),
+                    range_part_ids: Vec::new(),
+                    mode: SelectionMode::Replace,
+                });
+                return;
+            }
+            let layer_id = keymap_layer_id();
+            let Some(view) =
+                keymap::project(snapshot, Some(&scope), &model.active_board_id, &layer_id)
+            else {
+                return;
+            };
+            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
+                return;
+            }
+            let Some(context) = objects::context_for_part(&model, &key_id) else {
+                return;
+            };
+            if !selection::context_is_current(&model, &scope, &context) {
+                return;
+            }
+            let Some(selected_ids) = selection::submit_canvas_selection(
+                &runtime,
+                &adapter,
+                &scope,
+                generation,
+                context.clone(),
+                SelectionMode::Replace,
+                Vec::new(),
+            ) else {
+                return;
+            };
+            if selected_ids.is_empty()
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let current = runtime.model();
+            if !keymap_scope_matches(&current, &scope)
+                || !selection::context_is_current(&current, &scope, &context)
+            {
+                return;
+            }
+            let Some(snapshot) = current.accepted.as_ref() else {
+                return;
+            };
+            let layer_id = keymap_layer_id();
+            let Some(view) =
+                keymap::project(snapshot, Some(&scope), &current.active_board_id, &layer_id)
+            else {
+                return;
+            };
+            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
+                return;
+            }
+            objects_open.set(false);
+            inspect_open.set(true);
+        }
+    };
+    let on_keymap_layer = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        move |layer_id: String| {
+            if workspace() != "Keymap"
+                || runtime.scope().as_ref() != Some(&scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if !keymap_scope_matches(&model, &scope) {
+                return;
+            }
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            let exists = snapshot
+                .document
+                .keymap
+                .as_ref()
+                .filter(|map| !map.layers.is_empty())
+                .map_or(layer_id == "base", |map| {
+                    map.layers.iter().any(|layer| layer.id == layer_id)
+                });
+            if exists {
+                keymap_layer_id.set(layer_id);
             }
         }
     };
@@ -794,11 +1008,31 @@ fn Editor() -> Element {
                 ));
             }
         };
-    let points: Vec<_> = visible.iter().map(|p| p.pose.at).collect();
-    let min_x = points.iter().map(|p| p.x).reduce(f64::min).unwrap_or(-50.0) - 20.0;
-    let max_x = points.iter().map(|p| p.x).reduce(f64::max).unwrap_or(50.0) + 20.0;
-    let min_y = points.iter().map(|p| p.y).reduce(f64::min).unwrap_or(-50.0) - 20.0;
-    let max_y = points.iter().map(|p| p.y).reduce(f64::max).unwrap_or(50.0) + 20.0;
+    let keymap_rect_bounds = if active_workspace == "Keymap" {
+        keymap_view.as_deref().and_then(keymap_bounds)
+    } else {
+        None
+    };
+    let bounds = keymap_rect_bounds.or_else(|| {
+        let mut points = visible.iter().map(|part| part.pose.at);
+        let first = points.next()?;
+        Some(points.fold(
+            (first.x, first.x, first.y, first.y),
+            |(min_x, max_x, min_y, max_y), point| {
+                (
+                    min_x.min(point.x),
+                    max_x.max(point.x),
+                    min_y.min(point.y),
+                    max_y.max(point.y),
+                )
+            },
+        ))
+    });
+    let (min_x, max_x, min_y, max_y) = bounds.unwrap_or((-50.0, 50.0, -50.0, 50.0));
+    let min_x = min_x - 20.0;
+    let max_x = max_x + 20.0;
+    let min_y = min_y - 20.0;
+    let max_y = max_y + 20.0;
     let width = (max_x - min_x).max(50.0) / model.camera.zoom;
     let height = (max_y - min_y).max(50.0) / model.camera.zoom;
     let view_x = (min_x + max_x - width) * 0.5 + model.camera.center.x;
@@ -851,6 +1085,11 @@ fn Editor() -> Element {
                 instance_id,
             });
         }
+    };
+    let on_show_configured_board = {
+        let mut navigate = navigate.clone();
+        let scope = render_scope.clone();
+        move |board_id: String| navigate((scope.clone(), board_id, None))
     };
     let cleanup_registration = use_hook({
         let runtime = runtime.clone();
@@ -1172,9 +1411,15 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let space_down = space_down.clone();
         let render_scope = render_scope.clone();
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
         move |_| {
             space_down.set(false);
             selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
+            if active_workspace == "Keymap" || active_workspace == "Case" {
+                objects_open.set(false);
+                inspect_open.set(true);
+            }
         }
     }));
     let keyboard = {
@@ -1318,7 +1563,7 @@ fn Editor() -> Element {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             nav { class: "m1-compact-panel-controls", "aria-label": "Panel visibility",
                 button { "aria-controls": "m1-objects-panel", "aria-expanded": "{objects_open()}", onclick: move |_| objects_open.set(!objects_open()), "Objects" }
-                if active_workspace == "Layout" || active_workspace == "Parts" {
+                if has_inspector {
                     button { "aria-controls": "m1-inspector-panel", "aria-expanded": "{inspect_open()}", onclick: move |_| inspect_open.set(!inspect_open()), "Inspect" }
                 }
             }
@@ -1329,7 +1574,7 @@ fn Editor() -> Element {
                             on_select: on_parts_select
                         }
                     } else {
-                        Objects { selected_context: adapter.selected_context, on_select: select_tree, on_navigate: navigate, on_nudge: nudge_tree }
+                        Objects { selected_context: adapter.selected_context, on_select: select_tree, on_navigate: navigate.clone(), on_nudge: nudge_tree }
                     }
                 }
                 section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
@@ -1500,6 +1745,17 @@ fn Editor() -> Element {
                     }
                         }
                         CanvasLayers {}
+                    } else if active_workspace == "Keymap" {
+                        if let Some(view) = keymap_view.clone() {
+                            svg { class: "m1-canvas m1-keymap-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keymap layout; select a key with click, Enter, or Space, hold Space and drag to pan, or use the mouse wheel to zoom", onmounted: mount,
+                                onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
+                                g { transform: "scale(1,-1)",
+                                    KeymapCanvas { view, selected_ids: model.selected_part_ids.iter().cloned().collect::<BTreeSet<_>>(), on_select_key: on_keymap_select.clone() }
+                                }
+                            }
+                        } else {
+                            p { class: "m1-keymap-unavailable", role: "status", "Keymap is unavailable for the current board." }
+                        }
                     } else if active_workspace == "Case" {
                         CasePanel {}
                     } else if active_workspace == "Export" {
@@ -1508,10 +1764,26 @@ fn Editor() -> Element {
                         PlaceholderWorkspace { name: active_workspace }
                     }
                 }
-                if active_workspace == "Layout" || active_workspace == "Parts" {
+                if has_inspector {
                     InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
                         if active_workspace == "Parts" {
                             PartsInspectorPanel { snapshot: snapshot.clone(), scope: current_scope.clone(), query: parts_query, selected: parts_selection }
+                        } else if active_workspace == "Keymap" {
+                            if let Some(view) = keymap_view.clone() {
+                                KeymapPanel {
+                                    view,
+                                    active_layer_id: keymap_layer_id(),
+                                    selected_key_id: model.selected_part_ids.first().cloned(),
+                                    on_layer: on_keymap_layer.clone(),
+                                    on_select_key: on_keymap_select.clone(),
+                                }
+                            } else {
+                                section { class: "m1-keymap-panel", "aria-label": "Keymap",
+                                    p { class: "m1-keymap-unavailable", role: "status", "Keymap is unavailable for the current board." }
+                                }
+                            }
+                        } else if active_workspace == "Case" {
+                            CaseBodyInspector { on_show_configured_board: on_show_configured_board.clone() }
                         } else {
                             if let Some(summary) = context_summary.as_ref() {
                                 section { class: "m1-selected-context", "aria-label": "Selected context",

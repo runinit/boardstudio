@@ -49,6 +49,7 @@ impl PartialEq for CadScene {
 
 pub struct Runtime {
     session: RefCell<Session>,
+    operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<CoreWorker>>,
     pub store: BrowserStore,
     next_operation: Cell<u64>,
@@ -71,6 +72,7 @@ impl Runtime {
         let prefix = deployment_prefix()?;
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new()),
+            operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             core: RefCell::new(Rc::new(
                 CoreWorker::new(&resource_url("assets/core-worker/entry.js")?)
                     .map_err(|e| e.to_string())?,
@@ -147,6 +149,13 @@ impl Runtime {
             notify();
         }
     }
+    pub(crate) fn observe_operation(
+        &self,
+        operation: OperationId,
+    ) -> crate::operation_outcomes::OutcomeSlot {
+        self.operation_outcomes.observe(operation)
+    }
+
     pub fn submit(self: &Rc<Self>, event: Event) {
         let previous_scope = self.scope();
         let effects = self.session.borrow_mut().submit(event);
@@ -266,6 +275,9 @@ impl Runtime {
                 operation_id,
                 outcome,
             } => {
+                let observed = self
+                    .operation_outcomes
+                    .settle(operation_id, outcome.clone());
                 self.step_exports.borrow_mut().remove(&operation_id);
                 match outcome {
                     TerminalOutcome::Completed => self.report("Saved locally."),
@@ -275,7 +287,11 @@ impl Runtime {
                     | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
                     TerminalOutcome::Cancelled => self.report("Cancelled."),
                     TerminalOutcome::Closed => self.report("Editor closed."),
-                    TerminalOutcome::Superseded => {}
+                    TerminalOutcome::Superseded => {
+                        if observed {
+                            self.changed();
+                        }
+                    }
                 }
                 vec![]
             }

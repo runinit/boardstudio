@@ -169,7 +169,7 @@ struct CaseNumberCommit {
 pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     let request_sequence = use_signal(|| 0_u64);
     let pending_request = use_signal(|| None::<RequestIdentity>);
-    let mut submission_busy = use_signal(|| false);
+    let submission_busy = use_signal(|| false);
     let selected_body = use_signal(|| None::<BodySelection>);
 
     let board = props
@@ -193,15 +193,15 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     let active_body = selected.or_else(|| bodies.first().copied());
 
     let emit_edit_with_field: Rc<dyn Fn(CaseBodyEdit, Option<String>)> = {
-        let mut request_sequence = request_sequence;
-        let mut pending_request = pending_request;
-        let mut submission_busy = submission_busy;
         let on_edit = props.on_edit;
         let scope = props.scope.clone();
         let editor_instance_id = props.editor_instance_id;
         let snapshot_token = props.snapshot_token;
         let revision = props.revision;
         Rc::new(move |edit, field_id| {
+            let mut request_sequence = request_sequence;
+            let mut pending_request = pending_request;
+            let mut submission_busy = submission_busy;
             if submission_busy() {
                 return;
             }
@@ -236,7 +236,8 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     };
 
     let feedback = props.feedback.clone().filter(|feedback| {
-        let Some(pending) = pending_request.read().as_ref() else {
+        let pending_guard = pending_request.read();
+        let Some(pending) = pending_guard.as_ref() else {
             return false;
         };
         props.editor_instance_id == pending.editor_instance_id
@@ -255,16 +256,15 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     let pending_for_effect = pending_request;
     let mut busy_for_effect = submission_busy;
     use_effect(use_reactive((&terminal_feedback,), move |(terminal,)| {
-        if let Some((identity, state)) = terminal {
-            if matches!(state, CaseBodyEditState::Saved | CaseBodyEditState::Failed)
-                && pending_for_effect.read().as_ref() == Some(identity)
-            {
-                busy_for_effect.set(false);
-            }
+        if let Some((identity, state)) = terminal
+            && matches!(state, CaseBodyEditState::Saved | CaseBodyEditState::Failed)
+            && pending_for_effect.read().as_ref() == Some(&identity)
+        {
+            busy_for_effect.set(false);
         }
     }));
 
-    let selection_for_effect = selected_body;
+    let mut selection_for_effect = selected_body;
     let editor_instance_id = props.editor_instance_id;
     let scope = props.scope.clone();
     let saved_add = feedback
@@ -275,7 +275,7 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
         move |(created_body_id, scope, editor_instance_id)| {
             if let Some(body_id) = created_body_id {
                 selection_for_effect.set(Some(BodySelection {
-                    editor_instance_id: *editor_instance_id,
+                    editor_instance_id,
                     scope: scope.clone(),
                     body_id: body_id.clone(),
                 }));
@@ -296,7 +296,29 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     let can_edit = props.editable && !submission_busy();
     let can_add = can_edit && board.is_some();
     let body_id = active_body.map(|body| body.id.clone());
-    let mut emit_edit = emit_edit.clone();
+    let editor_key = body_id
+        .as_ref()
+        .map(|body_id| {
+            case_field_id(
+                props.editor_instance_id,
+                &props.scope,
+                body_id,
+                None,
+                "editor",
+            )
+        })
+        .unwrap_or_default();
+    let emit_edit = emit_edit.clone();
+    let global_feedback = feedback
+        .as_ref()
+        .filter(|feedback| feedback.field_id.is_none());
+    let global_feedback_pending =
+        global_feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Pending);
+    let global_feedback_saved =
+        global_feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Saved);
+    let global_feedback_error = global_feedback
+        .filter(|feedback| feedback.state == CaseBodyEditState::Failed)
+        .and_then(|feedback| feedback.message.clone());
 
     rsx! {
         section { class: "m1-case-bodies", "aria-label": "Authored case bodies",
@@ -360,7 +382,6 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
             }
             if let Some(body) = active_body {
                 if let Some(body_id) = body_id {
-                    let editor_key = case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "editor");
                     div { key: "{editor_key}", class: "m1-case-body-editor",
                         label { class: "m1-case-select", "Body type"
                             select {
@@ -521,14 +542,14 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
             } else {
                 p { class: "m1-case-bodies-empty", role: "status", "Add a board before creating a case body." }
             }
-            if let Some(feedback) = feedback.as_ref() {
-                if feedback.field_id.is_none() {
-                match feedback.state {
-                    CaseBodyEditState::Pending => p { class: "m1-case-edit-pending", role: "status", "Saving case body… Other changes are paused; drafts are preserved." },
-                    CaseBodyEditState::Saved => p { class: "m1-case-edit-saved", role: "status", "Case body saved." },
-                    CaseBodyEditState::Failed => p { class: "m1-case-edit-error", role: "alert", "{feedback.message.as_deref().unwrap_or("Case body edit failed.")}" },
-                }
-                }
+            if global_feedback_pending {
+                p { class: "m1-case-edit-pending", role: "status", "Saving case body… Other changes are paused; drafts are preserved." }
+            }
+            if global_feedback_saved {
+                p { class: "m1-case-edit-saved", role: "status", "Case body saved." }
+            }
+            if let Some(error) = global_feedback_error {
+                p { class: "m1-case-edit-error", role: "alert", "{error}" }
             }
             if submission_busy() {
                 p { class: "m1-case-edit-pending", role: "status", "A Case edit is still saving. Other edits are paused; numeric drafts are preserved." }
@@ -552,12 +573,12 @@ struct CaseNumberFieldProps {
 
 #[component]
 fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
-    let mut draft = use_signal(|| props.value.to_string());
-    let mut error = use_signal(|| None::<String>);
-    let mut submitted_draft = use_signal(|| None::<String>);
+    let draft = use_signal(|| props.value.to_string());
+    let error = use_signal(|| None::<String>);
+    let submitted_draft = use_signal(|| None::<String>);
     let mut ignored_feedback_request = use_signal(|| None::<RequestIdentity>);
-    let mut dirty = use_signal(|| false);
-    let mut blocked_attempt = use_signal(|| false);
+    let dirty = use_signal(|| false);
+    let blocked_attempt = use_signal(|| false);
 
     let accepted_value = props.value;
     let saved_ack = props
@@ -580,7 +601,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     use_effect(use_reactive(
         (&accepted_value, &saved_ack_pending, &saved_ack),
         move |(value, ack_pending, ack)| {
-            if *ack_pending {
+            if ack_pending {
                 if let Some(identity) = ack {
                     consumed_ack_for_effect.set(Some(identity.clone()));
                 }
@@ -614,17 +635,17 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     }));
 
     let commit: Rc<dyn Fn()> = Rc::new({
-        let mut draft = draft;
-        let mut error = error;
-        let mut submitted_draft = submitted_draft;
         let on_commit = props.on_commit;
         let field_id = props.field_id.clone();
         let accepted = props.value;
         let rule = props.rule;
         let submission_busy = props.submission_busy;
-        let mut blocked_attempt = blocked_attempt;
-        let mut dirty = dirty;
         move || {
+            let mut draft = draft;
+            let mut error = error;
+            let mut submitted_draft = submitted_draft;
+            let mut blocked_attempt = blocked_attempt;
+            let mut dirty = dirty;
             if submission_busy() {
                 blocked_attempt.set(true);
                 return;
@@ -675,6 +696,12 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
         .filter(|feedback| feedback.state == CaseBodyEditState::Failed)
         .filter(|feedback| ignored_feedback_request().as_ref() != Some(&request_identity(feedback)))
         .and_then(|feedback| feedback.message.clone());
+    let feedback_pending =
+        feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Pending);
+    let feedback_saved =
+        feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Saved);
+    let input_feedback_identity = feedback.map(request_identity);
+    let escape_feedback_identity = input_feedback_identity.clone();
 
     rsx! {
         label { class: if invalid { "m1-case-number has-error" } else { "m1-case-number" },
@@ -685,15 +712,21 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                     step: "0.1",
                     min: min,
                     value: "{draft}",
-                    disabled: !props.editable || props.submission_busy(),
+                    disabled: !props.editable || (props.submission_busy)(),
                     "aria-invalid": invalid,
                     oninput: move |event: FormEvent| {
+                        let mut draft = draft;
+                        let mut dirty = dirty;
+                        let mut blocked_attempt = blocked_attempt;
+                        let mut submitted_draft = submitted_draft;
+                        let mut error = error;
+                        let mut ignored_feedback_request = ignored_feedback_request;
                         draft.set(event.value());
                         dirty.set(true);
                         blocked_attempt.set(false);
                         submitted_draft.set(None);
                         error.set(None);
-                        ignored_feedback_request.set(feedback.map(request_identity));
+                        ignored_feedback_request.set(input_feedback_identity.clone());
                     },
                     onblur: {
                         let commit = commit.clone();
@@ -701,6 +734,8 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                     },
                     onkeydown: {
                         let commit = commit.clone();
+                        let mut dirty = dirty;
+                        let mut blocked_attempt = blocked_attempt;
                         let mut draft = draft;
                         let mut error = error;
                         let mut submitted_draft = submitted_draft;
@@ -717,7 +752,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                                 blocked_attempt.set(false);
                                 error.set(None);
                                 submitted_draft.set(None);
-                                ignored_feedback_request.set(feedback.map(request_identity));
+                                ignored_feedback_request.set(escape_feedback_identity.clone());
                             }
                         }
                     }
@@ -728,12 +763,10 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                 small { class: "m1-case-field-error", role: "alert", "{error}" }
             } else if let Some(error) = feedback_error {
                 small { class: "m1-case-field-error", role: "alert", "{error}" }
-            } else if let Some(feedback) = feedback {
-                match feedback.state {
-                    CaseBodyEditState::Pending => small { role: "status", "Saving…" },
-                    CaseBodyEditState::Saved => small { role: "status", "Saved" },
-                    CaseBodyEditState::Failed => {}
-                }
+            } else if feedback_pending {
+                small { role: "status", "Saving…" }
+            } else if feedback_saved {
+                small { role: "status", "Saved" }
             }
             if blocked_attempt() {
                 small { class: "m1-case-field-error", role: "status", "Another Case edit is saving. Your draft is preserved; retry after it finishes." }

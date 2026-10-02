@@ -6,6 +6,9 @@ mod presentation;
 mod runtime;
 
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod operation_outcomes;
+
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "presentation/footprint_forms.rs"]
 mod footprint_forms;
 

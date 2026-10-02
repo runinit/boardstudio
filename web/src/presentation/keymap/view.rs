@@ -1,7 +1,7 @@
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::{
-    keymap::{KeyBinding, KeymapLayer, KeymapMacro},
-    model::{KeycapBoardSettings, KeycapKeySettings, Part, PartKind, Pose2, ProjectDoc, Vec2},
+use boardstudio_core::model::{
+    KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeymapLayer, KeymapMacro, Part, PartKind,
+    Pose2, ProjectDoc, Vec2,
 };
 use std::rc::Rc;
 

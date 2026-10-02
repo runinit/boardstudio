@@ -10,7 +10,9 @@ if not name.replace('-','').isalnum():raise SystemExit('unique alphanumeric/hyph
 out=WEB/'target/builds'/name;out.mkdir(parents=True,exist_ok=False)
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 prior=json.loads((BASE/'provenance.json').read_text())
-allowed={'web/src/presentation.rs','web/src/cad_presentation.rs','web/src/main.rs','web/src/theme.rs','web/assets/m1.css'}
+# runtime.rs is page-only: the private terminal-outcome observer is absent from reused providers.
+# All provider source and asset hashes remain mandatory checks.
+allowed={'web/src/runtime.rs','web/src/presentation.rs','web/src/cad_presentation.rs','web/src/main.rs','web/src/theme.rs','web/assets/m1.css'}
 changed=[p for p,h in prior['sources'].items() if sha(ROOT/p)!=h]
 assert not set(changed)-allowed,changed
 for mode in ['root','subpath']:

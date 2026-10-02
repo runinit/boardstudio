@@ -40,6 +40,7 @@ pub(in crate::presentation) fn KeymapCanvas(
                                 let pressed = event.data().key().to_string();
                                 if pressed == "Enter" || pressed == " " {
                                     event.prevent_default();
+                                    event.stop_propagation();
                                     on_select_key.call(keyboard_id.to_string());
                                 }
                             },

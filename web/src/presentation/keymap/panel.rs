@@ -11,7 +11,7 @@ pub(in crate::presentation) fn KeymapPanel(
     on_layer: EventHandler<String>,
     on_select_key: EventHandler<String>,
 ) -> Element {
-    let mut query = use_signal(|| String::new());
+    let mut query = use_signal(String::new);
     let active_layer = view
         .layers
         .iter()
@@ -62,7 +62,7 @@ pub(in crate::presentation) fn KeymapPanel(
                     }
                 }
             }
-            section { class: "m1-keymap-key-selection", "aria-label": "Selected key"
+            section { class: "m1-keymap-key-selection", "aria-label": "Selected key",
                 h3 { "{heading}" }
                 label { class: "m1-keymap-search-label", "Find a key"
                     input {
