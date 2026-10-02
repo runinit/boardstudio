@@ -8,6 +8,7 @@ use crate::{
     mirrored_pair_geometry::{MirroredPairGeometryInput, MirroredPairIds, project_mirrored_pair},
     mirrored_pair_lifecycle::{PairFormStage, PairFormState, PairResultGuard},
     operation_outcomes::OutcomeSlot,
+    presentation::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner},
     runtime::Runtime,
 };
 use boardstudio_application::{
@@ -48,6 +49,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
     on_created: EventHandler<MirroredPairCreated>,
+    canvas_interaction: CanvasInteractionArbiter,
 ) -> MirroredPairMount {
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -135,8 +137,12 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let mut form_state = form_state;
         let mut error = error;
         let mut status = status;
+        let canvas_interaction = canvas_interaction.clone();
         move |_| {
-            if pending.read().is_some() || preparing.read().is_some() || placement.read().is_some()
+            if pending.read().is_some()
+                || preparing.read().is_some()
+                || placement.read().is_some()
+                || open.read().is_some()
             {
                 return;
             }
@@ -153,6 +159,9 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 ));
                 return;
             };
+            if !canvas_interaction.try_acquire(CanvasInteractionOwner::MirroredPair) {
+                return;
+            }
             let next = open_id()
                 .checked_add(1)
                 .expect("mirrored pair identity exhausted");
@@ -179,7 +188,11 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let mut placement = placement;
         let mut error = error;
         let mut status = status;
+        let canvas_interaction = canvas_interaction.clone();
         move |owner: MirroredPairOwner| {
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
+                return;
+            }
             if form_state.read().stage == PairFormStage::Placement {
                 return;
             }
@@ -195,6 +208,7 @@ pub(in crate::presentation) fn use_mirrored_pair(
                 form_state.set(PairFormState::new(MirroredPairFormValues::default()));
                 error.set(None);
                 status.set(None);
+                canvas_interaction.release(CanvasInteractionOwner::MirroredPair);
             }
         }
     });
@@ -205,8 +219,10 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let mut placement = placement;
         let mut error = error;
         let mut status = status;
+        let canvas_interaction = canvas_interaction.clone();
         move |owner: MirroredPairOwner| {
-            if pending.read().is_some()
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                || pending.read().is_some()
                 || workspace() != "Layout"
                 || scope_generation() != owner.scope_generation
                 || !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
@@ -235,8 +251,10 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let mut preparing = preparing;
         let mut error = error;
         let mut status = status;
+        let canvas_interaction = canvas_interaction.clone();
         move |request: MirroredPairRequest| {
-            if open.read().as_ref() != Some(&request.owner)
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                || open.read().as_ref() != Some(&request.owner)
                 || pending.read().is_some()
                 || preparing.read().is_some()
                 || placement.read().is_some()
@@ -603,7 +621,11 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let runtime = runtime.clone();
         let mut placement = placement;
         let mut error = error;
+        let canvas_interaction = canvas_interaction.clone();
         move |request: super::mirrored_pair::MirroredPairMove| {
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
+                return;
+            }
             let Some(active) = placement.read().clone() else {
                 return;
             };
@@ -646,9 +668,11 @@ pub(in crate::presentation) fn use_mirrored_pair(
         let mut form_state = form_state;
         let mut status = status;
         let mut error = error;
+        let canvas_interaction = canvas_interaction.clone();
         move |request: super::mirrored_pair::MirroredPairMove| {
             let owner = request.owner;
-            if pending.read().is_some()
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                || pending.read().is_some()
                 || workspace() != "Layout"
                 || scope_generation() != owner.scope_generation
                 || !pair_owner_is_current(&runtime, &owner, workspace(), scope_generation(), &open)
@@ -761,7 +785,8 @@ pub(in crate::presentation) fn use_mirrored_pair(
         .as_ref()
         .map(|active| active.placement.clone());
     let model = runtime.model();
-    let can_open = pending.read().is_none()
+    let can_open = canvas_interaction.current().is_none()
+        && pending.read().is_none()
         && preparing.read().is_none()
         && placement.read().is_none()
         && open.read().is_none()
@@ -770,6 +795,17 @@ pub(in crate::presentation) fn use_mirrored_pair(
         || preparing.read().is_some()
         || placement.read().is_some()
         || pending.read().is_some();
+    use_effect(use_reactive(
+        (&version(), &workspace(), &scope_generation(), &owns_canvas),
+        {
+            let canvas_interaction = canvas_interaction.clone();
+            move |(_, _, _, owns_canvas)| {
+                if !owns_canvas {
+                    canvas_interaction.release(CanvasInteractionOwner::MirroredPair);
+                }
+            }
+        },
+    ));
     MirroredPairMount {
         form,
         placement: placement_projection,

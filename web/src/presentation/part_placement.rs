@@ -3,6 +3,7 @@
 //! The browser controller owns the interaction lifetime; this module keeps the
 //! identity checks and atomic document proposal independent of the canvas DOM.
 use super::{
+    canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner},
     objects::{self, LayoutSnapSettings},
     parts::{PartsQuery, PartsSelection},
     selection::SelectionAdapter,
@@ -149,13 +150,10 @@ pub(super) struct PartPlacementMount {
 }
 
 impl PartPlacementMount {
+    #[cfg(test)]
     pub(super) fn owns_canvas(&self) -> bool {
         self.busy || self.projection.is_some()
     }
-}
-
-pub(super) fn canvas_pointer_start_allowed(placement: &PartPlacementMount) -> bool {
-    !placement.owns_canvas()
 }
 
 pub(super) struct PartPlacementHost {
@@ -173,6 +171,7 @@ pub(super) struct PartPlacementHost {
     pub(super) canvas_center: Vec2,
     pub(super) objects_open: Signal<bool>,
     pub(super) inspect_open: Signal<bool>,
+    pub(super) canvas_interaction: CanvasInteractionArbiter,
 }
 
 pub(super) type DefinitionLoader = Rc<
@@ -292,6 +291,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         canvas_center,
         mut objects_open,
         mut inspect_open,
+        canvas_interaction,
     } = host;
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
@@ -311,7 +311,11 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let guide = guide_preferences;
         let mut selected_context = adapter.selected_context;
         let mut anchor_scope = adapter.anchor_scope;
+        let canvas_interaction = canvas_interaction.clone();
         move |_| {
+            if canvas_interaction.current().is_some() {
+                return;
+            }
             let model = runtime.model();
             let Some(project_id) = model
                 .accepted
@@ -352,6 +356,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let mut error = error;
         let alive = alive.clone();
         let adapter_for_async = adapter.clone();
+        let canvas_interaction = canvas_interaction.clone();
         move |definition_id: String| {
             let current_model = runtime.model();
             let admission = PlacementAdmission::capture(
@@ -438,6 +443,9 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             ) else {
                 return;
             };
+            if !canvas_interaction.try_acquire(CanvasInteractionOwner::PartPlacement) {
+                return;
+            }
             preparing.set(Some(owner.clone()));
             error.set(None);
             let accepted = snapshot.clone();
@@ -591,7 +599,11 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
     ));
     let on_move = {
         let mut active = active;
+        let canvas_interaction = canvas_interaction.clone();
         move |at: Vec2| {
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
+                return;
+            }
             if let Some(mut placement) = active() {
                 update_pending_part(&mut placement.pending, at);
                 active.set(Some(placement));
@@ -604,7 +616,11 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let mut committing = committing;
         let mut error = error;
         let alive = alive.clone();
+        let canvas_interaction = canvas_interaction.clone();
         move |at: Vec2| {
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
+                return;
+            }
             let Some(mut placement) = active() else {
                 return;
             };
@@ -679,6 +695,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             let guide_preferences = guide_preferences;
             let mut selected_context = adapter.selected_context;
             let mut anchor_scope = adapter.anchor_scope;
+            let canvas_interaction = canvas_interaction.clone();
             let alive = alive.clone();
             spawn_local(async move {
                 while observed.borrow().is_none() {
@@ -773,6 +790,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                     workspace.set("Parts");
                     error.set(Some(message));
                 }
+                canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
             });
         }
     };
@@ -784,7 +802,11 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         let guide = guide_preferences;
         let mut selected_context = adapter.selected_context;
         let mut anchor_scope = adapter.anchor_scope;
+        let canvas_interaction = canvas_interaction.clone();
         move |_| {
+            if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
+                return;
+            }
             if committing.read().is_some() {
                 return;
             }
@@ -813,6 +835,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             });
             active.set(None);
             preparing.set(None);
+            canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
             if current {
                 selected_context.set(None);
                 anchor_scope.set(None);
@@ -843,9 +866,22 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
             ),
         )
     });
+    let busy = preparing.read().is_some() || committing.read().is_some();
+    let owns_canvas = busy || projection.is_some();
+    use_effect(use_reactive(
+        (&version(), &workspace(), &generation(), &owns_canvas),
+        {
+            let canvas_interaction = canvas_interaction.clone();
+            move |(_, _, _, owns_canvas)| {
+                if !owns_canvas {
+                    canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
+                }
+            }
+        },
+    ));
     PartPlacementMount {
         projection,
-        busy: preparing.read().is_some() || committing.read().is_some(),
+        busy,
         error: error(),
         on_choose_controller: EventHandler::new(on_choose_controller),
         on_place_controller: EventHandler::new(on_place_controller),
@@ -1355,6 +1391,7 @@ mod tests {
     #[derive(Clone)]
     struct HookProbe {
         runtime: Rc<HookRuntime>,
+        canvas_interaction: CanvasInteractionArbiter,
         mounted: Rc<Cell<bool>>,
         unmounted: Rc<Cell<bool>>,
         latest: Rc<RefCell<Option<PartPlacementMount>>>,
@@ -1429,6 +1466,7 @@ mod tests {
             canvas_center: Vec2::default(),
             objects_open: use_signal(|| false),
             inspect_open: use_signal(|| false),
+            canvas_interaction: probe.canvas_interaction.clone(),
         });
         *probe.latest.borrow_mut() = Some(mount.clone());
         rsx! { div {} }
@@ -1449,6 +1487,7 @@ mod tests {
         };
         let probe = HookProbe {
             runtime,
+            canvas_interaction: CanvasInteractionArbiter::default(),
             mounted: Rc::new(Cell::new(true)),
             unmounted: Rc::new(Cell::new(false)),
             latest: Rc::default(),
@@ -1548,7 +1587,20 @@ mod tests {
         let preparing = probe.latest.borrow().as_ref().unwrap().clone();
         assert!(preparing.busy);
         assert!(preparing.owns_canvas());
-        assert!(!canvas_pointer_start_allowed(&preparing));
+        assert!(
+            probe
+                .canvas_interaction
+                .is_owner(CanvasInteractionOwner::PartPlacement)
+        );
+        assert!(
+            !probe
+                .canvas_interaction
+                .try_acquire(CanvasInteractionOwner::MirroredPair)
+        );
+        assert_eq!(
+            probe.canvas_interaction.current(),
+            Some(CanvasInteractionOwner::PartPlacement)
+        );
         assert!(preparing.projection.is_none());
         assert!(
             !probe
@@ -1575,6 +1627,43 @@ mod tests {
         flush_hook(&mut dom);
         assert_eq!(workspace(&probe), "PCB");
         assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
+        assert_eq!(probe.canvas_interaction.current(), None);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mounted_controller_start_is_rejected_while_mirrored_pair_owns_the_canvas() {
+        let (probe, mut dom) = hook_mounted();
+        probe
+            .canvas_interaction
+            .try_acquire(CanvasInteractionOwner::MirroredPair);
+        let mut workspace = *probe.workspace.borrow().as_ref().unwrap();
+        workspace.set("Parts");
+        resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_controller
+            .call("catalog:controller".into());
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let mount = probe.latest.borrow().as_ref().unwrap().clone();
+        assert!(!mount.busy);
+        assert!(mount.projection.is_none());
+        assert!(mount.error.is_none());
+        assert_eq!(
+            probe.canvas_interaction.current(),
+            Some(CanvasInteractionOwner::MirroredPair)
+        );
+        assert!(
+            !probe
+                .runtime
+                .events
+                .borrow()
+                .iter()
+                .any(|event| matches!(event, SessionEvent::Edit { .. }))
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -1595,6 +1684,16 @@ mod tests {
         flush_hook(&mut dom);
         let active = probe.latest.borrow().as_ref().unwrap().clone();
         assert!(active.projection.is_some());
+        assert!(
+            probe
+                .canvas_interaction
+                .is_owner(CanvasInteractionOwner::PartPlacement)
+        );
+        assert!(
+            !probe
+                .canvas_interaction
+                .try_acquire(CanvasInteractionOwner::MirroredPair)
+        );
         active.on_commit.call(Vec2 { x: 4.0, y: -3.0 });
         let operation = probe
             .runtime
@@ -1652,6 +1751,16 @@ mod tests {
     async fn production_hook_returns_to_wiring_only_after_matching_ready_saved_commit() {
         let (probe, mut dom) = hook_mounted();
         let active = start_hook_placement(&probe, &mut dom).await;
+        assert!(
+            probe
+                .canvas_interaction
+                .is_owner(CanvasInteractionOwner::PartPlacement)
+        );
+        assert!(
+            !probe
+                .canvas_interaction
+                .try_acquire(CanvasInteractionOwner::MirroredPair)
+        );
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
         let (operation_id, edit) = submitted_edit(&probe);
         let mut document = replacement(edit);
@@ -1689,6 +1798,7 @@ mod tests {
         flush_hook(&mut dom);
         assert_eq!(workspace(&probe), "PCB");
         assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
+        assert_eq!(probe.canvas_interaction.current(), None);
         assert!(
             probe
                 .runtime

@@ -1,4 +1,5 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+mod canvas_interaction;
 mod case_assembly_layers;
 mod case_bodies;
 mod case_controller;
@@ -37,6 +38,7 @@ mod setup_guide;
 mod shared_viewer;
 mod workspace_composition;
 
+use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
 use library::Library;
 pub(crate) use mechanical_settings::MechanicalSettings;
@@ -1377,6 +1379,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
+    let canvas_interaction = use_hook(CanvasInteractionArbiter::default);
     let pair_created_selection = use_signal(|| None::<objects::MirroredPairCreated>);
     let on_mirrored_pair_created = use_callback({
         let runtime = runtime.clone();
@@ -1466,6 +1469,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
         on_mirrored_pair_created,
+        canvas_interaction.clone(),
     );
     if mirrored_pair.owns_canvas {
         matrix_setup.can_open = false;
@@ -2798,7 +2802,11 @@ fn Editor() -> Element {
             canvas_center,
             objects_open,
             inspect_open,
+            canvas_interaction: canvas_interaction.clone(),
         });
+    if canvas_interaction.current().is_some() {
+        matrix_setup.can_open = false;
+    }
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let pair_placement_owner = mirrored_pair
         .placement
@@ -3018,7 +3026,6 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
-    let pair_placement_active = mirrored_pair.owns_canvas;
     let show_position_inspector = selected_tree_context.as_ref().is_none_or(|selected| {
         let resolved = selection::resolve_context(&model, &selected.context);
         resolved.is_some_and(|ids| {
@@ -3072,11 +3079,17 @@ fn Editor() -> Element {
         let placement = part_placement.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let mirrored_pair = mirrored_pair.clone();
+        let canvas_interaction = canvas_interaction.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
-            if let Some(placement) = mirrored_pair.placement.as_ref() {
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
+                let Some(placement) = mirrored_pair.placement.as_ref() else {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    return;
+                };
                 let pair_owner = placement.owner.clone();
                 if workspace() != "Layout"
                     || runtime.scope().as_ref() != Some(&pair_owner.scope)
@@ -3093,7 +3106,7 @@ fn Editor() -> Element {
                 }
                 return;
             }
-            if placement.owns_canvas() {
+            if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
                 if let Some(active) = placement.projection.clone()
                     && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
                 {
@@ -3116,6 +3129,9 @@ fn Editor() -> Element {
                         )
                     });
                     placement.on_move.call(at);
+                } else {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
                 }
                 return;
             }
@@ -3247,11 +3263,17 @@ fn Editor() -> Element {
         let placement = part_placement.clone();
         let snap_settings = layout_snap_settings;
         let render_scope = render_scope.clone();
+        let canvas_interaction = canvas_interaction.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
-            if placement.owns_canvas() {
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                return;
+            }
+            if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
                 pointer.prevent_default();
                 pointer.stop_propagation();
                 if placement.projection.is_none()
@@ -3376,12 +3398,17 @@ fn Editor() -> Element {
         let drag = drag.clone();
         let placement = part_placement.clone();
         let render_scope = render_scope.clone();
+        let canvas_interaction = canvas_interaction.clone();
         move |event: PointerEvent| {
-            if placement.owns_canvas() {
-                if placement.projection.is_some() {
-                    placement.on_cancel.call(());
+            match canvas_interaction.current() {
+                Some(CanvasInteractionOwner::MirroredPair) => return,
+                Some(CanvasInteractionOwner::PartPlacement) => {
+                    if placement.projection.is_some() {
+                        placement.on_cancel.call(());
+                    }
+                    return;
                 }
-                return;
+                None => {}
             }
             let pointer_id = event
                 .data()
@@ -3431,12 +3458,15 @@ fn Editor() -> Element {
         let space_down = space_down.clone();
         let mirrored_pair = mirrored_pair.clone();
         let placement = part_placement.clone();
+        let canvas_interaction = canvas_interaction.clone();
         let snap_settings = layout_snap_settings;
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
             let modifiers = event.data().modifiers();
-            if let Some(placement) = mirrored_pair.placement.as_ref() {
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                && let Some(placement) = mirrored_pair.placement.as_ref()
+            {
                 let owner = placement.owner.clone();
                 if key == "Escape" {
                     event.prevent_default();
@@ -3481,6 +3511,7 @@ fn Editor() -> Element {
                 }
             }
             if key == "Escape"
+                && canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
                 && let Some(form) = mirrored_pair.form.as_ref()
                 && mirrored_pair.placement.is_none()
             {
@@ -3488,7 +3519,10 @@ fn Editor() -> Element {
                 mirrored_pair.on_cancel.call(form.owner.clone());
                 return;
             }
-            if placement.owns_canvas() {
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
+                return;
+            }
+            if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
                 if let Some(active) = placement.projection.as_ref() {
                     if key == "Escape" {
                         event.prevent_default();
@@ -3567,12 +3601,13 @@ fn Editor() -> Element {
         let scope = render_scope.clone();
         let adapter = adapter.clone();
         let mirrored_pair = mirrored_pair.clone();
-        let placement = part_placement.clone();
+        let canvas_interaction = canvas_interaction.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
-            if let Some(placement) = mirrored_pair.placement.as_ref()
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                && let Some(placement) = mirrored_pair.placement.as_ref()
                 && pointer.button() == 0
             {
                 let owner = placement.owner.clone();
@@ -3592,11 +3627,12 @@ fn Editor() -> Element {
                 }
                 return;
             }
-            if mirrored_pair.owns_canvas {
+            if canvas_interaction.current().is_some() {
+                pointer.prevent_default();
+                pointer.stop_propagation();
                 return;
             }
-            if !part_placement::canvas_pointer_start_allowed(&placement)
-                || !space_down.get()
+            if !space_down.get()
                 || pointer.button() != 0
                 || runtime.scope().as_ref() != Some(&scope)
                 || (adapter.generation)() != render_generation
@@ -4444,12 +4480,13 @@ fn Editor() -> Element {
                                             let selection_kind = layout_selection_kind;
                                             let owner = layout_owner.clone();
                                             let tree_cell_anchor = tree_cell_anchor.clone();
-                                            let placement = part_placement.clone();
+                                            let canvas_interaction = canvas_interaction.clone();
+                                            let mirrored_pair = mirrored_pair.clone();
                                             rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
-                                                    if pair_placement_active { return; }
                                                     let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                                    if !part_placement::canvas_pointer_start_allowed(&placement) { pointer.prevent_default(); pointer.stop_propagation(); return; }
+                                                    if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
+                                                    if canvas_interaction.current().is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
                                                     if pointer.button() != 0 { return; }
                                                     if space_down.get() { return; }
                                                     pointer.prevent_default();
@@ -4497,7 +4534,7 @@ fn Editor() -> Element {
                                 let footprints_on = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
                                 let id = part.id.clone();
                                 let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone(); let space_down = space_down.clone();
-                                let placement = part_placement.clone();
+                                let canvas_interaction = canvas_interaction.clone();
                                 let adapter = adapter.clone(); let render_scope_for_hit = render_scope.clone();
                                 let mut selected_context = adapter.selected_context;
                                 let generation_for_hit = render_generation;
@@ -4505,12 +4542,13 @@ fn Editor() -> Element {
                                 let selection_kind = layout_selection_kind;
                                 let owner = layout_owner.clone();
                                 let tree_cell_anchor = tree_cell_anchor.clone();
+                                let mirrored_pair = mirrored_pair.clone();
                                 rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
-                                        if pair_placement_active { return; }
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
-                                        if !part_placement::canvas_pointer_start_allowed(&placement) { pointer.prevent_default(); pointer.stop_propagation(); return; }
+                                        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
+                                        if canvas_interaction.current().is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
                                         if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }
                                         if drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
                                         pointer.prevent_default(); pointer.stop_propagation();
