@@ -10,7 +10,7 @@ The next implementation wave contains PCB physical-setup proposals (`0dd1f3ce`),
 
 ## Current bounded-ticket ledger
 
-There are 48 published bounded ticket records, of which 47 are non-superseded; those totals do not mean all records are dispatchable or accepted. Four source-backed F3.2 execution children are now published under `.scratch/dioxus-layout-authoring/issues/`, each with only the canonical F3.1 start gate. The 62-parent graph and F3.2/F3.3/F3.7 acceptance relationships are unchanged. Exact-hash Spec/Standards reports and source mapping are retained in `.scratch/dioxus-layout-authoring/evidence/ticket-split/`.
+The prior ledger recorded 48 published bounded tickets (47 non-superseded). Three additional exact-reviewed Layout children—Transform properties, Align, and command-pill integration—are now published under `.scratch/dioxus-layout-authoring/issues/`. Publication does not imply dispatchability or acceptance. Four source-backed F3.2 execution children are now published under `.scratch/dioxus-layout-authoring/issues/`, each with only the canonical F3.1 start gate. The 62-parent graph and F3.2/F3.3/F3.7 acceptance relationships are unchanged. Exact-hash Spec/Standards reports and source mapping are retained in `.scratch/dioxus-layout-authoring/evidence/ticket-split/`.
 
 ## Current frontend planning — 2026-10-02
 

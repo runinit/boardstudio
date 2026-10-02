@@ -111,18 +111,22 @@
       "effective_run_cap": 11
     },
     "implementation_wave_20261002": {
-      "status": "Six streams resumed; exact implemented source under independent Astra Spec/Standards review. No parent acceptance closed.",
+      "status": "Six streams continuing. First source wave reviewed; concrete lifecycle/policy findings under repair. No parent acceptance closed.",
       "source_review_targets": {
         "pcb_physical_setup_proposals": "0dd1f3ce904dc11ba62d175dba078729d5263472",
         "pcb_firmware_position_handoff": "6fe8fb875585fca7fba4636cf1a9696e55b5406f",
         "keycaps_fit_findings": "448c3274693b611ad747d0461de1b18d88245fb8"
       },
-      "layout": "Transform/Align planning packet fb8f776d720d2cce1ec5419ac945c1e08fddbe88 exact Spec/Standards clear; fields-only issue07 implementation resumed; pointer-tools and parent acceptance open.",
-      "pcb": "Ticket05 private proposals implemented and tested; ticket06 Editor-owned intents continuing on isolated branch; paired UI acceptance open.",
-      "keymap": "F5.2b handoff implemented and tested; F6K.4b UI prepared against exact handoff pending source review.",
-      "keycaps": "Fit findings implemented and tested; same-fixture project activation renderer hang blocks paired acceptance and is under active diagnosis.",
+      "layout": "Exact reviewed issue07 Transform and issue08 Align now implementing in parallel isolated branches; issue09 command-pill integration follows working controls. Pointer-tools and parent acceptance open.",
+      "pcb": "Proposal ticket05 Spec clear; new lint suppressions/existing-member visibility changes require source correction. Ticket06 prepared for actual guided Project/Case placements; paired acceptance open.",
+      "keymap": "F5.2b requires version-value subscription, target-qualified feedback, actual F6 Element slot, and owner-level tests; source repairs underway before F6K.4b UI.",
+      "keycaps": "Astra source reviews confirm self-invalidating assessment effect consistent with activation hang, latest-result currentness and finding-group parity gaps; active bug fixes and mounted/browser regressions required.",
       "case": "Native pre-CadScene PcbPreview is required for Sofle baseline. Existing issue08 producer/issue07 provider contracts being refined to accepted physical document/contours; no duplicate producer.",
-      "parts_project": "Packaged opaque Ergogen byte provider prerequisite now assigned to Parts/Project for reviewed ticketing and implementation; capability01 owns private bool input; F8 checkbox is later integration join."
+      "parts_project": "Packaged opaque Ergogen byte provider prerequisite now assigned to Parts/Project for reviewed ticketing and implementation; capability01 owns private bool input; F8 checkbox is later integration join.",
+      "source_reviews": {
+        "spec": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/spec-review.md",
+        "standards": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/standards-review.md"
+      }
     }
   },
   "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
