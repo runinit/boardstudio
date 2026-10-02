@@ -23,7 +23,7 @@ use std::{
     cell::{Cell, RefCell},
     future::Future,
     pin::Pin,
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 use wasm_bindgen_futures::spawn_local;
 
@@ -48,6 +48,7 @@ pub(crate) struct MechanicalSettingsCurrent {
 /// existing `Runtime::observe_operation` before submitting one `ReplaceDocument` event.
 /// Returning its exact weak-observed slot is required; a page-wide last-error/status string is
 /// not an operation result.
+#[derive(Clone)]
 pub(crate) struct MechanicalSettingsPorts {
     pub(crate) current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
     pub(crate) resolve: Rc<
@@ -190,9 +191,11 @@ impl MechanicalSettingsController {
             phase: PendingPhase::Resolving,
         });
         self.emit(&request, MechanicalSettingsFeedbackState::Pending, None);
-        let controller = self.clone();
+        let controller = Rc::downgrade(self);
+        let ports = self.ports.clone();
         spawn_local(async move {
-            controller.prepare_and_submit(request, current).await;
+            MechanicalSettingsController::prepare_and_submit(controller, ports, request, current)
+                .await;
         });
     }
 
@@ -294,20 +297,35 @@ impl MechanicalSettingsController {
     }
 
     async fn prepare_and_submit(
-        self: Rc<Self>,
+        controller: Weak<Self>,
+        ports: MechanicalSettingsPorts,
         request: MechanicalSettingsRequest,
         admitted_current: MechanicalSettingsCurrent,
     ) {
-        let operation = self.prepare(&request, &admitted_current).await;
+        let operation = Self::prepare(
+            ports.clone(),
+            controller.clone(),
+            &request,
+            &admitted_current,
+        )
+        .await;
         let (document, expected) = match operation {
             Ok(value) => value,
             Err(message) => {
-                self.fail_pending(&request, message);
+                if let Some(controller) = controller.upgrade() {
+                    controller.fail_pending(&request, message);
+                }
                 return;
             }
         };
-        let Some(current) = self.current_for_request(&request.identity) else {
-            self.fail_pending(
+        let Some(owner) = controller.upgrade() else {
+            return;
+        };
+        if !owner.owns_resolving(&request) {
+            return;
+        }
+        let Some(current) = owner.current_for_request(&request.identity) else {
+            owner.fail_pending(
                 &request,
                 "The mechanical settings scope changed before it could be saved.".into(),
             );
@@ -316,24 +334,27 @@ impl MechanicalSettingsController {
         if current.accepted.token != request.identity.snapshot_token
             || current.accepted.document.revision != request.identity.revision
         {
-            self.fail_pending(
+            owner.fail_pending(
                 &request,
                 "The accepted document changed while the mechanical settings were being prepared. Review the current values and retry.".into(),
             );
             return;
         }
-        let operation_id = (self.ports.next_operation)();
+        let operation_id = (ports.next_operation)();
         // The root callback observes this ID before submitting; the resolving slot stays reserved
         // until the synchronous callback returns, so a reentrant field event cannot displace it.
         let outcome =
-            match (self.ports.submit_replace)(operation_id, request.identity.revision, document) {
+            match (ports.submit_replace)(operation_id, request.identity.revision, document) {
                 Ok(outcome) => outcome,
                 Err(message) => {
-                    self.fail_pending(&request, message);
+                    owner.fail_pending(&request, message);
                     return;
                 }
             };
-        *self.pending.borrow_mut() = Some(PendingRequest {
+        if !owner.owns_resolving(&request) {
+            return;
+        }
+        *owner.pending.borrow_mut() = Some(PendingRequest {
             request: request.clone(),
             phase: PendingPhase::Submitted {
                 outcome,
@@ -345,7 +366,8 @@ impl MechanicalSettingsController {
     }
 
     async fn prepare(
-        &self,
+        ports: MechanicalSettingsPorts,
+        controller: Weak<Self>,
         request: &MechanicalSettingsRequest,
         current: &MechanicalSettingsCurrent,
     ) -> Result<(ProjectDoc, ExpectedCommit), String> {
@@ -400,13 +422,10 @@ impl MechanicalSettingsController {
             if config.closure_mounts.is_none() && config.mount != MechanicalMount::Gasket {
                 let proposed =
                     persist_configuration(base_document, instance_id, Some(config.clone()))?;
-                let assembly = (self.ports.resolve)(
-                    accepted.clone(),
-                    request.identity.scope.clone(),
-                    proposed,
-                )
-                .await?;
-                if !self.still_current(request) {
+                let assembly =
+                    (ports.resolve)(accepted.clone(), request.identity.scope.clone(), proposed)
+                        .await?;
+                if !Self::still_current(&ports, &controller, request) {
                     return Err("The mechanical settings scope changed during mounting-location resolution.".into());
                 }
                 config.closure_mounts = Some(closure_mounts(config, assembly));
@@ -415,22 +434,35 @@ impl MechanicalSettingsController {
 
         // The bundled definition is loaded for each commit because the generator module is lazy.
         // It has already passed the application's normalizeDefinition path before this port returns.
-        let mounting_hole = (self.ports.load_mounting_hole)().await?;
-        if !self.still_current(request) {
+        let mounting_hole = (ports.load_mounting_hole)().await?;
+        if !Self::still_current(&ports, &controller, request) {
             return Err(
                 "The mechanical settings scope changed while loading the mounting-hole definition."
                     .into(),
             );
         }
         let candidate = persist_configuration(base_document, instance_id, configuration)?;
-        let candidate = (self.ports.project_closure_clearance)(&candidate, &mounting_hole)?;
+        let candidate = (ports.project_closure_clearance)(&candidate, &mounting_hole)?;
         let settings = expected_settings(&candidate, instance_id)?;
         let closure = closure_evidence(&candidate);
         Ok((candidate, ExpectedCommit { settings, closure }))
     }
 
-    fn still_current(&self, request: &MechanicalSettingsRequest) -> bool {
-        (self.ports.current)().is_some_and(|current| admitted(&current, &request.identity))
+    fn still_current(
+        ports: &MechanicalSettingsPorts,
+        controller: &Weak<Self>,
+        request: &MechanicalSettingsRequest,
+    ) -> bool {
+        controller
+            .upgrade()
+            .is_some_and(|owner| owner.owns_resolving(request))
+            && (ports.current)().is_some_and(|current| admitted(&current, &request.identity))
+    }
+
+    fn owns_resolving(&self, request: &MechanicalSettingsRequest) -> bool {
+        self.pending.borrow().as_ref().is_some_and(|pending| {
+            pending.request == *request && matches!(&pending.phase, PendingPhase::Resolving)
+        })
     }
 
     fn current_for_request(
