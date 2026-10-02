@@ -1,31 +1,80 @@
 # BoardStudio migration constraints
 
-Last reviewed: 2026-09-30.
+Last reviewed: 2026-10-02.
 
-Scope: incremental rearchitecture of BoardStudio toward a full-Rust application
-with Dioxus 0.7.x, including application coordination, persistence, workers,
-rendering, generators and export. This is not a mechanical frontend port.
-These requirements govern plans, implementation, review, cutover and removal.
-Read them before changing migration code.
+Current scope: **100% frontend React/TSX-to-Dioxus parity**, using the existing
+engines/providers. Preserve the TypeScript workbenches' theming, control placement,
+menu hierarchy, contextual panes and behavior. The eventual destination remains
+a full-Rust application; backend/kernel rewrites and the major structural refactor
+are separate phases. These requirements govern plans, implementation, review,
+cutover and removal. Read them before changing migration code.
 
-**Proposal status:** the policy updates reflect the user's instructions;
-the check tiers and additional enforcement below are proposed for review.
-No new tooling, gate, CI job or budget has been activated by this update.
+## Confirmed frontend execution authority — 2026-10-02
+
+The user confirmed six parallel workbench streams, automatic specification/ticket
+refinement and implementation, capability-level starts, limited private composition
+extraction, paired browser acceptance and a continuing architecture/design/refactor
+ledger. The user then directed: “update CONSTRAINTS.md if it is blocking us in a
+way that we dont want i t to.” The following scoped rules supersede earlier blanket
+migration requirements; they do not authorize hiding failures or deleting work.
+
+- Proceed with necessary reversible implementation, local integration, bug fixes,
+  fixture capture, reviewed ticket publication and the next ready slice without
+  another permission quiz. Source review and actual acceptance evidence remain
+  required. Local cherry-picks/merges into the migration integration branch are
+  authorized implementation; external publication/cutover remains separate.
+- Start a reviewed child when its specific consumed capabilities are proven. An
+  unfinished parent or unrelated sibling does not impose a blanket start lock.
+  Preserve all 62 canonical parents, original dependency rationale, unmet criteria
+  and final acceptance joins; record precise operational start conditions.
+- Keep every workbench supplied with independently runnable slices. Parallel
+  authoring uses isolated ownership; the coordinator integrates shared files
+  serially. The user's concurrency ceiling is 30, bounded by actual host slots.
+- Reuse functioning Rust and existing generator/renderer/browser providers. Their
+  characterized adapter wiring is within this phase. Completing every provider
+  rewrite, eliminating every bridge or finishing the future architecture refactor
+  is not a prerequisite to porting a frontend workflow. Record temporary boundaries,
+  owners, retirement criteria and RF takeaways instead of inventing a new provider.
+- Necessary private module extraction, crate-local helpers and narrowly scoped
+  internal Rust interfaces may be adjusted after documented independent review.
+  Routine private or `pub(crate)` composition does not need repeated user approval.
+  Preserve externally consumed public APIs, shared wire contracts and saved formats;
+  changes to those contracts still require a separate explicit decision and tests.
+- Check each slice's affected targets/features and behavior. Global performance,
+  full-application assistive-technology/corpus qualification, cutover and retirement
+  gates remain with their relevant milestones; do not demand their completion
+  before unrelated authoring can start. An affected correctness/parity failure still
+  blocks that slice's acceptance. Unexecuted checks stay explicitly open.
+- Perform paired production browser journeys through the relevant panes, menus,
+  edit result, Undo/Redo and save/reopen where applicable. Source presence, a build
+  or an isolated test never substitutes for this evidence. Record architectural,
+  design, theoretical and software-quality findings as work proceeds.
+
+Authority and decisions: [confirmed execution decisions](.scratch/dioxus-workbench-parity/evidence/confirmed-decisions-20261002.json),
+[current run](docs/migration/dioxus-frontend-v1-run.json),
+[stream queues](.scratch/dioxus-workbench-parity/stream-reconciliation.md) and
+[refactoring register](.scratch/dioxus-frontend-v1/refactor-findings.json).
+
+**Policy status:** the confirmed execution authority above is effective for this
+frontend run. Historical proposals for additional automated enforcement remain
+proposals until implemented/reviewed. No new tooling, CI job or numerical budget
+has been activated by this update.
 Existing requirements and executable gates remain in force. An unimplemented
 check is an enforcement gap, not an enforced rule or a passing result.
 
 Evidence: [context assessment and reusable decision index](docs/dioxus-context-baseline.md),
 [recorded baseline](docs/dioxus-context-baseline-evidence.json),
 [current contracts and ownership](docs/architecture.md) and the preserved
-[Wayfinder map](.scratch/dioxus-browser-trial/map.md). Addy's installed
-constraint-driven-development skill governs this revision. Link existing
+[Wayfinder map](.scratch/dioxus-browser-trial/map.md). The prior constraint-driven assessment remains historical evidence; the confirmed
+frontend execution authority above governs the current phase. Link existing
 decisions; do not duplicate them or reopen accepted decisions without concrete
 contradictory evidence or an explicitly approved scope change.
 
 ## Enforcement
 
-- Every migrated slice must satisfy this contract before acceptance. Failed,
-  blocked or unperformed gates remain blocking; report them explicitly.
+- Every migrated slice must satisfy its applicable scoped contract before acceptance.
+  Failed, blocked or unperformed applicable gates remain blocking; report them
+  explicitly. Unrelated/global gates do not block capability-ready implementation.
 - Separate policy/review requirements, executable checks and CI enforcement.
   A command is enforced only for the assertions it actually executes. A build,
   dependency listing, screenshot capture or successful manual inspection does
@@ -96,8 +145,10 @@ assertions or lowering a threshold to hide a failure.
 - Internal module boundaries may be redesigned with documented ownership and
   dependency direction; preserve agreed public/API contracts. Update boundary
   checks to assert an approved replacement architecture, with negative tests,
-  rather than deleting checks or exempting a violating implementation. Widening
-  Rust member/API visibility still requires explicit user approval.
+  rather than deleting checks or exempting a violating implementation. Changing
+  externally consumed public APIs still requires explicit user approval. Necessary
+  private/crate-local visibility changes follow the reviewed internal-interface
+  authorization above; use the narrowest visibility and record consumers.
 - Keep expensive core/CAD work off the UI thread; an async function alone is
   not evidence of background execution. Preserve cancellation, caller
   settlement, stale-result rejection and worker/renderer disposal.
@@ -132,8 +183,9 @@ assertions or lowering a threshold to hide a failure.
   names, defaults, null/absent semantics, enum representations, IDs, revisions,
   units, precision and error behavior. Rust owns shared contracts; regenerate
   TypeScript bindings from them and check freshness instead of hand-editing
-  generated types. Any intentional API/format change needs a separate explicit
-  decision, compatibility strategy and tests before use.
+  generated types. Intentional externally consumed API, wire-contract or file-format
+  changes need a separate explicit decision, compatibility strategy and tests before
+  use. Reviewed internal Rust interface adjustments follow the authority above.
 - Preserve keyboard and mouse semantics: shortcuts and modifiers, focus,
   selection, snapping, hit testing, drag thresholds and pointer capture,
   pan/zoom, preview/commit/cancel, Escape, Undo/redo and final pointer samples.
@@ -196,7 +248,7 @@ assertions or lowering a threshold to hide a failure.
 Commands run from the repository root unless specified. Set
 `MIGRATION_MANIFEST` to each affected manifest: currently `core/Cargo.toml`,
 `renderer/Cargo.toml`, `cad/wasm/Cargo.toml`, `contracts/rust/Cargo.toml`, and
-eventually the Dioxus/app-coordinator manifests. There is no root Cargo workspace.
+`web/Cargo.toml` for the Dioxus host and its relevant page/worker features. There is no root Cargo workspace.
 Use the crate's supported target/features and required CAD build environment.
 Record missing tools, lockfiles or generated inputs as blocked checks; do not
 use an unlocked build or cached package as proof of a fresh locked build.
@@ -227,9 +279,14 @@ For fast feedback, existing focused worker/interaction tests include
 Select actual affected tests in the task record; do not treat this subset as
 complete slice acceptance.
 
-### Proposed check tiers
+### Check tiers and applicable scope
 
 These are invocation/acceptance tiers, not newly installed wrapper commands.
+Select actual supported targets/features; do not run unsupported combinations as
+blanket gates. Page-only Rust code need not pass an unsupported native/all-features
+configuration; use strict WASM checks and its runnable native/browser harnesses.
+Keep meaningful existing regressions and reported limitations. Full-application
+qualification is a final integration/cutover gate, not a dispatch gate for every child.
 Do not invent a duration limit and drop coverage to meet it. Reuse sufficient
 successful evidence for the same source revision, features and built artifacts;
 rerun when relevant code, dependencies, environment or assumptions change.
@@ -238,7 +295,7 @@ rerun when relevant code, dependencies, environment or assumptions change.
 | --- | --- | --- |
 | Fast development | Affected Rust fmt/Clippy, focused Rust tests (`cargo test --manifest-path "$MIGRATION_MANIFEST" --locked "$MIGRATION_TEST_FILTER"`, selecting an existing affected test), focused Vitest tests, `pnpm --dir app exec tsc --noEmit`, `pnpm run check:repo`; contract freshness/runtime checks when contracts change. | Gives feedback during editing. Missing generated inputs or a failed focused check stays visible; passing this tier does not complete a migration task. |
 | Task completion | Format, strict Clippy and complete tests for affected Rust crates; affected package tests; fresh affected WASM builds and frontend production build; contract/boundary checks; representative production browser workflows and paired reference/replacement behavior tests. Include relevant performance, persistence/export, responsive/accessibility and visual comparisons. | Every migrated slice passes Rust fmt/Clippy/tests, WASM build, frontend build, browser runtime and behavioral parity. Visual checks apply where appropriate, with a recorded omission reason otherwise. Applicable failed, blocked or missing checks prevent acceptance. |
-| Full integration | `pnpm run check` and `pnpm run test:e2e:dev`, plus fmt/Clippy/native CAD/standalone Rust checks not covered by that composite; approved Dioxus production/build/runtime/parity checks; performance/CAD/live/soak checks below and affected visual/accessibility checks. Reuse the just-built production artifacts for `pnpm --dir app test:perf` rather than rebuilding without a relevant change. | Required before cutover or React deletion and for cross-slice integration. Existing CI coverage is retained; approved additional gates must subsequently be wired into CI. No merge, push or deployment authorization follows from passing. |
+| Full integration | `pnpm run check` and `pnpm run test:e2e:dev`, plus fmt/Clippy/native CAD/standalone Rust checks not covered by that composite; approved Dioxus production/build/runtime/parity checks; performance/CAD/live/soak checks below and affected visual/accessibility checks. Reuse the just-built production artifacts for `pnpm --dir app test:perf` rather than rebuilding without a relevant change. | Required before cutover or React deletion. Routine local cross-slice integration runs affected source/build/browser checks and retains the remaining full-integration gates. Existing CI coverage is retained; approved additional gates must subsequently be wired into CI. No merge, push or deployment authorization follows from passing. |
 
 Record each run's source HEAD plus dirty-diff/fixture hashes, command, environment,
 features/target, artifact identity and result. Preserve raw failed attempts,
@@ -393,8 +450,10 @@ hardware-accelerated and synthetic/headless evidence distinct.
   edits, or rewrite Git history as part of a migration task. Any separately
   requested destructive operation needs explicit authorization and preservation
   evidence first.
-- Do not merge, push or deploy without separate explicit authorization.
-  A request to plan, implement or validate a slice does not authorize publication.
+- Reviewed local integration into the isolated migration branch is authorized.
+  Do not merge into a production/default branch, push, deploy or change the production
+  entrypoint/data writer without separate explicit authorization. Planning,
+  implementation and local validation do not authorize external publication.
 
 ## Floor and exceptions
 
@@ -421,7 +480,9 @@ recorded starting state, including untracked constraints and copied documents.
 `git diff` alone misses untracked files and is evidence for review, not an
 automatic assertion that the floor is intact.
 
-No exceptions are approved by this document. Any proposed exception must name
+The confirmed execution authority above revises the named workflow constraints;
+it is not an exception that marks an unmet correctness or compatibility gate passed.
+No additional exceptions are approved by this document. Any proposed exception must name
 the rule, exact scope, reason, evidence, owner, explicit user approval, expiry
 date and tracked remediation. A blocked gate remains blocked until its
 requirement is met or the user explicitly approves the scoped exception.
