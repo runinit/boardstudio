@@ -127,5 +127,29 @@ mod tests {
             true,
             &Durability::Saved { revision: 12 },
         ));
+        assert!(!accepted_saved_result_is_current(
+            &pending,
+            "mirrored-pair-7-2-41",
+            SnapshotToken(5),
+            11,
+            true,
+            &Durability::Saved { revision: 11 },
+        ));
+        assert!(!accepted_saved_result_is_current(
+            &pending,
+            "mirrored-pair-7-2-41",
+            SnapshotToken(5),
+            12,
+            false,
+            &Durability::Saved { revision: 12 },
+        ));
+        assert!(!accepted_saved_result_is_current(
+            &pending,
+            "mirrored-pair-7-2-41",
+            SnapshotToken(5),
+            12,
+            true,
+            &Durability::Saving { revision: 12 },
+        ));
     }
 }
