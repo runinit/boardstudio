@@ -100,3 +100,18 @@ See [specification](.scratch/m1-production/spec.md), [task graph](.scratch/m1-pr
 - [ ] M1-04: [Generate and inspect the committed case in workers](.scratch/m1-production/issues/04-exact-case.md)
 - [ ] M1-05: [Export committed STEP with exact snapshot guards](.scratch/m1-production/issues/05-step-export.md)
 - [ ] M1-06: [Verify the complete M1 editor and retain a resumable handoff](.scratch/m1-production/issues/06-acceptance.md)
+
+
+## Dioxus frontend v1 — current priority
+
+[Roadmap](docs/migration/DIOXUS-FRONTEND-V1.md) and [task graph](.scratch/dioxus-frontend-v1/PLAN.md). All existing TSX, theming and frontend behavior; backend rewrites excluded.
+
+- [ ] F1: [Reference shell and theming](.scratch/dioxus-frontend-v1/issues/01-shell-theme.md)
+- [ ] F2: [Projects, panels and shared controls](.scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md)
+- [ ] F3: [Complete Layout frontend](.scratch/dioxus-frontend-v1/issues/03-layout.md)
+- [ ] F4: [Parts and assembly frontend](.scratch/dioxus-frontend-v1/issues/04-parts.md)
+- [ ] F5: [PCB and hardware frontend](.scratch/dioxus-frontend-v1/issues/05-pcb.md)
+- [ ] F6: [Keymap and Keycaps frontend](.scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md)
+- [ ] F7: [Case and 3D frontend](.scratch/dioxus-frontend-v1/issues/07-case-3d.md)
+- [ ] F8: [Export frontend and complete journeys](.scratch/dioxus-frontend-v1/issues/08-export.md)
+- [ ] F9: [Frontend v1 qualification and React retirement](.scratch/dioxus-frontend-v1/issues/09-frontend-v1.md)
