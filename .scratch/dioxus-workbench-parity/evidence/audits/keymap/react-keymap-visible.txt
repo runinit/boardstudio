@@ -1,0 +1,65 @@
+Sofle v2
+
+Saved locally
+
+Changes are saved in this browser. Use Save project copy for a portable backup.
+
+LayoutPCBKeymapKeycapsCaseParts
+
+LayoutPCBKeymapKeycapsCaseParts
+
+Export
+
+Objects
+
+Board
+
+Left PCBRight PCB
+
+⌄Left PCB70 parts
+
+›OutlineGenerated
+
+›keysIndependent
+
+›thumbsIndependent
+
+Left PCBLeft PCB / KeymapSelect an object to edit
+
+KeymapLayers & key behaviors
+
+2D3D assemblyFootprints
+
+Inspect
+
+## Keymap
+
+2 layers · 29 keys
+
+Layers
+
+0Main1Function
+
+Add layerLayer name
+
+Higher layers take precedence. Transparent keys fall through to the layer below.
+
+KeysMacrosEncoders
+
+Select a key
+
+Find a keySelected keyChoose on the layout…left-keys-SW1 · Unassignedleft-keys-SW2 · Unassignedleft-keys-SW3 · Unassignedleft-keys-SW4 · Unassignedleft-keys-SW5 · Unassignedleft-keys-SW6 · Unassignedleft-keys-SW7 · Unassignedleft-keys-SW8 · Unassignedleft-keys-SW9 · Unassignedleft-keys-SW10 · Unassignedleft-keys-SW11 · Unassignedleft-keys-SW12 · Unassignedleft-keys-SW13 · Unassignedleft-keys-SW14 · Unassignedleft-keys-SW15 · Unassignedleft-keys-SW16 · Unassignedleft-keys-SW17 · Unassignedleft-keys-SW18 · Unassignedleft-keys-SW19 · Unassignedleft-keys-SW20 · Unassignedleft-keys-SW21 · Unassignedleft-keys-SW22 · Unassignedleft-keys-SW23 · Unassignedleft-keys-SW24 · Unassignedleft-thumbs-SW1 · Unassignedleft-thumbs-SW2 · Unassignedleft-thumbs-SW3 · Unassignedleft-thumbs-SW4 · Unassignedleft-thumbs-SW5 · Unassigned
+
+Select a switch on the layout to assign its behavior.
+
+Export ZMK source
+
+Local source export. Configure controller and wiring in PCB before building firmware.
+
+mmX 0.00Y 0.00
+
+Grid ¼uGeometry snap on
+
+Fit boardFit selection−100%+
+
+Layout findings: 2

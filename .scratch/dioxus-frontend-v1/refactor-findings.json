@@ -32,7 +32,7 @@
         "web/src/runtime.rs",
         "app/src/ui/Workbench.tsx"
       ],
-      "observation": "The current presentation spans 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules. The reference Workbench is 1,426 lines. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.",
+      "observation": "At recorded baseline c827c4e6, the presentation spanned 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules; the reference Workbench was 1,426 lines. These are historical measurements, not current line counts. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.",
       "impact": "Concurrent changes can conflict, and a one-to-one port could preserve broad coupling between workspace controls and service lifecycles.",
       "during_port": "Use private feature modules with one coordinator owning shared composition; avoid a general framework before useful screens land.",
       "post_port_proposal": "After parity, assess stable workspace/host orchestration modules with narrow interfaces and one authoritative session.",
@@ -54,6 +54,18 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/refactor-handoff.md",
           "observation": "Case/Keymap mounting exposed repeated Inspector reachability predicates; one private has_inspector predicate now gates grid, compact toggle and mount. Keymap projection uses immutable Rc minimal display data. Source corrections reviewed; no measured performance claim.",
           "status": "bounded mitigation/evidence update; broad structural refactor deferred"
+        },
+        {
+          "source": "Dioxus integration 89b1de8a28fdf02db91d972c90a69235bfbbbffb and React reference 5a472a9426e6e38993361da402cd4ec730feb369",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md",
+          "observation": "Public/source audit found Case still uses the shared Layout-oriented Objects tree, mounts authored Case editing in the right Inspector, and mounts MechanicalSettings in the central Case panel. The concrete mismatch follows current root composition: one shared Objects tree plus split feature mounts. Existing feature controllers are present; the proposed repair is contextual composition around those owners, not a duplicate authority.",
+          "status": "current parity correction ticketed; no structural redesign or API change authorized"
+        },
+        {
+          "source": "Confirmed six-stream parity reset; composition ticket 7279b6bf (status-only update after clearance) and reviewed contract c6550ab5",
+          "evidence": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
+          "observation": "The bounded private composition extraction is dispatched with six disjoint feature render leaves and a root-owned thin dispatcher. It preserves existing feature-local Runtime/lifecycle ownership and Session/Core authority. This mitigates shared presentation edit contention; it does not establish the hotspot is resolved or add a new refactoring takeaway beyond RF-001.",
+          "status": "implementation in progress; no user-visible workflow or parent acceptance implied"
         }
       ]
     },
@@ -137,11 +149,19 @@
       "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
       "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
       "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
-      "validation_needed": "Every required capability has a verified engine\u2192worker\u2192host\u2192UI trace, same fixture outputs and cancellation/error disposition.",
+      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
       "decision": "proposal only; no refactor/API/schema change approved by this entry",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
         "BND.1"
+      ],
+      "handoff_evidence": [
+        {
+          "source": "Dioxus integration 89b1de8a28fdf02db91d972c90a69235bfbbbffb",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md",
+          "observation": "The Case shared-viewer projection sends empty board surfaces, holes and model arrays, while model_delivery.rs contains private selection/decode code but is not registered or called from the page presentation. The candidate displayed generated CAD body meshes without PCB/model meshes. This separates an existing helper source from its absent producer/provider/scene wiring and from the public no-mesh result.",
+          "status": "current F7.3 model-delivery integration remains open; no public API change inferred"
+        }
       ]
     },
     {
@@ -508,6 +528,20 @@
           "current_mitigation": "Focus-entry source cf67a388 and Case resize lifecycle repair in integrated source e2a84d8b00418eab4d1ec47e0bf5b6957da9ffe3. Bounded focus-entry passed on earlier build 34681. Final build frontend-case-focus-resize-final-20261002 (8 commands/971 hashes) is at 34683; final resize and integrated keyboard/fit verifier release remains pending. No accessibility waiver.",
           "post_port_follow_up": "Assess responsive disclosure state and focus ownership as one keyboard transition; preserve screenshot, DOM hit-testing, Tab/Shift+Tab, resize and return-path traces in the conformance suite. Keep actual AT evidence separate.",
           "status": "confirmed source/UI gap; candidate mitigation integrated; final built public verification pending"
+        },
+        {
+          "date": "2026-10-02",
+          "task": "Case/shared-viewer parity reset audit",
+          "baseline": "89b1de8a28fdf02db91d972c90a69235bfbbbffb",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md",
+            ".scratch/dioxus-frontend-v1/issues/07-case-3d-parity-reset-addendum.md"
+          ],
+          "observation": "The F7.8 acceptance text enumerates five consumers, while the confirmed scope requires six streams including PCB. PCB is represented by F5.8; the audit proposes linking F5.8 as an F7.8 acceptance join while keeping capability starts and existing parent joins intact. The exploratory browser pair used similarly named but unverified-equal demos and is explicitly not acceptance evidence.",
+          "certainty": "confirmed ticket accounting discrepancy; exact added graph edge awaits coordinator reconciliation",
+          "current_mitigation": "Addendum and six-stream acceptance child record the required matrix and preserve all existing joins; canonical tasks.json was not edited by this audit.",
+          "post_port_follow_up": "Maintain one source/fixture/action ledger for all six streams and their actual viewer applicability.",
+          "validation": "Update the coordinator-owned 62-parent graph if accepted, then run same-archive paired journeys through all six workflows with exact build and accepted-document provenance."
         }
       ],
       "handoff_evidence": [

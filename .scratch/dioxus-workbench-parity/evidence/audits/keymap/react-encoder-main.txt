@@ -1,0 +1,60 @@
+            - LabelText
+              - StaticText "Behavior"
+              - combobox "left-SW25 clockwise behavior" [expanded=false, ref=e318]: Unassigned
+                - MenuListPopup
+                  - option "Key press" [ref=e320]
+                  - option "Mod tap" [ref=e321]
+                  - option "Layer tap" [ref=e322]
+                  - option "Momentary layer" [ref=e323]
+                  - option "Toggle layer" [ref=e324]
+                  - option "Go to layer" [ref=e325]
+                  - option "Sticky layer" [ref=e326]
+                  - option "Sticky key" [ref=e327]
+                  - option "Macro" [ref=e328]
+                  - option "Transparent" [ref=e329]
+                  - option "Unassigned" [selected, ref=e330]
+          - group
+            - DisclosureTriangle "Counterclockwise" [expanded=true]
+              - StaticText "Counterclockwise"
+            - LabelText
+              - StaticText "Behavior"
+              - combobox "left-SW25 counterclockwise behavior" [expanded=false, ref=e319]: Unassigned
+                - MenuListPopup
+                  - option "Key press" [ref=e331]
+                  - option "Mod tap" [ref=e332]
+                  - option "Layer tap" [ref=e333]
+                  - option "Momentary layer" [ref=e334]
+                  - option "Toggle layer" [ref=e335]
+                  - option "Go to layer" [ref=e336]
+                  - option "Sticky layer" [ref=e337]
+                  - option "Sticky key" [ref=e338]
+                  - option "Macro" [ref=e339]
+                  - option "Transparent" [ref=e340]
+                  - option "Unassigned" [selected, ref=e341]
+          - group
+            - DisclosureTriangle "Push button" [expanded=false]
+              - StaticText "Push button"
+        - button "Export ZMK source" [ref=e263]
+        - paragraph
+          - StaticText "Local source export. Configure controller and wiring in PCB before building firmware."
+    - sectionfooter
+      - button "Undo" [ref=e34]
+      - button "Redo" [ref=e35]
+      - StaticText "mm"
+      - StaticText "X "
+      - StaticText "9.18"
+      - StaticText "Y "
+      - StaticText "-78.05"
+      - button "Grid ¼u" [disabled, ref=e36]
+        - StaticText "Grid ¼u"
+      - StaticText "Geometry snap on"
+      - button "Fit board" [ref=e37]
+      - button "Fit selection" [ref=e38]
+      - button "Zoom out" [ref=e39]
+        - StaticText "−"
+      - StaticText "100"
+      - StaticText "%"
+      - button "Zoom in" [ref=e40]
+        - StaticText "+"
+      - button "Layout findings: 2" [ref=e41]
+        - StaticText "Layout findings: 2"
