@@ -1,39 +1,36 @@
 use super::view::KeymapView;
 use dioxus::prelude::*;
+use std::rc::Rc;
 
 /// Read-only layer browser and shared selected-key control for the Inspector slot.
 #[component]
-pub(super) fn KeymapPanel(
-    view: KeymapView,
+pub(in crate::presentation) fn KeymapPanel(
+    view: Rc<KeymapView>,
     active_layer_id: String,
     selected_key_id: Option<String>,
     on_layer: EventHandler<String>,
     on_select_key: EventHandler<String>,
 ) -> Element {
-    let mut query = use_signal(String::new);
+    let mut query = use_signal(|| String::new());
     let active_layer = view
         .layers
         .iter()
-        .find(|layer| layer.id == active_layer_id)
+        .find(|layer| layer.id.as_ref() == active_layer_id.as_str())
         .or_else(|| view.layers.first());
     let selected = selected_key_id
         .as_deref()
-        .and_then(|id| view.keys.iter().find(|key| key.part.id == id));
-    let search = query().trim().to_lowercase();
-    let matches = view
+        .and_then(|id| view.keys.iter().find(|key| key.id.as_ref() == id));
+    let search = query().to_lowercase();
+    let matching_key_count = view
         .keys
         .iter()
-        .filter(|key| {
-            format!("{} {}", key.part.reference, key.binding_title)
-                .to_lowercase()
-                .contains(&search)
-        })
-        .collect::<Vec<_>>();
+        .filter(|key| key.search_index.contains(&search))
+        .count();
     let heading = selected.map_or_else(
         || "Select a key".to_owned(),
-        |key| key.part.reference.clone(),
+        |key| key.reference.to_string(),
     );
-    let no_matches = !search.is_empty() && matches.is_empty();
+    let no_matches = !search.is_empty() && matching_key_count == 0;
     let layer_count = view.layers.len();
     let key_count = view.keys.len();
 
@@ -49,14 +46,14 @@ pub(super) fn KeymapPanel(
                     for (index, layer) in view.layers.iter().enumerate() {
                         {
                             let id = layer.id.clone();
-                            let selected_layer = active_layer.is_some_and(|active| active.id == layer.id);
+                            let selected_layer = active_layer.is_some_and(|active| active.id == layer.id.as_ref());
                             rsx! {
                                 button {
                                     key: "{id}",
                                     class: if selected_layer { "m1-keymap-layer is-active" } else { "m1-keymap-layer" },
                                     type: "button",
                                     "aria-pressed": "{selected_layer}",
-                                    onclick: move |_| on_layer.call(id.clone()),
+                                    onclick: move |_| on_layer.call(id.to_string()),
                                     span { class: "m1-keymap-layer-index", "{index}" }
                                     "{layer.name}"
                                 }
@@ -80,14 +77,14 @@ pub(super) fn KeymapPanel(
                     select {
                         class: "m1-keymap-select",
                         "aria-label": "Selected key",
-                        value: selected.map_or("", |key| key.part.id.as_str()),
+                        value: selected.map_or("", |key| key.id.as_ref()),
                         onchange: move |event: FormEvent| on_select_key.call(event.value()),
                         option { value: "", "Choose on the layout…" }
-                        for key in matches {
+                        for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
                             option {
-                                key: "{key.part.id}",
-                                value: "{key.part.id}",
-                                "{key.part.reference} · {key.binding_title}"
+                                key: "{key.id}",
+                                value: "{key.id}",
+                                "{key.reference} · {key.binding_title}"
                             }
                         }
                     }

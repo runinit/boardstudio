@@ -1,11 +1,11 @@
 use super::view::KeymapView;
 use dioxus::prelude::*;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, rc::Rc};
 
 /// Render key targets into the existing board SVG coordinate system.
 #[component]
-pub(super) fn KeymapCanvas(
-    view: KeymapView,
+pub(in crate::presentation) fn KeymapCanvas(
+    view: Rc<KeymapView>,
     selected_ids: BTreeSet<String>,
     on_select_key: EventHandler<String>,
 ) -> Element {
@@ -13,9 +13,11 @@ pub(super) fn KeymapCanvas(
         g { class: "m1-keymap-layout",
             for key in &view.keys {
                 {
-                    let id = key.part.id.clone();
-                    let reference = key.part.reference.clone();
-                    let selected = selected_ids.contains(&id);
+                    let id = key.id.clone();
+                    let click_id = id.clone();
+                    let keyboard_id = id.clone();
+                    let reference = key.reference.clone();
+                    let selected = selected_ids.contains(id.as_ref());
                     let color = key.color.clone();
                     let pose = key.pose;
                     let size = key.size;
@@ -32,13 +34,13 @@ pub(super) fn KeymapCanvas(
                             "aria-label": "Edit key {reference}",
                             onclick: move |event| {
                                 event.stop_propagation();
-                                on_select_key.call(id.clone());
+                                on_select_key.call(click_id.to_string());
                             },
                             onkeydown: move |event: KeyboardEvent| {
                                 let pressed = event.data().key().to_string();
                                 if pressed == "Enter" || pressed == " " {
                                     event.prevent_default();
-                                    on_select_key.call(id.clone());
+                                    on_select_key.call(keyboard_id.to_string());
                                 }
                             },
                             rect {
