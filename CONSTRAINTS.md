@@ -29,7 +29,14 @@ migration requirements; they do not authorize hiding failures or deleting work.
   and final acceptance joins; record precise operational start conditions.
 - Keep every workbench supplied with independently runnable slices. Parallel
   authoring uses isolated ownership; the coordinator integrates shared files
-  serially. The user's concurrency ceiling is 30, bounded by actual host slots.
+  serially. Authors may implement required private Runtime adapters, module
+  registration and minimal shared composition in their isolated worktree, freeze
+  those changes as a separately identified join patch, and run affected production
+  tests there. Coordinator ownership means serial review/merge/conflict resolution;
+  it does not require the coordinator to author this wiring or justify stopping at
+  an unregistered, unmounted helper. Never edit overlapping shared implementation
+  in the integration checkout during another source/package lease.
+  The user's concurrency ceiling is 30, bounded by actual host slots.
 - Reuse functioning Rust and existing generator/renderer/browser providers. Their
   characterized adapter wiring is within this phase. Completing every provider
   rewrite, eliminating every bridge or finishing the future architecture refactor
