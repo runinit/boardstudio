@@ -18,6 +18,9 @@ pub(super) struct InspectorInput {
     pub(super) scope: Option<Scope>,
     pub(super) query: PartsQuery,
     pub(super) selected: PartsSelection,
+    pub(super) on_place_controller: EventHandler<String>,
+    pub(super) placement_busy: bool,
+    pub(super) placement_error: Option<String>,
 }
 
 pub(super) struct CanvasInput {
@@ -71,6 +74,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             scope: input.scope,
             query: input.query,
             selected: input.selected,
+            on_place_controller: input.on_place_controller,
+            placement_busy: input.placement_busy,
+            placement_error: input.placement_error,
         }
     }
 }

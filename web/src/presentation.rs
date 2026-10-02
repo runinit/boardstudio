@@ -24,6 +24,7 @@ pub(crate) mod model_delivery;
 mod objects;
 mod outline_lifecycle;
 mod panels;
+mod part_placement;
 mod parts;
 mod parts_workspace;
 mod pcb_physical_setup;
@@ -1473,6 +1474,19 @@ fn Editor() -> Element {
     let layer_visibility = use_context::<LayerVisibility>();
     let parts_query: PartsQuery = use_signal(String::new);
     let parts_selection: PartsSelection = use_signal(|| None);
+    let part_placement =
+        part_placement::use_controller_placement(part_placement::PartPlacementHost {
+            runtime: runtime.clone(),
+            workspace,
+            generation: adapter.generation,
+            adapter: adapter.clone(),
+            guide_preferences,
+            parts_query,
+            parts_selection,
+            snap_settings: layout_snap_settings,
+            objects_open,
+            inspect_open,
+        });
     let mut keymap_layer_id = use_signal(|| "base".to_owned());
     let has_inspector = matches!(
         active_workspace,
@@ -2999,6 +3013,7 @@ fn Editor() -> Element {
     let mount = {
         let runtime = runtime.clone();
         let svg = svg.clone();
+        let focus_placement = part_placement.projection.is_some();
         move |event: MountedEvent| {
             if let Some(element) = event
                 .data()
@@ -3006,10 +3021,27 @@ fn Editor() -> Element {
                 .and_then(|e| e.dyn_into::<SvgElement>().ok())
             {
                 runtime.surface(element.clone());
+                if focus_placement {
+                    let options = web_sys::FocusOptions::new();
+                    options.set_prevent_scroll(true);
+                    let _ = element.focus_with_options(&options);
+                }
                 *svg.borrow_mut() = Some(element);
             }
         }
     };
+    let placement_active = part_placement.projection.is_some();
+    let focus_svg = svg.clone();
+    use_effect(use_reactive!(|placement_active| {
+        if !placement_active {
+            return;
+        }
+        if let Some(element) = focus_svg.borrow().as_ref() {
+            let options = web_sys::FocusOptions::new();
+            options.set_prevent_scroll(true);
+            let _ = element.focus_with_options(&options);
+        }
+    }));
     let move_pointer = {
         let runtime = runtime.clone();
         let svg = svg.clone();
@@ -3018,6 +3050,7 @@ fn Editor() -> Element {
         let render_scope = render_scope.clone();
         let owner = layout_owner.clone();
         let snap_settings = layout_snap_settings;
+        let placement = part_placement.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let mirrored_pair = mirrored_pair.clone();
         move |event: PointerEvent| {
@@ -3039,6 +3072,28 @@ fn Editor() -> Element {
                         center,
                     });
                 }
+                return;
+            }
+            if let Some(active) = placement.projection.clone() {
+                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    let model = runtime.model();
+                    let at = model.accepted.as_ref().map_or(point, |snapshot| {
+                        part_placement::snap_placement_at(
+                            &snapshot.document,
+                            &active.owner.board_id,
+                            &active.pending,
+                            point,
+                            part_placement::PlacementSnapOptions {
+                                snap_fraction: snap_settings.read().snap_fraction,
+                                geometry_snap: snap_settings.read().geometry_snap,
+                                gap_snap: snap_settings.read().gap_snap,
+                                free: pointer.alt_key(),
+                            },
+                        )
+                    });
+                    placement.on_move.call(at);
+                }
+                return;
             }
             let Some(mut current) = drag
                 .borrow()
@@ -3165,11 +3220,37 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let drag = drag.clone();
         let adapter = adapter.clone();
+        let placement = part_placement.clone();
+        let snap_settings = layout_snap_settings;
         let render_scope = render_scope.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
             };
+            if placement.projection.is_some() {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    let at = runtime.model().accepted.as_ref().map_or(point, |snapshot| {
+                        placement.projection.as_ref().map_or(point, |active| {
+                            part_placement::snap_placement_at(
+                                &snapshot.document,
+                                &active.owner.board_id,
+                                &active.pending,
+                                point,
+                                part_placement::PlacementSnapOptions {
+                                    snap_fraction: snap_settings.read().snap_fraction,
+                                    geometry_snap: snap_settings.read().geometry_snap,
+                                    gap_snap: snap_settings.read().gap_snap,
+                                    free: pointer.alt_key(),
+                                },
+                            )
+                        })
+                    });
+                    placement.on_commit.call(at);
+                }
+                return;
+            }
             let Some(current) = drag
                 .borrow()
                 .clone()
@@ -3257,8 +3338,13 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let svg = svg.clone();
         let drag = drag.clone();
+        let placement = part_placement.clone();
         let render_scope = render_scope.clone();
         move |event: PointerEvent| {
+            if placement.projection.is_some() {
+                placement.on_cancel.call(());
+                return;
+            }
             let pointer_id = event
                 .data()
                 .try_as_web_event()
@@ -3306,6 +3392,7 @@ fn Editor() -> Element {
         let render_scope = render_scope.clone();
         let space_down = space_down.clone();
         let mirrored_pair = mirrored_pair.clone();
+        let placement = part_placement.clone();
         let snap_settings = layout_snap_settings;
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
@@ -3363,6 +3450,38 @@ fn Editor() -> Element {
                 mirrored_pair.on_cancel.call(form.owner.clone());
                 return;
             }
+            if let Some(active) = placement.projection.as_ref() {
+                if key == "Escape" {
+                    event.prevent_default();
+                    placement.on_cancel.call(());
+                } else if key == "Enter" {
+                    event.prevent_default();
+                    placement.on_commit.call(active.pending.at);
+                } else if matches!(
+                    key.as_str(),
+                    "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
+                ) {
+                    event.prevent_default();
+                    let mut at = active.pending.at;
+                    let fraction = snap_settings.read().snap_fraction;
+                    let step = if fraction < 0.0 {
+                        -fraction
+                    } else if fraction > 0.0 {
+                        19.05 * fraction
+                    } else {
+                        0.1
+                    };
+                    match key.as_str() {
+                        "ArrowUp" => at.y += step,
+                        "ArrowDown" => at.y -= step,
+                        "ArrowLeft" => at.x -= step,
+                        "ArrowRight" => at.x += step,
+                        _ => {}
+                    }
+                    placement.on_move.call(at);
+                }
+                return;
+            }
             if key == " " || code == "Space" {
                 space_down.set(true);
                 event.prevent_default();
@@ -3403,6 +3522,7 @@ fn Editor() -> Element {
         let scope = render_scope.clone();
         let adapter = adapter.clone();
         let mirrored_pair = mirrored_pair.clone();
+        let placement = part_placement.clone();
         move |event: PointerEvent| {
             let Some(pointer) = event.data().try_as_web_event() else {
                 return;
@@ -3430,7 +3550,8 @@ fn Editor() -> Element {
             if mirrored_pair.owns_canvas {
                 return;
             }
-            if !space_down.get()
+            if placement.projection.is_some()
+                || !space_down.get()
                 || pointer.button() != 0
                 || runtime.scope().as_ref() != Some(&scope)
                 || (adapter.generation)() != render_generation
@@ -3886,6 +4007,9 @@ fn Editor() -> Element {
                 scope: current_scope.clone(),
                 query: parts_query,
                 selected: parts_selection,
+                on_place_controller: part_placement.on_place_controller,
+                placement_busy: part_placement.busy,
+                placement_error: part_placement.error.clone(),
             })
         }
         "PCB" => {
@@ -3996,6 +4120,13 @@ fn Editor() -> Element {
                     .unwrap_or(part.pose.at)
             })
     });
+    let controller_guide_hidden = part_placement.projection.is_some()
+        || part_placement.busy
+        || (active_workspace == "Parts"
+            && parts_query().trim() == "controller"
+            && guide_preferences()
+                .as_ref()
+                .is_some_and(|preferences| preferences.current_stage == SetupGuideStage::Wiring));
     let guide = guide_preferences().filter(|preferences| {
         preferences.project_id == document.id
             && preferences.open
@@ -4005,6 +4136,7 @@ fn Editor() -> Element {
                 && (matrix_setup.projection.is_some()
                     || mirrored_pair.form.is_some()
                     || mirrored_pair.placement.is_some()))
+            && !controller_guide_hidden
     });
     let name_value = guide_name_draft()
         .filter(|(project_id, _)| project_id == &document.id)
@@ -4162,7 +4294,7 @@ fn Editor() -> Element {
                             on_stage_change,
                             on_open_workspace,
                             on_open_matrix_setup: Some(matrix_setup.on_open),
-                            on_choose_controller: None,
+                            on_choose_controller: Some(part_placement.on_choose_controller),
                             on_dismiss: on_dismiss_guide,
                             project_controls: if preferences.current_stage
                                 == SetupGuideStage::Project
@@ -4307,6 +4439,7 @@ fn Editor() -> Element {
                                 let footprints_on = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
                                 let id = part.id.clone();
                                 let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone(); let space_down = space_down.clone();
+                                let placement = part_placement.clone();
                                 let adapter = adapter.clone(); let render_scope_for_hit = render_scope.clone();
                                 let mut selected_context = adapter.selected_context;
                                 let generation_for_hit = render_generation;
@@ -4319,6 +4452,7 @@ fn Editor() -> Element {
                                         if pair_placement_active { return; }
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
+                                        if placement.projection.is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
                                         if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }
                                         if drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
                                         pointer.prevent_default(); pointer.stop_propagation();
@@ -4390,6 +4524,34 @@ fn Editor() -> Element {
                                     }
                                     if show_keycap.is_none() { text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" } }
                                 }} }
+                            }
+                        }
+                        if let Some(placement) = part_placement.projection.as_ref() {
+                            { let definition = placement.pending.definition.clone();
+                              let at = placement.pending.part.pose.at;
+                              let courtyard = polygon_points(&definition.courtyard);
+                              let reference = placement.pending.part.reference.clone();
+                              rsx! {
+                                g {
+                                    class: "m1-part-placement-preview",
+                                    transform: "translate({at.x},{at.y})",
+                                    "aria-hidden": "true",
+                                    polygon { points: "{courtyard}", class: "m1-part-placement-envelope" }
+                                    FootprintGraphics {
+                                        definition: definition.clone(),
+                                        parameters: placement.pending.part.generator_parameters.clone(),
+                                    }
+                                    for pad in &definition.pads {
+                                        g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
+                                            if pad.plated != Some(false) {
+                                                rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}" }
+                                            }
+                                            if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
+                                        }
+                                    }
+                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                                }
+                              }
                             }
                         }
                     }

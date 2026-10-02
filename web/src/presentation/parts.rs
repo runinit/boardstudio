@@ -105,6 +105,28 @@ pub(super) async fn load_matrix_templates(
         .collect())
 }
 
+/// Resolve a controller from the construction-normalized bundled catalogue, then apply the
+/// accepted project definition with the same precedence as the Parts browser.
+pub(super) async fn load_controller_definition(
+    document: &ProjectDoc,
+    definition_id: &str,
+) -> Result<boardstudio_core::model::PartDefinition, String> {
+    let reversible = reversible_layout(document);
+    let bundled = catalogue::load_bundled(reversible).await?;
+    let entries = catalogue::merge_project_overrides(&bundled, &document.definitions);
+    let definition = entries
+        .iter()
+        .find(|entry| entry.definition.id == definition_id)
+        .ok_or_else(|| "The selected controller is no longer in the catalogue.".to_string())?;
+    if !matches!(
+        definition.definition.kind,
+        boardstudio_core::model::PartKind::Controller
+    ) {
+        return Err("The selected catalogue item is not a controller.".into());
+    }
+    Ok((*definition.definition).clone())
+}
+
 /// Place inside the existing Objects panel when Parts is the active workspace.
 #[component]
 pub(super) fn PartsLibraryPanel(
@@ -213,6 +235,9 @@ pub(super) fn PartsInspectorPanel(
     scope: Option<Scope>,
     query: PartsQuery,
     selected: PartsSelection,
+    on_place_controller: EventHandler<String>,
+    placement_busy: bool,
+    placement_error: Option<String>,
 ) -> Element {
     let catalogue = use_catalogue(&snapshot, &scope);
     let Some(entries) = catalogue.entries else {
@@ -247,6 +272,15 @@ pub(super) fn PartsInspectorPanel(
                 && entry.definition.generator.is_none()
         })
         .map(|entry| (*entry.definition).clone());
+    let controller_id = entry
+        .as_ref()
+        .filter(|entry| {
+            matches!(
+                entry.definition.kind,
+                boardstudio_core::model::PartKind::Controller
+            )
+        })
+        .map(|entry| entry.definition.id.clone());
 
     rsx! {
         section { class: "m1-parts-inspector", "aria-label": "Selected component details",
@@ -258,6 +292,18 @@ pub(super) fn PartsInspectorPanel(
                     selection: selected,
                     definition,
                 }
+            }
+            if let Some(definition_id) = controller_id {
+                button {
+                    class: "m1-parts-place-controller",
+                    r#type: "button",
+                    disabled: placement_busy,
+                    onclick: move |_| on_place_controller.call(definition_id.clone()),
+                    if placement_busy { "Preparing controller…" } else { "Place component" }
+                }
+            }
+            if let Some(message) = placement_error {
+                p { class: "m1-parts-placement-error", role: "alert", "{message}" }
             }
         }
     }
