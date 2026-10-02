@@ -748,6 +748,18 @@
           "current_mitigation": "Exact queue states distinguish source clearance, packaging, paired verification and acceptance. Page-only provider reuse remains a reviewed proposal; provider changes still require full packaging.",
           "evidence": ".scratch/dioxus-frontend-v1/evidence/shared-integration-routing-20261002.json",
           "preservation_receipt": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/keymap-inactive-target-preservation.json"
+        },
+        {
+          "date": "2026-10-02",
+          "source": "8cfd6bb79e9e10b788e007fd428145b1e37095d1",
+          "observation": "Static icon/CSS review missed three invalid Dioxus SVG aria_hidden attributes; strict joined WASM compilation caught E0425. Root corrected to existing quoted aria-hidden convention and independently reviewed the bounded fix. Separate Keycaps evidence review caught viewport misstatement and broken oracle link; corrected receipt explicitly avoids matched-viewport visual claims. These are verification/evidence gaps, not evidence that the UI module structure caused defects.",
+          "evidence": [
+            "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-icons-joined-clippy.log",
+            "/home/chris/.local/share/boardstudio/reviews/layout-command-icons-svg-correction-root-review-sol-20261002.md",
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps-f6c3-public-receipt-final-review-0418cbd9-20261002.md"
+          ],
+          "during_port": "Retain source compile checks and separate source, fixture, visual, and packaged journey claims. Reviewers clear only the evidence actually inspected; production composition requires production-level verification.",
+          "post_port_proposal": "Evaluate machine-checked receipt viewport/link/source identities and maintained production composition journeys during the consolidated conformance refactor."
         }
       ],
       "handoff_evidence": [
