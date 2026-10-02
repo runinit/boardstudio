@@ -62,8 +62,9 @@ register into the post-port refactoring handoff.
 
 ### Frontend agent model policy
 
-The user reserves Astra High/Extra High for independent reviews and bug fixing.
-Use Luna Medium for ordinary bounded implementation, Low for mechanical packets,
+The latest user decision assigns independent reviews to Sol 6.1 High. Historical
+Astra reviews remain retained, and the earlier Astra High/Extra High bug-fixing
+allocation remains available. Use Luna Medium for ordinary bounded implementation, Low for mechanical packets,
 and High for specified state/gesture/async/adapter work. Follow the
 [dispatch/model policy](../../.scratch/dioxus-frontend-v1/AGENT-ROUTING.md) and
 [task routing](../../.scratch/dioxus-frontend-v1/agent-policy.json). Prepare exact

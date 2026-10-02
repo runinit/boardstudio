@@ -18,7 +18,7 @@ Current editable candidate: [Dioxus34727](http://127.0.0.1:34727/), build `front
 | Case/shared3D | Packaged path/descriptor/verified-byte adapter `9e286d38` frozen for review; separate fresh-Matrix safe-path diagnosis | Contextual panes/model delivery/picking wired. Full90/90/root/subpath/offline/pick/reopen acceptance still open. |
 | Parts+Project | Parts Name12 exact React disclosure refinement/review; Controller placement18 implementing; Parts authoring inventory | New/setup guide wired. Portable option real fresh React archive verifies0 versus6 assets; broader menus/library/custom geometry and export parents open. |
 
-Independent Astra reviewers own source/bug review; Luna authors remain isolated. User ceiling30 is respected within host11 slots including coordinator. All62 parents, blocker history and RF001–013 remain preserved. Root source integrations are serial; compilation does not substitute for paired browser acceptance.
+Independent Sol 6.1 High reviewers own new source reviews; prior Astra review evidence is retained and its authorized debugger role remains available. Luna authors remain isolated. User/configured ceiling30 is bounded by the current observed live11-slot limit including coordinator. All62 parents, blocker history and RF001–013 remain preserved. Root source integrations use the [bounded handoff/lease](../dioxus-frontend-v1/integration-handoff-template.md) serially; compilation does not substitute for paired browser acceptance.
 
 ## Historical first-slice checkpoint
 

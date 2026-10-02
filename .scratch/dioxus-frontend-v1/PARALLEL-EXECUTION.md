@@ -102,9 +102,9 @@ Current pull work includes remaining F2.1 lifecycle/search, F2.3 compact drawers
 
 ## Capacity, ownership and review
 
-Eleven runtime slots are currently available, but that is a ceiling rather than an author target. Keep at most three disjoint Luna feature authors active by default; reserve capacity for independent verification, Astra Standards/Spec review, QA and serial root integration/builds. Reduce author concurrency if either review or public verification queues. Use Astra Extra High only for difficult unresolved cases. The portfolio does not imply that all 62 tasks execute simultaneously.
+Keep six persistent private workbench author queues. The user/configured ceiling is30, while tool metadata and observed spawn rejection currently impose11 live slots including root. Dispatch within actual capacity and reserve independent verification, Sol 6.1 High Standards/Spec review, QA and serial root integration/builds. Reduce simultaneous authoring when review or public verification queues. Historical Astra reviews remain evidence; new review dispatch follows [current routing](AGENT-ROUTING.md). All62 tasks and acceptance joins remain unchanged.
 
-The coordinator owns shared presentation/runtime/shell, global CSS, build files, shared control contracts and the portfolio/dispatch ledger. Feature authors edit their explicitly owned private modules and hand off bounded shared changes for coordinator integration. Keep overlapping shared-file edits serialized.
+The coordinator owns shared presentation/runtime/shell, global CSS, build files, shared control contracts and the portfolio/dispatch ledger. Feature authors edit their explicitly owned private modules and hand off bounded shared changes for coordinator integration. Use the [integration handoff and root lease](integration-handoff-template.md) to serialize overlapping shared-file edits and freeze packaging inputs.
 
 This view is derived from the [62-parent graph](tasks.json), whose start and
 acceptance edges remain authoritative, and the [first-wave child proposal](../dioxus-frontend-tranche-1/proposal.json). The current published-child mapping is listed in the table above. The [model policy](AGENT-ROUTING.md) governs assignments.
