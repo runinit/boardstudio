@@ -1,0 +1,54 @@
+{
+  "test": "delayed renderer module import followed by public UI scope replacement",
+  "classification": "correctness-only; no timing or performance claim",
+  "release": {
+    "buildId": "m1-release-20261001-8f509433",
+    "sourceCommit": "8f509433bacb84935dc1e1bbbb3840cd56b33029",
+    "pageJsSha256": "b5baaf336704d1375f66c6455d6031f74a3b2d0ba6126aa251693dd58ca2c83b",
+    "rendererJsSha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+    "rendererWasmSha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8"
+  },
+  "setup": {
+    "origin": "http://127.0.0.1:46884/",
+    "servedFrom": "web/target/builds/m1-release-20261001-8f509433/site-root",
+    "immutableReleaseAssets": true,
+    "productionSourceOrPolicyChanged": false,
+    "serviceWorker": "server returned 404 for service-worker.js to keep the delayed dynamic module response on the network; navigator.serviceWorker.controller was false",
+    "rendererModulePath": "/assets/renderer/boardstudio_renderer_wasm.js",
+    "delaySeconds": 12,
+    "rendererRequestArrivedUnixSeconds": 1790899439.259926,
+    "rendererResponseReleasedUnixSeconds": 1790899451.2600067,
+    "rendererResponse": 200,
+    "browserObservedNetworkRequest": true
+  },
+  "steps": [
+    "Opened the staged release in a fresh named agent-browser session.",
+    "Clicked Sofle v2 copy and waited for the public editor and Generate case button.",
+    "Clicked Generate case; the owned server observed the lazy renderer JS request and held its response for 12 seconds.",
+    "Before releasing the response, clicked REVIUNG41 copy. A fresh accessibility snapshot showed REVIUNG41, Keyboard PCB, and its component list while the renderer request remained pending.",
+    "After the held response returned, waited for module resolution and inspected the DOM, instrumentation counters, and browser errors."
+  ],
+  "observationsAfterResponse": {
+    "activeDocument": "REVIUNG41 copy",
+    "activeBoard": "Keyboard PCB",
+    "casePanelState": "Add case settings; no generated case canvas",
+    "caseCanvasCount": 0,
+    "staleRendererCanvasGetContextCalls": [],
+    "staleCanvasEventListenerAdds": [],
+    "staleCanvasEventListenerRemoves": [],
+    "windowResizeListenerAdds": 0,
+    "windowResizeListenerRemoves": 0,
+    "resizeObservers": [],
+    "requestAnimationFramesScheduled": [],
+    "requestAnimationFramesCancelled": [],
+    "browserErrors": []
+  },
+  "result": "The delayed module response completed after the document/scope replacement. The stale canvas was already unmounted, and resolving the old import caused no WebGL context acquisition, renderer lifecycle observer/listener installation, or frame scheduling. This is a focused public-UI confirmation of stale-mount cancellation for the captured root-prefix release assets.",
+  "limitations": [
+    "This was a root-prefix focused race probe with service-worker registration intentionally unavailable; it does not re-verify offline behavior or the subpath.",
+    "The probe did not close the browser tab during import. Root-tab-close cleanup remains outside this observation.",
+    "Zero renderer allocations are scoped to the old generated-case canvas after import resolution; this makes no claim about general app listeners or other canvases."
+  ],
+  "instrumentation": ".scratch/m1-production/evidence/renderer-lifecycle/instrument.js",
+  "serverHarness": ".scratch/m1-production/evidence/renderer-lifecycle/delayed-renderer-server.py"
+}

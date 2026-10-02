@@ -1,21 +1,24 @@
 # M1 candidate handoff
 
-Branch: `codex/m1-production-20261001`. Runtime decoder source: `5a0972a2`; build correction: `fe2ada03`; integration: `8f509433`.
+Branch: `codex/m1-production-20261001`. Runtime decoder source: `5a0972a2`; pointer repairs: `e7d29ce6`; build correction: `fe2ada03`; complete release source: `b9748745`.
 The [to-spec plan](PLAN.md), [specification](spec.md) and six local tickets
-define the implemented scope. The [canonical run state](../../docs/migration/m1-production-run.json)
+define the required scope; acceptance remains open. The [canonical run state](../../docs/migration/m1-production-run.json)
 and [acceptance ledger](ACCEPTANCE.md) govern acceptance.
 
 ## Editable copied-project trial
 
-The completed candidate is at `web/target/builds/m1-release-20261001-8f509433`.
+The completed candidate is at `web/target/builds/m1-release-20261001-b9748745`.
 All 18 build commands exited zero, all 925 source hashes verified, and each
 prefix contains 47 verified files and one current page WASM. See the
-[portable provenance](evidence/integration/release-8f509433-provenance.json).
-The owned editable demo is running at [root](http://127.0.0.1:46880/) and
-[/boardstudio/](http://127.0.0.1:46880/boardstudio/). Both passed scoped offline
-reloads. Both copied fixtures generated and downloaded STEP files; stale-scope
-export delivered no download. [Final browser record](evidence/browser-storage/release-8f509433-final-qa.md)
-records the exact actions, hashes and limits.
+[portable provenance](evidence/integration/release-b9748745-provenance.json).
+The owned editable demo is running at [root](http://127.0.0.1:46890/) and
+[/boardstudio/](http://127.0.0.1:46890/boardstudio/). The [b974 browser smoke](evidence/integration/final-browser-smoke-b9748745.md)
+passed root and subpath offline library reload, copied-project editing, Sofle STEP
+download, and disposal on switching to REVIUNG41. Earlier broader
+[8f browser checks](evidence/browser-storage/release-8f509433-final-qa.md)
+remain evidence only for their recorded source and actions. Saved-project startup
+restoration and a physical-instance selector are being completed after a final
+story audit; this release does not yet provide those two flows.
 
 To rebuild, run `python3 scripts/build-m1.py <new-unique-id>` from this checkout.
 The maintained builder refuses to overwrite earlier outputs. To serve a
@@ -23,7 +26,7 @@ completed build at root and subpath on the same owned local origin:
 
 ```sh
 node .scratch/m1-production/evidence/browser-storage/serve-release.mjs \
-  web/target/builds/m1-release-20261001-8f509433 0
+  web/target/builds/m1-release-20261001-b9748745 0
 ```
 
 Use the printed origin at `/` and `/boardstudio/`. Open **REVIUNG41 copy** or
@@ -49,8 +52,10 @@ The canvas includes a nominal PCB contour, without populated PCB parity. CAD
 revisions above 9,007,199,254,740,991 are rejected before conversion. Context loss
 stops rendering; reopening/remounting the preview recovers it. Screen-reader
 interaction is blocked on this host because no screen reader is installed.
-Axe and contrast checks do not substitute for that gate. Full resource and
-eligible performance comparisons remain required where the ledger says open.
+Axe and contrast checks do not substitute for that gate. Scoped resource and same-input geometry evidence is recorded; exact STEP bytes
+differ only at tiny decimal coefficient rounding. One focused pointer session
+passes all caps; full rebuilt-release and eligible reference comparisons remain
+required where the ledger says open.
 
 The original checkout, stashes and historical worktrees are retained. Worker
 worktrees also retain ignored build/evidence inputs, so cleanup must preserve

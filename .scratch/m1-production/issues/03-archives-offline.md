@@ -15,4 +15,4 @@
 - [x] Root/subpath storage/cache separation, update, cached navigation and cold missing assets tested in Chromium.
 - [x] Rust owns service-worker policy; maintained JS exceptions require explicit approval.
 
-See [current acceptance evidence](../ACCEPTANCE.md#current-evidence--final-release-8f509433) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.
+See [current acceptance evidence](../ACCEPTANCE.md#retained-evidence--release-8f509433-and-reviewed-overlays) for artifact scope and remaining gates. Checked items record bounded completed checks; ticket closure follows the task graph and full acceptance requirements.

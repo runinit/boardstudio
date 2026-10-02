@@ -1,0 +1,7 @@
+# Candidate archive-import readiness diagnosis (b9748745)
+
+A paired attempt against the final b9748745 release stopped before candidate pointer samples because the driver uploaded immediately after `agent-browser open`. The initial root page is the public Keyboard library and renders an **Import .boardstudio** control, but Dioxus mounts the `input[type="file"][accept=".boardstudio"]` asynchronously. The immediate upload failed with `Element not found`; this is a harness readiness race, not evidence that the user-facing import is unavailable.
+
+In a separate no-timing browser session, I waited for the public import input, uploaded the same generated 30-key `.boardstudio` archive through that control, and observed the editor with 90 SVG parts and no alert/browser error. The exact native input selector succeeded. The candidate driver now waits for that input before uploading. The diagnostic session is closed.
+
+The stopped attempts remain under `runs/paired-pointer-b9748745-20261002T0014Z/` and `runs/paired-pointer-b9748745-retry-20261002T0018Z/`, with separate stopped aggregates. The first attempt's unchanged `app/dist` server was unavailable; it has since been restarted and pinned hashes plus HTTP content types verified. The retry completed one reference session but its candidate side failed before import, and later work was stopped after identifying the race. Neither attempt is a paired comparison or an M1 performance pass. No further measurement is appropriate until the source/UI candidate is stable and a fresh final release is available.

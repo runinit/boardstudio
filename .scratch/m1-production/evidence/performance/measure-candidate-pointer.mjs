@@ -162,6 +162,7 @@ try {
       browser(['upload', 'input[type="file"].wb-project-file-input', archive]);
       browser(['wait', '--fn', `document.querySelectorAll('.wb-scene-part').length === ${keys * 3}`]);
     } else {
+      browser(['wait', '--fn', 'Boolean(document.querySelector(\'input[type="file"][accept=".boardstudio"]\'))']);
       browser(['upload', 'input[type="file"][accept=".boardstudio"]', archive]);
       const ready = evalPage(`(() => Boolean(document.querySelector('section.m1-editor svg.m1-canvas')))()`);
       if (!ready) {

@@ -4,10 +4,18 @@ Status: the maintained `8f509433` candidate received two complete pointer sessio
 
 Evidence-only performance changes are integrated on
 `codex/m1-production-20261001`; the adapter was prepared from final-release
-integration `8f509433`. Pointer archives were generated from the verified public Core package
+integration `8f509433` with later evidence commits. Pointer archives were generated from the verified public Core package
 whose source commit is retained in each fixture manifest. The exact maintained
 release was served at `http://127.0.0.1:46880/`. Do not use measurements from
 the 4cb diagnostic build as M1 release evidence.
+
+
+The [stopped aggregate](runs/paired-pointer-8f509433-20261001T2328Z/stopped-aggregate.json)
+retains all completed and interrupted observations. Candidate session p95s were
+22.9/135.3/495.8 ms and 23.1/134.4/500.6 ms for 30/100/200 keys,
+against unchanged 33/50/100 ms caps. Reference 30-key observations alone cannot
+establish a paired result. The [public import diagnosis](reference-import-diagnostic-20261001.json)
+records the repaired asynchronous hydration/readiness check.
 
 ## Existing oracles to preserve
 
