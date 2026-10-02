@@ -123,7 +123,7 @@
       "impact": "Capabilities can be overlooked, duplicated, or falsely described as backend work; behavior and cancellation can diverge between host wrappers.",
       "during_port": "BND.1 proves the private keycap worker adapter using the existing engine; retain reference chunk/yield and revision/ID semantics.",
       "post_port_proposal": "Create an explicit capability-to-host contract map and shared conformance fixtures for required engine operations; consider reducing duplicated wrapper protocol knowledge.",
-      "validation_needed": "Every required capability has a verified engine\u2192worker\u2192host\u2192UI trace, same fixture outputs and cancellation/error disposition.",
+      "validation_needed": "Every required capability has a verified engine→worker→host→UI trace, same fixture outputs and cancellation/error disposition.",
       "decision": "proposal only; no refactor/API/schema change approved by this entry",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
@@ -512,6 +512,41 @@
       "linked_tasks": [
         "F7.1",
         "F7.3"
+      ]
+    },
+    {
+      "id": "RF-013",
+      "title": "Object tree containers have invalid required-child semantics",
+      "category": "accessibility / semantic structure",
+      "confidence": "confirmed inherited critical axe violation in the Dioxus candidate and pinned React reference",
+      "impact_priority": "high",
+      "status": "open; no accessibility waiver; candidate acceptance gate remains required; private semantics repair f65b is under independent review and is not integrated or accepted",
+      "discovered": "2026-10-02",
+      "baseline": "Dioxus tested source 515f390d; React reference 5a472a9426e6e38993361da402cd4ec730feb369",
+      "workflows": [
+        "F3",
+        "F9"
+      ],
+      "evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-a11y.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-react-a11y.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-hierarchy.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-unowned.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json"
+      ],
+      "observation": "Axe 4.12.1 reports the critical aria-required-children violation in both paired applications: the candidate .m1-component-list role=tree directly contains labelled disclosure buttons, and the React .wb-tree-viewport role=tree has the same invalid child pattern. The candidate report has one critical violation; the React report has the same critical violation plus a separate moderate page-has-heading-one finding. The shared result identifies an inherited reference defect; it does not establish candidate conformance or waive accessibility acceptance. A private candidate semantics repair exists at f65b and is under independent review; it is neither merged nor accepted and does not close this finding.",
+      "impact": "Assistive technologies may not receive the required tree/treeitem structure for object hierarchy navigation. The axe impact is critical and remains an active correctness gate.",
+      "during_port": "Do not suppress the rule, weaken the threshold or accept the candidate because the reference shares the defect. Correct candidate tree semantics while preserving hierarchy, selection and keyboard behavior; retain both reports as paired baseline evidence. Actual assistive-technology testing remains separately required where applicable.",
+      "post_port_proposal": "Review the tree semantic structure and maintained accessibility conformance scenario across workspace navigation; keep the eventual design narrow and compatible with tree disclosure and selection behavior.",
+      "validation_needed": "Axe reports no aria-required-children violation on the candidate; public hierarchy, selection, keyboard and focus behavior remain correct; retain the React report as evidence of the inherited baseline defect. Actual assistive-technology evidence is a separate gate.",
+      "decision": "current acceptance gate; no waiver and no parent closure",
+      "follow_up_owner": "T1-10/F3.1 implementation and independent accessibility review",
+      "linked_tasks": [
+        "T1-10",
+        "F3.1",
+        "F9.2",
+        "F9.3"
       ]
     }
   ]

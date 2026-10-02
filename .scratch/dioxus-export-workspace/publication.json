@@ -1,0 +1,17 @@
+{
+  "parent": "F8.1",
+  "authority": "../dioxus-frontend-tranche-1/AUTHORITY.md",
+  "shared_acceptance": "../dioxus-frontend-tranche-1/ACCEPTANCE.md",
+  "start_after": ["INT.1"],
+  "acceptance_after": [],
+  "status": "published automatically; private view/callback contract required before implementation",
+  "parent_completion": "unchanged; original acceptance remains open",
+  "tickets": [
+    {
+      "id": "F8.1",
+      "issue": "issues/01-export-workspace.md",
+      "status": "ready-for-agent",
+      "profile": "luna-medium"
+    }
+  ]
+}

@@ -97,13 +97,33 @@
       "id": "T1-10",
       "parent": "F3.1",
       "issue": "issues/10-layout-object-tree.md",
-      "status": "worker547b0762 source reviewed and strict WASM passed; merge/public verification queued",
+      "status": "Hierarchy and unowned-retention public checks passed on 515f390d; typed selected-context summary is mounted in e510dd4c and targeted numeric public QA passes; remaining public proof and T1-10 acceptance are pending.",
       "agent_profile": "luna-high",
       "author_agent": "/root/layout_tree_author",
       "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/frontend-tree-20261002",
       "baseline": "5e5d3370",
       "adapter_agent": "/root/tree_adapter_author",
-      "source_commit": "547b07627978e407ba5de6dbb73ce0c7740bbf4f"
+      "source_commit": "547b07627978e407ba5de6dbb73ce0c7740bbf4f",
+      "integrated_source_commit": "515f390d",
+      "integration_evidence": [
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-hierarchy.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-unowned.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/source-review-reference.md",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json",
+        ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json"
+      ],
+      "pending_acceptance": [
+        "remaining selected-context/tree public proof",
+        "remaining T1-10/F3.1 acceptance"
+      ],
+      "accessibility_gate": {
+        "status": "open; candidate has a critical aria-required-children violation also present in the pinned React reference; no waiver",
+        "evidence": [
+          ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-a11y.json",
+          ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-react-a11y.json"
+        ]
+      },
+      "latest_integrated_source_commit": "e510dd4c"
     },
     {
       "id": "T1-11",
@@ -118,6 +138,27 @@
       "issue": "issues/12-rectangular-selection.md",
       "status": "ready-for-agent",
       "agent_profile": "astra-debug"
+    },
+    {
+      "id": "T2-13",
+      "parent": "F7.1",
+      "issue": "../dioxus-shared-viewer/issues/01-common-viewer-contract.md",
+      "status": "ready-for-agent; private callable contract required before implementation",
+      "agent_profile": "luna-high"
+    },
+    {
+      "id": "T2-14",
+      "parent": "F7.2",
+      "issue": "../dioxus-case-workspace/issues/01-authored-case-workspace.md",
+      "status": "ready-for-agent; private mount/read/edit contract required before implementation",
+      "agent_profile": "luna-medium"
+    },
+    {
+      "id": "T2-15",
+      "parent": "F8.1",
+      "issue": "../dioxus-export-workspace/issues/01-export-workspace.md",
+      "status": "ready-for-agent; private view/callback contract required before implementation",
+      "agent_profile": "luna-medium"
     }
   ],
   "policy": "Up to three disjoint Luna authors with independent Luna verification and Astra contract/bug review; runtime11slotcap; reserve final review axes; shared integration/builds serial.",
@@ -138,7 +179,10 @@
     "dioxus-pcb-view",
     "dioxus-keymap-layers",
     "dioxus-keycaps-projection",
-    "dioxus-keycap-cad-bridge"
+    "dioxus-keycap-cad-bridge",
+    "dioxus-shared-viewer",
+    "dioxus-case-workspace",
+    "dioxus-export-workspace"
   ],
   "available_runtime_slots": 11,
   "verification_agent": {
@@ -166,11 +210,38 @@
     ],
     "status": "two drafts independently reviewed and automatically published; concrete contracts required"
   },
-  "bounded_ticket_count": 20,
+  "bounded_ticket_count": 23,
   "canonical_parent_count": 62,
   "pending_api_decision": {
     "proposal": "evidence/contracts-active/unapplied-tolerant-listing.patch",
     "status": "explicit user API approval requested; unapplied",
     "review": "evidence/contracts-active/tolerant-listing-independent-review.md"
+  },
+  "parts_source_status": {
+    "parent": "F4.1a",
+    "status": "Parts is mounted in e510dd4c with left catalogue, right Inspector, and typed selected-context summary. Targeted numeric public QA passes. Strict WASM/native Clippy, 14 integrated native tests, formatting and diff checks pass; Parts-specific 8 native source tests are separate. Root/subpath/offline build frontend-parts-context-20261002 is complete and server :34657 is ready. Remaining public proof and ticket acceptance are pending.",
+    "integrated_source_commit": "e510dd4c",
+    "checks": [
+      "strict WASM",
+      "native Clippy",
+      "14 integrated native tests",
+      "formatting",
+      "diff check"
+    ],
+    "separate_source_checks": [
+      "8 Parts-specific native source tests"
+    ],
+    "build": "web/target/builds/frontend-parts-context-20261002",
+    "public_proof": "targeted numeric QA passed; remaining public proof pending",
+    "demo_urls": [
+      "http://127.0.0.1:34657/",
+      "http://127.0.0.1:34657/boardstudio/"
+    ],
+    "evidence": [
+      ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-final-spec-review.md",
+      ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-review.md",
+      ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json",
+      ".scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json"
+    ]
   }
 }

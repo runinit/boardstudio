@@ -1126,3 +1126,71 @@ Agents automatically published independently reviewed [Keycaps physical 2D](../.
 Source `47cf655b` fixes the interactive-panel inert attribute, responsive grid overrides, and compact-to-desktop auto-hide timer. The [exact build, independent source reviews and public evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/panels-fixed-47cf655b/record.json) pass both red/green browser loops, independent panel modes and hover/focus, reload/workspace preference retention, malformed/unavailable optional storage, camera/revision neutrality, mounted long-content retention, themes/keyboard and axe (zero violations in tested states). Actual AT remains separately required; no AT pass or full F2.3 closure is claimed. The fresh editable candidate is [root](http://127.0.0.1:34651/) and [subpath](http://127.0.0.1:34651/boardstudio/).
 
 Tree integration `547b0762` is source-reviewed and strict WASM checks pass in its worker; merged public scope/gesture tests remain pending. Private Parts catalogue source is under review/correction. The exact tolerant-listing public API patch is reviewed but unapplied, with an explicit user decision pending; frontend work continues independently.
+
+## Frontend hierarchy evidence and expanded ticket frontier — 2026-10-02
+
+The automatic frontier now has **23 bounded tickets** refining the unchanged
+**62 canonical parent tasks**. Three independently reviewed folders are published:
+[shared viewer contract](../../.scratch/dioxus-shared-viewer/README.md) (F7.1),
+[authored Case workspace](../../.scratch/dioxus-case-workspace/README.md) (F7.2),
+and [Export workspace](../../.scratch/dioxus-export-workspace/README.md) (F8.1).
+Publication adds no parent completion or dependency edges.
+
+T1-10's hierarchy subset is present in tested source `515f390d`. Paired public
+checks with the same imported REVIUNG41 document pass for default hierarchy,
+owned matrix children, and retaining an unowned component alongside existing
+layouts. The exact results are
+[`tree-515f390d-hierarchy.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-hierarchy.json)
+and [`tree-515f390d-unowned.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-unowned.json).
+Selected-context public proof remains pending, as do the remaining T1-10/F3.1
+acceptance conditions; neither T1-10 nor its parent is closed.
+
+At tested tree candidate `515f390d`, the Parts presentation had not yet been
+mounted; that historical limitation is superseded by the newer integration
+`e510dd4c`. Review records are in
+[`parts-final-spec-review.md`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-final-spec-review.md),
+[`parts-context-review.md`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-review.md),
+and [`source-review-reference.md`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/source-review-reference.md).
+
+Axe 4.12.1 reports the same critical `aria-required-children` violation in the
+candidate tree and the pinned React tree. The candidate report has that one
+critical violation; React has the same critical violation plus a separate
+moderate page-heading finding. This inherited reference defect does not waive
+candidate accessibility acceptance. The issue remains open with no axe waiver;
+actual assistive-technology evidence remains a separate gate. Paired reports:
+[`tree-515f390d-a11y.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-a11y.json) and
+[`tree-react-a11y.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-react-a11y.json). The
+[RF-013 register entry](POST-PORT-REFACTOR.md#rf-013) records the finding.
+
+The tolerant-listing public API proposal remains unapplied pending the user's
+explicit decision, and the saved-open supersession race remains open. No F7/F8
+parent or other full parent milestone was closed by this update.
+
+
+## Fresh Parts and selected-context integration — 2026-10-02
+
+Source `e510dd4c` now mounts the Parts left catalogue and right Inspector with a
+typed selected-context summary. Strict WASM and native Clippy, 14 integrated
+native tests, formatting and diff checks pass. The Parts-specific 8 native source
+tests are separate evidence, not included in the integrated native14 count. The
+root/subpath/offline build `frontend-parts-context-20261002` is complete; its
+local server is ready at [root](http://127.0.0.1:34657/) and
+[subpath](http://127.0.0.1:34657/boardstudio/). Targeted numeric public QA passes; remaining public proof is pending,
+so neither Parts/F4.1a nor T1-10/F3.1 is accepted or closed. The hierarchy and
+unowned-retention browser checks above remain tied to `515f390d`; newer targeted
+numeric QA evidence for selected context is retained separately.
+
+The current evidence is [`parts-context-numeric-steps.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/parts-context-numeric-steps.json)
+and [`provenance.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/provenance.json).
+The paired critical tree `aria-required-children` finding remains open with no
+accessibility waiver. A private semantics repair at `f65b` is under independent
+review; it is not integrated or accepted, and current-source public proof remains pending. The tolerant-listing
+API proposal remains unapplied, and the saved-open supersession race remains open.
+The 23 bounded-ticket / 62 canonical-parent counts are unchanged; no full parent
+closure is claimed.
+
+## Frontend Parts and context build — 2026-10-02
+
+Source `e510dd4c` mounts the Parts catalogue in Objects and selected details in Inspector, retains query/choice across workspace switches, and adds validated Layout selection summaries. Strict WASM and native Clippy, 14 native page tests, formatting and numeric public edit/cancel/Apply/Undo checks pass. Eight separate native Parts tests cover the exact catalogue data seam. Independent public verification confirms the packaged WASM catalogue populates all seven categories on an identical imported Sofle document; remaining search/source/lifecycle checks are in progress.
+
+Private tree semantic repair `f65b0c83` passed independent Standards and Spec review and strict WASM Clippy. Both root/subpath page and offline builds complete; [evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/parts-context-e510dd4c/record.json) distinguishes source and behavioral proof. The latest demo is [the ARIA candidate](http://127.0.0.1:34659/boardstudio/). Rebuilt browser accessibility and actual assistive-technology verification remain open. No full frontend parent is closed, and the tolerant-listing API proposal remains unapplied.

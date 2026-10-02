@@ -28,6 +28,7 @@ At frontend v1, F9 produces a refactoring handoff grouped by architectural bound
 | [RF-010](#rf-010) | Cancellation has different guarantees at worker and kernel boundaries | confirmed limitation; not automatically a design defect | medium | F6, F7, F8 |
 | [RF-011](#rf-011) | CAD revision envelope has a JavaScript safe-integer ceiling | confirmed CAD-only technical limit; low-probability scale risk | low | F7, F8 |
 | [RF-012](#rf-012) | Renderer host relies on reflective method names and partial capability wrappers | confirmed wrapper shape; maintenance risk needs measurement | medium | F3, F4, F6, F7 |
+| [RF-013](#rf-013) | Object tree containers have invalid required-child semantics | confirmed inherited critical axe violation in candidate and React | high | F3, F9 |
 
 ## RF-001
 
@@ -220,6 +221,22 @@ RendererHost invokes wasm methods through Reflect/string names and wraps only pa
 **Validate:** Exercise every mapped method, model/scene DTO and mount/update/error/context-loss/disposal path with the same fixture outputs.
 
 Evidence: [renderer_host.rs](../../web/src/renderer_host.rs), [wasm.rs](../../renderer/src/wasm.rs).
+
+## RF-013
+
+**Object tree containers have invalid required-child semantics** — accessibility / semantic structure. Confirmed inherited critical axe violation in the Dioxus candidate and pinned React reference.
+
+Axe 4.12.1 reports `aria-required-children` at the candidate `.m1-component-list[role="tree"]`, whose direct labelled disclosure-button children do not satisfy the tree role's required child structure. The pinned React `.wb-tree-viewport[role="tree"]` has the same violation. Candidate source 515f390d reports one critical violation; the React report has that same critical violation plus a separate moderate `page-has-heading-one` finding. This paired result establishes an inherited reference defect. It does not establish candidate conformance or waive the candidate's accessibility acceptance.
+
+**Impact:** Assistive technologies may not receive the required tree/treeitem semantics for hierarchy navigation. Axe classifies the finding as critical, so it remains an active correctness gate.
+
+**During the port:** Do not suppress the rule, weaken thresholds or accept the candidate because React shares the defect. A private candidate semantics repair at `f65b` preserves existing row roles and is under independent review; it is not integrated or accepted. Keep the paired baseline reports, and retain actual assistive-technology testing as a separate gate where applicable.
+
+**After the port:** Review the tree semantic structure and maintained accessibility conformance scenario across workspace navigation; keep the eventual design narrow and compatible with disclosure and selection behavior.
+
+**Validate:** Axe reports no `aria-required-children` violation for the candidate; public hierarchy, selection, keyboard and focus behavior remain correct. Retain the React report as evidence of the inherited baseline defect. Actual assistive-technology evidence remains separately required.
+
+Evidence: repair review status: private `f65b` under independent review, not integrated/accepted. Candidate [`tree-515f390d-a11y.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-a11y.json), React [`tree-react-a11y.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-react-a11y.json), paired hierarchy/public result [`tree-515f390d-hierarchy.json`](../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/tree-515f390d-hierarchy.json), and the [source review](<../../.scratch/dioxus-frontend-v1/evidence/tree-and-parts-4b05d451/source-review-reference.md>).
 
 ## Entry template
 

@@ -1,0 +1,13 @@
+# Context summary and Parts split — independent Spec review
+
+Reviewed integration dirty context_summary.rs, presentation.rs and m1.css against 515f390d and the approved tree-context-summary-contract.md; Parts worker commit 4b05d451. Read-only source review; no compiler or browser execution.
+
+Context summary: no material source findings. Fresh accepted-model projection follows scope validation, displays reference Matrix/Row/Column/Key/Part indicators, authored matrix dimensions, one-based coordinates and authoritative selected live-Part counts. Matrix/layout identity remains visible, including coordinate headings. Board/LayoutGroup labels are honest, invalid/absent context emits no stale indicator, and the existing exact-one-real-ID numeric Inspector gate is unchanged. No added events, domain authority or public API. CSS/mount placement is consistent with the bounded contract; responsive/visual/public proof remains outstanding.
+
+Parts split: the left Objects catalogue and right Inspector slots match React Workbench.tsx:1283 and :1038. Parent-owned query/selection supports workspace retention when mounted accordingly. Both slots consume the same catalogue merge/cache and selected-definition resolver; immutable definitions remain Rc-shared.
+
+No material cache-invalidation defect found: async responses validate Scope and reversible-layout value before use; memo inputs include accepted token and bundle identity; merged cache matches Scope, SnapshotToken, Arc document identity and Rc bundled identity. Accepted tokens increase on accepted document changes, and a scope/reversible transition rejects the prior resource result before accepting the new one. The cache is bounded to four project entries, with full document Arcs retained until eviction. This requires lifecycle evidence, not assumed runtime success.
+
+Outstanding material parent join: catalogue activation must open Inspector and close Objects on compact layouts. React Workbench.tsx:1283 explicitly calls setRightOpen(true)/setLeftOpen(false). PartsLibraryPanel currently only writes selected. Parent must supply the activation handoff, including activating an already-selected definition; merely observing a changed selected value can miss that case. A private callback can carry this without public API changes. Until mounted/proved, this is incomplete integration, not a claim the unmounted split has a browser failure.
+
+Full F4.1a and T1-10 acceptance remain open for parent composition, production typed-catalogue/source/failure/offline evidence, keyboard/compact/theme/axe behavior and the previously retained joins. No new RF beyond the existing shared composition/lifecycle boundary.

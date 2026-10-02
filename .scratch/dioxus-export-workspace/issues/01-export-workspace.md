@@ -1,0 +1,20 @@
+# 03: Present exact Export offers, readiness and return navigation
+
+**Parent:** F8.1 — Complete Export workspace, exact output rows, readiness and return path.
+
+**What to build:** On saved fixture projects, the Export workspace lists the same seven design outputs as React, the optional generated mechanical package when applicable, and the portable project-copy option. Each row shows its exact readiness/reason and Review wiring/Review case actions. Escape, the active Export toggle and WorkflowReturn return to `lastDesignMode`; choosing another workspace navigates there. The selected board remains preserved.
+
+**Blocked by:** T1-01, “Isolate the existing workspace UI for parallel work” (INT.1; accepted).
+
+**Status:** ready-for-agent
+
+- [ ] On the pinned fixtures, show exactly these design rows: KiCad board, Draft KiCad board, ZMK firmware, KiCad footprints, SVG board outline, DXF board outline, and authored Case STEP (or the reference's Case STEP label when generated Case is not active). Preserve the optional generated mechanical package row and the portable-project section (“Keep an editable copy of the whole project, including all boards.”) with the “Save .boardstudio project” action. Show the explicit “Embed used models” checkbox when its existing preference callback is available, with the description “Include attached 3D model files used in this project.” and the existing default preference. Do not add controls absent from React.
+- [ ] Derive each ready/disabled state and blocker explanation from current accepted inputs: selected-board readiness, wiring/controller/assignments, available definitions, selected-board outline readiness, authored Case readiness, and current generated Case generation/assembly readiness. Do not infer generated readiness from document data alone, and do not call or emulate export providers in this UI ticket.
+- [ ] Escape, activating the already-selected Export control, and WorkflowReturn restore `lastDesignMode`, whose values are Design, PCB, Keymap, Keycaps or Case; Parts and Export are not saved as `lastDesignMode`. Choosing another workspace navigates to it. Review wiring opens PCB at the selected board, clears semantic and part selection, and reveals Inspector. Review case opens Case at the selected board and reveals Inspector while retaining the reference selection behavior. These actions preserve the selected board. Escape must not dismiss the app.
+- [ ] Match the React labels, details, focus behavior, compact/desktop and light/dark presentation, with ready and disabled rows. The “Embed used models” control only wires the existing preference callback here; archive packing semantics, export execution, provider errors/delivery and generated readiness production joins remain in F2.2/F8.2–F8.6 and their owning workflows.
+- [ ] Integrate through one private page-local Export component/callback contract. The feature owner may edit a dedicated private presentation module and its focused styles; `web/src/presentation.rs`, `web/src/runtime.rs`, global CSS and build wiring remain coordinator-owned and are joined serially. No new public API, schema, or facade is needed.
+- [ ] Verify the public Dioxus route against the same reference fixture/actions, retaining exact ready/disabled, selected-board, navigation and display-state evidence. Record “No new refactoring takeaway observed” or update an existing RF entry with evidence; do not broaden into Runtime/export orchestration redesign.
+
+**Parent graph:** Canonical F8.1 `Start after: INT.1` (satisfied by accepted T1-01); `Acceptance joins: none`. This UI remains fixture-backed and does not wait for F5/F6/F7 providers or F2.3 completion. F8.2 retains `F8.1` start plus `INT.2` and `BND.2` acceptance joins; F8.3–F8.6 dependencies and final F2 panel integration are unchanged.
+
+**Suggested routing:** Luna Medium author/verifier; batch-eligible Astra review. The shared route registration and global styling are serialized coordinator integration work, not blockers on provider features.

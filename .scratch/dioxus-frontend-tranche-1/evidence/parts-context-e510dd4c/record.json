@@ -1,0 +1,23 @@
+{
+  "source": "e510dd4c",
+  "aria_source": "f65b0c83",
+  "strict_wasm_clippy": "pass on both",
+  "native_page_tests": 14,
+  "native_page_clippy": "pass at e510",
+  "parts_native_tests": 8,
+  "parts_native_source": "4b05d451 catalogue; e510 removes unused category_label only",
+  "numeric_public": "pass at e510",
+  "root_subpath_offline_builds": [
+    "frontend-parts-context-20261002",
+    "frontend-parts-context-aria-20261002"
+  ],
+  "candidate_urls": [
+    "http://127.0.0.1:34657/boardstudio/",
+    "http://127.0.0.1:34659/boardstudio/"
+  ],
+  "public_parts_and_context": "independent verification in progress; actual seven-category loader populated",
+  "aria_public": "pending",
+  "actual_AT": "open",
+  "parent_acceptance": "open",
+  "api_proposal": "unapplied pending explicit user decision"
+}

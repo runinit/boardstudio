@@ -1,0 +1,17 @@
+{
+  "parent": "F7.1",
+  "authority": "../dioxus-frontend-tranche-1/AUTHORITY.md",
+  "shared_acceptance": "../dioxus-frontend-tranche-1/ACCEPTANCE.md",
+  "start_after": [],
+  "acceptance_after": [],
+  "status": "published automatically; private callable contract required before implementation",
+  "parent_completion": "unchanged; original acceptance remains open",
+  "tickets": [
+    {
+      "id": "F7.1",
+      "issue": "issues/01-common-viewer-contract.md",
+      "status": "ready-for-agent",
+      "profile": "luna-high"
+    }
+  ]
+}
