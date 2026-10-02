@@ -104,7 +104,14 @@ pub(super) fn canvas(input: WorkspaceCanvasInput) -> Element {
 pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
     match input {
         WorkspaceInspectorInput::Layout(input) => super::layout_workspace::inspector(input),
-        WorkspaceInspectorInput::Pcb(Some(input)) => super::pcb_wiring::PcbWiringInspector(*input),
+        WorkspaceInspectorInput::Pcb(Some(input)) => rsx! {
+            super::pcb_wiring::PcbWiringInspector {
+                source: input.source,
+                resolution: input.resolution,
+                on_resolve: input.on_resolve,
+                on_edit_board_wiring: input.on_edit_board_wiring,
+            }
+        },
         WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),
         WorkspaceInspectorInput::Keymap(input) => super::keymap_workspace::inspector(*input),
         WorkspaceInspectorInput::Keycaps(input) => super::keycaps_workspace::inspector(*input),
