@@ -139,9 +139,6 @@ pub(super) fn PartsLibraryPanel(
     on_select: EventHandler<()>,
 ) -> Element {
     let mut view_generation = use_signal(|| 0_u64);
-    use_effect(use_reactive((&workspace(),), move |_| {
-        view_generation.set(view_generation() + 1);
-    }));
     let catalogue = use_catalogue(&snapshot, &scope);
     let content = if let Some(entries) = catalogue.entries {
         let choices = group_choices(&entries);
@@ -228,6 +225,10 @@ pub(super) fn PartsLibraryPanel(
 
     rsx! {
         section { class: "m1-parts-library", "aria-label": "Parts library",
+            crate::parts_view_generation::PartsViewGenerationOwner {
+                workspace,
+                view_generation,
+            }
             h2 { "Parts library" }
             {content}
             div { class: "m1-parts-actions",
