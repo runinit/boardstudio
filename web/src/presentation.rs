@@ -4045,7 +4045,7 @@ fn Editor() -> Element {
                         pin_inspector_on_desktop(inspector_settings);
                     }
                     keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
-                        pending_camera_fit.set(Some(request));
+                        pending_camera_fit.set(Some(*request));
                     }
                     keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
                     keycaps_navigation::RouteAction::FocusInspector => {

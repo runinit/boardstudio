@@ -603,7 +603,7 @@ fn project_inspector(
         .iter()
         .find(|board| board.board_id == board_id)
         .map_or_else(Vec::new, |board| board.contours.clone());
-    let perimeter = editable_perimeter(&snapshot, &board_id, active_version_id.as_deref());
+    let perimeter = editable_perimeter(snapshot, &board_id, active_version_id.as_deref());
     let editable = model.durability
         == Durability::Saved {
             revision: snapshot.document.revision,

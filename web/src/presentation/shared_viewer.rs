@@ -59,7 +59,7 @@ pub(crate) fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
                     stroke_width: "1.5",
                     stroke_linecap: "round",
                     stroke_linejoin: "round",
-                    aria_hidden: "true",
+                    "aria-hidden": "true",
                     if label == "Keymap" { path { d: "M3 5h14v10H3zM6 8h2m2 0h2m2 0h1M6 11h2m2 0h2M6 14h8" } }
                     else { path { d: "m3 15 2-10h10l2 10zM5 5l2 4h6l2-4M7 9l-1 6m7-6 1 6" } }
                 }

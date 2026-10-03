@@ -253,7 +253,7 @@ pub(super) enum RouteAction {
     CloseObjects,
     OpenInspector,
     PinInspector,
-    QueueLayoutFit(PendingLayoutFit),
+    QueueLayoutFit(Box<PendingLayoutFit>),
     Report(String),
     FocusInspector,
 }
@@ -434,6 +434,7 @@ fn target_exists(
     }
 }
 
+#[cfg(test)]
 pub(super) fn dispatch_route(
     effects: RouteEffects,
     request: &keycaps_fit::FindingNavigationRequest,
@@ -457,11 +458,11 @@ pub(super) fn dispatch_route_with_camera_basis(
                 context: context.clone(),
             });
             if effects.fit_after_layout {
-                perform(RouteAction::QueueLayoutFit(PendingLayoutFit {
+                perform(RouteAction::QueueLayoutFit(Box::new(PendingLayoutFit {
                     request: request.clone(),
                     owner: owner_for_request(request, Destination::Layout(context), generation),
                     source_basis,
-                }));
+                })));
             }
         }
         Destination::CaseLayer(layer_id) => {
@@ -758,7 +759,7 @@ mod tests {
                                 owner.destinations = vec![Destination::Layout(context.clone())];
                                 live.set(owner);
                             }
-                            RouteAction::QueueLayoutFit(fit) => pending.set(Some(fit.clone())),
+                            RouteAction::QueueLayoutFit(fit) => pending.set(Some(*fit.clone())),
                             _ => {}
                         }
                         probe.route_actions.borrow_mut().push(action);
@@ -908,7 +909,7 @@ mod tests {
                         assembly_id: None,
                     },
                 },
-                RouteAction::QueueLayoutFit(PendingLayoutFit {
+                RouteAction::QueueLayoutFit(Box::new(PendingLayoutFit {
                     request: request.clone(),
                     owner: owner_for_request(
                         &request,
@@ -922,7 +923,7 @@ mod tests {
                         4,
                     ),
                     source_basis: None,
-                }),
+                })),
                 RouteAction::CloseObjects,
                 RouteAction::OpenInspector,
                 RouteAction::PinInspector,
