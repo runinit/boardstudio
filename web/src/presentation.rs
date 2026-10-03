@@ -8429,9 +8429,13 @@ fn Editor() -> Element {
                                 reference,
                                 assets,
                                 disabled: !editable,
-                                runtime: runtime.clone(),
+                                runtime: pcb_board_reference::BoardReferenceRuntimeHandle::new(
+                                    runtime.clone(),
+                                ),
                                 workspace,
-                                adapter: adapter.clone(),
+                                adapter: pcb_board_reference::BoardReferenceAdapterHandle::new(
+                                    adapter.clone(),
+                                ),
                                 owner,
                             }
                         }

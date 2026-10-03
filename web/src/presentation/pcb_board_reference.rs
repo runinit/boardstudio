@@ -2,16 +2,59 @@
 use boardstudio_application::TerminalOutcome;
 use boardstudio_core::model::{Asset, BoardReference};
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
+use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{File, HtmlInputElement};
 
-use crate::{host::AssetBytes, persistence_contract::sha256_bytes, runtime::Runtime};
+use boardstudio_web::host::AssetBytes;
+
+use crate::runtime::Runtime;
 
 const MAX_REFERENCE_BYTES: f64 = 32.0 * 1024.0 * 1024.0;
+
+fn sha256_bytes(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+#[derive(Clone)]
+pub(super) struct BoardReferenceRuntimeHandle(Rc<Runtime>);
+
+impl BoardReferenceRuntimeHandle {
+    pub(super) fn new(runtime: Rc<Runtime>) -> Self {
+        Self(runtime)
+    }
+}
+
+impl PartialEq for BoardReferenceRuntimeHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct BoardReferenceAdapterHandle(super::SelectionAdapter);
+
+impl BoardReferenceAdapterHandle {
+    pub(super) fn new(adapter: super::SelectionAdapter) -> Self {
+        Self(adapter)
+    }
+}
+
+impl PartialEq for BoardReferenceAdapterHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.selected_context == other.0.selected_context
+            && self.0.anchor_scope == other.0.anchor_scope
+            && self.0.generation == other.0.generation
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Action {
@@ -594,11 +637,13 @@ pub(super) fn Editor(
     reference: Option<BoardReference>,
     assets: Vec<Asset>,
     disabled: bool,
-    runtime: Rc<Runtime>,
+    runtime: BoardReferenceRuntimeHandle,
     workspace: Signal<&'static str>,
-    adapter: super::SelectionAdapter,
+    adapter: BoardReferenceAdapterHandle,
     owner: super::LayoutOwnerIdentity,
 ) -> Element {
+    let runtime = runtime.0;
+    let adapter = adapter.0;
     let model_paths = use_signal(Vec::<String>::new);
     let paths_asset_id = use_signal(|| None::<String>);
     let attempted_discovery = use_signal(|| None::<String>);
@@ -882,7 +927,7 @@ pub(super) fn Editor(
                         input {
                             r#type: "file",
                             multiple: true,
-                            webkitdirectory: true,
+                            "webkitdirectory": true,
                             disabled: disabled || busy,
                             aria_label: "Attach model directory",
                             onchange: move |event: FormEvent| {
