@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Layout-first integration batch underway; current served package19525578 at34742 independently qualified. Parents2 accepted/12 implementing/48 planned. Ready source joins and changed journey acceptance tracked in current_progress.",
+  "status": "Layout-first batch served at34744 source22b9b063; eight fresh commands pass with22inheritedfullbaselinecommands. Changedjourneysunderoneconsolidatedreview; all62criteria retained. Parentcounts2accepted/12implementing/48planned.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "Layout-first integration batch underway; current served package19525578 at34742 independently qualified. Parents2 accepted/12 implementing/48 planned. Ready source joins and changed journey acceptance tracked in current_progress.",
+    "status": "Layout-first batch served at34744 source22b9b063; eight fresh commands pass with22inheritedfullbaselinecommands. Changedjourneysunderoneconsolidatedreview; all62criteria retained. Parentcounts2accepted/12implementing/48planned.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -443,18 +443,19 @@
   "bounded_ticket_count": 44,
   "non_superseded_bounded_ticket_count": 43,
   "latest_demo": {
-    "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
-    "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029",
-    "root_url": "http://127.0.0.1:34742/",
-    "subpath_url": "http://127.0.0.1:34742/boardstudio/",
-    "provenance": "web/target/builds/frontend-parts-outline-keycaps-reuse-20261003/provenance.json",
-    "provenance_sha256": "31e7a0e255656aa798c9ce0da35d93ea1213ab3f0002c56e811e448a790d7d74",
+    "build_id": "frontend-layout-delivery-fix-reuse-20261003",
+    "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2",
+    "root_url": "http://127.0.0.1:34744/",
+    "subpath_url": "http://127.0.0.1:34744/boardstudio/",
+    "provenance": "web/target/builds/frontend-layout-delivery-fix-reuse-20261003/provenance.json",
+    "provenance_sha256": "4106b2ffa5cc487b322fa2d647e69812ca3c841c4d46f8a6c24efbf6a8b8e339",
     "fresh_commands": 8,
     "inherited_commands": 22,
+    "source_inputs": 1359,
+    "source_mismatches": 0,
     "assets_per_route": 145,
-    "package_qualification": "Independent CLEAR; documented profile/environment-sensitive offline limitation retained.",
-    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-reuse-19525578-package-review-sol-20261003.md",
-    "command_finished_at": "2026-10-03T05:09:15.357062+00:00"
+    "command_finished_at": "2026-10-03T06:17:12.685612+00:00",
+    "package_qualification": "Guardedreusecomplete; stagedhashes/sourceidentitymatch. FirstPolygonrepairindependentlyassessed; changedjourneysconsolidatedreviewcontinues."
   },
   "mechanical_clearance_ticket": {
     "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
@@ -752,22 +753,23 @@
     ]
   },
   "current_comparison_build": {
-    "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
-    "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029",
-    "root_url": "http://127.0.0.1:34742/",
-    "subpath_url": "http://127.0.0.1:34742/boardstudio/",
-    "provenance": "web/target/builds/frontend-parts-outline-keycaps-reuse-20261003/provenance.json",
-    "provenance_sha256": "31e7a0e255656aa798c9ce0da35d93ea1213ab3f0002c56e811e448a790d7d74",
+    "build_id": "frontend-layout-delivery-fix-reuse-20261003",
+    "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2",
+    "root_url": "http://127.0.0.1:34744/",
+    "subpath_url": "http://127.0.0.1:34744/boardstudio/",
+    "provenance": "web/target/builds/frontend-layout-delivery-fix-reuse-20261003/provenance.json",
+    "provenance_sha256": "4106b2ffa5cc487b322fa2d647e69812ca3c841c4d46f8a6c24efbf6a8b8e339",
     "fresh_commands": 8,
     "inherited_commands": 22,
+    "source_inputs": 1359,
+    "source_mismatches": 0,
     "assets_per_route": 145,
-    "package_qualification": "Independent CLEAR; documented profile/environment-sensitive offline limitation retained.",
-    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-reuse-19525578-package-review-sol-20261003.md",
-    "command_finished_at": "2026-10-03T05:09:15.357062+00:00"
+    "command_finished_at": "2026-10-03T06:17:12.685612+00:00",
+    "package_qualification": "Guardedreusecomplete; stagedhashes/sourceidentitymatch. FirstPolygonrepairindependentlyassessed; changedjourneysconsolidatedreviewcontinues."
   },
   "active_source_freeze": {
     "state": "released",
-    "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029"
+    "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2"
   },
   "retained_checkpoint_history": [
     {
@@ -1160,6 +1162,34 @@
       },
       "elapsed_seconds": 524.315853,
       "provenance_sha256": "4612d6c4915b36e901fa031c6a44f6efb95f342f136bb305f26447ca48fafb80"
+    },
+    {
+      "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
+      "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029",
+      "root_url": "http://127.0.0.1:34742/",
+      "subpath_url": "http://127.0.0.1:34742/boardstudio/",
+      "provenance": "web/target/builds/frontend-parts-outline-keycaps-reuse-20261003/provenance.json",
+      "provenance_sha256": "31e7a0e255656aa798c9ce0da35d93ea1213ab3f0002c56e811e448a790d7d74",
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "assets_per_route": 145,
+      "package_qualification": "Independent CLEAR; documented profile/environment-sensitive offline limitation retained.",
+      "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-reuse-19525578-package-review-sol-20261003.md",
+      "command_finished_at": "2026-10-03T05:09:15.357062+00:00"
+    },
+    {
+      "build_id": "frontend-layout-delivery-batch-20261003",
+      "source_commit": "32a57ed39100ff1782b5452db79ad51474560fd8",
+      "root_url": "http://127.0.0.1:34743/",
+      "subpath_url": "http://127.0.0.1:34743/boardstudio/",
+      "provenance": "web/target/builds/frontend-layout-delivery-batch-20261003/provenance.json",
+      "provenance_sha256": "b970719472b0e55430a484398b742c72810f27bd25e6dbb73b2f568d64dde957",
+      "commands": 22,
+      "source_inputs": 1359,
+      "source_mismatches": 0,
+      "assets_per_route": 145,
+      "package_qualification": "All commands/source/staged assets and actual route responses pass; one consolidated changedjourney review inprogress.",
+      "command_finished_at": "2026-10-03T06:14:18.872360+00:00"
     }
   ],
   "latest_keymap_binding_receipt": ".scratch/dioxus-keymap-layers/evidence/binding-public-34737-20261002/RESULTS.md",
@@ -1239,7 +1269,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T06:06:17.220521+00:00",
+    "updated_at": "2026-10-03T06:23:20.175439+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
@@ -1249,22 +1279,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-parts-outline-keycaps-reuse-20261003",
-      "source_commit": "19525578207ff66bfb51a6c7a6483a0bb7905029",
-      "root_url": "http://127.0.0.1:34742/",
-      "subpath_url": "http://127.0.0.1:34742/boardstudio/",
-      "provenance": "web/target/builds/frontend-parts-outline-keycaps-reuse-20261003/provenance.json",
-      "provenance_sha256": "31e7a0e255656aa798c9ce0da35d93ea1213ab3f0002c56e811e448a790d7d74",
+      "build_id": "frontend-layout-delivery-fix-reuse-20261003",
+      "source_commit": "22b9b06331eaf1505131cc3bfef65dcf81b2ffb2",
+      "root_url": "http://127.0.0.1:34744/",
+      "subpath_url": "http://127.0.0.1:34744/boardstudio/",
+      "provenance": "web/target/builds/frontend-layout-delivery-fix-reuse-20261003/provenance.json",
+      "provenance_sha256": "4106b2ffa5cc487b322fa2d647e69812ca3c841c4d46f8a6c24efbf6a8b8e339",
       "fresh_commands": 8,
       "inherited_commands": 22,
+      "source_inputs": 1359,
+      "source_mismatches": 0,
       "assets_per_route": 145,
-      "package_qualification": "Independent CLEAR; documented profile/environment-sensitive offline limitation retained.",
-      "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-reuse-19525578-package-review-sol-20261003.md",
-      "command_finished_at": "2026-10-03T05:09:15.357062+00:00"
+      "command_finished_at": "2026-10-03T06:17:12.685612+00:00",
+      "package_qualification": "Guardedreusecomplete; stagedhashes/sourceidentitymatch. FirstPolygonrepairindependentlyassessed; changedjourneysconsolidatedreviewcontinues."
     },
     "integration": {
-      "source_commit": "1c200c23c14c15aa34e63f351f5a9f122b4bd149",
-      "state": "eight mounted integrations ready for production package; no per-child approval queue",
+      "source_commit": "ed5af2c9d3f0962680c43c4e681c7f8a86651151",
+      "state": "Case gasket support controls and Outline accepted-history repair integrated; next guarded candidate building.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1282,25 +1313,25 @@
           "slice": "Keycaps finding camera",
           "original_source": "96900cab",
           "integrated_source": "83a9af53",
-          "state": "integrated; candidate acceptance pending"
+          "state": "Finding selection/Inspector verified; measured shared canvas/header geometry repair in progress."
         },
         {
           "slice": "Parts pad row identity",
           "original_source": "08fcf1b2",
           "integrated_source": "9d7c41bd",
-          "state": "integrated; candidate acceptance pending"
+          "state": "Integrated; changed public deletion leg verified on 34743; history/reopen report finishing."
         },
         {
           "slice": "Project deletion",
           "original_source": "49ceb996",
           "integrated_source": "a64f9c56",
-          "state": "integrated; candidate acceptance pending"
+          "state": "Integrated; public Cancel, noncurrent/current replacement and reload legs verified on 34743."
         },
         {
           "slice": "PCB command pill",
           "original_source": "d01c18af",
           "integrated_source": "b00c3045",
-          "state": "integrated; candidate acceptance pending"
+          "state": "Integrated; actual Ctrl-click regression reproduced; focused pointer lifecycle repair in progress."
         },
         {
           "slice": "Keycaps shared view controls",
@@ -1312,7 +1343,19 @@
           "slice": "Outline reopened native active-option display",
           "original_source": "e3ea603a",
           "integrated_source": "1c200c23",
-          "state": "integrated; focused old-source RED captured, publiccandidatepending"
+          "state": "Integrated; focused old-source RED and repaired GREEN; actual selector reopening retained in consolidated review."
+        },
+        {
+          "slice": "Case contextual gasket support sizing",
+          "original_source": "746e4e6df64693422b4e5726e6896f00d11eac2f",
+          "integrated_source": "8ec1b6a4",
+          "state": "Integrated; author strict page WASM all-target Clippy passed; public joined journey pending."
+        },
+        {
+          "slice": "Outline coordinate accepted history synchronization",
+          "original_source": "ddc53653df10f7010ae6b66c7686429539e1ffbc",
+          "integrated_source": "ed5af2c9",
+          "state": "Integrated; actual Undo RED reproduced, focused regression RED; independent source assessment clear; GREEN receipt and public repaired journey pending."
         }
       ],
       "checks": {
@@ -1323,6 +1366,11 @@
           "failures_repaired": "DioxusSVGaria attribute, boxedprivatecamera action, test-onlyroutewrapper, needlessborrow"
         },
         "author_evidence": "Reuse focused passing packet checks; no additional broad suites."
+      },
+      "candidate_build": {
+        "state": "starting",
+        "build_id": "frontend-case-outline-delivery-reuse-20261003",
+        "source_commit": "pending documentation checkpoint"
       }
     },
     "journeys": [
@@ -1346,28 +1394,28 @@
       },
       {
         "journey": "Outline copy/rename -> active selection -> reopen",
-        "state": "open: native Active outline select mismatch",
-        "candidate": "19525578/34742",
-        "remaining": "Perimeter editing, durable active-option display and full F3.4/F3.7."
+        "state": "Version option fix integrated; actual perimeter edit Undo stale draft reproduced and repaired; fresh public history/reopen pending.",
+        "candidate": "32a57ed3/34743 \u2192 next joined candidate",
+        "remaining": "Repaired coordinate Undo/Redo/reopen, point drawing/dragging and full F3.4/F3.7 criteria."
       },
       {
         "journey": "Parts pad rename and deletion",
-        "state": "served deletion regression; repaired source awaiting candidate",
-        "candidate": "19525578/34742",
+        "state": "Public surviving-row draft identity leg verified; Undo/Redo/reopen report finishing.",
+        "candidate": "32a57ed3/34743",
         "remaining": "Public repaired deletion journey; full F4.2 import/edit/history criteria."
       },
       {
         "journey": "Keycaps finding -> Layout selection/Inspector/camera",
-        "state": "Inspector paired verified; camera repair awaiting candidate",
-        "candidate": "8afaaa2f/34741",
+        "state": "Selection and contextual Inspector verified; measured camera mismatch assigned to shared canvas/header repair.",
+        "candidate": "32a57ed3/34743",
         "remaining": "Fresh camera comparison and F6C.4 criteria."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "combined strict WASM check, then one production package build",
-      "secondary_target": "Sol outline selected-option regression, one focused test",
-      "dispatch": "Root assigned; no additional self-dispatched heavy suites."
+      "root_target": "One guarded page build; provider/core/renderer evidence reused from verified full 32a candidate.",
+      "secondary_target": "Sol Outline coordinate focused regression; no broad suite.",
+      "dispatch": "Coordinator assigned. At most two heavy jobs and one package build."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json"
   }
