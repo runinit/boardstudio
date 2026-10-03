@@ -1,24 +1,25 @@
-# Keymap Inspector composition parity — 2026-10-03
+# Keymap Inspector placement/spacing paired journey — 2026-10-03
 
-## Oracle
+**Scope:** only the F6K.4c Inspector composition change integrated in source `3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd`: editor-before-export ordering, full-width primary action, local-source note and Inspector spacing. This does not repeat binding, macro-history, firmware-delivery or F6K parent qualification.
 
-The paired 1280×940 Light-theme captures were supplied from Dioxus candidate 34765 and the pinned React app at `5a472a9426e6e38993361da402cd4ec730feb369`. The fixtures differ by one part in the Objects lineage (34 versus 35); this packet assesses Keymap Inspector composition and styling only, not tree/canvas or full-workbench parity.
+**Oracle/candidate:** React `5a472a9426e6e38993361da402cd4ec730feb369` at `http://127.0.0.1:5173/`; packaged Dioxus `http://127.0.0.1:34767/boardstudio/`, reported source `3a080e0e99d0638ddc1b562b3fc5a8ac91f3fefd`, provenance SHA-256 `96d7bc6289aedaadd8198bb9038c67d24fc659fde847362b24c7504313cbc733`. Separate named `agent-browser` worktree sessions were used for React and Dioxus, both at 1280×940, Light. Both imported the exact same saved archive, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
 
-- Dioxus before: [dioxus-before-34765.png](dioxus-before-34765.png), SHA-256 `ee883abd471baaf93660e5909e27db556e48c0351ffab17969ecbca47c35c49e`.
-- React reference: [react-reference-5173.png](react-reference-5173.png), SHA-256 `087a04e899cce0161ed80fb0cf3c9ae433e9205c9fda05176ebe5146f6fc021c`.
+## Results
 
-## Observed mismatch
+| Active editor | Result |
+| --- | --- |
+| Keys | In both apps, Layers and the key editor precede the full-width blue primary “Export ZMK source” button and the local-source helper. Candidate ordering and button treatment match. |
+| Macros | In both apps, macro guidance and Add macro precede Export and the helper. Candidate preserves ordering and action; the screenshot shows it remains visible after the editor. |
+| Encoders | In both apps, the encoder editor is before the same Export action in document order. Its longer content pushes Export below the 940 px viewport in both apps, so this pass did not claim the button was visually in-frame for this state. |
 
-React renders the Keys/Macros/Encoders tabs, the active editor disclosure and its controls, then a full-width primary “Export ZMK source” action followed by “Local source export. Configure controller and wiring in PCB before building firmware.” Dioxus previously put a neutral export button between the editor tabs and active editor, omitted the helper note, and used a 12px horizontal panel inset and a generic 14px gap with a second heading rule.
+The candidate keeps the intended content order and primary-action treatment, but vertical rhythm still differs from React in the inspected Keys/Macros views. In the 1280×940 Macros screenshots, approximate top coordinates are: Layers summary 131 px candidate / 148 px React; Layer name 346 / 373; editor tabs 484 / 516; Macros editor header 548 / 589; Add macro 638 / 676; Export 698 / 740; helper note 742 / 784. The candidate stacks this Inspector content about 17–42 px higher. Panel left inset is effectively aligned (984–985 px). This is a remaining visual refinement in the existing F6K.4c composition ticket, not a missing control or behavior. No new ticket is proposed here.
 
-## Change and boundary
+I switched between Keys, Macros, Encoders and Layout only. No export was invoked and no project edit was made. Both archive uploads started from the same SHA; the screenshots show the loaded Sofle v2 project and the same 29-key Keymap projection. This is focused visual evidence, not full F6K acceptance or a saved-document round trip.
 
-The existing export button now follows whichever editor is active, uses the existing enabled flag and callback, and is followed by the pinned helper note. Keymap-local spacing follows the React Inspector content inset, title, heading-to-section rhythm and tab-to-disclosure rhythm. No provider, readiness, source, history, or delivery semantics changed. The shared Inspector/shell width and the screenshot's 34/35 part-lineage difference are outside this packet.
+## Captures
 
-## Verification status
+- Keys: [React](screenshots/react-keys.png) / [Dioxus](screenshots/dioxus-keys.png)
+- Macros: [React](screenshots/react-macros.png) / [Dioxus](screenshots/dioxus-macros.png)
+- Encoders: [React](screenshots/react-encoders.png) / [Dioxus](screenshots/dioxus-encoders.png)
 
-Source was compared directly with React `KeymapPanel.tsx`, `InspectorSection.tsx`, `inspector.css`, and `keymap.css`. No new UI test or package build was run per the coordinator's instruction to avoid ordinary test matrices and heavy work during the frozen root build. `git diff --check` and the one-shot Impeccable detector are the bounded local checks; an integrated paired screenshot remains open for the coordinator's next served candidate. This evidence does not close F6K.4c or F6K.4.
-
-## Layout evidence pause
-
-The separate F3.1 criterion accounting remains as recorded in `keymap-frontier-audit-20261003/criterion-accounting.md`; the root's already-served 34765 shared-footer observation and F3.1 acceptance join remain open. This Keymap presentation change does not alter that accounting.
+The screenshots are direct 1280×940 captures. SHA-256: React Keys `88b5b6affd470833bec0826c407bcdc2023a0327c2e44b5d6b2f2814d6f634c8`; Dioxus Keys `82f62027d48cbe04ef7769d4defd8c4a98840d2fc1e0eb2254b179782aa45036`; React Macros `5c8eb5975cbe415f158fd9530c5c20e5dd74befdd9d7bd4bb14e574ebdd41607`; Dioxus Macros `99d2d974225a4ae4b399aa6b33a820c693bcefe70561250ad1ee7f7e11136a23`; React Encoders `64379aba7b7ff1c66238f41b266bd0048e95f0a82ca6a3c9e3bca49c965ffc24`; Dioxus Encoders `1bd831a8d2ee42944a49e10dfbe0d87c7178372892596272d37a2ed2a596153c`.
