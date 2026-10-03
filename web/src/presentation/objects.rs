@@ -575,6 +575,19 @@ fn AddObjectEntry(
                             }
                         }
                     }
+                    section { "aria-label": "Parts",
+                        super::parts::AddObjectComponentChooser {
+                            snapshot,
+                            scope,
+                            layout_target,
+                            query: parts_query,
+                            on_browse: on_browse_parts,
+                            on_place: EventHandler::new(move |action| {
+                                menu_open.set(false);
+                                on_place_component.call(action);
+                            }),
+                        }
+                    }
                     if let Some(scope) = scope.as_ref() {
                         section { "aria-label": "Board geometry",
                             h3 { "Board geometry" }
@@ -596,19 +609,6 @@ fn AddObjectEntry(
                                 },
                                 "Board outline…"
                             }
-                        }
-                    }
-                    section { "aria-label": "Parts",
-                        super::parts::AddObjectComponentChooser {
-                            snapshot,
-                            scope,
-                            layout_target,
-                            query: parts_query,
-                            on_browse: on_browse_parts,
-                            on_place: EventHandler::new(move |action| {
-                                menu_open.set(false);
-                                on_place_component.call(action);
-                            }),
                         }
                     }
                 }

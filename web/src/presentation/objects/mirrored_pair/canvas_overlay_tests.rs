@@ -88,6 +88,7 @@ fn composition() -> Element {
         aside { id: "mirror-overlay-objects",
             super::super::AddObjectEntry {
                 menu_open,
+                on_select: EventHandler::default(),
                 snapshot: snapshot(),
                 scope: Some(owner(1).scope),
                 on_place_component: EventHandler::default(),
