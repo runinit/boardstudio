@@ -888,7 +888,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
   .m1-component-list { max-height: 52svh; }
 }
 
-.m1-keymap-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.m1-keymap-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
 .m1-keycaps-workspace { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .m1-keycaps-canvas { flex: 1; min-width: 0; }
 .m1-keycaps-inspector { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 16px 24px; color: var(--wb-ink); }
@@ -935,9 +935,9 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keycaps-layout .m1-keymap-key.is-selected rect, .m1-keycaps-layout .m1-keymap-key:focus-visible rect { stroke: var(--wb-accent); stroke-width: .8; }
 .m1-keycaps-layout .m1-keymap-key:hover rect { stroke: var(--wb-accent); stroke-width: .5; }
 .m1-keycaps-layout .m1-keymap-key text { pointer-events: none; }
-.m1-keymap-panel { display: flex; flex: 1; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; overflow: auto; padding: 16px 12px; color: var(--wb-ink); background: var(--wb-panel); }
-.m1-keymap-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--wb-rule); }
-.m1-keymap-heading h2 { margin: 0; color: var(--wb-ink); font-size: 18px; }
+.m1-keymap-panel { display: flex; flex: 1; flex-direction: column; gap: 0; min-width: 0; min-height: 0; overflow: auto; padding: 8px 24px; color: var(--wb-ink); background: var(--wb-panel); }
+.m1-keymap-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+.m1-keymap-heading h2 { margin: 0; color: var(--wb-ink); font-size: 17px; }
 .m1-keymap-heading span { color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-keymap-panel h3 { margin: 0 0 7px; color: var(--wb-ink); font-size: var(--wb-type-body); }
 .m1-keymap-layers, .m1-keymap-editor-section { min-width: 0; border-top: 1px solid var(--wb-rule); }
@@ -961,6 +961,10 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keymap-panel button:hover { background: var(--wb-raised); }
 .m1-keymap-panel button[aria-pressed="true"] { border-color: var(--wb-accent); background: var(--wb-selection-surface); }
 .m1-keymap-panel :is(input, select, button):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-keymap-panel .m1-keymap-export { display: flex; width: 100%; align-items: center; justify-content: center; margin-block: 4px; border-color: var(--wb-accent); color: var(--wb-on-accent); background: var(--wb-accent); font-weight: 600; text-align: center; }
+.m1-keymap-panel .m1-keymap-export:hover:not(:disabled) { border-color: var(--wb-accent-dark); background: var(--wb-accent-dark); }
+.m1-keymap-panel .m1-keymap-export:disabled { opacity: .5; cursor: default; }
+.m1-keymap-export-note { margin: 0 0 16px; color: var(--wb-muted); font-size: 12px; line-height: 1.5; }
 .m1-keymap-encoder-editor { display: grid; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--wb-rule); }
 .m1-keymap-encoder-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .m1-keymap-encoder-editor > header h3, .m1-keymap-encoder-row > h4 { margin: 0; }

@@ -154,13 +154,6 @@ pub(in crate::presentation) fn KeymapPanel(
                     }
                 }
             }
-            button {
-                class: "m1-keymap-export",
-                r#type: "button",
-                disabled: !firmware_export_enabled,
-                onclick: move |_| on_export.call(()),
-                "Export ZMK source"
-            }
             if selected_editor() == KeymapEditor::Keys {
                 details { class: "m1-keymap-editor-section", open: keys_section_open(),
                     summary { onclick: move |event: MouseEvent| {
@@ -230,6 +223,14 @@ pub(in crate::presentation) fn KeymapPanel(
                     }
                 }
             }
+            button {
+                class: "m1-keymap-export",
+                r#type: "button",
+                disabled: !firmware_export_enabled,
+                onclick: move |_| on_export.call(()),
+                "Export ZMK source"
+            }
+            p { class: "m1-keymap-export-note", "Local source export. Configure controller and wiring in PCB before building firmware." }
         }
     }
 }
