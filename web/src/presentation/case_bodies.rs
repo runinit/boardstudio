@@ -706,12 +706,15 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
             let mut submitted_draft = submitted_draft;
             let mut blocked_attempt = blocked_attempt;
             let mut dirty = dirty;
-            if submission_busy() {
-                blocked_attempt.set(true);
-                return;
-            }
             let value_text = draft();
             if submitted_draft().as_deref() == Some(value_text.as_str()) {
+                return;
+            }
+            // Enter commits the draft and then the native input blurs. Ignore that
+            // same-draft blur before checking busy state so it does not report a
+            // second, blocked edit while the Enter submission is being accepted.
+            if submission_busy() {
+                blocked_attempt.set(true);
                 return;
             }
             let Ok(value) = value_text.trim().parse::<f64>() else {
