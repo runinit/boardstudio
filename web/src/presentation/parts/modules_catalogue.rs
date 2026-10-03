@@ -447,13 +447,13 @@ pub(super) fn ModuleInspector(
             .unwrap_or_default()
     );
     let project_owned = module.source == EntrySource::Project;
+    let variant_scope = scope.clone();
     let gate_count = definition.gates.len();
     let gate_noun = if gate_count == 1 { "item" } else { "items" };
     rsx! {
         h2 { "{definition.name}" }
         small { "VIK · {family}" }
         if !variants.is_empty() {
-            let variant_scope = scope.clone();
             label { class: "m1-parts-search-label",
                 "Variant"
                 select {

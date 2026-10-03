@@ -26,7 +26,6 @@
     "test:contracts": "node contracts/test/runtime-import.test.mjs",
     "check:boundaries": "node app/scripts/check-rust-boundaries.mjs",
     "check:repo": "node --test scripts/repo-check.test.mjs && node scripts/repo-check.mjs",
-    "check:frontend:source": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
     "check": "pnpm run check:repo && pnpm run check:contracts && pnpm run test:contracts && pnpm run test && pnpm run build && pnpm --dir cad check && pnpm run check:boundaries && pnpm run test:e2e && pnpm run test:e2e:pages",
     "test:e2e:pages": "pnpm --dir app test:e2e:pages",
     "test:web:physical-setup": "node scripts/web/test-physical-setup-proposal.mjs",

@@ -210,6 +210,10 @@ pub(super) fn SavedAssembliesEditor(
 
     let saved_assemblies = snapshot.document.assemblies.clone();
     let draft = editing.read().clone();
+    let draft_key = draft
+        .as_ref()
+        .map(|draft| draft.value.id.clone())
+        .unwrap_or_default();
     rsx! {
         section { class: "m1-parts-assemblies", "aria-label": "Saved assemblies",
             h2 { "Assemblies" }
@@ -220,10 +224,11 @@ pub(super) fn SavedAssembliesEditor(
                 div { class: "m1-parts-assembly-saved-list", role: "list", "aria-label": "Saved assemblies",
                     for assembly in saved_assemblies {
                         { let open_existing = open_existing.clone(); let duplicate = duplicate.clone();
+                          let existing_assembly = assembly.clone(); let duplicate_assembly = assembly.clone();
                           rsx! {
                             div { class: "m1-parts-assembly-saved-row", key: "{assembly.id}",
-                                button { r#type: "button", disabled: pending.read().is_some(), onclick: move |_| open_existing(assembly.clone()), "{assembly.name}" }
-                                button { r#type: "button", disabled: pending.read().is_some(), aria_label: "Duplicate {assembly.name}", onclick: move |_| duplicate(assembly.clone()), "Duplicate" }
+                                button { r#type: "button", disabled: pending.read().is_some(), onclick: move |_| open_existing(existing_assembly.clone()), "{assembly.name}" }
+                                button { r#type: "button", disabled: pending.read().is_some(), aria_label: "Duplicate {assembly.name}", onclick: move |_| duplicate(duplicate_assembly.clone()), "Duplicate" }
                             }
                           }
                         }
@@ -234,7 +239,6 @@ pub(super) fn SavedAssembliesEditor(
                 p { class: "m1-parts-assembly-feedback", role: "status", "{message}" }
             }
             if let Some(draft) = draft {
-                let draft_key = draft.value.id.clone();
                 AssemblyDraftFields {
                     key: "{draft_key}",
                     draft,
