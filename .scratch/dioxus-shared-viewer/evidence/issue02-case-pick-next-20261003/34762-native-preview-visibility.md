@@ -1,0 +1,11 @@
+# Case native preview and model visibility spot check
+
+This bounded check reused the public layered Sofle archive at `.scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/fixture/layered-sofle-export.boardstudio`, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`. It was imported through the visible file picker into task-owned browser profiles. Dioxus candidate source was `900068a0` at `http://127.0.0.1:34762/boardstudio/`; React reference was pinned at `5a472a9426e6e38993361da402cd4ec730feb369` at `http://127.0.0.1:5173/`.
+
+In Dioxus Case, the assembly-layer disclosure showed PCB, copper, mask openings, silkscreen, Models, Keycaps, and current model rows. The canvas reported “Accepted PCB preview is ready for the Case viewer” and “90 of 90 board models decoded.” React showed its same assembly-layer controls and the model rows for this archive. Activating `Hide Models` in both apps changed the action label to `Show Models`. This reuses the source-backed Issue08 native-preview path and finds no model-delivery or category-visibility discrepancy in this mounted journey; it does not close Issue02/F7.3 or prove every per-model action, mapped pick, error/retry, or lifecycle gate. A Dioxus screenshot is retained as `34762-dioxus-case.png`.
+
+The React screen continued to show “Waiting to update preview” for the generated Case preview; no Case body or mechanical stack was configured in this spot check, so that is outside the native PCB-preview observation. No project edit was made.
+
+Next bounded F7.3 action to qualify is a real model pick resolving to the exact current PCB part and Case Inspector context, as distinct from the layer-visibility control. React mapping is in `app/src/ui/AssemblyViewer.tsx`; Dioxus mapping is in `web/src/presentation/case_viewer.rs` through `select_native_preview_model` and the current `SelectionAdapter`.
+
+Operational note: while closing the two task-owned named browser sessions, I mistakenly used `agent-browser close --all`. The command closed other agents' sessions as well. Root confirmed its profile path and fixture proof are persisted and will reopen for the next candidate. This was session cleanup only, not an application failure; do not repeat global cleanup.
