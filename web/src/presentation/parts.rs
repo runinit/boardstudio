@@ -891,7 +891,7 @@ pub(super) fn PartsLibraryPanel(
                           let duplicate_name = visible_module_groups.iter().any(|other| other.row != row && other.name == name);
                           let selected_module = module_id.as_deref().is_some_and(|id| group.entries.iter().any(|entry| entry.definition.id == id));
                           let module_selection_id = format!("module:{first_id}");
-                          let selected = selected;
+                          let mut selected = selected;
                           let scope = scope.clone();
                           rsx! {
                             button {

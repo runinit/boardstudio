@@ -89,6 +89,7 @@ fn composition() -> Element {
             super::super::AddObjectEntry {
                 menu_open,
                 on_select: EventHandler::default(),
+                on_open_geometry_scripts: EventHandler::default(),
                 snapshot: snapshot(),
                 scope: Some(owner(1).scope),
                 on_place_component: EventHandler::default(),
