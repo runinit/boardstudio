@@ -2379,7 +2379,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Assembly query filtering fixed in fa275d83, focused regression RED/GREEN and34783 package pass. Focused browser replay and consolidated review running; broader loading/source-error coverage remains unqualified.",
+          "next_action": "Assembly filter/count/status and selection retention qualified34783/34784 against pinned TS; sole global no-match feedback repaired. Remaining criterion coverage: loading and source-error states, plus any unexercised keyboard query transitions. Do not repeat fixed successful search cases.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs",

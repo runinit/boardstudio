@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:48:36.991892+00:00",
+    "updated_at": "2026-10-03T23:57:39.392289+00:00",
     "parent_counts": {
       "accepted": 11,
       "implementing": 40,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-parts-assembly-search-20261003",
-      "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e",
-      "root_url": "http://127.0.0.1:34783/",
-      "subpath_url": "http://127.0.0.1:34783/boardstudio/",
-      "provenance": "web/target/builds/frontend-parts-assembly-search-20261003/provenance.json",
-      "provenance_sha256": "3f4f126bb8f76a0bb553868aac9362773c80d1f289b75870ba535a894a2e77c3",
+      "build_id": "frontend-parts-search-feedback-20261003",
+      "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484",
+      "root_url": "http://127.0.0.1:34784/",
+      "subpath_url": "http://127.0.0.1:34784/boardstudio/",
+      "provenance": "web/target/builds/frontend-parts-search-feedback-20261003/provenance.json",
+      "provenance_sha256": "551fa34f49c18c7a6881ec428f2fbe16e0148c6017e6473fce7fac45e54b6a1a",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1390,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 135.957746,
+      "command_span_seconds": 135.329291,
       "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-parts-assembly-search-20261003/package-proof.json",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-parts-search-feedback-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -49,7 +49,7 @@
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
       "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
-      "state": "Parts assembly query filter repaired and published34783; focused browser replay and consolidated review running. Prior attachment and accepted boundary evidence retained.",
+      "state": "Parts search filter/count/aggregate feedback qualified on34784 with consolidated review clear.",
       "packets": [
         {
           "stream": "Layout",
@@ -306,8 +306,8 @@
           "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
         }
       ],
-      "qualification": "Assembly filter focused WASM regression red/green and compiler/package/served assets pass; public replay pending.",
-      "application_candidate_source": "fa275d839ad4b1ddad182895b185f9cf76e0c18e"
+      "qualification": "Filter regression RED/GREEN, compiler/package/served assets pass; rendered feedback browser RED34783 and GREEN34784. Broader loading/source-error remains unqualified.",
+      "application_candidate_source": "b2bb813cdb75340a2725ac4488dfde6752104484"
     },
     "journeys": [
       {
@@ -460,11 +460,11 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-module-attachment-repair-20261003",
-      "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md",
-      "review_sha256": "283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc",
-      "state": "Attachment repair PASS; supplemental BND.1 acceptance supported, encoder C05 and Layout C04 bounded verdicts verified. Broader lifecycle joins remain open.",
-      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
+      "candidate": "frontend-parts-search-feedback-20261003",
+      "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts-search-review.md",
+      "review_sha256": "1077cf791c3d9a7e36dbb5af355324140333c913aa099ff8d37864555ca4af3a",
+      "state": "Parts query filtering/count/status source, focused regression, package and public replay PASS; broader parent coverage remains open.",
+      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md"
     },
     "parent_acceptances": [
       {
@@ -508,7 +508,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "Assembly filtering source repaired; focused WASM regression failed on old behavior and passed on fix. Next combined package/public replay. Same-name attribution difference disproved by exact-ID source trace."
+        "state": "Search list/count/status repair passes34784 public replay; final candidate review pending. F4.1 broader loading/source-error and legacy/custom override selection remain open."
       }
     ],
     "pending_join_packets": [],
@@ -551,18 +551,18 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "parts-assembly-search-20261003",
+        "id": "parts-search-feedback-20261003",
         "streams": [
           "Parts/Project"
         ],
         "journeys": [
           {
-            "id": "assembly-query-filter",
-            "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+            "id": "assembly-query-feedback",
+            "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
             "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
           }
         ],
-        "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e"
+        "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484"
       },
       "history": [
         {
@@ -1213,39 +1213,83 @@
             ],
             "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e"
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "parts-assembly-search-20261003",
+            "streams": [
+              "Parts/Project"
+            ],
+            "journeys": [
+              {
+                "id": "assembly-query-filter",
+                "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+              }
+            ],
+            "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e"
+          },
+          "phase": "repairing",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-parts-assembly-search-20261003",
+          "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e",
+          "journeys": [
+            {
+              "id": "assembly-query-filter",
+              "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+              "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
+              "state": "failed",
+              "finding": "Assembly counts fixed but component-only empty status falsely says no parts for matching assemblies and duplicates global no-match. Remove local status, retain aggregate predicate."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-03T23:47:50.325613+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "pending"
+          },
+          "next_scope": {
+            "id": "parts-search-feedback-20261003",
+            "streams": [
+              "Parts/Project"
+            ],
+            "journeys": [
+              {
+                "id": "assembly-query-feedback",
+                "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
+                "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+              }
+            ],
+            "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484"
+          }
         }
       ],
-      "phase": "repairing",
+      "phase": "qualified",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-parts-assembly-search-20261003",
-      "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e",
+      "candidate_build_id": "frontend-parts-search-feedback-20261003",
+      "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484",
       "journeys": [
         {
-          "id": "assembly-query-filter",
-          "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+          "id": "assembly-query-feedback",
+          "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
           "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-          "state": "failed",
-          "finding": "Assembly counts fixed but component-only empty status falsely says no parts for matching assemblies and duplicates global no-match. Remove local status, retain aggregate predicate."
+          "state": "passed",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+          "verified": "Key assembly query8/no false message; MX4; no-match0/exactlyone message. Prior selected-assembly retention reused."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-03T23:47:50.325613+00:00",
+      "started_at": "2026-10-03T23:55:09.629840+00:00",
       "review": {
         "profile": "sol-review",
-        "state": "pending"
-      },
-      "next_scope": {
-        "id": "parts-search-feedback-20261003",
-        "streams": [
-          "Parts/Project"
-        ],
-        "journeys": [
-          {
-            "id": "assembly-query-feedback",
-            "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
-            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
-          }
-        ]
+        "model": "gpt-6.1-sol",
+        "reasoning": "high",
+        "state": "completed",
+        "verdict": "parts_search_repair_pass",
+        "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/parts-search-review.md",
+        "review_sha256": "1077cf791c3d9a7e36dbb5af355324140333c913aa099ff8d37864555ca4af3a",
+        "source_commit": "b2bb813cdb75340a2725ac4488dfde6752104484"
       }
     },
     "delivery_priority": {

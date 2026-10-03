@@ -388,6 +388,17 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       "current_mitigation": "Route the module-tagged Parts selection through a read-only page-local preview using only that selected ModuleDefinition source geometry. Leave missing outlines empty; retain exact selection identity and existing accepted project snapshot precedence. A paired candidate replay is required before considering this corrected.",
       "post_port_follow_up": "Assess a typed Parts library-choice owner spanning definitions, assembly presets and module variants so menu, Inspector and center preview consume one tagged current selection.",
       "status": "specific mounted preview mismatch reproduced; source-backed correction in progress; do not claim Issue 02 acceptance"
+    },
+    {
+      "date": "2026-10-03",
+      "observation": "PartsLibraryPanel computes aggregate query matches, but separately rendered all assembly presets and emitted a component-only message phrased as aggregate no-match. Fixing the list alone left false/duplicate status text, reproduced in34783.",
+      "evidence": [
+        "web/src/presentation/parts.rs",
+        ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+      ],
+      "current_mitigation": "One normalized assembly filter drives rows/count and the existing aggregate predicate alone drives no-match feedback. Focused filter RED/GREEN plus rendered-message browser RED; repaired package replay pending.",
+      "post_port_follow_up": "Use one typed catalogue search projection for visible categories, counts, selection retention and aggregate empty states; include a rendered mixed-category regression so helper-only tests cannot miss divergent branches.",
+      "status": "bounded repair integrated; larger presentation refactor deferred"
     }
   ],
   "continuation_notes": [
@@ -1680,6 +1691,15 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
     "review_correction": "The first mapping over-attributed partial successful-path/source evidence to 12 compound criteria. The single candidate review retained those citations and changed their states to implemented with explicit remaining branches. A verified row must cover its entire stated requirement; source presence and a nearby passing workflow are insufficient.",
     "publication_repair": "Review found the initial atomic proof write outside transaction rollback. A post-replace directory-fsync failure regression reproduced absent/existing-proof corruption; moving that write into rollback coverage passed all 8 publication tests. Application assets were unchanged.",
     "browser_setup_limits": "The bounded pass excluded false empty-profile setup with retained per-key overrides, an obsolete reference-server URL and post-reload Undo attempts without edit history. Named sessions and scoped full inspection helped; assignments must also pin the live reference URL and observable preconditions. Reuse valid prior evidence instead of treating these harness mistakes as application defects."
+  },
+  "finalized_review_integrity_20261003": {
+    "observation": "Appending unrelated candidate review to a file pinned by accepted decision would invalidate finalized evidence hash. Detected before mutation; BND.1 review remains SHA283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc.",
+    "during_port": "One concise review per new coherent candidate, linking reused immutable prior reviews instead of copying or appending to accepted evidence. Live progress points to current review; accepted decision retains its original reference.",
+    "post_port_proposal": "Make acceptance-pinned evidence immutable in delivery tooling and validate its hashes when updating progress, avoiding manual coordination without duplicate reviews.",
+    "evidence": [
+      ".scratch/dioxus-keycap-cad-bridge/evidence/DECISION.json",
+      ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md"
+    ]
   }
 }
 ```
