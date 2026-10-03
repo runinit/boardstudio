@@ -675,6 +675,8 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-case-bodies button:focus-visible, .m1-case-bodies :is(input, select):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 .m1-case-bodies button:disabled, .m1-case-bodies :is(input, select):disabled { opacity: .58; cursor: not-allowed; }
 .m1-case-bodies-heading, .m1-case-subsection-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m1-case-subsection > summary { cursor: pointer; list-style: revert; }
+.m1-case-subsection-content { display: grid; gap: 10px; min-width: 0; }
 .m1-case-bodies-heading { padding-bottom: 10px; border-bottom: 1px solid var(--wb-rule); }
 .m1-case-body-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 6px; }
 .m1-case-body-tab { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2px 8px; text-align: left; }

@@ -160,11 +160,21 @@ struct CaseNumberCommit {
     value: f64,
 }
 
+#[derive(Clone, Default)]
+struct CaseBodyDisclosureState {
+    owner: String,
+    mounts_open: bool,
+    mounts_chosen: bool,
+    gasket_open: bool,
+    gasket_chosen: bool,
+}
+
 #[component]
 pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
     let request_sequence = use_signal(|| 0_u64);
     let pending_request = use_signal(|| None::<RequestIdentity>);
     let submission_busy = use_signal(|| false);
+    let mut disclosures = use_signal(CaseBodyDisclosureState::default);
     let selected_body = use_context::<CaseSelection>().body;
 
     let board = props
@@ -302,6 +312,29 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
             )
         })
         .unwrap_or_default();
+    let mounts_default_open = active_body.is_some_and(|body| {
+        body.mounts
+            .as_ref()
+            .is_some_and(|mounts| !mounts.is_empty())
+    });
+    let gasket_default_open = active_body.is_some_and(|body| body.gasket.is_some());
+    let disclosure_state = disclosures();
+    let (mounts_open, gasket_open) = if disclosure_state.owner == editor_key {
+        (
+            if disclosure_state.mounts_chosen {
+                disclosure_state.mounts_open
+            } else {
+                mounts_default_open
+            },
+            if disclosure_state.gasket_chosen {
+                disclosure_state.gasket_open
+            } else {
+                gasket_default_open
+            },
+        )
+    } else {
+        (mounts_default_open, gasket_default_open)
+    };
     let emit_edit = emit_edit.clone();
     let global_feedback = feedback
         .as_ref()
@@ -422,16 +455,32 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 }
                             }
                         }
-                        section { class: "m1-case-subsection", "aria-label": "Mounting",
-                            header { class: "m1-case-subsection-heading",
+                        details { class: "m1-case-subsection", "aria-label": "Mounting", open: mounts_open,
+                            summary { class: "m1-case-subsection-heading", onclick: {
+                                let mut disclosures = disclosures;
+                                let owner = editor_key.clone();
+                                move |event: MouseEvent| {
+                                    event.prevent_default();
+                                    let current = disclosures();
+                                    let current_open = if current.owner == owner && current.mounts_chosen { current.mounts_open } else { mounts_default_open };
+                                    disclosures.set(CaseBodyDisclosureState {
+                                        owner: owner.clone(),
+                                        mounts_open: !current_open,
+                                        mounts_chosen: true,
+                                        gasket_open: if current.owner == owner && current.gasket_chosen { current.gasket_open } else { gasket_default_open },
+                                        gasket_chosen: current.owner == owner && current.gasket_chosen,
+                                    });
+                                }
+                            },
                                 h3 { "Mounting" }
                                 small { "{body.mounts.as_ref().map_or(0, Vec::len)} mounts" }
+                            }
+                            div { class: "m1-case-subsection-content",
                                 button {
                                     r#type: "button", disabled: !can_edit,
                                     onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::AddMount { body_id: body_id.clone() }) },
                                     "+ Add mount"
                                 }
-                            }
                             for (index, mount) in body.mounts.iter().flatten().enumerate() {
                                 {
                                     let mount_id = mount.id.clone();
@@ -491,10 +540,29 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
                                     }
                                 }
                             }
+                            }
                         }
-                        section { class: "m1-case-subsection", "aria-label": "Gasket channel",
-                            header { class: "m1-case-subsection-heading",
+                        details { class: "m1-case-subsection", "aria-label": "Gasket channel", open: gasket_open,
+                            summary { class: "m1-case-subsection-heading", onclick: {
+                                let mut disclosures = disclosures;
+                                let owner = editor_key.clone();
+                                move |event: MouseEvent| {
+                                    event.prevent_default();
+                                    let current = disclosures();
+                                    let current_open = if current.owner == owner && current.gasket_chosen { current.gasket_open } else { gasket_default_open };
+                                    disclosures.set(CaseBodyDisclosureState {
+                                        owner: owner.clone(),
+                                        mounts_open: if current.owner == owner && current.mounts_chosen { current.mounts_open } else { mounts_default_open },
+                                        mounts_chosen: current.owner == owner && current.mounts_chosen,
+                                        gasket_open: !current_open,
+                                        gasket_chosen: true,
+                                    });
+                                }
+                            },
                                 h3 { "Gasket channel" }
+                                small { if body.gasket.is_some() { "Configured" } else { "Optional" } }
+                            }
+                            div { class: "m1-case-subsection-content",
                                 if body.gasket.is_some() {
                                     button { r#type: "button", disabled: !can_edit,
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: None }) },
@@ -506,7 +574,6 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
                                         "+ Add gasket"
                                     }
                                 }
-                            }
                             if let Some(gasket) = body.gasket.as_ref() {
                                 div { class: "m1-case-measures m1-case-gasket-measures",
                                     CaseNumberField {
@@ -525,6 +592,7 @@ pub(crate) fn CaseBodies(props: CaseBodiesProps) -> Element {
                                         on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let gasket = gasket.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { depth: change.value, ..gasket.clone() }) }, Some(change.field_id)) }
                                     }
                                 }
+                            }
                             }
                         }
                     }
