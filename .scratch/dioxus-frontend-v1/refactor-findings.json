@@ -1128,7 +1128,7 @@
       "category": "architecture / source ownership",
       "confidence": "confirmed source-selection defect; broader interface improvement is a hypothesis",
       "impact_priority": "medium",
-      "status": "minimal private source-discriminated repair in isolated F7.3b slice; independent review and current package/public verification pending",
+      "status": "minimal private repair independently reviewed, integrated and served34737; bounded paired per-model visibility effect proven; broader stale/foreign/model readiness and responsive qualification open",
       "discovered": "2026-10-02",
       "baseline": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
       "workflows": [
@@ -1138,7 +1138,8 @@
       "evidence": [
         "web/src/presentation/shared_viewer.rs",
         "web/src/presentation/case_assembly_layers.rs",
-        ".scratch/dioxus-shared-viewer/evidence/layout-canonical-layer-controls-20261002/planning-evidence.md"
+        ".scratch/dioxus-shared-viewer/evidence/layout-canonical-layer-controls-20261002/planning-evidence.md",
+        ".scratch/dioxus-frontend-v1/evidence/layout-case-transport-public-20261002/README.md"
       ],
       "observation": "At paired candidate source 7d09d0a, the common renderer projected and displayed the current Layout board from LayoutPreviewSnapshot while its per-component layer rows were derived only from the separate NativePreviewSnapshot input. The Layout DOM showed zero model rows despite rendered component meshes. Scope-specific delivery rows and row controls already existed; source discrimination at the consumer was missing.",
       "impact": "A valid active scene can display component meshes while omitting their visibility controls, so auxiliary controls silently diverge from the accepted scene source.",
@@ -1150,6 +1151,15 @@
       "linked_tasks": [
         "F7.3b",
         "F3.6"
+      ],
+      "continuations": [
+        {
+          "date": "2026-10-02",
+          "source": "b9e74e37fc34948be9fee97c918b644200778bca",
+          "observation": "Paired Layout3D Layers labels expose packaged identity filenames: React left-J3 uses1.step while Dioxus exposes its content-hash.step. Both hide the same actual visible display mesh. Source identity is now correct, but display naming remains coupled to asset storage.",
+          "during_port": "Retain visual naming parity as an open presentation criterion; no renderer/storage identity changes implied by this ledger entry.",
+          "post_port": "Assess distinct human-readable model metadata and immutable storage identity in a typed accepted viewer-source descriptor."
+        }
       ]
     }
   ]

@@ -498,3 +498,7 @@ Actual paired browser checks on `34732/9d34f367` also retain current composition
 ### F3.2c placement chooser — 2026-10-02
 
 No new refactoring takeaway was observed in the bounded Add object/menu correction. It reuses the accepted placement owner, existing layout-target signal, catalogue search and normal placement edit path; unavailable existing-half and geometry-editor actions remain outside this slice rather than appearing as placeholder controls. Public paired placement/history verification remains governed by the current F3.2c evidence packet.
+
+### RF-015 verified public consumer and naming continuation
+
+The private source-selection repair is now independently reviewed, integrated and served in candidate34737/sourceb9e74e37. Paired actual Layout3D visibility toggles remove the same left-J3 display mesh in React and Dioxus. Broader stale/foreign source, readiness and responsive qualification remains open. The same rows expose storage filenames (`1.step` in React, content-hash.step in Dioxus), showing that human-facing model labels remain coupled to packaging identity. Retain naming parity as an open UI criterion; assess distinct display metadata/storage identity after the port. Evidence: [bounded public receipt](../../.scratch/dioxus-frontend-v1/evidence/layout-case-transport-public-20261002/README.md).
