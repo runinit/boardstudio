@@ -3394,7 +3394,11 @@ fn Editor() -> Element {
             }
         },
     ));
-    let encoder_input_actions = keymap::use_encoder_inputs(runtime.clone(), layer_source.clone());
+    let encoder_input_actions = keymap::use_encoder_inputs(
+        runtime.clone(),
+        layer_source.clone(),
+        pcb_wiring_mount.resolution_signal,
+    );
     let binding_actions = keymap::use_binding_operations(
         runtime.clone(),
         keymap::BindingProjectionSources {

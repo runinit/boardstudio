@@ -843,6 +843,24 @@ fn CommandPill() -> Element {
                     base_route_hashes[mode],
                 )
 
+    def test_delivery_helpers_do_not_force_provider_rebuild(self):
+        paths = (
+            "scripts/migration_candidate.py",
+            "scripts/migration-browser.py",
+            "scripts/test-migration-candidate.py",
+            "scripts/test-migration-browser.py",
+        )
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            current = {name: sha(body) for name, body in SOURCE_BYTES.items()}
+            head = dict(HEAD_BYTES)
+            for path in paths:
+                head[path] = b"standalone delivery helper"
+                current[path] = sha(head[path])
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                BUILD.validate_reuse("candidate", "full-fixture")
+
     def test_unrelated_script_change_is_not_build_control_only(self):
         path = "scripts/unrelated-build-script.py"
         with TemporaryDirectory() as temporary:

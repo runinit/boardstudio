@@ -29,7 +29,10 @@ production cutover and React removal retain their separate authorization/gates.
    Parts/Project. Prioritize missing or broken end-to-end functionality across all
    six queues, rather than Layout visual closure. Each stream has at most one implemented
    packet waiting for integration or validation; help finish/repair that packet.
-2. Pin the relevant settled TypeScript journey, inspect current Rust code and refine
+2. Dispatch from the criterion queue: name a missing criterion, current source,
+   owned files, consumed capabilities and finish condition. Use bounded investigation
+   for unassessed criteria, qualification for implemented criteria, and closure only
+   when every criterion and final join is satisfied. Pin the relevant settled TypeScript journey, inspect current Rust code and refine
    the existing spec/ticket. Start when the capabilities actually consumed are proven.
    Preserve parent criteria and original dependency rationale. Create a new ticket only
    for distinct runnable work. A no-gap audit returns source pointers by message.
@@ -43,7 +46,8 @@ production cutover and React removal retain their separate authorization/gates.
 5. Freeze one combined candidate. The package helper runs the existing locked Dioxus
    page compiler check before fixtures/builds. Repair one diagnostic list in place,
    then retry; preserve existing fixes, specs and failed logs. Reuse verified unchanged
-   providers and warm caches. Coordinator assigns heavy slots; at most two heavy jobs,
+   providers and warm caches. Publish through the delivery command's provenance-derived
+   proof and existing asset validation. Coordinator assigns heavy slots; at most two heavy jobs,
    including one package, run at once.
 6. When a coherent functional batch is integrated and its candidate compile/package
    passes, qualify its affected working journeys and use one consolidated

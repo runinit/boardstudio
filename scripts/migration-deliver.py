@@ -333,12 +333,36 @@ def main(argv=None):
     commit.add_argument("--intent", choices=("delivery", "integration"), required=True)
     commit.add_argument("-m", "--message", required=True)
     commit.add_argument("paths", nargs="*", help="optional pathspecs; otherwise commit the current index")
+    candidate = commands.add_parser(
+        "publish-candidate",
+        help="derive and publish a candidate proof from a completed build",
+    )
+    candidate.add_argument("build_id")
+    candidate.add_argument("--root-url", required=True)
+    candidate.add_argument("--subpath-url", required=True)
+    candidate.add_argument("--proof", help="output proof path (defaults under candidate evidence)")
     commands.add_parser("hook", help="internal entry point used by the installed pre-commit hook")
     args = parser.parse_args(argv)
     try:
         root = canonical_root(Path.cwd())
         if args.command == "hook":
             return _git_hook(root)
+        if args.command == "publish-candidate":
+            _, entry = validate_checkout(root, required=True)
+            if entry["role"] != "coordinator":
+                raise GuardError("only the registered coordinator checkout may publish a migration candidate")
+            # Imported lazily so the existing local guard remains independent of
+            # the progress record and candidate build tooling.
+            import importlib.util
+            candidate_path = Path(__file__).with_name("migration_candidate.py")
+            spec = importlib.util.spec_from_file_location("migration_candidate", candidate_path)
+            candidate_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(candidate_module)
+            changed = candidate_module.publish(
+                root, args.build_id, args.root_url, args.subpath_url, args.proof,
+            )
+            print("Candidate proof and current run updated" if changed else "Candidate already current")
+            return 0
         if args.command == "register":
             branch = args.branch or _current_branch(root)
             if not branch:
@@ -370,7 +394,7 @@ def main(argv=None):
         elif args.command == "commit":
             _commit(root, args.intent, args.message, args.paths)
         return 0
-    except (GuardError, subprocess.CalledProcessError, OSError) as error:
+    except (GuardError, subprocess.CalledProcessError, OSError, ValueError) as error:
         print(f"migration-deliver: {error}", file=sys.stderr)
         return 1
 

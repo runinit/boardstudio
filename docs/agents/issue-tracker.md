@@ -10,7 +10,7 @@ Specs and issues remain Markdown under `.scratch/<feature>/`.
 | Fact | Authoritative record |
 | --- | --- |
 | Current candidate, six queues, pending joins, phase, journey progress | [run JSON](../migration/dioxus-frontend-v1-run.json), `current_progress` |
-| 62 parents, criteria, status, dependencies and final joins | [tasks.json](../../.scratch/dioxus-frontend-v1/tasks.json) |
+| 62 parents, criterion states/evidence/next actions, status, dependencies and final joins | [tasks.json](../../.scratch/dioxus-frontend-v1/tasks.json) |
 | Workflow requirements and source coverage | [spec](../../.scratch/dioxus-frontend-v1/spec.md), existing child issues and [coverage](../../.scratch/dioxus-frontend-v1/coverage.json) |
 | Architecture/design/theory/quality findings | [RF ledger](../../.scratch/dioxus-frontend-v1/refactor-findings.json) |
 | Candidate review | One finalized candidate review/audit, referenced by parent decisions using path/hash |
@@ -24,8 +24,12 @@ an allegedly missing capability.
 Use `python3 .scratch/dioxus-frontend-v1/progress.py --help` for commands:
 
 - `show` / `show --json`: current operations and counts derived from the graph.
-- `record-candidate`: validate an existing package proof/provenance and live assets,
-  then publish the served candidate atomically. No additional receipt is created.
+- `parent ID`, `remaining`, and `ready`: query focused criteria and the implementation,
+  qualification, investigation or closure queue. `--json` returns assignment fields;
+  functional work is the default ready queue. Visual and release work remain recorded.
+- `scripts/migration-deliver.py publish-candidate`: derive the package proof from
+  completed provenance, validate sources and served assets, then record the candidate.
+  `record-candidate` remains available for existing validated proofs.
 - `sync`: derive counts and the complete readable RF report from their source records.
 - `check`: check record consistency; it runs no application tests.
 - `set-status`: preserve status history; acceptance requires a decision, final joins
@@ -38,3 +42,12 @@ The generated [refactoring report](../migration/POST-PORT-REFACTOR.md) renders t
 ledger; edit JSON once and sync. Preserve stable IDs, uncertainty, failed attempts and
 prior evidence. Necessary parity repairs remain current work; structural proposals
 feed the later refactoring phase.
+
+Criterion states are `unassessed`, `missing`, `implemented`, and `verified`.
+Blockers are separate references to consumed capabilities. Source establishes
+implementation; behavioral evidence establishes verification. Parent acceptance text,
+decisions and final joins remain authoritative. Historical accepted parents retain
+their recorded decisions; mapped open parents require complete criterion accounting
+before acceptance. Agents submit scoped assessments; the coordinator updates each
+canonical record once. Use the migration browser helper for named sessions, absolute
+uploads, observable waits and scoped full snapshots before an absence claim.

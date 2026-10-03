@@ -311,6 +311,156 @@ class ProgressTests(unittest.TestCase):
         self.assertIn('````json', report)
         self.assertNotIn("additional source observations are indexed", report)
 
+    def criterion(self, parent_id, suffix, *, state="missing", classification="functional", blockers=None):
+        return {
+            "id": f"{parent_id}-C{suffix:02d}",
+            "requirement": f"Requirement {parent_id}-{suffix}",
+            "state": state,
+            "classification": classification,
+            "sources": ["web/src/main.tsx:12"],
+            "evidence": [".scratch/evidence.md#proof"],
+            "blockers": blockers or [],
+            "next_action": "Implement the acceptance behavior",
+            "finish_condition": "The behavior is proven in the mounted workflow",
+            "owned_files": ["web/src/main.tsx"],
+            "capabilities": ["project.open"],
+        }
+
+    def criterion_graph(self):
+        tasks = [{"id": f"F3.{index}", "title": f"Parent {index}",
+                  "status": "planned", "acceptance_after": [], "criteria": []}
+                 for index in range(1, 63)]
+        tasks[0].update({"status": "accepted"})
+        tasks[1]["criteria"] = [self.criterion("F3.2", 1),
+                                 self.criterion("F3.2", 2, classification="visual")]
+        tasks[1]["criteria_accounting"] = {
+            "source_commit": "a" * 40, "assessed_at": "2026-10-03T12:00:00Z",
+            "coverage": "partial", "note": "Initial criterion map",
+        }
+        tasks[2]["criteria"] = [self.criterion("F3.3", 1, state="implemented",
+                                                blockers=["F3.2-C01"])]
+        tasks[2]["criteria_accounting"] = {
+            "source_commit": "a" * 40, "assessed_at": "2026-10-03T12:00:00Z",
+            "coverage": "partial", "note": "Initial criterion map",
+        }
+        tasks[3]["criteria"] = [self.criterion("F3.4", 1, state="verified")]
+        tasks[3]["criteria_accounting"] = {
+            "source_commit": "a" * 40, "assessed_at": "2026-10-03T12:00:00Z",
+            "coverage": "complete", "note": "All acceptance requirements covered",
+        }
+        tasks[3]["acceptance_after"] = ["F3.1"]
+        tasks[4]["criteria"] = [self.criterion("F3.5", 1, blockers=["F3.1"])]
+        tasks[4]["criteria_accounting"] = {
+            "source_commit": "a" * 40, "assessed_at": "2026-10-03T12:00:00Z",
+            "coverage": "partial", "note": "Initial criterion map",
+        }
+        return {"tasks": tasks}
+
+    def test_remaining_filters_and_counts_derive_without_mutating_graph(self):
+        graph = self.criterion_graph()
+        before = json.dumps(graph, sort_keys=True)
+        rows = progress.criterion_rows(graph, stream="Layout", remaining=True)
+        self.assertEqual([row["criterion"]["id"] for row in rows],
+                         ["F3.2-C01", "F3.2-C02", "F3.3-C01", "F3.5-C01"])
+        visual = progress.criterion_rows(graph, parent="F3.2", classification="visual")
+        self.assertEqual([row["criterion"]["id"] for row in visual], ["F3.2-C02"])
+        self.assertEqual(progress.criterion_counts(graph)["by_state"],
+                         {"missing": 3, "implemented": 1, "verified": 1})
+        self.assertEqual(json.dumps(graph, sort_keys=True), before)
+
+    def test_ready_queue_honors_criterion_blockers_and_classification(self):
+        graph = self.criterion_graph()
+        implement = progress.ready_rows(graph, "implement")
+        self.assertEqual([row["criterion"]["id"] for row in implement], ["F3.2-C01", "F3.5-C01"])
+        graph["tasks"][0]["criteria"] = [self.criterion("F3.1", 1)]
+        graph["tasks"][0]["criteria_accounting"] = {
+            "source_commit": "a" * 40, "assessed_at": "2026-10-03T12:00:00Z",
+            "coverage": "partial", "note": "Historical accepted record",
+        }
+        self.assertNotIn("F3.1-C01", [row["criterion"]["id"]
+                                       for row in progress.ready_rows(graph, "implement")])
+        graph["tasks"][0]["status"] = "planned"
+        self.assertNotIn("F3.5-C01", [row["criterion"]["id"]
+                                       for row in progress.ready_rows(graph, "implement")])
+        graph["tasks"][0]["status"] = "accepted"
+        qualify = progress.ready_rows(graph, "qualify")
+        self.assertEqual(qualify, [])
+        graph["tasks"][1]["criteria"][0]["state"] = "verified"
+        qualify = progress.ready_rows(graph, "qualify")
+        self.assertEqual([row["criterion"]["id"] for row in qualify], ["F3.3-C01"])
+        visual = progress.ready_rows(graph, "implement", classification="visual")
+        self.assertEqual([row["criterion"]["id"] for row in visual], ["F3.2-C02"])
+
+    def test_ready_payload_uses_compact_parent_metadata_and_exact_criterion(self):
+        graph = self.criterion_graph()
+        row = progress.ready_rows(graph, "implement")[0]
+        self.assertEqual(set(row), {"parent_spec", "criterion"})
+        self.assertEqual(set(row["parent_spec"]),
+                         {"id", "title", "status", "stream", "priority", "spec", "acceptance_after"})
+        self.assertNotIn("criteria", row["parent_spec"])
+        self.assertNotIn("status_history", row["parent_spec"])
+        self.assertEqual(set(row["criterion"]), progress.CRITERION_FIELDS)
+
+    def test_verified_criteria_need_evidence_and_accounting_needs_full_commit_hash(self):
+        graph = self.criterion_graph()
+        graph["tasks"][1]["criteria_accounting"]["source_commit"] = "abc"
+        with self.assertRaisesRegex(ValueError, "40-character hash"):
+            progress.validate_criteria(graph)
+        graph["tasks"][1]["criteria_accounting"]["source_commit"] = "a" * 40
+        graph["tasks"][3]["criteria"][0]["evidence"] = []
+        with self.assertRaisesRegex(ValueError, "needs evidence"):
+            progress.validate_criteria(graph)
+
+    def test_close_requires_verified_criteria_complete_coverage_and_accepted_joins(self):
+        graph = self.criterion_graph()
+        graph["tasks"][3]["criteria_accounting"]["coverage"] = "partial"
+        self.assertEqual(progress.ready_rows(graph, "close"), [])
+        graph["tasks"][3]["criteria_accounting"]["coverage"] = "complete"
+        graph["tasks"][3]["status"] = "implementing"
+        self.assertEqual([row["parent_spec"]["id"] for row in progress.ready_rows(graph, "close")], ["F3.4"])
+        graph["tasks"][0]["status"] = "planned"
+        self.assertEqual(progress.ready_rows(graph, "close"), [])
+
+    def test_acceptance_requires_verified_mapped_criteria_and_preserves_accepted_history(self):
+        graph = self.criterion_graph()
+        target = graph["tasks"][1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("review.md", "audit.md", "criteria.json"):
+                (root / name).write_text(name)
+            decision = {
+                "parent": target["id"], "review": "review.md", "audit": "audit.md",
+                "review_sha256": sha((root / "review.md").read_bytes()),
+                "audit_sha256": sha((root / "audit.md").read_bytes()),
+                "criteria_accounting": "criteria.json",
+            }
+            args = type("Args", (), {"parent": target["id"], "status": "accepted",
+                                      "reason": "criteria complete", "decision": "decision.json"})()
+            with patch.object(progress, "ROOT", root), \
+                    patch.object(progress, "read", return_value=decision):
+                with self.assertRaisesRegex(ValueError, "complete criterion accounting"):
+                    progress.set_status(graph, args)
+                self.assertEqual(target["status"], "planned")
+                target["criteria_accounting"]["coverage"] = "complete"
+                with self.assertRaisesRegex(ValueError, "Unverified acceptance criteria"):
+                    progress.set_status(graph, args)
+                target["criteria"] = [self.criterion("F3.2", 1, state="verified")]
+                progress.set_status(graph, args)
+            self.assertEqual(target["status"], "accepted")
+            self.assertEqual(graph["tasks"][0]["status"], "accepted")
+            with self.assertRaisesRegex(ValueError, "explicit correction decision"):
+                progress.set_status(graph, type("Args", (), {"parent": "F3.1", "status": "planned"})())
+
+    def test_criterion_validation_rejects_bad_schema_and_unknown_blockers(self):
+        graph = self.criterion_graph()
+        graph["tasks"][1]["criteria"][0]["extra"] = True
+        with self.assertRaisesRegex(ValueError, "criterion schema"):
+            progress.validate_criteria(graph)
+        graph = self.criterion_graph()
+        graph["tasks"][1]["criteria"][0]["blockers"] = ["F9.999-C01"]
+        with self.assertRaisesRegex(ValueError, "Unknown blocker"):
+            progress.validate_criteria(graph)
+
 
 if __name__ == "__main__":
     unittest.main()

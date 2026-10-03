@@ -70,10 +70,16 @@ BUILD_TEST_ONLY_PATHS = frozenset({
     "scripts/test-build-m1-reuse.py",
     "scripts/test-build-m1-sources.py",
     "scripts/test-migration-deliver.py",
+    "scripts/test-migration-candidate.py",
+    "scripts/test-migration-browser.py",
 })
 # The guard executes in the build CLI, so its exact source may change without
 # changing packaged providers. Keep this separate from verification-only files.
-BUILD_CONTROL_ONLY_PATHS = frozenset({"scripts/migration-deliver.py"})
+BUILD_CONTROL_ONLY_PATHS = frozenset({
+    "scripts/migration-deliver.py",
+    "scripts/migration_candidate.py",
+    "scripts/migration-browser.py",
+})
 NON_PAGE_RUST_ALIASES = frozenset({"web/src/presentation/objects/layout_align_geometry.rs"})
 REUSED_PROVIDER_PREFIXES = (
     "assets/cad/",

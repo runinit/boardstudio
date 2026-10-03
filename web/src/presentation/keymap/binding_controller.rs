@@ -42,6 +42,10 @@ pub(in crate::presentation) struct EncoderInputChoice {
 pub(in crate::presentation) struct EncoderInputProjection {
     pub(in crate::presentation) identity: EncoderInputIdentity,
     pub(in crate::presentation) encoders: Rc<[EncoderInputChoice]>,
+    /// True once the F5 board plan for this accepted snapshot has settled.
+    /// A completed binding edit waits for this edge before acknowledging a
+    /// physical encoder whose input identity came from that plan.
+    pub(in crate::presentation) electrical_plan_settled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -437,6 +441,14 @@ fn same_input_lineage(captured: &EncoderInputIdentity, current: &EncoderInputIde
         && captured.electrical_fingerprint == current.electrical_fingerprint
 }
 
+fn waiting_for_electrical_plan(
+    captured: Option<&EncoderInputIdentity>,
+    current: Option<&EncoderInputProjection>,
+) -> bool {
+    captured.is_some_and(|identity| identity.electrical_fingerprint.is_some())
+        && current.is_some_and(|inputs| !inputs.electrical_plan_settled)
+}
+
 fn binding_for_key_id(
     snapshot: &AcceptedSnapshot,
     board_id: &str,
@@ -508,7 +520,7 @@ pub(in crate::presentation) fn use_binding_operations(
     let outcome_source = source.clone();
     let outcome_view = view.clone();
 
-    use_effect(use_reactive((&version,), {
+    use_effect(use_reactive((&version, &encoder_inputs_value), {
         let runtime = runtime.clone();
         let mut pending = pending;
         let mut feedback = feedback;
@@ -553,6 +565,17 @@ pub(in crate::presentation) fn use_binding_operations(
                         return;
                     }
                     let choices = project_binding_choices(snapshot);
+                    // F5 invalidates its plan while the accepted edit advances
+                    // the snapshot, then publishes the replacement plan
+                    // asynchronously. Keep a successful physical encoder edit
+                    // pending until that plan settles so its own snapshot
+                    // transition is not mistaken for an input replacement.
+                    if waiting_for_electrical_plan(
+                        waiting.request.input_identity.as_ref(),
+                        current_inputs.as_ref(),
+                    ) {
+                        return;
+                    }
                     let current = current_binding_for_request(
                         &waiting.request,
                         BindingReadContext {
@@ -1177,8 +1200,11 @@ fn feedback_visible(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[test]
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
     fn encoder_lineage_survives_own_snapshot_advance_but_not_input_replacement() {
         let scope = Scope {
             session_epoch: boardstudio_application::SessionEpoch(4),
@@ -1205,6 +1231,38 @@ mod tests {
 
         assert!(same_input_lineage(&captured, &after_own_edit));
         assert!(!same_input_lineage(&captured, &replaced_inputs));
+    }
+
+    #[wasm_bindgen_test]
+    fn completed_physical_encoder_edit_waits_for_pending_plan_then_resumes() {
+        let scope = Scope {
+            session_epoch: boardstudio_application::SessionEpoch(4),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let captured = EncoderInputIdentity {
+            scope: scope.clone(),
+            token: SnapshotToken(8),
+            revision: 12,
+            projection_generation: 21,
+            electrical_fingerprint: Some("plan".into()),
+        };
+        let mut current = EncoderInputProjection {
+            identity: EncoderInputIdentity {
+                token: SnapshotToken(9),
+                revision: 13,
+                ..captured.clone()
+            },
+            encoders: Rc::from([]),
+            electrical_plan_settled: false,
+        };
+        assert!(waiting_for_electrical_plan(Some(&captured), Some(&current)));
+        current.electrical_plan_settled = true;
+        assert!(!waiting_for_electrical_plan(
+            Some(&captured),
+            Some(&current)
+        ));
     }
 
     #[test]

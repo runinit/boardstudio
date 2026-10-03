@@ -6,7 +6,15 @@
 
 **Blocked by:** F6K.1 Keymap projection/mount and F6K.2 supported binding editor, matching the canonical F6K.4 start gates. There is no sibling-ticket dependency; coordinate the private binding-target extension with its existing owner before editing shared files.
 
-**Dispatch contract gate:** Before implementation edits the shared binding editor, coordinator and F6K.2 owner must review and agree the private explicit binding-target/request-feedback seam (physical key, encoder rotation, or reported push). This is an implementation dispatch gate, not a canonical graph edge or public API.
+**Current delivery contract (2026-10-03):** Complete the existing private target seam by
+passing the F5 resolution signal into the encoder projection. Physical rows use only
+the current accepted board plan; retain the attached-module merge and reported push
+IDs. Include the electrical fingerprint in cache/live admission and react to plan
+arrival independently of document changes. After an owned binding edit, retain pending
+acknowledgement through plan refresh; settle against the current same-input plan and
+reject replaced inputs or scope. The coordinator owns the root callsite; the author
+owns encoder projection and binding settlement. Existing editor, legacy quick binding,
+firmware providers and public contracts are reused. Qualification joins remain open.
 
 **Parent acceptance joins:** F5.2 remains the actual selected-board encoder/push-input acceptance join for this slice. F8.2 remains a canonical F6K.4 acceptance join for delivered firmware output. This bounded editor does not close F6K.4, F5.2, F8.2, or F6.6.
 
@@ -20,5 +28,7 @@
 - [ ] Use only existing `EditKeymap`, `KeymapChange::Encoder`, `KeymapChange::Binding`, and core validation/history. Add no hardware rules, command/event, public type/API/visibility, persistence field, synthetic key, or copied binding controls.
 - [ ] Keep the Keymap/encoder module and feature-local styles disjoint. F5 owns the electrical input handoff and Wiring composition; coordinator owns mount, accepted-snapshot callback, Runtime/CoreWorker and global CSS; F6K.2 owns the shared binding fields and target seam. Do not edit shared owners concurrently; agree the target/correlation contract first.
 - [ ] Run affected native/WASM/frontend/build checks and paired public Dioxus browser evidence. Report fixture evidence separately from actual F5.2/provider evidence; F5.2/F8.2 remain acceptance joins.
-- [ ] **Profile:** Luna High author and Astra independent reviewer; Luna Medium verifier after the explicit private target, accepted-source, and feedback seam is reviewed and mounted. Escalate unresolved target/scope/race semantics to Astra before implementation.
+- [ ] **Profile:** Luna High author; one consolidated Sol 6.1 High candidate review
+  under CONSTRAINTS.md. Focused regression and affected public journey evidence cover
+  the handoff; reuse prior editor evidence and reserve Astra for difficult evidenced bugs.
 - [ ] **Refactoring handoff:** Preserve RF-009 source-accounting/parity reconciliation. Record “No new refactoring takeaway observed” unless implementation demonstrates a distinct issue.

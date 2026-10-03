@@ -118,6 +118,213 @@ REQUIRED_HEADERS = {
     "Cross-Origin-Embedder-Policy": "require-corp",
 }
 
+CRITERION_STATES = {"unassessed", "missing", "implemented", "verified"}
+CRITERION_CLASSIFICATIONS = {"functional", "visual", "release"}
+CRITERION_FIELDS = {
+    "id", "requirement", "state", "classification", "sources", "evidence",
+    "blockers", "next_action", "finish_condition", "owned_files", "capabilities",
+}
+ACCOUNTING_FIELDS = {"source_commit", "assessed_at", "coverage", "note"}
+
+
+def parent_stream(task):
+    """Return the stable delivery queue for a canonical parent."""
+    parent_id = task["id"]
+    if parent_id.startswith("F3"):
+        return "Layout"
+    if parent_id.startswith("F5"):
+        return "PCB"
+    if parent_id.startswith("F6K"):
+        return "Keymap"
+    if parent_id.startswith("F6C"):
+        return "Keycaps"
+    if parent_id.startswith("F7"):
+        return "Case"
+    if parent_id.startswith(("F2", "F4")):
+        return "Parts+Project"
+    return "Shared"
+
+
+def parent_metadata(task):
+    """Keep criterion query rows small while retaining dispatch context."""
+    return {
+        "id": task["id"],
+        "title": task["title"],
+        "status": task["status"],
+        "stream": parent_stream(task),
+        "priority": task.get("priority"),
+        "spec": task.get("spec"),
+        "acceptance_after": task.get("acceptance_after", []),
+    }
+
+
+def _repo_reference(value, label, suffix):
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} must be a non-empty repository-relative path")
+    path, marker, detail = value.partition(suffix)
+    if marker and not detail:
+        raise ValueError(f"{label} has an empty {suffix} reference")
+    parsed = Path(path)
+    if parsed.is_absolute() or ".." in parsed.parts or "\\" in path or not path:
+        raise ValueError(f"{label} must be repository-relative: {value}")
+    if suffix == ":" and marker and not detail.isdigit():
+        raise ValueError(f"{label} line suffix must be numeric: {value}")
+
+
+def validate_criteria(graph):
+    """Validate optional criterion accounting while preserving legacy parents."""
+    tasks = graph["tasks"]
+    if len(tasks) != 62 or len({task["id"] for task in tasks}) != 62:
+        raise ValueError("The 62 canonical parents must remain unique and intact")
+    parent_ids = {task["id"] for task in tasks}
+    criteria_by_id = {}
+    for task in tasks:
+        criteria = task.get("criteria", [])
+        accounting = task.get("criteria_accounting")
+        if not isinstance(criteria, list):
+            raise ValueError(f"Criteria for {task['id']} must be a list")
+        if accounting is not None:
+            if not isinstance(accounting, dict) or set(accounting) != ACCOUNTING_FIELDS:
+                raise ValueError(f"Invalid criteria_accounting schema for {task['id']}")
+            if not all(isinstance(accounting[field], str) and accounting[field]
+                       for field in ("source_commit", "assessed_at", "note")):
+                raise ValueError(f"Invalid criteria_accounting values for {task['id']}")
+            if not re.fullmatch(r"[0-9a-fA-F]{40}", accounting["source_commit"]):
+                raise ValueError(f"criteria_accounting source_commit must be a 40-character hash for {task['id']}")
+            try:
+                datetime.fromisoformat(accounting["assessed_at"].replace("Z", "+00:00"))
+            except ValueError as error:
+                raise ValueError(f"Invalid criteria assessment timestamp for {task['id']}") from error
+            if accounting["coverage"] not in ("complete", "partial"):
+                raise ValueError(f"Invalid criteria coverage for {task['id']}")
+        if criteria and accounting is None:
+            raise ValueError(f"Criteria for {task['id']} need criteria_accounting")
+        if accounting is not None and not criteria:
+            raise ValueError(f"Criteria accounting for {task['id']} has no criteria")
+        for criterion in criteria:
+            if not isinstance(criterion, dict) or set(criterion) != CRITERION_FIELDS:
+                raise ValueError(f"Invalid criterion schema for {task['id']}")
+            criterion_id = criterion["id"]
+            if (not isinstance(criterion_id, str)
+                    or not re.fullmatch(re.escape(task["id"]) + r"-C\d{2}", criterion_id)):
+                raise ValueError(f"Invalid criterion ID for {task['id']}: {criterion_id}")
+            if criterion_id in criteria_by_id:
+                raise ValueError(f"Duplicate criterion ID: {criterion_id}")
+            if not isinstance(criterion["requirement"], str) or not criterion["requirement"].strip():
+                raise ValueError(f"Criterion {criterion_id} needs its acceptance requirement")
+            if not isinstance(criterion["state"], str) or criterion["state"] not in CRITERION_STATES:
+                raise ValueError(f"Invalid state for {criterion_id}: {criterion['state']}")
+            if (not isinstance(criterion["classification"], str)
+                    or criterion["classification"] not in CRITERION_CLASSIFICATIONS):
+                raise ValueError(f"Invalid classification for {criterion_id}")
+            for field in ("sources", "evidence", "blockers", "owned_files", "capabilities"):
+                if not isinstance(criterion[field], list) or any(not isinstance(item, str) or not item
+                                                                  for item in criterion[field]):
+                    raise ValueError(f"{field} for {criterion_id} must be a list of non-empty strings")
+            for reference in criterion["sources"]:
+                _repo_reference(reference, f"Source for {criterion_id}", ":")
+            for reference in criterion["evidence"]:
+                _repo_reference(reference, f"Evidence for {criterion_id}", "#")
+            if criterion["state"] == "verified" and not criterion["evidence"]:
+                raise ValueError(f"Verified criterion {criterion_id} needs evidence")
+            for reference in criterion["owned_files"]:
+                _repo_reference(reference, f"Owned file for {criterion_id}", "\0")
+            for field in ("next_action", "finish_condition"):
+                if not isinstance(criterion[field], str) or not criterion[field].strip():
+                    raise ValueError(f"Criterion {criterion_id} needs {field}")
+            criteria_by_id[criterion_id] = task
+    for task in tasks:
+        for criterion in task.get("criteria", []):
+            for blocker in criterion["blockers"]:
+                if blocker not in parent_ids and blocker not in criteria_by_id:
+                    raise ValueError(f"Unknown blocker {blocker} for {criterion['id']}")
+    return criteria_by_id
+
+
+def criterion_counts(graph):
+    totals = Counter()
+    by_state = Counter()
+    for task in graph["tasks"]:
+        for criterion in task.get("criteria", []):
+            by_state[criterion["state"]] += 1
+            totals[parent_stream(task)] += 1
+    return {"total": sum(by_state.values()), "by_state": dict(by_state), "by_stream": dict(totals)}
+
+
+def criterion_blocked(criterion, parent, graph, criterion_index=None):
+    tasks = {task["id"]: task for task in graph["tasks"]}
+    criterion_index = criterion_index or {
+        item["id"]: (task, item)
+        for task in graph["tasks"] for item in task.get("criteria", [])
+    }
+    for blocker in criterion["blockers"]:
+        if blocker in tasks:
+            if tasks[blocker]["status"] != "accepted":
+                return True
+        elif blocker in criterion_index and criterion_index[blocker][1]["state"] != "verified":
+            return True
+    # Parent-level acceptance joins govern closing, not starting a criterion.
+    return False
+
+
+def criterion_rows(graph, *, parent=None, stream=None, state=None, classification=None,
+                   remaining=False):
+    validate_criteria(graph)
+    rows = []
+    for task in graph["tasks"]:
+        if parent and task["id"] != parent:
+            continue
+        if stream and parent_stream(task) != stream:
+            continue
+        for criterion in task.get("criteria", []):
+            if remaining and criterion["state"] == "verified" and state is None:
+                continue
+            if state and criterion["state"] != state:
+                continue
+            if classification and criterion["classification"] != classification:
+                continue
+            rows.append({"parent": parent_metadata(task), "criterion": criterion})
+    return rows
+
+
+def ready_rows(graph, kind, *, stream=None, classification=None):
+    validate_criteria(graph)
+    criterion_index = {
+        item["id"]: (task, item)
+        for task in graph["tasks"] for item in task.get("criteria", [])
+    }
+    selected = []
+    for task in graph["tasks"]:
+        if stream and parent_stream(task) != stream:
+            continue
+        if task["status"] == "accepted":
+            continue
+        criteria = task.get("criteria", [])
+        if kind == "close":
+            accounting = task.get("criteria_accounting", {})
+            if (task["status"] == "accepted" or not criteria
+                    or accounting.get("coverage") != "complete"
+                    or any(item["state"] != "verified" for item in criteria)
+                    or any(join not in {t["id"] for t in graph["tasks"] if t["status"] == "accepted"}
+                           for join in task.get("acceptance_after", []))):
+                continue
+            selected.append({"parent_spec": parent_metadata(task), "criteria": criteria})
+            continue
+        expected = {"implement": "missing", "qualify": "implemented",
+                    "investigate": "unassessed"}[kind]
+        for criterion in criteria:
+            if criterion["state"] != expected:
+                continue
+            # Visual/release criteria stay out of the default implementation queue.
+            if classification is None and criterion["classification"] != "functional":
+                continue
+            if classification and criterion["classification"] != classification:
+                continue
+            if criterion_blocked(criterion, task, graph, criterion_index):
+                continue
+            selected.append({"parent_spec": parent_metadata(task), "criterion": criterion})
+    return selected
+
 
 def repository_file(relative, label):
     path = Path(relative)
@@ -350,6 +557,7 @@ def validate(run, graph):
     for task in tasks:
         if any(join not in ids for join in task["depends_on"]):
             raise ValueError(f"Unknown parent dependency for {task['id']}")
+    validate_criteria(graph)
     findings = read(RF)["findings"]
     if len({finding["id"] for finding in findings}) != len(findings):
         raise ValueError("Duplicate RF ID")
@@ -377,6 +585,14 @@ def set_status(graph, args):
         for join in task["acceptance_after"]:
             if tasks[join]["status"] != "accepted":
                 raise ValueError(f"Unmet final acceptance join: {join}")
+        if task.get("criteria"):
+            accounting = task.get("criteria_accounting", {})
+            if accounting.get("coverage") != "complete":
+                raise ValueError("Mapped parents need complete criterion accounting before acceptance")
+            unmet = [criterion["id"] for criterion in task["criteria"]
+                     if criterion["state"] != "verified"]
+            if unmet:
+                raise ValueError("Unverified acceptance criteria: " + ", ".join(unmet))
         for key in ("review", "audit"):
             evidence = ROOT / decision[key]
             if hashlib.sha256(evidence.read_bytes()).hexdigest() != decision[key + "_sha256"]:
@@ -395,6 +611,20 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     show = commands.add_parser("show", help="Read current candidate, derived parent counts and six queues")
     show.add_argument("--json", action="store_true")
+    remaining = commands.add_parser("remaining", help="List criterion-level work that is not verified")
+    remaining.add_argument("--parent")
+    remaining.add_argument("--stream", choices=("Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts+Project", "Shared"))
+    remaining.add_argument("--state", choices=tuple(sorted(CRITERION_STATES)))
+    remaining.add_argument("--classification", choices=tuple(sorted(CRITERION_CLASSIFICATIONS)))
+    remaining.add_argument("--json", action="store_true")
+    parent_command = commands.add_parser("parent", help="Read one full canonical parent record")
+    parent_command.add_argument("parent", help="canonical parent ID")
+    parent_command.add_argument("--json", action="store_true")
+    ready = commands.add_parser("ready", help="List unblocked criterion work or closable parents")
+    ready.add_argument("--kind", required=True, choices=("implement", "qualify", "close", "investigate"))
+    ready.add_argument("--stream", choices=("Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts+Project", "Shared"))
+    ready.add_argument("--classification", choices=tuple(sorted(CRITERION_CLASSIFICATIONS)))
+    ready.add_argument("--json", action="store_true")
     commands.add_parser("check", help="Check record consistency without running application tests")
     commands.add_parser("sync", help="Refresh derived counts and the readable RF report")
     status = commands.add_parser("set-status", help="Coordinator-only parent transition and derived refresh")
@@ -420,6 +650,42 @@ def main():
                 print("  Pending: " + condition)
         return
     run, graph = read(RUN), read(TASKS)
+    if args.command == "parent":
+        validate_criteria(graph)
+        match = next((task for task in graph["tasks"] if task["id"] == args.parent), None)
+        if match is None:
+            raise ValueError(f"Unknown parent: {args.parent}")
+        print(json.dumps(match, indent=2))
+        return
+    if args.command in ("remaining", "ready"):
+        if args.command == "remaining":
+            rows = criterion_rows(graph, parent=args.parent, stream=args.stream,
+                                  state=args.state, classification=args.classification,
+                                  remaining=True)
+        else:
+            rows = ready_rows(graph, args.kind, stream=args.stream,
+                              classification=args.classification)
+        if args.json:
+            print(json.dumps(rows, indent=2))
+        else:
+            if args.command == "remaining":
+                for row in rows:
+                    task, criterion = row["parent"], row["criterion"]
+                    print(f"{criterion['id']} [{parent_stream(task)} / {criterion['state']} / "
+                          f"{criterion['classification']}] {criterion['requirement']}")
+                    print(f"  Parent: {task['id']} — {task['title']}")
+                    print(f"  Next: {criterion['next_action']} | Finish: {criterion['finish_condition']}")
+            else:
+                for row in rows:
+                    task = row["parent_spec"]
+                    if args.kind == "close":
+                        print(f"{task['id']} [{task['stream']}] {task['title']}: criteria and final joins satisfied")
+                    else:
+                        criterion = row["criterion"]
+                        print(f"{criterion['id']} [{task['stream']} / {args.kind}] {criterion['requirement']}")
+                        print(f"  Next: {criterion['next_action']}")
+                print(f"{len(rows)} ready {args.kind} item(s)")
+        return
     if args.command == "set-status":
         for parent in args.parent:
             set_status(graph, argparse.Namespace(**(vars(args) | {"parent": parent})))
@@ -440,11 +706,18 @@ def main():
         return
     progress = run["current_progress"]
     if args.command == "show" and args.json:
-        print(json.dumps(progress | {"parent_counts": counts(graph["tasks"])}, indent=2))
+        print(json.dumps(progress | {"parent_counts": counts(graph["tasks"]),
+                                    "criteria_counts": criterion_counts(graph)}, indent=2))
         return
     tally = counts(graph["tasks"])
     print(f"Parents: {tally.get('accepted', 0)}/{tally['total']} accepted; "
           f"{tally.get('implementing', 0)} implementing; {tally.get('planned', 0)} planned")
+    criteria_summary = criterion_counts(graph)
+    if criteria_summary["total"]:
+        states = criteria_summary["by_state"]
+        print("Criteria: " + ", ".join(f"{state} {states.get(state, 0)}"
+                                       for state in ("unassessed", "missing", "implemented", "verified"))
+              + f"; {criteria_summary['total']} total")
     candidate = progress["served_candidate"]
     print(f"Served: {candidate['root_url']} ({candidate['source_commit'][:8]})")
     print(f"Integration: {progress['integration']['state']}")
