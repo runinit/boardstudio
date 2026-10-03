@@ -358,7 +358,8 @@
         "application/src/session.rs",
         "app/src/exports/context.ts",
         "app/src/exports/pcb.ts",
-        "web/src/runtime.rs"
+        "web/src/runtime.rs",
+        ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/pcb-wiring-mode-source-review-1e5ef6ac-sol-20261002.md"
       ],
       "observation": "Session export captures an immutable token and cancels registered exports on accepted commits. React PCB export deliberately adopts its own wiring and protection commits, with packaging before protection, while unrelated changes invalidate output.",
       "impact": "A naive port either cancels its own valid export or weakens stale-output guards. Ownership of a multi-step operation and its accepted document lineage is not represented uniformly.",
@@ -370,6 +371,15 @@
       "linked_tasks": [
         "BND.2",
         "F8.2"
+      ],
+      "continuations": [
+        {
+          "date": "2026-10-02",
+          "source": "1e5ef6ac561136101f13cb5438a4f3e5d52cb6ba",
+          "observation": "The new PCB Wiring mode action filters successful Saved feedback against its old request token/revision after the accepted edit advances them. Independent review found success feedback unreachable; proposal-only tests missed production settlement.",
+          "during_port": "Separate stable feedback target and exact operation outcome from stale-action request identity; add mounted accepted-refresh/settlement tests before integrating.",
+          "post_port": "Assess transaction-owned accepted-version transitions consistently across export and authoring feedback. Preserve pre-submit stale guards; do not waive visible feedback or history acceptance."
+        }
       ]
     },
     {
