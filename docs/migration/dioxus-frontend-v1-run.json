@@ -488,7 +488,7 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.3-C04 verified: paired Alt/nudge and snap-guide commit/Escape clearing. Candidate-only native touchCancel also restores position/clears guide; full C03 cancellation paths remain open."
+        "state": "C04 verified; C01 direct transforms/matrix/constraints paired qualification active, reusing prior offset/alignment receipts."
       },
       {
         "stream": "PCB",
@@ -496,7 +496,7 @@
       },
       {
         "stream": "Keymap",
-        "state": "All F6K.4 criteria verified from complementary history/reload, compact edit and failure/recovery evidence; parent F5.2/F8.2 joins remain. Stalled duplicate compact export is retained without a success or app-defect claim."
+        "state": "F6K.4 criteria verified; parent joins F5.2/F8.2 open. Bounded export-lifecycle source/evidence investigation active for specific unresolved F8.2 branches."
       },
       {
         "stream": "Keycaps",
@@ -508,13 +508,14 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "F5.5-C03 verified: paired accepted profile/model binding and exact source asset reuse with mounted placement survives public export/reopen. Candidate alignment remains explicitly unverified."
+        "state": "F5.5-C03 profile/model reuse verified. F4.1 catalogue browse/select and keyboard/query/state qualification active against identical fixture; model alignment remains separate."
       }
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Finish bounded Layout C04, Keycaps mixed-selection and Keymap negative-readiness checks; repair only reproduced gaps.",
-      "Qualify remaining accepted profile/model/asset reuse under F5.5-C03, retaining completed attachment evidence."
+      "Finish paired PCB conflict review/history/reopen and valid-fixture Case instance checks; qualify only criteria actually covered.",
+      "Continue concrete Layout transform and Parts catalogue journeys; investigate unresolved export lifecycle branches without repeating successful exports.",
+      "Complete remaining TypeScript mixed-keycap reference selection using reliable targeting when available; retain candidate-only evidence."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
