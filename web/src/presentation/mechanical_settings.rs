@@ -4,7 +4,7 @@ pub(crate) use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use boardstudio_core::model::{
-    GasketPlacement, HardwareTransport, MechanicalBattery, MechanicalBottomStyle,
+    CaseOpening, GasketPlacement, HardwareTransport, MechanicalBattery, MechanicalBottomStyle,
     MechanicalGasketAnchor, MechanicalMount, MechanicalSwitchFamily, Mount, MountKind, PlateMethod,
     Severity, Vec2,
 };
@@ -36,6 +36,7 @@ pub(crate) struct MechanicalSettingsValues {
     pub(crate) wall_thickness: f64,
     pub(crate) clearance: f64,
     pub(crate) opening_allowance: f64,
+    pub(crate) openings: Vec<CaseOpening>,
     pub(crate) internal_gasket: bool,
     pub(crate) plate_to_pcb: f64,
     pub(crate) battery_height: f64,
@@ -126,6 +127,10 @@ pub(crate) enum MechanicalDimension {
     GasketSupportLength,
     GasketSupportWidth,
     OpeningAllowance,
+    OpeningBottomZ,
+    OpeningHeight,
+    OpeningPointX,
+    OpeningPointY,
     BatteryWidth,
     BatteryDepth,
     BatteryHeight,
@@ -142,6 +147,9 @@ pub(crate) enum MechanicalDimension {
 }
 
 fn is_dimension_field(field_id: &str) -> bool {
+    if field_id.starts_with("opening:") {
+        return true;
+    }
     if field_id.starts_with("mount:")
         && [
             "mount-position-x",
@@ -164,6 +172,10 @@ fn is_dimension_field(field_id: &str) -> bool {
         MechanicalDimension::WallThickness,
         MechanicalDimension::Clearance,
         MechanicalDimension::OpeningAllowance,
+        MechanicalDimension::OpeningBottomZ,
+        MechanicalDimension::OpeningHeight,
+        MechanicalDimension::OpeningPointX,
+        MechanicalDimension::OpeningPointY,
         MechanicalDimension::BatteryWidth,
         MechanicalDimension::BatteryDepth,
         MechanicalDimension::BatteryHeight,
@@ -190,6 +202,10 @@ impl MechanicalDimension {
             Self::GasketSupportLength => "gasket-support-length",
             Self::GasketSupportWidth => "gasket-support-width",
             Self::OpeningAllowance => "opening-allowance",
+            Self::OpeningBottomZ => "opening-bottom-z",
+            Self::OpeningHeight => "opening-height",
+            Self::OpeningPointX => "opening-point-x",
+            Self::OpeningPointY => "opening-point-y",
             Self::BatteryWidth => "battery-width",
             Self::BatteryDepth => "battery-depth",
             Self::BatteryHeight => "battery-height",
@@ -209,7 +225,8 @@ impl MechanicalDimension {
     fn rule(self) -> NumberRule {
         match self {
             Self::OpeningAllowance => NumberRule::Bounded(-1, 1),
-            Self::BatteryWidth
+            Self::OpeningHeight
+            | Self::BatteryWidth
             | Self::BatteryDepth
             | Self::BatteryHeight
             | Self::BatteryCableWidth
@@ -217,6 +234,9 @@ impl MechanicalDimension {
             | Self::MountBossDiameter
             | Self::MountBossHeight => NumberRule::AtLeastTenth,
             Self::BatteryPositionX
+            | Self::OpeningBottomZ
+            | Self::OpeningPointX
+            | Self::OpeningPointY
             | Self::BatteryPositionY
             | Self::BatteryCableExitX
             | Self::BatteryCableExitY
@@ -243,6 +263,13 @@ pub(crate) enum MechanicalSettingsPatch {
     InitializeClosures,
     Disable,
     SetBatteryEnabled(bool),
+    SetOpenings(Vec<CaseOpening>),
+    SetOpeningDimension {
+        opening_index: usize,
+        point_index: Option<usize>,
+        field: MechanicalDimension,
+        value: f64,
+    },
     SetMethod(PlateMethod),
     SetMount(MechanicalMount),
     SetMountCollection {
@@ -306,6 +333,17 @@ impl MechanicalSettingsPatch {
             Self::InitializeClosures => "initialize-closures".to_owned(),
             Self::Disable => "disable".to_owned(),
             Self::SetBatteryEnabled(_) => "battery-enabled".to_owned(),
+            Self::SetOpenings(_) => "case-openings".to_owned(),
+            Self::SetOpeningDimension {
+                opening_index,
+                point_index,
+                field,
+                ..
+            } => format!(
+                "opening:{opening_index}:{}:{}",
+                point_index.map_or_else(|| "volume".to_owned(), |index| format!("point:{index}")),
+                field.field_id(),
+            ),
             Self::SetMethod(_) => "method".to_owned(),
             Self::SetMount(_) => "mount".to_owned(),
             Self::SetMountCollection { collection, .. } => match collection {
@@ -640,6 +678,16 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_show_finding: props.on_show_finding,
                 }
                 BatteryControls {
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    values: values.clone(),
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
+                    on_request: props.on_request,
+                    owner_key: owner_key.clone(),
+                }
+                OpeningControls {
+                    key: "{owner_key}:case-openings",
                     identity: props.identity.clone(),
                     request_sequence,
                     values: values.clone(),
@@ -1137,6 +1185,154 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
                             label: "Cable exit Y",
                             value: battery.cable_exit.y,
                             editable: props.editable,
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct OpeningControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    values: MechanicalSettingsValues,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    owner_key: String,
+}
+
+#[component]
+fn OpeningControls(props: OpeningControlsProps) -> Element {
+    let openings = &props.values.openings;
+    let add_openings = props.values.openings.clone();
+    let identity = props.identity.clone();
+    let request_sequence = props.request_sequence;
+    let on_request = props.on_request;
+    let owner_key = props.owner_key.clone();
+    rsx! {
+        details { class: "m1-mechanical-group", aria_label: "Case openings",
+            summary { "Case openings · {openings.len()}" }
+            div { class: "m1-mechanical-openings",
+                div { class: "m1-mechanical-opening-title",
+                    strong { "Document-coordinate access openings" }
+                    button {
+                        r#type: "button",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
+                        onclick: {
+                            let mut sequence = request_sequence;
+                            let identity = identity.clone();
+                            move |_| {
+                                let mut next = add_openings.clone();
+                                next.push(CaseOpening {
+                                    points: vec![
+                                        Vec2 { x: -2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: 2.5 },
+                                        Vec2 { x: -2.5, y: 2.5 },
+                                    ],
+                                    z: 0.0,
+                                    height: 10.0,
+                                });
+                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetOpenings(next));
+                            }
+                        },
+                        "Add volume"
+                    }
+                }
+                if openings.is_empty() {
+                    p { class: "m1-mechanical-help", "No volumes configured." }
+                }
+                for (opening_index, opening) in openings.iter().enumerate() {
+                    {
+                        let mut next = props.values.openings.clone();
+                        next.remove(opening_index);
+                        let mut sequence = request_sequence;
+                        let identity = identity.clone();
+                        let remove_identity = identity.clone();
+                        let owner = owner_key.clone();
+                        rsx! {
+                            fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_index}", disabled: !props.editable,
+                                div { class: "m1-mechanical-opening-title",
+                                    strong { "Volume {opening_index + 1}" }
+                                    button {
+                                        r#type: "button",
+                                        class: "m1-mechanical-quiet",
+                                        disabled: !props.editable,
+                                        onclick: move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::SetOpenings(next.clone())),
+                                        "Remove"
+                                    }
+                                }
+                                div { class: "m1-mechanical-opening-fields",
+                                    DimensionField {
+                                        key: "{owner}:opening:{opening_index}:bottom-z",
+                                        identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
+                                        field: MechanicalDimension::OpeningBottomZ, label: "Bottom Z", value: opening.z, editable: props.editable,
+                                        accessible_label: Some(format!("Document-coordinate access opening {} bottom Z", opening_index + 1)),
+                                        opening_target: Some(OpeningDimensionTarget { opening_index, point_index: None }),
+                                    }
+                                    DimensionField {
+                                        key: "{owner}:opening:{opening_index}:height",
+                                        identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
+                                        field: MechanicalDimension::OpeningHeight, label: "Height", value: opening.height, editable: props.editable,
+                                        accessible_label: Some(format!("Document-coordinate access opening {} height", opening_index + 1)),
+                                        opening_target: Some(OpeningDimensionTarget { opening_index, point_index: None }),
+                                    }
+                                }
+                                h4 { "XY footprint" }
+                                for (point_index, point) in opening.points.iter().enumerate() {
+                                    div { class: "m1-mechanical-opening-vertex",
+                                        span { "Vertex {point_index + 1}" }
+                                        DimensionField {
+                                            key: "{owner}:opening:{opening_index}:point:{point_index}:x",
+                                            identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
+                                            field: MechanicalDimension::OpeningPointX, label: "X", value: point.x, editable: props.editable,
+                                            accessible_label: Some(format!("Document-coordinate access opening {} vertex {} X", opening_index + 1, point_index + 1)),
+                                            opening_target: Some(OpeningDimensionTarget { opening_index, point_index: Some(point_index) }),
+                                        }
+                                        DimensionField {
+                                            key: "{owner}:opening:{opening_index}:point:{point_index}:y",
+                                            identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
+                                            field: MechanicalDimension::OpeningPointY, label: "Y", value: point.y, editable: props.editable,
+                                            accessible_label: Some(format!("Document-coordinate access opening {} vertex {} Y", opening_index + 1, point_index + 1)),
+                                            opening_target: Some(OpeningDimensionTarget { opening_index, point_index: Some(point_index) }),
+                                        }
+                                        button {
+                                            r#type: "button",
+                                            class: "m1-mechanical-quiet",
+                                            aria_label: "Remove access opening vertex {point_index + 1}",
+                                            disabled: !props.editable || opening.points.len() <= 3,
+                                            onclick: {
+                                                let mut sequence = request_sequence;
+                                                let identity = identity.clone();
+                                                let mut next = props.values.openings.clone();
+                                                next[opening_index].points.remove(point_index);
+                                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetOpenings(next.clone()))
+                                            },
+                                            "×"
+                                        }
+                                    }
+                                }
+                                button {
+                                    r#type: "button",
+                                    class: "m1-mechanical-quiet",
+                                    disabled: !props.editable,
+                                    onclick: {
+                                        let mut sequence = request_sequence;
+                                        let identity = identity.clone();
+                                        let mut next = props.values.openings.clone();
+                                        next[opening_index].points.push(Vec2 { x: 0.0, y: 0.0 });
+                                        move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetOpenings(next.clone()))
+                                    },
+                                    "Add vertex"
+                                }
+                                if opening.points.len() < 3 {
+                                    p { role: "alert", "An opening footprint needs at least three vertices." }
+                                }
+                            }
                         }
                     }
                 }
@@ -1650,6 +1846,10 @@ struct DimensionFieldProps {
     support_target: Option<GasketSupportDimensionTarget>,
     #[props(default)]
     mount_target: Option<MountDimensionTarget>,
+    #[props(default)]
+    opening_target: Option<OpeningDimensionTarget>,
+    #[props(default)]
+    accessible_label: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1662,6 +1862,12 @@ struct GasketSupportDimensionTarget {
 struct MountDimensionTarget {
     collection: MechanicalMountCollection,
     mount_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct OpeningDimensionTarget {
+    opening_index: usize,
+    point_index: Option<usize>,
 }
 
 #[component]
@@ -1743,6 +1949,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         let field = props.field;
         let support_target = props.support_target.clone();
         let mount_target = props.mount_target.clone();
+        let opening_target = props.opening_target.clone();
         let accepted = props.value;
         let sequence = props.request_sequence;
         let on_request = props.on_request;
@@ -1787,6 +1994,13 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     field,
                     value,
                 }
+            } else if let Some(target) = opening_target.clone() {
+                MechanicalSettingsPatch::SetOpeningDimension {
+                    opening_index: target.opening_index,
+                    point_index: target.point_index,
+                    field,
+                    value,
+                }
             } else {
                 MechanicalSettingsPatch::SetDimension { field, value }
             };
@@ -1820,6 +2034,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     step: props.field.step(),
                     min: props.field.rule().minimum(),
                     max: if props.field == MechanicalDimension::OpeningAllowance { "1" },
+                    aria_label: props.accessible_label.as_deref().unwrap_or(props.label),
                     value: "{draft}",
                     disabled: !props.editable,
                     "aria-invalid": error_text.is_some(),
@@ -2103,6 +2318,7 @@ mod contextual_layer_tests {
             wall_thickness: 2.0,
             clearance: 0.2,
             opening_allowance: 0.0,
+            openings: vec![],
             internal_gasket: true,
             plate_to_pcb: 3.5,
             battery_height: 0.0,

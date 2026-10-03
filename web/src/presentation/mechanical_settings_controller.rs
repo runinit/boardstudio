@@ -14,7 +14,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::model::{
-    GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
+    CaseOpening, GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
     InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
     MechanicalBottomStyle, MechanicalConfiguration, MechanicalGasketLayout, MechanicalMount,
     MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartGenerator, PartKind,
@@ -840,6 +840,54 @@ fn apply_patch(
                 configuration.battery = None;
             }
         }
+        MechanicalSettingsPatch::SetOpenings(openings) => {
+            validate_openings(openings)?;
+            configuration.openings = Some(openings.clone());
+        }
+        MechanicalSettingsPatch::SetOpeningDimension {
+            opening_index,
+            point_index,
+            field,
+            value,
+        } => {
+            let is_volume_field = matches!(
+                *field,
+                MechanicalDimension::OpeningBottomZ | MechanicalDimension::OpeningHeight
+            );
+            let is_point_field = matches!(
+                *field,
+                MechanicalDimension::OpeningPointX | MechanicalDimension::OpeningPointY
+            );
+            if !(is_volume_field && point_index.is_none()
+                || is_point_field && point_index.is_some())
+            {
+                return Err("The selected opening field is unavailable.".into());
+            }
+            validate_dimension(*field, *value)?;
+            let openings = configuration
+                .openings
+                .as_mut()
+                .ok_or_else(|| "The selected access opening is no longer available.".to_owned())?;
+            let opening = openings
+                .get_mut(*opening_index)
+                .ok_or_else(|| "The selected access opening is no longer available.".to_owned())?;
+            if let Some(point_index) = point_index {
+                let point = opening.points.get_mut(*point_index).ok_or_else(|| {
+                    "The selected opening vertex is no longer available.".to_owned()
+                })?;
+                match field {
+                    MechanicalDimension::OpeningPointX => point.x = *value,
+                    MechanicalDimension::OpeningPointY => point.y = *value,
+                    _ => return Err("The selected opening field is unavailable.".into()),
+                }
+            } else {
+                match field {
+                    MechanicalDimension::OpeningBottomZ => opening.z = *value,
+                    MechanicalDimension::OpeningHeight => opening.height = *value,
+                    _ => return Err("The selected opening field is unavailable.".into()),
+                }
+            }
+        }
         MechanicalSettingsPatch::SetMethod(method) => configuration.method = method.clone(),
         MechanicalSettingsPatch::SetMount(mount) => {
             configuration.mount = mount.clone();
@@ -980,6 +1028,17 @@ fn apply_patch(
             ) {
                 return Err(
                     "Gasket support dimensions require a current support selection.".into(),
+                );
+            }
+            if matches!(
+                *field,
+                MechanicalDimension::OpeningBottomZ
+                    | MechanicalDimension::OpeningHeight
+                    | MechanicalDimension::OpeningPointX
+                    | MechanicalDimension::OpeningPointY
+            ) {
+                return Err(
+                    "Opening dimensions require a current access opening selection.".into(),
                 );
             }
             validate_dimension(*field, *value)?;
@@ -1199,27 +1258,34 @@ fn apply_patch(
                 default_plate_foam_thickness(configuration.plate_to_pcb);
         }
     }
-    let skip_process_normalization = matches!(patch, MechanicalSettingsPatch::SetBatteryEnabled(_))
-        || matches!(
-            patch,
-            MechanicalSettingsPatch::SetMountPosition { .. }
-                | MechanicalSettingsPatch::SetGasketSupportPlacement { .. }
-                | MechanicalSettingsPatch::ResetGasketPlacement
-        )
-        || matches!(
-            patch,
-            MechanicalSettingsPatch::SetDimension {
-                field: MechanicalDimension::BatteryWidth
-                    | MechanicalDimension::BatteryDepth
-                    | MechanicalDimension::BatteryHeight
-                    | MechanicalDimension::BatteryCableWidth
-                    | MechanicalDimension::BatteryPositionX
-                    | MechanicalDimension::BatteryPositionY
-                    | MechanicalDimension::BatteryCableExitX
-                    | MechanicalDimension::BatteryCableExitY,
-                ..
-            }
-        );
+    let skip_process_normalization = matches!(
+        patch,
+        MechanicalSettingsPatch::SetBatteryEnabled(_)
+            | MechanicalSettingsPatch::SetOpenings(_)
+            | MechanicalSettingsPatch::SetOpeningDimension { .. }
+    ) || matches!(
+        patch,
+        MechanicalSettingsPatch::SetMountPosition { .. }
+            | MechanicalSettingsPatch::SetGasketSupportPlacement { .. }
+            | MechanicalSettingsPatch::ResetGasketPlacement
+    ) || matches!(
+        patch,
+        MechanicalSettingsPatch::SetDimension {
+            field: MechanicalDimension::BatteryWidth
+                | MechanicalDimension::OpeningBottomZ
+                | MechanicalDimension::OpeningHeight
+                | MechanicalDimension::OpeningPointX
+                | MechanicalDimension::OpeningPointY
+                | MechanicalDimension::BatteryDepth
+                | MechanicalDimension::BatteryHeight
+                | MechanicalDimension::BatteryCableWidth
+                | MechanicalDimension::BatteryPositionX
+                | MechanicalDimension::BatteryPositionY
+                | MechanicalDimension::BatteryCableExitX
+                | MechanicalDimension::BatteryCableExitY,
+            ..
+        }
+    );
     if !skip_process_normalization {
         normalize_processes(configuration, patch);
     }
@@ -1251,6 +1317,35 @@ fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
         validate_mount_positive(mount.boss_diameter.unwrap_or(5.0), "Boss diameter")?;
         if mount.kind == MountKind::Boss {
             validate_mount_positive(mount.height.unwrap_or(5.0), "Boss height")?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_openings(openings: &[CaseOpening]) -> Result<(), String> {
+    for (index, opening) in openings.iter().enumerate() {
+        if opening.points.iter().any(|point| {
+            !point.x.is_finite()
+                || !point.y.is_finite()
+                || point.x < -1_000_000.0
+                || point.y < -1_000_000.0
+        }) {
+            return Err(format!(
+                "Access opening {} vertices must be finite coordinates no smaller than −1,000,000 mm.",
+                index + 1
+            ));
+        }
+        if !opening.z.is_finite() || opening.z < -1_000_000.0 {
+            return Err(format!(
+                "Access opening {} bottom Z must be a finite coordinate no smaller than −1,000,000 mm.",
+                index + 1
+            ));
+        }
+        if !opening.height.is_finite() || opening.height < 0.1 {
+            return Err(format!(
+                "Access opening {} height must be at least 0.1 mm.",
+                index + 1
+            ));
         }
     }
     Ok(())
@@ -1288,6 +1383,12 @@ fn set_dimension(
         MechanicalDimension::GasketSupportLength | MechanicalDimension::GasketSupportWidth => {
             return Err("Gasket support dimensions require a current support selection.".into());
         }
+        MechanicalDimension::OpeningBottomZ
+        | MechanicalDimension::OpeningHeight
+        | MechanicalDimension::OpeningPointX
+        | MechanicalDimension::OpeningPointY => {
+            return Err("Opening dimensions require a current access opening selection.".into());
+        }
         MechanicalDimension::BatteryWidth
         | MechanicalDimension::BatteryDepth
         | MechanicalDimension::BatteryHeight
@@ -1323,9 +1424,13 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             | MechanicalDimension::BatteryDepth
             | MechanicalDimension::BatteryHeight
             | MechanicalDimension::BatteryCableWidth => value >= 0.1,
+            MechanicalDimension::OpeningHeight => value >= 0.1,
             MechanicalDimension::GasketSupportLength => value >= 5.0,
             MechanicalDimension::GasketSupportWidth => value >= 0.5,
-            MechanicalDimension::BatteryPositionX
+            MechanicalDimension::OpeningBottomZ
+            | MechanicalDimension::OpeningPointX
+            | MechanicalDimension::OpeningPointY
+            | MechanicalDimension::BatteryPositionX
             | MechanicalDimension::BatteryPositionY
             | MechanicalDimension::BatteryCableExitX
             | MechanicalDimension::BatteryCableExitY
@@ -1349,6 +1454,8 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             | MechanicalDimension::BatteryCableWidth
     ) {
         Err("Battery dimensions and cable width must be at least 0.1 mm.".into())
+    } else if field == MechanicalDimension::OpeningHeight {
+        Err("Access opening height must be at least 0.1 mm.".into())
     } else if matches!(
         field,
         MechanicalDimension::BatteryPositionX

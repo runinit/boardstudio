@@ -22,7 +22,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalAssembly,
+    CaseOpening, EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalAssembly,
     MechanicalBottomStyle, MechanicalConfiguration, MechanicalMount, Mount, Part, PartKind,
     ProjectDoc,
 };
@@ -932,6 +932,7 @@ fn settings_values(
         wall_thickness: configuration.wall_thickness,
         clearance: configuration.clearance,
         opening_allowance: configuration.opening_allowance.unwrap_or(0.0),
+        openings: configuration.openings.clone().unwrap_or_default(),
         internal_gasket: configuration.internal_gasket.is_some(),
         plate_to_pcb: configuration.plate_to_pcb,
         battery_height: configuration.battery_height,
