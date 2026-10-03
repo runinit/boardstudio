@@ -21,6 +21,28 @@ pub(crate) fn preview_model_paths() -> impl Iterator<Item = (&'static str, &'sta
 }
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub(crate) async fn is_ergogen_source(source: &str) -> Result<bool, String> {
+    use js_sys::Function;
+    use wasm_bindgen::{JsCast, JsValue};
+
+    let module = layout_generator_module().await?;
+    let predicate = js_sys::Reflect::get(&module, &JsValue::from_str("isErgogen"))
+        .map_err(|error| format!("Ergogen generator predicate is unavailable: {error:?}"))?
+        .dyn_into::<Function>()
+        .map_err(|error| format!("Ergogen generator predicate is unavailable: {error:?}"))?;
+    predicate
+        .call1(&module, &JsValue::from_str(source))
+        .map_err(|error| format!("Could not inspect generator {source}: {error:?}"))?
+        .as_bool()
+        .ok_or_else(|| format!("Ergogen returned an invalid source check for {source}."))
+}
+
+#[cfg(not(all(target_arch = "wasm32", feature = "page")))]
+pub(crate) async fn is_ergogen_source(_source: &str) -> Result<bool, String> {
+    Ok(false)
+}
+
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub(crate) async fn generated_model_ids(
     document: &boardstudio_core::model::ProjectDoc,
 ) -> Result<Vec<String>, String> {

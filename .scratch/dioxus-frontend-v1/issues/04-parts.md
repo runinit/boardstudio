@@ -189,16 +189,19 @@ preserving generated unresolved-model identifiers instead of inferring model
 bindings from UI state.
 
 The mounted placement follow-up routes Apply-to-selected-matrix through the
-existing `SetMatrix` accepted edit and Place-in-Layout through the F3.2
-cursor-controlled matrix placement owner. Both carry operation-scoped
-definition snapshots, preserve the accepted Session/Core edit boundary, and
-reject stale scope/source/selection state. The Dioxus placement control does
-not yet reproduce React's independent “Place on selected board” X/Y-origin
-form, which commits a set of component parts; it currently offers the existing
-Layout matrix placement workflow, so criterion 33 remains open for an exact
-paired acceptance/evidence trace. The full F4.6 acceptance/evidence table above
-is unchanged. Do not mark the parent criterion complete from these bounded
-authoring packets.
+existing `SetMatrix` accepted edit and matrix placement through the F3.2
+cursor-controlled placement owner. It also restores React's separate “Place
+assembly” X/Y-origin form and “Place on selected board” action. Board placement
+normalizes operation-scoped member definition snapshots, appends member parts
+and imported draft assets to a cloned document, then submits one accepted
+`ReplaceDocument` edit. If unrelated accepted edits land while normalization is
+in flight, the proposal rebases its new definitions, parts and assets onto the
+latest accepted document; source-definition changes, identity conflicts, or a
+changed session/board scope reject the stale operation. Only after Core accepts
+all placed member IDs on that board does the editor close, transition to Layout
+and select the placed assembly parts. The full F4.6 acceptance/evidence table
+above remains unchanged; do not mark the parent criterion complete without its
+paired acceptance/evidence trace.
 
 ### Refactoring observation handoff
 

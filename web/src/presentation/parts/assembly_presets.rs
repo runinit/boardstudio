@@ -1,7 +1,7 @@
 use super::catalogue::CatalogEntry;
 use boardstudio_core::model::{
-    AssemblyDefinition, Matrix, MatrixAssembly, MatrixCell, PartDefinition, PartKind, ProjectDoc,
-    Side, Vec2,
+    AssemblyDefinition, Asset, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind,
+    PartOutline, ProjectDoc, Side, Vec2,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -418,6 +418,268 @@ pub(in crate::presentation) fn matrix_with_assembly(
     matrix.definition_id = definitions[0].id.clone();
     matrix.cells = cells;
     Ok((matrix, definitions))
+}
+
+/// Reproduces the React editor's selected-board placement as one accepted
+/// project proposal. Each assembly member gets an immutable definition/part
+/// snapshot; later recipe edits therefore cannot move existing placements.
+pub(super) fn document_with_assembly(
+    document: &ProjectDoc,
+    assembly: &AssemblyDefinition,
+    source_definitions: &[PartDefinition],
+    draft_assets: &[Asset],
+    board_id: &str,
+    origin: Vec2,
+    placement_id: &str,
+) -> Result<(ProjectDoc, Vec<String>), String> {
+    if assembly.members.is_empty() {
+        return Err("Add at least one component before placing this assembly.".into());
+    }
+    if !origin.x.is_finite() || !origin.y.is_finite() {
+        return Err("Assembly placement coordinates must be finite numbers.".into());
+    }
+    let Some(board_index) = document
+        .boards
+        .iter()
+        .position(|board| board.id == board_id)
+    else {
+        return Err("The selected board is no longer available.".into());
+    };
+    let member_ids = assembly
+        .members
+        .iter()
+        .map(|member| member.id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if member_ids.len() != assembly.members.len()
+        || member_ids.iter().any(|id| id.trim().is_empty())
+    {
+        return Err("Assembly members must have unique, non-empty identities.".into());
+    }
+    if assembly.members.iter().any(|member| {
+        !member.pose.at.x.is_finite()
+            || !member.pose.at.y.is_finite()
+            || !member.pose.rotation.is_finite()
+            || member.models.iter().any(|model| {
+                [
+                    model.offset.x,
+                    model.offset.y,
+                    model.offset.z,
+                    model.rotation.x,
+                    model.rotation.y,
+                    model.rotation.z,
+                    model.scale.x,
+                    model.scale.y,
+                    model.scale.z,
+                ]
+                .into_iter()
+                .any(|value| !value.is_finite())
+                    || [model.scale.x, model.scale.y, model.scale.z]
+                        .into_iter()
+                        .any(|value| value <= 0.0)
+            })
+    }) {
+        return Err(
+            "Assembly positions and angles must be finite, and model scales must be positive."
+                .into(),
+        );
+    }
+
+    let asset_exists = |id: &str| {
+        document.assets.iter().any(|asset| asset.id == id)
+            || draft_assets.iter().any(|asset| asset.id == id)
+            || crate::bundled_models::bundled_model(id).is_some()
+            || id.starts_with("unresolved-model:")
+    };
+    let mut next = document.clone();
+    for asset in draft_assets {
+        if let Some(existing) = next.assets.iter().find(|existing| existing.id == asset.id) {
+            if existing != asset {
+                return Err(format!(
+                    "The model asset identity '{}' conflicts with the accepted project.",
+                    asset.id
+                ));
+            }
+        } else {
+            next.assets.push(asset.clone());
+        }
+    }
+    let mut part_ids = Vec::with_capacity(assembly.members.len());
+    for member in &assembly.members {
+        let source = member.definition_id.as_deref().and_then(|id| {
+            document
+                .definitions
+                .iter()
+                .chain(source_definitions)
+                .find(|definition| definition.id == id)
+        });
+        let mut definition = if let Some(source) = source {
+            source.clone()
+        } else if member.definition_id.is_none() {
+            PartDefinition {
+                hardware_profile: None,
+                input_profile: None,
+                id: format!("assembly-model-only:{}", member.id),
+                name: "Visual model".into(),
+                kind: PartKind::Custom,
+                keycap: None,
+                envelope_source: None,
+                kicad_source: None,
+                terminals: Default::default(),
+                matrix_terminals: None,
+                envelope_notice: None,
+                courtyard: Vec::new(),
+                pads: Vec::new(),
+                models: None,
+                generator: None,
+                mechanical_profile: None,
+            }
+        } else {
+            return Err(format!(
+                "Missing component definition: {}",
+                member.definition_id.as_deref().unwrap_or_default()
+            ));
+        };
+        if let Some(generator) = definition.generator.as_mut()
+            && let Some(parameters) = member.parameters.as_ref()
+        {
+            generator.parameters.extend(parameters.clone());
+        }
+        if !member.models.is_empty()
+            || matches!(
+                &member.model_mode,
+                Some(boardstudio_core::model::AssemblyModelMode::Custom)
+            )
+        {
+            definition.models = Some(member.models.clone());
+        }
+        for model in definition.models.as_deref().unwrap_or_default() {
+            if !asset_exists(&model.asset_id) {
+                return Err(format!(
+                    "The model asset '{}' is not available in this project.",
+                    model.asset_id
+                ));
+            }
+        }
+        definition.id = format!("{placement_id}/definition/{}", member.id);
+        let part_id = format!("{placement_id}/{}", member.id);
+        if next
+            .definitions
+            .iter()
+            .any(|existing| existing.id == definition.id)
+            || next.parts.iter().any(|existing| existing.id == part_id)
+        {
+            return Err("The assembly placement identity is already in use.".into());
+        }
+        let reference = format!("{} {}", assembly.name, member.id);
+        if next
+            .parts
+            .iter()
+            .any(|existing| existing.reference == reference)
+        {
+            return Err(format!(
+                "The component reference '{reference}' is already in use."
+            ));
+        }
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "assemblyId".into(),
+            serde_json::Value::String(placement_id.to_owned()),
+        );
+        properties.insert(
+            "visualOnly".into(),
+            serde_json::Value::Bool(member.definition_id.is_none()),
+        );
+        next.definitions.push(definition.clone());
+        next.parts.push(Part {
+            keycap: None,
+            outline: member.definition_id.is_none().then_some(PartOutline {
+                excluded: true,
+                ..Default::default()
+            }),
+            id: part_id.clone(),
+            definition_id: definition.id,
+            reference,
+            pose: boardstudio_core::model::Pose2 {
+                at: Vec2 {
+                    x: origin.x + member.pose.at.x,
+                    y: origin.y + member.pose.at.y,
+                },
+                rotation: member.pose.rotation,
+            },
+            side: member.side.clone(),
+            locked: None,
+            properties: Some(properties),
+            generator_parameters: None,
+        });
+        part_ids.push(part_id);
+    }
+    let board = &mut next.boards[board_index];
+    board.part_ids.extend(part_ids.iter().cloned());
+    Ok((next, part_ids))
+}
+
+/// Retain unrelated accepted changes made while definition normalization was
+/// in flight, and attach only this operation's assembly snapshots and assets.
+pub(super) fn rebase_assembly_placement(
+    latest: &ProjectDoc,
+    proposal: &ProjectDoc,
+    draft_assets: &[Asset],
+    board_id: &str,
+    placement_id: &str,
+    part_ids: &[String],
+) -> Result<ProjectDoc, String> {
+    let mut next = latest.clone();
+    for asset in draft_assets {
+        if let Some(existing) = next.assets.iter().find(|existing| existing.id == asset.id) {
+            if existing != asset {
+                return Err(format!(
+                    "The model asset identity '{}' conflicts with the accepted project.",
+                    asset.id
+                ));
+            }
+        } else {
+            next.assets.push(asset.clone());
+        }
+    }
+
+    let definition_prefix = format!("{placement_id}/definition/");
+    for definition in proposal
+        .definitions
+        .iter()
+        .filter(|definition| definition.id.starts_with(&definition_prefix))
+    {
+        if next
+            .definitions
+            .iter()
+            .any(|existing| existing.id == definition.id)
+        {
+            return Err("The assembly placement definition identity is already in use.".into());
+        }
+        next.definitions.push(definition.clone());
+    }
+    for part_id in part_ids {
+        let Some(part) = proposal.parts.iter().find(|part| part.id == *part_id) else {
+            return Err("The assembly placement proposal is incomplete.".into());
+        };
+        if next.parts.iter().any(|existing| existing.id == *part_id)
+            || next
+                .parts
+                .iter()
+                .any(|existing| existing.reference == part.reference)
+        {
+            return Err("A placed assembly component identity is already in use.".into());
+        }
+        next.parts.push(part.clone());
+    }
+    let Some(board) = next.boards.iter_mut().find(|board| board.id == board_id) else {
+        return Err("The selected board is no longer available.".into());
+    };
+    for part_id in part_ids {
+        if !board.part_ids.contains(part_id) {
+            board.part_ids.push(part_id.clone());
+        }
+    }
+    Ok(next)
 }
 
 fn safe_identity(value: &str) -> String {

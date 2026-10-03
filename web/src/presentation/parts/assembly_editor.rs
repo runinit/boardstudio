@@ -34,6 +34,13 @@ struct PendingSave {
 enum PendingTarget {
     Assembly(String),
     Matrix(String),
+    BoardAssembly {
+        scope: Scope,
+        board_id: String,
+        base_revision: u64,
+        assembly_id: String,
+        part_ids: Vec<String>,
+    },
 }
 
 /// Saved reusable assemblies are project data; editor fields stay local until one
@@ -45,6 +52,7 @@ pub(super) fn SavedAssembliesEditor(
     definitions: Vec<PartDefinition>,
     selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
     on_place: EventHandler<super::super::objects::MatrixPlacementSource>,
+    on_place_board: EventHandler<(AssemblyDraft, String, String)>,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let workspace = use_context::<super::super::WorkspaceState>().0;
@@ -57,6 +65,8 @@ pub(super) fn SavedAssembliesEditor(
 
     use_effect({
         let runtime = runtime.clone();
+        let mut workspace = workspace;
+        let mut selected_context = selected_context;
         move || {
             let _ = runtime_version();
             let Some(waiting) = pending.read().clone() else {
@@ -65,64 +75,152 @@ pub(super) fn SavedAssembliesEditor(
             let Some(outcome) = waiting.outcome.borrow().clone() else {
                 return;
             };
-            pending.set(None);
             match outcome {
                 TerminalOutcome::Completed => {
-                    let accepted = runtime.model().accepted;
-                    if let Some(snapshot) = accepted {
-                        match &waiting.target {
-                            PendingTarget::Assembly(assembly_id) => {
-                                if let Some(saved) = snapshot
-                                    .document
-                                    .assemblies
-                                    .iter()
-                                    .find(|assembly| assembly.id == *assembly_id)
-                                    .cloned()
-                                {
-                                    editing.with_mut(|draft| {
-                                        if let Some(draft) = draft.as_mut() {
-                                            if draft.value.id == saved.id {
-                                                draft.base = Some(saved.clone());
-                                                draft.value = saved;
-                                                draft.assets.clear();
+                    if let PendingTarget::BoardAssembly {
+                        scope,
+                        board_id,
+                        base_revision,
+                        assembly_id,
+                        part_ids,
+                    } = &waiting.target
+                    {
+                        let model = runtime.model();
+                        let Some(snapshot) = model.accepted.as_ref() else {
+                            return;
+                        };
+                        if model.lifecycle != Lifecycle::Ready
+                            || model.durability
+                                != (Durability::Saved {
+                                    revision: snapshot.document.revision,
+                                })
+                            || snapshot.document.revision <= *base_revision
+                            || runtime.scope().as_ref() != Some(scope)
+                            || snapshot.document.id != scope.document_id
+                            || snapshot.session_epoch != scope.session_epoch
+                        {
+                            return;
+                        }
+                        let board_contains_parts = snapshot
+                            .document
+                            .boards
+                            .iter()
+                            .find(|board| board.id == *board_id)
+                            .is_some_and(|board| {
+                                part_ids.iter().all(|part_id| {
+                                    board.part_ids.contains(part_id)
+                                        && snapshot
+                                            .document
+                                            .parts
+                                            .iter()
+                                            .any(|part| part.id == *part_id)
+                                })
+                            });
+                        pending.set(None);
+                        if board_contains_parts && !part_ids.is_empty() {
+                            let first_context =
+                                super::super::objects::context_for_part(&model, &part_ids[0]);
+                            selected_context.set(first_context.map(|context| {
+                                super::super::objects::ScopedTreeContext {
+                                    scope: scope.clone(),
+                                    context,
+                                }
+                            }));
+                            editing.set(None);
+                            workspace.set("Layout");
+                            runtime.submit(Event::SelectParts {
+                                operation_id: runtime.operation(),
+                                part_ids: part_ids.clone(),
+                                range_part_ids: Vec::new(),
+                                mode: boardstudio_application::SelectionMode::Replace,
+                            });
+                            feedback.set(Some(format!(
+                                "Assembly '{assembly_id}' placed on the selected board."
+                            )));
+                        } else {
+                            feedback.set(Some(
+                                "The assembly edit completed, but its placed components were not accepted on the selected board.".into(),
+                            ));
+                        }
+                    } else {
+                        pending.set(None);
+                        let accepted = runtime.model().accepted;
+                        if let Some(snapshot) = accepted {
+                            match &waiting.target {
+                                PendingTarget::Assembly(assembly_id) => {
+                                    if let Some(saved) = snapshot
+                                        .document
+                                        .assemblies
+                                        .iter()
+                                        .find(|assembly| assembly.id == *assembly_id)
+                                        .cloned()
+                                    {
+                                        editing.with_mut(|draft| {
+                                            if let Some(draft) = draft.as_mut() {
+                                                if draft.value.id == saved.id {
+                                                    draft.base = Some(saved.clone());
+                                                    draft.value = saved;
+                                                    draft.assets.clear();
+                                                }
                                             }
-                                        }
-                                    });
-                                    feedback.set(Some(
-                                        "Assembly saved. Existing placements are unchanged.".into(),
-                                    ));
+                                        });
+                                        feedback.set(Some(
+                                            "Assembly saved. Existing placements are unchanged."
+                                                .into(),
+                                        ));
+                                    }
                                 }
-                            }
-                            PendingTarget::Matrix(matrix_id) => {
-                                if snapshot
-                                    .document
-                                    .matrices
-                                    .iter()
-                                    .any(|matrix| matrix.id == *matrix_id)
-                                {
-                                    feedback.set(Some("Assembly applied to the selected matrix. Other placed matrices are unchanged.".into()));
-                                } else {
-                                    feedback.set(Some("The matrix edit completed, but the selected matrix is no longer available.".into()));
+                                PendingTarget::Matrix(matrix_id) => {
+                                    if snapshot
+                                        .document
+                                        .matrices
+                                        .iter()
+                                        .any(|matrix| matrix.id == *matrix_id)
+                                    {
+                                        feedback.set(Some("Assembly applied to the selected matrix. Other placed matrices are unchanged.".into()));
+                                    } else {
+                                        feedback.set(Some("The matrix edit completed, but the selected matrix is no longer available.".into()));
+                                    }
                                 }
+                                PendingTarget::BoardAssembly { .. } => unreachable!(),
                             }
                         }
                     }
                 }
-                TerminalOutcome::Rejected(reason) => feedback.set(Some(reason)),
-                TerminalOutcome::PersistenceFailed(reason) => feedback.set(Some(format!(
-                    "Assembly edit was accepted, but saving failed: {reason}"
-                ))),
-                TerminalOutcome::Superseded => feedback.set(Some(
-                    "The assembly edit was superseded by a newer project operation.".into(),
-                )),
+                TerminalOutcome::Rejected(reason) => {
+                    pending.set(None);
+                    feedback.set(Some(reason));
+                }
+                TerminalOutcome::PersistenceFailed(reason) => {
+                    pending.set(None);
+                    feedback.set(Some(format!(
+                        "Assembly edit was accepted, but saving failed: {reason}"
+                    )));
+                }
+                TerminalOutcome::Superseded => {
+                    pending.set(None);
+                    feedback.set(Some(
+                        "The assembly edit was superseded by a newer project operation.".into(),
+                    ));
+                }
                 TerminalOutcome::Cancelled => {
+                    pending.set(None);
                     feedback.set(Some("The assembly edit was cancelled.".into()))
                 }
-                TerminalOutcome::BlockedByRecovery(reason) => feedback.set(Some(reason)),
-                TerminalOutcome::ExecutorFailed(reason) => feedback.set(Some(reason)),
-                TerminalOutcome::Closed => feedback.set(Some(
-                    "The project session closed before the assembly edit completed.".into(),
-                )),
+                TerminalOutcome::BlockedByRecovery(reason) => {
+                    pending.set(None);
+                    feedback.set(Some(reason));
+                }
+                TerminalOutcome::ExecutorFailed(reason) => {
+                    pending.set(None);
+                    feedback.set(Some(reason));
+                }
+                TerminalOutcome::Closed => {
+                    pending.set(None);
+                    feedback.set(Some(
+                        "The project session closed before the assembly edit completed.".into(),
+                    ));
+                }
             }
         }
     });
@@ -209,6 +307,32 @@ pub(super) fn SavedAssembliesEditor(
                 definitions.clone(),
                 assembly,
                 preparing_apply,
+                pending,
+                feedback,
+            );
+        }
+    });
+
+    let place_on_board = EventHandler::new({
+        let runtime = runtime.clone();
+        let workspace = workspace;
+        let scope = scope.clone();
+        let snapshot = snapshot.clone();
+        let definitions = definitions.clone();
+        let preparing = preparing_apply;
+        let pending = pending;
+        let feedback = feedback;
+        move |(draft, origin_x, origin_y): (AssemblyDraft, String, String)| {
+            begin_place_assembly_on_board(
+                runtime.clone(),
+                workspace,
+                scope.clone(),
+                snapshot.clone(),
+                definitions.clone(),
+                draft,
+                origin_x,
+                origin_y,
+                preparing,
                 pending,
                 feedback,
             );
@@ -308,6 +432,7 @@ pub(super) fn SavedAssembliesEditor(
                     pending: pending.read().is_some() || preparing_apply(),
                     selected_context,
                     on_place: on_place.clone(),
+                    on_place_board: place_on_board,
                     on_apply: apply_to_matrix,
                     on_change: move |updated: AssemblyDraft| { editing.set(Some(updated)); feedback.set(None); },
                     on_save: save,
@@ -316,6 +441,204 @@ pub(super) fn SavedAssembliesEditor(
             }
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn begin_place_assembly_on_board(
+    runtime: Rc<crate::runtime::Runtime>,
+    workspace: Signal<&'static str>,
+    scope: Option<Scope>,
+    source: AcceptedSnapshot,
+    definitions: Vec<PartDefinition>,
+    draft: AssemblyDraft,
+    origin_x: String,
+    origin_y: String,
+    mut preparing: Signal<bool>,
+    mut pending: Signal<Option<PendingSave>>,
+    mut feedback: Signal<Option<String>>,
+) {
+    if preparing() || pending.read().is_some() || workspace() != "Parts" {
+        return;
+    }
+    let Some(scope) = scope else {
+        feedback.set(Some("Select a board before placing an assembly.".into()));
+        return;
+    };
+    if draft.scope.as_ref() != Some(&scope)
+        || draft.document_id != source.document.id
+        || draft.session_epoch != source.session_epoch
+    {
+        feedback.set(Some(
+            "The project or board scope changed while this assembly draft was open. Reopen it before placing.".into(),
+        ));
+        return;
+    }
+    let origin = match (
+        origin_x.trim().parse::<f64>(),
+        origin_y.trim().parse::<f64>(),
+    ) {
+        (Ok(x), Ok(y)) if x.is_finite() && y.is_finite() => Vec2 { x, y },
+        _ => {
+            feedback.set(Some(
+                "Enter finite X and Y coordinates for assembly placement.".into(),
+            ));
+            return;
+        }
+    };
+    let model = runtime.model();
+    let Some(accepted) = model.accepted.as_ref() else {
+        feedback.set(Some("The accepted project is unavailable.".into()));
+        return;
+    };
+    if model.lifecycle != Lifecycle::Ready
+        || model.durability
+            != (Durability::Saved {
+                revision: accepted.document.revision,
+            })
+        || runtime.scope().as_ref() != Some(&scope)
+        || accepted.token != source.token
+        || accepted.document.id != source.document.id
+        || accepted.document.revision != source.document.revision
+    {
+        feedback.set(Some(
+            "The project changed while this assembly draft was open. Reopen it before placing."
+                .into(),
+        ));
+        return;
+    }
+
+    let operation_id = runtime.operation();
+    let placement_id = format!("assembly-{}-{}", draft.value.id, operation_id.0);
+    let (mut proposal, part_ids) = match super::assembly_presets::document_with_assembly(
+        &accepted.document,
+        &draft.value,
+        &definitions,
+        &draft.assets,
+        &scope.board_id,
+        origin,
+        &placement_id,
+    ) {
+        Ok(proposal) => proposal,
+        Err(error) => {
+            feedback.set(Some(error));
+            return;
+        }
+    };
+    let base_revision = accepted.document.revision;
+    let base_token = accepted.token;
+    let project_id = accepted.document.id.clone();
+    let session_epoch = accepted.session_epoch;
+    let base_document = accepted.document.clone();
+    let source_definitions = definitions;
+    let definition_prefix = format!("{placement_id}/definition/");
+    preparing.set(true);
+    feedback.set(None);
+    spawn_local(async move {
+        let normalized = async {
+            for definition in proposal
+                .definitions
+                .iter_mut()
+                .filter(|definition| definition.id.starts_with(&definition_prefix))
+            {
+                if let Some(source) = definition
+                    .generator
+                    .as_ref()
+                    .map(|generator| generator.source.clone())
+                    && crate::bundled_models::is_ergogen_source(&source).await?
+                {
+                    *definition = super::normalize_matrix_definition(definition.clone()).await?;
+                }
+            }
+            Ok::<_, String>(())
+        }
+        .await;
+        preparing.set(false);
+        if let Err(error) = normalized {
+            feedback.set(Some(error));
+            return;
+        }
+
+        let current = runtime.model();
+        let Some(latest) = current.accepted.as_ref() else {
+            feedback.set(Some("The accepted project is unavailable.".into()));
+            return;
+        };
+        if workspace() != "Parts"
+            || runtime.scope().as_ref() != Some(&scope)
+            || current.lifecycle != Lifecycle::Ready
+            || current.durability
+                != (Durability::Saved {
+                    revision: latest.document.revision,
+                })
+            || latest.document.id != project_id
+            || latest.session_epoch != session_epoch
+            || latest.document.revision < base_revision
+            || latest.token != base_token && latest.document.revision == base_revision
+            || draft.value.members.iter().any(|member| {
+                member
+                    .definition_id
+                    .as_deref()
+                    .is_some_and(|definition_id| {
+                        let source_definition = base_document
+                            .definitions
+                            .iter()
+                            .chain(&source_definitions)
+                            .find(|definition| definition.id == definition_id);
+                        latest
+                            .document
+                            .definitions
+                            .iter()
+                            .find(|definition| definition.id == definition_id)
+                            .zip(source_definition)
+                            .is_some_and(|(latest, source)| latest != source)
+                    })
+            })
+        {
+            feedback.set(Some(
+                "The project, a component definition, or board scope changed while the assembly was being prepared. Reopen the editor and try again.".into(),
+            ));
+            return;
+        }
+        let candidate = match super::assembly_presets::rebase_assembly_placement(
+            &latest.document,
+            &proposal,
+            &draft.assets,
+            &scope.board_id,
+            &placement_id,
+            &part_ids,
+        ) {
+            Ok(candidate) => candidate,
+            Err(error) => {
+                feedback.set(Some(error));
+                return;
+            }
+        };
+        let base_revision = latest.document.revision;
+        let mut target_ids = part_ids.clone();
+        target_ids.push(scope.board_id.clone());
+        pending.set(Some(PendingSave {
+            target: PendingTarget::BoardAssembly {
+                scope: scope.clone(),
+                board_id: scope.board_id.clone(),
+                base_revision,
+                assembly_id: draft.value.id,
+                part_ids,
+            },
+            outcome: runtime.observe_operation(operation_id),
+        }));
+        runtime.submit(Event::Edit {
+            operation_id,
+            command: EditCommand {
+                base_revision,
+                transaction_id: format!("parts-assembly-place-{}", operation_id.0),
+                phase: EditPhase::Commit,
+                target_ids,
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(candidate),
+                },
+            },
+        });
+    });
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -471,6 +794,7 @@ fn AssemblyDraftFields(
     pending: bool,
     selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
     on_place: EventHandler<super::super::objects::MatrixPlacementSource>,
+    on_place_board: EventHandler<(AssemblyDraft, String, String)>,
     on_apply: EventHandler<AssemblyDefinition>,
     on_change: EventHandler<AssemblyDraft>,
     on_save: EventHandler<MouseEvent>,
@@ -478,6 +802,8 @@ fn AssemblyDraftFields(
 ) -> Element {
     let value = use_signal(|| draft.value.clone());
     let assets = use_signal(|| draft.assets.clone());
+    let mut origin_x = use_signal(|| "0".to_owned());
+    let mut origin_y = use_signal(|| "0".to_owned());
     let import_pending = use_signal(|| false);
     let render_value = value();
     let apply_value = render_value.clone();
@@ -577,8 +903,45 @@ fn AssemblyDraftFields(
                     }
                 }
             }
+            fieldset { class: "m1-parts-assembly-place",
+                legend { "Place assembly" }
+                div { class: "m1-parts-assembly-transform",
+                    label { "X (mm)"
+                        input {
+                            r#type: "number",
+                            step: "0.1",
+                            value: "{origin_x}",
+                            disabled: controls_disabled,
+                            oninput: move |event| origin_x.set(event.value()),
+                        }
+                    }
+                    label { "Y (mm)"
+                        input {
+                            r#type: "number",
+                            step: "0.1",
+                            value: "{origin_y}",
+                            disabled: controls_disabled,
+                            oninput: move |event| origin_y.set(event.value()),
+                        }
+                    }
+                }
+                button {
+                    r#type: "button",
+                    disabled: controls_disabled || draft.scope.is_none() || render_value.members.is_empty(),
+                    onclick: move |_| on_place_board.call((
+                        AssemblyDraft {
+                            value: render_value.clone(),
+                            assets: assets(),
+                            ..draft.clone()
+                        },
+                        origin_x(),
+                        origin_y(),
+                    )),
+                    "Place on selected board"
+                }
+            }
             if unsaved_assets {
-                p { class: "m1-parts-empty", role: "status", "Save imported model assets before placing or applying this assembly." }
+                p { class: "m1-parts-empty", role: "status", "Save imported model assets before applying this assembly to a matrix." }
             }
             if !recipe.is_empty() {
                 div { class: "m1-parts-assembly-preview",
