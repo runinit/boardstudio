@@ -35,6 +35,7 @@ mod outline_lifecycle;
 mod panels;
 mod part_placement;
 mod parts;
+mod parts_import_footprint;
 mod parts_workspace;
 mod pcb_layers;
 mod pcb_physical_setup;

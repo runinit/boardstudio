@@ -745,6 +745,15 @@ pub(super) fn PartsLibraryPanel(
             h2 { "Parts library" }
             {content}
             div { class: "m1-parts-actions",
+                crate::presentation::parts_import_footprint::ImportKiCadFootprintAction {
+                    scope: scope.clone(),
+                    view_generation,
+                    scope_generation,
+                    workspace,
+                    selected,
+                    query,
+                    on_select,
+                }
                 crate::parts_new_component::NewCustomComponentAction {
                     scope: scope.clone(),
                     view_generation,

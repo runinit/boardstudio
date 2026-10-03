@@ -10,11 +10,11 @@ use boardstudio_application::{
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::{
-        ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, Board, CoreReply, CoreRequest,
-        ErgogenJobResult, FinishExportRequest, HardwareTopology, Material, MechanicalAssembly,
-        MechanicalBuiltinProfile, MechanicalConfiguration, MechanicalPartProfile,
-        MechanicalSwitchFamily, Operation, OutlineFeature, OutlineSettings, PcbPreview,
-        PrepareExportRequest, ProjectDoc,
+        ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
+        CompiledFootprint, CoreReply, CoreRequest, ErgogenJobResult, FinishExportRequest,
+        HardwareTopology, Material, MechanicalAssembly, MechanicalBuiltinProfile,
+        MechanicalConfiguration, MechanicalPartProfile, MechanicalSwitchFamily, Operation,
+        OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
     },
 };
 use boardstudio_web::host::{BrowserStore, CoreWorker};
@@ -581,6 +581,54 @@ impl Runtime {
             family,
             plate_to_pcb,
         )
+    }
+
+    /// Import a source-owned KiCad footprint through the existing artifact worker.
+    /// The Parts owner admits the returned definition into Session after rechecking scope.
+    pub(crate) async fn import_footprint(
+        &self,
+        request_id: String,
+        definition_id: String,
+        source: String,
+    ) -> Result<CompiledFootprint, String> {
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        let core = self.core.borrow().clone();
+        let request = ArtifactRequest::ImportFootprint {
+            id: request_id.clone(),
+            definition_id,
+            source,
+        };
+        let reply = core
+            .artifact(&request_id, &executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Could not import KiCad footprint: {error}"))?;
+        if self.session.borrow().core_executor_epoch() != executor_epoch
+            || !Rc::ptr_eq(&core, &self.core.borrow())
+        {
+            return Err(
+                "The KiCad footprint import became stale when the Core worker changed.".into(),
+            );
+        }
+        match reply {
+            ArtifactReply::ImportFootprint { id, result } if id == request_id => Ok(*result),
+            ArtifactReply::Error { id, error } if id == request_id => {
+                let diagnostics = error
+                    .diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>();
+                let details = if diagnostics.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {}", diagnostics.join(" "))
+                };
+                Err(format!("{}{}", error.message, details))
+            }
+            ArtifactReply::ImportFootprint { .. } | ArtifactReply::Error { .. } => {
+                Err("Core returned a KiCad footprint result for another request.".into())
+            }
+            _ => Err("Core returned an unexpected KiCad footprint import reply.".into()),
+        }
     }
 
     /// Ask the existing Core worker to project candidate matrices with its authoritative
