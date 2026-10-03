@@ -492,9 +492,9 @@ pub(super) fn ComponentModelEditor(
         error.set(None);
         notice.set(None);
         uploading.set(true);
-        let generation = request_generation.get().wrapping_add(1);
-        request_generation.set(generation);
-        let request_generation = request_generation.clone();
+        let generation = upload_generation.get().wrapping_add(1);
+        upload_generation.set(generation);
+        let request_generation = upload_generation.clone();
         let alive = alive.clone();
         let runtime = runtime_for_upload.clone();
         let owner = owner_for_upload.clone();

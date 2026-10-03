@@ -409,7 +409,9 @@ fn AssemblyMemberFields(
     let rotation_change = on_change.clone();
     let mode_change = on_change.clone();
     let remove_change = on_change.clone();
-    let component_value = value;
+    let mut component_value = value;
+    let edit_defaults_draft = draft.clone();
+    let add_model_draft = draft.clone();
 
     let mounted = use_hook(|| Rc::new(std::cell::Cell::new(true)));
     use_drop({
@@ -449,7 +451,7 @@ fn AssemblyMemberFields(
             let draft = draft.clone();
             let member_id = member_id.clone();
             let value = value;
-            let assets = assets;
+            let mut assets = assets;
             let mut import_pending = import_pending;
             let mut import_feedback = import_feedback;
             let on_change = on_change.clone();
@@ -619,14 +621,14 @@ fn AssemblyMemberFields(
                 }
             } else if definition.is_some() {
                 p { class: "m1-parts-empty", "Uses {definition_models.len()} component model default(s)." }
-                button { r#type: "button", disabled, onclick: move |_| update_member(value, assets, draft.clone(), on_change.clone(), edit_defaults_id.clone(), MemberPatch::ModelMode(true, definition_models.clone())), "Edit model defaults" }
+                button { r#type: "button", disabled, onclick: move |_| update_member(value, assets, edit_defaults_draft.clone(), on_change.clone(), edit_defaults_id.clone(), MemberPatch::ModelMode(true, definition_models.clone())), "Edit model defaults" }
             } else {
                 p { class: "m1-parts-empty", "No component model defaults are attached." }
             }
             if is_custom {
                 button { r#type: "button", disabled: disabled || options.is_empty(), onclick: move |_| {
                     if let Some(option) = options.first() {
-                        update_member(value, assets, draft.clone(), on_change.clone(), add_model_id.clone(), MemberPatch::AddModel(default_model(option.id.clone())));
+                        update_member(value, assets, add_model_draft.clone(), on_change.clone(), add_model_id.clone(), MemberPatch::AddModel(default_model(option.id.clone())));
                     }
                 }, "Add model" }
             }
