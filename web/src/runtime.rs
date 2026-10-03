@@ -1,6 +1,8 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
 use crate::pcb_wiring_mode_operation::electrical_preview_request;
+#[cfg(test)]
+use boardstudio_application::GenerationStatus;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
     SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
@@ -31,6 +33,7 @@ pub struct CadScene {
     pub snapshot: AcceptedSnapshot,
     pub result: CadResult,
     pub(crate) prepared: boardstudio_core::model::PreparedCaseAssemblyIR,
+    pub(crate) physical_fingerprint: Option<[u8; 32]>,
     pub mechanical: Option<boardstudio_core::model::MechanicalAssembly>,
     pub exact: bool,
     pub contours: Vec<boardstudio_core::model::Contour>,
@@ -339,6 +342,8 @@ pub struct Runtime {
     #[cfg(test)]
     definition_name_test_events: RefCell<Vec<Event>>,
     #[cfg(test)]
+    definition_name_test_generation: RefCell<Option<GenerationStatus>>,
+    #[cfg(test)]
     firmware_export_test_context: RefCell<Option<FirmwareExportTestContext>>,
     #[cfg(test)]
     firmware_export_test_effects: RefCell<Vec<Effect>>,
@@ -401,6 +406,8 @@ impl Runtime {
             definition_name_test_state: RefCell::new(None),
             #[cfg(test)]
             definition_name_test_events: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            definition_name_test_generation: RefCell::new(None),
             #[cfg(test)]
             firmware_export_test_context: RefCell::new(None),
             #[cfg(test)]
@@ -485,6 +492,11 @@ impl Runtime {
         if let Some((snapshot, _)) = self.definition_name_test_state.borrow().as_ref() {
             return ReadModel {
                 accepted: Some(snapshot.clone()),
+                generation: self
+                    .definition_name_test_generation
+                    .borrow()
+                    .clone()
+                    .unwrap_or(GenerationStatus::Idle),
                 ..ReadModel::default()
             };
         }
@@ -1060,6 +1072,11 @@ impl Runtime {
     }
 
     #[cfg(test)]
+    pub(crate) fn set_definition_name_test_generation(&self, generation: GenerationStatus) {
+        *self.definition_name_test_generation.borrow_mut() = Some(generation);
+    }
+
+    #[cfg(test)]
     fn set_firmware_export_test_context(
         &self,
         accepted: AcceptedSnapshot,
@@ -1516,11 +1533,48 @@ impl Runtime {
         }
     }
     pub fn cad_scene(&self) -> Option<Rc<CadScene>> {
-        self.cad_scene
-            .borrow()
-            .as_ref()
-            .filter(|scene| self.scope() == Some(scene.scope.clone()))
-            .cloned()
+        let current_scope = self.scope()?;
+        let accepted = self.model().accepted?;
+        let mut cached = self.cad_scene.borrow_mut();
+        let scene = cached.as_ref()?;
+        if scene.scope != current_scope {
+            return None;
+        }
+        if scene.token != accepted.token
+            && scene.physical_fingerprint.is_some()
+            && scene.physical_fingerprint
+                == crate::case_generation_lifecycle::physical_case_fingerprint(
+                    &accepted,
+                    &current_scope,
+                )
+        {
+            let mut rebound = CadScene {
+                scope: scene.scope.clone(),
+                token: accepted.token,
+                snapshot: accepted.clone(),
+                result: scene.result.clone(),
+                prepared: scene.prepared.clone(),
+                physical_fingerprint: scene.physical_fingerprint,
+                mechanical: scene.mechanical.clone(),
+                exact: scene.exact,
+                contours: scene.contours.clone(),
+            };
+            let revision = accepted.document.revision;
+            rebound.result.revision = revision;
+            rebound.prepared.revision = revision;
+            for body in &mut rebound.prepared.bodies {
+                body.revision = revision;
+            }
+            if let Some(mechanical) = &mut rebound.mechanical {
+                mechanical.revision = revision;
+                mechanical.case.revision = revision;
+                for body in &mut mechanical.case.bodies {
+                    body.revision = revision;
+                }
+            }
+            *cached = Some(Rc::new(rebound));
+        }
+        cached.as_ref().cloned()
     }
 
     pub(crate) fn native_case_preview(
@@ -2957,6 +3011,9 @@ impl Runtime {
                 snapshot: snapshot.clone(),
                 result,
                 prepared: prepared.prepared.clone(),
+                physical_fingerprint: crate::case_generation_lifecycle::physical_case_fingerprint(
+                    snapshot, scope,
+                ),
                 mechanical: prepared.mechanical_assembly.clone(),
                 exact: operation == CadOperation::Exact,
                 contours: contours.clone(),

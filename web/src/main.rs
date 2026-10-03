@@ -2,6 +2,8 @@
 mod archive_export;
 #[cfg(feature = "page")]
 mod bundled_models;
+#[cfg(feature = "page")]
+mod case_generation_lifecycle;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod case_model_lifecycle;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]

@@ -44,6 +44,7 @@ mod shared_viewer;
 mod workspace_composition;
 mod zmk_firmware_export;
 
+use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
 pub(crate) use case_viewer::{CasePreviewViewer, CaseViewer};
@@ -165,6 +166,12 @@ pub(super) struct WorkspaceState(pub(super) Signal<&'static str>);
 #[derive(Clone, Copy)]
 pub(crate) struct InstanceSelection(Signal<Option<instance_selection::Preference>>);
 
+#[derive(Clone, Copy)]
+pub(crate) struct CaseGenerationState {
+    pub(crate) live_preview: Signal<bool>,
+    pub(crate) automatic: Signal<AutomaticCaseGeneration>,
+}
+
 impl InstanceSelection {
     pub(crate) fn is_current(self, model: &boardstudio_application::ReadModel) -> bool {
         instance_selection::is_current(model, self.0.read().as_ref())
@@ -182,6 +189,22 @@ impl InstanceSelection {
             explicit_id,
         }));
     }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+pub(crate) fn use_empty_test_instance_selection() {
+    let preference = use_signal(|| None);
+    use_context_provider(|| InstanceSelection(preference));
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+pub(crate) fn use_test_case_generation_state() {
+    let live_preview = use_signal(|| true);
+    let automatic = use_signal(AutomaticCaseGeneration::new);
+    use_context_provider(|| CaseGenerationState {
+        live_preview,
+        automatic,
+    });
 }
 
 #[derive(Clone, Copy)]
@@ -366,6 +389,11 @@ pub fn App() -> Element {
     use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
+    let case_generation = CaseGenerationState {
+        live_preview: use_signal(|| true),
+        automatic: use_signal(AutomaticCaseGeneration::new),
+    };
+    use_context_provider(|| case_generation);
     let runtime_for_creation = runtime.clone();
     use_effect(use_reactive!(|observed_version| {
         let _ = observed_version;
