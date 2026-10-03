@@ -20,8 +20,9 @@ use crate::mechanical_feedback::{
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalBottomStyle,
-    MechanicalConfiguration, MechanicalMount, Mount, Part, PartKind, ProjectDoc,
+    EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalAssembly,
+    MechanicalBottomStyle, MechanicalConfiguration, MechanicalMount, Mount, Part, PartKind,
+    ProjectDoc,
 };
 use dioxus::prelude::*;
 use std::{
@@ -30,6 +31,7 @@ use std::{
     pin::Pin,
     rc::Rc,
 };
+use wasm_bindgen_futures::spawn_local;
 
 type LocalFuture<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
 type MechanicalResolver = Rc<
@@ -226,6 +228,90 @@ pub(crate) fn use_mechanical_settings_mount(
     });
 
     let version = use_context::<Signal<u64>>();
+    let mut resolved_mechanical = use_signal(|| None::<MechanicalSettingsResolvedProjection>);
+    let resolving_mechanical = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
+        ))
+    });
+    use_effect(use_reactive((&version(), &workspace()), {
+        let runtime = runtime.clone();
+        let current = current.clone();
+        let alive = alive.clone();
+        let resolving = resolving_mechanical.clone();
+        move |_| {
+            if workspace() != "Case" {
+                return;
+            }
+            let Some(current_settings) = current() else {
+                return;
+            };
+            if current_settings.configuration.is_none() {
+                return;
+            }
+            let Some(key) = current_source_key(&runtime) else {
+                return;
+            };
+            let identity = current_settings.identity.clone();
+            let request_key = (key.clone(), identity.clone());
+            if resolved_mechanical
+                .read()
+                .as_ref()
+                .is_some_and(|projection| {
+                    projection.key == key && projection.identity == current_settings.identity
+                })
+            {
+                return;
+            }
+            {
+                let mut pending = resolving.borrow_mut();
+                if pending.as_ref() == Some(&request_key) {
+                    return;
+                }
+                *pending = Some(request_key.clone());
+            }
+
+            let accepted = current_settings.accepted.clone();
+            let proposed = accepted.document.as_ref().clone();
+            let scope = key.scope.clone();
+            let runtime = runtime.clone();
+            let current = current.clone();
+            let alive = alive.clone();
+            let resolving = resolving.clone();
+            let mut resolved = resolved_mechanical;
+            spawn_local(async move {
+                let result = runtime
+                    .resolve_mechanical_settings(accepted, scope, proposed)
+                    .await;
+                if !alive.get() {
+                    return;
+                }
+                let still_current = current().is_some_and(|live| live.identity == identity)
+                    && current_source_key(&runtime).as_ref() == Some(&key);
+                {
+                    let mut pending = resolving.borrow_mut();
+                    if pending.as_ref() == Some(&request_key) {
+                        *pending = None;
+                    }
+                }
+                if !still_current {
+                    return;
+                }
+                if let Ok((assembly, effective_configuration)) = result {
+                    resolved.set(Some(MechanicalSettingsResolvedProjection {
+                        key,
+                        identity,
+                        resolution: Rc::new(MechanicalResolution {
+                            assembly,
+                            effective_configuration,
+                        }),
+                    }));
+                } else {
+                    resolved.set(None);
+                }
+            });
+        }
+    }));
     use_effect(use_reactive((&version(), &workspace()), {
         let controller = controller.clone();
         let runtime = runtime.clone();
@@ -352,10 +438,34 @@ pub(crate) fn use_mechanical_settings_mount(
         .as_ref()
         .zip(display_scene.as_ref())
         .is_some_and(|(current, scene)| scene.token != current.identity.snapshot_token);
+    let current_resolution = current_projection.as_ref().and_then(|current| {
+        resolved_mechanical
+            .read()
+            .as_ref()
+            .filter(|projection| {
+                projection.identity == current.identity
+                    && projection.key.scope == current.identity.scope
+                    && projection.key.token == current.identity.snapshot_token
+                    && projection.key.revision == current.identity.revision
+            })
+            .map(|projection| projection.resolution.clone())
+    });
     let scene_rows = use_memo(use_reactive(
-        (&display_scene, &scene, &internal_gasket, &previous_geometry),
-        |(display, current, gasket, is_previous)| {
-            project_scene_rows(display.as_ref(), current.as_ref(), gasket, is_previous)
+        (
+            &display_scene,
+            &scene,
+            &current_resolution,
+            &internal_gasket,
+            &previous_geometry,
+        ),
+        |(display, current, resolved, gasket, is_previous)| {
+            project_scene_rows(
+                display.as_ref(),
+                current.as_ref(),
+                resolved.as_ref(),
+                gasket,
+                is_previous,
+            )
         },
     ));
     let props = current_projection.map(|current| {
@@ -641,6 +751,13 @@ struct MechanicalSettingsSourceProjection {
     profiles: Rc<[MechanicalProfileChoice]>,
 }
 
+#[derive(Clone)]
+struct MechanicalSettingsResolvedProjection {
+    key: SettingsSourceKey,
+    identity: MechanicalSettingsIdentity,
+    resolution: Rc<MechanicalResolution>,
+}
+
 #[derive(Clone, PartialEq)]
 struct MechanicalSceneRows {
     layers: Rc<[MechanicalLayerRow]>,
@@ -652,19 +769,26 @@ struct MechanicalSceneRows {
 fn project_scene_rows(
     display_scene: Option<&Rc<CadScene>>,
     current_scene: Option<&Rc<CadScene>>,
+    current_resolution: Option<&Rc<MechanicalResolution>>,
     internal_gasket: bool,
     is_previous: bool,
 ) -> Option<MechanicalSceneRows> {
-    let display_assembly = display_scene?.mechanical.as_ref()?;
+    let display_assembly = display_scene.and_then(|scene| scene.mechanical.as_ref());
+    let current_assembly: Option<&MechanicalAssembly> = current_resolution
+        .map(|resolution| &resolution.assembly)
+        .or_else(|| current_scene.and_then(|scene| scene.mechanical.as_ref()));
+    if display_assembly.is_none() && current_assembly.is_none() {
+        return None;
+    }
     let layers: Vec<_> = display_assembly
-        .stack
-        .iter()
-        .map(|layer| MechanicalLayerRow {
+        .into_iter()
+        .flat_map(|assembly| assembly.stack.iter().map(move |layer| (assembly, layer)))
+        .map(|(assembly, layer)| MechanicalLayerRow {
             id: layer.id.clone(),
             label: mechanical_layer_label(&layer.id, internal_gasket),
             z: layer.z,
             thickness: layer.thickness,
-            resolved_body_thickness: display_assembly
+            resolved_body_thickness: assembly
                 .case
                 .bodies
                 .iter()
@@ -673,9 +797,11 @@ fn project_scene_rows(
             is_previous,
         })
         .collect();
-    let gasket_supports: Vec<_> = display_assembly
-        .gasket_supports
-        .iter()
+    let support_assembly = current_assembly.or(display_assembly);
+    let supports_are_previous = current_assembly.is_none() && is_previous;
+    let gasket_supports: Vec<_> = support_assembly
+        .into_iter()
+        .flat_map(|assembly| assembly.gasket_supports.iter())
         .map(|support| MechanicalGasketSupportRow {
             id: support.id.clone(),
             region_id: support.region_id.clone(),
@@ -686,11 +812,10 @@ fn project_scene_rows(
             width: support.width,
             unlinked: support.unlinked,
             fit_error: support.fit_error.clone(),
-            is_previous,
+            is_previous: supports_are_previous,
         })
         .collect();
-    let findings: Vec<_> = current_scene
-        .and_then(|scene| scene.mechanical.as_ref())
+    let findings: Vec<_> = current_assembly
         .into_iter()
         .flat_map(|assembly| assembly.diagnostics.iter())
         .map(|finding| MechanicalFindingRow {
@@ -699,8 +824,7 @@ fn project_scene_rows(
             message: finding.message.clone(),
         })
         .collect();
-    let suggested_mounts = current_scene
-        .and_then(|scene| scene.mechanical.as_ref())
+    let suggested_mounts = current_assembly
         .map(|assembly| assembly.suggested_mounts.clone())
         .unwrap_or_default();
     Some(MechanicalSceneRows {

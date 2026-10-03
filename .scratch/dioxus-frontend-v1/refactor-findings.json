@@ -302,9 +302,9 @@
       ],
       "case_mechanical_resolution_display_20261003": {
         "observation": "Mechanical Inspector findings/support rows currently derive from a successful exact CadScene, while the existing read-only ResolveMechanical owner can return blocked assemblies. CAD preparation discards blocked assembly output before scene publication. This couples mechanical diagnostic display to successful preview delivery.",
-        "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md",
-        "status": "Architectural/error-state investigation only. Initial zero-row configured Gasket observation was transient and the completed candidate resize/Undo/Redo/reopen journey succeeds with17 pairs/40 layers. No persistent-zero bug, cache repair, public paired closure or parent acceptance is claimed.",
-        "post_port_follow_up": "If a settled blocked-result display failure is reproduced, preserve exact accepted scope/token/revision/executor/lifetime and reuse the existing current mechanical resolver independently from CAD geometry; avoid a second authority or provider change."
+        "evidence": ".scratch/dioxus-case-workspace/evidence/current-mechanical-resolution-diagnosis-20261003/README.md; .scratch/dioxus-case-workspace/evidence/15-mounting-controls-20261003/public-receipt.md",
+        "status": "Confirmed current-settings gap in Issue15's exact-fixture paired edit: the existing resolver reports a blocked mount after Boss X changes to128, while CAD scene projection removes current findings/suggestions and disables adoption. A bounded exact-owner/token/revision settings projection is being implemented by reusing Runtime::resolve_mechanical_settings. The earlier transient Gasket zero-row observation remains unconfirmed and is not used as proof. Compile and post-fix browser GREEN are pending; no parent acceptance is claimed.",
+        "post_port_follow_up": "Keep current resolver diagnostics/supports/suggestions independent from CAD preview delivery, keyed by the current settings owner and accepted scope/token/revision. Continue to use CadScene for geometry layers and preview delivery; avoid a second authority, geometry-kernel change, or provider change."
       }
     },
     {
