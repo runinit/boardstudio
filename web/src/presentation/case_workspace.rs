@@ -1209,7 +1209,9 @@ mod tests {
 mod mounted_live_scene_tests {
     use super::*;
     use boardstudio_application::AcceptedSnapshot;
-    use boardstudio_core::model::{Board, MechanicalAssembly};
+    use boardstudio_core::model::{
+        Board, Finding, MechanicalAssembly, Scope as FindingScope, Severity,
+    };
     use std::sync::Arc;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -1254,7 +1256,13 @@ mod mounted_live_scene_tests {
                 }]
             },
             "stack": [{ "id": "plate", "z": 0.0, "thickness": 1.5 }],
-            "diagnostics": []
+            "diagnostics": [{
+                "id": "stale-case-finding",
+                "severity": "error",
+                "scope": "case",
+                "message": "Stale diagnostic from previous geometry",
+                "targetIds": ["plate"]
+            }]
         }))
         .expect("minimal completed mechanical assembly fixture");
         runtime.set_cad_scene_test(Some(Rc::new(CadScene {
@@ -1269,7 +1277,9 @@ mod mounted_live_scene_tests {
                 revision: accepted.document.revision,
                 bodies: Vec::new(),
             },
-            physical_fingerprint: None,
+            // Keep this cached scene stale after the accepted-token transition so the
+            // display projection can retain it while the strict-current projection drops it.
+            physical_fingerprint: Some([0xA5; 32]),
             mechanical: Some(mechanical),
             exact: true,
             contours: Vec::new(),
@@ -1310,6 +1320,42 @@ mod mounted_live_scene_tests {
             document: Arc::new(document),
             scene: Arc::new(scene),
         }
+    }
+
+    fn scene_with_current_finding(
+        base: &Rc<CadScene>,
+        accepted: AcceptedSnapshot,
+        id: &str,
+        message: &str,
+    ) -> Rc<CadScene> {
+        let mut scene = CadScene {
+            scope: base.scope.clone(),
+            token: base.token,
+            snapshot: base.snapshot.clone(),
+            result: base.result.clone(),
+            prepared: base.prepared.clone(),
+            physical_fingerprint: base.physical_fingerprint,
+            mechanical: base.mechanical.clone(),
+            exact: base.exact,
+            contours: base.contours.clone(),
+        };
+        scene.token = accepted.token;
+        scene.snapshot = accepted.clone();
+        scene.result.revision = accepted.document.revision;
+        scene.prepared.revision = accepted.document.revision;
+        let assembly = scene
+            .mechanical
+            .as_mut()
+            .expect("test scene has a mechanical assembly");
+        assembly.diagnostics.clear();
+        assembly.diagnostics.push(Finding {
+            id: id.into(),
+            severity: Severity::Error,
+            scope: FindingScope::Case,
+            message: message.into(),
+            target_ids: vec!["plate".into()],
+        });
+        Rc::new(scene)
     }
 
     fn host() -> Element {
@@ -1368,13 +1414,14 @@ mod mounted_live_scene_tests {
         };
         let workspace = use_signal(|| "Case");
         let generation = use_signal(|| 1u64);
+        let mut shown_finding = use_signal(String::new);
         let mechanical = super::super::mechanical_settings_mount::use_mechanical_settings_mount(
             runtime,
             generation,
             workspace,
             instance_selection,
             case_selection,
-            EventHandler::new(|_| {}),
+            EventHandler::new(move |finding_id| shown_finding.set(finding_id)),
             EventHandler::new(|_| {}),
         );
         let inspector = mechanical.props.map(super::super::MechanicalSettings);
@@ -1384,6 +1431,7 @@ mod mounted_live_scene_tests {
                 onclick: move |_| render_generation += 1,
                 "Advance accepted owner"
             }
+            p { id: "case11-shown-finding", "{shown_finding}" }
             div { id: "case11-workspace-evidence", {tree} {inspector} }
         }
     }
@@ -1424,7 +1472,7 @@ mod mounted_live_scene_tests {
             original.document.revision + 1,
             false,
         );
-        runtime.set_definition_name_test_state(updated, Some(scope.clone()));
+        runtime.set_definition_name_test_state(updated.clone(), Some(scope.clone()));
         web_sys::window()
             .unwrap()
             .document()
@@ -1463,6 +1511,65 @@ mod mounted_live_scene_tests {
         assert!(text.contains("previous generated geometry"));
         assert!(text.contains("Resolved thickness 1.50 mm."));
         assert!(text.contains("Plate thickness"));
+        assert!(!text.contains("Stale diagnostic from previous geometry"));
+        let stale_show_buttons = document
+            .query_selector_all("#case11-workspace-evidence-root .m1-mechanical-settings button")
+            .unwrap();
+        assert!(
+            !(0..stale_show_buttons.length())
+                .filter_map(|index| stale_show_buttons.item(index))
+                .any(|element| element.text_content().as_deref() == Some("Show"))
+        );
+        assert_eq!(
+            document
+                .get_element_by_id("case11-shown-finding")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("")
+        );
+
+        let stale_scene = runtime
+            .cad_scene()
+            .expect("same-scope completed geometry remains available for display");
+        runtime.set_cad_scene_test(Some(scene_with_current_finding(
+            &stale_scene,
+            updated,
+            "current-case-finding",
+            "Current diagnostic for accepted geometry",
+        )));
+        document
+            .get_element_by_id("case11-accepted-transition")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        let inspector = document
+            .query_selector("#case11-workspace-evidence-root .m1-mechanical-settings")
+            .unwrap()
+            .unwrap();
+        let text = inspector.text_content().unwrap_or_default();
+        assert!(text.contains("Current diagnostic for accepted geometry"));
+        assert!(!text.contains("Stale diagnostic from previous geometry"));
+        let show = inspector.query_selector_all("button").unwrap();
+        let show_button = (0..show.length())
+            .filter_map(|index| show.item(index))
+            .find(|element| element.text_content().as_deref() == Some("Show"))
+            .expect("current finding has a Show action");
+        show_button
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        settle().await;
+        assert_eq!(
+            document
+                .get_element_by_id("case11-shown-finding")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("current-case-finding")
+        );
 
         let replacement = accepted_after_edit(
             &original,

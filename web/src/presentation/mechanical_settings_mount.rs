@@ -353,8 +353,10 @@ pub(crate) fn use_mechanical_settings_mount(
         .zip(display_scene.as_ref())
         .is_some_and(|(current, scene)| scene.token != current.identity.snapshot_token);
     let scene_rows = use_memo(use_reactive(
-        (&display_scene, &internal_gasket, &previous_geometry),
-        |(scene, gasket, is_previous)| project_scene_rows(scene.as_ref(), gasket, is_previous),
+        (&display_scene, &scene, &internal_gasket, &previous_geometry),
+        |(display, current, gasket, is_previous)| {
+            project_scene_rows(display.as_ref(), current.as_ref(), gasket, is_previous)
+        },
     ));
     let props = current_projection.map(|current| {
         let configuration = current.configuration.as_ref();
@@ -627,12 +629,13 @@ struct MechanicalSceneRows {
 }
 
 fn project_scene_rows(
-    scene: Option<&Rc<CadScene>>,
+    display_scene: Option<&Rc<CadScene>>,
+    current_scene: Option<&Rc<CadScene>>,
     internal_gasket: bool,
     is_previous: bool,
 ) -> Option<MechanicalSceneRows> {
-    let assembly = scene?.mechanical.as_ref()?;
-    let layers: Vec<_> = assembly
+    let display_assembly = display_scene?.mechanical.as_ref()?;
+    let layers: Vec<_> = display_assembly
         .stack
         .iter()
         .map(|layer| MechanicalLayerRow {
@@ -640,7 +643,7 @@ fn project_scene_rows(
             label: mechanical_layer_label(&layer.id, internal_gasket),
             z: layer.z,
             thickness: layer.thickness,
-            resolved_body_thickness: assembly
+            resolved_body_thickness: display_assembly
                 .case
                 .bodies
                 .iter()
@@ -649,9 +652,10 @@ fn project_scene_rows(
             is_previous,
         })
         .collect();
-    let findings: Vec<_> = assembly
-        .diagnostics
-        .iter()
+    let findings: Vec<_> = current_scene
+        .and_then(|scene| scene.mechanical.as_ref())
+        .into_iter()
+        .flat_map(|assembly| assembly.diagnostics.iter())
         .map(|finding| MechanicalFindingRow {
             id: finding.id.clone(),
             severity: finding.severity.clone(),
