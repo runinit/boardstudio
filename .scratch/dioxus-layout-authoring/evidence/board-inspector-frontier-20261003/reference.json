@@ -1,0 +1,12 @@
+{
+  "reference_commit": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "reference_url": "http://127.0.0.1:5173/",
+  "candidate_url": "http://127.0.0.1:34761/",
+  "candidate_commit": "2107f980e9b45c341bff10548c7156b28de0e388",
+  "fixture": "Derived PCB controller fixture; Main board has 35 parts in both profiles. Original archive unchanged.",
+  "journey": "Layout tab -> Main board Objects tree row; navigation only, no edits.",
+  "react_inspector_text": "Inspect | Main board / Layout | Main board | Select a key, component, or matrix to edit it. | Board name | Outline | Not defined | Placed parts | 35 | Routed PCB reference",
+  "dioxus_inspector_text": "Inspect | Options | Main board",
+  "source": "app/src/ui/Workbench.tsx:658 and :1126; codegraph explored first. commitBoardName trims; empty/unchanged restores accepted name; blur commits one replace-document targeting selected board; Enter blurs, Escape restores accepted name.",
+  "limits": "Only current board Inspector reachability was inspected. No new rename/history/reopen evidence or full parent acceptance."
+}
