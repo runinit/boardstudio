@@ -891,7 +891,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keymap-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .m1-keycaps-workspace { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .m1-keycaps-canvas { flex: 1; min-width: 0; }
-.m1-keycaps-inspector { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 16px 12px; color: var(--wb-ink); }
+.m1-keycaps-inspector { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 16px 24px; color: var(--wb-ink); }
 .m1-keycaps-inspector-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 0 12px; border-bottom: 1px solid var(--wb-rule); }
 .m1-keycaps-inspector-header h2 { margin: 0; font-size: var(--wb-type-title); font-weight: 650; }
 .m1-keycaps-inspector-assigned-count { color: var(--wb-muted); font-size: var(--wb-type-label); white-space: nowrap; }
@@ -911,6 +911,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-keycaps-selected-key-body > .m1-keycaps-settings { border: 0; border-radius: 0; padding: 0; background: transparent; }
 .m1-keycaps-selected-key-body > .m1-keycaps-key-list { gap: 12px; }
 .m1-keycaps-settings { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--wb-rule); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); }
+.m1-keycaps-settings-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .m1-keycaps-settings h3 { margin: 0; font-size: var(--wb-type-body); }
 .m1-keycaps-settings label, .m1-keycaps-matrix-settings label { display: grid; gap: 5px; margin-block: 5px; color: var(--wb-muted); font: 500 var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
 .m1-keycaps-settings :is(input, select, button), .m1-keycaps-matrix-settings :is(input, select, button) { box-sizing: border-box; max-width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: inherit; }
