@@ -888,13 +888,25 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             } else if matching_plan.is_none() {
                 p { role: "status", "Waiting for a current wiring plan." }
             }
-            button { type: "button", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
-                if pending { "Resolving…" } else { "Resolve automatically" }
+            if matching_plan.is_some() {
+                div { class: "m1-pcb-wiring-pin-summary",
+                    div { strong { "Used pins" }
+                        span { if used_pins.is_empty() { "None assigned" } else { "{used_pins.join(\" · \")}" } }
+                    }
+                    div { strong { "Free pins" }
+                        span { if free_pins.is_empty() { "None available" } else { "{free_pins.join(\" · \")}" } }
+                    }
+                }
             }
-            button { type: "button", disabled: !apply_actions.editable, onclick: move |_| {
-                let Some(identity) = apply_identity.clone() else { return; };
-                on_apply.call(identity);
-            }, "Apply wiring" }
+            div { class: "m1-pcb-wiring-actions",
+                button { type: "button", disabled: pending || display.controller_choices.is_empty(), onclick: move |_| on_resolve.call(()),
+                    if pending { "Resolving…" } else { "Resolve automatically" }
+                }
+                button { class: "m1-pcb-wiring-apply", type: "button", disabled: !apply_actions.editable, onclick: move |_| {
+                    let Some(identity) = apply_identity.clone() else { return; };
+                    on_apply.call(identity);
+                }, "Apply wiring" }
+            }
             if let Some(feedback) = &apply_actions.feedback {
                 if matches!(feedback.state, BoardWiringApplyFeedback::Pending) {
                     p { role: "status", "Applying wiring plan…" }
@@ -906,14 +918,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {
-                div { class: "m1-pcb-wiring-pin-summary",
-                    div { strong { "Used pins" }
-                        p { if used_pins.is_empty() { "None assigned" } else { "{used_pins.join(\" · \")}" } }
-                    }
-                    div { strong { "Free pins" }
-                        p { if free_pins.is_empty() { "None available" } else { "{free_pins.join(\" · \")}" } }
-                    }
-                }
                 p { class: "m1-pcb-wiring-readiness", role: "status",
                     if plan_ready { "Plan is ready for review." } else { "Plan needs review." }
                 }
