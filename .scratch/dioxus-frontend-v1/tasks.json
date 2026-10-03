@@ -1470,7 +1470,7 @@
         "F6K.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
       "shared_edit_owner": "integration coordinator",
@@ -1492,6 +1492,12 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        },
+        {
+          "at": "2026-10-03T12:05:02.137240+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Unchanged canonical behavior criteria sufficiently covered by retained paired 11-choice/default/stable-ID/error-recovery/history/reload/workspace proof, later Tab-focus correction, source-equivalent legacy mapping and existing Core preservation, endorsed in consolidated Sol review. No new fixture matrix."
         }
       ],
       "progress_evidence": {
@@ -1500,6 +1506,17 @@
         "scope": "Typed binding editor mounted;34755 owner/disclosure GREEN retained. Existing key/macro/encoder source controls align with reference. Actual34757 changed-value Tab RED repaired38757073 for next candidate.",
         "remaining": "Changed Tab GREEN and remaining full binding/invalid/legacy criterion accounting remain.",
         "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
+      },
+      "acceptance_record": {
+        "at": "2026-10-03T12:05:02.137240+00:00",
+        "candidate_source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+        "candidate_url": "http://127.0.0.1:34765/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k2-acceptance-20261003/REVIEW.md",
+        "review_sha256": "1dd6c00d186f7f7ab4ad93c4729a92ea1f5c4b30ada7da19bdcc2495917ab036",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k2-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "0ea04913bb86585e5f0454dd68a7ba2673cf87f95b62de6758369b7cf3601aca",
+        "criteria_accounting": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
+        "scope": "F6K.2 binding behavior only; F6K.1/F6K.4/full Keymap UI placement and F6 remain open. No legacy-only paired UI fixture claimed; direct source-equivalent fallback plus retained public edit/history authority and Core preservation evidence accepted by Sol. No new tests/cutover."
       }
     },
     {

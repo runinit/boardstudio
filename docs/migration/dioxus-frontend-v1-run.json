@@ -1273,12 +1273,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:59:01.913990+00:00",
+    "updated_at": "2026-10-03T12:05:02.137240+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
-      "accepted": 4,
-      "implementing": 35,
+      "accepted": 5,
       "planned": 23,
+      "implementing": 34,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -1987,7 +1987,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
       "One combined strict check and package34766 including token+Core filename repair; verify changed ZIP and Layout draft/header/footer controls only.",
-      "Layout-first assembly preset placement; continue six queues with Case shell, PCB advanced mounted controls, Keycaps legends, Parts demo cards/fresh copies and Keymap criterion reconciliation."
+      "Layout-first assembly preset placement; continue six queues with Case shell, PCB advanced mounted controls, Keycaps legends, Parts demo cards/fresh copies and Keymap criterion reconciliation.",
+      "Correct observed Keymap export-button placement and global findings route; no behavior/parent closure implied by UI source presence."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2351,6 +2352,19 @@
         "criteria_accounting": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
         "scope": "F6K.3 only; F6K.1/2/4, full F6 and historical child limits remain. No new tests, byte-identical ZIP claim, or cutover.",
         "decision": "Accepted under unchanged canonical structured-macro criteria; representative paired public/core proof and source qualification sufficient. Parent joins and history preserved."
+      },
+      {
+        "parent": "F6K.2",
+        "at": "2026-10-03T12:05:02.137240+00:00",
+        "candidate_source": "17ba32b984c13f3621a2145efe1dd478862ab5cd",
+        "candidate_url": "http://127.0.0.1:34765/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k2-acceptance-20261003/REVIEW.md",
+        "review_sha256": "1dd6c00d186f7f7ab4ad93c4729a92ea1f5c4b30ada7da19bdcc2495917ab036",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/keymap-f6k2-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "0ea04913bb86585e5f0454dd68a7ba2673cf87f95b62de6758369b7cf3601aca",
+        "criteria_accounting": ".scratch/dioxus-keymap-layers/evidence/keymap-frontier-audit-20261003/criterion-accounting.md",
+        "scope": "F6K.2 binding behavior only; F6K.1/F6K.4/full Keymap UI placement and F6 remain open. No legacy-only paired UI fixture claimed; direct source-equivalent fallback plus retained public edit/history authority and Core preservation evidence accepted by Sol. No new tests/cutover.",
+        "decision": "Accepted under unchanged canonical criteria; bounded representative public proof plus direct small legacy projection source equivalence sufficient. Keymap placement differences remain tracked frontend work."
       }
     ]
   }
