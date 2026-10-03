@@ -948,6 +948,22 @@
           "post_port_follow_up": "Separate explicit open-existing/import-archive/start-demo-copy intent and identity ownership while sharing archive validation and asset transport.",
           "validation": "Start the same demo twice, edit/save each, and independently reopen both with identical intended asset references; stale/failing starts cannot replace later work."
         }
+      ],
+      "continuations": [
+        {
+          "date": "2026-10-03",
+          "source": "be4ec41225259fbc4b3c2b5587b0d729043d401b",
+          "confidence": "confirmed output collision on retained fixture; repaired Core behavior covered by focused regression, paired browser GREEN pending",
+          "observation": "The retained Sofle export fixture has four distinct Ergogen definition IDs whose names sanitize to switch_mx. Pinned React export-worker throws on the duplicate archive path, and the initial Dioxus Core adapter reached the same ambiguous filenames after its preview-worker owner envelope was corrected. Core now preserves legacy stems when unique and adds a deterministic definition-ID digest suffix only for colliding sanitized names; the KiCad root name follows each changed filename stem. Archive duplicate-path validation remains strict.",
+          "evidence": [
+            "core/src/artifact/kicad/output.rs",
+            "core/src/artifact/kicad/output/tests.rs",
+            "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/react-footprints-baseline.md"
+          ],
+          "during_port": "Keep path identity and output-name ownership in Core; do not soften archive collision rejection or duplicate naming logic in the Dioxus Runtime adapter. Complete the changed actual ZIP browser qualification on the combined candidate.",
+          "post_port": "Assess filename allocation alongside archive manifest identity and library naming compatibility, using projects with repeated labels and sanitized collisions.",
+          "validation": "Focused Core output regression fails on duplicate `switch_mx.kicad_mod` before the correction and passes with distinct filenames and matching internal KiCad names; verify the candidate ZIP includes all definitions, fp-lib-table, utilities note, and referenced models."
+        }
       ]
     },
     {

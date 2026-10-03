@@ -223,6 +223,17 @@ React copy always includes local assets and optionally discovers/embeds used bun
 
 Evidence: [storage.ts](../../app/src/storage.ts), [Workbench.tsx](../../app/src/ui/Workbench.tsx), [runtime.rs](../../web/src/runtime.rs).
 
+The retained Sofle fixture has four distinct Ergogen definition IDs whose names
+sanitize to `switch_mx`. Pinned React throws when those definitions target the same
+`BoardStudio.pretty/switch_mx.kicad_mod` path; the initial Dioxus path reaches the
+same ambiguity after its worker identity is corrected. Core now preserves ordinary
+unique names and adds a stable definition-ID suffix only for colliding names, with
+the internal KiCad footprint name matching the new stem. The archive packer's
+duplicate-path check remains strict. One focused Core regression proves the
+collision and repair; paired candidate ZIP verification is pending. See the
+[retained paired pin](../../.scratch/dioxus-frontend-v1/issues/08-export-footprints-slice.md)
+and the candidate RED captured in `/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/react-footprints-baseline.md`.
+
 ## RF-009
 
 **Parity accounting and acceptance evidence are scattered** — verification / process design. confirmed planning and evidence gap.
