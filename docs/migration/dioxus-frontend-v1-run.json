@@ -724,16 +724,21 @@
     "result": "Fresh React archive has0 local assets: unchecked export0 assets, checked6 assets, each digest verified. Bounded archive-option proof only; STEP/firmware/full export parent remain open."
   },
   "current_served_frontier_20261002": {
-    "build": "frontend-authoring-layers-integrated-20261002",
-    "source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
-    "url": "http://127.0.0.1:34735/",
-    "subpath": "http://127.0.0.1:34735/boardstudio/",
-    "commands": 22,
+    "url": "http://127.0.0.1:34736/",
+    "subpath": "http://127.0.0.1:34736/boardstudio/",
+    "build": "frontend-ready-export-theme-reuse-20261002",
+    "source": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
+    "reuse_mode": "page-only-provider-reuse",
+    "commands": 8,
+    "inherited_full_build_commands": 22,
     "source_hashes": 1342,
     "assets_per_route": 145,
-    "elapsed_seconds": 497.463121,
-    "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
-    "qualification": "Independent Sol package/source/served bytes verified; root and subpath saved-editor offline reload passed; paired public acceptance remains open."
+    "reused_providers_per_route": 126,
+    "elapsed_seconds": 88.785166,
+    "provenance_sha256": "60f51e4b5775b1541131d661046fb9b751f77d812569eb366018c94f70640fe9",
+    "qualification": "Independently verified CSS-only correction; ready indicator paired Light/Dark match. Full-workbench acceptance open.",
+    "full_build_baseline": "frontend-authoring-layers-integrated-20261002",
+    "full_build_source": "7d09d0a60fbb2cc12e259541614b9483ee618d29"
   },
   "pending_integration_wave_20261002": {
     "source": "d585492012a60937879e89a8618c1d533fddba4e",
@@ -749,28 +754,45 @@
     ]
   },
   "current_comparison_build": {
-    "build_id": "frontend-authoring-layers-integrated-20261002",
-    "source_commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
-    "root_url": "http://127.0.0.1:34735/",
-    "subpath_url": "http://127.0.0.1:34735/boardstudio/",
-    "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
-    "acceptance": "Independent Sol package/source/served bytes verified; root and subpath saved-editor offline reload passed; paired public acceptance remains open."
-  },
-  "active_source_freeze": {
-    "build": "frontend-authoring-layers-integrated-20261002",
-    "source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
-    "url": "http://127.0.0.1:34735/",
-    "subpath": "http://127.0.0.1:34735/boardstudio/",
-    "commands": 22,
+    "url": "http://127.0.0.1:34736/",
+    "subpath": "http://127.0.0.1:34736/boardstudio/",
+    "build": "frontend-ready-export-theme-reuse-20261002",
+    "source": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
+    "reuse_mode": "page-only-provider-reuse",
+    "commands": 8,
+    "inherited_full_build_commands": 22,
     "source_hashes": 1342,
     "assets_per_route": 145,
-    "elapsed_seconds": 497.463121,
-    "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
-    "qualification": "Root package/source/served bytes verified; independent package review and paired public acceptance open.",
-    "commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "reused_providers_per_route": 126,
+    "elapsed_seconds": 88.785166,
+    "provenance_sha256": "60f51e4b5775b1541131d661046fb9b751f77d812569eb366018c94f70640fe9",
+    "qualification": "Independently verified CSS-only correction; ready indicator paired Light/Dark match. Full-workbench acceptance open.",
+    "full_build_baseline": "frontend-authoring-layers-integrated-20261002",
+    "full_build_source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "build_id": "frontend-ready-export-theme-reuse-20261002",
+    "source_commit": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
+    "root_url": "http://127.0.0.1:34736/",
+    "subpath_url": "http://127.0.0.1:34736/boardstudio/"
+  },
+  "active_source_freeze": {
+    "url": "http://127.0.0.1:34736/",
+    "subpath": "http://127.0.0.1:34736/boardstudio/",
+    "build": "frontend-ready-export-theme-reuse-20261002",
+    "source": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
+    "reuse_mode": "page-only-provider-reuse",
+    "commands": 8,
+    "inherited_full_build_commands": 22,
+    "source_hashes": 1342,
+    "assets_per_route": 145,
+    "reused_providers_per_route": 126,
+    "elapsed_seconds": 88.785166,
+    "provenance_sha256": "60f51e4b5775b1541131d661046fb9b751f77d812569eb366018c94f70640fe9",
+    "qualification": "Independently verified CSS-only correction; ready indicator paired Light/Dark match. Full-workbench acceptance open.",
+    "full_build_baseline": "frontend-authoring-layers-integrated-20261002",
+    "full_build_source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+    "commit": "d7ff5e3dcae67a719caf6660cfcff57c3811df34",
     "state": "complete and independently verified; source lease released",
-    "public_acceptance": "paired journeys ongoing; no full parent closure",
-    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/frontend-authoring-layers-full-package-review-7d09d0a6-sol-20261002.md"
+    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/ready-export-theme-package-review-d7ff5e3d-sol-20261002.md"
   },
   "retained_checkpoint_history": [
     {
@@ -853,6 +875,47 @@
           "assets_per_route": 145,
           "elapsed_seconds": 576.574183,
           "public_acceptance": "paired journeys in progress; no full parent closure"
+        }
+      }
+    },
+    {
+      "checkpoint": "34735-full-before-ready-theme",
+      "records": {
+        "current_served_frontier_20261002": {
+          "build": "frontend-authoring-layers-integrated-20261002",
+          "source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+          "url": "http://127.0.0.1:34735/",
+          "subpath": "http://127.0.0.1:34735/boardstudio/",
+          "commands": 22,
+          "source_hashes": 1342,
+          "assets_per_route": 145,
+          "elapsed_seconds": 497.463121,
+          "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
+          "qualification": "Independent Sol package/source/served bytes verified; root and subpath saved-editor offline reload passed; paired public acceptance remains open."
+        },
+        "current_comparison_build": {
+          "build_id": "frontend-authoring-layers-integrated-20261002",
+          "source_commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+          "root_url": "http://127.0.0.1:34735/",
+          "subpath_url": "http://127.0.0.1:34735/boardstudio/",
+          "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
+          "acceptance": "Independent Sol package/source/served bytes verified; root and subpath saved-editor offline reload passed; paired public acceptance remains open."
+        },
+        "active_source_freeze": {
+          "build": "frontend-authoring-layers-integrated-20261002",
+          "source": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+          "url": "http://127.0.0.1:34735/",
+          "subpath": "http://127.0.0.1:34735/boardstudio/",
+          "commands": 22,
+          "source_hashes": 1342,
+          "assets_per_route": 145,
+          "elapsed_seconds": 497.463121,
+          "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
+          "qualification": "Root package/source/served bytes verified; independent package review and paired public acceptance open.",
+          "commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+          "state": "complete and independently verified; source lease released",
+          "public_acceptance": "paired journeys ongoing; no full parent closure",
+          "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/frontend-authoring-layers-full-package-review-7d09d0a6-sol-20261002.md"
         }
       }
     }
