@@ -638,8 +638,10 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
                 }
-                MountingControls {
-                    key: "{owner_key}:mounting",
+                // A keyed dynamic owner boundary retires child field drafts on scope changes.
+                for mounting_owner in [format!("{owner_key}:mounting")] {
+                    MountingControls {
+                        key: "{mounting_owner}",
                     identity: props.identity.clone(),
                     request_sequence,
                     values: values.clone(),
@@ -647,6 +649,7 @@ pub(crate) fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     editable: props.editable,
                     feedback: props.feedback.clone(),
                     on_request: props.on_request,
+                    }
                 }
                 if values.mount == MechanicalMount::Gasket && values.internal_gasket {
                     section { class: "m1-mechanical-option-group", aria_label: "Gasket supports",
