@@ -443,6 +443,13 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                         feedback: diode_feedback, on_edit: props.on_edit,
                     }
                 }}
+                if let Some(feedback) = preset_feedback {
+                    if feedback.state == MatrixEditState::Failed {
+                        p { role: "alert", "{feedback.message.as_deref().unwrap_or(\"The matrix preset was not saved.\")}" }
+                    } else if feedback.state == MatrixEditState::Saved {
+                        p { role: "status", "Preset updated" }
+                    }
+                }
                 }
             }
             details { class: "m1-matrix-inspector-section",
@@ -470,13 +477,6 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                 }}
             }
                 p { class: "m1-matrix-edit-status", "Keycap preview {(projection.pitch_x - projection.edge_gap_x).max(0.0):.1} × {(projection.pitch_y - projection.edge_gap_y).max(0.0):.1} mm" }
-            if let Some(feedback) = preset_feedback {
-                if feedback.state == MatrixEditState::Failed {
-                    p { role: "alert", "{feedback.message.as_deref().unwrap_or(\"The matrix preset was not saved.\")}" }
-                } else if feedback.state == MatrixEditState::Saved {
-                    p { role: "status", "Preset updated" }
-                }
-            }
             }
             details { class: "m1-matrix-inspector-section",
                 summary { "Matrix actions" }

@@ -710,19 +710,30 @@ pub(in crate::presentation) fn use_matrix_inspector(
                 return;
             }
             let original = (*snapshot.document).clone();
+            let report_scope = Rc::new(RefCell::new(Some(request.owner.scope.clone())));
             duplicating.set(true);
             let runtime = runtime.clone();
             let alive = alive.clone();
+            let report_scope_for_task = report_scope.clone();
             spawn_local(async move {
-                let result =
-                    duplicate_design_variant(runtime.clone(), &request, original, alive.clone())
-                        .await;
+                let result = duplicate_design_variant(
+                    runtime.clone(),
+                    &request,
+                    original,
+                    alive.clone(),
+                    report_scope_for_task.clone(),
+                )
+                .await;
                 if !alive.get() {
                     return;
                 }
                 duplicating.set(false);
                 if let Err(message) = result {
-                    runtime.report(message);
+                    let still_owned =
+                        runtime.scope().as_ref() == report_scope_for_task.borrow().as_ref();
+                    if still_owned {
+                        runtime.report(message);
+                    }
                 }
             });
         }
@@ -1836,6 +1847,7 @@ async fn duplicate_design_variant(
     request: &MatrixDuplicateRequest,
     mut document: ProjectDoc,
     alive: Rc<Cell<bool>>,
+    report_scope: Rc<RefCell<Option<Scope>>>,
 ) -> Result<(), String> {
     if !alive.get() {
         return Err("The matrix design variant owner closed.".into());
@@ -1882,6 +1894,15 @@ async fn duplicate_design_variant(
     {
         Ok(accepted) => accepted,
         Err(error) => {
+            if let (Some(active), Some(scope)) = (runtime.model().accepted, runtime.scope()) {
+                if active.session_epoch == variant_session_epoch
+                    && active.document.id == variant_id
+                    && scope.session_epoch == variant_session_epoch
+                    && scope.document_id == variant_id
+                {
+                    *report_scope.borrow_mut() = Some(scope);
+                }
+            }
             let recovery = if alive.get() {
                 restore_source_after_variant_failure(
                     &runtime,
@@ -1890,6 +1911,11 @@ async fn duplicate_design_variant(
                     source_session_epoch,
                     variant_session_epoch,
                     None,
+                    &request.owner.scope,
+                    request.snapshot_token,
+                    request.revision,
+                    None,
+                    &report_scope,
                 )
                 .await
             } else {
@@ -1909,6 +1935,50 @@ async fn duplicate_design_variant(
     if !alive.get() {
         return Err("The matrix design variant owner closed.".into());
     }
+    let accepted = match navigate_variant_to_source_context(
+        &runtime,
+        accepted,
+        &variant_id,
+        &request.owner.scope,
+        &alive,
+    )
+    .await
+    {
+        Ok(accepted) => accepted,
+        Err(error) => {
+            let recovery = if alive.get() {
+                restore_source_after_variant_failure(
+                    &runtime,
+                    &source_id,
+                    &variant_id,
+                    source_session_epoch,
+                    variant_session_epoch,
+                    None,
+                    &request.owner.scope,
+                    request.snapshot_token,
+                    request.revision,
+                    None,
+                    &report_scope,
+                )
+                .await
+            } else {
+                Ok(false)
+            };
+            return Err(match recovery {
+                Ok(true) => format!(
+                    "Could not select the original board context; reopened the saved original. {error}"
+                ),
+                Ok(false) => format!("Could not select the original board context. {error}"),
+                Err(recovery_error) => format!(
+                    "Could not select the original board context ({error}); could not confirm reopening the saved original ({recovery_error})."
+                ),
+            });
+        }
+    };
+    let clone_scope = runtime
+        .scope()
+        .ok_or_else(|| "The duplicated project has no active scope.".to_owned())?;
+    *report_scope.borrow_mut() = Some(clone_scope);
     let result = async {
         let accepted =
             exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
@@ -1976,6 +2046,15 @@ async fn duplicate_design_variant(
                 source_session_epoch,
                 variant_session_epoch,
                 Some(&accepted),
+                &request.owner.scope,
+                request.snapshot_token,
+                request.revision,
+                Some(&preset_variant(
+                    request.preset,
+                    request.orientation,
+                    reversible,
+                )),
+                &report_scope,
             )
             .await
         } else {
@@ -2107,18 +2186,47 @@ async fn restore_source_after_variant_failure(
     source_session_epoch: boardstudio_application::SessionEpoch,
     variant_session_epoch: boardstudio_application::SessionEpoch,
     owned_clone: Option<&boardstudio_application::AcceptedSnapshot>,
+    source_scope: &Scope,
+    source_token: SnapshotToken,
+    source_revision: u64,
+    expected_variant: Option<&str>,
+    report_scope: &Rc<RefCell<Option<Scope>>>,
 ) -> Result<bool, String> {
     let model = runtime.model();
     let Some(current) = model.accepted else {
         return Ok(false);
     };
+    let current_scope = runtime.scope();
     let owned_clone_is_current = owned_clone.is_some_and(|owned| {
         variant_session_matches(
             owned.session_epoch,
             variant_id,
             current.session_epoch,
             &current.document.id,
-        )
+        ) && current_scope.as_ref().is_some_and(|scope| {
+            scope.session_epoch == owned.session_epoch
+                && scope.document_id == variant_id
+                && scope.board_id == source_scope.board_id
+                && scope.instance_id == source_scope.instance_id
+        }) && (current.token == owned.token && current.document.revision == owned.document.revision
+            || (model.lifecycle == Lifecycle::RecoveryRequired
+                && current.document.revision == owned.document.revision.saturating_add(1)
+                && expected_variant.is_some_and(|variant| {
+                    owned.document.matrices.iter().any(|before| {
+                        let was_variant = before
+                            .cells
+                            .iter()
+                            .any(|cell| cell.variant.as_deref() == Some(variant));
+                        !was_variant
+                            && current.document.matrices.iter().any(|matrix| {
+                                matrix.id == before.id
+                                    && matrix
+                                        .cells
+                                        .iter()
+                                        .any(|cell| cell.variant.as_deref() == Some(variant))
+                            })
+                    })
+                })))
     });
     let failed_open_is_current = owned_clone.is_none()
         && current.session_epoch == variant_session_epoch
@@ -2126,10 +2234,18 @@ async fn restore_source_after_variant_failure(
         && model.lifecycle == Lifecycle::RecoveryRequired;
     let source_needs_recovery = current.session_epoch == source_session_epoch
         && current.document.id == source_id
-        && model.lifecycle == Lifecycle::RecoveryRequired;
+        && model.lifecycle == Lifecycle::RecoveryRequired
+        && current.token == source_token
+        && current.document.revision == source_revision
+        && current_scope
+            .as_ref()
+            .is_some_and(|scope| scope == source_scope);
     if !(owned_clone_is_current || failed_open_is_current || source_needs_recovery) {
         return Ok(false);
     }
+    let Some(recovery_scope) = current_scope else {
+        return Ok(false);
+    };
     runtime
         .reopen_saved_if_current(
             source_id.to_owned(),
@@ -2138,9 +2254,80 @@ async fn restore_source_after_variant_failure(
             current.token,
             current.document.revision,
             model.lifecycle,
+            &recovery_scope,
         )
         .await?;
+    *report_scope.borrow_mut() = Some(source_scope.clone());
     Ok(true)
+}
+
+async fn navigate_variant_to_source_context(
+    runtime: &Rc<Runtime>,
+    accepted: boardstudio_application::AcceptedSnapshot,
+    variant_id: &str,
+    source_scope: &Scope,
+    alive: &Rc<Cell<bool>>,
+) -> Result<boardstudio_application::AcceptedSnapshot, String> {
+    let exact = exact_variant_snapshot(runtime, &accepted, variant_id, source_scope);
+    if let Ok(current) = exact {
+        return Ok(current);
+    }
+    let current = runtime
+        .model()
+        .accepted
+        .ok_or_else(|| "The duplicated project is no longer active.".to_owned())?;
+    if runtime.model().lifecycle != Lifecycle::Ready
+        || current.session_epoch != accepted.session_epoch
+        || current.document.id != variant_id
+        || current.token != accepted.token
+        || current.document.revision != accepted.document.revision
+    {
+        return Err("The duplicated project changed before its board context was selected.".into());
+    }
+    let observed_scope = runtime
+        .scope()
+        .filter(|scope| {
+            scope.session_epoch == accepted.session_epoch && scope.document_id == variant_id
+        })
+        .ok_or_else(|| {
+            "The duplicated project no longer owns its active board context.".to_owned()
+        })?;
+    if runtime.scope().as_ref() != Some(&observed_scope) {
+        return Err("A newer board navigation superseded matrix variant setup.".into());
+    }
+    let operation_id = runtime.operation();
+    let outcome = runtime.observe_operation(operation_id);
+    runtime.submit(Event::Navigate {
+        operation_id,
+        board_id: source_scope.board_id.clone(),
+        instance_id: source_scope.instance_id.clone(),
+    });
+    for _ in 0..1_200 {
+        if !alive.get() {
+            return Err("The matrix design variant owner closed.".into());
+        }
+        let current = runtime
+            .model()
+            .accepted
+            .ok_or_else(|| "The duplicated project is no longer active.".to_owned())?;
+        if current.session_epoch != accepted.session_epoch
+            || current.document.id != variant_id
+            || current.token != accepted.token
+            || current.document.revision != accepted.document.revision
+        {
+            return Err("A newer project action superseded matrix variant navigation.".into());
+        }
+        if let Some(outcome) = outcome.borrow_mut().take() {
+            if outcome != TerminalOutcome::Completed {
+                return Err(format!(
+                    "The copied project could not select the original board context: {outcome:?}"
+                ));
+            }
+            return exact_variant_snapshot(runtime, &accepted, variant_id, source_scope);
+        }
+        gloo_timers::future::TimeoutFuture::new(25).await;
+    }
+    Err("The copied project board context did not settle.".into())
 }
 
 fn variant_session_matches(

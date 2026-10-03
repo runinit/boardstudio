@@ -4457,10 +4457,12 @@ impl Runtime {
         expected_token: boardstudio_application::SnapshotToken,
         expected_revision: u64,
         expected_lifecycle: Lifecycle,
+        expected_scope: &Scope,
     ) -> Result<AcceptedSnapshot, String> {
         let still_expected = |runtime: &Runtime| {
             let model = runtime.model();
             model.lifecycle == expected_lifecycle
+                && runtime.scope().as_ref() == Some(expected_scope)
                 && model.accepted.is_some_and(|accepted| {
                     accepted.session_epoch == expected_session_epoch
                         && accepted.document.id == expected_document_id
