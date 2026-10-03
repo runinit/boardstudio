@@ -151,7 +151,7 @@
         {
           "id": "BND.1-C02",
           "requirement": "Prove the crate-private host/worker request path with a current fixture, revision identity and disposal/cancellation.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/cad_worker.rs:173",
@@ -163,7 +163,7 @@
             ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
           ],
           "blockers": [],
-          "next_action": "Retain current source contract and bounded preview unmount/retry evidence; add cancellation-message evidence only if that branch becomes reachable through product ownership.",
+          "next_action": "Retain current owner/source reconciliation and existing pending-unmount/retry evidence. Product cancellation is immediate worker disposal; unreachable cooperative cancel messaging does not require a Runtime redesign. Finalize parent acceptance through the existing decision procedure.",
           "finish_condition": "Current accepted scope/revision is carried and stale results are suppressed on disposal; preview batch/yield behavior is retained.",
           "owned_files": [
             "web/src/cad_worker.rs",
