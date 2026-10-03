@@ -38,7 +38,7 @@ pub(super) fn ExportWorkspace(
             )>,
         ));
         if let Some(document) = web_sys::window().and_then(|window| window.document()) {
-            let workspace = workspace;
+            let mut workspace = workspace;
             let return_workspace = return_workspace;
             let listener = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
                 move |event: web_sys::KeyboardEvent| {
