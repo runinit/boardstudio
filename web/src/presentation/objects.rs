@@ -578,7 +578,7 @@ fn AddObjectEntry(
                     section { "aria-label": "Parts",
                         super::parts::AddObjectComponentChooser {
                             snapshot,
-                            scope,
+                            scope: scope.clone(),
                             layout_target,
                             query: parts_query,
                             on_browse: on_browse_parts,
