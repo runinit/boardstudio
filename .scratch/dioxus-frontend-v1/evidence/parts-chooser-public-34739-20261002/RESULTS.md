@@ -11,3 +11,7 @@ PCB sibling check: candidate fresh5b immediatePCBswitch shows Ready plan, Revisi
 ## PCB follow-up
 
 Reload candidate → select PCB: Wiring mode enables on the same saved revision9. Matrix→Direct GPIO accepted revision10 Saved; actual resolver reports insufficient GPIO findings; Undo restores Matrix revision11, Redo restores Direct revision12; reload→PCB retains Direct. Initial immediate import→PCB disabled-control defect remains open. React actual Edit board wiring→Direct GPIO reports unavailable pins and disables Apply; Undo restores Matrix. React profile retains Wireless/Q differences, so no identical-document comprehensive paired mode acceptance is claimed.
+
+## Fresh subpath offline saved-editor check
+
+Named root-subpath-34739-20261002: imported exact layeredSofle5b via ordinary file input at /boardstudio/. Actual service-worker controller was /boardstudio/service-worker.js and crossOriginIsolated true. Turned browser network offline, reloaded the actual subpath, observed navigator.onLine false, Keyboard editor present, Sofle v2 restored and25 SVG paths. Restored online afterward. This proves saved editor reload only; offline CAD generation/export and full packaging/workbench acceptance remain open.
