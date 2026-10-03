@@ -211,15 +211,17 @@ pub(crate) fn CaseViewer(
                     handle_id,
                     point,
                 } => handle_case_gesture(
-                    &scene,
-                    &event.identity,
-                    mechanical_settings.as_ref(),
-                    &direct_handles,
-                    &gesture,
-                    &mut handle_preview,
-                    &mut gesture_field,
-                    &mut gesture_message,
-                    selection,
+                    CaseGestureContext {
+                        scene: &scene,
+                        identity: &event.identity,
+                        settings: mechanical_settings.as_ref(),
+                        handles: &direct_handles,
+                        gesture: &gesture,
+                        preview: &mut handle_preview,
+                        feedback_field: &mut gesture_field,
+                        message: &mut gesture_message,
+                        selection,
+                    },
                     phase,
                     &handle_id,
                     point,
@@ -521,20 +523,35 @@ fn mount_handle(
     }
 }
 
+struct CaseGestureContext<'a> {
+    scene: &'a CadScene,
+    identity: &'a ViewerIdentity,
+    settings: Option<&'a super::mechanical_settings::MechanicalSettingsProps>,
+    handles: &'a [ViewerHandle],
+    gesture: &'a Rc<RefCell<Option<CaseGestureDraft>>>,
+    preview: &'a mut Signal<Option<Vec<ViewerHandle>>>,
+    feedback_field: &'a mut Signal<Option<String>>,
+    message: &'a mut Signal<Option<String>>,
+    selection: CaseSelection,
+}
+
 fn handle_case_gesture(
-    scene: &CadScene,
-    identity: &ViewerIdentity,
-    settings: Option<&super::mechanical_settings::MechanicalSettingsProps>,
-    handles: &[ViewerHandle],
-    gesture: &Rc<RefCell<Option<CaseGestureDraft>>>,
-    preview: &mut Signal<Option<Vec<ViewerHandle>>>,
-    feedback_field: &mut Signal<Option<String>>,
-    message: &mut Signal<Option<String>>,
-    mut selection: CaseSelection,
+    context: CaseGestureContext<'_>,
     phase: HandleGesturePhase,
     handle_id: &str,
     point: Option<[f32; 3]>,
 ) {
+    let CaseGestureContext {
+        scene,
+        identity,
+        settings,
+        handles,
+        gesture,
+        preview,
+        feedback_field,
+        message,
+        mut selection,
+    } = context;
     let settings = settings.filter(|settings| {
         settings.editable
             && settings.identity.scope == identity.scope
@@ -767,7 +784,7 @@ fn handle_case_gesture(
                         super::mechanical_settings::MechanicalSettingsPatch::SetMountPosition {
                             collection,
                             mount_id,
-                            at: mount.at.clone(),
+                            at: mount.at,
                         }
                     }),
             };
@@ -1086,7 +1103,7 @@ fn move_case_mount(
             .map(|mount| {
                 if mount.id == id {
                     let mut moved = mount.clone();
-                    moved.at = point.clone();
+                    moved.at = point;
                     moved
                 } else {
                     mount.clone()

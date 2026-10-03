@@ -141,11 +141,13 @@ pub(super) fn submit_context(
                 adapter,
                 &request.scope,
                 (adapter.generation)(),
-                matrix_id,
-                target_part_id,
-                &hit_context,
-                request.context.clone(),
-                request.mode,
+                MatrixCellSelection {
+                    matrix_id,
+                    target_part_id,
+                    hit_context: &hit_context,
+                    context: request.context.clone(),
+                    mode: request.mode,
+                },
             )
             .is_some()
         {
@@ -254,17 +256,28 @@ pub(super) fn submit_canvas_selection(
     Some(ids)
 }
 
+pub(super) struct MatrixCellSelection<'a> {
+    pub matrix_id: String,
+    pub target_part_id: String,
+    pub hit_context: &'a TreeContext,
+    pub context: TreeContext,
+    pub mode: SelectionMode,
+}
+
 pub(super) fn submit_matrix_cell_selection(
     runtime: &Rc<Runtime>,
     adapter: &SelectionAdapter,
     scope: &Scope,
     generation: u64,
-    matrix_id: String,
-    target_part_id: String,
-    hit_context: &TreeContext,
-    context: TreeContext,
-    mode: SelectionMode,
+    request: MatrixCellSelection<'_>,
 ) -> Option<Vec<String>> {
+    let MatrixCellSelection {
+        matrix_id,
+        target_part_id,
+        hit_context,
+        context,
+        mode,
+    } = request;
     if runtime.scope().as_ref() != Some(scope) || (adapter.generation)() != generation {
         return None;
     }

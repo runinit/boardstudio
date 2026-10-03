@@ -200,9 +200,10 @@ fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
             configuration.mode == plan.mode
                 && configuration.controller_part_id == plan.controller_part_id
         })
-        && plan.nets.iter().all(|net| {
-            current.iter().any(|candidate| *candidate == net) && board.net_ids.contains(&net.id)
-        })
+        && plan
+            .nets
+            .iter()
+            .all(|net| current.contains(&net) && board.net_ids.contains(&net.id))
 }
 
 fn firmware_export_capture_matches(
@@ -3932,17 +3933,21 @@ impl Runtime {
                 }
             };
             crate::pcb_handoff::build_handoff(
-                operation_id,
-                &snapshot,
-                scope,
-                plan.clone(),
-                populations,
-                &core,
-                &self.store,
-                capture.executor_epoch.0,
+                crate::pcb_handoff::HandoffSource {
+                    operation_id,
+                    snapshot: &snapshot,
+                    scope,
+                    electrical_plan: plan.clone(),
+                    populations,
+                    draft,
+                },
+                crate::pcb_handoff::HandoffPorts {
+                    core: &core,
+                    store: &self.store,
+                    executor_epoch: capture.executor_epoch.0,
+                },
                 is_current,
                 generator,
-                draft,
             )
             .await?
         };

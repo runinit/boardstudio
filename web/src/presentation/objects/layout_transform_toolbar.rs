@@ -373,26 +373,28 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
             &active,
             &pointer,
             point,
-            width,
-            height,
-            &snap_settings_for_move,
-            &snap_origins_for_move,
-            splay_affect(),
-            &svg_for_move,
-            &mut guide_for_move,
+            TransformSampleContext {
+                view_width: width,
+                view_height: height,
+                settings: &snap_settings_for_move,
+                origins: &snap_origins_for_move,
+                affect: splay_affect(),
+                svg: &svg_for_move,
+                guide: &mut guide_for_move,
+            },
         );
-        if let Some(operation) = operation {
-            if active.pending.as_ref() != Some(&operation) {
-                submit_transform_edit(
-                    &runtime_for_move,
-                    &active,
-                    operation.clone(),
-                    EditPhase::Preview,
-                );
-                active.preview_submitted = true;
-                active.pending = Some(operation);
-                *drag_for_move.borrow_mut() = Some(active);
-            }
+        if let Some(operation) = operation
+            && active.pending.as_ref() != Some(&operation)
+        {
+            submit_transform_edit(
+                &runtime_for_move,
+                &active,
+                operation.clone(),
+                EditPhase::Preview,
+            );
+            active.preview_submitted = true;
+            active.pending = Some(operation);
+            *drag_for_move.borrow_mut() = Some(active);
         }
     });
 
@@ -449,13 +451,15 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                     &active,
                     &pointer,
                     point,
-                    width,
-                    height,
-                    &snap_settings,
-                    &snap_origins,
-                    splay_affect(),
-                    &svg_for_end,
-                    &mut guide_for_end,
+                    TransformSampleContext {
+                        view_width: width,
+                        view_height: height,
+                        settings: &snap_settings,
+                        origins: &snap_origins,
+                        affect: splay_affect(),
+                        svg: &svg_for_end,
+                        guide: &mut guide_for_end,
+                    },
                 )
             })
             .or_else(|| active.pending.clone());
@@ -774,18 +778,31 @@ fn snap_world_origin(
     )
 }
 
+struct TransformSampleContext<'a> {
+    view_width: f64,
+    view_height: f64,
+    settings: &'a super::layout_toolbar::LayoutSnapSettings,
+    origins: &'a [super::super::outline_snapping::Origin],
+    affect: MatrixSplayAffect,
+    svg: &'a Rc<RefCell<Option<SvgElement>>>,
+    guide: &'a mut Signal<Option<Vec2>>,
+}
+
 fn sample_transform(
     drag: &TransformDrag,
     pointer: &web_sys::PointerEvent,
     point: Vec2,
-    view_width: f64,
-    view_height: f64,
-    settings: &super::layout_toolbar::LayoutSnapSettings,
-    origins: &[super::super::outline_snapping::Origin],
-    affect: MatrixSplayAffect,
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    guide: &mut Signal<Option<Vec2>>,
+    context: TransformSampleContext<'_>,
 ) -> Option<EditOperation> {
+    let TransformSampleContext {
+        view_width,
+        view_height,
+        settings,
+        origins,
+        affect,
+        svg,
+        guide,
+    } = context;
     let matrix = &drag.matrix;
     match drag.gesture {
         TransformGesture::Stagger { row_axis, index } => {

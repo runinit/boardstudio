@@ -3671,13 +3671,11 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let workspace = workspace;
         let mut parts_selection = parts_selection;
         let mut parts_selection_generation = parts_selection_generation;
         let mut parts_preview_activation = parts_preview_activation;
         let objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let objects_panel_settings = objects_panel_settings;
         move |module_id: String| {
             if workspace() != "PCB"
                 || runtime.scope().as_ref() != Some(&scope)
@@ -3753,7 +3751,6 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let parts_selection = parts_selection;
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
@@ -7548,7 +7545,7 @@ fn Editor() -> Element {
                                                         .unwrap_or_else(|| hit_context.clone());
                                                     let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
                                                     if let Some(target_part_id) = target_part_id.clone() {
-                                                        selection::submit_matrix_cell_selection(&runtime, &adapter, &scope, generation, matrix_id.clone(), target_part_id, &hit_context, context, mode);
+                                                        selection::submit_matrix_cell_selection(&runtime, &adapter, &scope, generation, selection::MatrixCellSelection { matrix_id: matrix_id.clone(), target_part_id, hit_context: &hit_context, context, mode });
                                                     } else {
                                                         selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
                                                     }
@@ -7625,7 +7622,7 @@ fn Editor() -> Element {
                                         if let objects::TreeContext::Key { matrix_id, row, column } = &hit_context
                                             && id == format!("matrix/{matrix_id}/r{row}c{column}")
                                         {
-                                            selection::submit_matrix_cell_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, matrix_id.clone(), id.clone(), &hit_context, context.clone(), mode);
+                                            selection::submit_matrix_cell_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, selection::MatrixCellSelection { matrix_id: matrix_id.clone(), target_part_id: id.clone(), hit_context: &hit_context, context: context.clone(), mode });
                                         } else if !current.selected_part_ids.contains(&id)
                                             || mode != SelectionMode::Replace
                                             || target_ids != current.selected_part_ids

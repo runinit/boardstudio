@@ -932,7 +932,7 @@ fn apply_patch(
                 .iter_mut()
                 .find(|mount| mount.id == *mount_id)
                 .ok_or_else(|| "The selected mount is no longer available.".to_owned())?;
-            mount.at = at.clone();
+            mount.at = *at;
         }
         MechanicalSettingsPatch::SetMountKind {
             collection,

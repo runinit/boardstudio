@@ -20,19 +20,40 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use crate::preview_generator::PreviewGeneratorClient;
 
+pub(crate) struct HandoffSource<'a> {
+    pub operation_id: OperationId,
+    pub snapshot: &'a AcceptedSnapshot,
+    pub scope: &'a Scope,
+    pub electrical_plan: ElectricalPlan,
+    pub populations: Vec<(String, ElectricalPlan)>,
+    pub draft: bool,
+}
+
+pub(crate) struct HandoffPorts<'a> {
+    pub core: &'a CoreWorker,
+    pub store: &'a BrowserStore,
+    pub executor_epoch: u64,
+}
+
 pub(crate) async fn build_handoff(
-    operation_id: OperationId,
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-    electrical_plan: ElectricalPlan,
-    populations: Vec<(String, ElectricalPlan)>,
-    core: &CoreWorker,
-    store: &BrowserStore,
-    executor_epoch: u64,
+    source: HandoffSource<'_>,
+    ports: HandoffPorts<'_>,
     is_current: impl Fn() -> Result<(), String>,
     preview_generator: impl FnOnce() -> Result<Rc<PreviewGeneratorClient>, String>,
-    draft: bool,
 ) -> Result<Vec<u8>, String> {
+    let HandoffSource {
+        operation_id,
+        snapshot,
+        scope,
+        electrical_plan,
+        populations,
+        draft,
+    } = source;
+    let HandoffPorts {
+        core,
+        store,
+        executor_epoch,
+    } = ports;
     let document = snapshot.document.as_ref();
     let board = document
         .boards
