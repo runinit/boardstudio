@@ -47,7 +47,7 @@ pub(crate) fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
     let footprints_visible = props.footprints_visible;
     rsx! {
         div {
-            class: "m1-canvas-toolbar",
+            class: "m1-canvas-toolbar m1-design-canvas-toolbar",
             role: "toolbar",
             aria_label: "{label} commands",
             div { class: "m1-canvas-context",

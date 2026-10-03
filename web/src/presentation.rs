@@ -592,12 +592,15 @@ fn RuntimeReportBanner() -> Element {
     let version = use_context::<Signal<u64>>();
     let _ = version();
     let alert = runtime.status_is_alert();
+    let status = runtime.status();
     rsx! {
-        p {
-            role: if alert { "alert" } else { "status" },
-            "aria-live": if alert { "assertive" } else { "polite" },
-            class: "m1-status",
-            "{runtime.status()}"
+        if alert || status != "Saved locally." {
+            p {
+                role: if alert { "alert" } else { "status" },
+                "aria-live": if alert { "assertive" } else { "polite" },
+                class: "m1-status",
+                "{status}"
+            }
         }
     }
 }
@@ -1732,6 +1735,14 @@ fn focus_first_inspector_control_on_next_frame(
             if let Some(element) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| {
+                    if let Some(body) = document
+                        .query_selector("#m1-inspector-panel-content .m1-inspector-body")
+                        .ok()
+                        .flatten()
+                        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+                    {
+                        body.set_scroll_top(0);
+                    }
                     document
                         .query_selector(
                             "#m1-inspector-panel-content :is(button, input):not(:disabled)",
