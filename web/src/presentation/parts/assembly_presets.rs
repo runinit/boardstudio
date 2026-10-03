@@ -229,6 +229,7 @@ fn member(
     crate::parts_preview::PartsPreviewRecipeMember {
         id: id.to_owned(),
         definition: definition.clone(),
+        assets: Vec::new(),
         at,
         rotation,
         side,

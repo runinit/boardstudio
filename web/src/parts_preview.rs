@@ -7,8 +7,8 @@
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{
-    Board, Contour, ExportTarget, Part, PartDefinition, Pose2, PrepareExportRequest, ProjectDoc,
-    Side, Vec2,
+    Asset, Board, Contour, ExportTarget, Part, PartDefinition, Pose2, PrepareExportRequest,
+    ProjectDoc, Side, Vec2,
 };
 use std::{cell::Cell, collections::BTreeMap, rc::Rc, sync::Arc};
 
@@ -28,6 +28,8 @@ pub(crate) struct PartsPreviewOwnerIdentity {
 pub(crate) struct PartsPreviewRecipeMember {
     pub(crate) id: String,
     pub(crate) definition: PartDefinition,
+    #[serde(default)]
+    pub(crate) assets: Vec<Asset>,
     pub(crate) at: Vec2,
     pub(crate) rotation: f64,
     pub(crate) side: Side,
@@ -151,6 +153,22 @@ impl PartsPreviewCapture {
         sample_document.assets.clone_from(&snapshot.document.assets);
         let mut contours_points = Vec::new();
         for (index, member) in members.iter().enumerate() {
+            for asset in &member.assets {
+                if let Some(existing) = sample_document
+                    .assets
+                    .iter()
+                    .find(|existing| existing.id == asset.id)
+                {
+                    if existing != asset {
+                        return Err(
+                            "Parts preview asset identity conflicts with its accepted source"
+                                .into(),
+                        );
+                    }
+                } else {
+                    sample_document.assets.push(asset.clone());
+                }
+            }
             if !sample_document
                 .definitions
                 .iter()
@@ -180,6 +198,7 @@ impl PartsPreviewCapture {
                         .map(|terminal| {
                             (terminal.clone(), serde_json::Value::String(String::new()))
                         })
+                        .chain(member.generator_parameters.clone())
                         .collect(),
                 ),
             });

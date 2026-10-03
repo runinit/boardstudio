@@ -177,11 +177,19 @@ catalogue definition snapshots are applied to the latest accepted document.
 An intervening edit to the same saved assembly is reported instead of being
 overwritten, while unrelated accepted document changes are retained.
 
-This packet is a bounded source increment, not F4.6 acceptance. Generator
-parameter overrides, model-default/custom model editing and import, isolated
-assembly preview, and matrix/board Apply/Place remain explicit F4.6 acceptance
-criteria; Apply/Place retain the F3.2 acceptance join. Do not mark the parent
-criterion complete from the saved metadata editor alone.
+The follow-up source packet adds the pinned editor's current generator
+parameter affordance (hotswap/side), member model-default/custom selection,
+model asset selection and finite offset/rotation/positive-scale edits, model
+import through the existing verified asset path, visual-only model members,
+and an isolated recipe preview in the retained Parts preview owner. Save merges
+draft assets and referenced definitions through the same accepted document
+edit/history boundary. The reference's Ergogen `modelBindings` derivation for
+the “Edit model defaults” action is not yet bridged into Dioxus; that remains an
+explicit model-binding parity gap instead of being guessed from UI state.
+
+F4.6 remains incomplete. Matrix/board Apply/Place retain the F3.2 acceptance
+join, and the full acceptance/evidence table above is unchanged. Do not mark the
+parent criterion complete from these bounded authoring packets.
 
 ### Refactoring observation handoff
 

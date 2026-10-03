@@ -84,6 +84,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     scope: Option<Scope>,
     snapshot_token: SnapshotToken,
     generator_draft: Option<GeneratorPreviewDraft>,
+    #[props(default = false)] start_in_3d: bool,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let selection_generation = use_context::<super::PartsSelectionGeneration>().0;
@@ -95,6 +96,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                 |definition| crate::parts_preview::PartsPreviewRecipeMember {
                     id: "switch".into(),
                     definition: (**definition).clone(),
+                    assets: Vec::new(),
                     at: Vec2 { x: 0.0, y: 0.0 },
                     rotation: 0.0,
                     side: Side::Front,
@@ -133,7 +135,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
         let lease_slot = lease_slot.clone();
         move || lease_slot.invalidate()
     });
-    let mut show_3d = use_signal(|| false);
+    let mut show_3d = use_signal(|| start_in_3d);
     let previous_activation = use_hook(|| Rc::new(RefCell::new(None::<(String, u64)>)));
     let previous_preview_generation = use_hook(|| Rc::new(Cell::new(None::<u64>)));
     use_effect(use_reactive(
