@@ -649,6 +649,8 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-editor-footer button { min-height: 27px; padding: 0 6px; border: 0; background: transparent; }
 .m1-editor-footer button svg { display: block; width: 18px; height: 18px; }
 .m1-keymap-view-controls { display: flex; align-items: center; gap: 4px; }
+.m1-keymap-zoom-button { flex: 0 0 24px; width: 24px; min-width: 24px; text-align: center; font-size: 16px; font-weight: 600; }
+.m1-keymap-zoom-label { min-width: 38px; color: var(--wb-ink); text-align: center; font-variant-numeric: tabular-nums; }
 .m1-editor-footer span:last-child { margin-left: auto; }
 .m1-case-panel { display: flex; flex-direction: column; gap: 10px; min-height: 100%; padding: 20px; background: var(--wb-canvas); }
 .m1-case-panel h2, .m1-case-panel p { margin: 0; }

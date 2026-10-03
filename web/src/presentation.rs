@@ -2771,7 +2771,6 @@ fn Editor() -> Element {
     let Some(render_scope) = current_scope.clone() else {
         return rsx! {};
     };
-    let zoom_percent = model.camera.zoom * 100.0;
     let Some(snapshot) = model.accepted.as_ref() else {
         return rsx! {};
     };
@@ -3727,6 +3726,7 @@ fn Editor() -> Element {
             }
         };
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
+    let mut zoom_surface_size = use_signal(|| (1.0, 1.0));
     let workspace_rect_bounds = match active_workspace {
         "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
@@ -3773,6 +3773,30 @@ fn Editor() -> Element {
         (min_x - 20.0, max_x + 20.0, min_y - 20.0, max_y + 20.0)
     };
     let (min_x, max_x, min_y, max_y) = bounds;
+    let keymap_surface = zoom_surface_size();
+    // React normalizes its zoom against the physical getBounds basis; Keymap's existing camera
+    // uses its key/contour basis. Convert only the displayed/effective scale between those bases.
+    let keymap_scale_ratio = if active_workspace == "Keymap" && !layout_assembly_3d() {
+        keycaps_fit::layout_canvas_bounds(&document, &scene, &render_scope.board_id)
+            .map(|reference| {
+                let reference = keycaps_fit::aspect_bounds(reference, keymap_surface);
+                let current = keycaps_fit::aspect_bounds(
+                    (
+                        min_x,
+                        min_x + (max_x - min_x).max(50.0),
+                        min_y,
+                        min_y + (max_y - min_y).max(50.0),
+                    ),
+                    keymap_surface,
+                );
+                ((reference.1 - reference.0) / (current.1 - current.0)).clamp(0.01, 100.0)
+            })
+            .filter(|ratio| ratio.is_finite())
+            .unwrap_or(1.0)
+    } else {
+        1.0
+    };
+    let zoom_percent = model.camera.zoom * keymap_scale_ratio * 100.0;
     let width = (max_x - min_x).max(50.0) / model.camera.zoom;
     let height = (max_y - min_y).max(50.0) / model.camera.zoom;
     let view_x = (min_x + max_x - width) * 0.5 + model.camera.center.x;
@@ -3896,6 +3920,82 @@ fn Editor() -> Element {
             zoom: camera.zoom,
         });
     };
+    let zoom_runtime = runtime.clone();
+    let zoom_workspace = workspace;
+    let zoom_scope = render_scope.clone();
+    let zoom_adapter = adapter.clone();
+    let zoom_svg = svg.clone();
+    let zoom_token = snapshot.token;
+    let zoom_revision = snapshot.document.revision;
+    let zoom_ratio = keymap_scale_ratio;
+    let zoom_bounds = bounds;
+    let zoom_view = (view_x, view_y, width, height);
+    let zoom_keymap = move |direction: f64| {
+        let current = zoom_runtime.model();
+        if zoom_workspace() != "Keymap"
+            || zoom_runtime.scope().as_ref() != Some(&zoom_scope)
+            || (zoom_adapter.generation)() != render_generation
+            || current.active_board_id != zoom_scope.board_id
+            || current.active_instance_id != zoom_scope.instance_id
+        {
+            return;
+        }
+        let Some(accepted) = current.accepted.as_ref() else {
+            return;
+        };
+        if accepted.token != zoom_token
+            || accepted.document.revision != zoom_revision
+            || accepted.document.id != zoom_scope.document_id
+            || accepted.session_epoch != zoom_scope.session_epoch
+        {
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let (Ok(client_x), Ok(client_y)) = (window.inner_width(), window.inner_height()) else {
+            return;
+        };
+        let (Ok(client_x), Ok(client_y)) = (client_x.as_f64(), client_y.as_f64()) else {
+            return;
+        };
+        let surface_ref = zoom_svg.borrow();
+        let Some(surface) = surface_ref.as_ref() else {
+            return;
+        };
+        let rect = surface.get_bounding_client_rect();
+        let (view_x, view_y, width, height) = zoom_view;
+        let Some(location) = pointer_location(
+            &rect,
+            client_x.round() as i32,
+            client_y.round() as i32,
+            view_x,
+            view_y,
+            width,
+            height,
+        ) else {
+            return;
+        };
+        let current_effective = current.camera.zoom * zoom_ratio;
+        let next_effective = if direction < 0.0 {
+            (current_effective / 1.2).max(0.25)
+        } else {
+            (current_effective * 1.2).min(4.0)
+        };
+        if (next_effective - current_effective).abs() < f64::EPSILON {
+            return;
+        }
+        let next_zoom = next_effective / zoom_ratio;
+        let center = zoom_center_at(zoom_bounds, location, next_zoom);
+        zoom_runtime.submit(Event::SetCamera {
+            operation_id: zoom_runtime.operation(),
+            center,
+            zoom: next_zoom,
+        });
+    };
+    let zoom_out = zoom_keymap.clone();
+    let on_zoom_keymap_out = move |_| zoom_out(-1.0);
+    let on_zoom_keymap_in = move |_| zoom_keymap(1.0);
     let canvas_center =
         part_placement::canvas_world_center(min_x, max_x, min_y, max_y, model.camera.center);
     let part_placement =
@@ -4428,6 +4528,7 @@ fn Editor() -> Element {
     let mount = {
         let runtime = runtime.clone();
         let svg = svg.clone();
+        let mut zoom_surface_size = zoom_surface_size;
         let focus_placement = part_placement.projection.is_some();
         move |event: MountedEvent| {
             if let Some(element) = event
@@ -4441,6 +4542,8 @@ fn Editor() -> Element {
                     options.set_prevent_scroll(true);
                     let _ = element.focus_with_options(&options);
                 }
+                let rect = element.get_bounding_client_rect();
+                zoom_surface_size.set((rect.width(), rect.height()));
                 *svg.borrow_mut() = Some(element);
             }
         }
@@ -5336,8 +5439,6 @@ fn Editor() -> Element {
                 return;
             }
             let old = runtime.model().camera;
-            let base_width = (max_x - min_x).max(50.0);
-            let base_height = (max_y - min_y).max(50.0);
             let Some(location) = pointer_location(
                 &rect,
                 wheel.client_x(),
@@ -5349,16 +5450,13 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
-            let world_x = location.world.x;
-            let world_y = location.world.y;
-            let zoom = (old.zoom * (-wheel.delta_y() * 0.001).exp()).clamp(0.15, 8.0);
-            let center = Vec2 {
-                x: world_x
-                    - (min_x + max_x - base_width / zoom) * 0.5
-                    - location.x_fraction * base_width / zoom,
-                y: world_y - (min_y + max_y + base_height / zoom) * 0.5
-                    + location.y_fraction * base_height / zoom,
+            let zoom = if active_workspace == "Keymap" {
+                (old.zoom * keymap_scale_ratio * (-wheel.delta_y() * 0.001).exp()).clamp(0.25, 4.0)
+                    / keymap_scale_ratio
+            } else {
+                (old.zoom * (-wheel.delta_y() * 0.001).exp()).clamp(0.15, 8.0)
             };
+            let center = zoom_center_at((min_x, max_x, min_y, max_y), location, zoom);
             runtime.submit(Event::SetCamera {
                 operation_id: runtime.operation(),
                 center,
@@ -6700,11 +6798,15 @@ fn Editor() -> Element {
                     keymap::KeymapViewControls {
                         board_available: keymap_canvas_bounds.is_some(),
                         selection_available: keymap_selection_available,
+                        zoom_percent,
                         on_fit_board: on_fit_keymap_board,
                         on_fit_selection: on_fit_keymap_selection,
+                        on_zoom_out: on_zoom_keymap_out,
+                        on_zoom_in: on_zoom_keymap_in,
                     }
+                } else {
+                    span { "{model.camera.zoom * 100.0:.0}%" }
                 }
-                span { "{zoom_percent:.0}%" }
             }
         }
     }
@@ -6794,6 +6896,23 @@ fn pointer_location(
         y_fraction,
     })
 }
+
+fn zoom_center_at(
+    (min_x, max_x, min_y, max_y): (f64, f64, f64, f64),
+    location: PointerLocation,
+    zoom: f64,
+) -> Vec2 {
+    let base_width = (max_x - min_x).max(50.0);
+    let base_height = (max_y - min_y).max(50.0);
+    Vec2 {
+        x: location.world.x
+            - (min_x + max_x - base_width / zoom) * 0.5
+            - location.x_fraction * base_width / zoom,
+        y: location.world.y - (min_y + max_y + base_height / zoom) * 0.5
+            + location.y_fraction * base_height / zoom,
+    }
+}
+
 fn moved(drag: &Drag, point: Vec2) -> Vec<Position> {
     drag.positions
         .iter()

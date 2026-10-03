@@ -13,8 +13,11 @@ pub(in crate::presentation) struct FitCamera {
 pub(in crate::presentation) fn KeymapViewControls(
     board_available: bool,
     selection_available: bool,
+    zoom_percent: f64,
     on_fit_board: EventHandler<()>,
     on_fit_selection: EventHandler<()>,
+    on_zoom_out: EventHandler<()>,
+    on_zoom_in: EventHandler<()>,
 ) -> Element {
     rsx! {
         div { class: "m1-keymap-view-controls", role: "group", "aria-label": "Canvas view controls",
@@ -33,6 +36,23 @@ pub(in crate::presentation) fn KeymapViewControls(
                 disabled: !selection_available,
                 onclick: move |_| on_fit_selection.call(()),
                 "Fit selection"
+            }
+            button {
+                class: "m1-keymap-zoom-button",
+                r#type: "button",
+                "aria-label": "Zoom out",
+                title: "Zoom out",
+                onclick: move |_| on_zoom_out.call(()),
+                "−"
+            }
+            span { class: "m1-keymap-zoom-label", "{zoom_percent:.0}%" }
+            button {
+                class: "m1-keymap-zoom-button",
+                r#type: "button",
+                "aria-label": "Zoom in",
+                title: "Zoom in",
+                onclick: move |_| on_zoom_in.call(()),
+                "+"
             }
         }
     }
