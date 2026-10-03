@@ -1,0 +1,5 @@
+# Controller chooser pinned reference
+
+Pinned React5a472a9426e6e38993361da402cd4ec730feb369 at5173, own root-pcb-module-20261003 browser. The actual VIK archive952b26565a4df3ae1122fd0716017560279c938ee19fb6c15af966c88c1d35b0 board has no controller. Clicked visible Add controller in Wiring; Parts became active, search controller, Controllers region, mcu nice nano selected, Back to PCB, 2D footprint/3D model and Place component/settings controls visible. This is the browse entry leg only; it does not claim controller commit/history/reopen.
+
+Current Dioxus source part-placement chooser requires an open Wiring setup guide. Ordinary PCB intent needs an explicit origin rather than calling the guided handler inertly or opening unrelated guide UI. This confirms an existing implicit caller-context coupling within RF-001; preserve scope/owner guards and current guide behavior. Root source packet16 is the one currently waiting for PCB;17 is queued under the user's WIP rule, without an invented parent blocker.
