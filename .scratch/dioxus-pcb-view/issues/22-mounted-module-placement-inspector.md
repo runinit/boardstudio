@@ -23,6 +23,6 @@
 
 **Retained placement evidence:** [Save/reopen archive comparison](../evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md) and [settled Undo/Redo projection](../evidence/22-mounted-module-inspector-20261003/undo-redo-settled-34765.md) qualify this bounded placement path on candidate 34765. They do not cover Issue 23's new fields or close the F5.5 parent.
 
-Those receipts predate the source-route correction. They establish accepted placement-field behavior only; the source-entry click and guarded return need qualification on the next integrated candidate.
+The bounded route result is recorded in [the 34769 paired receipt](../evidence/24-module-source-route-20261003/receipt.md): pointer, Enter and Space each opened the selected splitter-above source entry, and its return action reopened that exact placement. Before/after project exports were byte-identical at revision 6. This qualifies the selected instance on this fixture only; variant-change stale-route rejection, every mounted target, and the changed edit/history journey remain open.
 
 **Architecture:** this adds `TreeContext::MountedModule { board_id, module_id }` to the existing scoped selection owner. It never overloads a source footprint ID as a host part. Placement writes stay in Core/Session accepted-document history; transient form values remain view-local. This extends RF-001's shared composition evidence and RF-006's need to keep project, board and physical-instance scopes distinct; it does not add a data store or public API.

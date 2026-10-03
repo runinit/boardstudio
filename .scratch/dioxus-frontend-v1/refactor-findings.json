@@ -1344,10 +1344,10 @@
         },
         {
           "source": "fe86fa05/34750",
-          "evidence": ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
-          "observation": "Module source geometry and all28 corresponding marker contours match, but default/toggle marker visibility differs fromReact (0\u219228 vs47\u219272; three source caveats already visible inReactdefault). Pinned Workbench.tsx identifies the concrete gap: Dioxus emitted only module-targeted error markers and hid the entire marker component when the module layer was off; React keeps current-board host errors visible and suppresses only marker IDs targeting current-board module instances. Focused-finding override remains separate because PCB has no equivalent focused-finding owner.",
-          "current_mitigation": "PCB issue15 isolated correction now mirrors the accepted current-board error-marker/module-target predicate and leaves non-module error markers visible when the module finding layer is hidden. No marker-ID string filtering or backend change was introduced.",
-          "status": "Source correction awaiting the next integrated paired candidate; exact changed marker delta and history/document preservation remain open. This does not close F5.4/F5.5 or any parent."
+          "evidence": ".scratch/dioxus-pcb-view/evidence/24-module-source-route-20261003/receipt.md",
+          "observation": "Pinned React Workbench.tsx:960 defines moduleFindingIds from accepted findings whose targetIds intersect current-board mounted-module instance IDs; at 1351 it suppresses only those error marker IDs when module-findings is hidden. On the same VIK archive, candidate 34769 and React have matching all-visible unique marker IDs (72), but React's default state includes three gate/source-caveat IDs absent from candidate default. Each renders three React marker instances versus two candidate instances when all visible. Exact arrays and archive-preservation proof are in the linked receipt. This points to a source/projection difference in accepted targets or marker aggregation; do not filter by finding-ID strings. Focused-finding override remains separate because PCB has no equivalent owner.",
+          "current_mitigation": "Candidate renders host and module error markers and gates module-targeted IDs using current host-board module instance IDs. Paired browser evidence shows the remaining three source-caveat classification difference and one fewer duplicate contour group per ID; accepted project archive/revision stays unchanged across the layer toggle.",
+          "status": "Bounded 34769 route/layer journey and exact deltas retained; source-caveat projection cause and changed-candidate layer-toggle recheck remain open. This does not close F5.4/F5.5 or any parent."
         },
         {
           "source": "Issue 02 VIK module React reference pin",

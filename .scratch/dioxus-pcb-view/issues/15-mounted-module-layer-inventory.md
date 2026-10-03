@@ -40,8 +40,4 @@ filter. A focused finding is an additional React visibility override and remains
 outside this bounded correction because PCB has no equivalent focused-finding
 owner yet.
 
-The isolated source correction now projects current-board error markers using
-that target-ID predicate and keeps host error markers visible when the module
-layer is off. This is source status only: the changed paired candidate result,
-exact marker-ID delta, history/document preservation, and consolidated candidate
-review remain open. It does not close Issue15, F5.4, F5.5, or their parent joins.
+The 34769 paired comparison is now retained in [the route and findings receipt](../evidence/24-module-source-route-20261003/receipt.md), with raw marker arrays and exact archive identity. All-visible unique marker IDs match (72 each), while the three `gate/source-caveat` findings appear in React's default state and are suppressed in Dioxus when module findings are hidden. Each caveat ID renders three React marker instances versus two Dioxus instances when all layers are visible. This is evidence of a remaining projection/visibility mismatch, not a reason to special-case marker IDs. The changed layer-toggle result preserves the accepted project archive and revision. Module finding focus, every geometry criterion, changed source correction candidate review, Issue15/F5.4/F5.5 and parent joins remain open.
