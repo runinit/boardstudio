@@ -6396,7 +6396,13 @@ fn Editor() -> Element {
                     if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
                         && layout_assembly_3d()
                     {
-                        layout_viewer::LayoutCanonicalViewer {}
+                        layout_viewer::LayoutCanonicalViewer {
+                            keycaps_fit: if active_workspace == "Keycaps" {
+                                keycaps_fit_state.state.clone()
+                            } else {
+                                None
+                            },
+                        }
                     } else if active_workspace == "Layout" {
                         svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,

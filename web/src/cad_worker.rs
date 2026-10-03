@@ -52,26 +52,26 @@ struct WireRequest {
     operation: CadOperation,
     prepared: Option<boardstudio_core::model::PreparedCaseAssemblyIR>,
     #[serde(default)]
-    keycaps: Option<KeycapsStepInput>,
+    keycaps: Option<KeycapsInput>,
     #[serde(skip)]
     input_bytes: Vec<u8>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct KeycapsStepInput {
+struct KeycapsInput {
     revision: u64,
     specs: Vec<KeycapSpec>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct KeycapsStepRequest {
+struct KeycapsCadRequest {
     request_id: String,
     job_id: String,
     identity: CadSnapshotIdentity,
     operation: CadOperation,
-    keycaps: KeycapsStepInput,
+    keycaps: KeycapsInput,
 }
 
 struct Pending {
@@ -187,15 +187,106 @@ impl CadWorker {
         }
         self.ready().await?;
         let revision = identity.revision;
-        let frame = serde_json::to_string(&KeycapsStepRequest {
+        let frame = serde_json::to_string(&KeycapsCadRequest {
             request_id: request_id.clone(),
-            job_id,
-            identity,
+            job_id: job_id.clone(),
+            identity: identity.clone(),
             operation: CadOperation::ExportStep,
-            keycaps: KeycapsStepInput { revision, specs },
+            keycaps: KeycapsInput { revision, specs },
         })
         .map_err(|error| CadWorkerError(error.to_string()))?;
         self.request_frame(&request_id, &frame, &[]).await
+    }
+
+    /// Build preview meshes from Core-resolved KeycapSpecs in this worker.
+    /// This remains a feature-specific wire adapter; public case CAD requests stay unchanged.
+    pub async fn request_keycaps_preview(
+        &self,
+        request_id: String,
+        job_id: String,
+        identity: CadSnapshotIdentity,
+        specs: Vec<KeycapSpec>,
+    ) -> Result<CadResult, CadWorkerError> {
+        if request_id.is_empty()
+            || job_id.is_empty()
+            || identity.revision > crate::cad_jobs::MAX_CAD_REVISION
+            || specs.is_empty()
+        {
+            return Err(CadWorkerError(
+                "Keycap preview input does not match its accepted snapshot".into(),
+            ));
+        }
+        self.ready().await?;
+        let expected = specs
+            .iter()
+            .flat_map(|spec| {
+                let mut ids = vec![format!("keycap:{}", spec.id)];
+                if !spec.legend.trim().is_empty() {
+                    ids.push(format!("keycap-legend:{}", spec.id));
+                }
+                ids
+            })
+            .collect::<Vec<_>>();
+        let revision = identity.revision;
+        let frame = serde_json::to_string(&KeycapsCadRequest {
+            request_id: request_id.clone(),
+            job_id: job_id.clone(),
+            identity: identity.clone(),
+            operation: CadOperation::Preview,
+            keycaps: KeycapsInput { revision, specs },
+        })
+        .map_err(|error| CadWorkerError(error.to_string()))?;
+        let reply = self.request_frame(&request_id, &frame, &[]).await?;
+        if reply.request_id != request_id
+            || reply.job_id != job_id
+            || reply.identity != identity
+            || reply.operation != CadOperation::Preview
+        {
+            return Err(CadWorkerError(
+                "CAD preview result belongs to another keycap request".into(),
+            ));
+        }
+        match reply.outcome {
+            CadReplyOutcome::Cancelled => {
+                return Err(CadWorkerError("Keycap CAD preview was cancelled".into()));
+            }
+            CadReplyOutcome::Failed => {
+                return Err(CadWorkerError(
+                    reply
+                        .error
+                        .unwrap_or_else(|| "Keycap CAD preview failed".into()),
+                ));
+            }
+            CadReplyOutcome::Completed => {}
+        }
+        let result = reply
+            .result
+            .ok_or_else(|| CadWorkerError("CAD worker returned no keycap meshes".into()))?;
+        let valid_mesh = |body: &CadBodyMesh| {
+            !body.id.is_empty()
+                && !body.name.is_empty()
+                && !body.positions.is_empty()
+                && body.positions.len().is_multiple_of(3)
+                && body.positions.len() == body.normals.len()
+                && body
+                    .positions
+                    .iter()
+                    .chain(&body.normals)
+                    .all(|value| value.is_finite())
+        };
+        if result.revision != identity.revision
+            || result.bodies.len() != expected.len()
+            || result
+                .bodies
+                .iter()
+                .zip(expected)
+                .any(|(body, expected_id)| body.id != expected_id || !valid_mesh(body))
+        {
+            return Err(CadWorkerError(
+                "Keycap CAD preview meshes are missing, malformed, or stale".into(),
+            ));
+        }
+        Ok(result)
     }
 
     async fn request_frame(
@@ -609,9 +700,23 @@ fn receive_worker_message(
         .ok_or_else(|| JsValue::from_str("CAD request omitted frame"))?;
     let mut request = serde_json::from_str::<WireRequest>(&frame)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
-    if request.keycaps.is_some() && request.operation != CadOperation::ExportStep {
+    if request.keycaps.is_some()
+        && !matches!(
+            request.operation,
+            CadOperation::Preview | CadOperation::ExportStep
+        )
+    {
         return Err(JsValue::from_str(
-            "Keycap CAD input is only valid for STEP export",
+            "Keycap CAD input is only valid for preview or STEP export",
+        ));
+    }
+    if let Some(keycaps) = request.keycaps.as_ref()
+        && (request.prepared.is_some()
+            || keycaps.revision != request.identity.revision
+            || keycaps.specs.is_empty())
+    {
+        return Err(JsValue::from_str(
+            "Keycap CAD input does not match its captured revision",
         ));
     }
     if request.identity.revision > crate::cad_jobs::MAX_CAD_REVISION {
@@ -746,73 +851,86 @@ async fn run_request(
     };
     let result = match request.operation {
         CadOperation::Preview => {
-            let prepared = request.prepared.as_ref().expect("request validated");
-            let bodies = Array::new();
-            for body in &prepared.bodies {
-                if canceled() {
-                    return Err((request, "CAD job cancelled".into(), true));
-                }
-                let body_json = serde_json::to_string(body)
-                    .map_err(|error| (request.clone(), error.to_string(), false))?;
-                let body_value = js_sys::JSON::parse(&body_json)
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                let mut body_geometry = serde_json::to_value(&body.body)
-                    .map_err(|error| (request.clone(), error.to_string(), false))?;
-                if let Some(fields) = body_geometry.as_object_mut() {
-                    fields.remove("id");
-                    fields.remove("name");
-                }
-                let cache_input = serde_json::to_vec(&serde_json::json!({
-                    "body": body_geometry,
-                    "regions": &body.regions,
+            if let Some(keycaps) = request.keycaps.as_ref() {
+                let input = serde_json::to_string(&serde_json::json!({
+                    "revision": keycaps.revision,
+                    "specs": keycaps.specs,
+                    "export": false,
                 }))
                 .map_err(|error| (request.clone(), error.to_string(), false))?;
-                let digest = Sha256::digest(cache_input);
-                let digest = digest
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>();
-                let key = format!(
-                    "m1/{}/{}/{}/{}/{digest}",
-                    request.identity.session_epoch,
-                    request.identity.document_id,
-                    request.identity.board_id,
-                    request.identity.instance_id.as_deref().unwrap_or("board")
-                );
-                let progress = Closure::<dyn FnMut(JsValue, JsValue)>::new(|_, _| {});
-                let output = invoke(
-                    "preview_body",
-                    &[
-                        body_value,
-                        JsValue::from_str(&key),
-                        progress.as_ref().clone(),
-                    ],
-                )
-                .map_err(|error| (request.clone(), error, false))?;
-                let object = Object::new();
-                Reflect::set(&object, &"id".into(), &JsValue::from_str(&body.body.id))
+                let input = js_sys::JSON::parse(&input)
                     .map_err(|error| (request.clone(), js_message(error), false))?;
-                Reflect::set(&object, &"name".into(), &JsValue::from_str(&body.body.name))
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                for field in ["positions", "normals"] {
-                    let value = Reflect::get(&output, &field.into())
+                invoke("build_keycaps", &[input])
+                    .map_err(|error| (request.clone(), error, false))?
+            } else {
+                let prepared = request.prepared.as_ref().expect("request validated");
+                let bodies = Array::new();
+                for body in &prepared.bodies {
+                    if canceled() {
+                        return Err((request, "CAD job cancelled".into(), true));
+                    }
+                    let body_json = serde_json::to_string(body)
+                        .map_err(|error| (request.clone(), error.to_string(), false))?;
+                    let body_value = js_sys::JSON::parse(&body_json)
                         .map_err(|error| (request.clone(), js_message(error), false))?;
-                    Reflect::set(&object, &field.into(), &value)
+                    let mut body_geometry = serde_json::to_value(&body.body)
+                        .map_err(|error| (request.clone(), error.to_string(), false))?;
+                    if let Some(fields) = body_geometry.as_object_mut() {
+                        fields.remove("id");
+                        fields.remove("name");
+                    }
+                    let cache_input = serde_json::to_vec(&serde_json::json!({
+                        "body": body_geometry,
+                        "regions": &body.regions,
+                    }))
+                    .map_err(|error| (request.clone(), error.to_string(), false))?;
+                    let digest = Sha256::digest(cache_input);
+                    let digest = digest
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    let key = format!(
+                        "m1/{}/{}/{}/{}/{digest}",
+                        request.identity.session_epoch,
+                        request.identity.document_id,
+                        request.identity.board_id,
+                        request.identity.instance_id.as_deref().unwrap_or("board")
+                    );
+                    let progress = Closure::<dyn FnMut(JsValue, JsValue)>::new(|_, _| {});
+                    let output = invoke(
+                        "preview_body",
+                        &[
+                            body_value,
+                            JsValue::from_str(&key),
+                            progress.as_ref().clone(),
+                        ],
+                    )
+                    .map_err(|error| (request.clone(), error, false))?;
+                    let object = Object::new();
+                    Reflect::set(&object, &"id".into(), &JsValue::from_str(&body.body.id))
                         .map_err(|error| (request.clone(), js_message(error), false))?;
+                    Reflect::set(&object, &"name".into(), &JsValue::from_str(&body.body.name))
+                        .map_err(|error| (request.clone(), js_message(error), false))?;
+                    for field in ["positions", "normals"] {
+                        let value = Reflect::get(&output, &field.into())
+                            .map_err(|error| (request.clone(), js_message(error), false))?;
+                        Reflect::set(&object, &field.into(), &value)
+                            .map_err(|error| (request.clone(), js_message(error), false))?;
+                    }
+                    bodies.push(&object);
+                    yield_to_worker().await;
                 }
-                bodies.push(&object);
-                yield_to_worker().await;
-            }
-            let result = Object::new();
-            Reflect::set(
-                &result,
-                &"revision".into(),
-                &JsValue::from_f64(prepared.revision as f64),
-            )
-            .map_err(|error| (request.clone(), js_message(error), false))?;
-            Reflect::set(&result, &"bodies".into(), &bodies)
+                let result = Object::new();
+                Reflect::set(
+                    &result,
+                    &"revision".into(),
+                    &JsValue::from_f64(prepared.revision as f64),
+                )
                 .map_err(|error| (request.clone(), js_message(error), false))?;
-            result.into()
+                Reflect::set(&result, &"bodies".into(), &bodies)
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+                result.into()
+            }
         }
         CadOperation::Exact => invoke(
             "build_assembly",

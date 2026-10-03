@@ -11,8 +11,14 @@ use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
+#[derive(Props, Clone, PartialEq)]
+pub(crate) struct LayoutCanonicalViewerProps {
+    #[props(default)]
+    pub(crate) keycaps_fit: Option<super::keycaps_fit::KeycapsFitState>,
+}
+
 #[component]
-pub(crate) fn LayoutCanonicalViewer() -> Element {
+pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let selection = use_context::<SelectionAdapter>();
     let theme = use_context::<super::ResolvedTheme>().0;
@@ -23,11 +29,57 @@ pub(crate) fn LayoutCanonicalViewer() -> Element {
         let runtime = runtime.clone();
         move || {
             alive.set(false);
+            runtime.cancel_keycaps_cad_preview();
             if let Some(generation) = runtime.layout_source_generation() {
                 runtime.retire_layout_source(generation);
             }
         }
     });
+
+    let keycaps_input = props
+        .keycaps_fit
+        .as_ref()
+        .and_then(super::keycaps_fit::KeycapsFitState::current_preview_input);
+    let mut keycaps_preview = use_signal(|| None::<crate::runtime::KeycapsCadPreview>);
+    let mut keycaps_preview_pending = use_signal(|| false);
+    let mut keycaps_preview_error = use_signal(|| None::<String>);
+    let mut keycaps_preview_sequence = use_signal(|| 0_u64);
+    let mut keycaps_retry_generation = use_signal(|| 0_u64);
+    use_effect(use_reactive(
+        (&keycaps_input, &keycaps_retry_generation()),
+        {
+            let runtime = runtime.clone();
+            let alive = alive.clone();
+            move |(input, _retry)| {
+                let sequence = keycaps_preview_sequence().saturating_add(1);
+                keycaps_preview_sequence.set(sequence);
+                runtime.cancel_keycaps_cad_preview();
+                keycaps_preview.set(None);
+                keycaps_preview_error.set(None);
+                let Some(input) = input else {
+                    keycaps_preview_pending.set(false);
+                    return;
+                };
+                keycaps_preview_pending.set(true);
+                let runtime = runtime.clone();
+                let alive = alive.clone();
+                spawn_local(async move {
+                    let result = runtime.request_keycaps_cad_preview(input).await;
+                    if !alive.get() || keycaps_preview_sequence.peek().ne(&sequence) {
+                        return;
+                    }
+                    keycaps_preview_pending.set(false);
+                    match result {
+                        Ok(preview) => {
+                            keycaps_preview.set(Some(preview));
+                            keycaps_preview_error.set(None);
+                        }
+                        Err(error) => keycaps_preview_error.set(Some(error)),
+                    }
+                });
+            }
+        },
+    ));
 
     let model = runtime.model();
     let request = runtime.scope().and_then(|scope| {
@@ -151,21 +203,56 @@ pub(crate) fn LayoutCanonicalViewer() -> Element {
         } else {
             "Preparing canonical board preview…".to_owned()
         };
-        return rsx! { p { role: "status", class: "m1-layout-viewer-status", "{message}" } };
+        return rsx! {
+            div {
+                p { role: "status", class: "m1-layout-viewer-status", "{message}" }
+                if let Some(blocker) = props.keycaps_fit.as_ref().and_then(|fit| fit.preview_blocker_message()) {
+                    p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+                } else if keycaps_preview_pending() {
+                    p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
+                }
+                if let Some(error) = keycaps_preview_error() {
+                    p { role: "alert", class: "m1-layout-viewer-status", "Keycap preview failed: {error}" }
+                    button {
+                        r#type: "button",
+                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
+                        "Retry keycaps"
+                    }
+                }
+            }
+        };
     };
 
     rsx! {
-        CaseSharedViewer {
-            scene: None,
-            preview: None,
-            layout_preview: Some(preview),
-            model_rows,
-            selected_layer: "pcb".to_owned(),
-            display: display(),
-            resolved_theme: theme,
-            on_signal,
-            on_display_change,
-            mechanical_settings: None,
+        div { class: "m1-layout-canonical-viewer",
+            if let Some(blocker) = props.keycaps_fit.as_ref().and_then(|fit| fit.preview_blocker_message()) {
+                p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+            } else if keycaps_preview_pending() {
+                p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
+            }
+            if let Some(error) = keycaps_preview_error() {
+                div { role: "alert", class: "m1-layout-viewer-status",
+                    p { "Keycap preview failed: {error}" }
+                    button {
+                        r#type: "button",
+                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
+                        "Retry keycaps"
+                    }
+                }
+            }
+            CaseSharedViewer {
+                scene: None,
+                preview: None,
+                layout_preview: Some(preview),
+                keycaps_preview: keycaps_preview(),
+                model_rows,
+                selected_layer: "pcb".to_owned(),
+                display: display(),
+                resolved_theme: theme,
+                on_signal,
+                on_display_change,
+                mechanical_settings: None,
+            }
         }
     }
 }

@@ -125,6 +125,17 @@ model conversions can be reused across geometry revisions within the same scope.
 Project session, board, or instance changes clear the previous scene and cache.
 Export model packaging has its own asset resolver because it packages source files
 rather than meshes.
+
+The Dioxus Keycaps route reuses the accepted `KeycapsFitState` result as the sole
+source of keycap specs and sends those specs to the already packaged
+`build_keycaps` service through a dedicated `CadWorker` facade. Runtime owns a
+separate preview worker from Case generation and STEP export. Scope, token,
+revision, and worker generation are rechecked around asynchronous boundaries;
+source change, supersession, unmount, and Runtime disposal close the worker and
+suppress late delivery. `build_keycaps` itself is synchronous inside the CAD
+worker, so it cannot cooperatively yield during the kernel call. The facade is
+public only across the actual page/library crate boundary; its wire remains
+private, and generic CAD requests and renderer contracts are unchanged.
 `assemblyEditorController` owns immutable member/model changes, assembly saves,
 and asset-import document guards. `MechanicalProfileController` owns asynchronous
 library/stabilizer profile assignment. It rejects responses after a scope change,

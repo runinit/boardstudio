@@ -39,6 +39,24 @@ pub struct CadScene {
     pub contours: Vec<boardstudio_core::model::Contour>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct KeycapsPreviewInput {
+    pub(crate) scope: Scope,
+    pub(crate) token: SnapshotToken,
+    pub(crate) revision: u64,
+    pub(crate) specs: Vec<KeycapSpec>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct KeycapsCadPreview {
+    pub(crate) generation: u64,
+    pub(crate) scope: Scope,
+    pub(crate) token: SnapshotToken,
+    pub(crate) revision: u64,
+    pub(crate) specs: Vec<KeycapSpec>,
+    pub(crate) bodies: Vec<boardstudio_web::cad_jobs::CadBodyMesh>,
+}
+
 #[cfg(test)]
 struct ProjectNamePersistGate {
     entered: futures_channel::oneshot::Sender<()>,
@@ -321,6 +339,8 @@ pub struct Runtime {
     project_deletion_open: Cell<Option<OperationId>>,
     cad_scene: RefCell<Option<Rc<CadScene>>>,
     cad_worker: RefCell<Option<(Scope, Rc<CadWorker>)>>,
+    keycaps_preview_generation: Cell<u64>,
+    keycaps_preview_worker: RefCell<Option<(u64, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     step_exports: RefCell<BTreeSet<OperationId>>,
     keycaps_step_exports: RefCell<BTreeSet<OperationId>>,
@@ -410,6 +430,8 @@ impl Runtime {
             project_deletion_open: Cell::new(None),
             cad_scene: RefCell::new(None),
             cad_worker: RefCell::new(None),
+            keycaps_preview_generation: Cell::new(0),
+            keycaps_preview_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
             step_exports: RefCell::new(BTreeSet::new()),
             keycaps_step_exports: RefCell::new(BTreeSet::new()),
@@ -1324,6 +1346,103 @@ impl Runtime {
         Ok(())
     }
 
+    /// Build the mesh preview from the already accepted Core keycap resolution. This worker is
+    /// independent from Case generation and STEP export so superseding a keycap view cannot
+    /// cancel or publish through either owner.
+    pub(crate) async fn request_keycaps_cad_preview(
+        self: &Rc<Self>,
+        input: KeycapsPreviewInput,
+    ) -> Result<KeycapsCadPreview, String> {
+        let generation = self
+            .keycaps_preview_generation
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| "Keycap CAD preview identity exhausted".to_owned())?;
+        self.keycaps_preview_generation.set(generation);
+        if let Some((_, previous)) = self.keycaps_preview_worker.borrow_mut().take() {
+            previous.close();
+        }
+
+        let accepted = self
+            .model()
+            .accepted
+            .ok_or_else(|| "The accepted Keycaps source is no longer open.".to_owned())?;
+        self.ensure_keycaps_source_current(&accepted, &input.scope)?;
+        if accepted.token != input.token || accepted.document.revision != input.revision {
+            return Err("The accepted Keycaps source changed before CAD preview started.".into());
+        }
+        let identity = CadSnapshotIdentity {
+            token: accepted.token.0,
+            session_epoch: accepted.session_epoch.0,
+            document_id: accepted.document.id.clone(),
+            board_id: input.scope.board_id.clone(),
+            instance_id: input.scope.instance_id.clone(),
+            revision: accepted.document.revision,
+        };
+        let worker = Rc::new(
+            CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                .map_err(|error| error.to_string())?,
+        );
+        *self.keycaps_preview_worker.borrow_mut() = Some((generation, worker.clone()));
+        let current =
+            || {
+                if self.keycaps_preview_generation.get() != generation
+                    || !self.keycaps_preview_worker.borrow().as_ref().is_some_and(
+                        |(active, owner)| *active == generation && Rc::ptr_eq(owner, &worker),
+                    )
+                {
+                    return Err("Keycap CAD preview was cancelled or superseded.".to_owned());
+                }
+                self.ensure_keycaps_source_current(&accepted, &input.scope)?;
+                if self.model().accepted.as_ref().is_none_or(|snapshot| {
+                    snapshot.token != input.token || snapshot.document.revision != input.revision
+                }) {
+                    return Err("Keycap CAD preview belongs to an older accepted revision.".into());
+                }
+                Ok(())
+            };
+        let result = async {
+            current()?;
+            worker.ready().await.map_err(|error| error.to_string())?;
+            current()?;
+            let request_id = format!("keycaps-preview-{generation}");
+            let job_id = format!("keycaps-preview-job-{generation}");
+            let result = worker
+                .request_keycaps_preview(request_id, job_id, identity, input.specs.clone())
+                .await
+                .map_err(|error| error.to_string())?;
+            current()?;
+            Ok(KeycapsCadPreview {
+                generation,
+                scope: input.scope.clone(),
+                token: input.token,
+                revision: input.revision,
+                specs: input.specs.clone(),
+                bodies: result.bodies,
+            })
+        }
+        .await;
+        if self
+            .keycaps_preview_worker
+            .borrow()
+            .as_ref()
+            .is_some_and(|(active, owner)| *active == generation && Rc::ptr_eq(owner, &worker))
+        {
+            self.keycaps_preview_worker.borrow_mut().take();
+        }
+        worker.close();
+        result
+    }
+
+    /// Retire the active preview worker on source change or viewer unmount.
+    pub(crate) fn cancel_keycaps_cad_preview(&self) {
+        self.keycaps_preview_generation
+            .set(self.keycaps_preview_generation.get().saturating_add(1));
+        if let Some((_, worker)) = self.keycaps_preview_worker.borrow_mut().take() {
+            worker.close();
+        }
+    }
+
     fn ensure_electrical_source_current(
         &self,
         accepted: &AcceptedSnapshot,
@@ -1422,8 +1541,21 @@ impl Runtime {
             return;
         }
         let previous_scope = self.scope();
+        let previous_snapshot = self
+            .model()
+            .accepted
+            .as_ref()
+            .map(|snapshot| (snapshot.token, snapshot.document.revision));
         let effects = self.session.borrow_mut().submit(event);
         self.invalidate_stale_native_case_preview();
+        let accepted_snapshot = self
+            .model()
+            .accepted
+            .as_ref()
+            .map(|snapshot| (snapshot.token, snapshot.document.revision));
+        if self.scope() != previous_scope || accepted_snapshot != previous_snapshot {
+            self.cancel_keycaps_cad_preview();
+        }
         if self.scope() != previous_scope {
             self.cad_scene.borrow_mut().take();
             if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
@@ -1558,8 +1690,22 @@ impl Runtime {
         }
     }
     fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
+        let previous_scope = self.scope();
+        let previous_snapshot = self
+            .model()
+            .accepted
+            .as_ref()
+            .map(|snapshot| (snapshot.token, snapshot.document.revision));
         let effects = self.session.borrow_mut().complete(event);
         self.invalidate_stale_native_case_preview();
+        let accepted_snapshot = self
+            .model()
+            .accepted
+            .as_ref()
+            .map(|snapshot| (snapshot.token, snapshot.document.revision));
+        if self.scope() != previous_scope || accepted_snapshot != previous_snapshot {
+            self.cancel_keycaps_cad_preview();
+        }
         self.changed();
         effects
     }
@@ -1572,6 +1718,7 @@ impl Runtime {
             }
             if this.model().lifecycle == Lifecycle::Closed {
                 this.cancel_frames();
+                this.cancel_keycaps_cad_preview();
                 if let Some((_, worker)) = this.cad_worker.borrow_mut().take() {
                     worker.close();
                 }
@@ -4336,6 +4483,9 @@ fn validate_preview_worker_envelope(
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.cancel_frames();
+        if let Some((_, worker)) = self.keycaps_preview_worker.get_mut().take() {
+            worker.close();
+        }
         if let Some((_, worker)) = self.cad_worker.borrow_mut().take() {
             worker.close();
         }

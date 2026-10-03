@@ -32,7 +32,7 @@ struct AcceptedFit {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct KeycapsFitState {
+pub(crate) struct KeycapsFitState {
     source: KeycapsFitSource,
     accepted: Option<AcceptedFit>,
     refreshing: bool,
@@ -114,6 +114,24 @@ impl KeycapsFitState {
                 .is_some_and(|accepted| accepted.source == self.source)
     }
 
+    pub(crate) fn current_preview_input(&self) -> Option<crate::runtime::KeycapsPreviewInput> {
+        let accepted = self.accepted.as_ref()?;
+        (self.is_current()
+            && accepted.result.revision == self.source.revision
+            && !accepted
+                .result
+                .findings
+                .iter()
+                .any(|finding| finding.severity == Severity::Error)
+            && !accepted.result.specs.is_empty())
+        .then(|| crate::runtime::KeycapsPreviewInput {
+            scope: self.source.scope.clone(),
+            token: self.source.token,
+            revision: self.source.revision,
+            specs: accepted.result.specs.clone(),
+        })
+    }
+
     pub(super) fn accepts_navigation(
         &self,
         request: &FindingNavigationRequest,
@@ -126,6 +144,29 @@ impl KeycapsFitState {
                         .iter()
                         .any(|finding| finding == &request.finding)
             })
+    }
+
+    pub(crate) fn preview_blocker_message(&self) -> Option<String> {
+        if self.refreshing {
+            return Some("Checking keycap fit…".into());
+        }
+        if let Some(error) = &self.error {
+            return Some(format!("Keycap preview unavailable: {error}"));
+        }
+        let accepted = self.accepted.as_ref()?;
+        if let Some(error) = accepted
+            .result
+            .findings
+            .iter()
+            .find(|finding| finding.severity == Severity::Error)
+        {
+            return Some(format!("Keycap preview unavailable: {}", error.message));
+        }
+        accepted
+            .result
+            .specs
+            .is_empty()
+            .then(|| "Choose a keycap profile in Keycaps to preview generated caps.".into())
     }
 }
 
