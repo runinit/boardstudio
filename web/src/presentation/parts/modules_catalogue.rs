@@ -406,6 +406,8 @@ pub(super) fn ModuleInspector(
     variants: Vec<ModuleEntry>,
     scope: Option<Scope>,
     mut selected: super::PartsSelection,
+    placement_id: Option<String>,
+    on_open_placement: EventHandler<String>,
 ) -> Element {
     let definition = &module.definition;
     let mut selection_generation = use_context::<super::PartsSelectionGeneration>().0;
@@ -466,6 +468,14 @@ pub(super) fn ModuleInspector(
             }
         }
         if project_owned { small { "Project snapshot" } }
+        if let Some(placement_id) = placement_id {
+            button {
+                class: "m1-parts-place-assembly",
+                r#type: "button",
+                onclick: move |_| on_open_placement.call(placement_id.clone()),
+                "Edit selected mounted placement"
+            }
+        }
         table { class: "m1-module-readiness",
             tbody {
                 for (output, label) in readiness {

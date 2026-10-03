@@ -996,10 +996,36 @@ pub(super) fn PartsInspectorPanel(
     placement_error: Option<String>,
     mut layout_target: Signal<Option<String>>,
     on_place_assembly: EventHandler<assembly_presets::MatrixPresetId>,
+    on_open_module_placement: EventHandler<String>,
 ) -> Element {
     let active_assembly = use_context::<PartsAssemblySelection>().0();
     let catalogue = use_catalogue(&snapshot, &scope);
     let selected_module_id = modules_catalogue::selected_id(selected(), &scope);
+    let selected_module_selection = selected().map(|(_, id)| id);
+    let selected_module_placement = selected_context()
+        .as_ref()
+        .filter(|tree| scope.as_ref() == Some(&tree.scope))
+        .and_then(|tree| match &tree.context {
+            super::objects::TreeContext::MountedModule {
+                board_id,
+                module_id,
+            } if scope
+                .as_ref()
+                .is_some_and(|scope| scope.board_id == *board_id) =>
+            {
+                snapshot
+                    .document
+                    .modules
+                    .iter()
+                    .find(|module| module.id == *module_id)
+                    .filter(|module| {
+                        Some(format!("module:{}", module.definition_id))
+                            == selected_module_selection
+                    })
+                    .map(|module| module.id.clone())
+            }
+            _ => None,
+        });
     let module_catalogue = modules_catalogue::use_catalogue(
         selected_module_id.is_some(),
         snapshot.token,
@@ -1069,7 +1095,7 @@ pub(super) fn PartsInspectorPanel(
             if let Some(module_id) = selected_module_id.as_deref() {
                 if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {
                     { let variants = module_catalogue.entries.as_deref().map(|entries| modules_catalogue::variants(entries, &module.row)).unwrap_or_default();
-                      rsx! { modules_catalogue::ModuleInspector { module: module.clone(), variants, scope: scope.clone(), selected } }
+                      rsx! { modules_catalogue::ModuleInspector { module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement } }
                     }
                 } else if let Some(error) = module_catalogue.error.as_ref() {
                     p { class: "m1-parts-load-error", role: "alert", "Module sources could not be loaded: {error}" }
