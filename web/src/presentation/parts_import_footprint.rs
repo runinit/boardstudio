@@ -16,6 +16,15 @@ pub(crate) struct ImportCapture {
     definition_id: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ImportOwner {
+    scope: Option<Scope>,
+    selection: Option<(Option<Scope>, String)>,
+    view_generation: u64,
+    scope_generation: u64,
+    workspace: &'static str,
+}
+
 impl ImportCapture {
     fn new(
         snapshot: &AcceptedSnapshot,
@@ -42,45 +51,29 @@ impl ImportCapture {
 fn capture_matches(
     capture: &ImportCapture,
     current: &AcceptedSnapshot,
-    current_scope: Option<&Scope>,
-    current_selection: &Option<(Option<Scope>, String)>,
-    view_generation: u64,
-    scope_generation: u64,
-    workspace: &str,
+    owner: &ImportOwner,
 ) -> bool {
-    current_scope == Some(&capture.scope)
-        && current_selection == &capture.selection
+    owner.scope.as_ref() == Some(&capture.scope)
+        && owner.selection == capture.selection
         && current.session_epoch == capture.session_epoch
         && current.document.id == capture.document_id
         && current.token == capture.snapshot_token
         && current.document.revision == capture.revision
         && capture.scope.document_id == capture.document_id
         && capture.scope.session_epoch == capture.session_epoch
-        && view_generation == capture.view_generation
-        && scope_generation == capture.scope_generation
-        && workspace == "Parts"
+        && owner.view_generation == capture.view_generation
+        && owner.scope_generation == capture.scope_generation
+        && owner.workspace == "Parts"
 }
 
-pub(crate) fn prepare_import_edit(
+fn prepare_import_edit(
     current: &AcceptedSnapshot,
-    current_scope: Option<&Scope>,
-    current_selection: &Option<(Option<Scope>, String)>,
-    view_generation: u64,
-    scope_generation: u64,
-    workspace: &str,
+    owner: &ImportOwner,
     capture: &ImportCapture,
     mut imported: CompiledFootprint,
     operation_id: OperationId,
 ) -> Result<Event, String> {
-    if !capture_matches(
-        capture,
-        current,
-        current_scope,
-        current_selection,
-        view_generation,
-        scope_generation,
-        workspace,
-    ) {
+    if !capture_matches(capture, current, owner) {
         return Err(
             "The Parts project or selection changed during the KiCad footprint import.".into(),
         );
@@ -125,20 +118,16 @@ pub(crate) fn prepare_import_edit(
 fn accepted_import_is_current(
     capture: &ImportCapture,
     current: &AcceptedSnapshot,
-    current_scope: Option<&Scope>,
-    current_selection: &Option<(Option<Scope>, String)>,
-    view_generation: u64,
-    scope_generation: u64,
-    workspace: &str,
+    owner: &ImportOwner,
 ) -> bool {
-    current_scope == Some(&capture.scope)
-        && current_selection == &capture.selection
+    owner.scope.as_ref() == Some(&capture.scope)
+        && owner.selection == capture.selection
         && current.session_epoch == capture.session_epoch
         && current.document.id == capture.document_id
         && current.document.revision > capture.revision
-        && view_generation == capture.view_generation
-        && scope_generation == capture.scope_generation
-        && workspace == "Parts"
+        && owner.view_generation == capture.view_generation
+        && owner.scope_generation == capture.scope_generation
+        && owner.workspace == "Parts"
         && current
             .document
             .definitions
@@ -148,10 +137,11 @@ fn accepted_import_is_current(
 
 #[cfg(target_arch = "wasm32")]
 mod ui {
-    use super::{ImportCapture, accepted_import_is_current, prepare_import_edit};
+    use super::{ImportCapture, ImportOwner, accepted_import_is_current, prepare_import_edit};
     use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
     use boardstudio_application::{AcceptedSnapshot, Scope, TerminalOutcome};
     use dioxus::prelude::*;
+    use dioxus_web::WebEventExt;
     use js_sys::{Date, Function, Reflect};
     use std::{cell::Cell, rc::Rc};
     use wasm_bindgen::{JsCast, JsValue};
@@ -237,11 +227,13 @@ mod ui {
                 if !accepted_import_is_current(
                     &waiting.capture,
                     snapshot,
-                    runtime.scope().as_ref(),
-                    &selected(),
-                    view_generation(),
-                    scope_generation(),
-                    workspace(),
+                    &ImportOwner {
+                        scope: runtime.scope(),
+                        selection: selected(),
+                        view_generation: view_generation(),
+                        scope_generation: scope_generation(),
+                        workspace: workspace(),
+                    },
                 ) {
                     return;
                 }
@@ -359,11 +351,13 @@ mod ui {
                             super::capture_matches(
                                 &capture,
                                 current,
-                                runtime.scope().as_ref(),
-                                &selected(),
-                                view_generation(),
-                                scope_generation(),
-                                workspace(),
+                                &ImportOwner {
+                                    scope: runtime.scope(),
+                                    selection: selected(),
+                                    view_generation: view_generation(),
+                                    scope_generation: scope_generation(),
+                                    workspace: workspace(),
+                                },
                             )
                         })
                     };
@@ -437,11 +431,13 @@ mod ui {
                         .collect::<Vec<_>>();
                     let event = match prepare_import_edit(
                         &current,
-                        runtime.scope().as_ref(),
-                        &selected(),
-                        view_generation(),
-                        scope_generation(),
-                        workspace(),
+                        &ImportOwner {
+                            scope: runtime.scope(),
+                            selection: selected(),
+                            view_generation: view_generation(),
+                            scope_generation: scope_generation(),
+                            workspace: workspace(),
+                        },
                         &capture,
                         compiled,
                         runtime.operation(),
