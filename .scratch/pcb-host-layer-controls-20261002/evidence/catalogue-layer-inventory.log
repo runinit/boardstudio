@@ -1,0 +1,15 @@
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/pcb-host-layer-controls-20261002/web)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.93s
+     Running unittests src/main.rs (web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-7af3c43e9b3cea42.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:43929/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::pcb_scene::mounted_layer_tests::pcb_rows_do_not_offer_the_layout_only_footprints_toggle
+test presentation::pcb_scene::mounted_layer_tests::pcb_rows_do_not_offer_the_layout_only_footprints_toggle ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 85 filtered out; finished in 0.01s
+
