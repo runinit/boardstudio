@@ -17,8 +17,9 @@ use boardstudio_core::model::{
     CaseOpening, GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
     InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
     MechanicalBottomStyle, MechanicalConfiguration, MechanicalCriticalFit, MechanicalGasketLayout,
-    MechanicalMount, MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartGenerator,
-    PartKind, PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    MechanicalHardwareSpecification, MechanicalMount, MechanicalSwitchFamily, Mount, MountKind,
+    Part, PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
+    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -967,6 +968,106 @@ fn apply_patch(
                 _ => return Err("The selected critical-fit endpoint is unavailable.".into()),
             }
         }
+        MechanicalSettingsPatch::AddHardware {
+            part_id,
+            feature_id,
+        } => {
+            if part_id.is_empty() || feature_id.is_empty() {
+                return Err("Link the hardware to a generated mount feature.".into());
+            }
+            let entries = configuration.hardware.get_or_insert_with(Vec::new);
+            let mut suffix = 1_u64;
+            let hardware_id = loop {
+                let candidate = format!("case-mechanical-hardware-{suffix}");
+                if !entries.iter().any(|entry| entry.id == candidate) {
+                    break candidate;
+                }
+                suffix = suffix
+                    .checked_add(1)
+                    .ok_or_else(|| "Hardware identity is exhausted.".to_owned())?;
+            };
+            entries.push(MechanicalHardwareSpecification {
+                id: hardware_id,
+                part_id: part_id.clone(),
+                feature_id: feature_id.clone(),
+                designation: "Socket screw".into(),
+                thread: "M2 × 0.4".into(),
+                length: 6.0,
+                quantity: 4,
+                notes: Some(String::new()),
+                tolerance: None,
+            });
+        }
+        MechanicalSettingsPatch::RemoveHardware { hardware_id } => {
+            let entries = configuration
+                .hardware
+                .as_mut()
+                .ok_or_else(|| "The selected hardware entry is no longer available.".to_owned())?;
+            let index = entries
+                .iter()
+                .position(|entry| entry.id == *hardware_id)
+                .ok_or_else(|| "The selected hardware entry is no longer available.".to_owned())?;
+            entries.remove(index);
+        }
+        MechanicalSettingsPatch::SetHardwareMount {
+            hardware_id,
+            part_id,
+            feature_id,
+        } => {
+            if part_id.is_empty() || feature_id.is_empty() {
+                return Err("Link the hardware to a generated mount feature.".into());
+            }
+            let entry = hardware_mut(configuration, hardware_id)?;
+            entry.part_id = part_id.clone();
+            entry.feature_id = feature_id.clone();
+        }
+        MechanicalSettingsPatch::SetHardwareText {
+            hardware_id,
+            field,
+            value,
+        } => {
+            let entry = hardware_mut(configuration, hardware_id)?;
+            match field {
+                super::mechanical_settings::MechanicalHardwareTextField::Designation => {
+                    entry.designation = value.clone()
+                }
+                super::mechanical_settings::MechanicalHardwareTextField::Thread => {
+                    entry.thread = value.clone()
+                }
+                super::mechanical_settings::MechanicalHardwareTextField::Tolerance => {
+                    entry.tolerance = Some(value.clone())
+                }
+                super::mechanical_settings::MechanicalHardwareTextField::Notes => {
+                    entry.notes = Some(value.clone())
+                }
+            }
+        }
+        MechanicalSettingsPatch::SetHardwareDimension {
+            hardware_id,
+            field,
+            value,
+        } => {
+            let entry = hardware_mut(configuration, hardware_id)?;
+            match field {
+                MechanicalDimension::HardwareLength => {
+                    if !value.is_finite() || *value < 0.1 {
+                        return Err("Hardware length must be at least 0.1 mm.".into());
+                    }
+                    entry.length = *value;
+                }
+                MechanicalDimension::HardwareQuantity => {
+                    if !value.is_finite()
+                        || *value < 1.0
+                        || value.fract() != 0.0
+                        || *value > f64::from(u32::MAX)
+                    {
+                        return Err("Hardware quantity must be a positive whole number.".into());
+                    }
+                    entry.quantity = *value as u32;
+                }
+                _ => return Err("The selected hardware dimension is unavailable.".into()),
+            }
+        }
         MechanicalSettingsPatch::SetOpenings(openings) => {
             validate_openings(openings)?;
             configuration.openings = Some(openings.clone());
@@ -1401,6 +1502,11 @@ fn apply_patch(
             | MechanicalSettingsPatch::SetCriticalFitText { .. }
             | MechanicalSettingsPatch::SetCriticalFitPart { .. }
             | MechanicalSettingsPatch::SetCriticalFitPoint { .. }
+            | MechanicalSettingsPatch::AddHardware { .. }
+            | MechanicalSettingsPatch::RemoveHardware { .. }
+            | MechanicalSettingsPatch::SetHardwareMount { .. }
+            | MechanicalSettingsPatch::SetHardwareText { .. }
+            | MechanicalSettingsPatch::SetHardwareDimension { .. }
             | MechanicalSettingsPatch::SetOpenings(_)
             | MechanicalSettingsPatch::SetOpeningDimension { .. }
     ) || matches!(
@@ -1596,6 +1702,9 @@ fn set_dimension(
         | MechanicalDimension::CriticalFitToY => {
             return Err("Critical-fit endpoint dimensions require a current fit selection.".into());
         }
+        MechanicalDimension::HardwareLength | MechanicalDimension::HardwareQuantity => {
+            return Err("Hardware dimensions require a current hardware selection.".into());
+        }
         MechanicalDimension::BatteryWidth
         | MechanicalDimension::BatteryDepth
         | MechanicalDimension::BatteryHeight
@@ -1630,7 +1739,11 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             MechanicalDimension::BatteryWidth
             | MechanicalDimension::BatteryDepth
             | MechanicalDimension::BatteryHeight
-            | MechanicalDimension::BatteryCableWidth => value >= 0.1,
+            | MechanicalDimension::BatteryCableWidth
+            | MechanicalDimension::HardwareLength => value >= 0.1,
+            MechanicalDimension::HardwareQuantity => {
+                value >= 1.0 && value.fract() == 0.0 && value <= f64::from(u32::MAX)
+            }
             MechanicalDimension::OpeningHeight => value >= 0.1,
             MechanicalDimension::GasketSupportLength => value >= 5.0,
             MechanicalDimension::GasketSupportWidth => value >= 0.5,
@@ -1665,6 +1778,10 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             | MechanicalDimension::BatteryCableWidth
     ) {
         Err("Battery dimensions and cable width must be at least 0.1 mm.".into())
+    } else if field == MechanicalDimension::HardwareLength {
+        Err("Hardware length must be at least 0.1 mm.".into())
+    } else if field == MechanicalDimension::HardwareQuantity {
+        Err("Hardware quantity must be a positive whole number.".into())
     } else if field == MechanicalDimension::OpeningHeight {
         Err("Access opening height must be at least 0.1 mm.".into())
     } else if matches!(
@@ -1917,6 +2034,17 @@ fn critical_fit_mut<'a>(
         .as_mut()
         .and_then(|fits| fits.iter_mut().find(|fit| fit.id == fit_id))
         .ok_or_else(|| "The selected critical fit is no longer available.".into())
+}
+
+fn hardware_mut<'a>(
+    configuration: &'a mut MechanicalConfiguration,
+    hardware_id: &str,
+) -> Result<&'a mut MechanicalHardwareSpecification, String> {
+    configuration
+        .hardware
+        .as_mut()
+        .and_then(|entries| entries.iter_mut().find(|entry| entry.id == hardware_id))
+        .ok_or_else(|| "The selected hardware entry is no longer available.".into())
 }
 
 fn resize_closure_insert(hardware: &mut InternalClosureHardware, id: &str) -> Result<(), String> {

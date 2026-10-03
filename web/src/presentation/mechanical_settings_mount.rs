@@ -6,9 +6,9 @@
 use super::case_viewer::CaseSelection;
 use super::mechanical_settings::{
     MechanicalBoardMismatch, MechanicalFindingRow, MechanicalFitPart, MechanicalGasketSupportRow,
-    MechanicalLayerRow, MechanicalProfileChoice, MechanicalSettingsFeedback,
-    MechanicalSettingsFeedbackState, MechanicalSettingsIdentity, MechanicalSettingsProps,
-    MechanicalSettingsValues,
+    MechanicalHardwareMount, MechanicalLayerRow, MechanicalProfileChoice,
+    MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
+    MechanicalSettingsProps, MechanicalSettingsValues,
 };
 use super::mechanical_settings_controller::{
     MechanicalResolution, MechanicalSettingsController, MechanicalSettingsCurrent,
@@ -524,6 +524,9 @@ pub(crate) fn use_mechanical_settings_mount(
         let fit_parts_resolved = scene_rows
             .as_ref()
             .is_some_and(|rows| rows.fit_parts_resolved);
+        let hardware_mounts = scene_rows
+            .as_ref()
+            .map_or_else(|| Rc::from([]), |rows| rows.hardware_mounts.clone());
         let suggested_mounts = scene_rows
             .as_ref()
             .map_or_else(|| Rc::from([]), |rows| rows.suggested_mounts.clone());
@@ -663,6 +666,8 @@ pub(crate) fn use_mechanical_settings_mount(
             gasket_supports,
             fit_parts,
             fit_parts_resolved,
+            hardware_mounts,
+            hardware_mounts,
             suggested_mounts,
             findings,
             selected_layer,
@@ -804,6 +809,7 @@ struct MechanicalSceneRows {
     gasket_supports: Rc<[MechanicalGasketSupportRow]>,
     fit_parts: Rc<[MechanicalFitPart]>,
     fit_parts_resolved: bool,
+    hardware_mounts: Rc<[MechanicalHardwareMount]>,
     suggested_mounts: Rc<[Mount]>,
     findings: Rc<[MechanicalFindingRow]>,
 }
@@ -882,11 +888,36 @@ fn project_scene_rows(
         })
         .collect::<Vec<_>>();
     let fit_parts_resolved = current_assembly.is_some();
+    let hardware_mounts = current_assembly
+        .into_iter()
+        .flat_map(|assembly| assembly.case.bodies.iter())
+        .flat_map(|body| {
+            let part_id = body.body.id.clone();
+            let part_name = if body.body.name.is_empty() {
+                part_id.clone()
+            } else {
+                body.body.name.clone()
+            };
+            body.body
+                .mounts
+                .iter()
+                .flatten()
+                .map(move |mount| MechanicalHardwareMount {
+                    part_id: part_id.clone(),
+                    part_name: part_name.clone(),
+                    feature_id: mount.id.clone(),
+                    kind: mount.kind.clone(),
+                    x: mount.at.x,
+                    y: mount.at.y,
+                })
+        })
+        .collect::<Vec<_>>();
     Some(MechanicalSceneRows {
         layers: Rc::from(layers),
         gasket_supports: Rc::from(gasket_supports),
         fit_parts: Rc::from(fit_parts),
         fit_parts_resolved,
+        hardware_mounts: Rc::from(hardware_mounts),
         suggested_mounts: Rc::from(suggested_mounts),
         findings: Rc::from(findings),
     })
@@ -964,6 +995,7 @@ fn settings_values(
             .internal_gasket
             .as_ref()
             .map(|settings| settings.hardware.clone()),
+        hardware: configuration.hardware.clone().unwrap_or_default(),
         critical_fits: configuration.critical_fits.clone().unwrap_or_default(),
         plate_to_pcb: configuration.plate_to_pcb,
         battery_height: configuration.battery_height,
