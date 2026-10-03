@@ -10,6 +10,10 @@
 
 **Status:** implementation in progress on `codex/keycaps-size-reflow-20261002` from integration `c701233e`; independent planning Spec/Standards are clear at the recorded exact hashes, and the fixture capability gates are proven in [the start receipt](../evidence/size-reflow/capability-start-gates.md). This status does not close the source review, browser journey, F6C.3 or F3.2/F3.5 joins.
 
+### Paired linked-key browser follow-up — 2026-10-03
+
+One selected linked key was resized from 1u×1u to 2u×1u through the mounted Layout Inspector in both pinned React and Dioxus candidate 34759. The mirror counterpart received the same size; the adjacent row placements moved symmetrically; the existing remaining-overlap warning remained visible; and Undo/Redo plus reload restored the accepted values. The bounded capture and derived fixture provenance are in [the paired receipt](../../dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md). This proves only the one-side selected linked-pair path. It does not cover both halves selected together, all mixed-selection/commit boundaries, or the F3.2/F3.5 joins, and it does not change the ticket's open status or acceptance checklist.
+
 - [ ] The contextual Layout Inspector shows Key size only when the accepted selection contains supported keycaps, with React-equivalent title, placement, labels, size output, and selection scope.
 - [ ] Width and height are derived from each selected placement, pitch, and edge gap using nearest-quarter-unit rounding; a heterogeneous selection visibly says Mixed.
 - [ ] Width and height sliders use the reference 1–7u range and 0.25u step. Changing one axis preserves the other for all selected items.
