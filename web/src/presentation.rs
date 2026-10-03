@@ -564,7 +564,7 @@ pub fn App() -> Element {
                     }
                 },
                     summary { "{project_name}" }
-                    Library {}
+                    Library { project_menu: true }
                 }
                 span { class: "m1-save-state", "data-state": "{save_state}", "{save_label}" }
                 WorkspaceNavigation {}
@@ -719,7 +719,7 @@ fn LibraryLanding() -> Element {
         section { class: "m1-library-landing",
             h1 { "Open a keyboard" }
             p { "Choose a demo copy, open a saved project, or import a BoardStudio archive." }
-            Library {}
+            Library { project_menu: false }
         }
     }
 }

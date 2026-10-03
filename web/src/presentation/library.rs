@@ -264,7 +264,7 @@ fn KeyboardCard(document: Arc<ProjectDoc>, current: bool, recovery_required: boo
 }
 
 #[component]
-pub(super) fn Library() -> Element {
+pub(super) fn Library(project_menu: bool) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let version = use_context::<Signal<u64>>();
     let _ = version();
@@ -292,7 +292,8 @@ pub(super) fn Library() -> Element {
         }
     });
     let start_new_card = start_new.clone();
-    let start_new_menu = start_new.clone();
+    let start_new_menu_top = start_new.clone();
+    let start_new_menu_landing = start_new.clone();
     let recovery_required =
         runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired;
     let current_snapshot = runtime.model().accepted;
@@ -389,14 +390,42 @@ pub(super) fn Library() -> Element {
     }
     let reviung = runtime.clone();
     let sofle = runtime.clone();
+    let menu_reviung = runtime.clone();
+    let menu_sofle = runtime.clone();
     let import = runtime.clone();
+    let menu_import = import.clone();
     let current_name_for_blur = current_name.clone();
     let rename_action_for_blur = name_action.clone();
     let mut guide_request = project_created;
     let mut guide_request_counter = guide_request_counter;
     let retry_generations = request_generation.clone();
     rsx! {
-        section { class: "m1-library", "aria-label": "Your keyboards",
+        section { class: if project_menu { "m1-library m1-project-menu-library" } else { "m1-library" }, "aria-label": if project_menu { "Project menu" } else { "Your keyboards" },
+            if project_menu {
+                header { class: "m1-project-menu-heading",
+                    h2 { "Keyboards" }
+                    button { r#type: "button", aria_label: "Close project menu", onclick: |_| super::close_project_menu(),
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m5 5 10 10M15 5 5 15" } }
+                    }
+                }
+                div { class: "m1-project-menu-actions",
+                    button { class: "m1-library-new", r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_top(),
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 3v14M3 10h14" } }
+                        "New project"
+                    }
+                    label { class: "m1-project-menu-open",
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 6V4h6l2 2h8v3M2 6v11h14l2-8H5l-3 8" } }
+                        "Open project…"
+                        input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                            let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
+                            let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
+                            super::close_project_menu();
+                            menu_import.import_file(file);
+                            input.set_value("");
+                        }}
+                    }
+                }
+            }
             if has_current {
                 section { class: "m1-project-current", "aria-label": "Current project",
                     label { class: "m1-project-title",
@@ -438,61 +467,88 @@ pub(super) fn Library() -> Element {
                     }
                 }
             }
-            header { class: "m1-library-heading",
-                h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{cards.len()}" } } }
-                span { "Saved in this browser" }
-            }
-            if status() == ListStatus::Loading {
-                p { role: "status", "Loading saved keyboards…" }
-            }
-            if status() == ListStatus::Failed {
-                p { role: "alert", "Saved keyboards could not be loaded. "
-                    button { class: "m1-library-text-action", r#type: "button", onclick: move |_| {
-                        if let Some(generation) = retry_generations.get().checked_add(1) {
-                            retry_generations.set(generation);
-                            retry += 1;
+            div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
+                header { class: "m1-library-heading",
+                    h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{cards.len()}" } } }
+                    span { "Saved in this browser" }
+                }
+                if status() == ListStatus::Loading {
+                    p { role: "status", "Loading saved keyboards…" }
+                }
+                if status() == ListStatus::Failed {
+                    p { role: "alert", "Saved keyboards could not be loaded. "
+                        button { class: "m1-library-text-action", r#type: "button", onclick: move |_| {
+                            if let Some(generation) = retry_generations.get().checked_add(1) {
+                                retry_generations.set(generation);
+                                retry += 1;
+                            }
+                        }, "Try again" }
+                    }
+                }
+                div { class: "m1-keyboard-grid",
+                    button {
+                        class: "m1-keyboard-tile m1-keyboard-new",
+                        r#type: "button",
+                        aria_label: "Create new keyboard",
+                        disabled: pending_new().is_some(),
+                        onclick: move |_| start_new_card(),
+                        div { class: "m1-keyboard-preview", "aria-hidden": "true", "＋" }
+                        span { class: "m1-keyboard-title", "New keyboard" }
+                        span { class: "m1-keyboard-detail", "Start with guided setup" }
+                    }
+                    for (document, is_current) in cards {
+                        KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required }
+                    }
+                }
+                if project_menu {
+                    div { class: "m1-project-menu-demo-actions",
+                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); menu_reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
+                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); menu_sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
+                    }
+                } else {
+                    div { class: "m1-library-actions",
+                        button { r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_landing(), "New project" }
+                        if let Some(project_id) = current_project_id.clone() {
+                            button { r#type: "button", onclick: move |_| {
+                                guide_request_counter += 1;
+                                guide_request.set(Some(SetupGuideRequest {
+                                    project_id: project_id.clone(),
+                                    request_id: format!("{}-guide-{}", project_id, guide_request_counter()),
+                                    start_at_project: false,
+                                }));
+                                super::close_project_menu();
+                            }, "Setup guide" }
                         }
-                    }, "Try again" }
+                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
+                        button { r#type: "button", onclick: move |_| { super::close_project_menu(); sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
+                        label { "Import .boardstudio"
+                            input { r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                                let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
+                                let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
+                                super::close_project_menu();
+                                import.import_file(file);
+                                input.set_value("");
+                            }}
+                        }
+                    }
                 }
             }
-            div { class: "m1-keyboard-grid",
-                button {
-                    class: "m1-keyboard-tile m1-keyboard-new",
-                    r#type: "button",
-                    aria_label: "Create new keyboard",
-                    disabled: pending_new().is_some(),
-                    onclick: move |_| start_new_card(),
-                    div { class: "m1-keyboard-preview", "aria-hidden": "true", "＋" }
-                    span { class: "m1-keyboard-title", "New keyboard" }
-                    span { class: "m1-keyboard-detail", "Start with guided setup" }
-                }
-                for (document, is_current) in cards {
-                    KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required }
-                }
-            }
-            div { class: "m1-library-actions",
-                button { r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu(), "New project" }
-                if let Some(project_id) = current_project_id {
-                    button { r#type: "button", onclick: move |_| {
-                        guide_request_counter += 1;
-                        guide_request.set(Some(SetupGuideRequest {
-                            project_id: project_id.clone(),
-                            request_id: format!("{}-guide-{}", project_id, guide_request_counter()),
-                            start_at_project: false,
-                        }));
-                        super::close_project_menu();
-                    }, "Setup guide" }
-                }
-                button { r#type: "button", onclick: move |_| { super::close_project_menu(); reviung.open_fixture("reviung41"); }, "REVIUNG41 copy" }
-                button { r#type: "button", onclick: move |_| { super::close_project_menu(); sofle.open_fixture("sofle"); }, "Sofle v2 copy" }
-                label { "Import .boardstudio"
-                    input { r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
-                        let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
-                        let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
-                        super::close_project_menu();
-                        import.import_file(file);
-                        input.set_value("");
-                    }}
+            if project_menu {
+                footer { class: "m1-project-menu-footer",
+                    if let Some(project_id) = current_project_id {
+                        button { r#type: "button", onclick: move |_| {
+                            guide_request_counter += 1;
+                            guide_request.set(Some(SetupGuideRequest {
+                                project_id: project_id.clone(),
+                                request_id: format!("{}-guide-{}", project_id, guide_request_counter()),
+                                start_at_project: false,
+                            }));
+                            super::close_project_menu();
+                        },
+                            svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 3h5l2 2 2-2h5v13h-5l-2 2-2-2H3ZM10 5v13" } }
+                            "Setup guide"
+                        }
+                    }
                 }
             }
             if pending_new().is_some() { p { role: "status", "Creating keyboard…" } }
@@ -598,7 +654,12 @@ mod mounted_tests {
         use_context_provider(|| pending_new);
         use_context_provider(|| new_error);
         if show_library() {
-            rsx! { Library {} }
+            rsx! {
+                details { class: "m1-project-menu", open: true,
+                    summary { "Project" }
+                    Library { project_menu: true }
+                }
+            }
         } else {
             rsx! { div { "Library unmounted" } }
         }
@@ -757,6 +818,78 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
+
+        let project_menu = root
+            .query_selector(".m1-project-menu-library")
+            .unwrap()
+            .expect("menu instance uses the dropdown composition");
+        let menu_children = project_menu.children();
+        assert_eq!(
+            menu_children
+                .item(0)
+                .unwrap()
+                .get_attribute("class")
+                .as_deref(),
+            Some("m1-project-menu-heading")
+        );
+        assert_eq!(
+            menu_children
+                .item(1)
+                .unwrap()
+                .get_attribute("class")
+                .as_deref(),
+            Some("m1-project-menu-actions")
+        );
+        assert_eq!(
+            menu_children
+                .item(2)
+                .unwrap()
+                .get_attribute("class")
+                .as_deref(),
+            Some("m1-project-current")
+        );
+        assert_eq!(
+            menu_children
+                .item(3)
+                .unwrap()
+                .get_attribute("class")
+                .as_deref(),
+            Some("m1-library-content m1-library-scroll")
+        );
+        assert_eq!(
+            menu_children
+                .item(4)
+                .unwrap()
+                .get_attribute("class")
+                .as_deref(),
+            Some("m1-project-menu-footer")
+        );
+        assert!(
+            root.query_selector(".m1-project-menu-heading h2")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap()
+                .contains("Keyboards")
+        );
+        assert!(
+            root.query_selector(".m1-project-menu-actions .m1-library-new")
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            root.query_selector(".m1-project-menu-actions .m1-project-menu-open")
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            root.query_selector(".m1-project-menu-footer button")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap()
+                .contains("Setup guide")
+        );
 
         assert_eq!(field().value(), "Sofle v2");
         let label = field().parent_element().unwrap();
