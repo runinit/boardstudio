@@ -20,8 +20,9 @@ use boardstudio_core::{
 use boardstudio_web::host::{BrowserStore, CoreWorker};
 use boardstudio_web::{
     cad_jobs::{
-        CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity, captured_case_scene,
-        prepare_captured_case, prepare_captured_step_assembly, validate_reply,
+        CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
+        captured_case_document, captured_case_scene, prepare_captured_case,
+        prepare_captured_step_assembly, validate_reply,
     },
     cad_worker::CadWorker,
 };
@@ -314,6 +315,18 @@ struct PcbHandoffCapture {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct MechanicalExportCapture {
+    scope: Scope,
+    token: SnapshotToken,
+    revision: u64,
+    session_epoch: boardstudio_application::SessionEpoch,
+    document_id: String,
+    executor_epoch: boardstudio_application::ExecutorEpoch,
+    core_worker_identity: usize,
+    filename: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct FirmwareAcceptedIdentity {
     session_epoch: boardstudio_application::SessionEpoch,
     document_id: String,
@@ -408,6 +421,7 @@ pub struct Runtime {
     firmware_exports: RefCell<BTreeMap<OperationId, FirmwareExportCapture>>,
     footprint_exports: RefCell<BTreeMap<OperationId, FootprintExportCapture>>,
     pcb_handoff_exports: RefCell<BTreeMap<OperationId, PcbHandoffCapture>>,
+    mechanical_exports: RefCell<BTreeMap<OperationId, MechanicalExportCapture>>,
     latest_firmware_export: Cell<Option<OperationId>>,
     firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
@@ -501,6 +515,7 @@ impl Runtime {
             firmware_exports: RefCell::new(BTreeMap::new()),
             footprint_exports: RefCell::new(BTreeMap::new()),
             pcb_handoff_exports: RefCell::new(BTreeMap::new()),
+            mechanical_exports: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
             firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
@@ -1930,6 +1945,7 @@ impl Runtime {
                 let firmware_capture = self.firmware_exports.borrow_mut().remove(&operation_id);
                 self.footprint_exports.borrow_mut().remove(&operation_id);
                 self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
+                self.mechanical_exports.borrow_mut().remove(&operation_id);
                 let delivery_error = self
                     .firmware_export_delivery_errors
                     .borrow_mut()
@@ -2054,6 +2070,8 @@ impl Runtime {
                     .pcb_handoff_exports
                     .borrow()
                     .contains_key(&operation_id);
+                let is_mechanical_export =
+                    self.mechanical_exports.borrow().contains_key(&operation_id);
                 let result = if is_pcb_handoff_export {
                     let draft = self
                         .pcb_handoff_exports
@@ -2061,6 +2079,9 @@ impl Runtime {
                         .get(&operation_id)
                         .is_some_and(|capture| capture.draft);
                     self.pcb_handoff_bytes(operation_id, &snapshot, &scope, draft)
+                        .await
+                } else if is_mechanical_export {
+                    self.mechanical_package_bytes(operation_id, &snapshot, &scope)
                         .await
                 } else if is_footprint_export {
                     self.footprint_export_bytes(operation_id, &snapshot, &scope)
@@ -2155,6 +2176,16 @@ impl Runtime {
                                 ),
                                 Some("application/zip".to_owned()),
                             )
+                        } else if is_mechanical_export {
+                            let filename = self
+                                .mechanical_exports
+                                .borrow()
+                                .get(&operation_id)
+                                .map(|capture| capture.filename.clone())
+                                .unwrap_or_else(|| {
+                                    format!("{}-mechanical.zip", snapshot.document.name)
+                                });
+                            (filename, Some("application/zip".to_owned()))
                         } else {
                             (archive_filename(&snapshot.document.name), None)
                         };
@@ -2235,6 +2266,7 @@ impl Runtime {
                 self.archive_export_options.cancel(operation_id);
                 self.footprint_exports.borrow_mut().remove(&operation_id);
                 self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
+                self.mechanical_exports.borrow_mut().remove(&operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
@@ -3665,6 +3697,135 @@ impl Runtime {
             scope,
         });
     }
+
+    pub(crate) fn export_mechanical(self: &Rc<Self>) {
+        if self.mechanical_mount_initialization_pending() {
+            self.apply_report(RuntimeReport::alert(
+                "Finish preparing mounting locations before exporting the mechanical assembly.",
+            ));
+            return;
+        }
+        let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert(
+                "Select a physical board before exporting the mechanical assembly.",
+            ));
+            return;
+        };
+        let model = self.model();
+        let Some(snapshot) = model.accepted else {
+            self.apply_report(RuntimeReport::alert(
+                "Mechanical export requires a ready accepted snapshot.",
+            ));
+            return;
+        };
+        if model.active_board_id != scope.board_id
+            || snapshot.scene.revision != snapshot.document.revision
+        {
+            self.apply_report(RuntimeReport::alert(
+                "The selected board is still resolving; export the current revision again.",
+            ));
+            return;
+        }
+        let document = match captured_case_document(&snapshot, &scope) {
+            Ok(document) => document,
+            Err(error) => {
+                self.apply_report(RuntimeReport::alert(format!(
+                    "Could not capture the selected mechanical configuration: {error:?}"
+                )));
+                return;
+            }
+        };
+        let Some(configuration) = document.mechanical.as_ref() else {
+            self.apply_report(RuntimeReport::alert(
+                "Enable a mechanical assembly for the selected board before export.",
+            ));
+            return;
+        };
+        if configuration.board_id != scope.board_id {
+            self.apply_report(RuntimeReport::alert(
+                "The selected mechanical configuration belongs to another board.",
+            ));
+            return;
+        }
+        let outline_ready = snapshot
+            .scene
+            .board_readiness
+            .iter()
+            .find(|item| item.board_id == scope.board_id)
+            .map_or(
+                snapshot.document.boards.len() <= 1 && snapshot.scene.readiness.outline,
+                |item| item.outline,
+            );
+        if !outline_ready {
+            self.apply_report(RuntimeReport::alert(
+                "Resolve active outline findings before exporting plate or case artifacts.",
+            ));
+            return;
+        }
+        let exact_generation = matches!(
+            model.generation,
+            boardstudio_application::GenerationStatus::Ready { exact: true, .. }
+        );
+        let exact_scene_ready = self.cad_scene().is_some_and(|cad| {
+            cad.scope == scope
+                && cad.token == snapshot.token
+                && cad.exact
+                && cad.mechanical.as_ref().is_some_and(|assembly| {
+                    assembly.revision == snapshot.document.revision
+                        && !assembly.generation_blocked
+                        && !assembly.diagnostics.iter().any(|finding| {
+                            finding.severity == boardstudio_core::model::Severity::Error
+                        })
+                })
+        });
+        if !exact_generation || !exact_scene_ready {
+            self.apply_report(RuntimeReport::alert(
+                "Update the current mechanical preview before export.",
+            ));
+            return;
+        }
+        let instance_suffix = match scope.instance_id.as_deref() {
+            Some(instance_id) => {
+                let Some(instance) = snapshot.document.hardware.as_ref().and_then(|hardware| {
+                    hardware
+                        .instances
+                        .iter()
+                        .find(|item| item.id == instance_id && item.board_id == scope.board_id)
+                }) else {
+                    self.apply_report(RuntimeReport::alert(
+                        "The selected mechanical instance is no longer in this project.",
+                    ));
+                    return;
+                };
+                format!("-{}", mechanical_filename_component(&instance.name))
+            }
+            None => String::new(),
+        };
+        self.clear_alert();
+        let operation_id = self.operation();
+        let core = self.core.borrow().clone();
+        self.mechanical_exports.borrow_mut().insert(
+            operation_id,
+            MechanicalExportCapture {
+                scope: scope.clone(),
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                session_epoch: snapshot.session_epoch,
+                document_id: snapshot.document.id.clone(),
+                executor_epoch: self.session.borrow().core_executor_epoch(),
+                core_worker_identity: Rc::as_ptr(&core) as usize,
+                filename: format!(
+                    "{}{}-mechanical.zip",
+                    snapshot.document.name, instance_suffix
+                ),
+            },
+        );
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+
     pub(crate) fn export_keycaps_step(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.apply_report(RuntimeReport::alert("Select a board before export"));
@@ -3971,6 +4132,376 @@ impl Runtime {
             return Err("KiCad handoff was superseded before delivery.".into());
         }
         Ok((archive, capture.token))
+    }
+
+    async fn mechanical_package_bytes(
+        self: &Rc<Self>,
+        operation_id: OperationId,
+        initial_snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<Vec<u8>, String> {
+        let capture = self
+            .mechanical_exports
+            .borrow()
+            .get(&operation_id)
+            .cloned()
+            .ok_or_else(|| "Mechanical export owner was cancelled or superseded.".to_owned())?;
+        if capture.scope != *scope
+            || capture.token != initial_snapshot.token
+            || capture.revision != initial_snapshot.document.revision
+            || capture.session_epoch != initial_snapshot.session_epoch
+            || capture.document_id != initial_snapshot.document.id
+        {
+            return Err("Mechanical export no longer matches its captured project.".into());
+        }
+        let core = self.core.borrow().clone();
+        let runtime = self.clone();
+        let ensure_current = || {
+            if runtime.mechanical_export_capture_is_current(operation_id, &capture, &core) {
+                Ok(())
+            } else {
+                Err("Mechanical export was cancelled, superseded, or its source changed.".into())
+            }
+        };
+        ensure_current()?;
+        let document = captured_case_document(initial_snapshot, scope)
+            .map_err(|error| format!("Could not capture mechanical document: {error:?}"))?;
+        let scene = captured_case_scene(initial_snapshot, scope)
+            .map_err(|error| format!("Could not capture mechanical scene: {error:?}"))?;
+        let configuration = document
+            .mechanical
+            .as_ref()
+            .filter(|configuration| configuration.board_id == scope.board_id)
+            .ok_or_else(|| {
+                "Enable a mechanical assembly for the selected board before export.".to_owned()
+            })?;
+        let outline_ready = initial_snapshot
+            .scene
+            .board_readiness
+            .iter()
+            .find(|item| item.board_id == scope.board_id)
+            .map_or(
+                initial_snapshot.document.boards.len() <= 1
+                    && initial_snapshot.scene.readiness.outline,
+                |item| item.outline,
+            );
+        if !outline_ready {
+            return Err(
+                "Resolve active outline findings before exporting plate or case artifacts.".into(),
+            );
+        }
+        let contours = scene
+            .board_contours
+            .iter()
+            .find(|item| item.board_id == scope.board_id)
+            .map(|item| item.contours.clone())
+            .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
+        let executor_epoch = capture.executor_epoch.0.to_string();
+        let prepared = prepare_captured_step_assembly(
+            &core,
+            &executor_epoch,
+            &format!("mechanical-export-{}", operation_id.0),
+            initial_snapshot,
+            scope,
+        )
+        .await
+        .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
+        ensure_current()?;
+        let assembly = prepared
+            .mechanical_assembly
+            .as_ref()
+            .ok_or_else(|| "Core did not resolve a generated mechanical assembly.".to_owned())?;
+        if assembly.revision != capture.revision
+            || assembly.case.revision != capture.revision
+            || assembly.generation_blocked
+        {
+            return Err("Mechanical assembly is blocked or belongs to another revision.".into());
+        }
+        let errors = assembly
+            .diagnostics
+            .iter()
+            .filter(|finding| finding.severity == boardstudio_core::model::Severity::Error)
+            .map(|finding| finding.message.clone())
+            .collect::<Vec<_>>();
+        if !errors.is_empty() {
+            return Err(errors.join("\n"));
+        }
+
+        let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+        let mut paths = BTreeSet::new();
+        let plate_method = configuration
+            .part_processes
+            .as_ref()
+            .and_then(|processes| processes.iter().find(|process| process.part_id == "plate"))
+            .map(|process| &process.method)
+            .unwrap_or(&configuration.method);
+        if matches!(plate_method, boardstudio_core::model::PlateMethod::PcbFr4) {
+            let request_id = format!("mechanical-plate-{}", operation_id.0);
+            let request = ArtifactRequest::ExportMechanicalPlate {
+                id: request_id.clone(),
+                document: document.clone(),
+                contours: contours.clone(),
+            };
+            let reply = core
+                .artifact(&request_id, &executor_epoch, &request)
+                .await
+                .map_err(|error| format!("Mechanical plate export failed: {error}"))?;
+            ensure_current()?;
+            let result = match reply {
+                ArtifactReply::ExportMechanicalPlate { id, result } if id == request_id => result,
+                ArtifactReply::Error { id, error } if id == request_id => {
+                    return Err(format!("Mechanical plate export failed: {}", error.message));
+                }
+                _ => return Err("Core returned an unexpected mechanical plate artifact.".into()),
+            };
+            if result.revision != capture.revision {
+                return Err("Core returned a mechanical plate for another revision.".into());
+            }
+            for file in result.files {
+                push_mechanical_file(
+                    &mut files,
+                    &mut paths,
+                    format!("plate-kicad/{}", file.filename),
+                    file.content.into_bytes(),
+                )?;
+            }
+        }
+
+        let worker_url = resource_url("assets/cad-worker/entry.js")?;
+        let worker = Rc::new(CadWorker::new(&worker_url).map_err(|error| error.to_string())?);
+        self.export_workers
+            .borrow_mut()
+            .insert(operation_id, worker.clone());
+        let cad_output = async {
+            worker.ready().await.map_err(|error| error.to_string())?;
+            ensure_current()?;
+            let assembled = request_exact_cad(
+                &worker,
+                operation_id,
+                "assembly",
+                &prepared.identity,
+                prepared.prepared.clone(),
+            )
+            .await?;
+            ensure_current()?;
+            if assembled.step.is_empty() {
+                return Err("CAD returned no assembled STEP data.".into());
+            }
+            push_mechanical_file(
+                &mut files,
+                &mut paths,
+                "assembly.step".into(),
+                assembled.step,
+            )?;
+
+            let board = document
+                .boards
+                .iter()
+                .find(|board| board.id == scope.board_id)
+                .ok_or_else(|| "The selected board is no longer available.".to_owned())?;
+            for (index, source) in assembly.case.bodies.iter().enumerate() {
+                ensure_current()?;
+                let prepared_body = prepared
+                    .prepared
+                    .bodies
+                    .iter()
+                    .find(|body| body.body.id == source.body.id)
+                    .cloned()
+                    .ok_or_else(|| format!("Prepared CAD body '{}' is missing.", source.body.id))?;
+                let part_name = format!(
+                    "{}-{}",
+                    index + 1,
+                    mechanical_filename_component(&source.body.name)
+                );
+                let result = request_exact_cad(
+                    &worker,
+                    operation_id,
+                    &format!("part-{index}"),
+                    &prepared.identity,
+                    boardstudio_core::model::PreparedCaseAssemblyIR {
+                        revision: prepared.identity.revision,
+                        bodies: vec![prepared_body],
+                    },
+                )
+                .await?;
+                ensure_current()?;
+                let mesh = result
+                    .mesh
+                    .as_ref()
+                    .ok_or_else(|| format!("CAD returned no mesh for {part_name}."))?;
+                push_mechanical_file(
+                    &mut files,
+                    &mut paths,
+                    format!("parts/{part_name}.step"),
+                    result.step,
+                )?;
+                push_mechanical_file(
+                    &mut files,
+                    &mut paths,
+                    format!("parts/{part_name}.stl"),
+                    mechanical_stl(mesh)?,
+                )?;
+
+                let mut outline_contours = source.contours.clone();
+                for mount in source.body.mounts.iter().flatten() {
+                    outline_contours.push(boardstudio_core::model::Contour {
+                        hole: true,
+                        points: (0..96)
+                            .map(|point| {
+                                let angle = point as f64 * std::f64::consts::TAU / 96.0;
+                                boardstudio_core::model::Vec2 {
+                                    x: mount.at.x + mount.hole_diameter / 2.0 * angle.cos(),
+                                    y: mount.at.y + mount.hole_diameter / 2.0 * angle.sin(),
+                                }
+                            })
+                            .collect(),
+                    });
+                }
+                let mut export_board = board.clone();
+                export_board.id = source.body.id.clone();
+                export_board.name = source.body.name.clone();
+                export_board.outline_ids.clear();
+                export_board.part_ids.clear();
+                export_board.net_ids.clear();
+                export_board.traces.clear();
+                export_board.vias.clear();
+                for (extension, format) in [
+                    ("dxf", OutlineExportFormat::Dxf),
+                    ("svg", OutlineExportFormat::Svg),
+                ] {
+                    let filename = format!("{part_name}.{extension}");
+                    let request_id =
+                        format!("mechanical-outline-{}-{index}-{extension}", operation_id.0);
+                    let request = ArtifactRequest::ExportOutline {
+                        id: request_id.clone(),
+                        request: boardstudio_core::model::OutlineExportRequest {
+                            filename: filename.clone(),
+                            board: export_board.clone(),
+                            contours: outline_contours.clone(),
+                            format,
+                        },
+                    };
+                    let reply = core
+                        .artifact(&request_id, &executor_epoch, &request)
+                        .await
+                        .map_err(|error| format!("Mechanical outline export failed: {error}"))?;
+                    ensure_current()?;
+                    let file = match reply {
+                        ArtifactReply::ExportOutline { id, result } if id == request_id => result,
+                        ArtifactReply::Error { id, error } if id == request_id => {
+                            return Err(format!(
+                                "Mechanical outline export failed: {}",
+                                error.message
+                            ));
+                        }
+                        _ => return Err("Core returned an unexpected mechanical outline.".into()),
+                    };
+                    if file.filename != filename {
+                        return Err("Core returned a mechanical outline under another name.".into());
+                    }
+                    push_mechanical_file(
+                        &mut files,
+                        &mut paths,
+                        format!("outlines/{}", file.filename),
+                        file.content.into_bytes(),
+                    )?;
+                }
+            }
+            Ok::<(), String>(())
+        }
+        .await;
+        worker.close();
+        self.export_workers.borrow_mut().remove(&operation_id);
+        cad_output?;
+        ensure_current()?;
+
+        push_mechanical_file(
+            &mut files,
+            &mut paths,
+            "FABRICATION.md".into(),
+            mechanical_fabrication_notes(&document, assembly).into_bytes(),
+        )?;
+        push_mechanical_file(
+            &mut files,
+            &mut paths,
+            "critical-fit.svg".into(),
+            critical_fit_drawing(assembly, configuration)?.into_bytes(),
+        )?;
+        let assembly_json = serde_json::json!({
+            "revision": capture.revision,
+            "pcbReference": "Nominal unpopulated PCB only; component solids are not included",
+            "stack": assembly.stack,
+            "diagnostics": assembly.diagnostics,
+        });
+        push_mechanical_file(
+            &mut files,
+            &mut paths,
+            "assembly.json".into(),
+            serde_json::to_vec_pretty(&assembly_json)
+                .map_err(|error| format!("Could not serialize mechanical assembly: {error}"))?,
+        )?;
+        ensure_current()?;
+        let entries = files
+            .iter()
+            .enumerate()
+            .map(|(index, (path, _))| {
+                Ok(ArchiveEntry {
+                    path: path.clone(),
+                    buffer_index: u32::try_from(index)
+                        .map_err(|_| "Too many mechanical package files.".to_owned())?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
+            .map_err(|error| format!("Could not prepare mechanical ZIP request: {error}"))?;
+        let buffers = files
+            .iter()
+            .map(|(_, contents)| Uint8Array::from(contents.as_slice()))
+            .collect();
+        let archive_id = format!("mechanical-archive-{}", operation_id.0);
+        let packed = core
+            .archive(&archive_id, &executor_epoch, &metadata, buffers)
+            .await
+            .map_err(|error| format!("Mechanical packaging failed: {error}"))?;
+        ensure_current()?;
+        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
+            .map_err(|error| format!("Could not read mechanical ZIP result: {error}"))?
+        {
+            ArchiveReply::Packed => packed
+                .buffers
+                .first()
+                .map(Uint8Array::to_vec)
+                .filter(|bytes| !bytes.is_empty())
+                .ok_or_else(|| "Mechanical ZIP provider returned no bytes.".into()),
+            ArchiveReply::Error { message } => {
+                Err(format!("Mechanical packaging failed: {message}"))
+            }
+            ArchiveReply::Unpacked { .. } => {
+                Err("Core returned an unpacked project for mechanical export.".into())
+            }
+        }
+    }
+
+    fn mechanical_export_capture_is_current(
+        &self,
+        operation_id: OperationId,
+        capture: &MechanicalExportCapture,
+        core: &Rc<CoreWorker>,
+    ) -> bool {
+        let current_core = self.core.borrow().clone();
+        self.mechanical_exports.borrow().get(&operation_id) == Some(capture)
+            && self.export_current(operation_id, capture.token, &capture.scope)
+            && self.scope().as_ref() == Some(&capture.scope)
+            && self.model().accepted.as_ref().is_some_and(|snapshot| {
+                snapshot.token == capture.token
+                    && snapshot.document.id == capture.document_id
+                    && snapshot.document.revision == capture.revision
+                    && snapshot.scene.revision == capture.revision
+                    && snapshot.session_epoch == capture.session_epoch
+            })
+            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
+            && Rc::as_ptr(&current_core) as usize == capture.core_worker_identity
+            && Rc::ptr_eq(core, &current_core)
     }
 
     async fn resolve_pcb_handoff_plan(
@@ -5817,6 +6348,516 @@ fn mechanical_document_targets_scope(document: &ProjectDoc, scope: &Scope) -> bo
                 == 1
         }),
     }
+}
+
+async fn request_exact_cad(
+    worker: &CadWorker,
+    operation_id: OperationId,
+    name: &str,
+    identity: &CadSnapshotIdentity,
+    prepared: boardstudio_core::model::PreparedCaseAssemblyIR,
+) -> Result<CadResult, String> {
+    let request_id = format!("mechanical-exact-{}-{name}", operation_id.0);
+    let request = CadRequest {
+        request_id,
+        job_id: format!("mechanical-job-{}-{name}", operation_id.0),
+        identity: identity.clone(),
+        operation: CadOperation::Exact,
+        prepared: Some(prepared),
+        input_bytes: Vec::new(),
+    };
+    let reply = worker
+        .request(request.clone())
+        .await
+        .map_err(|error| format!("CAD mechanical geometry failed: {error}"))?;
+    validate_reply(&request, reply, identity)
+        .map_err(|error| format!("CAD mechanical geometry failed: {error:?}"))
+}
+
+fn push_mechanical_file(
+    files: &mut Vec<(String, Vec<u8>)>,
+    paths: &mut BTreeSet<String>,
+    path: String,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.contains('\\')
+        || path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Err(format!(
+            "Mechanical exporter produced an unsafe path: {path}"
+        ));
+    }
+    if !paths.insert(path.clone()) {
+        return Err(format!(
+            "Mechanical exporter produced a duplicate path: {path}"
+        ));
+    }
+    files.push((path, bytes));
+    Ok(())
+}
+
+fn mechanical_filename_component(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    let mut in_replacement = false;
+    for character in value.chars() {
+        if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
+            result.push(character);
+            in_replacement = false;
+        } else if !in_replacement {
+            result.push('-');
+            in_replacement = true;
+        }
+    }
+    result
+}
+
+fn mechanical_stl(mesh: &boardstudio_web::cad_jobs::CadMesh) -> Result<Vec<u8>, String> {
+    if mesh.positions.len() % 9 != 0 || mesh.positions.len() != mesh.normals.len() {
+        return Err("CAD returned incomplete mechanical STL triangles.".into());
+    }
+    let triangles = mesh.positions.len() / 9;
+    let triangle_count = u32::try_from(triangles)
+        .map_err(|_| "Mechanical STL exceeds the supported triangle count.".to_owned())?;
+    let byte_length = 84usize
+        .checked_add(
+            triangles
+                .checked_mul(50)
+                .ok_or_else(|| "Mechanical STL is too large.".to_owned())?,
+        )
+        .ok_or_else(|| "Mechanical STL is too large.".to_owned())?;
+    let mut bytes = vec![0u8; byte_length];
+    const HEADER: &[u8] = b"Board Studio mechanical part; coordinates in millimetres";
+    bytes[..HEADER.len()].copy_from_slice(HEADER);
+    bytes[80..84].copy_from_slice(&triangle_count.to_le_bytes());
+    for triangle in 0..triangles {
+        let offset = 84 + triangle * 50;
+        for component in 0..3 {
+            let value = mesh.normals[triangle * 9 + component];
+            bytes[offset + component * 4..offset + component * 4 + 4]
+                .copy_from_slice(&value.to_le_bytes());
+        }
+        for component in 0..9 {
+            let value = mesh.positions[triangle * 9 + component];
+            let index = offset + 12 + component * 4;
+            bytes[index..index + 4].copy_from_slice(&value.to_le_bytes());
+        }
+    }
+    Ok(bytes)
+}
+
+fn mechanical_xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+fn serialized_enum_label<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+fn mechanical_fabrication_notes(document: &ProjectDoc, assembly: &MechanicalAssembly) -> String {
+    let Some(configuration) = document.mechanical.as_ref() else {
+        return String::new();
+    };
+    let mut hardware = configuration.hardware.clone().unwrap_or_default();
+    hardware.extend(assembly.generated_hardware.iter().cloned());
+    let mounts = assembly
+        .case
+        .bodies
+        .iter()
+        .find(|body| body.body.id == "plate")
+        .and_then(|body| body.body.mounts.as_ref())
+        .cloned()
+        .unwrap_or_default();
+    let method = serialized_enum_label(&configuration.method);
+    let mount = serialized_enum_label(&configuration.mount);
+    let plate_to_pcb = assembly
+        .stack
+        .iter()
+        .find(|layer| layer.id == "plate")
+        .map_or(configuration.plate_to_pcb, |layer| layer.z);
+    let material_note = if method == "pcb-fr4" {
+        "Plate substrate: FR4, no copper or plated holes. Confirm grade, finish and thickness tolerance with the fabricator."
+    } else {
+        "Material grade, finish and mechanical properties must be selected with the fabricator; no material grade is inferred from the process choice."
+    };
+    let mount_notes = if mounts.is_empty() {
+        "none".to_owned()
+    } else {
+        mounts
+            .iter()
+            .map(|item| {
+                format!(
+                    "{}: diameter {} mm at ({}, {}) mm",
+                    item.id, item.hole_diameter, item.at.x, item.at.y
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    };
+    let hardware_notes = if hardware.is_empty() {
+        "- No hardware specifications recorded.".to_owned()
+    } else {
+        hardware
+            .iter()
+            .map(|item| {
+                format!(
+                    "- {}: {} × {}; thread {}; length {} mm; part {}, mount {}{}{}",
+                    item.id,
+                    item.quantity,
+                    item.designation,
+                    item.thread,
+                    item.length,
+                    item.part_id,
+                    item.feature_id,
+                    item.tolerance
+                        .as_ref()
+                        .map(|value| format!("; tolerance {value}"))
+                        .unwrap_or_default(),
+                    item.notes
+                        .as_ref()
+                        .map(|value| format!("; {value}"))
+                        .unwrap_or_default(),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let processes = configuration
+        .part_processes
+        .as_ref()
+        .filter(|items| !items.is_empty())
+        .map(|items| {
+            items
+                .iter()
+                .map(|part| {
+                    format!(
+                        "- {}: {}; material {}; finished thickness {} mm; constraint set {}",
+                        part.part_id,
+                        serialized_enum_label(&part.method),
+                        part.material,
+                        part.thickness,
+                        part.constraints_version
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_else(|| "- No per-part overrides.".into());
+    let gasket_note = if mount == "gasket" {
+        let thickness = configuration
+            .gasket_layout
+            .as_ref()
+            .map_or(2.0, |layout| layout.thickness);
+        let compression = configuration
+            .gasket_layout
+            .as_ref()
+            .map_or(0.15, |layout| layout.compression);
+        format!(
+            "\nGasket stock: EVA, {thickness} mm uncompressed; {}% nominal assembly compression. Exported assembly strips depict compressed thickness; cut the strip outlines from the specified uncompressed stock.\n",
+            100.0 * compression
+        )
+    } else {
+        String::new()
+    };
+    let critical_fits = configuration
+        .critical_fits
+        .as_ref()
+        .filter(|items| !items.is_empty())
+        .map(|items| {
+            items
+                .iter()
+                .map(|fit| {
+                    let length = (fit.to.x - fit.from.x).hypot(fit.to.y - fit.from.y);
+                    format!(
+                        "- {}: {} — {}: {:.3} mm, {}; from ({}, {}) to ({}, {}) mm.",
+                        fit.id,
+                        fit.part_id,
+                        fit.label,
+                        length,
+                        fit.tolerance,
+                        fit.from.x,
+                        fit.from.y,
+                        fit.to.x,
+                        fit.to.y
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_else(|| "- No critical dimension annotations recorded.".into());
+    let openings = assembly
+        .nominal_plate_contours
+        .iter()
+        .filter(|contour| contour.hole)
+        .enumerate()
+        .map(|(index, contour)| {
+            let min_x = contour.points.iter().map(|point| point.x).fold(f64::INFINITY, f64::min);
+            let max_x = contour.points.iter().map(|point| point.x).fold(f64::NEG_INFINITY, f64::max);
+            let min_y = contour.points.iter().map(|point| point.y).fold(f64::INFINITY, f64::min);
+            let max_y = contour.points.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
+            format!(
+                "- Opening {}: {:.3} × {:.3} mm; review the full contour for corner radii and retention tabs.",
+                index + 1,
+                max_x - min_x,
+                max_y - min_y
+            )
+        })
+        .collect::<Vec<_>>();
+    let openings = if openings.is_empty() {
+        "- No profile openings.".to_owned()
+    } else {
+        openings.join("\n")
+    };
+    let profiles = if configuration.profiles.is_empty() {
+        "- No mechanical profiles configured.".to_owned()
+    } else {
+        configuration
+            .profiles
+            .iter()
+            .map(|profile| format!("- {}: {}", profile.definition_id, profile.source))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let diagnostics = if assembly.diagnostics.is_empty() {
+        "- No resolver diagnostics.".to_owned()
+    } else {
+        assembly
+            .diagnostics
+            .iter()
+            .map(|finding| {
+                format!(
+                    "- {}: {}",
+                    serialized_enum_label(&finding.severity),
+                    finding.message
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    format!(
+        "# Mechanical fabrication specification\n\nRevision: {}\nProcess: {method}\nMount system: {mount}\nPlate finished thickness: {} mm\nPCB nominal thickness: {} mm\nPlate-to-PCB distance: {plate_to_pcb} mm\nPlate foam thickness: {} mm\nBottom foam thickness: {} mm\nWall thickness: {} mm\n\nThe assembled STEP includes a nominal, unpopulated PCB reference. Component solids are not included. This reference is excluded from manufacturing part exports.\n\n## Material and hardware\n\n{material_note}\nPlate mounting holes: {mount_notes}.\nHardware specifications (metadata only; threads are not modeled):\n{hardware_notes}\nFastener compatibility, washers, inserts, torque, gasket material and adhesive specifications are not inferred from hole diameter. Review recorded hardware against the assembled stack before ordering.\n\nPer-part process specifications:\n{processes}\n{gasket_note}\n## Critical fit and process allowances\n\nPlate STEP, STL, SVG, DXF and KiCad geometry uses the same resolved millimetre design. Explicit radial opening allowance: {} mm. Foam retains nominal exclusions. No automatic shrinkage, kerf or tool-radius compensation has been applied. Account for the recorded opening allowance before applying any additional reviewed CAM compensation; preserve the nominal source. CNC internal corners require a compatible tool radius or explicitly reviewed relief. Printed shrinkage and cut-sheet kerf require a measured process coupon. Critical interfaces: switch retention, stabilizer cutouts, plate-to-PCB distance, fastener fit and battery clearance. Confirm each before fabrication.\n\nRecorded critical dimensions:\n{critical_fits}\n\nNominal opening extents (bounding dimensions, not replacement profiles):\n{openings}\n\nProfile sources:\n{profiles}\n\nDiagnostics:\n{diagnostics}\n",
+        assembly.revision,
+        configuration.plate_thickness,
+        configuration.pcb_thickness,
+        configuration.plate_foam_thickness,
+        configuration.bottom_foam_thickness,
+        configuration.wall_thickness,
+        configuration.opening_allowance.unwrap_or(0.0)
+    )
+}
+
+fn critical_fit_drawing(
+    assembly: &MechanicalAssembly,
+    configuration: &boardstudio_core::model::MechanicalConfiguration,
+) -> Result<String, String> {
+    use boardstudio_core::model::Vec2;
+
+    let contours = &assembly.nominal_plate_contours;
+    let fits = configuration.critical_fits.as_deref().unwrap_or_default();
+    let mut hardware = configuration.hardware.clone().unwrap_or_default();
+    hardware.extend(assembly.generated_hardware.iter().cloned());
+    let referenced_parts = fits
+        .iter()
+        .map(|fit| fit.part_id.as_str())
+        .chain(hardware.iter().map(|item| item.part_id.as_str()))
+        .collect::<BTreeSet<_>>();
+    let reference_bodies = assembly
+        .case
+        .bodies
+        .iter()
+        .filter(|entry| {
+            entry.body.id != "plate" && referenced_parts.contains(entry.body.id.as_str())
+        })
+        .collect::<Vec<_>>();
+    let points = contours
+        .iter()
+        .flat_map(|contour| contour.points.iter())
+        .chain(fits.iter().flat_map(|fit| [&fit.from, &fit.to]))
+        .chain(reference_bodies.iter().flat_map(|entry| {
+            entry
+                .contours
+                .iter()
+                .flat_map(|contour| contour.points.iter())
+        }))
+        .collect::<Vec<_>>();
+    if points.is_empty() {
+        return Err("No plate geometry for critical-fit drawing.".into());
+    }
+    if points
+        .iter()
+        .any(|point| !point.x.is_finite() || !point.y.is_finite())
+    {
+        return Err("Invalid critical-fit coordinates.".into());
+    }
+    let min_x = points
+        .iter()
+        .map(|point| point.x)
+        .fold(f64::INFINITY, f64::min);
+    let max_x = points
+        .iter()
+        .map(|point| point.x)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let min_y = points
+        .iter()
+        .map(|point| point.y)
+        .fold(f64::INFINITY, f64::min);
+    let max_y = points
+        .iter()
+        .map(|point| point.y)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let width = max_x - min_x;
+    let height = max_y - min_y;
+    let path_data = |points: &[Vec2]| {
+        points
+            .iter()
+            .enumerate()
+            .map(|(index, point)| {
+                format!(
+                    "{} {} {}",
+                    if index == 0 { "M" } else { "L" },
+                    point.x,
+                    -point.y
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let paths = contours
+        .iter()
+        .map(|contour| format!("<path d=\"{} Z\"/>", path_data(&contour.points)))
+        .collect::<String>();
+    let reference_paths = reference_bodies
+        .iter()
+        .map(|entry| {
+            let paths = entry
+                .contours
+                .iter()
+                .map(|contour| format!("<path d=\"{} Z\"/>", path_data(&contour.points)))
+                .collect::<String>();
+            format!(
+                "<g data-part=\"{}\" fill=\"none\" stroke=\"#8c959b\" stroke-width=\"0.1\" stroke-dasharray=\"0.7 0.5\">{paths}</g>",
+                mechanical_xml_escape(&entry.body.id)
+            )
+        })
+        .collect::<String>();
+    let mounts = assembly
+        .case
+        .bodies
+        .iter()
+        .find(|body| body.body.id == "plate")
+        .and_then(|body| body.body.mounts.as_ref())
+        .into_iter()
+        .flatten()
+        .map(|mount| {
+            format!(
+                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\"/>",
+                mount.at.x,
+                -mount.at.y,
+                mount.hole_diameter / 2.0
+            )
+        })
+        .collect::<String>();
+    let mut dimensions = String::new();
+    for fit in fits {
+        let dx = fit.to.x - fit.from.x;
+        let dy = fit.to.y - fit.from.y;
+        let length = dx.hypot(dy);
+        if !length.is_finite() || length <= 0.0 {
+            return Err("Critical-fit endpoints must be distinct.".into());
+        }
+        let offset = Vec2 {
+            x: -dy / length * 5.0,
+            y: dx / length * 5.0,
+        };
+        let a = Vec2 {
+            x: fit.from.x + offset.x,
+            y: fit.from.y + offset.y,
+        };
+        let b = Vec2 {
+            x: fit.to.x + offset.x,
+            y: fit.to.y + offset.y,
+        };
+        let label = format!(
+            "{}: {} — {:.3} mm {}",
+            fit.part_id, fit.label, length, fit.tolerance
+        );
+        dimensions.push_str(&format!(
+            "<g data-fit=\"{}\"><path d=\"M {} {} L {} {} M {} {} L {} {}\" fill=\"none\" stroke=\"#42657a\" stroke-width=\"0.12\"/><path d=\"M {} {} L {} {}\" fill=\"none\" stroke=\"#42657a\" stroke-width=\"0.15\" marker-start=\"url(#dimension-arrow)\" marker-end=\"url(#dimension-arrow)\"/><text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"2.2\" fill=\"#23495e\">{}</text></g>",
+            mechanical_xml_escape(&fit.id),
+            fit.from.x, -fit.from.y, a.x, -a.y,
+            fit.to.x, -fit.to.y, b.x, -b.y,
+            a.x, -a.y, b.x, -b.y,
+            (a.x + b.x) / 2.0,
+            -(a.y + b.y) / 2.0 - 1.0,
+            mechanical_xml_escape(&label),
+        ));
+    }
+    let mut callouts = String::new();
+    for (index, item) in hardware.iter().enumerate() {
+        let mount = assembly
+            .case
+            .bodies
+            .iter()
+            .find(|entry| entry.body.id == item.part_id)
+            .and_then(|entry| entry.body.mounts.as_ref())
+            .and_then(|mounts| mounts.iter().find(|mount| mount.id == item.feature_id))
+            .ok_or_else(|| {
+                format!(
+                    "Hardware {} is not linked to a generated mounting feature.",
+                    item.id
+                )
+            })?;
+        let x = max_x + 12.0;
+        let y = -max_y + index as f64 * 9.0;
+        let label = format!(
+            "{} × {}; {} × {} mm",
+            item.quantity, item.designation, item.thread, item.length
+        );
+        let feature = format!(
+            "{}/{}{}",
+            item.part_id,
+            item.feature_id,
+            item.tolerance
+                .as_ref()
+                .map(|value| format!("; {value}"))
+                .unwrap_or_default()
+        );
+        callouts.push_str(&format!(
+            "<g data-hardware=\"{}\"><path d=\"M {} {} L {} {}\" fill=\"none\" stroke=\"#705b35\" stroke-width=\"0.12\"/><circle cx=\"{}\" cy=\"{}\" r=\"0.4\" fill=\"#705b35\"/><text x=\"{}\" y=\"{}\" font-family=\"sans-serif\" font-size=\"2.3\" fill=\"#493a21\">{}<tspan x=\"{}\" dy=\"3\">{}</tspan></text></g>",
+            mechanical_xml_escape(&item.id),
+            mount.at.x, -mount.at.y, x - 2.0, y,
+            mount.at.x, -mount.at.y,
+            x, y, mechanical_xml_escape(&label), x, mechanical_xml_escape(&feature),
+        ));
+    }
+    let drawing_width = width + if hardware.is_empty() { 40.0 } else { 135.0 };
+    let drawing_height = (height + 50.0).max(hardware.len() as f64 * 9.0 + 40.0);
+    Ok(format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{drawing_width}mm\" height=\"{drawing_height}mm\" viewBox=\"{} {} {drawing_width} {drawing_height}\"><defs><marker id=\"dimension-arrow\" viewBox=\"0 0 10 10\" refX=\"5\" refY=\"5\" markerWidth=\"3\" markerHeight=\"3\" orient=\"auto-start-reverse\"><path d=\"M 0 0 L 10 5 L 0 10 Z\" fill=\"#42657a\"/></marker></defs>{reference_paths}<g fill=\"none\" stroke=\"#111\" stroke-width=\"0.15\">{paths}{mounts}<path d=\"M {min_x} {} v 4 M {max_x} {} v 4 M {min_x} {} H {max_x}\"/></g>{dimensions}{callouts}<g font-family=\"sans-serif\" font-size=\"2.5\" fill=\"#111\"><text x=\"{min_x}\" y=\"{}\">NOMINAL ASSEMBLY XY — CRITICAL FIT REVIEW</text><text x=\"{min_x}\" y=\"{}\">Extents: {:.3} × {:.3} mm</text><text x=\"{min_x}\" y=\"{}\">Nominal geometry; see specification for opening allowance.</text><text x=\"{min_x}\" y=\"{}\">Hardware callouts are specifications; threads are not modeled.</text><text x=\"{min_x}\" y=\"{}\">See FABRICATION.md for fit and hardware specifications.</text></g></svg>",
+        min_x - 20.0,
+        -max_y - 20.0,
+        -min_y + 5.0,
+        -min_y + 5.0,
+        -min_y + 7.0,
+        -max_y - 10.0,
+        -min_y + 12.0,
+        width,
+        height,
+        -min_y + 17.0,
+        -min_y + 22.0,
+        -min_y + 27.0,
+    ))
 }
 
 pub fn deployment_prefix() -> Result<&'static str, String> {

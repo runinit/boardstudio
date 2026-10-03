@@ -223,9 +223,13 @@ fn export_rows(
     let wiring_blocker =
         (!wiring_ready).then_some("Review the layout and resolve controller wiring in PCB.");
     let case_blocker = (!case_ready).then_some("Add and generate case geometry in Case.");
-    let generated_case = document
-        .mechanical
+    let mechanical_scope = runtime.scope();
+    let mechanical_document = mechanical_scope
         .as_ref()
+        .and_then(|scope| boardstudio_web::cad_jobs::captured_case_document(snapshot, scope).ok());
+    let generated_case = mechanical_document
+        .as_ref()
+        .and_then(|document| document.mechanical.as_ref())
         .is_some_and(|configuration| configuration.board_id == board_id);
     let step_runtime = runtime.clone();
     let step_scope = runtime.scope();
@@ -239,6 +243,21 @@ fn export_rows(
             })
         {
             step_runtime.export_step();
+        }
+    });
+    let mechanical_runtime = runtime.clone();
+    let mechanical_scope = mechanical_scope.clone();
+    let mechanical_token = snapshot.token;
+    let mechanical_session_epoch = snapshot.session_epoch;
+    let mechanical_export = EventHandler::new(move |()| {
+        let model = mechanical_runtime.model();
+        if mechanical_runtime.scope() == mechanical_scope
+            && model.accepted.as_ref().is_some_and(|accepted| {
+                accepted.token == mechanical_token
+                    && accepted.session_epoch == mechanical_session_epoch
+            })
+        {
+            mechanical_runtime.export_mechanical();
         }
     });
     let svg_runtime = runtime.clone();
@@ -327,34 +346,32 @@ fn export_rows(
             on_export: (!generated_case).then_some(step_export),
         },
     ];
-    if document
-        .mechanical
-        .as_ref()
-        .is_some_and(|configuration| configuration.board_id == board_id)
-    {
-        let ready = runtime.cad_scene().is_some_and(|cad| {
-            cad.scope.board_id == board_id
-                && cad.token == snapshot.token
-                && cad.exact
-                && matches!(
-                    &model.generation,
-                    GenerationStatus::Ready { exact: true, .. }
-                )
-                && cad.mechanical.as_ref().is_some_and(|assembly| {
-                    assembly.revision == snapshot.document.revision
-                        && !assembly.generation_blocked
-                        && !assembly.diagnostics.iter().any(|finding| {
-                            finding.severity == boardstudio_core::model::Severity::Error
-                        })
-                })
-        });
+    if generated_case {
+        let expected_scope = mechanical_scope;
+        let ready = outline_ready
+            && runtime.cad_scene().is_some_and(|cad| {
+                Some(&cad.scope) == expected_scope.as_ref()
+                    && cad.token == snapshot.token
+                    && cad.exact
+                    && matches!(
+                        &model.generation,
+                        GenerationStatus::Ready { exact: true, .. }
+                    )
+                    && cad.mechanical.as_ref().is_some_and(|assembly| {
+                        assembly.revision == snapshot.document.revision
+                            && !assembly.generation_blocked
+                            && !assembly.diagnostics.iter().any(|finding| {
+                                finding.severity == boardstudio_core::model::Severity::Error
+                            })
+                    })
+            });
         rows.push(ExportRow {
             label: "Generated mechanical package",
             detail: "STEP/STL parts, outlines, specifications and FR4 plate project",
             ready,
-            available: false,
-            reason: (!ready).then_some("Add and generate case geometry in Case."),
-            on_export: None,
+            available: true,
+            reason: (!ready).then_some("Update the current mechanical preview before export."),
+            on_export: Some(mechanical_export),
         });
     }
     rows
