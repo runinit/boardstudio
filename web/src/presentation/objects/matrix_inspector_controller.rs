@@ -1946,7 +1946,7 @@ async fn duplicate_design_variant(
                 base_revision: current.document.revision,
                 transaction_id: format!("matrix-duplicate-variant-{}", operation_id.0),
                 phase: EditPhase::Commit,
-                target_ids: vec![matrix.id],
+                target_ids: vec![matrix.id.clone()],
                 operation: EditOperation::SetMatrix {
                     matrix: replacement,
                     definitions: Some(definitions),
