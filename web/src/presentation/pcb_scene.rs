@@ -437,6 +437,7 @@ mod mounted_layer_tests {
                     generation: 0,
                     on_part_hit: |_| {},
                     on_part_pointer_down: |_| {},
+                    on_module_select: |_| {},
                 } }
             }
         }

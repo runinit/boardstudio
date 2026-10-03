@@ -855,7 +855,7 @@ fn make_edit(
                 },
             ))
         }
-        TreeContext::Row { .. } | TreeContext::MountedModule { .. } => None,
+        TreeContext::Row { .. } => None,
         TreeContext::Key { .. } | TreeContext::Component { .. } => {
             let positions: Vec<_> = moving_ids
                 .iter()

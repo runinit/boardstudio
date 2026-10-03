@@ -70,7 +70,7 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
             onpointerdown: move |event: PointerEvent| event.stop_propagation(),
             onclick: { let id = props.module_id.clone(); move |_| on_select.call(id.clone()) },
             onkeydown: { let id = props.module_id.clone(); move |event: KeyboardEvent| {
-                if event.key() == "Enter" || event.key() == " " {
+                if event.key() == Key::Enter || event.key() == Key::Character(" ".into()) {
                     event.prevent_default();
                     on_select.call(id.clone());
                 }

@@ -3575,7 +3575,7 @@ fn Editor() -> Element {
     };
     let on_pcb_module_select = {
         let runtime = runtime.clone();
-        let adapter = adapter.clone();
+        let mut adapter = adapter.clone();
         let scope = render_scope.clone();
         let generation = render_generation;
         let token = snapshot.token;
@@ -3593,14 +3593,14 @@ fn Editor() -> Element {
             {
                 return;
             }
-            let Some(snapshot) = model.accepted.as_ref().filter(|snapshot| {
+            if !model.accepted.as_ref().is_some_and(|snapshot| {
                 snapshot.token == token
                     && snapshot.document.modules.iter().any(|module| {
                         module.id == module_id && module.host_board_id == scope.board_id
                     })
-            }) else {
+            }) {
                 return;
-            };
+            }
             let context = objects::TreeContext::MountedModule {
                 board_id: scope.board_id.clone(),
                 module_id,

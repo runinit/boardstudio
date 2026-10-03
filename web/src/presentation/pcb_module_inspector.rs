@@ -2,11 +2,18 @@
 //! Module source definitions and their footprint/circuit ownership remain untouched.
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Event, Lifecycle, Scope};
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, ModuleAttachment, MountedModule, Side,
-};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ModuleAttachment, Side};
 use dioxus::prelude::*;
 use std::rc::Rc;
+
+#[derive(Clone)]
+struct RuntimeHandle(Rc<Runtime>);
+
+impl PartialEq for RuntimeHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
 
 pub(super) struct InspectorInput {
     pub(super) runtime: Rc<Runtime>,
@@ -20,7 +27,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
     rsx! {
         PcbMountedModuleInspector {
             key: "{input.module_id}",
-            runtime: input.runtime,
+            runtime: RuntimeHandle(input.runtime),
             snapshot: input.snapshot,
             scope: input.scope,
             module_id: input.module_id,
@@ -31,14 +38,14 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
 
 #[component]
 fn PcbMountedModuleInspector(
-    runtime: Rc<Runtime>,
+    runtime: RuntimeHandle,
     snapshot: AcceptedSnapshot,
     scope: Scope,
     module_id: String,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
 ) -> Element {
     let input = InspectorInput {
-        runtime,
+        runtime: runtime.0,
         snapshot,
         scope,
         module_id,
