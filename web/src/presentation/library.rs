@@ -58,6 +58,19 @@ impl ProjectNameSubmission {
 }
 
 #[derive(Clone)]
+struct ProjectNameCommitAction {
+    runtime: Rc<Runtime>,
+    owner: ProjectNameOwner,
+    mounted: Rc<Cell<bool>>,
+}
+
+impl ProjectNameCommitAction {
+    fn commit(&self, value: &str) {
+        commit_project_name(&self.runtime, &self.owner, &self.mounted, value);
+    }
+}
+
+#[derive(Clone)]
 struct PreviewKey {
     id: String,
     x: f64,
@@ -305,6 +318,13 @@ pub(super) fn Library() -> Element {
     let retry_value = retry();
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     let mounted = use_hook(|| Rc::new(Cell::new(true)));
+    let name_action = name_owner.clone().map(|owner| ProjectNameCommitAction {
+        runtime: runtime.clone(),
+        owner,
+        mounted: mounted.clone(),
+    });
+    #[cfg(all(test, target_arch = "wasm32"))]
+    PROJECT_NAME_ACTION_PROBE.with(|probe| *probe.borrow_mut() = name_action.clone());
     use_drop({
         let mounted = mounted.clone();
         move || mounted.set(false)
@@ -370,10 +390,8 @@ pub(super) fn Library() -> Element {
     let reviung = runtime.clone();
     let sofle = runtime.clone();
     let import = runtime.clone();
-    let rename_runtime = runtime.clone();
-    let rename_mounted = mounted.clone();
     let current_name_for_blur = current_name.clone();
-    let current_owner_for_blur = name_owner.clone();
+    let rename_action_for_blur = name_action.clone();
     let mut guide_request = project_created;
     let mut guide_request_counter = guide_request_counter;
     let retry_generations = request_generation.clone();
@@ -412,13 +430,8 @@ pub(super) fn Library() -> Element {
                                 let draft = project_name();
                                 if draft.trim().is_empty() || draft.trim() == current_name_for_blur {
                                     project_name.set(current_name_for_blur.clone());
-                                } else if let Some(owner) = current_owner_for_blur.clone() {
-                                    commit_project_name(
-                                        &rename_runtime,
-                                        &owner,
-                                        &rename_mounted,
-                                        &draft,
-                                    );
+                                } else if let Some(action) = rename_action_for_blur.clone() {
+                                    action.commit(&draft);
                                 }
                             },
                         }
@@ -542,6 +555,11 @@ fn commit_project_name(
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
+thread_local! {
+    static PROJECT_NAME_ACTION_PROBE: std::cell::RefCell<Option<ProjectNameCommitAction>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
     use boardstudio_application::{Completion, Effect, OperationId, SaveResult, Session};
@@ -557,12 +575,15 @@ mod mounted_tests {
 
     struct Seed {
         state: Rc<RefCell<Option<Signal<u64>>>>,
+        show_library: Rc<RefCell<Option<Signal<bool>>>>,
     }
 
     fn host() -> Element {
         let seed = use_context::<Rc<Seed>>();
         let version = use_signal(|| 0_u64);
         *seed.state.borrow_mut() = Some(version);
+        let show_library = use_signal(|| true);
+        *seed.show_library.borrow_mut() = Some(show_library);
         let notify_version = version;
         let runtime = use_context::<Rc<Runtime>>();
         runtime.subscribe(Rc::new(move || {
@@ -576,7 +597,11 @@ mod mounted_tests {
         use_context_provider(|| project_created);
         use_context_provider(|| pending_new);
         use_context_provider(|| new_error);
-        rsx! { Library {} }
+        if show_library() {
+            rsx! { Library {} }
+        } else {
+            rsx! { div { "Library unmounted" } }
+        }
     }
 
     async fn settle() {
@@ -658,6 +683,15 @@ mod mounted_tests {
         (session, core)
     }
 
+    fn project_name_action() -> ProjectNameCommitAction {
+        PROJECT_NAME_ACTION_PROBE.with(|probe| {
+            probe
+                .borrow()
+                .clone()
+                .expect("the mounted Library publishes the action used by its name field")
+        })
+    }
+
     fn field() -> HtmlInputElement {
         let fields = web_sys::window()
             .unwrap()
@@ -698,6 +732,7 @@ mod mounted_tests {
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
         });
         let root = web_sys::window()
             .unwrap()
@@ -881,7 +916,95 @@ mod mounted_tests {
         let _ = field().blur();
         settle().await;
         assert_eq!(runtime.model().accepted.unwrap().document.revision, 0);
+
+        let reopen_saved = submit(&runtime, |operation_id| Event::Open {
+            operation_id,
+            document: stored.clone(),
+        });
+        assert_eq!(
+            wait_outcome(&runtime, &reopen_saved).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        settle().await;
+        let reopened = runtime.model().accepted.unwrap();
+        assert_eq!(reopened.document.name, stored.name);
+        assert_eq!(
+            reopened.document.parameters.get("independent"),
+            Some(&serde_json::json!(42)),
+            "reopening the saved renamed document restores its unrelated accepted data"
+        );
+        assert_eq!(field().value(), stored.name);
         let _ = runtime.store.delete_project("menu-name".into()).await;
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
+    }
+
+    #[wasm_bindgen_test]
+    async fn retained_project_name_action_is_rejected_after_library_unmount() {
+        let (session, core) = accepted(ProjectDoc::empty("menu-name-unmount", "Original"));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("project-name-unmount-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed.clone());
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+
+        let retained_action = project_name_action();
+        assert!(retained_action.mounted.get());
+        let mut show_library = seed
+            .show_library
+            .borrow()
+            .expect("host exposes its mounted state");
+        show_library.set(false);
+        settle().await;
+        assert!(
+            !retained_action.mounted.get(),
+            "Library cleanup retires the exact guard captured by its name action"
+        );
+
+        let next_operation = crate::runtime::project_name_test_support::observe_next(&runtime);
+        retained_action.commit("Stale retained rename");
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        settle().await;
+        assert!(
+            next_operation.borrow().is_none(),
+            "the retained name action must not submit after unmount"
+        );
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.name, "Original");
+        assert_eq!(accepted.document.revision, 0);
+        let _ = runtime
+            .store
+            .delete_project("menu-name-unmount".into())
+            .await;
         let _ = web_sys::window()
             .unwrap()
             .document()
@@ -898,6 +1021,7 @@ mod mounted_tests {
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
         });
         let root = web_sys::window()
             .unwrap()
@@ -954,6 +1078,7 @@ mod mounted_tests {
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
         });
         let root = web_sys::window()
             .unwrap()
