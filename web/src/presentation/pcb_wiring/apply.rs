@@ -142,7 +142,8 @@ pub(in crate::presentation) fn use_board_wiring_apply(
             ) else {
                 return;
             };
-            let Some(plan) = current_plan(&identity.plan, &*resolution.read()) else {
+            let Some(plan) = current_plan(&identity.plan, &*resolution.read(), &snapshot.document)
+            else {
                 return;
             };
             let mut proposal = (*snapshot.document).clone();
@@ -195,8 +196,9 @@ pub(in crate::presentation) fn use_board_wiring_apply(
                 scope_generation(),
                 instance_is_current(),
             )
-            .is_some()
-            && current_plan(&identity.plan, &*resolution.read()).is_some()
+            .is_some_and(|snapshot| {
+                current_plan(&identity.plan, &*resolution.read(), &snapshot.document).is_some()
+            })
     });
     let feedback_target = identity
         .as_ref()
@@ -219,6 +221,7 @@ pub(in crate::presentation) fn use_board_wiring_apply(
 fn current_plan<'a>(
     identity: &WiringPlanIdentity,
     resolution: &'a PcbWiringResolution,
+    document: &ProjectDoc,
 ) -> Option<Rc<ElectricalPlan>> {
     let PcbWiringResolution::Current {
         identity: current,
@@ -231,6 +234,7 @@ fn current_plan<'a>(
         || plan.revision != identity.revision
         || plan.board_id.as_deref() != Some(identity.scope.board_id.as_str())
         || plan.instance_id.is_some()
+        || plan.mode != board_mode(document, &identity.scope.board_id)
         || plan
             .diagnostics
             .iter()
@@ -239,4 +243,23 @@ fn current_plan<'a>(
         return None;
     }
     Some(plan.clone())
+}
+
+fn board_mode(
+    document: &ProjectDoc,
+    board_id: &str,
+) -> boardstudio_core::electrical::ElectricalMode {
+    document
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == board_id)
+        })
+        .map_or(
+            boardstudio_core::electrical::ElectricalMode::Matrix,
+            |configuration| configuration.mode,
+        )
 }

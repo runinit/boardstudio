@@ -9,14 +9,13 @@ use boardstudio_application::{
     SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::{
-    electrical::{ElectricalMode, ElectricalPlan},
-    model::{
-        Board, EditOperation, Net, Part, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
-    },
+    electrical::{ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
+    model::*,
 };
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
+    collections::BTreeMap,
     future::Future,
     rc::Rc,
     task::{Context, Waker},
@@ -115,31 +114,61 @@ fn accepted(document: ProjectDoc, token: u64) -> AcceptedSnapshot {
 
 fn document() -> ProjectDoc {
     let mut document = ProjectDoc::empty("project", "Mode test");
+    document.definitions.push(test_definition(
+        "switch-definition",
+        PartKind::Switch,
+        BTreeMap::from([
+            ("row".into(), vec!["1".into()]),
+            ("column".into(), vec!["2".into()]),
+        ]),
+        Some(MatrixTerminals {
+            row: "row".into(),
+            column: "column".into(),
+        }),
+        None,
+    ));
+    document.definitions.push(test_definition(
+        "diode-definition",
+        PartKind::Passive,
+        BTreeMap::from([
+            ("anode".into(), vec!["A".into()]),
+            ("cathode".into(), vec!["K".into()]),
+        ]),
+        None,
+        None,
+    ));
+    document.definitions.push(test_definition(
+        "mcu-definition",
+        PartKind::Controller,
+        [
+            "GND", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P14", "P15",
+            "P16", "P18", "P19", "P20", "P21",
+        ]
+        .into_iter()
+        .map(|pin| (pin.to_owned(), vec![pin.to_owned()]))
+        .collect(),
+        None,
+        Some("ceoloide/mcu_nice_nano"),
+    ));
+    let electrical_parts = [
+        test_part("matrix/m/r0c0", "switch-definition"),
+        test_part("matrix/m/r0c0/diode", "diode-definition"),
+        test_part("mcu-left", "mcu-definition"),
+    ];
     document.boards.push(Board {
         id: "left".into(),
         name: "Left".into(),
         outline_ids: vec![],
-        part_ids: vec!["switch".into()],
+        part_ids: electrical_parts
+            .iter()
+            .map(|part| part.id.clone())
+            .collect(),
         net_ids: vec![],
         thickness: 1.6,
         traces: vec![],
         vias: vec![],
     });
-    document.parts.push(Part {
-        id: "switch".into(),
-        definition_id: "switch-definition".into(),
-        reference: "SW1".into(),
-        pose: Pose2 {
-            at: Vec2 { x: 0.0, y: 0.0 },
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    });
+    document.parts.extend(electrical_parts);
     document.boards.push(Board {
         id: "right".into(),
         name: "Right".into(),
@@ -150,7 +179,103 @@ fn document() -> ProjectDoc {
         traces: vec![],
         vias: vec![],
     });
+    document.matrices.push(Matrix {
+        id: "m".into(),
+        name: None,
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "switch-definition".into(),
+        part_ids: vec!["matrix/m/r0c0".into(), "matrix/m/r0c0/diode".into()],
+        board_id: Some("left".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: Some(DiodeDirection::Row2col),
+        row_offsets: vec![],
+        column_offsets: vec![],
+        column_staggers: vec![],
+        column_splays: vec![],
+        column_origins: vec![],
+        cells: vec![MatrixCell {
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("switch-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
     document
+}
+
+fn test_part(id: &str, definition_id: &str) -> Part {
+    Part {
+        id: id.into(),
+        definition_id: definition_id.into(),
+        reference: id.into(),
+        pose: Pose2 {
+            at: Vec2::default(),
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: None,
+        keycap: None,
+        outline: None,
+        properties: None,
+        generator_parameters: None,
+    }
+}
+
+fn test_definition(
+    id: &str,
+    kind: PartKind,
+    terminals: BTreeMap<String, Vec<String>>,
+    matrix_terminals: Option<MatrixTerminals>,
+    generator_source: Option<&str>,
+) -> PartDefinition {
+    let pads = terminals
+        .values()
+        .flatten()
+        .map(|id| Pad {
+            id: id.clone(),
+            number: id.clone(),
+            at: Vec2::default(),
+            size: Vec2 { x: 1.0, y: 1.0 },
+            shape: PadShape::Circle,
+            drill: None,
+            plated: Some(true),
+            side: None,
+            rotation: None,
+            net_id: None,
+        })
+        .collect();
+    PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
+        id: id.into(),
+        name: id.into(),
+        kind,
+        keycap: None,
+        envelope_source: None,
+        kicad_source: None,
+        terminals,
+        matrix_terminals,
+        envelope_notice: None,
+        courtyard: vec![],
+        pads,
+        models: None,
+        generator: generator_source.map(|source| PartGenerator {
+            source: source.into(),
+            version: "test".into(),
+            parameters: BTreeMap::new(),
+        }),
+        mechanical_profile: None,
+    }
 }
 
 fn scope() -> Scope {
@@ -175,32 +300,32 @@ fn model(document: ProjectDoc, token: u64) -> ReadModel {
     }
 }
 
-fn resolved_plan(revision: u64) -> Rc<ElectricalPlan> {
-    Rc::new(ElectricalPlan {
-        instance_id: None,
-        jumpers: vec![],
-        module_aliases: Default::default(),
-        mode: ElectricalMode::Direct,
-        assignments: vec![],
-        row_pins: vec![],
-        column_pins: vec![],
-        diagnostics: vec![],
-        fingerprint: "fixture-current-plan".into(),
-        board_id: Some("left".into()),
-        controller_part_id: None,
-        revision,
-        controller_profile: None,
-        free_pins: vec![],
-        nets: vec![Net {
-            id: "generated/electrical/left/direct/0".into(),
-            name: "SW1".into(),
-            pins: vec![],
-        }],
-        diode_direction: "".into(),
-        peripherals: vec![],
-        peripheral_pins: Default::default(),
-        peripheral_terminals: Default::default(),
-    })
+fn resolved_plan(document: &ProjectDoc) -> Rc<ElectricalPlan> {
+    let mode = document
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|entry| entry.board_id == "left")
+        })
+        .map_or(ElectricalMode::Matrix, |configuration| configuration.mode);
+    resolved_plan_with_mode(document, mode)
+}
+
+fn resolved_plan_with_mode(document: &ProjectDoc, mode: ElectricalMode) -> Rc<ElectricalPlan> {
+    Rc::new(boardstudio_core::electrical::resolve(
+        ElectricalPlanRequest {
+            instance_id: None,
+            document: document.clone(),
+            mode,
+            locks: Default::default(),
+            controller_profile: Some("ceoloide/mcu_nice_nano".into()),
+            board_id: Some("left".into()),
+            controller_part_id: Some("mcu-left".into()),
+        },
+    ))
 }
 
 fn source(
@@ -235,7 +360,7 @@ fn mounted() -> (Probe, VirtualDom) {
         source: Rc::new(RefCell::new(source(1, 0, None, 5))),
         resolution: Rc::new(RefCell::new(PcbWiringResolution::Current {
             identity: plan_identity,
-            plan: resolved_plan(0),
+            plan: resolved_plan(&document()),
         })),
         latest: Rc::default(),
         latest_apply: Rc::default(),
@@ -301,6 +426,14 @@ fn mounted_apply_owner_submits_one_exact_current_plan_and_settles_after_saved_re
     let (probe, mut dom) = mounted();
     let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
     assert!(actions.editable);
+    let expected_plan = resolved_plan(&document());
+    assert_eq!(expected_plan.mode, ElectricalMode::Matrix);
+    assert!(
+        expected_plan
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity != "error")
+    );
     let identity = actions.identity.clone().unwrap();
     actions.on_apply.call(identity);
     let events = probe.runtime.events.borrow();
@@ -318,25 +451,28 @@ fn mounted_apply_owner_submits_one_exact_current_plan_and_settles_after_saved_re
     let EditOperation::ReplaceDocument { document: proposal } = &command.operation else {
         panic!("applying a plan must use the existing ReplaceDocument edit")
     };
-    assert_eq!(proposal.nets.len(), 1);
-    assert_eq!(proposal.nets[0].id, "generated/electrical/left/direct/0");
+    assert_eq!(proposal.nets, expected_plan.nets);
     assert_eq!(
         proposal.boards[0].net_ids,
-        vec!["generated/electrical/left/direct/0"]
+        expected_plan
+            .nets
+            .iter()
+            .map(|net| net.id.clone())
+            .collect::<Vec<_>>()
     );
     assert_eq!(
         proposal.hardware.as_ref().unwrap().boards[0].mode,
-        ElectricalMode::Direct
+        ElectricalMode::Matrix
     );
     let operation = *operation_id;
     let mut saved = (**proposal).clone();
     drop(events);
     saved.revision = 1;
-    *probe.runtime.model.borrow_mut() = model(saved, 2);
+    *probe.runtime.model.borrow_mut() = model(saved.clone(), 2);
     *probe.source.borrow_mut() = source(2, 1, None, 5);
     *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
         identity: probe.source.borrow().identity.clone(),
-        plan: resolved_plan(1),
+        plan: resolved_plan(&saved),
     };
     assert!(probe.runtime.settle(operation, TerminalOutcome::Completed));
     tick(&probe, &mut dom);
@@ -355,11 +491,67 @@ fn mounted_apply_owner_submits_one_exact_current_plan_and_settles_after_saved_re
 }
 
 #[test]
+fn mounted_apply_owner_rejects_mode_mismatched_or_unavailable_current_plan() {
+    for state in ["mode-mismatch", "error", "pending", "failed"] {
+        let (probe, mut dom) = mounted();
+        let identity = probe.source.borrow().identity.clone();
+        match state {
+            "mode-mismatch" => {
+                let accepted = document();
+                let direct_plan = resolved_plan_with_mode(&accepted, ElectricalMode::Direct);
+                assert!(
+                    direct_plan
+                        .diagnostics
+                        .iter()
+                        .all(|diagnostic| diagnostic.severity != "error")
+                );
+                *probe.runtime.model.borrow_mut() = model(accepted, 1);
+                *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+                    identity,
+                    plan: direct_plan,
+                };
+            }
+            "error" => {
+                let mut plan = (*resolved_plan(&document())).clone();
+                plan.diagnostics.push(ElectricalDiagnostic {
+                    code: "test-error".into(),
+                    severity: "error".into(),
+                    message: "plan must be resolved before applying".into(),
+                    key_id: None,
+                });
+                *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+                    identity,
+                    plan: Rc::new(plan),
+                };
+            }
+            "pending" => {
+                *probe.resolution.borrow_mut() = PcbWiringResolution::Pending { identity };
+            }
+            "failed" => {
+                *probe.resolution.borrow_mut() = PcbWiringResolution::Failed {
+                    identity,
+                    message: "resolver failed".into(),
+                };
+            }
+            _ => unreachable!(),
+        }
+        tick(&probe, &mut dom);
+        let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
+        assert!(!actions.editable, "{state} plans must disable Apply");
+        actions.on_apply.call(actions.identity.unwrap());
+        assert!(
+            probe.runtime.events.borrow().is_empty(),
+            "{state} plan submitted an edit"
+        );
+    }
+}
+
+#[test]
 fn mounted_apply_owner_rejects_retained_action_after_context_changes() {
     let (probe, mut dom) = mounted();
     let old_actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
-    probe.runtime.model.borrow_mut().selected_part_ids = vec!["switch".into()];
-    *probe.source.borrow_mut() = source(1, 0, Some("switch"), 5);
+    probe.runtime.model.borrow_mut().selected_part_ids = vec!["matrix/m/r0c0".into()];
+    *probe.source.borrow_mut() = source(1, 0, Some("matrix/m/r0c0"), 5);
     flush(&mut dom);
     old_actions.on_apply.call(old_actions.identity.unwrap());
     assert!(probe.runtime.events.borrow().is_empty());
@@ -424,7 +616,7 @@ fn mounted_owner_submits_one_current_edit_and_retains_saved_feedback_after_revis
     *probe.source.borrow_mut() = source(2, 1, None, 5);
     *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
         identity: probe.source.borrow().identity.clone(),
-        plan: resolved_plan(1),
+        plan: resolved_plan(&proposal),
     };
     assert!(probe.runtime.settle(operation, TerminalOutcome::Completed));
     tick(&probe, &mut dom);
@@ -470,8 +662,8 @@ fn mounted_owner_rejects_a_retained_control_after_selection_changes() {
         identity: old_actions.identity.clone().unwrap(),
         mode: ElectricalMode::Direct,
     };
-    probe.runtime.model.borrow_mut().selected_part_ids = vec!["switch".into()];
-    *probe.source.borrow_mut() = source(1, 0, Some("switch"), 5);
+    probe.runtime.model.borrow_mut().selected_part_ids = vec!["matrix/m/r0c0".into()];
+    *probe.source.borrow_mut() = source(1, 0, Some("matrix/m/r0c0"), 5);
     flush(&mut dom);
     old_actions.on_change.call(old_request);
     assert!(probe.runtime.events.borrow().is_empty());
@@ -585,11 +777,11 @@ fn failed_feedback_is_hidden_after_accepted_plan_identity_advances() {
 
     let mut updated = document();
     updated.revision = 1;
-    *probe.runtime.model.borrow_mut() = model(updated, 2);
+    *probe.runtime.model.borrow_mut() = model(updated.clone(), 2);
     *probe.source.borrow_mut() = source(2, 1, None, 5);
     *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
         identity: probe.source.borrow().identity.clone(),
-        plan: resolved_plan(1),
+        plan: resolved_plan(&updated),
     };
     tick(&probe, &mut dom);
     assert!(probe.latest.borrow().as_ref().unwrap().feedback.is_none());
