@@ -9,7 +9,7 @@ This is fixture and React-oracle preparation for issue [05 — Keycaps fit findi
 - Base retained c6 Sofle archive: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/dioxus-34726-fixture-models-false.boardstudio`, SHA-256 `c6ea3c0f72f999ee6736d1e65b6b2c36105b52c5a8d511285ffdc01695aa9d7e`.
 - Derived project archive: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-findings-f6c4-c6.boardstudio`, SHA-256 `9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6`.
 - Embedded `project.json` SHA-256: `60ba2928d2dea11755e078a594c813d9467f302267c209f174854c8abec0e2ea`.
-- Derivation: matrix `keys` profile set to SA; part `matrix/left-keys/r0c0` (`left-keys-SW1`) has keycap dimensions 7×1 units and SA profile. This saved project copy came from actual React Keycaps controls and is distinct from the missing original f2 fixture.
+- Derivation: matrix ID `left-keys` (visible label `keys`) profile set to SA; part `matrix/left-keys/r0c0` (`left-keys-SW1`) has keycap dimensions 7×1 units and SA profile. This saved project copy came from actual React Keycaps controls and is distinct from the missing original f2 fixture.
 
 ## Reopen and action observation
 
