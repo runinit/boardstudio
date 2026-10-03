@@ -1,13 +1,15 @@
-# F3.4e manual outline draft source receipt
+# F3.4e manual geometry source receipt
 
-This source-only packet compares pinned React `5a472a9426e6e38993361da402cd4ec730feb369` to the mounted Dioxus Layout outline route at base `54f627b1fa551088f34d900d184269f2f13778a6`.
+This bounded source packet compares the pinned React `5a472a9426e6e38993361da402cd4ec730feb369` (`OutlineInspector.tsx`, `OutlineFeatureEditor.tsx`, `useOutlineEditor.tsx`, and `outlineEditing.ts`) with the mounted Dioxus Layout outline route. The source base is `826885159...`; root's compiler repair was joined as `b13983c6` and its fixes are retained in this packet.
 
-React `OutlineInspector.tsx` exposes Draw addition and Draw cutout; `useOutlineEditor.tsx` owns draft points, preview, undo/cancel/finish and routes first Generated authorship through `CopyOutline.feature`. For fixed outlines it appends the new feature through the existing document replacement edit. Before this packet Dioxus had the version/settings Inspector and perimeter point editor but no mounted manual polygon draft controls.
+The mounted Inspector now provides addition/cutout and Connect points drafts; draft snapping uses the existing Layout grid/geometry snap policy and Alt bypass. Polygon completion follows the existing `CopyOutline.feature` or fixed-version `ReplaceDocument` path. Connection completion requires Generated plus an automatic envelope, associates endpoints with eligible parts using the React 10 mm rule, and updates the accepted envelope through `SetOutline`. No second document/history authority or bridge algorithm was added.
 
-The candidate adds Draw addition/Draw cutout, canvas point drafting and rendering, snap/Alt sampling, last-point undo, Finish/Cancel/Escape, and exact Outline owner admission. Generated uses existing `CopyOutline.feature`; fixed versions append with existing `ReplaceDocument`; accepted completion is checked through the current outcome/durable settlement path. The source does not claim Connect points, feature-list selection/removal/editor parity, or full draft capture/lifecycle parity.
+The saved geometry list selects authored features. Polygon edits enter the existing perimeter point editor. Rectangles expose width, height, and corner radius. Later fixed-version authored features can be removed; the first authored perimeter is protected. Saved connections expose width and point coordinate editing in world space while preserving attached-point local coordinates, and can be removed through the owning envelope edit. Fixed-version feature mutation uses `ReplaceDocument` to update only the active version.
 
-**Checks:** `rustfmt --edition 2024 web/src/presentation/outline_lifecycle.rs web/src/presentation.rs` and `git diff --check` passed. No Cargo, browser, or test commands were run per the assigned source-only packet; the combined build and public changed journey remain coordinator-owned.
+**Known limits:** connection control-point insertion/removal and attachment picker/detachment are not included; point keyboard/guide and capture/unmount parity are not claimed. Core validation remains authoritative and existing outcome feedback reports rejected geometry. This child does not close F3.4.
 
-**RF:** preserve RF-001, RF-006 and RF-009. This comparison identified no new refactoring finding or reason to create parallel state.
+**Checks:** `rustfmt --edition 2024 web/src/presentation/outline_lifecycle.rs` and `git diff --check` passed. No Cargo, browser, or test command was run, per the assigned source-only packet. Root owns the combined check and changed public journey.
 
-**Acceptance remains open:** one public paired draft/cancel/commit/history journey, combined source check, and all parent acceptance joins remain outstanding.
+**RF:** retain RF-001 (single Editor operation authority), RF-006 (accepted Board/scope and geometry ownership), and RF-009 (fixture/source/provenance evidence). This continuation produced no distinct refactoring finding.
+
+**Acceptance remains open:** combined source check and the changed paired public draft/connection/editor journey remain coordinator-owned; all F3.4 parent criteria and other joins remain unchanged.

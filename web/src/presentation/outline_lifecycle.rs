@@ -8,8 +8,9 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Event, Lifecycle, Scope, TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, CornerStyle, EditCommand, EditOperation, EditPhase, Operation, OutlineContourEdit,
-    OutlineFeature, OutlineGap, OutlineRepairSettings, OutlineSettings, Side, Vec2,
+    Contour, CornerStyle, EditCommand, EditOperation, EditPhase, Operation, OutlineConnection,
+    OutlineContourEdit, OutlineControlPoint, OutlineFeature, OutlineGap, OutlineRepairSettings,
+    OutlineSettings, Part, Side, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -74,6 +75,36 @@ pub(super) enum OutlineAction {
         context: super::objects::TreeContext,
         feature: OutlineFeature,
     },
+    AddConnection {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        context: super::objects::TreeContext,
+        points: Vec<Vec2>,
+    },
+    SetFeature {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        context: super::objects::TreeContext,
+        version_id: Option<String>,
+        before: OutlineFeature,
+        after: OutlineFeature,
+    },
+    RemoveFeature {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        context: super::objects::TreeContext,
+        version_id: String,
+        feature_id: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -125,6 +156,75 @@ impl PerimeterAnchor {
     }
 }
 
+fn outline_connection_control(at: Vec2, eligible: &[&Part]) -> OutlineControlPoint {
+    let nearest = eligible.iter().copied().min_by(|left, right| {
+        let distance = |part: &Part| (part.pose.at.x - at.x).hypot(part.pose.at.y - at.y);
+        distance(left).total_cmp(&distance(right))
+    });
+    if let Some(part) =
+        nearest.filter(|part| (part.pose.at.x - at.x).hypot(part.pose.at.y - at.y) <= 10.0)
+    {
+        let anchor = PerimeterAnchor {
+            at: part.pose.at,
+            rotation: part.pose.rotation,
+            back: part.side == Side::Back,
+        };
+        OutlineControlPoint {
+            at: anchor.local(at),
+            part_id: Some(part.id.clone()),
+        }
+    } else {
+        OutlineControlPoint { at, part_id: None }
+    }
+}
+
+fn connection_point_world(point: &OutlineControlPoint, parts: &[Part]) -> Vec2 {
+    point
+        .part_id
+        .as_deref()
+        .and_then(|id| parts.iter().find(|part| part.id == id))
+        .map(|part| {
+            PerimeterAnchor {
+                at: part.pose.at,
+                rotation: part.pose.rotation,
+                back: part.side == Side::Back,
+            }
+            .world(point.at)
+        })
+        .unwrap_or(point.at)
+}
+
+fn move_connection_point(
+    feature: &OutlineFeature,
+    connection_id: &str,
+    point_index: usize,
+    world: Vec2,
+    parts: &[Part],
+) -> OutlineFeature {
+    let mut next = feature.clone();
+    if let OutlineFeature::PartEnvelope { connections, .. } = &mut next
+        && let Some(point) = connections
+            .iter_mut()
+            .find(|connection| connection.id == connection_id)
+            .and_then(|connection| connection.points.get_mut(point_index))
+    {
+        point.at = point
+            .part_id
+            .as_deref()
+            .and_then(|id| parts.iter().find(|part| part.id == id))
+            .map(|part| {
+                PerimeterAnchor {
+                    at: part.pose.at,
+                    rotation: part.pose.rotation,
+                    back: part.side == Side::Back,
+                }
+                .local(world)
+            })
+            .unwrap_or(world);
+    }
+    next
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum PendingKind {
     Activate {
@@ -139,6 +239,10 @@ enum PendingKind {
         feature_id: String,
     },
     UpdatedFeature {
+        version_id: String,
+        feature_id: String,
+    },
+    RemovedFeature {
         version_id: String,
         feature_id: String,
     },
@@ -163,12 +267,20 @@ struct ActionState {
     feedback: Signal<Option<OutlineFeedback>>,
     selected_point: Signal<usize>,
     editing_points: Signal<bool>,
-    drawing_operation: Signal<Option<Operation>>,
+    drawing_operation: Signal<Option<OutlineDrawTool>>,
     drawing_points: Signal<Vec<Vec2>>,
+    selected_feature_id: Signal<Option<String>>,
+    selected_connection_id: Signal<Option<String>>,
     selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
     captured_generation: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum OutlineDrawTool {
+    Polygon(Operation),
+    Connect,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -191,8 +303,14 @@ pub(super) struct OutlineInspectorProjection {
     snap_paths: Vec<Vec<Vec2>>,
     pub(super) selected_point: Signal<usize>,
     pub(super) editing_points: Signal<bool>,
-    pub(super) drawing_operation: Signal<Option<Operation>>,
+    pub(super) drawing_operation: Signal<Option<OutlineDrawTool>>,
     pub(super) drawing_points: Signal<Vec<Vec2>>,
+    selected_feature_id: Signal<Option<String>>,
+    selected_connection_id: Signal<Option<String>>,
+    pub(super) geometry_features: Vec<OutlineFeature>,
+    pub(super) connections: Vec<OutlineConnection>,
+    connection_feature: Option<OutlineFeature>,
+    outline_parts: Vec<Part>,
     pub(super) versions: Vec<OutlineVersionChoice>,
     pub(super) settings: OutlineSettings,
     pub(super) repair: OutlineRepairSettings,
@@ -290,6 +408,50 @@ impl OutlineActionContext {
             feature,
         }
     }
+
+    fn add_connection(&self, points: Vec<Vec2>) -> OutlineAction {
+        OutlineAction::AddConnection {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            context: self.selection_context.clone(),
+            points,
+        }
+    }
+
+    fn set_feature(
+        &self,
+        version_id: Option<String>,
+        before: OutlineFeature,
+        after: OutlineFeature,
+    ) -> OutlineAction {
+        OutlineAction::SetFeature {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            context: self.selection_context.clone(),
+            version_id,
+            before,
+            after,
+        }
+    }
+
+    fn remove_feature(&self, version_id: String, feature_id: String) -> OutlineAction {
+        OutlineAction::RemoveFeature {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            context: self.selection_context.clone(),
+            version_id,
+            feature_id,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -349,6 +511,30 @@ impl OutlineAction {
                 ..
             }
             | OutlineAction::AddFeature {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::AddConnection {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::SetFeature {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::RemoveFeature {
                 scope,
                 token,
                 revision,
@@ -434,8 +620,10 @@ pub(super) fn use_outline_lifecycle(
     let feedback = use_signal(|| None::<OutlineFeedback>);
     let selected_point = use_signal(|| 0usize);
     let editing_points = use_signal(|| false);
-    let drawing_operation = use_signal(|| None::<Operation>);
+    let drawing_operation = use_signal(|| None::<OutlineDrawTool>);
     let drawing_points = use_signal(Vec::<Vec2>::new);
+    let selected_feature_id = use_signal(|| None::<String>);
+    let selected_connection_id = use_signal(|| None::<String>);
     let draft_owner = selected_context.read().clone();
     let draft_workspace = workspace();
     use_effect(use_reactive(
@@ -461,6 +649,8 @@ pub(super) fn use_outline_lifecycle(
         editing_points,
         drawing_operation,
         drawing_points,
+        selected_feature_id,
+        selected_connection_id,
         selected_context,
         workspace,
         scope_generation,
@@ -572,6 +762,10 @@ pub(super) fn use_outline_lifecycle(
                                     && (matches!(&waiting.kind, PendingKind::UpdatedFeature { .. })
                                         || board_state.is_some_and(|state| state.active_version_id.as_deref() == Some(version_id)))
                             }),
+                        PendingKind::RemovedFeature { version_id, feature_id } => board_state
+                            .is_some_and(|state| state.active_version_id.as_deref() == Some(version_id.as_str())
+                                && state.versions.iter().find(|version| version.id == *version_id)
+                                    .is_some_and(|version| version.geometry.features.iter().all(|feature| feature.id() != *feature_id))),
                         PendingKind::Delete { version_id } => board_state.is_none_or(|state| {
                             state.active_version_id.is_none()
                                 && state
@@ -670,6 +864,8 @@ fn project_inspector(
         editing_points,
         drawing_operation,
         drawing_points,
+        selected_feature_id,
+        selected_connection_id,
         selected_context,
         workspace,
         scope_generation,
@@ -760,7 +956,94 @@ fn project_inspector(
         .iter()
         .find(|board| board.board_id == board_id)
         .map_or_else(Vec::new, |board| board.contours.clone());
-    let perimeter = editable_perimeter(snapshot, &board_id, active_version_id.as_deref());
+    let geometry_features = active_version_id
+        .as_deref()
+        .and_then(|version_id| {
+            outline
+                .into_iter()
+                .flat_map(|state| &state.versions)
+                .find(|version| version.id == version_id)
+                .map(|version| {
+                    version
+                        .geometry
+                        .features
+                        .iter()
+                        .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+        })
+        .unwrap_or_else(|| {
+            board
+                .outline_ids
+                .iter()
+                .filter_map(|id| {
+                    snapshot
+                        .document
+                        .outline
+                        .iter()
+                        .find(|feature| feature.id() == id)
+                })
+                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .cloned()
+                .collect()
+        });
+    let connections = active_version_id
+        .as_deref()
+        .and_then(|version_id| {
+            outline
+                .into_iter()
+                .flat_map(|state| &state.versions)
+                .find(|version| version.id == version_id)
+                .and_then(|version| {
+                    version
+                        .geometry
+                        .features
+                        .iter()
+                        .find_map(|feature| match feature {
+                            OutlineFeature::PartEnvelope { connections, .. } => {
+                                Some(connections.clone())
+                            }
+                            _ => None,
+                        })
+                })
+        })
+        .or_else(|| {
+            generated.and_then(|feature| match feature {
+                OutlineFeature::PartEnvelope { connections, .. } => Some(connections.clone()),
+                _ => None,
+            })
+        })
+        .unwrap_or_default();
+    let connection_feature = active_version_id
+        .as_deref()
+        .and_then(|version_id| {
+            outline
+                .into_iter()
+                .flat_map(|state| &state.versions)
+                .find(|version| version.id == version_id)
+                .and_then(|version| {
+                    version
+                        .geometry
+                        .features
+                        .iter()
+                        .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                        .cloned()
+                })
+        })
+        .or_else(|| generated.cloned());
+    let outline_parts = board
+        .part_ids
+        .iter()
+        .filter_map(|id| snapshot.document.parts.iter().find(|part| &part.id == id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let perimeter = editable_perimeter(
+        snapshot,
+        &board_id,
+        active_version_id.as_deref(),
+        selected_feature_id.read().as_deref(),
+    );
     let snap_paths = snapshot
         .scene
         .board_outline_scenes
@@ -814,6 +1097,12 @@ fn project_inspector(
         editing_points,
         drawing_operation,
         drawing_points,
+        selected_feature_id,
+        selected_connection_id,
+        geometry_features,
+        connections,
+        connection_feature,
+        outline_parts,
         versions,
         settings,
         repair,
@@ -842,6 +1131,7 @@ fn editable_perimeter(
     snapshot: &AcceptedSnapshot,
     board_id: &str,
     active_version_id: Option<&str>,
+    selected_feature_id: Option<&str>,
 ) -> Option<EditablePerimeter> {
     if let Some(version_id) = active_version_id {
         let feature = snapshot
@@ -855,7 +1145,10 @@ fn editable_perimeter(
             .geometry
             .features
             .iter()
-            .find(|feature| matches!(feature, OutlineFeature::Polygon { .. }))?;
+            .find(|feature| {
+                matches!(feature, OutlineFeature::Polygon { .. })
+                    && selected_feature_id.is_none_or(|id| feature.id() == id)
+            })?;
         let OutlineFeature::Polygon {
             id,
             points,
@@ -1161,6 +1454,219 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
                     vec![board_id.clone(), id.clone()],
                 )
             }
+        }
+        OutlineAction::AddConnection {
+            context, points, ..
+        } => {
+            if selected
+                .as_ref()
+                .is_none_or(|selected| selected.context != *context)
+                || state
+                    .and_then(|state| state.active_version_id.as_ref())
+                    .is_some()
+                || points.len() < 2
+                || points
+                    .iter()
+                    .any(|point| !point.x.is_finite() || !point.y.is_finite())
+            {
+                return;
+            }
+            let Some(OutlineFeature::PartEnvelope {
+                part_ids, settings, ..
+            }) = generated
+            else {
+                return;
+            };
+            let eligible = snapshot
+                .document
+                .parts
+                .iter()
+                .filter(|part| {
+                    part_ids.contains(&part.id)
+                        && !part
+                            .outline
+                            .as_ref()
+                            .is_some_and(|outline| outline.excluded)
+                })
+                .collect::<Vec<_>>();
+            let mut feature = generated.expect("matched generated feature").clone();
+            let OutlineFeature::PartEnvelope { connections, .. } = &mut feature else {
+                return;
+            };
+            connections.push(OutlineConnection {
+                id: format!("outline-connection-{}", operation_id.0),
+                width: settings.bridge_width,
+                points: points
+                    .iter()
+                    .enumerate()
+                    .map(|(index, point)| {
+                        if index == 0 || index + 1 == points.len() {
+                            outline_connection_control(*point, &eligible)
+                        } else {
+                            OutlineControlPoint {
+                                at: *point,
+                                part_id: None,
+                            }
+                        }
+                    })
+                    .collect(),
+            });
+            let id = feature.id().to_owned();
+            (
+                EditOperation::SetOutline {
+                    feature: feature.clone(),
+                },
+                PendingKind::Edit(OutlineExpectation::GeneratedFeature(feature)),
+                vec![board_id.clone(), id],
+            )
+        }
+        OutlineAction::SetFeature {
+            context,
+            version_id,
+            before,
+            after,
+            ..
+        } => {
+            if selected
+                .as_ref()
+                .is_none_or(|selected| selected.context != *context)
+                || before.id() != after.id()
+                || state.and_then(|state| state.active_version_id.as_deref())
+                    != version_id.as_deref()
+            {
+                return;
+            }
+            let accepted = if let Some(version_id) = version_id {
+                state
+                    .into_iter()
+                    .flat_map(|state| &state.versions)
+                    .find(|version| version.id == *version_id)
+                    .and_then(|version| {
+                        version
+                            .geometry
+                            .features
+                            .iter()
+                            .find(|feature| feature.id() == before.id())
+                    })
+            } else {
+                snapshot.document.outline.iter().find(|feature| {
+                    feature.id() == before.id()
+                        && snapshot
+                            .document
+                            .boards
+                            .iter()
+                            .find(|board| board.id == *board_id)
+                            .is_some_and(|board| {
+                                board.outline_ids.iter().any(|id| id == feature.id())
+                            })
+                })
+            };
+            if accepted != Some(before) {
+                return;
+            }
+            let expectation = version_id.as_ref().map_or_else(
+                || OutlineExpectation::GeneratedFeature(after.clone()),
+                |version_id| OutlineExpectation::VersionFeature {
+                    version_id: version_id.clone(),
+                    feature: after.clone(),
+                },
+            );
+            let operation = if let Some(version_id) = version_id {
+                let mut document = snapshot.document.as_ref().clone();
+                let Some(target) = document
+                    .board_outlines
+                    .iter_mut()
+                    .find(|outline| outline.board_id == *board_id)
+                    .and_then(|outline| {
+                        outline
+                            .versions
+                            .iter_mut()
+                            .find(|version| version.id == *version_id)
+                    })
+                else {
+                    return;
+                };
+                let Some(feature) = target
+                    .geometry
+                    .features
+                    .iter_mut()
+                    .find(|feature| feature.id() == before.id())
+                else {
+                    return;
+                };
+                *feature = after.clone();
+                EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                }
+            } else {
+                EditOperation::SetOutline {
+                    feature: after.clone(),
+                }
+            };
+            (
+                operation,
+                PendingKind::Edit(expectation),
+                vec![board_id.clone(), before.id().to_owned()],
+            )
+        }
+        OutlineAction::RemoveFeature {
+            context,
+            version_id,
+            feature_id,
+            ..
+        } => {
+            if selected
+                .as_ref()
+                .is_none_or(|selected| selected.context != *context)
+                || state.and_then(|state| state.active_version_id.as_deref())
+                    != Some(version_id.as_str())
+            {
+                return;
+            }
+            let Some(version) = state
+                .into_iter()
+                .flat_map(|state| &state.versions)
+                .find(|version| version.id == *version_id)
+            else {
+                return;
+            };
+            let authored_index = version
+                .geometry
+                .features
+                .iter()
+                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
+                .position(|feature| feature.id() == feature_id);
+            if authored_index.is_none_or(|index| index == 0) {
+                return;
+            }
+            let mut document = snapshot.document.as_ref().clone();
+            let Some(target) = document
+                .board_outlines
+                .iter_mut()
+                .find(|outline| outline.board_id == *board_id)
+                .and_then(|outline| {
+                    outline
+                        .versions
+                        .iter_mut()
+                        .find(|version| version.id == *version_id)
+                })
+            else {
+                return;
+            };
+            target
+                .geometry
+                .features
+                .retain(|feature| feature.id() != feature_id);
+            (
+                EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                },
+                PendingKind::RemovedFeature {
+                    version_id: version_id.clone(),
+                    feature_id: feature_id.clone(),
+                },
+                vec![board_id.clone(), feature_id.clone()],
+            )
         }
         OutlineAction::Update { edit, .. } => {
             let Some((operation, expectation, target_ids)) = apply_outline_edit(
@@ -1798,8 +2304,255 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
             }
             section { class: "m1-outline-manual", "aria-label": "Manual geometry",
                 h3 { "Manual geometry" }
-                if let Some(operation) = drawing_operation() {
-                    p { role: "status", "Click the canvas to add points. Enter finishes with at least three points; Escape cancels." }
+                if !projection.geometry_features.is_empty() {
+                    div { class: "m1-outline-feature-list", role: "group", aria_label: "Saved outline geometry",
+                        h4 { "Saved geometry" }
+                        for (index, feature) in projection.geometry_features.iter().enumerate() {
+                            {
+                                let feature_id = feature.id().to_owned();
+                                let selected = selected_feature_id().as_deref() == Some(feature_id.as_str());
+                                let feature_name = match feature {
+                                    OutlineFeature::Polygon { operation, .. } => match operation { Operation::Add => "Addition", Operation::Subtract => "Cutout" },
+                                    OutlineFeature::Rect { operation, .. } => match operation { Operation::Add => "Rectangle addition", Operation::Subtract => "Rectangle cutout" },
+                                    OutlineFeature::PartEnvelope { .. } => "Generated perimeter",
+                                };
+                                rsx! {
+                                    div { class: "m1-outline-feature-row", key: "outline-feature-{feature_id}",
+                                        button {
+                                            r#type: "button",
+                                            aria_pressed: "{selected}",
+                                            disabled: !enabled,
+                                            onclick: {
+                                                let feature_id = feature_id.clone();
+                                                move |_| selected_feature_id.set(Some(feature_id.clone()))
+                                            },
+                                            "{feature_name} {index + 1}"
+                                        }
+                                        if matches!(feature, OutlineFeature::Polygon { .. }) {
+                                            button {
+                                                r#type: "button",
+                                                disabled: !enabled,
+                                                onclick: {
+                                                    let feature_id = feature_id.clone();
+                                                    move |_| {
+                                                        selected_feature_id.set(Some(feature_id.clone()));
+                                                        selected_point.set(0);
+                                                        perimeter_open.set(true);
+                                                    }
+                                                },
+                                                "Edit points"
+                                            }
+                                        }
+                                        if let Some(version_id) = active_version.as_ref().filter(|_| index > 0) {
+                                            button {
+                                                r#type: "button",
+                                                class: "m1-outline-remove-feature",
+                                                disabled: !enabled,
+                                                aria_label: "Remove {feature_name} {index + 1}",
+                                                onclick: {
+                                                    let action_context = action_context.clone();
+                                                    let version_id = version_id.clone();
+                                                    let feature_id = feature_id.clone();
+                                                    move |_| on_action.call(action_context.remove_feature(version_id.clone(), feature_id.clone()))
+                                                },
+                                                "Remove"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(feature) = projection.geometry_features.iter().find(|feature| Some(feature.id()) == selected_feature_id().as_deref()) {
+                    if let OutlineFeature::Rect { size, .. } = feature {
+                        fieldset { class: "m1-outline-feature-editor", disabled: !enabled,
+                            legend { "Selected rectangle" }
+                            OutlineDimension {
+                                label: "Rectangle width",
+                                value: size.x,
+                                minimum: 0.001,
+                                editable: enabled,
+                                on_commit: {
+                                    let action_context = action_context.clone();
+                                    let before = feature.clone();
+                                    let version_id = active_version.clone();
+                                    move |value| {
+                                        let mut after = before.clone();
+                                        if let OutlineFeature::Rect { size, .. } = &mut after { size.x = value; }
+                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                    }
+                                },
+                            }
+                            OutlineDimension {
+                                label: "Rectangle height",
+                                value: size.y,
+                                minimum: 0.001,
+                                editable: enabled,
+                                on_commit: {
+                                    let action_context = action_context.clone();
+                                    let before = feature.clone();
+                                    let version_id = active_version.clone();
+                                    move |value| {
+                                        let mut after = before.clone();
+                                        if let OutlineFeature::Rect { size, .. } = &mut after { size.y = value; }
+                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                    }
+                                },
+                            }
+                            if let OutlineFeature::Rect { radius, .. } = feature {
+                                OutlineDimension {
+                                    label: "Rectangle corner radius",
+                                    value: *radius,
+                                    minimum: 0.0,
+                                    editable: enabled,
+                                    on_commit: {
+                                        let action_context = action_context.clone();
+                                        let before = feature.clone();
+                                        let version_id = active_version.clone();
+                                        move |value| {
+                                            let mut after = before.clone();
+                                            if let OutlineFeature::Rect { radius, .. } = &mut after { *radius = value; }
+                                            on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                        }
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+                if !projection.connections.is_empty() {
+                    div { class: "m1-outline-connection-list", role: "group", aria_label: "Outline connections",
+                        h4 { "Connections" }
+                        for (index, connection) in projection.connections.iter().enumerate() {
+                            div { class: "m1-outline-feature-row", key: "outline-connection-{connection.id}",
+                                button {
+                                    r#type: "button",
+                                    aria_pressed: "{selected_connection_id().as_deref() == Some(connection.id.as_str())}",
+                                    onclick: {
+                                        let id = connection.id.clone();
+                                        move |_| selected_connection_id.set(Some(id.clone()))
+                                    },
+                                    "Connection {index + 1} · {connection.points.len()} points · {connection.width:.2} mm"
+                                }
+                                if let Some(before) = projection.connection_feature.as_ref() {
+                                    button {
+                                        r#type: "button",
+                                        class: "m1-outline-remove-feature",
+                                        disabled: !enabled,
+                                        aria_label: "Remove connection {index + 1}",
+                                        onclick: {
+                                            let action_context = action_context.clone();
+                                            let before = before.clone();
+                                            let version_id = active_version.clone();
+                                            let connection_id = connection.id.clone();
+                                            move |_| {
+                                                let mut after = before.clone();
+                                                if let OutlineFeature::PartEnvelope { connections, .. } = &mut after {
+                                                    connections.retain(|item| item.id != connection_id);
+                                                }
+                                                on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                                selected_connection_id.set(None);
+                                            }
+                                        },
+                                        "Remove"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if let (Some(connection_id), Some(before)) = (selected_connection_id().as_ref(), projection.connection_feature.as_ref()) {
+                    if let OutlineFeature::PartEnvelope { connections, .. } = before {
+                        if let Some(connection) = connections.iter().find(|connection| &connection.id == connection_id) {
+                            OutlineDimension {
+                                label: "Connection width",
+                                value: connection.width,
+                                minimum: 0.001,
+                                editable: enabled,
+                                on_commit: {
+                                    let action_context = action_context.clone();
+                                    let before = before.clone();
+                                    let version_id = active_version.clone();
+                                    let connection_id = connection_id.clone();
+                                    move |value| {
+                                        let mut after = before.clone();
+                                        if let OutlineFeature::PartEnvelope { connections, .. } = &mut after {
+                                            if let Some(connection) = connections.iter_mut().find(|connection| connection.id == connection_id) {
+                                                connection.width = value;
+                                            }
+                                        }
+                                        on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
+                                    }
+                                },
+                            }
+                            if !connection.points.is_empty() {
+                                let index = selected_point().min(connection.points.len() - 1);
+                                let point = &connection.points[index];
+                                let world = connection_point_world(point, &projection.outline_parts);
+                                h4 { "Connection point {index + 1} of {connection.points.len()}" }
+                                div { class: "m1-outline-coordinate-fields",
+                                    OutlineCoordinate {
+                                        key: "connection-{connection.id}-{index}-x",
+                                        label: format!("Point {} X mm", index + 1),
+                                        value: world.x,
+                                        editable: enabled,
+                                        on_commit: {
+                                            let action_context = action_context.clone();
+                                            let before = before.clone();
+                                            let version_id = active_version.clone();
+                                            let connection_id = connection.id.clone();
+                                            let parts = projection.outline_parts.clone();
+                                            move |value| {
+                                                let next = move_connection_point(&before, &connection_id, index, Vec2 { x: value, y: world.y }, &parts);
+                                                on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                            }
+                                        },
+                                    }
+                                    OutlineCoordinate {
+                                        key: "connection-{connection.id}-{index}-y",
+                                        label: format!("Point {} Y mm", index + 1),
+                                        value: world.y,
+                                        editable: enabled,
+                                        on_commit: {
+                                            let action_context = action_context.clone();
+                                            let before = before.clone();
+                                            let version_id = active_version.clone();
+                                            let connection_id = connection.id.clone();
+                                            let parts = projection.outline_parts.clone();
+                                            move |value| {
+                                                let next = move_connection_point(&before, &connection_id, index, Vec2 { x: world.x, y: value }, &parts);
+                                                on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
+                                            }
+                                        },
+                                    }
+                                }
+                                div { class: "m1-outline-point-list", role: "group", aria_label: "Connection points",
+                                    for (index, control) in connection.points.iter().enumerate() {
+                                        {
+                                            let point = connection_point_world(control, &projection.outline_parts);
+                                            rsx! {
+                                                button {
+                                                    key: "connection-point-{index}",
+                                                    r#type: "button",
+                                                    aria_label: "Select connection point {index + 1}",
+                                                    aria_pressed: "{index == selected_point()}",
+                                                    onclick: move |_| selected_point.set(index),
+                                                    span { "{index + 1}" }
+                                                    span { "{point.x:.3}" }
+                                                    span { "{point.y:.3}" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(tool) = drawing_operation() {
+                    let minimum_points = if tool == OutlineDrawTool::Connect { 2 } else { 3 };
+                    p { role: "status", "Click the canvas to add points. Enter finishes; Escape cancels." }
                     p { "{drawing_points.read().len()} points" }
                     div { class: "m1-outline-actions",
                         button {
@@ -1811,23 +2564,30 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                         button { r#type: "button", onclick: move |_| { drawing_operation.set(None); drawing_points.set(Vec::new()); }, "Cancel drawing" }
                         button {
                             r#type: "button",
-                            disabled: !enabled || drawing_points.read().len() < 3,
+                            disabled: !enabled || drawing_points.read().len() < minimum_points
+                                || matches!(tool, OutlineDrawTool::Polygon(_)) && polygon_area(&drawing_points.read()).abs() < 1e-6,
                             onclick: {
                                 let action_context = action_context.clone();
                                 let board_id = projection.board_id.clone();
                                 let revision = projection.revision;
                                 move |_| {
                                     let points = drawing_points.read().clone();
-                                    if points.len() < 3 || polygon_area(&points).abs() < 1e-6 { return; }
-                                    let serial = draft_serial() + 1;
-                                    draft_serial.set(serial);
-                                    let feature = OutlineFeature::Polygon {
-                                        id: format!("outline-manual-{board_id}-{}-{serial}", revision),
-                                        points,
-                                        anchor_part_id: None,
-                                        operation,
-                                    };
-                                    on_action.call(action_context.add_feature(feature));
+                                    if points.len() < minimum_points { return; }
+                                    match tool {
+                                        OutlineDrawTool::Polygon(operation) => {
+                                            if polygon_area(&points).abs() < 1e-6 { return; }
+                                            let serial = draft_serial() + 1;
+                                            draft_serial.set(serial);
+                                            let feature = OutlineFeature::Polygon {
+                                                id: format!("outline-manual-{board_id}-{}-{serial}", revision),
+                                                points,
+                                                anchor_part_id: None,
+                                                operation,
+                                            };
+                                            on_action.call(action_context.add_feature(feature));
+                                        }
+                                        OutlineDrawTool::Connect => on_action.call(action_context.add_connection(points)),
+                                    }
                                     drawing_operation.set(None);
                                     drawing_points.set(Vec::new());
                                 }
@@ -1839,13 +2599,20 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                     div { class: "m1-outline-actions",
                         button {
                             r#type: "button", disabled: !enabled,
-                            onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(Operation::Add)); },
+                            onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Polygon(Operation::Add))); },
                             "Draw addition"
                         }
                         button {
                             r#type: "button", disabled: !enabled,
-                            onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(Operation::Subtract)); },
+                            onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Polygon(Operation::Subtract))); },
                             "Draw cutout"
+                        }
+                        button {
+                            r#type: "button",
+                            disabled: !enabled || projection.active_version_id.is_some() || !projection.has_generated,
+                            title: if projection.active_version_id.is_some() { "Select Generated to add a linked connection." } else if !projection.has_generated { "Generate an automatic outline first." } else { "" },
+                            onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Connect)); },
+                            "Connect points"
                         }
                     }
                 }
@@ -2250,8 +3017,13 @@ pub(super) fn OutlineDraftCanvasOverlay(
     pitch: Vec2,
     origins: Vec<crate::presentation::outline_snapping::Origin>,
 ) -> Element {
-    let Some(operation) = (projection.drawing_operation)() else {
+    let Some(tool) = (projection.drawing_operation)() else {
         return rsx! {};
+    };
+    let minimum_points = if tool == OutlineDrawTool::Connect {
+        2
+    } else {
+        3
     };
     let mut drawing_operation = projection.drawing_operation;
     let mut points = projection.drawing_points;
@@ -2276,25 +3048,33 @@ pub(super) fn OutlineDraftCanvasOverlay(
         let runtime = runtime.clone();
         move || {
             let draft = points.read().clone();
-            if draft.len() < 3 || polygon_area(&draft).abs() < 1e-6 {
+            if draft.len() < minimum_points
+                || matches!(tool, OutlineDrawTool::Polygon(_)) && polygon_area(&draft).abs() < 1e-6
+            {
                 return;
             }
-            let feature = OutlineFeature::Polygon {
-                id: format!(
-                    "outline-manual-{board_id}-{}-{}",
-                    revision,
-                    runtime.operation().0
-                ),
-                points: draft,
-                anchor_part_id: None,
-                operation,
-            };
-            on_action.call(action_context.add_feature(feature));
+            match tool {
+                OutlineDrawTool::Polygon(operation) => {
+                    let feature = OutlineFeature::Polygon {
+                        id: format!(
+                            "outline-manual-{board_id}-{}-{}",
+                            revision,
+                            runtime.operation().0
+                        ),
+                        points: draft,
+                        anchor_part_id: None,
+                        operation,
+                    };
+                    on_action.call(action_context.add_feature(feature));
+                }
+                OutlineDrawTool::Connect => on_action.call(action_context.add_connection(draft)),
+            }
             points.set(Vec::new());
+            drawing_operation.set(None);
         }
     };
     rsx! {
-        g { class: "m1-outline-draft-controls", "aria-label": if operation == Operation::Add { "Draw addition" } else { "Draw cutout" },
+        g { class: "m1-outline-draft-controls", "aria-label": match tool { OutlineDrawTool::Polygon(Operation::Add) => "Draw addition", OutlineDrawTool::Polygon(Operation::Subtract) => "Draw cutout", OutlineDrawTool::Connect => "Connect points" },
             rect {
                 x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}",
                 fill: "transparent", tabindex: "0", role: "application",

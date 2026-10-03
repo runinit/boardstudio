@@ -1395,3 +1395,12 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-mechanical-fit-points { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 6px; }
 .m1-mechanical-fit-result { color: var(--wb-muted); font: 11px var(--wb-mono); }
 @container mechanical (max-width: 320px) { .m1-mechanical-fit-points { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.m1-outline-feature-list,
+.m1-outline-connection-list { display: grid; gap: 6px; }
+.m1-outline-feature-list h4,
+.m1-outline-connection-list h4,
+.m1-outline-feature-editor h4 { margin: 6px 0 0; color: var(--wb-ink); font-size: var(--wb-type-label); }
+.m1-outline-feature-row { display: flex; align-items: center; gap: 6px; }
+.m1-outline-feature-row > button:first-child { flex: 1; text-align: left; }
+.m1-outline-feature-editor { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 8px; border: 1px solid var(--wb-rule); }
+.m1-outline-feature-editor legend { padding: 0 4px; color: var(--wb-muted); font-size: var(--wb-type-label); }

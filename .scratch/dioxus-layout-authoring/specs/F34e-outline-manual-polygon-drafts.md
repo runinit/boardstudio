@@ -1,14 +1,16 @@
-# F3.4e — Manual outline polygon drafts
+# F3.4e — Manual outline geometry and linked connections
 
-**Parent:** F3.4 — Outline editing and refinement UI. This child implements the Draw addition and Draw cutout polygon draft controls. It does not change the canonical parent acceptance criteria or dependency edges.
+**Parent:** F3.4 — Outline editing and refinement UI. This child implements the mounted manual geometry and linked connection workflow. It does not change the canonical parent acceptance criteria or dependency edges.
 
 **Reference:** Pinned React `5a472a9426e6e38993361da402cd4ec730feb369`, `OutlineInspector.tsx`, `useOutlineEditor.tsx`, `OutlineDraftPreview`, `outlineSnapping.ts`; existing Rust Layout scope/selection owner, canvas interaction arbiter, Core `CopyOutline.feature`, `ReplaceDocument`, preview/save lifecycle and history.
 
 ## User journey
 
-With a Board outline selected, the designer starts Draw addition or Draw cutout. The canvas accepts successive primary clicks and displays the draft path and points. Each point uses the existing Layout grid and outline geometry snap policy; Alt bypasses both snap modes for that click. The Inspector reports the point count and offers Undo point, Cancel drawing and Finish drawing. Enter finishes and Escape cancels while the draft canvas has keyboard focus.
+With a Board outline selected, the designer starts Draw addition, Draw cutout, or Connect points. The canvas accepts successive primary clicks and displays the draft path and points. Each point uses the existing Layout grid and outline geometry snap policy; Alt bypasses both snap modes for that click. The Inspector reports the point count and offers Undo point, Cancel drawing and Finish drawing. Enter finishes and Escape cancels while the draft canvas has keyboard focus. Connection endpoints attach to an eligible included component within the pinned React 10 mm distance rule; other control points remain fixed in board coordinates.
 
-Finishing requires at least three finite points enclosing a non-zero area. It submits one existing accepted document operation. With Generated active, `CopyOutline.feature` creates and activates a fixed copy containing the authored polygon while preserving the Generated source. With a fixed version active, the feature is appended only to that version through the existing `ReplaceDocument` edit, preserving ordinary session history and durability. The draft is presentation state and never becomes a second document authority.
+Polygon finish requires at least three finite points enclosing a non-zero area; connections require at least two finite points. Each finish submits one existing accepted document operation. With Generated active, `CopyOutline.feature` creates and activates a fixed copy containing the authored polygon while preserving the Generated source. With a fixed version active, a polygon is appended only to that version through the existing `ReplaceDocument` edit. Connections require Generated and an existing automatic envelope and update that accepted envelope through `SetOutline`. Draft state is presentation-only.
+
+The saved geometry list selects authored shapes. Polygon selection opens the existing perimeter point editor; rectangle selection exposes width, height, and corner radius. Fixed versions can remove later authored features, while the first authored perimeter is protected. Saved connections expose width and point-coordinate editing; attached points are transformed through their current part pose and edited back in part-local coordinates. Removing a connection changes only the existing envelope connection list. Fixed-version feature changes use `ReplaceDocument` and are scoped to the active version.
 
 ## Ownership and failure behavior
 
@@ -18,13 +20,13 @@ The action is dropped if its scope, accepted token/revision, selected Board/Outl
 
 ## Acceptance
 
-- A paired public route starts each authored polygon tool, adds visible snapped points, removes a draft point, cancels without revision change, and finishes one valid addition/cutout.
+- A paired public route starts the changed manual draft/editor workflow, adds visible snapped points, removes a draft point, cancels without revision change, and finishes valid polygon and connection edits.
 - Generated remains available and unchanged after its first authored polygon; the new feature exists on the activated fixed copy. A fixed version appends without mutating another version.
 - Accepted operation, Undo/Redo and save/reopen reflect exactly one finished polygon. Invalid and cancelled drafts do not enter history.
 - The existing perimeter, version selection, settings, gap repair, and outline finding routes remain intact. Full F3.4/F3.7 and 62-parent acceptance remain separate.
 
 ## Explicit limits
 
-This child does not implement Connect points/bridge creation, saved-geometry feature selection/removal/editor routing, rectangle dimensions, source-linked attachment editing, advanced refinements, complete point-guide presentation, or every draft focus/unmount race. Existing F3.4b/c/d evidence remains reusable for unchanged behavior, but this child does not close F3.4.
+This child does not implement attachment selection/detachment, insertion/removal of connection control points, advanced refinements, full point-guide presentation, or every draft focus/unmount race. Core validation remains the authority for malformed geometry. Existing F3.4b/c/d evidence remains reusable for unchanged behavior, but this child does not close F3.4.
 
 Preserve RF-001 (one Editor operation authority), RF-006 (accepted Board/scope and geometry), and RF-009 (exact fixture/source/provenance evidence). No new refactoring takeaway was identified in this source comparison.
