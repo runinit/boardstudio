@@ -145,9 +145,11 @@ prevent stale issue prose from generating another implementation of existing cod
 A combined compiler failure produces one repair list routed to the original
 owners. Repair the affected captures/types in the existing source; do not reopen
 unchanged specs, create duplicate tickets, repeat reviews or restart unrelated
-work. Later packets retain already joined fixes. Compile/package the larger batch
-for a visible preview; behavioral testing and consolidated review remain deferred
-under the current source-first instruction. A build never counts as acceptance.
+work. Later packets retain already joined fixes. The coordinator runs
+`pnpm run check:frontend:source` on the combined batch and repairs its compiler
+diagnostics before retrying the full preview package. This is compilation only;
+behavioral testing and consolidated review remain deferred under the current
+source-first instruction. A build never counts as acceptance.
 
 This replaces per-slice planning/source/merger approvals and repeated document
 publication for the active frontend run. New tickets are created only for distinct

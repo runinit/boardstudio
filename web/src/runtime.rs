@@ -4194,7 +4194,7 @@ impl Runtime {
         }
         let core = self.core.borrow().clone();
         let runtime = self.clone();
-        let ensure_current = || {
+        let ensure_current = || -> Result<(), String> {
             if runtime.mechanical_export_capture_is_current(operation_id, &capture, &core) {
                 Ok(())
             } else {
