@@ -1,0 +1,55 @@
+{
+  "source_commit": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
+  "provenance_sha256": "a4677af663c0e8286ae5e923bf1884b0230bcc6dc852a3030cc35a68d453365c",
+  "source_count": 1373,
+  "source_mismatches": [],
+  "source_verification": "Frozen integration files against recorded source hashes before further source joins.",
+  "routes": {
+    "root": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 154,
+      "mismatches": []
+    },
+    "subpath": {
+      "http": 200,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "asset_count": 154,
+      "mismatches": []
+    }
+  },
+  "fresh_commands": 8,
+  "inherited_commands": 22,
+  "bounded_resume": {},
+  "duration_seconds": 116.920869,
+  "affected_strict_checks": {
+    "source_commit": "4940515e4d572bc521414bec05ac5de4ab2922af",
+    "command": [
+      "cargo",
+      "clippy",
+      "--manifest-path",
+      "web/Cargo.toml",
+      "--locked",
+      "--target",
+      "wasm32-unknown-unknown",
+      "--no-default-features",
+      "--features",
+      "page",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "seconds": 8.97709708698676,
+    "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34770-20261003/combined-page-check-transform-repair.log",
+    "new_ui_tests": 0,
+    "cad_worker_check": "Reused34769: deployed worker lib unchanged"
+  }
+}
