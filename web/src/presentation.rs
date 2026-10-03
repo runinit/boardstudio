@@ -1459,6 +1459,34 @@ fn layout_view_mode_handler(
     })
 }
 
+/// Keymap and Keycaps only change views; their shared 3D viewer has no Layout
+/// placement or transform interaction to cancel. Keep these requests bound to
+/// the exact workspace, scope, accepted snapshot, and selection generation.
+fn design_consumer_view_mode_handler(
+    runtime: Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: SelectionAdapter,
+    owner: LayoutOwnerIdentity,
+    is_assembly_3d: Signal<bool>,
+) -> EventHandler<bool> {
+    EventHandler::new(move |assembly_3d| {
+        if owner.workspace == "Layout"
+            || current_layout_owner(&runtime, workspace, &adapter) != owner
+            || owner.workspace != workspace()
+        {
+            return;
+        }
+        let model = runtime.model();
+        if !owner.scope.as_ref().is_some_and(|scope| {
+            active_board_scope_matches(&model, scope) && runtime.scope().as_ref() == Some(scope)
+        }) {
+            return;
+        }
+        let mut is_assembly_3d = is_assembly_3d;
+        is_assembly_3d.set(assembly_3d);
+    })
+}
+
 fn tree_cell_anchor_for_owner(
     anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
     owner: &LayoutOwnerIdentity,
@@ -5005,7 +5033,26 @@ fn Editor() -> Element {
             ))
         }
         "PCB" => workspace_composition::WorkspaceToolbarInput::Pcb,
-        "Keymap" => workspace_composition::WorkspaceToolbarInput::Keymap,
+        "Keymap" => {
+            let on_view_mode = design_consumer_view_mode_handler(
+                runtime.clone(),
+                workspace,
+                adapter.clone(),
+                layout_owner.clone(),
+                layout_assembly_3d,
+            );
+            workspace_composition::WorkspaceToolbarInput::Keymap(
+                shared_viewer::DesignViewToolbarProps {
+                    label: "Keymap".into(),
+                    detail: "Layers & key behaviors".into(),
+                    assembly_3d: layout_assembly_3d(),
+                    footprints_visible: (layer_visibility.footprints)()
+                        && !(layer_visibility.hidden)().contains("Footprints"),
+                    on_view_mode,
+                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                },
+            )
+        }
         "Keycaps" => workspace_composition::WorkspaceToolbarInput::Keycaps,
         "Case" => workspace_composition::WorkspaceToolbarInput::Case,
         "Parts" => workspace_composition::WorkspaceToolbarInput::Parts,
@@ -5496,7 +5543,9 @@ fn Editor() -> Element {
                             on_preview: mirrored_pair.on_preview,
                         }
                     }
-                    if active_workspace == "Layout" && layout_assembly_3d() {
+                    if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
+                        && layout_assembly_3d()
+                    {
                         layout_viewer::LayoutCanonicalViewer {}
                     } else if active_workspace == "Layout" {
                         svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", onmounted: mount,

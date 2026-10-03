@@ -22,7 +22,7 @@ pub(super) enum WorkspaceObjectsInput<'a> {
 pub(super) enum WorkspaceToolbarInput {
     Layout(Box<super::layout_workspace::ToolbarInput>),
     Pcb,
-    Keymap,
+    Keymap(super::shared_viewer::DesignViewToolbarProps),
     Keycaps,
     Case,
     Parts,
@@ -80,7 +80,7 @@ pub(super) fn toolbar(input: WorkspaceToolbarInput) -> Element {
     match input {
         WorkspaceToolbarInput::Layout(input) => super::layout_workspace::toolbar(*input),
         WorkspaceToolbarInput::Pcb => super::pcb_workspace::toolbar(),
-        WorkspaceToolbarInput::Keymap => super::keymap_workspace::toolbar(),
+        WorkspaceToolbarInput::Keymap(input) => super::keymap_workspace::toolbar(input),
         WorkspaceToolbarInput::Keycaps => super::keycaps_workspace::toolbar(),
         WorkspaceToolbarInput::Case => super::case_workspace::toolbar(),
         WorkspaceToolbarInput::Parts => super::parts_workspace::toolbar(),

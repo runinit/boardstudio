@@ -27,6 +27,71 @@ use web_sys::{HtmlCanvasElement, PointerEvent};
 pub(crate) use super::case_display::CaseDisplay;
 use super::case_display::preference_ids;
 
+/// Reusable canvas header and view switch for the Keymap and Keycaps consumers.
+/// The page owner supplies guarded actions and the accepted shared view state.
+#[derive(Props, Clone, PartialEq)]
+pub(crate) struct DesignViewToolbarProps {
+    pub(crate) label: String,
+    pub(crate) detail: String,
+    pub(crate) assembly_3d: bool,
+    pub(crate) footprints_visible: bool,
+    pub(crate) on_view_mode: EventHandler<bool>,
+    pub(crate) on_toggle_footprints: EventHandler<()>,
+}
+
+#[component]
+pub(crate) fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
+    let label = props.label;
+    let detail = props.detail;
+    let assembly_3d = props.assembly_3d;
+    let footprints_visible = props.footprints_visible;
+    rsx! {
+        div {
+            class: "m1-canvas-toolbar",
+            role: "toolbar",
+            aria_label: "{label} commands",
+            div { class: "m1-canvas-context",
+                svg {
+                    class: "m1-tab-icon",
+                    view_box: "0 0 20 20",
+                    fill: "none",
+                    stroke: "currentColor",
+                    stroke_width: "1.5",
+                    stroke_linecap: "round",
+                    stroke_linejoin: "round",
+                    aria_hidden: "true",
+                    if label == "Keymap" { path { d: "M3 5h14v10H3zM6 8h2m2 0h2m2 0h1M6 11h2m2 0h2M6 14h8" } }
+                    else { path { d: "m3 15 2-10h10l2 10zM5 5l2 4h6l2-4M7 9l-1 6m7-6 1 6" } }
+                }
+                strong { "{label}" }
+                span { "{detail}" }
+            }
+        }
+        div { class: "m1-design-view-group", role: "group", aria_label: "Design view",
+            button {
+                r#type: "button",
+                aria_pressed: "{!assembly_3d}",
+                onclick: move |_| props.on_view_mode.call(false),
+                "2D"
+            }
+            button {
+                r#type: "button",
+                aria_pressed: "{assembly_3d}",
+                onclick: move |_| props.on_view_mode.call(true),
+                "3D assembly"
+            }
+            if !assembly_3d {
+                button {
+                    r#type: "button",
+                    aria_pressed: "{footprints_visible}",
+                    onclick: move |_| props.on_toggle_footprints.call(()),
+                    "Footprints"
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ViewerIdentity {
     pub(crate) scope: Scope,
@@ -346,8 +411,13 @@ pub(crate) fn CaseSharedViewer(
     let component_layers = component_models.map_or_else(Vec::new, |models| {
         physical_component_layers(models, matching_model_rows)
     });
+    let current_workspace = use_context::<super::WorkspaceState>().0;
     let canvas_context = match &source {
-        ViewerSource::Layout(_) => ViewerCanvasContext::Layout,
+        ViewerSource::Layout(_) => match current_workspace() {
+            "Keymap" => ViewerCanvasContext::Keymap,
+            "Keycaps" => ViewerCanvasContext::Keycaps,
+            _ => ViewerCanvasContext::Layout,
+        },
         ViewerSource::Cad(_) | ViewerSource::Native(_) => ViewerCanvasContext::Case,
     };
     rsx! {
@@ -390,6 +460,8 @@ fn component_models_for_source<'a>(
 enum ViewerCanvasContext {
     Case,
     Layout,
+    Keymap,
+    Keycaps,
 }
 
 impl ViewerCanvasContext {
@@ -400,6 +472,12 @@ impl ViewerCanvasContext {
             }
             Self::Layout => {
                 "Interactive 3D Layout PCB assembly. Click a visible component to select its current Layout part; use the controls to navigate and change display."
+            }
+            Self::Keymap => {
+                "Interactive 3D Keymap board preview. Click a visible current-board component or key to select it."
+            }
+            Self::Keycaps => {
+                "Interactive 3D Keycaps board preview. Click a visible current-board component or key to select it."
             }
         }
     }
@@ -2181,6 +2259,16 @@ mod tests {
             !ViewerCanvasContext::Layout
                 .accessible_name()
                 .contains("Case preview")
+        );
+        assert!(
+            ViewerCanvasContext::Keymap
+                .accessible_name()
+                .contains("3D Keymap board preview")
+        );
+        assert!(
+            ViewerCanvasContext::Keycaps
+                .accessible_name()
+                .contains("3D Keycaps board preview")
         );
     }
 
