@@ -931,18 +931,33 @@
     }
   ],
   "current_build_in_progress": {
-    "build": "frontend-layout-case-transport-integrated-20261002",
-    "source_commit": "b9e74e37",
-    "status": "complete; independently verified and served; bounded browser qualification in progress",
-    "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-layout-case-transport-integrated-build.log",
+    "build": "frontend-chooser-pcb-navigation-integrated-20261002",
+    "source_commit": "a8fd8988f649c70c11393066314095447535dce5",
+    "status": "building; not served; source reviews CLEAR, bounded final Keycaps composition review pending",
     "included_repairs": [
-      "Layout model-layer source identity and responsive view group",
-      "Case wireless transport accepted owner admission"
+      "Parts chooser hierarchy/search/Browse query/panel routing",
+      "PCB Wiring mode accepted edits and resolver refresh",
+      "Keycaps findings navigation live destination owner/fit/focus guards"
     ],
-    "verification": "Combined strict page/core-worker WASM all-target Clippy and independent root composition/package verification CLEAR; broader paired browser gates remain open.",
-    "url": "http://127.0.0.1:34737/",
-    "elapsed_seconds": 473.939098,
-    "provenance_sha256": "4bc42957cd9528c7dc11cb7c93de7bd61e3b663984c3f91af6fc58377c295cdb",
-    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/full-package-provenance-review-b9e74e37-20261002.md"
-  }
+    "verification": "fresh combined strict page/core-worker WASM all-target Clippy green16.66s; prior source reports retained; paired public gates open",
+    "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-chooser-pcb-navigation-integrated-build.log"
+  },
+  "completed_build_history": [
+    {
+      "build": "frontend-layout-case-transport-integrated-20261002",
+      "source_commit": "b9e74e37",
+      "status": "complete; independently verified and served; bounded browser qualification in progress",
+      "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-layout-case-transport-integrated-build.log",
+      "included_repairs": [
+        "Layout model-layer source identity and responsive view group",
+        "Case wireless transport accepted owner admission"
+      ],
+      "verification": "Combined strict page/core-worker WASM all-target Clippy and independent root composition/package verification CLEAR; broader paired browser gates remain open.",
+      "url": "http://127.0.0.1:34737/",
+      "elapsed_seconds": 473.939098,
+      "provenance_sha256": "4bc42957cd9528c7dc11cb7c93de7bd61e3b663984c3f91af6fc58377c295cdb",
+      "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/full-package-provenance-review-b9e74e37-20261002.md"
+    }
+  ],
+  "latest_keymap_binding_receipt": ".scratch/dioxus-keymap-layers/evidence/binding-public-34737-20261002/RESULTS.md"
 }
