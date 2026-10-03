@@ -28,6 +28,8 @@ mod parts_view_generation;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod pcb_wiring_mode_operation;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
+mod pcb_wiring_remap_operation;
+#[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod physical_setup;
 #[cfg(feature = "page")]
 mod portable_archive;
@@ -141,6 +143,9 @@ mod presentation {
 
         #[path = "pins.rs"]
         mod pins;
+
+        #[path = "remap.rs"]
+        mod remap;
 
         #[cfg(test)]
         #[path = "mode_owner_tests.rs"]

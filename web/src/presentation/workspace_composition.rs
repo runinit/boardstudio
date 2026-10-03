@@ -119,6 +119,7 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
                 mode_actions: input.mode_actions,
                 pin_actions: input.pin_actions,
                 apply_actions: input.apply_actions,
+                protected_remap_actions: input.protected_remap_actions,
             }
         },
         WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),

@@ -4794,6 +4794,17 @@ fn Editor() -> Element {
         pcb_wiring_source.clone(),
         pcb_wiring_mount.resolution_signal,
     );
+    let pcb_wiring_protected_remap_actions = pcb_wiring::use_protected_remap_review(
+        runtime.clone(),
+        version,
+        workspace,
+        adapter.generation,
+        {
+            let runtime = runtime.clone();
+            Rc::new(move || instance_selection.is_current(&runtime.model()))
+        },
+        pcb_wiring_source.clone(),
+    );
     let pcb_wiring_apply_actions = pcb_wiring::use_board_wiring_apply(
         runtime.clone(),
         version,
@@ -5188,6 +5199,7 @@ fn Editor() -> Element {
                     mode_actions: pcb_wiring_mode_actions.clone(),
                     pin_actions: pcb_wiring_pin_actions.clone(),
                     apply_actions: pcb_wiring_apply_actions.clone(),
+                    protected_remap_actions: pcb_wiring_protected_remap_actions.clone(),
                 })
             }))
         }

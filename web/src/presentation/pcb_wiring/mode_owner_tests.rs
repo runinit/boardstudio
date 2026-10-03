@@ -6,6 +6,7 @@ use super::mode::{
 use super::pins::{
     PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
 };
+use super::remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 use super::*;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, Lifecycle, OperationId, ReadModel,
@@ -32,6 +33,7 @@ struct Probe {
     latest: Rc<RefCell<Option<BoardWiringModeActions>>>,
     latest_apply: Rc<RefCell<Option<BoardWiringApplyActions>>>,
     latest_pins: Rc<RefCell<Option<PcbWiringPinActions>>>,
+    latest_remap: Rc<RefCell<Option<ProtectedRemapActions>>>,
     version: Rc<Cell<u64>>,
     generation: Rc<Cell<u64>>,
     workspace: Rc<Cell<&'static str>>,
@@ -91,12 +93,24 @@ fn host() -> Element {
             let probe = probe.clone();
             Rc::new(move || probe.active.get())
         },
-        source,
+        source.clone(),
         resolution,
+    );
+    let remap_actions = use_protected_remap_review(
+        probe.runtime.clone(),
+        version,
+        workspace,
+        generation,
+        {
+            let probe = probe.clone();
+            Rc::new(move || probe.active.get())
+        },
+        source,
     );
     *probe.latest.borrow_mut() = Some(actions);
     *probe.latest_apply.borrow_mut() = Some(apply_actions);
     *probe.latest_pins.borrow_mut() = Some(pin_actions);
+    *probe.latest_remap.borrow_mut() = Some(remap_actions);
     rsx! { div { "mode owner test host" } }
 }
 
@@ -371,18 +385,25 @@ fn source(
 }
 
 fn mounted() -> (Probe, VirtualDom) {
-    let plan_identity = source(1, 0, None, 5).identity;
-    let runtime = crate::runtime::Runtime::new(model(document(), 1), scope());
+    mounted_with_document(document())
+}
+
+fn mounted_with_document(document: ProjectDoc) -> (Probe, VirtualDom) {
+    let mut source = source(1, document.revision, None, 5);
+    source.document = std::sync::Arc::new(document.clone());
+    let plan_identity = source.identity.clone();
+    let runtime = crate::runtime::Runtime::new(model(document.clone(), 1), scope());
     let probe = Probe {
         runtime,
-        source: Rc::new(RefCell::new(source(1, 0, None, 5))),
+        source: Rc::new(RefCell::new(source)),
         resolution: Rc::new(RefCell::new(PcbWiringResolution::Current {
             identity: plan_identity,
-            plan: resolved_plan(&document()),
+            plan: resolved_plan(&document),
         })),
         latest: Rc::default(),
         latest_apply: Rc::default(),
         latest_pins: Rc::default(),
+        latest_remap: Rc::default(),
         version: Rc::new(Cell::new(0)),
         generation: Rc::new(Cell::new(5)),
         workspace: Rc::new(Cell::new("PCB")),
@@ -453,6 +474,50 @@ fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
         panic!("mode choice must use the existing ReplaceDocument edit")
     };
     (*operation_id, (**document).clone())
+}
+
+fn submitted_remap(probe: &Probe) -> (OperationId, ProjectDoc) {
+    let events = probe.runtime.events.borrow();
+    let [
+        Event::Edit {
+            operation_id,
+            command,
+        },
+    ] = events.as_slice()
+    else {
+        panic!("one protected-remap review must submit one Edit")
+    };
+    let EditOperation::ReplaceDocument { document } = &command.operation else {
+        panic!("protected-remap review must use ReplaceDocument")
+    };
+    (*operation_id, (**document).clone())
+}
+
+fn protected_document() -> ProjectDoc {
+    let mut document = document();
+    let handoff_revision = document.revision.saturating_sub(1);
+    let boards = &mut document
+        .hardware
+        .get_or_insert_with(Default::default)
+        .boards;
+    let configuration_index = boards
+        .iter()
+        .position(|configuration| configuration.board_id == "left");
+    let configuration = if let Some(index) = configuration_index {
+        &mut boards[index]
+    } else {
+        boards.push(ElectricalBoardConfiguration {
+            board_id: "left".into(),
+            ..Default::default()
+        });
+        boards.last_mut().unwrap()
+    };
+    configuration.protected_handoff = Some(ElectricalHandoffBaseline {
+        fingerprint: "protected-fixture-fingerprint".into(),
+        revision: handoff_revision,
+        assignments: [("matrix/m/r0c0".into(), "P1".into())].into(),
+    });
+    document
 }
 
 #[test]
@@ -1237,6 +1302,142 @@ fn mounted_owner_failures_keep_the_accepted_mode_and_settle_the_exact_observer()
                 .unwrap()
                 .state,
             BoardWiringModeFeedback::Failed(_)
+        ));
+    }
+}
+
+#[test]
+fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revision() {
+    let document = protected_document();
+    let (probe, mut dom) = mounted_with_document(document.clone());
+    let actions = probe.latest_remap.borrow().as_ref().unwrap().clone();
+    assert_eq!(
+        actions.handoff_revision,
+        Some(document.revision.saturating_sub(1))
+    );
+    assert!(actions.editable);
+    let identity = actions.identity.clone().unwrap();
+    actions.on_review.call(identity);
+
+    let (operation, mut proposal) = submitted_remap(&probe);
+    let left = proposal
+        .hardware
+        .as_ref()
+        .unwrap()
+        .boards
+        .iter()
+        .find(|configuration| configuration.board_id == "left")
+        .unwrap();
+    assert!(left.protected_handoff.is_none());
+    assert_eq!(
+        left.locks,
+        document.hardware.as_ref().unwrap().boards[0].locks
+    );
+
+    proposal.revision = document.revision + 1;
+    *probe.runtime.model.borrow_mut() = model(proposal.clone(), 2);
+    let mut next_source = source(2, proposal.revision, None, 5);
+    next_source.document = std::sync::Arc::new(proposal);
+    *probe.source.borrow_mut() = next_source;
+    assert!(probe.runtime.settle(operation, TerminalOutcome::Completed));
+    tick(&probe, &mut dom);
+
+    let settled = probe.latest_remap.borrow();
+    let actions = settled.as_ref().unwrap();
+    assert_eq!(actions.handoff_revision, None);
+    assert!(matches!(
+        actions.feedback.as_ref().unwrap().state,
+        ProtectedRemapFeedback::Saved
+    ));
+}
+
+#[test]
+fn mounted_protected_remap_review_rejects_a_retained_fingerprint_after_refresh() {
+    let document = protected_document();
+    let (probe, mut dom) = mounted_with_document(document.clone());
+    let old_actions = probe.latest_remap.borrow().as_ref().unwrap().clone();
+    let old_identity = old_actions.identity.clone().unwrap();
+
+    let mut changed = document;
+    changed
+        .hardware
+        .as_mut()
+        .unwrap()
+        .boards
+        .iter_mut()
+        .find(|configuration| configuration.board_id == "left")
+        .unwrap()
+        .protected_handoff
+        .as_mut()
+        .unwrap()
+        .fingerprint = "new-fingerprint".into();
+    *probe.runtime.model.borrow_mut() = model(changed.clone(), 2);
+    let mut current_source = source(2, changed.revision, None, 5);
+    current_source.document = std::sync::Arc::new(changed);
+    *probe.source.borrow_mut() = current_source;
+    tick(&probe, &mut dom);
+
+    old_actions.on_review.call(old_identity);
+    assert!(probe.runtime.events.borrow().is_empty());
+}
+
+#[test]
+fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
+    for outcome in [
+        TerminalOutcome::Rejected("rejected".into()),
+        TerminalOutcome::ExecutorFailed("executor".into()),
+        TerminalOutcome::PersistenceFailed("disk".into()),
+        TerminalOutcome::Cancelled,
+    ] {
+        let document = protected_document();
+        let (probe, mut dom) = mounted_with_document(document.clone());
+        probe
+            .latest_remap
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_review
+            .call(
+                probe
+                    .latest_remap
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
+                    .identity
+                    .clone()
+                    .unwrap(),
+            );
+        let (operation, _) = submitted_remap(&probe);
+        assert!(probe.runtime.settle(operation, outcome));
+        tick(&probe, &mut dom);
+        let accepted = probe.runtime.model.borrow();
+        assert_eq!(
+            accepted
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .hardware
+                .as_ref()
+                .unwrap()
+                .boards[0]
+                .protected_handoff
+                .as_ref()
+                .unwrap()
+                .fingerprint,
+            "protected-fixture-fingerprint"
+        );
+        assert!(matches!(
+            probe
+                .latest_remap
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .feedback
+                .as_ref()
+                .unwrap()
+                .state,
+            ProtectedRemapFeedback::Failed(_)
         ));
     }
 }

@@ -17,6 +17,7 @@ mod part_connections;
 mod part_input_settings;
 mod part_net_admission;
 mod pins;
+mod remap;
 use crate::firmware_position_projection;
 pub(in crate::presentation) use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
@@ -35,6 +36,9 @@ pub(in crate::presentation) use mode::{
 pub(in crate::presentation) use part_input_settings::PartInputActions;
 pub(in crate::presentation) use pins::{
     PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
+};
+pub(in crate::presentation) use remap::{
+    ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -262,6 +266,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub mode_actions: BoardWiringModeActions,
     pub pin_actions: PcbWiringPinActions,
     pub apply_actions: BoardWiringApplyActions,
+    pub protected_remap_actions: ProtectedRemapActions,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -838,6 +843,9 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let pin_rows = matching_plan
         .map(|plan| pins::assignments(&props.source, plan))
         .unwrap_or_default();
+    let protected_remap_actions = props.protected_remap_actions.clone();
+    let protected_remap_identity = protected_remap_actions.identity.clone();
+    let on_review_remap = protected_remap_actions.on_review.clone();
     rsx! {
         section { class: "m1-pcb-wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }
@@ -879,6 +887,38 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     PcbWiringPinFeedback::Pending => rsx! { p { role: "status", "Saving wiring pin…" } },
                     PcbWiringPinFeedback::Saved => rsx! { p { role: "status", "Wiring pin saved." } },
                     PcbWiringPinFeedback::Failed(message) => rsx! { p { role: "alert", "{message}" } },
+                }
+            }
+            if protected_remap_actions.handoff_revision.is_some()
+                || protected_remap_actions.feedback.is_some()
+            {
+                section { class: "m1-pcb-wiring-protected", aria_label: "Protected handoff",
+                    strong { "Protected handoff" }
+                    if let Some(revision) = protected_remap_actions.handoff_revision {
+                        p { "Pins protected by PCB handoff at revision {revision}" }
+                        details {
+                            summary { "Review PCB remap" }
+                            p { "Changing a protected assignment creates a new hardware revision. The old PCB and firmware must be regenerated before export." }
+                            button {
+                                type: "button",
+                                disabled: !protected_remap_actions.editable,
+                                onclick: move |_| {
+                                    let Some(identity) = protected_remap_identity.clone() else { return; };
+                                    on_review_remap.call(identity);
+                                },
+                                "Start a new PCB revision"
+                            }
+                        }
+                    }
+                    if let Some(feedback) = &protected_remap_actions.feedback {
+                        if matches!(feedback.state, ProtectedRemapFeedback::Pending) {
+                            p { role: "status", "Starting a new PCB revision…" }
+                        } else if matches!(feedback.state, ProtectedRemapFeedback::Saved) {
+                            p { role: "status", "New PCB revision started. Regenerate PCB and firmware before export." }
+                        } else if let ProtectedRemapFeedback::Failed(message) = &feedback.state {
+                            p { role: "alert", "{message}" }
+                        }
+                    }
                 }
             }
             if pending {
