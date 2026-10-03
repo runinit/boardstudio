@@ -38,7 +38,6 @@ impl PartialEq for GeneratorOwner {
             && self.source == other.source
             && self.generator_version == other.generator_version
             && self.base_parameters == other.base_parameters
-            && self.project_owned_at_start == other.project_owned_at_start
             && self.scope_generation == other.scope_generation
             && self.selection_generation == other.selection_generation
     }
@@ -1097,6 +1096,22 @@ mod tests {
         assert_eq!(
             owner, current_owner,
             "non-generator metadata keeps the draft owner"
+        );
+
+        let bundled_snapshot = snapshot(Vec::new(), 4);
+        let bundled_owner = make_owner(
+            &bundled_snapshot,
+            Some(scope.clone()),
+            Some((Some(scope.clone()), DEFINITION_ID.into())),
+            &base,
+            11,
+            7,
+        )
+        .expect("bundled owner");
+        assert!(!bundled_owner.project_owned_at_start);
+        assert_eq!(
+            bundled_owner, current_owner,
+            "materializing a bundled definition keeps the logical draft owner"
         );
 
         let candidate = changed_candidate(&base);
