@@ -1,12 +1,15 @@
 use super::apply::{BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply};
 use super::mode::{
     BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
-    use_board_wiring_mode_edits,
+    CurrentSnapshotBlocker, current_snapshot_probe, use_board_wiring_mode_edits,
+};
+use super::pins::{
+    PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
 };
 use super::*;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, ReadModel, Scope, SessionEpoch,
-    SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Completion, Durability, Effect, Event, Lifecycle, OperationId, ReadModel,
+    SaveResult, Scope, Session, SessionEpoch, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::{
     electrical::{ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
@@ -28,6 +31,7 @@ struct Probe {
     resolution: Rc<RefCell<PcbWiringResolution>>,
     latest: Rc<RefCell<Option<BoardWiringModeActions>>>,
     latest_apply: Rc<RefCell<Option<BoardWiringApplyActions>>>,
+    latest_pins: Rc<RefCell<Option<PcbWiringPinActions>>>,
     version: Rc<Cell<u64>>,
     generation: Rc<Cell<u64>>,
     workspace: Rc<Cell<&'static str>>,
@@ -75,11 +79,24 @@ fn host() -> Element {
             let probe = probe.clone();
             Rc::new(move || probe.active.get())
         },
+        source.clone(),
+        resolution,
+    );
+    let pin_actions = use_pcb_wiring_pin_edits(
+        probe.runtime.clone(),
+        version,
+        workspace,
+        generation,
+        {
+            let probe = probe.clone();
+            Rc::new(move || probe.active.get())
+        },
         source,
         resolution,
     );
     *probe.latest.borrow_mut() = Some(actions);
     *probe.latest_apply.borrow_mut() = Some(apply_actions);
+    *probe.latest_pins.borrow_mut() = Some(pin_actions);
     rsx! { div { "mode owner test host" } }
 }
 
@@ -349,6 +366,7 @@ fn source(
         ui_scope,
         scope_generation: generation,
         active_part_id: selected_part_id.map(str::to_owned),
+        document: std::sync::Arc::new(document()),
     }
 }
 
@@ -364,6 +382,7 @@ fn mounted() -> (Probe, VirtualDom) {
         })),
         latest: Rc::default(),
         latest_apply: Rc::default(),
+        latest_pins: Rc::default(),
         version: Rc::new(Cell::new(0)),
         generation: Rc::new(Cell::new(5)),
         workspace: Rc::new(Cell::new("PCB")),
@@ -404,6 +423,21 @@ fn request(probe: &Probe, mode: ElectricalMode) -> BoardWiringModeEditRequest {
     }
 }
 
+fn pin_request(probe: &Probe, assignment_id: &str, pin: Option<String>) -> PcbWiringPinEditRequest {
+    PcbWiringPinEditRequest {
+        identity: probe
+            .latest_pins
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .identity
+            .clone()
+            .unwrap(),
+        assignment_id: assignment_id.to_owned(),
+        pin,
+    }
+}
+
 fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
     let events = probe.runtime.events.borrow();
     let [
@@ -419,6 +453,378 @@ fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
         panic!("mode choice must use the existing ReplaceDocument edit")
     };
     (*operation_id, (**document).clone())
+}
+
+#[test]
+fn mounted_pin_controls_edit_only_selected_board_locks_and_settle_after_save() {
+    let (probe, mut dom) = mounted();
+    let mut starting = document();
+    let mut configuration = ElectricalBoardConfiguration {
+        board_id: "left".into(),
+        controller_part_id: Some("mcu-left".into()),
+        mode: ElectricalMode::Matrix,
+        locks: BTreeMap::from([("unrelated".into(), "P10".into())]),
+        key_bindings: BTreeMap::from([("matrix/m/r0c0".into(), "A".into())]),
+        ..Default::default()
+    };
+    configuration
+        .assignments
+        .insert("kept".into(), "P14".into());
+    starting.hardware = Some(HardwareConfiguration {
+        boards: vec![
+            configuration,
+            ElectricalBoardConfiguration {
+                board_id: "right".into(),
+                locks: BTreeMap::from([("right-lock".into(), "P3".into())]),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    });
+    *probe.runtime.model.borrow_mut() = model(starting.clone(), 1);
+    *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+        identity: probe.source.borrow().identity.clone(),
+        plan: resolved_plan(&starting),
+    };
+    tick(&probe, &mut dom);
+
+    let actions = probe.latest_pins.borrow().as_ref().unwrap().clone();
+    assert!(actions.editable);
+    let plan = resolved_plan(&starting);
+    let selected_pin = plan
+        .free_pins
+        .first()
+        .expect("fixture has a free pin")
+        .clone();
+    actions
+        .on_change
+        .call(pin_request(&probe, "row/0", Some(selected_pin.clone())));
+    let (operation, proposal) = submitted_pin_edit(&probe);
+    assert_eq!(
+        proposal.hardware.as_ref().unwrap().boards[0].locks["row/0"],
+        selected_pin
+    );
+    assert_eq!(
+        proposal.hardware.as_ref().unwrap().boards[0].locks["unrelated"],
+        "P10"
+    );
+    assert_eq!(
+        proposal.hardware.as_ref().unwrap().boards[0].assignments["kept"],
+        "P14"
+    );
+    assert_eq!(
+        proposal.hardware.as_ref().unwrap().boards[0].key_bindings["matrix/m/r0c0"],
+        "A"
+    );
+    assert_eq!(
+        proposal.hardware.as_ref().unwrap().boards[1].locks["right-lock"],
+        "P3"
+    );
+    assert_eq!(proposal.boards, starting.boards);
+
+    let mut saved = proposal.clone();
+    saved.revision = 1;
+    *probe.runtime.model.borrow_mut() = model(saved.clone(), 2);
+    *probe.source.borrow_mut() = source(2, 1, None, 5);
+    *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+        identity: probe.source.borrow().identity.clone(),
+        plan: resolved_plan(&saved),
+    };
+    assert!(probe.runtime.settle(operation, TerminalOutcome::Completed));
+    tick(&probe, &mut dom);
+    assert!(matches!(
+        probe
+            .latest_pins
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .feedback
+            .as_ref()
+            .unwrap()
+            .state,
+        PcbWiringPinFeedback::Saved
+    ));
+
+    probe.runtime.events.borrow_mut().clear();
+    let actions = probe.latest_pins.borrow().as_ref().unwrap().clone();
+    actions.on_change.call(pin_request(&probe, "row/0", None));
+    let (unlock_operation, unlocked) = submitted_pin_edit(&probe);
+    assert!(
+        !unlocked.hardware.as_ref().unwrap().boards[0]
+            .locks
+            .contains_key("row/0")
+    );
+    assert_eq!(
+        unlocked.hardware.as_ref().unwrap().boards[0].locks["unrelated"],
+        "P10"
+    );
+    assert_eq!(
+        unlocked.hardware.as_ref().unwrap().boards[1].locks["right-lock"],
+        "P3"
+    );
+    assert!(
+        probe
+            .runtime
+            .settle(unlock_operation, TerminalOutcome::Completed)
+    );
+    let mut unlocked_saved = unlocked.clone();
+    unlocked_saved.revision = 2;
+    *probe.runtime.model.borrow_mut() = model(unlocked_saved.clone(), 3);
+    *probe.source.borrow_mut() = source(3, 2, None, 5);
+    *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+        identity: probe.source.borrow().identity.clone(),
+        plan: resolved_plan(&unlocked_saved),
+    };
+    tick(&probe, &mut dom);
+    assert!(matches!(
+        probe
+            .latest_pins
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .feedback
+            .as_ref()
+            .unwrap()
+            .state,
+        PcbWiringPinFeedback::Saved
+    ));
+}
+
+fn submitted_pin_edit(probe: &Probe) -> (OperationId, ProjectDoc) {
+    let events = probe.runtime.events.borrow();
+    let [
+        Event::Edit {
+            operation_id,
+            command,
+        },
+    ] = events.as_slice()
+    else {
+        panic!("one assignment pin action must submit one Edit")
+    };
+    assert_eq!(command.target_ids, vec!["left"]);
+    let EditOperation::ReplaceDocument { document } = &command.operation else {
+        panic!("assignment pin changes must use the existing ReplaceDocument edit")
+    };
+    (*operation_id, (**document).clone())
+}
+
+#[test]
+fn production_snapshot_probe_distinguishes_import_settlement_from_other_admission_gates() {
+    let (probe, mut dom) = mounted();
+    let identity = probe
+        .latest
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .identity
+        .clone()
+        .unwrap();
+    let saved = probe.runtime.model.borrow().clone();
+    let check = |workspace, current| {
+        current_snapshot_probe(&probe.runtime, &identity, workspace, 5, current)
+    };
+    assert!(check("PCB", true).is_ok());
+    assert_eq!(
+        check("Layout", true).unwrap_err(),
+        CurrentSnapshotBlocker::Workspace
+    );
+    assert_eq!(
+        check("PCB", false).unwrap_err(),
+        CurrentSnapshotBlocker::InstanceSelection
+    );
+
+    let mut opening = saved.clone();
+    opening.lifecycle = Lifecycle::Opening;
+    *probe.runtime.model.borrow_mut() = opening;
+    assert_eq!(
+        check("PCB", true).unwrap_err(),
+        CurrentSnapshotBlocker::Lifecycle
+    );
+    *probe.runtime.model.borrow_mut() = saved.clone();
+
+    let mut preview = saved.clone();
+    preview.display_preview = preview
+        .accepted
+        .as_ref()
+        .map(|accepted| accepted.scene.clone());
+    *probe.runtime.model.borrow_mut() = preview;
+    assert_eq!(
+        check("PCB", true).unwrap_err(),
+        CurrentSnapshotBlocker::Preview
+    );
+
+    *probe.runtime.model.borrow_mut() = saved;
+    probe.workspace.set("Layout");
+    tick(&probe, &mut dom);
+    assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
+    probe.workspace.set("PCB");
+    tick(&probe, &mut dom);
+    assert!(probe.latest_pins.borrow().as_ref().unwrap().editable);
+}
+
+#[test]
+fn mounted_pin_owner_rejects_unavailable_pins_and_retained_selection_actions() {
+    let (probe, mut dom) = mounted();
+    let actions = probe.latest_pins.borrow().as_ref().unwrap().clone();
+    assert!(actions.editable);
+    let identity = actions.identity.clone().unwrap();
+    actions.on_change.call(PcbWiringPinEditRequest {
+        identity: identity.clone(),
+        assignment_id: "row/0".into(),
+        pin: Some("not-in-current-plan".into()),
+    });
+    assert!(probe.runtime.events.borrow().is_empty());
+
+    let free_pin = resolved_plan(&document()).free_pins[0].clone();
+    let retained = PcbWiringPinEditRequest {
+        identity,
+        assignment_id: "row/0".into(),
+        pin: Some(free_pin),
+    };
+    probe.runtime.model.borrow_mut().selected_part_ids = vec!["matrix/m/r0c0".into()];
+    tick(&probe, &mut dom);
+    assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
+    actions.on_change.call(retained);
+    assert!(probe.runtime.events.borrow().is_empty());
+}
+
+#[test]
+fn assignment_projection_uses_current_mode_rows_locks_and_only_free_pin_choices() {
+    let mut document = document();
+    let mut configuration = ElectricalBoardConfiguration {
+        board_id: "left".into(),
+        ..Default::default()
+    };
+    configuration.locks.insert("row/0".into(), "P2".into());
+    document.hardware = Some(HardwareConfiguration {
+        boards: vec![configuration],
+        ..Default::default()
+    });
+    let mut source = source(1, 0, None, 5);
+    source.document = std::sync::Arc::new(document.clone());
+    let matrix = resolved_plan_with_mode(&document, ElectricalMode::Matrix);
+    let rows = super::pins::assignments(&source, &matrix);
+    let row = rows.iter().find(|row| row.id == "row/0").unwrap();
+    assert_eq!(row.label, "Row 1");
+    assert!(row.locked);
+    let choices = super::pins::pin_choices(row, &matrix);
+    assert_eq!(choices.first(), row.value.as_ref());
+    assert!(matrix.free_pins.iter().all(|pin| choices.contains(pin)));
+    assert_eq!(choices.len(), 1 + matrix.free_pins.len());
+
+    let direct = resolved_plan_with_mode(&document, ElectricalMode::Direct);
+    let direct_rows = super::pins::assignments(&source, &direct);
+    assert!(direct_rows.iter().any(|row| row.id == "matrix/m/r0c0"));
+    assert!(!direct_rows.iter().any(|row| row.id == "row/0"));
+}
+
+#[test]
+fn mounted_owner_refreshes_from_a_real_session_open_and_board_navigation() {
+    let (probe, mut dom) = mounted();
+    let mut session = Session::new();
+    let mut core = boardstudio_core::CoreEngine::new();
+    let open_effects = session.submit(Event::Open {
+        operation_id: OperationId(70),
+        document: document(),
+    });
+    *probe.runtime.model.borrow_mut() = session.read_model().clone();
+    tick(&probe, &mut dom);
+    assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
+
+    let mut persist_effects = Vec::new();
+    for effect in open_effects {
+        if let Effect::Core {
+            request_id,
+            executor_epoch,
+            request,
+            ..
+        } = effect
+        {
+            persist_effects.extend(session.complete(Completion::Core {
+                request_id,
+                executor_epoch,
+                reply: Box::new(core.handle(*request)),
+            }));
+        }
+    }
+    let opening_snapshot = session.read_model().accepted.as_ref();
+    if let Some(snapshot) = opening_snapshot {
+        let opening_scope = Scope {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            board_id: "left".into(),
+            instance_id: None,
+        };
+        probe.runtime.set_scope(Some(opening_scope.clone()));
+        *probe.runtime.model.borrow_mut() = session.read_model().clone();
+        let identity = crate::pcb_wiring_mode_operation::BoardWiringModeIdentity {
+            plan: WiringPlanIdentity {
+                scope: opening_scope.clone(),
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                executor_epoch: probe.runtime.electrical_preview_executor_epoch(),
+            },
+            ui_scope: opening_scope,
+            selected_part_id: None,
+            scope_generation: 5,
+        };
+        let blocker =
+            current_snapshot_probe(&probe.runtime, &identity, "PCB", 5, true).unwrap_err();
+        assert!(matches!(
+            blocker,
+            CurrentSnapshotBlocker::Lifecycle | CurrentSnapshotBlocker::Durability
+        ));
+    }
+
+    for effect in persist_effects {
+        if let Effect::Persist {
+            save_attempt_id, ..
+        } = effect
+        {
+            session.complete(Completion::Persist {
+                save_attempt_id,
+                result: SaveResult::Committed,
+            });
+        }
+    }
+    session.submit(Event::Navigate {
+        operation_id: OperationId(71),
+        board_id: "left".into(),
+        instance_id: None,
+    });
+    let accepted = session.read_model().accepted.as_ref().unwrap().clone();
+    let ui_scope = session.scope().expect("opened board is navigable");
+    probe.runtime.set_scope(Some(ui_scope.clone()));
+    *probe.runtime.model.borrow_mut() = session.read_model().clone();
+    let identity = WiringPlanIdentity {
+        scope: Scope {
+            instance_id: None,
+            ..ui_scope.clone()
+        },
+        token: accepted.token,
+        revision: accepted.document.revision,
+        executor_epoch: probe.runtime.electrical_preview_executor_epoch(),
+    };
+    *probe.source.borrow_mut() = super::PcbWiringSource {
+        identity: identity.clone(),
+        ui_scope: ui_scope.clone(),
+        scope_generation: 5,
+        active_part_id: None,
+        document: accepted.document.clone(),
+    };
+    *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
+        identity: identity.clone(),
+        plan: resolved_plan(&accepted.document),
+    };
+    let mode_identity = crate::pcb_wiring_mode_operation::BoardWiringModeIdentity {
+        plan: identity,
+        ui_scope,
+        selected_part_id: None,
+        scope_generation: 5,
+    };
+    assert!(current_snapshot_probe(&probe.runtime, &mode_identity, "PCB", 5, true).is_ok());
+    tick(&probe, &mut dom);
+    assert!(probe.latest_pins.borrow().as_ref().unwrap().editable);
 }
 
 #[test]

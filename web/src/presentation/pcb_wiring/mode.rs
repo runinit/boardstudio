@@ -250,11 +250,52 @@ pub(super) fn current_snapshot(
     scope_generation: u64,
     instance_is_current: bool,
 ) -> Option<boardstudio_application::AcceptedSnapshot> {
-    if workspace != "PCB" || !instance_is_current {
-        return None;
+    current_snapshot_probe(
+        runtime,
+        identity,
+        workspace,
+        scope_generation,
+        instance_is_current,
+    )
+    .ok()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CurrentSnapshotBlocker {
+    Workspace,
+    InstanceSelection,
+    MissingAcceptedSnapshot,
+    Lifecycle,
+    Preview,
+    Gesture,
+    Durability,
+    ActiveBoard,
+    ActiveInstance,
+    SessionEpoch,
+    DocumentId,
+    ActionContext,
+    BoardMissing,
+}
+
+/// Private diagnostic seam used by the mounted owner regression probe. Production admission
+/// uses this same predicate and discards the reason; no runtime state or debug API is exposed.
+pub(super) fn current_snapshot_probe(
+    runtime: &Runtime,
+    identity: &BoardWiringModeIdentity,
+    workspace: &str,
+    scope_generation: u64,
+    instance_is_current: bool,
+) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
+    if workspace != "PCB" {
+        return Err(CurrentSnapshotBlocker::Workspace);
+    }
+    if !instance_is_current {
+        return Err(CurrentSnapshotBlocker::InstanceSelection);
     }
     let model = runtime.model();
-    let snapshot = model.accepted?;
+    let snapshot = model
+        .accepted
+        .ok_or(CurrentSnapshotBlocker::MissingAcceptedSnapshot)?;
     let current_scope = runtime.scope();
     let current_plan = WiringPlanIdentity {
         scope: Scope {
@@ -265,30 +306,49 @@ pub(super) fn current_snapshot(
         revision: snapshot.document.revision,
         executor_epoch: runtime.electrical_preview_executor_epoch(),
     };
-    if model.lifecycle != Lifecycle::Ready
-        || model.display_preview.is_some()
-        || model.gesture.is_some()
-        || model.durability
-            != (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-        || model.active_board_id != identity.ui_scope.board_id
-        || model.active_instance_id != identity.ui_scope.instance_id
-        || snapshot.session_epoch != identity.ui_scope.session_epoch
-        || snapshot.document.id != identity.ui_scope.document_id
-        || !identity.matches_action_context(
-            &current_plan,
-            current_scope.as_ref(),
-            model.selected_part_ids.first().map(String::as_str),
-            scope_generation,
-        )
-        || !snapshot
-            .document
-            .boards
-            .iter()
-            .any(|board| board.id == identity.plan.scope.board_id)
-    {
-        return None;
+    if model.lifecycle != Lifecycle::Ready {
+        return Err(CurrentSnapshotBlocker::Lifecycle);
     }
-    Some(snapshot)
+    if model.display_preview.is_some() {
+        return Err(CurrentSnapshotBlocker::Preview);
+    }
+    if model.gesture.is_some() {
+        return Err(CurrentSnapshotBlocker::Gesture);
+    }
+    if model.durability
+        != (Durability::Saved {
+            revision: snapshot.document.revision,
+        })
+    {
+        return Err(CurrentSnapshotBlocker::Durability);
+    }
+    if model.active_board_id != identity.ui_scope.board_id {
+        return Err(CurrentSnapshotBlocker::ActiveBoard);
+    }
+    if model.active_instance_id != identity.ui_scope.instance_id {
+        return Err(CurrentSnapshotBlocker::ActiveInstance);
+    }
+    if snapshot.session_epoch != identity.ui_scope.session_epoch {
+        return Err(CurrentSnapshotBlocker::SessionEpoch);
+    }
+    if snapshot.document.id != identity.ui_scope.document_id {
+        return Err(CurrentSnapshotBlocker::DocumentId);
+    }
+    if !identity.matches_action_context(
+        &current_plan,
+        current_scope.as_ref(),
+        model.selected_part_ids.first().map(String::as_str),
+        scope_generation,
+    ) {
+        return Err(CurrentSnapshotBlocker::ActionContext);
+    }
+    if !snapshot
+        .document
+        .boards
+        .iter()
+        .any(|board| board.id == identity.plan.scope.board_id)
+    {
+        return Err(CurrentSnapshotBlocker::BoardMissing);
+    }
+    Ok(snapshot)
 }

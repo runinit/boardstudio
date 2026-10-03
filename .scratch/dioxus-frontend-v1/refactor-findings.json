@@ -31,7 +31,9 @@
         "web/src/presentation.rs",
         "web/src/runtime.rs",
         "app/src/ui/Workbench.tsx",
-        ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps05-navigation-owner-review-5fd4bb76-sol-20261002.md"
+        ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/keycaps05-navigation-owner-review-5fd4bb76-sol-20261002.md",
+        "web/src/presentation/pcb_wiring/pins.rs",
+        ".scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md"
       ],
       "observation": "At recorded baseline c827c4e6, the presentation spanned 1,399 lines and Runtime 960 lines, with shell, workspace routing, data/service actions and lifecycle integration sharing these modules; the reference Workbench was 1,426 lines. These are historical measurements, not current line counts. Length alone is not a defect; the concrete cost is that independent workflow edits repeatedly touch the same ownership surface.",
       "impact": "Concurrent changes can conflict, and a one-to-one port could preserve broad coupling between workspace controls and service lifecycles.",
@@ -523,7 +525,9 @@
         "app/src/ui/Workbench.tsx",
         "app/src/ui/LibraryWorkspace.tsx",
         "app/src/exports/cases.ts",
-        "web/src/cad_jobs.rs"
+        "web/src/cad_jobs.rs",
+        "web/src/presentation/pcb_wiring/mode.rs",
+        ".scratch/dioxus-pcb-view/evidence/pcb-apply-mode-disabled-20261002/private-probe-20261003.md"
       ],
       "observation": "Layout/Keymap/Keycaps use canonical boards; Case projects a physical instance; Parts builds an isolated sample. Authored Case STEP uses canonical saved bodies while generated mechanical export explicitly projects the instance. All may share viewer and artifact code. A source-reviewed private proposal seam must preserve canonical-document projection separately from original-snapshot contour projection; the paired existing helpers clone both full document and scene twice per resolution while discarding opposite outputs, a bounded cost that has not been measured as a performance issue.",
       "impact": "A generic board/instance argument or copied projection rule can mirror the wrong geometry, leak a sample into the document, or export the wrong scope.",

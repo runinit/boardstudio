@@ -16,6 +16,7 @@ mod mode;
 mod part_connections;
 mod part_input_settings;
 mod part_net_admission;
+mod pins;
 use crate::firmware_position_projection;
 pub(in crate::presentation) use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
@@ -32,6 +33,9 @@ pub(in crate::presentation) use mode::{
     use_board_wiring_mode_edits,
 };
 pub(in crate::presentation) use part_input_settings::PartInputActions;
+pub(in crate::presentation) use pins::{
+    PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct PartNetEditIdentity {
@@ -256,6 +260,7 @@ pub(in crate::presentation) struct PcbWiringInspectorProps {
     pub on_resolve: EventHandler<()>,
     pub on_edit_board_wiring: EventHandler<()>,
     pub mode_actions: BoardWiringModeActions,
+    pub pin_actions: PcbWiringPinActions,
     pub apply_actions: BoardWiringApplyActions,
 }
 
@@ -816,7 +821,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             .iter()
             .any(|diagnostic| diagnostic.severity == "error")
     });
-    let mode = matching_plan.map_or(display.mode, |plan| plan.mode);
     let on_resolve = props.on_resolve;
     let mode_actions = props.mode_actions.clone();
     let selected_mode = match display.mode {
@@ -828,6 +832,12 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let apply_actions = props.apply_actions.clone();
     let apply_identity = apply_actions.identity.clone();
     let on_apply = apply_actions.on_apply;
+    let pin_actions = props.pin_actions.clone();
+    let pin_identity = pin_actions.identity.clone();
+    let on_pin_change = pin_actions.on_change;
+    let pin_rows = matching_plan
+        .map(|plan| pins::assignments(&props.source, plan))
+        .unwrap_or_default();
     rsx! {
         section { class: "m1-pcb-wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }
@@ -862,6 +872,13 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     p { role: "status", "Wiring mode saved." }
                 } else if let BoardWiringModeFeedback::Failed(message) = &feedback.state {
                     p { role: "alert", "{message}" }
+                }
+            }
+            if let Some(feedback) = &pin_actions.feedback {
+                match &feedback.state {
+                    PcbWiringPinFeedback::Pending => rsx! { p { role: "status", "Saving wiring pin…" } },
+                    PcbWiringPinFeedback::Saved => rsx! { p { role: "status", "Wiring pin saved." } },
+                    PcbWiringPinFeedback::Failed(message) => rsx! { p { role: "alert", "{message}" } },
                 }
             }
             if pending {
@@ -902,41 +919,70 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
                 div { class: "m1-pcb-wiring-section",
                     h3 { "Assignments" }
-                    if mode == ElectricalMode::Matrix {
-                        for (index, pin) in plan.row_pins.iter().enumerate() {
-                            div { class: "m1-pcb-wiring-assignment", key: "row-{index}",
-                                strong { "Row {index + 1}" }
-                                span { "{pin}" }
+                    for row in &pin_rows {
+                        div { class: "m1-pcb-wiring-assignment m1-pcb-wiring-pin-assignment", key: "{row.id}",
+                            div {
+                                strong { "{row.label}" }
+                                if let Some(detail) = row.detail.as_deref() {
+                                    small { "{detail}" }
+                                }
                             }
-                        }
-                        for (index, pin) in plan.column_pins.iter().enumerate() {
-                            div { class: "m1-pcb-wiring-assignment", key: "column-{index}",
-                                strong { "Column {index + 1}" }
-                                span { "{pin}" }
+                            label { class: "m1-pcb-wiring-pin-control",
+                                span { class: "m1-visually-hidden", "Pin for {row.label}" }
+                                select {
+                                    "aria-label": "Pin for {row.label}",
+                                    value: "{row.value.as_deref().unwrap_or(\"\")}",
+                                    disabled: !pin_actions.editable || row.locked,
+                                    onchange: {
+                                        let assignment_id = row.id.clone();
+                                        let identity = pin_identity.clone();
+                                        move |event| {
+                                            let (Some(identity), value) = (identity.clone(), event.value()) else { return; };
+                                            on_pin_change.call(PcbWiringPinEditRequest {
+                                                identity,
+                                                assignment_id: assignment_id.clone(),
+                                                pin: Some(value),
+                                            });
+                                        }
+                                    },
+                                    option { value: "", "Unresolved" }
+                                    for pin in pins::pin_choices(row, plan) {
+                                        option { value: "{pin}", "{pin}" }
+                                    }
+                                }
                             }
-                        }
-                    } else {
-                        for assignment in &plan.assignments {
-                            div { class: "m1-pcb-wiring-assignment", key: "{assignment.key_id}",
-                                strong { "{part_label(&props.source.document, &assignment.key_id)}" }
-                                span { "{assignment.column_pin}" }
-                                small { "{assignment.direct_gpio.as_deref().unwrap_or(\"Unresolved\")}" }
+                            button {
+                                type: "button",
+                                class: "m1-pcb-wiring-lock-button",
+                                disabled: !pin_actions.editable,
+                                "aria-label": "{pin_lock_action(row.locked)} {row.label}",
+                                "aria-pressed": "{row.locked}",
+                                title: "{pin_lock_action(row.locked)} assignment",
+                                onclick: {
+                                    let assignment_id = row.id.clone();
+                                    let current_pin = row.value.clone();
+                                    let locked = row.locked;
+                                    let identity = pin_identity.clone();
+                                    move |_| {
+                                        let Some(identity) = identity.clone() else { return; };
+                                        if locked || current_pin.is_some() {
+                                            on_pin_change.call(PcbWiringPinEditRequest {
+                                                identity,
+                                                assignment_id: assignment_id.clone(),
+                                                pin: if locked { None } else { current_pin.clone() },
+                                            });
+                                        }
+                                    }
+                                },
+                                svg { view_box: "0 0 20 20", "aria-hidden": "true", fill: "none", stroke: "currentColor", stroke_width: "1.5",
+                                    rect { x: "4", y: "9", width: "12", height: "9", rx: "2" }
+                                    path { d: if row.locked { "M6 9V6a4 4 0 0 1 8 0v3" } else { "M6 9V6a4 4 0 0 1 8 0" } }
+                                    path { d: "M10 12v3" }
+                                }
                             }
                         }
                     }
-                    for (terminal_id, pin) in &plan.peripheral_terminals {
-                        div { class: "m1-pcb-wiring-assignment", key: "{terminal_id}",
-                            strong { "{terminal_label(terminal_id)}" }
-                            span { "{pin}" }
-                            if let Some(detail) = plan.peripheral_pins.get(terminal_id) {
-                                small { "{detail}" }
-                            }
-                        }
-                    }
-                    if plan.row_pins.is_empty()
-                        && plan.column_pins.is_empty()
-                        && plan.assignments.is_empty()
-                        && plan.peripheral_terminals.is_empty() {
+                    if pin_rows.is_empty() {
                         p { class: "m1-pcb-wiring-empty", "No assignments are available." }
                     }
                 }
@@ -953,28 +999,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
         }
     }
-}
-
-fn terminal_label(id: &str) -> String {
-    id.strip_prefix("peripheral/")
-        .map(|name| {
-            name.rsplit('/')
-                .take(2)
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect::<Vec<_>>()
-                .join(" · ")
-        })
-        .unwrap_or_else(|| id.to_owned())
-}
-
-fn part_label(document: &ProjectDoc, part_id: &str) -> String {
-    document
-        .parts
-        .iter()
-        .find(|part| part.id == part_id)
-        .map_or_else(|| part_id.to_owned(), |part| part.reference.clone())
 }
 
 fn used_pins(plan: &ElectricalPlan) -> Vec<String> {
@@ -995,6 +1019,10 @@ fn used_pins(plan: &ElectricalPlan) -> Vec<String> {
         .into_iter()
         .chain(plan.peripheral_terminals.values().cloned())
         .collect()
+}
+
+fn pin_lock_action(locked: bool) -> &'static str {
+    if locked { "Unlock" } else { "Lock" }
 }
 
 #[cfg(test)]

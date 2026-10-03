@@ -102,7 +102,8 @@ mod presentation {
         use crate::firmware_position_projection::FirmwarePlanIdentity;
         use boardstudio_application::Scope;
         use boardstudio_core::electrical::ElectricalPlan;
-        use std::rc::Rc;
+        use boardstudio_core::model::ProjectDoc;
+        use std::{rc::Rc, sync::Arc};
 
         pub(crate) type WiringPlanIdentity = FirmwarePlanIdentity;
 
@@ -129,6 +130,7 @@ mod presentation {
             pub(crate) ui_scope: Scope,
             pub(crate) scope_generation: u64,
             pub(crate) active_part_id: Option<String>,
+            pub(crate) document: Arc<ProjectDoc>,
         }
 
         #[path = "mode.rs"]
@@ -136,6 +138,9 @@ mod presentation {
 
         #[path = "apply.rs"]
         mod apply;
+
+        #[path = "pins.rs"]
+        mod pins;
 
         #[cfg(test)]
         #[path = "mode_owner_tests.rs"]

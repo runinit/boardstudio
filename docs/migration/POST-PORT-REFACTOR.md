@@ -20,6 +20,8 @@ The source-specific machine register now retains the paired34727 bridge-camera b
 
 Temporary storage pressure also exposed an execution reliability cost: inactive generated build targets filled tmpfs during parallel browser/build work. The coordinator preserved two inactive generated target trees on disk with original-path symlinks after checking process references and inactivity; source, Git history and failed browser state were retained. This adds operational evidence to RF-009 without claiming a product architecture defect.
 
+The board Wiring pin/lock child keeps its action adapter in the private `pcb_wiring/pins.rs` feature module and routes the new control through the existing Editor owner, accepted Session snapshot and `ReplaceDocument` edit seam. This is another concrete instance of RF-001's shared root wiring cost and current mitigation; it does not establish that the hotspot is resolved. Its public import/reload failure remains unattributed. The private predicate probe reuses the existing board-scope versus UI-scope distinction in RF-006 and exposes no debug surface. **No new refactoring takeaway was observed** beyond RF-001/RF-006/RF-009. See the [Issue 11 contract](../../.scratch/dioxus-pcb-view/issues/11-board-wiring-pin-lock-controls.md) and [private import probe](../../.scratch/dioxus-pcb-view/evidence/pcb-apply-mode-disabled-20261002/private-probe-20261003.md).
+
 ## Current findings
 
 | ID | Finding | Evidence status | Impact priority | Affected work |
