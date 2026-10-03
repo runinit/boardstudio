@@ -14,6 +14,8 @@
 
 The candidate keeps the intended content order and primary-action treatment, but vertical rhythm still differs from React in the inspected Keys/Macros views. In the 1280×940 Macros screenshots, approximate top coordinates are: Layers summary 131 px candidate / 148 px React; Layer name 346 / 373; editor tabs 484 / 516; Macros editor header 548 / 589; Add macro 638 / 676; Export 698 / 740; helper note 742 / 784. The candidate stacks this Inspector content about 17–42 px higher. Panel left inset is effectively aligned (984–985 px). This is a remaining visual refinement in the existing F6K.4c composition ticket, not a missing control or behavior. No new ticket is proposed here.
 
+The measured summary-spacing difference is addressed in isolated source commit `55692acc5c17dbd5c863a5a898bb1550372771d9`: the Dioxus Keymap Layers/editor disclosures now use the same `.6rem` vertical summary margin as React's `app/src/ui/keymap.css`. That source commit has only a whitespace/rhythm CSS change and `git diff --check` passed. It is not yet in the captured 34767 package; rerun only this changed Inspector spacing journey on the next packaged candidate before marking the refinement verified.
+
 I switched between Keys, Macros, Encoders and Layout only. No export was invoked and no project edit was made. Both archive uploads started from the same SHA; the screenshots show the loaded Sofle v2 project and the same 29-key Keymap projection. This is focused visual evidence, not full F6K acceptance or a saved-document round trip.
 
 ## Captures
