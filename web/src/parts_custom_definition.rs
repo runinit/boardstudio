@@ -83,17 +83,13 @@ mod ui {
 
         let kind = kind_name(&definition.kind);
         let on_kind = {
-            let submit = submit;
             move |event: FormEvent| {
                 if let Some(kind) = parse_kind(&event.value()) {
                     submit.call(DefinitionEdit::Kind(kind));
                 }
             }
         };
-        let on_add = {
-            let submit = submit;
-            move |_| submit.call(DefinitionEdit::AddPad)
-        };
+        let on_add = { move |_| submit.call(DefinitionEdit::AddPad) };
         let submit_width = submit;
         let committed_width = courtyard.0.clone();
         let on_width_blur = move |_| {
@@ -159,7 +155,7 @@ mod ui {
                 for (index, pad) in definition.pads.iter().enumerate() {
                     PadFields {
                         key: "{owner_key}:{pad.id}", owner_key: owner_key.clone(), index, pad: pad.clone(), locked: kicad_locked,
-                        submit: submit.clone(),
+                        submit,
                     }
                 }
                 ul { class: "m1-definition-validation", "aria-live": "polite",

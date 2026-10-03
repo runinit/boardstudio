@@ -142,7 +142,7 @@ pub(in crate::presentation) fn use_board_wiring_apply(
             ) else {
                 return;
             };
-            let Some(plan) = current_plan(&identity.plan, &*resolution.read(), &snapshot.document)
+            let Some(plan) = current_plan(&identity.plan, &resolution.read(), &snapshot.document)
             else {
                 return;
             };
@@ -197,7 +197,7 @@ pub(in crate::presentation) fn use_board_wiring_apply(
                 instance_is_current(),
             )
             .is_some_and(|snapshot| {
-                current_plan(&identity.plan, &*resolution.read(), &snapshot.document).is_some()
+                current_plan(&identity.plan, &resolution.read(), &snapshot.document).is_some()
             })
     });
     let feedback_target = identity
@@ -218,9 +218,9 @@ pub(in crate::presentation) fn use_board_wiring_apply(
     }
 }
 
-fn current_plan<'a>(
+fn current_plan(
     identity: &WiringPlanIdentity,
-    resolution: &'a PcbWiringResolution,
+    resolution: &PcbWiringResolution,
     document: &ProjectDoc,
 ) -> Option<Rc<ElectricalPlan>> {
     let PcbWiringResolution::Current {

@@ -962,7 +962,7 @@ mod mounted_tests {
             runtime.take_definition_name_test_event().is_none(),
             "dirty values owned by the prior definition cannot commit into the next owner"
         );
-        let _ = root.remove();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -1032,7 +1032,7 @@ mod mounted_tests {
                 .courtyard
                 .is_empty()
         );
-        let _ = root.remove();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -1127,7 +1127,7 @@ mod mounted_tests {
                 .id,
             "old"
         );
-        let _ = root.remove();
+        root.remove();
     }
 
     fn type_value(input: &HtmlInputElement, value: &str) {
