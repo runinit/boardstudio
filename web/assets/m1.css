@@ -711,6 +711,7 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-case-body-tab > span { grid-row: span 2; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
 .m1-case-body-tab strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m1-case-body-tab small, .m1-case-subsection-heading small { color: var(--wb-muted); font-size: var(--wb-type-label); }
+.m1-case-body-tab small { text-transform: uppercase; }
 .m1-case-body-tab.is-active { border-color: var(--wb-accent); background: var(--wb-selection-surface); }
 .m1-case-body-editor, .m1-case-subsection { display: grid; gap: 10px; min-width: 0; padding: 12px 0; border-top: 1px solid var(--wb-rule); }
 .m1-case-bodies .m1-case-select { display: grid; gap: 5px; color: var(--wb-muted); font-size: var(--wb-type-label); }
