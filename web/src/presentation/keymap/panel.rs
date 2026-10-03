@@ -30,6 +30,10 @@ pub(in crate::presentation) fn KeymapPanel(
     // React keys the Inspector by its accepted selection owner. Keep query and tab
     // presentation local to that owner, without changing shared Session selection.
     use_effect(use_reactive((&scope, &selected_key_id), move |_| {
+        // React keys the Inspector by its accepted selection owner. A key/scope
+        // change remounts the disclosure expanded; layer-only updates keep this
+        // signal untouched and preserve a deliberate collapse.
+        keys_section_open.set(true);
         if !query.peek().is_empty() {
             query.set(String::new());
         }

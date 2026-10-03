@@ -13,7 +13,7 @@ Put the active Selected key, Macros, or Encoders editor inside one expanded-by-d
 1. As a Keymap designer, I want the active editor to open expanded when I enter its tab, so its controls remain immediately available.
 2. As a Keymap designer, I want to collapse the active editor and reopen it, so I can reclaim Inspector space while keeping its tab selected.
 3. As a keyboard user, I want the section summary to use native disclosure interaction and expose its expanded state, so I can operate it accessibly.
-4. As a designer selecting another key or layer while the Keys editor remains active, I want the summary to update without reopening a section I collapsed.
+4. As a designer changing the active layer for the same selected-key owner, I want the summary to update without reopening a section I collapsed; changing the selected key or scope remounts the Inspector expanded, matching React.
 5. As a designer returning to a different editor tab, I want its newly mounted section expanded by default, matching React's conditional editor mounting.
 6. As a designer, I want collapsing a section to leave the active layer, selected key, accepted document, revision, and undo/redo history unchanged.
 
@@ -22,14 +22,14 @@ Put the active Selected key, Macros, or Encoders editor inside one expanded-by-d
 - Use the existing Keymap panel, editor tabs, and private editor elements. Add no data state, event, public API, schema, or copied editor controls.
 - Keep the Layers disclosure as its existing independent section. The three editor tabs remain visible and unchanged.
 - The Selected key summary follows the current reference and active-layer name; the Encoders summary follows the active layer. Existing macro, binding, encoder-row, rotation, and push controls stay in their current feature owners.
-- Each active editor section starts expanded on mount. Native user open/closed state persists through ordinary accepted-projection, key, layer, and local feedback rerenders while that tab remains mounted. Switching tabs unmounts the prior pane; returning mounts it expanded.
+- Each active editor section starts expanded on mount. Native user open/closed state persists through ordinary accepted-projection, active-layer, and local feedback rerenders while that tab and accepted selection owner remain mounted. React keys the Inspector by accepted selection owner, so changing the selected key or scope remounts Keys expanded. Switching tabs unmounts the prior pane; returning mounts it expanded.
 - Match the pinned Inspector summary, disclosure marker, focus treatment, and content spacing. Preserve dynamic section titles without resetting the native open state.
 - This is a behavior-preserving presentation change. Existing feature-level validation and history remain owned by their current Keymap edit paths.
 
 ## Testing decisions
 
 - Compare the three active editor disclosures against the pinned React Inspector on the same saved fixture. Verify each starts open, can be collapsed and reopened, and keeps its tab selected.
-- While Keys remains active, change selection and active layer while collapsed; verify its title updates and its chosen closed state remains. Switch away and return to a tab; verify its section starts open.
+- While Keys remains active, change active layer with the same selected-key owner while collapsed; verify the title updates and remains collapsed. Then change selected key/scope and verify the new owner mounts expanded. Switch away and return to another tab; verify its section starts open.
 - Verify disclosure changes do not alter the document revision or Undo/Redo state. No new ordinary UI test is required; run the affected combined compile and one paired browser journey.
 
 ## Out of scope
