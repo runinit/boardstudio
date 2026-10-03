@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:47:14.995948+00:00",
+    "updated_at": "2026-10-03T11:57:52.720038+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 4,
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "7f34359c",
-      "state": "34765 served. Case selection and Keycaps disclosure/finding navigation/VIK preview changed paths GREEN; PCBdraft\u2192Save/reopenGREEN but actualUndoInspectorstale RED underrepair. Nextsourcejoined Board/Geometrylogicaldrafts/header/UUID4f63, LayoutfindingsCSS7f343, Exportworker token47c292. Export Corefilenamecollision regression/fix assigned. No nextsourcepackage claimed.",
+      "source_commit": "8a470c6a",
+      "state": "34765 served: Case selection, Keycaps disclosure, Layout finding navigation, VIK preview and PCB mounted Save/reopen/settled UndoRedo GREEN. Earlier immediate PCB stale observation corrected as uncertain, no extra test/codefix. Next source includes Board/Geometry owner/header/UUID4f63, footerCSS7f343, Exportworker token47c292 and focused Core filename collision31a7f3d0. Next combined check/package pending.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1865,10 +1865,11 @@
       },
       {
         "journey": "Outline radius edit\u2192Undo in the same mounted Inspector",
-        "state": "bounded paired verified",
+        "state": "Bounded Save/reopen and settled Undo X35\u219232.5/Redo35 GREEN34765; initial immediate stale-looking display was uncertain, no reproduced bug.",
         "candidate": "2107f980/34761",
         "evidence": ".scratch/dioxus-layout-authoring/evidence/f34b-outline-inspector-settings-20261003/evidence.md",
-        "remaining": "Full outline/canvas criteria retained."
+        "remaining": "Full outline/canvas criteria retained.",
+        "settled_receipt": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-placement-inspector-20261003/undo-redo-settled-34765.md"
       },
       {
         "journey": "Case number Enter\u2192native blur\u2192Saved",
@@ -1958,14 +1959,7 @@
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
       "policy": "Coordinator assigned; maximum2 heavy jobs/1package",
-      "active": [
-        {
-          "kind": "focused Core regression",
-          "owner": "keycaps_geometry_repair",
-          "scope": "Standalone footprint filename collision RED/GREEN only",
-          "slot_authorized_at": "2026-10-03T11:47:14.995948+00:00"
-        }
-      ],
+      "active": [],
       "check": {
         "source_commit": "96ab3eb0",
         "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34765-20261003/frontend-context-findings-footprints-combined-check-green.log",
@@ -1973,13 +1967,20 @@
         "duration_seconds": 19.23,
         "new_tests": 0
       },
-      "next": "Next combined source after ready packets; no heavy author job assigned."
+      "next": "Next combined source after ready packets; no heavy author job assigned.",
+      "completed_focused_regression": {
+        "owner": "keycaps_geometry_repair",
+        "source": "be4ec412 / integrated31a7f3d0",
+        "command": "cargo test --manifest-path core/Cargo.toml standalone_export_disambiguates_repeated_footprint_names -- --nocapture",
+        "result": "Expected filename collision RED then GREEN1test/160filtered",
+        "duration_seconds": 14.4,
+        "evidence": "/home/chris/.local/share/boardstudio/reviews/export-workspace-20261003/react-footprints-baseline.md"
+      }
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Run combined settled-source check/package34765 and qualify only changed UI journeys under one Sol review.",
-      "Layout-first repairs: draft ownership, script ID allocation, Board heading and preset assembly placement.",
-      "Continue six queues: PCB mounted placement, Keymap frontier, Keycaps legend, Case contextual UI, Parts Project demo fresh-copy/cards, footprint export collision correction if reproduced."
+      "One combined strict check and package34766 including token+Core filename repair; verify changed ZIP and Layout draft/header/footer controls only.",
+      "Layout-first assembly preset placement; continue six queues with Case shell, PCB advanced mounted controls, Keycaps legends, Parts demo cards/fresh copies and Keymap criterion reconciliation."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [

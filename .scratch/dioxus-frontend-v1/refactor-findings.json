@@ -862,10 +862,12 @@
         },
         {
           "source": "PCBmountedInspector4d8/96ab, consolidated34765 review and actualchangedUndojourney",
-          "observation": "An accepted-instance effect read the draft Signal it resets, creating a self-subscription that can discard edits. Scope-less module mount identity also retained cross-owner drafts. After fixing self-subscription and using completeScope+module key, actual Save/reopen works but Undo leaves a stale visible draft; synchronization must use accepted changes without subscribing to local edits.",
-          "mitigation": "96ab uses peek and completeScope mount key; author repairing reproduced Undo projection mismatch. Existing Core/Session edit and history remains authoritative.",
+          "observation": "The initial mounted Inspector source read the local draft Signal it resets, and used an incomplete module mount key. Source96ab corrected both before34765 was packaged. Save/reopen and settled Undo X35\u219232.5/Redo\u219235 are GREEN on frozen17ba/provenance273ca. The earlier apparent stale Undo fields were an immediate unsettled observation on that same source, not a reproduced defect or a distinct older RED.",
+          "mitigation": "96ab uses peek and completeScope mount key. Existing Core/Session edit/history remains authoritative. No further source change or new regression test needed for the uncertain immediate observation.",
           "post_port_follow_up": "Define accepted-baseline synchronization and transient draft ownership explicitly before centralizing form lifecycle helpers. Reuse typed scope and admission instead of independent parameter lists/keys.",
-          "status": "Source finding corrected; actualUndoRED underfocusedrepair, no PCBparentacceptance."
+          "status": "Source finding corrected before public34765; bounded Save/reopen and settled accepted-history transitions GREEN. Full PCB criteria remain.",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-placement-inspector-20261003/undo-redo-settled-34765.md",
+          "superseded_observation": "Initial report described stale visible Undo draft and assigned repair; settled capture and source provenance do not support that diagnosis. Preserve this correction and the initial uncertainty."
         }
       ]
     },
