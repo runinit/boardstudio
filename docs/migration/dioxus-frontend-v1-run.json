@@ -16,10 +16,10 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:22:21.585098+00:00",
+    "updated_at": "2026-10-03T23:26:35.660321+00:00",
     "parent_counts": {
-      "accepted": 10,
-      "implementing": 41,
+      "accepted": 11,
+      "implementing": 40,
       "planned": 11,
       "total": 62
     },
@@ -460,11 +460,11 @@
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-criteria-encoder-20261003",
-      "review": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
-      "review_sha256": "810b7332db44067e50c40f746dd5ad1bb701149d13819099f814134901e26b24",
-      "state": "Sol 6.1 High code/tooling PASS; encoder journey passed; shared preview lifecycle partially qualified. No parent accepted.",
-      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md"
+      "candidate": "frontend-module-attachment-repair-20261003",
+      "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md",
+      "review_sha256": "283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc",
+      "state": "Attachment repair PASS; supplemental BND.1 acceptance supported, encoder C05 and Layout C04 bounded verdicts verified. Broader lifecycle joins remain open.",
+      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
     },
     "parent_acceptances": [
       {
@@ -1180,7 +1180,7 @@
         "state": "completed",
         "verdict": "source_and_attachment_extension_pass",
         "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md",
-        "review_sha256": "842ac85affa72004a9e2d04bd84d8930e2203b6897b27367030ea32871156cb7",
+        "review_sha256": "283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc",
         "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41"
       }
     },

@@ -1,0 +1,13 @@
+{
+  "parent": "BND.1",
+  "at": "2026-10-03T23:26:35.594480+00:00",
+  "candidate_source": "733c1da2abede39a617d2eca2e42d9bd437cea41",
+  "candidate_url": "http://127.0.0.1:34782/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md",
+  "review_sha256": "283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc",
+  "audit": ".scratch/dioxus-keycap-cad-bridge/evidence/source-contract.md",
+  "audit_sha256": "040779502bffb6e3409d78dc3d3ac345610b1499562e35fa1bc6bf57a2dcff9f",
+  "criteria_accounting": ".scratch/dioxus-frontend-v1/tasks.json",
+  "scope": "Existing packaged Rust build_keycaps provider/private host-worker bridge only; current identity checks, stable body IDs, paired STEP bytes and public pending-preview disposal/no stale result/retry. Does not close broader F6C.5, F7 or F8 lifecycle requirements.",
+  "decision": "Accepted from all four verified boundary criteria, current source reconciliation and consolidated Sol 6.1 High supplemental recommendation. No unmet final joins; explicit cooperative cancel message is unreachable and not a new product requirement."
+}

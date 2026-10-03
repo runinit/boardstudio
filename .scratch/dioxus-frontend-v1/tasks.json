@@ -98,7 +98,7 @@
       "depends_on": [],
       "priority": "P0",
       "effort": "M",
-      "status": "implementing",
+      "status": "accepted",
       "acceptance": "Use the existing packaged Rust WASM build_keycaps export; prove a crate-private host/worker request path with a current fixture, revision identity and disposal/cancellation. Core ResolveKeycaps alone and generic Case STEP are insufficient. Document existing CAD asset/build inputs, stable body/legend IDs, scope/revision validation, preview chunk/yield cancellation and non-preemptible STEP late-result suppression. If existing callable capability is genuinely insufficient, leave dependent keycap CAD acceptance open and present the concrete public-contract decision before changing APIs.",
       "boundary_status": "Existing Rust CAD WASM build_keycaps is public and packaged, but current web CAD enum/worker request path lacks keycaps. Prefer private wire/host types, not changes to public web::cad_jobs types. No new engine function or public contract indicated.",
       "external_gates": [],
@@ -121,6 +121,13 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Existing keycap CAD bridge, Session export-owned token sequencing and mounted panels/drawers are implemented; source reconciliation and final candidate qualification remain active, not unstarted planning."
+        },
+        {
+          "at": "2026-10-03T23:26:35.660097+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "All exact private CAD bridge criteria verified; consolidated review supports acceptance using retained STEP and disposal evidence.",
+          "decision": ".scratch/dioxus-keycap-cad-bridge/evidence/DECISION.json"
         }
       ],
       "criteria": [
@@ -232,6 +239,9 @@
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
         "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
+      },
+      "completion_evidence": {
+        "decision_record": ".scratch/dioxus-keycap-cad-bridge/evidence/DECISION.json"
       }
     },
     {
@@ -9355,8 +9365,8 @@
     "integration_slices": 2,
     "boundary_slices": 2,
     "status": {
-      "accepted": 10,
-      "implementing": 41,
+      "accepted": 11,
+      "implementing": 40,
       "planned": 11
     }
   },
