@@ -1,0 +1,373 @@
+- generic [ref=e1] clickable [onclick]
+  - main
+    - sectionheader
+      - generic
+        - button "Project" [expanded=true, ref=e42]
+          - StaticText "Parity Rename B"
+        - generic "Project menu"
+          - strong
+            - StaticText "Keyboards"
+          - button "Close project menu" [ref=e212]
+          - button "New project" [ref=e213]
+          - button "Open project…" [ref=e214]
+          - LabelText
+            - StaticText "Current project"
+            - textbox "Project name" [ref=e219]: Parity Rename B
+              - StaticText "Parity Rename B"
+          - button "Save project copy…" [ref=e215]
+            - StaticText "Save project copy…"
+          - button "Choose File" [ref=e216]: No file chosen
+          - generic
+            - region "Your keyboards" [ref=e220]
+              - heading "Your keyboards 1" [level=3, ref=e222]
+                - StaticText "Your keyboards 1"
+              - StaticText "Saved in this browser"
+              - searchbox "Search saved keyboards" [ref=e223]
+              - button "Create new keyboard" [ref=e224]
+                - StaticText "New keyboard"
+                - StaticText "Start with guided setup"
+              - generic
+                - button "Open Parity Rename B" [ref=e226]
+                  - StaticText "Parity Rename B"
+                  - StaticText "58 keys · 2 boards"
+                  - StaticText "Current"
+                - button "Delete Parity Rename B" [ref=e227]
+            - region "Demo keyboards" [ref=e221]
+              - heading "Demo keyboards" [level=3, ref=e225]
+              - StaticText "Start an editable copy"
+              - button "Start Sofle v2" [ref=e228]
+                - StaticText "Sofle v2"
+                - StaticText "58 keys · 2 boards"
+              - button "Start Sofle RGB" [ref=e229]
+                - StaticText "Sofle RGB"
+                - StaticText "58 keys · 2 boards"
+              - button "Start Sofle Choc" [ref=e230]
+                - StaticText "Sofle Choc"
+                - StaticText "58 keys · 2 boards"
+              - button "Start Corne" [ref=e231]
+                - StaticText "Corne"
+                - StaticText "42 keys · 2 boards"
+              - button "Start Lily58" [ref=e232]
+                - StaticText "Lily58"
+                - StaticText "58 keys · 2 boards"
+              - button "Start Ferris Sweep" [ref=e233]
+                - StaticText "Ferris Sweep"
+                - StaticText "34 keys · 2 boards"
+              - button "Start Chocofi" [ref=e234]
+                - StaticText "Chocofi"
+                - StaticText "36 keys · 2 boards"
+              - button "Start REVIUNG41" [ref=e235]
+                - StaticText "REVIUNG41"
+                - StaticText "41 keys · Single board"
+              - button "Start TOTEM" [ref=e236]
+                - StaticText "TOTEM"
+                - StaticText "38 keys · 2 boards"
+              - button "Start KLOR" [ref=e237]
+                - StaticText "KLOR"
+                - StaticText "42 keys · 2 boards"
+              - button "Start Cantor" [ref=e238]
+                - StaticText "Cantor"
+                - StaticText "42 keys · 2 boards"
+              - button "Start GH60 · ANSI" [ref=e239]
+                - StaticText "GH60 · ANSI"
+                - StaticText "61 keys · Single board"
+              - button "Start Discipline · ANSI" [ref=e240]
+                - StaticText "Discipline · ANSI"
+                - StaticText "68 keys · Single board"
+              - button "Start Mysterium · ANSI" [ref=e241]
+                - StaticText "Mysterium · ANSI"
+                - StaticText "87 keys · Single board"
+              - button "Start Voyager97 · 103-key layout" [ref=e242]
+                - StaticText "Voyager97 · 103-key layout"
+                - StaticText "103 keys · Single board"
+              - button "Start Voyager104 · ANSI" [ref=e243]
+                - StaticText "Voyager104 · ANSI"
+                - StaticText "104 keys · Single board"
+              - button "Start Plaid" [ref=e244]
+                - StaticText "Plaid"
+                - StaticText "48 keys · Single board"
+              - button "Start Lumberjack" [ref=e245]
+                - StaticText "Lumberjack"
+                - StaticText "60 keys · Single board"
+              - button "Start VIK module review · above and below" [ref=e246]
+                - StaticText "VIK module review · above and below"
+                - StaticText "15 keys · Single board"
+          - button "Setup guide" [ref=e217]
+          - button "Workspace settings" [ref=e218]
+      - group
+        - DisclosureTriangle "Saved locally" [expanded=false]
+      - tablist "Board workflow"
+        - tab "Layout" [selected, ref=e43]
+        - tab "PCB" [ref=e44]
+        - tab "Keymap" [ref=e45]
+        - tab "Keycaps" [ref=e46]
+        - tab "Case" [ref=e47]
+        - tab "Parts" [ref=e48]
+      - button "Export" [ref=e32]
+        - StaticText "Export"
+    - status "Keyboard movement"
+    - generic
+      - complementary "Part inventory"
+        - StaticText "Objects"
+        - button "Objects options" [expanded=false, ref=e55]
+        - button "Add object" [expanded=false, ref=e49]
+        - separator "Resize objects" [ref=e50] focusable [tabindex]: 235
+        - LabelText
+          - StaticText "Board"
+        - combobox "Selected board" [expanded=false, ref=e51]: Left PCB
+          - MenuListPopup
+            - option "Left PCB" [selected, ref=e67]
+            - option "Right PCB" [ref=e68]
+        - button "New board" [ref=e52]
+        - tree "CAD structure"
+          - generic
+            - generic
+              - button "Collapse Left PCB" [expanded=true, ref=e140]
+                - StaticText "⌄"
+              - treeitem "Left PCB 70 parts" [level=1, expanded=true, ref=e141]
+                - StaticText "Left PCB"
+                - StaticText "70 parts"
+            - generic
+              - button "Expand Outline" [expanded=false, ref=e142]
+                - StaticText "›"
+              - treeitem "Outline Generated" [level=2, expanded=false, ref=e143]
+                - StaticText "Outline"
+                - StaticText "Generated"
+            - generic
+              - button "Expand keys" [expanded=false, ref=e144]
+                - StaticText "›"
+              - treeitem "keys Independent" [level=2, expanded=false, ref=e145]
+                - StaticText "keys"
+                - StaticText "Independent"
+            - generic
+              - button "Expand thumbs" [expanded=false, ref=e146]
+                - StaticText "›"
+              - treeitem "thumbs Independent" [level=2, expanded=false, ref=e147]
+                - StaticText "thumbs"
+                - StaticText "Independent"
+        - strong
+          - StaticText "Left PCB"
+        - StaticText "Left PCB"
+        - StaticText " / "
+        - StaticText "Layout"
+        - StaticText "Select an object to edit"
+      - region "Design canvas" [ref=e33]
+        - toolbar "Layout commands"
+          - button "Select: Key" [expanded=false, ref=e56]
+            - StaticText "Select: Key"
+          - button "Transform" [expanded=false, ref=e57]
+            - StaticText "Transform"
+          - button "Align" [expanded=false, ref=e58]
+            - StaticText "Align"
+          - button "Snap" [expanded=false, ref=e59]
+            - StaticText "Snap"
+        - group "Design view"
+          - button "2D" [ref=e60]
+          - button "3D assembly" [ref=e61]
+          - button "Footprints" [ref=e62]
+        - generic
+          - application "Board layout canvas. Use the CAD tree to select objects; use wheel to zoom and Space-drag to pan." [ref=e63] clickable [onclick, tabindex]
+            - group "Matrix 4 by 6"
+              - button "Select key, row 1, column 1" [ref=e148]
+              - button "Select key, row 1, column 2" [ref=e149]
+              - button "Select key, row 1, column 3" [ref=e150]
+              - button "Select key, row 1, column 4" [ref=e151]
+              - button "Select key, row 1, column 5" [ref=e152]
+              - button "Select key, row 1, column 6" [ref=e153]
+              - button "Select key, row 2, column 1" [ref=e154]
+              - button "Select key, row 2, column 2" [ref=e155]
+              - button "Select key, row 2, column 3" [ref=e156]
+              - button "Select key, row 2, column 4" [ref=e157]
+              - button "Select key, row 2, column 5" [ref=e158]
+              - button "Select key, row 2, column 6" [ref=e159]
+              - button "Select key, row 3, column 1" [ref=e160]
+              - button "Select key, row 3, column 2" [ref=e161]
+              - button "Select key, row 3, column 3" [ref=e162]
+              - button "Select key, row 3, column 4" [ref=e163]
+              - button "Select key, row 3, column 5" [ref=e164]
+              - button "Select key, row 3, column 6" [ref=e165]
+              - button "Select key, row 4, column 1" [ref=e166]
+              - button "Select key, row 4, column 2" [ref=e167]
+              - button "Select key, row 4, column 3" [ref=e168]
+              - button "Select key, row 4, column 4" [ref=e169]
+              - button "Select key, row 4, column 5" [ref=e170]
+              - button "Select key, row 4, column 6" [ref=e171]
+              - graphics-symbol "Stagger row 1"
+              - graphics-symbol "Stagger row 2"
+              - graphics-symbol "Stagger row 3"
+              - graphics-symbol "Stagger row 4"
+              - graphics-symbol "Stagger column 1"
+              - graphics-symbol "Stagger column 2"
+              - graphics-symbol "Stagger column 3"
+              - graphics-symbol "Stagger column 4"
+              - graphics-symbol "Stagger column 5"
+              - graphics-symbol "Stagger column 6"
+            - group "Matrix 1 by 5"
+              - button "Select key, row 1, column 1" [ref=e172]
+              - button "Select key, row 1, column 2" [ref=e173]
+              - button "Select key, row 1, column 3" [ref=e174]
+              - button "Select key, row 1, column 4" [ref=e175]
+              - button "Select key, row 1, column 5" [ref=e176]
+              - graphics-symbol "Stagger row 1"
+              - graphics-symbol "Stagger column 1"
+              - graphics-symbol "Stagger column 2"
+              - graphics-symbol "Stagger column 3"
+              - graphics-symbol "Stagger column 4"
+              - graphics-symbol "Stagger column 5"
+            - button "left-keys-SW1, switch mx, X 9.179999999999978 Y -78.048" [ref=e69]
+            - button "left-diode-24-keys, diode tht sod123, X 16.579999999999977 Y -79.548" [ref=e70]
+              - StaticText "left-diode-24-keys"
+            - button "left-keys-SW2, switch mx, X 28.22999999999999 Y -78.048" [ref=e71]
+            - button "left-diode-23-keys, diode tht sod123, X 35.62999999999999 Y -79.548" [ref=e72]
+              - StaticText "left-diode-23-keys"
+            - button "left-keys-SW3, switch mx, X 47.22999999999999 Y -69.148" [ref=e73]
+            - button "left-diode-22-keys, diode tht sod123, X 54.62999999999999 Y -70.648" [ref=e74]
+              - StaticText "left-diode-22-keys"
+            - button "left-keys-SW4, switch mx, X 66.22999999999999 Y -66.648" [ref=e75]
+            - button "left-diode-21-keys, diode tht sod123, X 73.63 Y -68.148" [ref=e76]
+              - StaticText "left-diode-21-keys"
+            - button "left-keys-SW5, switch mx, X 85.22999999999999 Y -69.148" [ref=e77]
+            - button "left-diode-20-keys, diode tht sod123, X 92.63 Y -70.648" [ref=e78]
+              - StaticText "left-diode-20-keys"
+            - button "left-keys-SW6, switch mx, X 104.23 Y -71.548" [ref=e79]
+            - button "left-diode-19-keys, diode tht sod123, X 111.63 Y -73.048" [ref=e80]
+              - StaticText "left-diode-19-keys"
+            - button "left-keys-SW7, switch mx, X 9.22999999999999 Y -59.047999999999995" [ref=e81]
+            - button "left-diode-18-keys, diode tht sod123, X 16.62999999999999 Y -60.547999999999995" [ref=e82]
+              - StaticText "left-diode-18-keys"
+            - button "left-keys-SW8, switch mx, X 28.22999999999999 Y -59.047999999999995" [ref=e83]
+            - button "left-diode-17-keys, diode tht sod123, X 35.62999999999999 Y -60.547999999999995" [ref=e84]
+              - StaticText "left-diode-17-keys"
+            - button "left-keys-SW9, switch mx, X 47.22999999999999 Y -50.047999999999995" [ref=e85]
+            - button "left-diode-16-keys, diode tht sod123, X 54.62999999999999 Y -51.547999999999995" [ref=e86]
+              - StaticText "left-diode-16-keys"
+            - button "left-keys-SW10, switch mx, X 66.22999999999999 Y -47.648" [ref=e87]
+            - button "left-diode-15-keys, diode tht sod123, X 73.63 Y -49.148" [ref=e88]
+              - StaticText "left-diode-15-keys"
+            - button "left-keys-SW11, switch mx, X 85.22999999999999 Y -50.047999999999995" [ref=e89]
+            - button "left-diode-14-keys, diode tht sod123, X 92.63 Y -51.547999999999995" [ref=e90]
+              - StaticText "left-diode-14-keys"
+            - button "left-keys-SW12, switch mx, X 104.23 Y -52.547999999999995" [ref=e91]
+            - button "left-diode-13-keys, diode tht sod123, X 111.63 Y -54.047999999999995" [ref=e92]
+              - StaticText "left-diode-13-keys"
+            - button "left-keys-SW13, switch mx, X 9.22999999999999 Y -39.848000000000006" [ref=e93]
+            - button "left-diode-12-keys, diode tht sod123, X 16.62999999999999 Y -41.348000000000006" [ref=e94]
+              - StaticText "left-diode-12-keys"
+            - button "left-keys-SW14, switch mx, X 28.22999999999999 Y -39.848000000000006" [ref=e95]
+            - button "left-diode-11-keys, diode tht sod123, X 35.62999999999999 Y -41.348000000000006" [ref=e96]
+              - StaticText "left-diode-11-keys"
+            - button "left-keys-SW15, switch mx, X 47.22999999999999 Y -30.948" [ref=e97]
+            - button "left-diode-10-keys, diode tht sod123, X 54.62999999999999 Y -32.448" [ref=e98]
+              - StaticText "left-diode-10-keys"
+            - button "left-keys-SW16, switch mx, X 66.22999999999999 Y -28.547999999999995" [ref=e99]
+            - button "left-diode-9-keys, diode tht sod123, X 73.63 Y -30.047999999999995" [ref=e100]
+              - StaticText "left-diode-9-keys"
+            - button "left-keys-SW17, switch mx, X 85.22999999999999 Y -31.047999999999995" [ref=e101]
+            - button "left-diode-8-keys, diode tht sod123, X 92.63 Y -32.547999999999995" [ref=e102]
+              - StaticText "left-diode-8-keys"
+            - button "left-keys-SW18, switch mx, X 104.23 Y -33.547999999999995" [ref=e103]
+            - button "left-diode-7-keys, diode tht sod123, X 111.63 Y -35.047999999999995" [ref=e104]
+              - StaticText "left-diode-7-keys"
+            - button "left-keys-SW19, switch mx, X 9.22999999999999 Y -20.948" [ref=e105]
+            - button "left-diode-6-keys, diode tht sod123, X 16.62999999999999 Y -22.448" [ref=e106]
+              - StaticText "left-diode-6-keys"
+            - button "left-keys-SW20, switch mx, X 28.22999999999999 Y -20.948" [ref=e107]
+            - button "left-diode-5-keys, diode tht sod123, X 35.62999999999999 Y -22.448" [ref=e108]
+              - StaticText "left-diode-5-keys"
+            - button "left-keys-SW21, switch mx, X 47.22999999999999 Y -11.948" [ref=e109]
+            - button "left-diode-4-keys, diode tht sod123, X 54.62999999999999 Y -13.448" [ref=e110]
+              - StaticText "left-diode-4-keys"
+            - button "left-keys-SW22, switch mx, X 66.22999999999999 Y -9.457999999999998" [ref=e111]
+            - button "left-diode-3-keys, diode tht sod123, X 73.63 Y -10.957999999999998" [ref=e112]
+              - StaticText "left-diode-3-keys"
+            - button "left-keys-SW23, switch mx, X 85.22999999999999 Y -11.948" [ref=e113]
+            - button "left-diode-2-keys, diode tht sod123, X 92.63 Y -13.448" [ref=e114]
+              - StaticText "left-diode-2-keys"
+            - button "left-keys-SW24, switch mx, X 104.23 Y -14.448" [ref=e115]
+            - button "left-diode-1-keys, diode tht sod123, X 111.63 Y -15.948" [ref=e116]
+              - StaticText "left-diode-1-keys"
+            - button "left-thumbs-SW1, switch mx, X 47.22999999999999 Y -88.148" [ref=e117]
+            - button "left-diode-5-thumbs, diode tht sod123, X 54.62999999999999 Y -89.648" [ref=e118]
+              - StaticText "left-diode-5-thumbs"
+            - button "left-thumbs-SW2, switch mx, X 66.22999999999999 Y -85.648" [ref=e119]
+            - button "left-diode-4-thumbs, diode tht sod123, X 73.63 Y -87.148" [ref=e120]
+              - StaticText "left-diode-4-thumbs"
+            - button "left-thumbs-SW3, switch mx, X 85.22999999999999 Y -88.24799999999999" [ref=e121]
+            - button "left-diode-3-thumbs, diode tht sod123, X 92.63 Y -89.74799999999999" [ref=e122]
+              - StaticText "left-diode-3-thumbs"
+            - button "left-thumbs-SW4, switch mx, X 107.13 Y -92.848" [ref=e123]
+            - button "left-diode-2-thumbs, diode tht sod123, X 113.35563922281416 Y -97.1201676309993" [ref=e124]
+              - StaticText "left-diode-2-thumbs"
+            - button "left-thumbs-SW5, switch mx, X 128.02999999999997 Y -97.858" [ref=e125]
+            - button "left-diode-1-thumbs, diode tht sod123, X 133.02903810567662 Y -92.19941201199516" [ref=e126]
+              - StaticText "left-diode-1-thumbs"
+            - button "left-U1, mcu nice nano, X 124.73 Y -21.158" [ref=e127]
+              - StaticText "left-U1"
+            - button "left-SW25, rotary encoder ec11 ec12, X 125.53 Y -70.94800000000001" [ref=e128]
+              - StaticText "left-SW25"
+            - button "left-J3, display ssd1306, X 124.62 Y -22.15799999999999" [ref=e129]
+              - StaticText "left-J3"
+            - button "left-J2, trrs pj320a, X 130.75 Y -49.95" [ref=e130]
+              - StaticText "left-J2"
+            - button "left-RSW1, reset switch tht top, X 131.45 Y -42.25000000000001" [ref=e131]
+              - StaticText "left-RSW1"
+            - button "left-TH1, mounting hole npth, X 129.6 Y -57.8" [ref=e132]
+              - StaticText "left-TH1"
+            - button "left-TH2, mounting hole npth, X 119.6 Y -57.784" [ref=e133]
+              - StaticText "left-TH2"
+            - button "left-TH3, mounting hole npth, X 95.42999999999998 Y -24.048" [ref=e134]
+              - StaticText "left-TH3"
+            - button "left-TH4, mounting hole npth, X 18.92999999999998 Y -30.65799999999999" [ref=e135]
+              - StaticText "left-TH4"
+            - button "left-TH5, mounting hole npth, X 95.42999999999998 Y -61.958000000000006" [ref=e136]
+              - StaticText "left-TH5"
+            - button "left-TH6, mounting hole npth, X 18.92999999999998 Y -68.958" [ref=e137]
+              - StaticText "left-TH6"
+            - button "left-TH7, mounting hole npth, X 120.93 Y -85.25800000000001" [ref=e138]
+              - StaticText "left-TH7"
+          - region "Canvas layers" [ref=e64]
+            - button "Layers" [expanded=false, ref=e139]
+              - StaticText "Layers"
+      - complementary "Design inspector"
+        - StaticText "Inspect"
+        - button "Inspector options" [expanded=false, ref=e65]
+        - separator "Resize inspector" [ref=e53] focusable [tabindex]: 320
+        - generic
+          - StaticText "Left PCB / Layout"
+        - heading "Left PCB" [level=2, ref=e54]
+        - paragraph
+          - StaticText "Select a key, component, or matrix to edit it."
+        - LabelText
+          - StaticText "Board name"
+          - textbox "Board name" [ref=e66]: Left PCB
+            - StaticText "Left PCB"
+        - StaticText "Outline"
+        - strong
+          - StaticText "Resolved"
+        - StaticText "Placed parts"
+        - strong
+          - StaticText "70"
+        - group
+          - DisclosureTriangle "Routed PCB reference" [expanded=false]
+            - StaticText "Routed PCB reference"
+    - sectionfooter
+      - button "Undo" [ref=e34]
+      - button "Redo" [ref=e35]
+      - StaticText "mm"
+      - StaticText "X "
+      - StaticText "0.00"
+      - StaticText "Y "
+      - StaticText "0.00"
+      - button "Grid ¼u" [ref=e36]
+        - StaticText "Grid ¼u"
+      - StaticText "Geometry snap on"
+      - button "Fit board" [ref=e37]
+      - button "Fit selection" [disabled, ref=e38]
+      - button "Zoom out" [ref=e39]
+        - StaticText "−"
+      - StaticText "100"
+      - StaticText "%"
+      - button "Zoom in" [ref=e40]
+        - StaticText "+"
+      - button "Layout findings: 2" [ref=e41]
+        - StaticText "Layout findings: 2"

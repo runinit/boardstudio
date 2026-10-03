@@ -1,0 +1,66 @@
+[
+  {
+    "file": "project-name-react-enter.snapshot.txt",
+    "sha256": "0e9bf68be8049d296a9737c87a6e9d2a21cb34e285311ffcdbfa9cfbcf694d96"
+  },
+  {
+    "file": "project-name-react-enter.png",
+    "sha256": "c636d5db11f226d60272c9b1fa1d1f000ce54e3551c9c5355169b8d729b4c1b9"
+  },
+  {
+    "file": "project-name-dioxus-enter.snapshot.txt",
+    "sha256": "e2efc0432876c945f5f176cc7a62ef2b6549cbccb36f4a06e0d6c1f4863440c2"
+  },
+  {
+    "file": "project-name-dioxus-enter.png",
+    "sha256": "836e64c05f5a267009f96aecd3807365f04e8901cbf89a5868ca64496ca80b5e"
+  },
+  {
+    "file": "project-name-dioxus-blur.snapshot.txt",
+    "sha256": "ae97936a9b9cab4985ddc3320eb8134925a46e344a399cc7a9619e478aaefed7"
+  },
+  {
+    "file": "project-name-react-blur.snapshot.txt",
+    "sha256": "cc3e3fffc8961db1aae4f015c82a91aa5c70dad8ad0ac8f147c066a9cf042ab1"
+  },
+  {
+    "file": "project-name-react-undo.snapshot.txt",
+    "sha256": "84c5dd98ad227c4a6dd23e563c0ef246e5a15638fa37ce1c1c4d6c105aab4511"
+  },
+  {
+    "file": "project-name-dioxus-undo.snapshot.txt",
+    "sha256": "87756c0d75fe3a768ee2df05870188c0f39a490873d5d39ee6d4c26ae760c0c9"
+  },
+  {
+    "file": "project-name-react-reload.snapshot.txt",
+    "sha256": "f6f9f2e8a3c6346e0365a89311996bb4d0c5f323cf8918283792f2c921e85fe3"
+  },
+  {
+    "file": "project-name-dioxus-reload.snapshot.txt",
+    "sha256": "8953b3b8872d28c9c4bc4229d16cd92a756ba034abc90968d524836c6bd36074"
+  },
+  {
+    "file": "project-name-dioxus-settled-undo.snapshot.txt",
+    "sha256": "ea9f05bfad929ee8a481b7f7d771a1f41f3517d2e2d876178e8117ac1eb37ae8"
+  },
+  {
+    "file": "project-name-dioxus-settled-redo.snapshot.txt",
+    "sha256": "eed3c3e6a02efa325f3cbd7c17d8f9c3396e5102dd64ff706cf99ab72c69577a"
+  },
+  {
+    "file": "project-name-dioxus-settled-reload.snapshot.txt",
+    "sha256": "a45d558748650c12cbff639a82b1e411c406e4e8771aeb1f0b336d911a0d81b8"
+  },
+  {
+    "file": "project-name-react-C.snapshot.txt",
+    "sha256": "d918c259e17d9349bd666886f7da81f411bd4f0e1d9be38db8032ae6a151a821"
+  },
+  {
+    "file": "project-name-react-settled-undo.snapshot.txt",
+    "sha256": "3e9dd69fe753b2361326a3ec30dfb7661d06f5af42460e11b4af14a301410dcf"
+  },
+  {
+    "file": "project-name-react-settled-redo.snapshot.txt",
+    "sha256": "d918c259e17d9349bd666886f7da81f411bd4f0e1d9be38db8032ae6a151a821"
+  }
+]

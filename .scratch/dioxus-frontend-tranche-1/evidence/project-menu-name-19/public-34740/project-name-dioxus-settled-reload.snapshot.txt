@@ -1,0 +1,160 @@
+- main
+  - sectionheader
+    - heading "BoardStudio" [level=1, ref=e126]
+      - StaticText "BoardStudio"
+    - group
+      - DisclosureTriangle "Parity Rename B" [expanded=false]
+    - StaticText "Saved"
+    - tablist "Board workflow"
+      - tab "Layout" [selected, ref=e128]
+      - tab "PCB" [ref=e129]
+      - tab "Keymap" [ref=e130]
+      - tab "Keycaps" [ref=e131]
+      - tab "Case" [ref=e132]
+      - tab "Parts" [ref=e133]
+    - button "Export" [ref=e127]
+    - LabelText
+      - StaticText "Theme"
+      - combobox "Theme" [expanded=false, ref=e134]: System
+        - MenuListPopup
+          - option "System" [selected, ref=e139]
+          - option "Light" [ref=e140]
+          - option "Dark" [ref=e141]
+  - region "Keyboard editor" [ref=e125]
+    - generic
+      - generic
+        - sectionheader
+          - heading "Objects" [level=2, ref=e146]
+          - button "Objects options" [expanded=false, ref=e147]
+            - StaticText "Options"
+        - complementary "Objects"
+          - button "Add object" [expanded=false, ref=e151]
+          - LabelText
+            - StaticText "Board"
+            - combobox "Board" [expanded=false, ref=e152]: Left PCB
+              - MenuListPopup
+                - option "Left PCB" [selected, ref=e167]
+                - option "Right PCB" [ref=e168]
+          - LabelText
+            - StaticText "Physical instance"
+            - combobox "Physical instance" [expanded=false, ref=e153]: left half
+              - MenuListPopup
+                - option "left half" [selected, ref=e169]
+          - LabelText
+            - StaticText "Group objects"
+            - combobox "Group objects" [expanded=false, ref=e154]: Columns
+              - MenuListPopup
+                - option "Columns" [selected, ref=e170]
+                - option "Rows" [ref=e171]
+          - StaticText "Parity Rename B"
+          - StaticText "70 parts"
+          - tree "CAD structure"
+            - treeitem "Left PCB 70 parts" [level=1, expanded=true, ref=e155]
+              - button "Collapse Left PCB" [expanded=true, ref=e159]
+                - StaticText "⌄"
+              - button "Left PCB 70 parts" [ref=e160]
+                - StaticText "Left PCB"
+                - StaticText "70 parts"
+            - treeitem "Outline Generated" [level=2, expanded=false, ref=e156]
+              - button "Expand Outline" [expanded=false, ref=e161]
+                - StaticText "›"
+              - button "Outline Generated" [ref=e162]
+                - StaticText "Outline"
+                - StaticText "Generated"
+            - treeitem "keys Independent" [level=2, expanded=false, ref=e157]
+              - button "Expand keys" [expanded=false, ref=e163]
+                - StaticText "›"
+              - button "keys Independent" [ref=e164]
+                - StaticText "keys"
+                - StaticText "Independent"
+            - treeitem "thumbs Independent" [level=2, expanded=false, ref=e158]
+              - button "Expand thumbs" [expanded=false, ref=e165]
+                - StaticText "›"
+              - button "thumbs Independent" [ref=e166]
+                - StaticText "thumbs"
+                - StaticText "Independent"
+      - tabpanel "Layout"
+        - toolbar "Layout commands"
+          - group
+            - DisclosureTriangle "Select: Key" [expanded=false]
+              - StaticText "Select: Key"
+          - group
+            - DisclosureTriangle "Transform" [expanded=false]
+              - StaticText "Transform"
+          - group
+            - DisclosureTriangle "Align" [expanded=false]
+          - group
+            - DisclosureTriangle "Snap" [expanded=false]
+              - StaticText "Snap"
+        - group "Design view"
+          - button "2D" [ref=e142]
+          - button "3D assembly" [ref=e143]
+          - button "Footprints" [ref=e144]
+        - group "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls" [ref=e137] focusable [tabindex]
+          - StaticText "left-diode-24-keys"
+          - StaticText "left-diode-23-keys"
+          - StaticText "left-diode-22-keys"
+          - StaticText "left-diode-21-keys"
+          - StaticText "left-diode-20-keys"
+          - StaticText "left-diode-19-keys"
+          - StaticText "left-diode-18-keys"
+          - StaticText "left-diode-17-keys"
+          - StaticText "left-diode-16-keys"
+          - StaticText "left-diode-15-keys"
+          - StaticText "left-diode-14-keys"
+          - StaticText "left-diode-13-keys"
+          - StaticText "left-diode-12-keys"
+          - StaticText "left-diode-11-keys"
+          - StaticText "left-diode-10-keys"
+          - StaticText "left-diode-9-keys"
+          - StaticText "left-diode-8-keys"
+          - StaticText "left-diode-7-keys"
+          - StaticText "left-diode-6-keys"
+          - StaticText "left-diode-5-keys"
+          - StaticText "left-diode-4-keys"
+          - StaticText "left-diode-3-keys"
+          - StaticText "left-diode-2-keys"
+          - StaticText "left-diode-1-keys"
+          - StaticText "left-diode-5-thumbs"
+          - StaticText "left-diode-4-thumbs"
+          - StaticText "left-diode-3-thumbs"
+          - StaticText "left-diode-2-thumbs"
+          - StaticText "left-diode-1-thumbs"
+          - StaticText "left-U1"
+          - StaticText "left-SW25"
+          - StaticText "left-J3"
+          - StaticText "left-J2"
+          - StaticText "left-RSW1"
+          - StaticText "left-TH1"
+          - StaticText "left-TH2"
+          - StaticText "left-TH3"
+          - StaticText "left-TH4"
+          - StaticText "left-TH5"
+          - StaticText "left-TH6"
+          - StaticText "left-TH7"
+        - region "Canvas layers" [ref=e138]
+          - button "Layers" [expanded=false, ref=e145]
+      - generic
+        - sectionheader
+          - heading "Inspect" [level=2, ref=e148]
+          - button "Inspector options" [expanded=false, ref=e149]
+            - StaticText "Options"
+        - complementary "Inspect"
+          - heading "Position" [level=2, ref=e150]
+          - paragraph
+            - StaticText "Select a component to edit its position."
+    - sectionfooter
+      - button "Undo" [ref=e135]
+      - button "Redo" [ref=e136]
+      - StaticText "Parity Rename B · Revision 15 · Saved"
+      - generic "Selected part coordinates"
+        - StaticText "mm"
+        - StaticText "X "
+        - StaticText "0.00"
+        - StaticText "Y "
+        - StaticText "0.00"
+      - StaticText "Grid ¼u"
+      - StaticText "Geometry snap on"
+      - StaticText "100%"
+  - status
+    - StaticText "Saved locally."

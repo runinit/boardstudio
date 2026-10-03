@@ -736,7 +736,9 @@
     "assets_per_route": 145,
     "elapsed_seconds": 517.57779,
     "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
-    "qualification": "Root complete source/package checks passed; independent package review and paired browser acceptance running. Three identified UI defects remain under repair."
+    "qualification": "Independent package verification CLEAR; actual paired Case Undo exposed stale blocked title (repair integrated85d0a736). Paired PCB Apply durable documents byte-identical; button placement remains open. Keymap layer edits/history/reload pass; owned spacing gap under repair. Project name bounded trim/history/reload green; menuvisual correction underway. Known Parts and Layout draft issues/Keycaps Inspector and mode pending nextcandidate.",
+    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-batch-a201a96a-case-package-review-sol-20261003.md",
+    "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "pending_integration_wave_20261002": {
     "source": "d585492012a60937879e89a8618c1d533fddba4e",
@@ -764,7 +766,9 @@
     "assets_per_route": 145,
     "elapsed_seconds": 517.57779,
     "provenance_sha256": "a94e2c6989ea98664f31e5dd2f57d62a853b40fcdce348c701f0c80d40eafc7f",
-    "qualification": "Root complete source/package checks passed; independent package review and paired browser acceptance running. Three identified UI defects remain under repair."
+    "qualification": "Independent package verification CLEAR; actual paired Case Undo exposed stale blocked title (repair integrated85d0a736). Paired PCB Apply durable documents byte-identical; button placement remains open. Keymap layer edits/history/reload pass; owned spacing gap under repair. Project name bounded trim/history/reload green; menuvisual correction underway. Known Parts and Layout draft issues/Keycaps Inspector and mode pending nextcandidate.",
+    "independent_review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/frontend-batch-a201a96a-case-package-review-sol-20261003.md",
+    "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "active_source_freeze": {
     "url": "http://127.0.0.1:34736/",

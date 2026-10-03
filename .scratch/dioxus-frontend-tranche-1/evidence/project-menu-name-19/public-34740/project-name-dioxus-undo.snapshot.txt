@@ -1,0 +1,185 @@
+- main
+  - sectionheader
+    - heading "BoardStudio" [level=1, ref=e1]
+      - StaticText "BoardStudio"
+    - group
+      - DisclosureTriangle "Parity Rename A" [expanded=true]
+      - region "Your keyboards" [ref=e56]
+        - region "Current project" [ref=e57]
+          - LabelText
+            - StaticText "Current project"
+            - textbox "Project name" [ref=e66]: Parity Rename A
+              - StaticText "Parity Rename A"
+        - sectionheader
+          - heading "Your keyboards1" [level=2, ref=e63]
+            - StaticText "Your keyboards1"
+          - StaticText "Saved in this browser"
+        - button "Create new keyboard" [ref=e58]
+          - StaticText "New keyboard"
+          - StaticText "Start with guided setup"
+        - article
+          - button "Open Parity Rename A" [ref=e64]
+            - StaticText "Parity Rename A"
+            - StaticText "58 keys · 2 boards"
+            - StaticText "Current"
+        - button "New project" [ref=e59]
+        - button "Setup guide" [ref=e60]
+        - button "REVIUNG41 copy" [ref=e61]
+        - button "Sofle v2 copy" [ref=e62]
+        - LabelText
+          - StaticText "Import .boardstudio"
+          - button "Import .boardstudio" [ref=e65]: No file chosen
+    - StaticText "Saved"
+    - tablist "Board workflow"
+      - tab "Layout" [selected, ref=e5]
+      - tab "PCB" [ref=e6]
+      - tab "Keymap" [ref=e7]
+      - tab "Keycaps" [ref=e8]
+      - tab "Case" [ref=e9]
+      - tab "Parts" [ref=e10]
+    - button "Export" [ref=e2]
+    - LabelText
+      - StaticText "Theme"
+      - combobox "Theme" [expanded=false, ref=e11]: System
+        - MenuListPopup
+          - option "System" [selected, ref=e18]
+          - option "Light" [ref=e19]
+          - option "Dark" [ref=e20]
+  - region "Keyboard editor" [ref=e21]
+    - generic
+      - generic
+        - sectionheader
+          - heading "Objects" [level=2, ref=e30]
+          - button "Objects options" [expanded=false, ref=e31]
+            - StaticText "Options"
+        - complementary "Objects"
+          - button "Add object" [expanded=false, ref=e35]
+          - LabelText
+            - StaticText "Board"
+            - combobox "Board" [expanded=false, ref=e36]: Left PCB
+              - MenuListPopup
+                - option "Left PCB" [selected, ref=e51]
+                - option "Right PCB" [ref=e52]
+          - LabelText
+            - StaticText "Physical instance"
+            - combobox "Physical instance" [expanded=false, ref=e37]: left half
+              - MenuListPopup
+                - option "left half" [selected, ref=e53]
+          - LabelText
+            - StaticText "Group objects"
+            - combobox "Group objects" [expanded=false, ref=e38]: Columns
+              - MenuListPopup
+                - option "Columns" [selected, ref=e54]
+                - option "Rows" [ref=e55]
+          - StaticText "Parity Rename A"
+          - StaticText "70 parts"
+          - tree "CAD structure"
+            - treeitem "Left PCB 70 parts" [level=1, expanded=true, ref=e39]
+              - button "Collapse Left PCB" [expanded=true, ref=e43]
+                - StaticText "⌄"
+              - button "Left PCB 70 parts" [ref=e44]
+                - StaticText "Left PCB"
+                - StaticText "70 parts"
+            - treeitem "Outline Generated" [level=2, expanded=false, ref=e40]
+              - button "Expand Outline" [expanded=false, ref=e45]
+                - StaticText "›"
+              - button "Outline Generated" [ref=e46]
+                - StaticText "Outline"
+                - StaticText "Generated"
+            - treeitem "keys Independent" [level=2, expanded=false, ref=e41]
+              - button "Expand keys" [expanded=false, ref=e47]
+                - StaticText "›"
+              - button "keys Independent" [ref=e48]
+                - StaticText "keys"
+                - StaticText "Independent"
+            - treeitem "thumbs Independent" [level=2, expanded=false, ref=e42]
+              - button "Expand thumbs" [expanded=false, ref=e49]
+                - StaticText "›"
+              - button "thumbs Independent" [ref=e50]
+                - StaticText "thumbs"
+                - StaticText "Independent"
+      - tabpanel "Layout"
+        - toolbar "Layout commands"
+          - group
+            - DisclosureTriangle "Select: Key" [expanded=false]
+              - StaticText "Select: Key"
+          - group
+            - DisclosureTriangle "Transform" [expanded=false]
+              - StaticText "Transform"
+          - group
+            - DisclosureTriangle "Align" [expanded=false]
+          - group
+            - DisclosureTriangle "Snap" [expanded=false]
+              - StaticText "Snap"
+        - group "Design view"
+          - button "2D" [ref=e26]
+          - button "3D assembly" [ref=e27]
+          - button "Footprints" [ref=e28]
+        - group "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls" [ref=e24] focusable [tabindex]
+          - StaticText "left-diode-24-keys"
+          - StaticText "left-diode-23-keys"
+          - StaticText "left-diode-22-keys"
+          - StaticText "left-diode-21-keys"
+          - StaticText "left-diode-20-keys"
+          - StaticText "left-diode-19-keys"
+          - StaticText "left-diode-18-keys"
+          - StaticText "left-diode-17-keys"
+          - StaticText "left-diode-16-keys"
+          - StaticText "left-diode-15-keys"
+          - StaticText "left-diode-14-keys"
+          - StaticText "left-diode-13-keys"
+          - StaticText "left-diode-12-keys"
+          - StaticText "left-diode-11-keys"
+          - StaticText "left-diode-10-keys"
+          - StaticText "left-diode-9-keys"
+          - StaticText "left-diode-8-keys"
+          - StaticText "left-diode-7-keys"
+          - StaticText "left-diode-6-keys"
+          - StaticText "left-diode-5-keys"
+          - StaticText "left-diode-4-keys"
+          - StaticText "left-diode-3-keys"
+          - StaticText "left-diode-2-keys"
+          - StaticText "left-diode-1-keys"
+          - StaticText "left-diode-5-thumbs"
+          - StaticText "left-diode-4-thumbs"
+          - StaticText "left-diode-3-thumbs"
+          - StaticText "left-diode-2-thumbs"
+          - StaticText "left-diode-1-thumbs"
+          - StaticText "left-U1"
+          - StaticText "left-SW25"
+          - StaticText "left-J3"
+          - StaticText "left-J2"
+          - StaticText "left-RSW1"
+          - StaticText "left-TH1"
+          - StaticText "left-TH2"
+          - StaticText "left-TH3"
+          - StaticText "left-TH4"
+          - StaticText "left-TH5"
+          - StaticText "left-TH6"
+          - StaticText "left-TH7"
+        - region "Canvas layers" [ref=e25]
+          - button "Layers" [expanded=false, ref=e29]
+      - generic
+        - sectionheader
+          - heading "Inspect" [level=2, ref=e32]
+          - button "Inspector options" [expanded=false, ref=e33]
+            - StaticText "Options"
+        - complementary "Inspect"
+          - heading "Position" [level=2, ref=e34]
+          - paragraph
+            - StaticText "Select a component to edit its position."
+    - sectionfooter
+      - button "Undo" [ref=e22]
+      - button "Redo" [ref=e23]
+      - StaticText "Parity Rename A · Revision 12 · Saved"
+      - generic "Selected part coordinates"
+        - StaticText "mm"
+        - StaticText "X "
+        - StaticText "0.00"
+        - StaticText "Y "
+        - StaticText "0.00"
+      - StaticText "Grid ¼u"
+      - StaticText "Geometry snap on"
+      - StaticText "100%"
+  - status
+    - StaticText "Saved locally."
