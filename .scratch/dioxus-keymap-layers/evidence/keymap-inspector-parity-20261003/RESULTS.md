@@ -25,3 +25,11 @@ I switched between Keys, Macros, Encoders and Layout only. No export was invoked
 - Encoders: [React](screenshots/react-encoders.png) / [Dioxus](screenshots/dioxus-encoders.png)
 
 The screenshots are direct 1280×940 captures. SHA-256: React Keys `88b5b6affd470833bec0826c407bcdc2023a0327c2e44b5d6b2f2814d6f634c8`; Dioxus Keys `82f62027d48cbe04ef7769d4defd8c4a98840d2fc1e0eb2254b179782aa45036`; React Macros `5c8eb5975cbe415f158fd9530c5c20e5dd74befdd9d7bd4bb14e574ebdd41607`; Dioxus Macros `99d2d974225a4ae4b399aa6b33a820c693bcefe70561250ad1ee7f7e11136a23`; React Encoders `64379aba7b7ff1c66238f41b266bd0048e95f0a82ca6a3c9e3bca49c965ffc24`; Dioxus Encoders `1bd831a8d2ee42944a49e10dfbe0d87c7178372892596272d37a2ed2a596153c`.
+
+## Packaged spacing retest — 34768
+
+The same isolated React profile and 1280×940 Light browser capture were repeated against Dioxus package `frontend-contextual-panes-followup-20261003`, source `9e6f9b62e33d7dc22412cf5793a3f4b857e219c3`, provenance SHA-256 `0d04905a8dbd66e961595fbae3702124e2f7d2784cfbe5bc3e8dab85dc81d290`. Both apps used the same original layered Sofle fixture, SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
+
+In the Keys and Macros captures, the former 17–42 px cumulative vertical offset is gone: layer heading/rows, editor tabs, selection controls, Add macro and Export now sit at the same approximate vertical positions. The same editor-before-action order remains. The Encoders captures retain the editor before Export in both apps, with the action below the viewport because the expanded content is taller. Dioxus encoder disclosures still use bordered cards and wider vertical padding where React uses flatter disclosure rows. That is a remaining presentation detail outside the `.6rem` summary-margin correction; this focused pass did not change it.
+
+This supersedes the previous paragraph's statement that the spacing was still unverified on a built package. Captures: `34768-react-keys.png`, `34768-dioxus-keys.png`, `34768-react-macros.png`, `34768-dioxus-macros.png`, `34768-react-encoders.png`, `34768-dioxus-encoders.png`. Screenshots remain direct 1280×940 browser captures.

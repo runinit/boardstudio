@@ -1,0 +1,9 @@
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+/ { behaviors { bs_sensor_0_0: bs_sensor_0_0 { compatible = "zmk,behavior-sensor-rotate"; #sensor-binding-cells = <0>; bindings = <&kp LC(LS(A))>, <&kp Q>; };
+bs_sensor_0_1: bs_sensor_0_1 { compatible = "zmk,behavior-sensor-rotate"; #sensor-binding-cells = <0>; bindings = <&none>, <&none>; };
+bs_sensor_1_0: bs_sensor_1_0 { compatible = "zmk,behavior-sensor-rotate"; #sensor-binding-cells = <0>; bindings = <&none>, <&none>; };
+bs_sensor_1_1: bs_sensor_1_1 { compatible = "zmk,behavior-sensor-rotate"; #sensor-binding-cells = <0>; bindings = <&none>, <&none>; };
+ }; keymap { compatible = "zmk,keymap"; layer_0 { label = "Main"; bindings = <&none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &kp SPACE &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none &none>; sensor-bindings = <&bs_sensor_0_0 &bs_sensor_0_1>; };
+layer_1 { label = "Function"; bindings = <&kp Q &trans &trans &trans &none &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans>; sensor-bindings = <&bs_sensor_1_0 &bs_sensor_1_1>; };
+ }; };
