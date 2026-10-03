@@ -1000,12 +1000,6 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let free_pins = matching_plan
         .map(|plan| plan.free_pins.as_slice())
         .unwrap_or(&[]);
-    let plan_ready = matching_plan.is_some_and(|plan| {
-        !plan
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity == "error")
-    });
     let on_resolve = props.on_resolve;
     let mode_actions = props.mode_actions.clone();
     let selected_mode = match display.mode {
@@ -1027,12 +1021,14 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let protected_remap_identity = protected_remap_actions.identity.clone();
     let on_review_remap = protected_remap_actions.on_review;
     rsx! {
-        section { class: "m1-pcb-wiring",
+        section { class: "m1-pcb-wiring m1-pcb-board-wiring", aria_label: "Electrical wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }
-            h2 { "Electrical wiring" }
-            div { class: "m1-pcb-wiring-controller",
-                strong { "Controller" }
-                span { "{controller_name}" }
+            header { class: "m1-pcb-wiring-header",
+                div {
+                    h2 { "Wiring" }
+                    p { "{controller_name}" }
+                }
+                span { class: "m1-pcb-wiring-topology", "{selected_mode}" }
             }
             label { class: "m1-pcb-wiring-mode-control",
                 span { "Wiring mode" }
@@ -1108,7 +1104,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             } else if matching_plan.is_none() {
                 p { role: "status", "Waiting for a current wiring plan." }
             }
-            if matching_plan.is_some() {
+            if matching_plan.is_some() && chosen_controller_id.is_some() {
                 div { class: "m1-pcb-wiring-pin-summary",
                     div { strong { "Used pins" }
                         span { if used_pins.is_empty() { "None assigned" } else { "{used_pins.join(\" · \")}" } }
@@ -1136,13 +1132,21 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     p { role: "alert", "{message}" }
                 }
             }
+            if let Some(plan) = matching_plan.filter(|plan| !plan.diagnostics.is_empty()) {
+                div { class: "m1-pcb-wiring-findings", role: "alert",
+                    strong { "Review before handoff" }
+                    for (index, diagnostic) in plan.diagnostics.iter().enumerate() {
+                        p { key: "{index}", "{diagnostic.severity}: {diagnostic.message}" }
+                    }
+                }
+            }
             {props.firmware_controls.clone()}
             if let Some(plan) = matching_plan {
-                p { class: "m1-pcb-wiring-readiness", role: "status",
-                    if plan_ready { "Plan is ready for review." } else { "Plan needs review." }
-                }
-                div { class: "m1-pcb-wiring-section",
-                    h3 { "Assignments" }
+                div { class: "m1-pcb-wiring-section m1-pcb-wiring-assignments",
+                    div { class: "m1-pcb-wiring-section-heading",
+                        h3 { "Assignments" }
+                        span { "{pin_rows.len()}" }
+                    }
                     for row in &pin_rows {
                         div { class: "m1-pcb-wiring-assignment m1-pcb-wiring-pin-assignment", key: "{row.id}",
                             div {
@@ -1207,17 +1211,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                         }
                     }
                     if pin_rows.is_empty() {
-                        p { class: "m1-pcb-wiring-empty", "No assignments are available." }
-                    }
-                }
-                if !plan.diagnostics.is_empty() {
-                    div { class: "m1-pcb-wiring-section", role: "alert",
-                        h3 { "Findings" }
-                        ul {
-                            for (index, diagnostic) in plan.diagnostics.iter().enumerate() {
-                                li { key: "{index}", "{diagnostic.severity}: {diagnostic.message}" }
-                            }
-                        }
+                        p { class: "m1-pcb-wiring-empty", "Resolve the board to see controller, matrix, and peripheral assignments." }
                     }
                 }
             }

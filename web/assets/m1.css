@@ -1069,3 +1069,20 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-module-mount-hole path { fill: none; stroke: var(--wb-accent); stroke-width: .14; vector-effect: non-scaling-stroke; }
 .m1-module-standoff circle { fill: rgba(105,181,168,.14); stroke: var(--wb-accent); stroke-width: .22; vector-effect: non-scaling-stroke; }
 .m1-module-standoff .m1-module-standoff-hole { fill: var(--wb-canvas); }
+
+/* The board context follows the reference Wiring panel hierarchy. */
+.m1-pcb-board-wiring { gap: 16px; }
+.m1-pcb-board-wiring .m1-pcb-wiring-breadcrumb { margin-bottom: 0; }
+.m1-pcb-wiring-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.m1-pcb-board-wiring .m1-pcb-wiring-header h2 { margin: 0; color: var(--wb-ink); }
+.m1-pcb-board-wiring .m1-pcb-wiring-header p { margin: 5px 0 0; font-size: 12px; }
+.m1-pcb-wiring-topology { border: 1px solid var(--wb-rule); border-radius: 3px; padding: 3px 6px; color: var(--wb-muted); font: 11px var(--wb-mono); text-transform: uppercase; }
+.m1-pcb-board-wiring .m1-pcb-wiring-mode-control { margin: 0; }
+.m1-pcb-board-wiring .m1-pcb-wiring-actions { margin-bottom: 0; }
+.m1-pcb-board-wiring .m1-pcb-wiring-pin-summary { margin: 0; }
+.m1-pcb-board-wiring .m1-pcb-wiring-findings { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--wb-status-warning); border-radius: 8px; color: var(--wb-ink); }
+.m1-pcb-board-wiring .m1-pcb-wiring-findings p { margin: 0; font-size: 12px; }
+.m1-pcb-board-wiring .m1-pcb-wiring-section-heading { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid var(--wb-rule); }
+.m1-pcb-board-wiring .m1-pcb-wiring-section-heading h3 { margin: 0; color: var(--wb-ink); }
+.m1-pcb-board-wiring .m1-pcb-wiring-section-heading span { color: var(--wb-muted); font: 11px var(--wb-mono); }
+.m1-pcb-board-wiring .m1-pcb-wiring-assignments { margin: 0; padding: 0; border-top: 0; }
