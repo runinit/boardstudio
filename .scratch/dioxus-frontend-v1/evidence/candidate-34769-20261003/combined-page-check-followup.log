@@ -1,0 +1,326 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error[E0425]: cannot find function `coordinates` in module `super`
+   --> src/presentation/objects/layout_transform_toolbar.rs:284:20
+    |
+284 |             super::coordinates(&svg_for_start, &pointer, view_x, view_y, width, height)
+    |                    ^^^^^^^^^^^ not found in `super`
+    |
+help: consider importing this function
+    |
+  2 + use crate::presentation::coordinates;
+    |
+help: if you import `coordinates`, refer to it directly
+    |
+284 -             super::coordinates(&svg_for_start, &pointer, view_x, view_y, width, height)
+284 +             coordinates(&svg_for_start, &pointer, view_x, view_y, width, height)
+    |
+
+error[E0425]: cannot find function `coordinates` in module `super`
+   --> src/presentation/objects/layout_transform_toolbar.rs:353:20
+    |
+353 |             super::coordinates(&svg_for_move, &pointer, view_x, view_y, width, height)
+    |                    ^^^^^^^^^^^ not found in `super`
+    |
+help: consider importing this function
+    |
+  2 + use crate::presentation::coordinates;
+    |
+help: if you import `coordinates`, refer to it directly
+    |
+353 -             super::coordinates(&svg_for_move, &pointer, view_x, view_y, width, height)
+353 +             coordinates(&svg_for_move, &pointer, view_x, view_y, width, height)
+    |
+
+error[E0425]: cannot find function `coordinates` in module `super`
+   --> src/presentation/objects/layout_transform_toolbar.rs:428:28
+    |
+428 |         let point = super::coordinates(&svg_for_end, &pointer, view_x, view_y, width, height);
+    |                            ^^^^^^^^^^^ not found in `super`
+    |
+help: consider importing this function
+    |
+  2 + use crate::presentation::coordinates;
+    |
+help: if you import `coordinates`, refer to it directly
+    |
+428 -         let point = super::coordinates(&svg_for_end, &pointer, view_x, view_y, width, height);
+428 +         let point = coordinates(&svg_for_end, &pointer, view_x, view_y, width, height);
+    |
+
+error[E0425]: cannot find value `aria_hidden` in module `dioxus_elements::g`
+   --> src/presentation/objects/layout_transform_toolbar.rs:529:51
+    |
+529 |             g { class: "m1-transform-snap-guide", aria_hidden: "true",
+    |                                                   ^^^^^^^^^^^ not found in `dioxus_elements::g`
+
+error[E0425]: cannot find value `aria_label` in module `dioxus_elements::g`
+   --> src/presentation/objects/layout_transform_toolbar.rs:537:48
+    |
+537 |                 role: "button", tabindex: "0", aria_label: "Drag to stagger",
+    |                                                ^^^^^^^^^^ not found in `dioxus_elements::g`
+
+error[E0425]: cannot find value `aria_label` in module `dioxus_elements::g`
+   --> src/presentation/objects/layout_transform_toolbar.rs:579:64
+    |
+579 | ...                   role: "button", tabindex: "0", aria_label: "Drag to splay",
+    |                                                      ^^^^^^^^^^ not found in `dioxus_elements::g`
+
+error[E0425]: cannot find value `aria_label` in module `dioxus_elements::g`
+   --> src/presentation/objects/layout_transform_toolbar.rs:555:52
+    |
+555 |                     role: "button", tabindex: "0", aria_label: "Move splay origin",
+    |                                                    ^^^^^^^^^^ not found in `dioxus_elements::g`
+
+error[E0423]: expected value, found module `canvas_interaction`
+    --> src/presentation.rs:1801:21
+     |
+1801 |                     canvas_interaction.release(CanvasInteractionOwner::MatrixTransform);
+     |                     ^^^^^^^^^^^^^^^^^^
+     |
+help: use the path separator to refer to an item
+     |
+1801 -                     canvas_interaction.release(CanvasInteractionOwner::MatrixTransform);
+1801 +                     canvas_interaction::release(CanvasInteractionOwner::MatrixTransform);
+     |
+
+error[E0599]: no method named `try_as_web_event` found for struct `std::rc::Rc<dioxus::events::PointerData>` in the current scope
+   --> src/presentation/objects/layout_transform_toolbar.rs:247:42
+    |
+247 |         let Some(pointer) = event.data().try_as_web_event() else {
+    |                                          ^^^^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `WebEventExt` which provides `try_as_web_event` is implemented but not in scope; perhaps you want to import it
+    |
+  2 + use dioxus_web::WebEventExt;
+    |
+help: there is a method `as_web_event` with a similar name
+    |
+247 -         let Some(pointer) = event.data().try_as_web_event() else {
+247 +         let Some(pointer) = event.data().as_web_event() else {
+    |
+
+error[E0599]: no method named `try_as_web_event` found for struct `std::rc::Rc<dioxus::events::PointerData>` in the current scope
+   --> src/presentation/objects/layout_transform_toolbar.rs:323:42
+    |
+323 |         let Some(pointer) = event.data().try_as_web_event() else {
+    |                                          ^^^^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `WebEventExt` which provides `try_as_web_event` is implemented but not in scope; perhaps you want to import it
+    |
+  2 + use dioxus_web::WebEventExt;
+    |
+help: there is a method `as_web_event` with a similar name
+    |
+323 -         let Some(pointer) = event.data().try_as_web_event() else {
+323 +         let Some(pointer) = event.data().as_web_event() else {
+    |
+
+error[E0599]: no method named `try_as_web_event` found for struct `std::rc::Rc<dioxus::events::PointerData>` in the current scope
+   --> src/presentation/objects/layout_transform_toolbar.rs:390:42
+    |
+390 |         let Some(pointer) = event.data().try_as_web_event() else {
+    |                                          ^^^^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `WebEventExt` which provides `try_as_web_event` is implemented but not in scope; perhaps you want to import it
+    |
+  2 + use dioxus_web::WebEventExt;
+    |
+help: there is a method `as_web_event` with a similar name
+    |
+390 -         let Some(pointer) = event.data().try_as_web_event() else {
+390 +         let Some(pointer) = event.data().as_web_event() else {
+    |
+
+error[E0599]: no method named `try_as_web_event` found for struct `std::rc::Rc<dioxus::events::PointerData>` in the current scope
+   --> src/presentation/objects/layout_transform_toolbar.rs:476:42
+    |
+476 |         let Some(pointer) = event.data().try_as_web_event() else {
+    |                                          ^^^^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `WebEventExt` which provides `try_as_web_event` is implemented but not in scope; perhaps you want to import it
+    |
+  2 + use dioxus_web::WebEventExt;
+    |
+help: there is a method `as_web_event` with a similar name
+    |
+476 -         let Some(pointer) = event.data().try_as_web_event() else {
+476 +         let Some(pointer) = event.data().as_web_event() else {
+    |
+
+error[E0599]: no method named `try_as_web_event` found for struct `std::rc::Rc<dioxus::events::KeyboardData>` in the current scope
+   --> src/presentation/objects/layout_transform_toolbar.rs:500:38
+    |
+500 |         let Some(key) = event.data().try_as_web_event() else {
+    |                                      ^^^^^^^^^^^^^^^^
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `WebEventExt` which provides `try_as_web_event` is implemented but not in scope; perhaps you want to import it
+    |
+  2 + use dioxus_web::WebEventExt;
+    |
+help: there is a method `as_web_event` with a similar name
+    |
+500 -         let Some(key) = event.data().try_as_web_event() else {
+500 +         let Some(key) = event.data().as_web_event() else {
+    |
+
+error[E0599]: no method named `submit` found for reference `&runtime::Runtime` in the current scope
+   --> src/presentation/objects/layout_transform_toolbar.rs:929:13
+    |
+929 |     runtime.submit(Event::Edit {
+    |     --------^^^^^^ method not found in `&runtime::Runtime`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `presentation::part_placement::PlacementRuntime` defines an item `submit`, perhaps you need to implement it
+   --> src/presentation/part_placement.rs:275:1
+    |
+275 | pub(super) trait PlacementRuntime {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `submit` found for reference `&runtime::Runtime` in the current scope
+   --> src/presentation/objects/layout_transform_toolbar.rs:950:17
+    |
+950 |         runtime.submit(Event::ClearPreview {
+    |         --------^^^^^^ method not found in `&runtime::Runtime`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+note: `presentation::part_placement::PlacementRuntime` defines an item `submit`, perhaps you need to implement it
+   --> src/presentation/part_placement.rs:275:1
+    |
+275 | pub(super) trait PlacementRuntime {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0560]: struct `presentation::shared_viewer::RendererSceneProjection` has no field named `handles`
+   --> src/presentation/shared_viewer.rs:900:9
+    |
+900 |         handles: Vec::new(),
+    |         ^^^^^^^ `presentation::shared_viewer::RendererSceneProjection` does not have this field
+    |
+    = note: all struct fields are already assigned
+
+error[E0308]: mismatched types
+    --> src/presentation/shared_viewer.rs:1307:41
+     |
+1307 |                     active_case_handles(handles, preview.as_deref(), edit_gaskets, edit_mounts);
+     |                     ------------------- ^^^^^^^ expected `&[ViewerHandle]`, found `Vec<ViewerHandle>`
+     |                     |
+     |                     arguments to this function are incorrect
+     |
+     = note: expected reference `&[presentation::shared_viewer::ViewerHandle]`
+                   found struct `std::vec::Vec<presentation::shared_viewer::ViewerHandle>`
+note: function defined here
+    --> src/presentation/shared_viewer.rs:2589:4
+     |
+2589 | fn active_case_handles(
+     |    ^^^^^^^^^^^^^^^^^^^
+2590 |     handles: &[ViewerHandle],
+     |     ------------------------
+help: consider borrowing here
+     |
+1307 |                     active_case_handles(&handles, preview.as_deref(), edit_gaskets, edit_mounts);
+     |                                         +
+
+error[E0596]: cannot borrow `selection.layer` as mutable, as `selection` is not declared as mutable
+   --> src/presentation/case_viewer.rs:187:21
+    |
+187 |                     selection.layer.set(Some(LayerSelection {
+    |                     ^^^^^^^^^^^^^^^ cannot borrow as mutable
+    |
+help: consider changing this to be mutable
+    |
+ 87 |     let mut selection = use_context::<CaseSelection>();
+    |         +++
+
+error[E0596]: cannot borrow `selection.body` as mutable, as `selection` is not declared as mutable
+   --> src/presentation/case_viewer.rs:199:25
+    |
+199 |                         selection.body.set(Some(BodySelection {
+    |                         ^^^^^^^^^^^^^^ cannot borrow as mutable
+    |
+help: consider changing this to be mutable
+    |
+ 87 |     let mut selection = use_context::<CaseSelection>();
+    |         +++
+
+error[E0596]: cannot borrow `selection.body` as mutable, as `selection` is not declared as mutable
+   --> src/presentation/case_viewer.rs:204:25
+    |
+204 |                         selection.body.set(None);
+    |                         ^^^^^^^^^^^^^^ cannot borrow as mutable
+    |
+help: consider changing this to be mutable
+    |
+ 87 |     let mut selection = use_context::<CaseSelection>();
+    |         +++
+
+error: variable does not need to be mutable
+   --> src/presentation/case_viewer.rs:131:9
+    |
+131 |     let mut handle_preview = use_signal(|| None::<Vec<ViewerHandle>>);
+    |         ----^^^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `-D unused-mut` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_mut)]`
+
+error: variable does not need to be mutable
+   --> src/presentation/case_viewer.rs:132:9
+    |
+132 |     let mut gesture_field = use_signal(|| None::<String>);
+    |         ----^^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+error: variable does not need to be mutable
+   --> src/presentation/case_viewer.rs:133:9
+    |
+133 |     let mut gesture_message = use_signal(|| None::<String>);
+    |         ----^^^^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+error[E0596]: cannot borrow `selection.layer` as mutable, as `selection` is not declared as mutable
+   --> src/presentation/case_viewer.rs:561:21
+    |
+561 |                     selection.layer.set(Some(LayerSelection {
+    |                     ^^^^^^^^^^^^^^^ cannot borrow as mutable
+    |
+help: consider changing this to be mutable
+    |
+532 |     mut selection: CaseSelection,
+    |     +++
+
+error: variable does not need to be mutable
+    --> src/presentation.rs:2428:9
+     |
+2428 |     let mut layout_transform_tool_owner =
+     |         ----^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+error: variable does not need to be mutable
+    --> src/presentation.rs:3672:13
+     |
+3672 |         let mut workspace = workspace;
+     |             ----^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+error: variable does not need to be mutable
+    --> src/presentation.rs:3676:13
+     |
+3676 |         let mut objects_open = objects_open;
+     |             ----^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+Some errors have detailed explanations: E0308, E0423, E0425, E0560, E0596, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 27 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 27 previous errors

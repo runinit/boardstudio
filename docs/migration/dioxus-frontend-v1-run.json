@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T13:03:28.269356+00:00",
+    "updated_at": "2026-10-03T13:14:40.118082+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 6,
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "698cee6077afd407c424cc8a1296a2758457ec8d",
-      "state": "34768 bounded changed journeys and consolidated review complete. Full34769 six-stream source batch integrated: real transforms, primary rectangular selection, Case mechanical/gasket handles, PCB source route/host markers, Keymap disclosure styling, Keycaps cancellation batches, RGB/Choc demos. Combined affected page/CAD-worker checks underway; first page parse failure retained and corrected. Full workbench/parent gates stay open.",
+      "source_commit": "2c33e57f",
+      "state": "34769 six-stream source plus full/draft handoff integrated. Page and deployed worker checks pass; consolidated source review found final export-token delivery mismatch and owner-effect self-subscription, repaired2c33e57f before packaging. Changed page recheck underway; unchanged worker proof reused. One full package and changed paired journeys follow. No new UI tests or parent closure claimed.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1582,6 +1582,12 @@
           "original_source": "2d2306f7",
           "integrated_source": "a41a3634+d5f9cff4",
           "state": "Combined compile PASS; changed shell/menu journey pending34762."
+        },
+        {
+          "slice": "Full and draft KiCad handoff",
+          "original_source": "c97f1b24",
+          "integrated_source": "a74b67f2",
+          "state": "Mounted export buttons, Session-owned electrical/protection commits, existing Core/worker artifact route and nested handoff archive joined; changed paired output/history pending34769."
         }
       ],
       "checks": {
@@ -2002,7 +2008,7 @@
         "duration_seconds": 20.046,
         "new_ui_tests": 0
       },
-      "next": "Package 34768 with verified full34767 providers; next substantive/API/fixture packet batch uses one full provider build.",
+      "next": "One full34769 package after changed page review-repair check; deployed CAD-worker library check passes and is reused unchanged.",
       "completed_focused_regression": {
         "owner": "keycaps_geometry_repair",
         "source": "be4ec412 / integrated31a7f3d0",
@@ -2019,7 +2025,7 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
       "Finish combined affected34769 checks and one full provider/fixture package; inspect only changed tools/range/handles/routes/previews/variants.",
-      "Compact shared-shell author ports actual topbar toggles/Export/drawers independently; full/draft KiCad Session-owned commit/adopt work continues.",
+      "Compact shared-shell author ports actual topbar toggles/Export/drawers independently; full/draft KiCad source is joined and awaiting changed candidate output proof.",
       "CaseBody handles and canonical Keycaps/Keymap/Parts acceptance frontier continue in parallel.",
       "Retain all62parents, exact criteria/joins/history and RF ledger; close ready parents from sufficient consolidated evidence."
     ],
@@ -2418,6 +2424,36 @@
         "build_id": "frontend-contextual-panes-followup-source-check",
         "source_commit": "73d1b6ab..6d9320f2",
         "result": "Initial strict compile failed missing mutable preparation Signal capture; one-line repair restored it. Follow-up PASS 20.046s, no new UI tests. Both logs retained."
+      },
+      {
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "source_commit": "2f860549",
+        "result": "Parse failure; supported reactive hook/RSX syntax repaired67520e0c.",
+        "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-initial.json"
+      },
+      {
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "source_commit": "698cee60",
+        "result": "27 mechanical type/capture errors; corrected8d282876.",
+        "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup.json"
+      },
+      {
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "source_commit": "e3c8ea82",
+        "result": "Electrical plan shadow and transform non-Copy captures; correctedd885deda.",
+        "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup2.json"
+      },
+      {
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "source_commit": "d885deda",
+        "result": "Private helpers argument count and small lints; grouped scoped contexts without suppressions in d64ab741.",
+        "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup3.json"
+      },
+      {
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "source_commit": "d64ab741",
+        "result": "Page all-targets strict PASS24.053s. Worker all-targets pulled page-only integration tests without page dependencies and failed imports; scoped deployed CAD-worker library strict PASS19.879s. No test source/registration changed.",
+        "check_receipt": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-worker-lib.json"
       }
     ],
     "parent_acceptances": [

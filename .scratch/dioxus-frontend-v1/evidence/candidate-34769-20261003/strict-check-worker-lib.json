@@ -1,0 +1,52 @@
+{
+  "source_commit": "d64ab74104bea253bce2ab508192297fe265155b",
+  "checks": [
+    {
+      "feature": "page",
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "web/Cargo.toml",
+        "--locked",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--no-default-features",
+        "--features",
+        "page",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "source_commit": "d64ab74104bea253bce2ab508192297fe265155b",
+      "exit_code": 0,
+      "seconds": 24.052565,
+      "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/combined-page-check-followup4.log"
+    },
+    {
+      "feature": "cad-worker",
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "web/Cargo.toml",
+        "--locked",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--no-default-features",
+        "--features",
+        "cad-worker",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "source_commit": "d64ab74104bea253bce2ab508192297fe265155b",
+      "exit_code": 0,
+      "seconds": 19.879196,
+      "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/combined-cad-worker-lib-check.log"
+    }
+  ],
+  "scope_note": "Page all-targets includes application/presentation tests. Worker check selects its deployed cdylib: the earlier worker all-targets attempt pulled page-only integration tests without the page feature and failed optional dependency imports. Preserved as command-scope failure; no tests changed or skipped under their applicable page target."
+}

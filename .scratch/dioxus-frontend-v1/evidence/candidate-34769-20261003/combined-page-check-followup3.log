@@ -1,0 +1,163 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+error: this function has too many arguments (11/7)
+  --> src/pcb_handoff.rs:23:1
+   |
+23 | / pub(crate) async fn build_handoff(
+24 | |     operation_id: OperationId,
+25 | |     snapshot: &AcceptedSnapshot,
+26 | |     scope: &Scope,
+...  |
+34 | |     draft: bool,
+35 | | ) -> Result<Vec<u8>, String> {
+   | |____________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#too_many_arguments
+   = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+
+error: this function has too many arguments (12/7)
+   --> src/presentation/case_viewer.rs:524:1
+    |
+524 | / fn handle_case_gesture(
+525 | |     scene: &CadScene,
+526 | |     identity: &ViewerIdentity,
+527 | |     settings: Option<&super::mechanical_settings::MechanicalSettingsProps>,
+...   |
+536 | |     point: Option<[f32; 3]>,
+537 | | ) {
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#too_many_arguments
+
+error: using `clone` on type `Vec2` which implements the `Copy` trait
+   --> src/presentation/case_viewer.rs:770:33
+    |
+770 | ...                   at: mount.at.clone(),
+    |                           ^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `mount.at`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#clone_on_copy
+    = note: `-D clippy::clone-on-copy` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::clone_on_copy)]`
+
+error: using `clone` on type `Vec2` which implements the `Copy` trait
+    --> src/presentation/case_viewer.rs:1089:32
+     |
+1089 |                     moved.at = point.clone();
+     |                                ^^^^^^^^^^^^^ help: try removing the `clone` call: `point`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#clone_on_copy
+
+error: using `clone` on type `Vec2` which implements the `Copy` trait
+   --> src/presentation/mechanical_settings_controller.rs:935:24
+    |
+935 |             mount.at = at.clone();
+    |                        ^^^^^^^^^^ help: try dereferencing it: `*at`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#clone_on_copy
+
+error: this `if` statement can be collapsed
+   --> src/presentation/objects/layout_transform_toolbar.rs:384:9
+    |
+384 | /         if let Some(operation) = operation {
+385 | |             if active.pending.as_ref() != Some(&operation) {
+386 | |                 submit_transform_edit(
+387 | |                     &runtime_for_move,
+...   |
+396 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+384 ~         if let Some(operation) = operation
+385 ~             && active.pending.as_ref() != Some(&operation) {
+386 |                 submit_transform_edit(
+...
+394 |                 *drag_for_move.borrow_mut() = Some(active);
+395 ~             }
+    |
+
+error: this function has too many arguments (10/7)
+   --> src/presentation/objects/layout_transform_toolbar.rs:777:1
+    |
+777 | / fn sample_transform(
+778 | |     drag: &TransformDrag,
+779 | |     pointer: &web_sys::PointerEvent,
+780 | |     point: Vec2,
+...   |
+787 | |     guide: &mut Signal<Option<Vec2>>,
+788 | | ) -> Option<EditOperation> {
+    | |__________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#too_many_arguments
+
+error: this function has too many arguments (9/7)
+   --> src/presentation/selection.rs:257:1
+    |
+257 | / pub(super) fn submit_matrix_cell_selection(
+258 | |     runtime: &Rc<Runtime>,
+259 | |     adapter: &SelectionAdapter,
+260 | |     scope: &Scope,
+...   |
+266 | |     mode: SelectionMode,
+267 | | ) -> Option<Vec<String>> {
+    | |________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#too_many_arguments
+
+error: redundant redefinition of a binding `workspace`
+    --> src/presentation.rs:3674:9
+     |
+3674 |         let workspace = workspace;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: `workspace` is initially defined here
+    --> src/presentation.rs:2420:9
+     |
+2420 |     let workspace = use_context::<WorkspaceState>().0;
+     |         ^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_locals
+     = note: `-D clippy::redundant-locals` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::redundant_locals)]`
+
+error: redundant redefinition of a binding `objects_panel_settings`
+    --> src/presentation.rs:3680:9
+     |
+3680 |         let objects_panel_settings = objects_panel_settings;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: `objects_panel_settings` is initially defined here
+    --> src/presentation.rs:2291:9
+     |
+2291 |     let objects_panel_settings = use_panel_settings(PanelSide::Objects);
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_locals
+
+error: redundant redefinition of a binding `parts_selection`
+    --> src/presentation.rs:3756:9
+     |
+3756 |         let parts_selection = parts_selection;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: `parts_selection` is initially defined here
+    --> src/presentation.rs:2636:9
+     |
+2636 |     let parts_selection: PartsSelection = use_signal(|| None);
+     |         ^^^^^^^^^^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_locals
+
+error: using `contains()` instead of `iter().any()` is more efficient
+   --> src/runtime.rs:204:13
+    |
+204 |             current.iter().any(|candidate| *candidate == net) && board.net_ids.contains(&net.id)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `current.contains(&net)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#manual_contains
+    = note: `-D clippy::manual-contains` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_contains)]`
+
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 12 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 12 previous errors

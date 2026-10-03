@@ -1,0 +1,68 @@
+    Checking futures-core v0.3.34
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web)
+   Compiling dioxus-config-macro v0.7.10
+    Checking futures-util v0.3.34
+    Checking futures-channel v0.3.34
+    Checking js-sys v0.3.106
+    Checking wasm-bindgen-futures v0.4.79
+    Checking web-sys v0.3.106
+    Checking web-time v1.1.0
+    Checking serde-wasm-bindgen v0.6.5
+    Checking wasm-bindgen-test v0.3.79
+    Checking rhai v1.26.1
+    Checking boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core)
+    Checking subsecond v0.7.10
+    Checking dioxus-core v0.7.10
+    Checking dioxus-signals v0.7.10
+    Checking dioxus-hooks v0.7.10
+    Checking dioxus-stores v0.7.10
+    Checking dioxus-html v0.7.10
+    Checking dioxus v0.7.10
+error[E0432]: unresolved import `boardstudio_application`
+ --> tests/matrix_setup_operation.rs:4:5
+  |
+4 | use boardstudio_application::{
+  |     ^^^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `boardstudio_application`
+  |
+  = help: if you wanted to use a crate named `boardstudio_application`, use `cargo add boardstudio_application` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `boardstudio_application`
+ --> tests/../src/presentation/keycaps_scene.rs:5:5
+  |
+5 | use boardstudio_application::{AcceptedSnapshot, Scope};
+  |     ^^^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `boardstudio_application`
+  |
+  = help: if you wanted to use a crate named `boardstudio_application`, use `cargo add boardstudio_application` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `boardstudio_application`
+   --> tests/../src/presentation/keycaps_scene.rs:451:9
+    |
+451 |     use boardstudio_application::{SessionEpoch, SnapshotToken};
+    |         ^^^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `boardstudio_application`
+    |
+    = help: if you wanted to use a crate named `boardstudio_application`, use `cargo add boardstudio_application` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `gloo_timers` in this scope
+  --> tests/preview_generator_transport.rs:33:38
+   |
+33 |     let mut timeout = std::pin::pin!(gloo_timers::future::TimeoutFuture::new(3000));
+   |                                      ^^^^^^^^^^^ use of unresolved module or unlinked crate `gloo_timers`
+   |
+   = help: if you wanted to use a crate named `gloo_timers`, use `cargo add gloo_timers` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `boardstudio_application` in this scope
+   --> tests/matrix_setup_operation.rs:144:33
+    |
+144 |     assert_eq!(model.lifecycle, boardstudio_application::Lifecycle::Ready);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `boardstudio_application`
+    |
+    = help: if you wanted to use a crate named `boardstudio_application`, use `cargo add boardstudio_application` to add it to your `Cargo.toml`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `boardstudio-web` (test "preview_generator_transport") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0432, E0433.
+For more information about an error, try `rustc --explain E0432`.
+error: could not compile `boardstudio-web` (test "matrix_setup_operation") due to 2 previous errors
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `boardstudio-web` (test "keycaps_projection") due to 2 previous errors

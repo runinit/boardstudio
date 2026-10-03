@@ -1191,6 +1191,20 @@
           "observation": "On the pinned React 5a472a94 Sofle route, Layout Grid opens the existing Snap dialog; Keymap and Keycaps Grid are disabled. This confirms the context gate and does not establish a reference defect or authorize a new Keymap/Keycaps menu route.",
           "current_mitigation": "The isolated footer reuses existing root snap/camera state and shares the Layout/PCB Snap menu signal; the source packet awaits one integrated build and the changed paired journey.",
           "status": "Reference interaction verified; implementation is isolated and all F3/F5/F6 parent criteria remain open."
+        },
+        {
+          "date": "2026-10-03",
+          "task": "34769 combined integration coherence",
+          "baseline": "d64ab741",
+          "observation": "The larger mounted candidate exposed unsupported Dioxus hook/attribute syntax, Rc Runtime call shapes, Copy Signal capture rules, projection field drift and private helper argument fan-out at the combined compile seam. These are integration/coherence costs, not a new domain capability gap. Failed logs remain instead of being replaced by passing prose.",
+          "current_mitigation": "Root repaired joined source coherently, grouped private scoped input bundles and retained all guards; one combined affected page/CAD-worker check and one candidate review, zero new UI tests or lint suppressions. Authors receive exact fixing commits for follow-ons.",
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-initial.json",
+            ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup.json",
+            ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup2.json",
+            ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/strict-check-followup3.json"
+          ],
+          "post_port_follow_up": "Keep reusable installed-framework composition examples and typed scope/context bundles near owned modules; assess agent handoff coherence separately from broad behavioral qualification."
         }
       ],
       "handoff_evidence": [
