@@ -70,6 +70,50 @@ pub(in crate::presentation) struct GestureSnapInputs {
     pub gap: Option<f64>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::presentation) struct LayoutCanvasGridStyle {
+    pub spacing_mm: f64,
+    pub radius_mm: f64,
+}
+
+/// Match the React canvas background grid, including its denser, screen-stable outline-edit grid.
+pub(in crate::presentation) fn layout_canvas_grid_style(
+    view_width_mm: f64,
+    surface_width_px: f64,
+    pitch_x_mm: f64,
+    snap_fraction: f64,
+    outline_editing: bool,
+) -> LayoutCanvasGridStyle {
+    if !outline_editing {
+        return LayoutCanvasGridStyle {
+            spacing_mm: DEFAULT_PITCH_MM / 2.0,
+            radius_mm: 0.12,
+        };
+    }
+
+    let pitch_x_mm = finite_positive(pitch_x_mm).unwrap_or(DEFAULT_PITCH_MM);
+    let snap_fraction = if snap_fraction.is_finite() {
+        snap_fraction
+    } else {
+        0.25
+    };
+    let base_grid_mm = if snap_fraction < 0.0 {
+        -snap_fraction
+    } else {
+        pitch_x_mm * snap_fraction
+    }
+    .max(0.1);
+    let view_width_mm = finite_positive(view_width_mm).unwrap_or(1.0);
+    let surface_width_px = finite_positive(surface_width_px).unwrap_or(1.0).max(1.0);
+    let minimum_screen_spacing_mm = 8.0 * view_width_mm / surface_width_px;
+    let spacing_mm = base_grid_mm * (minimum_screen_spacing_mm / base_grid_mm).ceil().max(1.0);
+
+    LayoutCanvasGridStyle {
+        spacing_mm,
+        radius_mm: view_width_mm / surface_width_px * 0.7,
+    }
+}
+
 /// Produce the exact existing GestureBegin snap values from current root-owned preferences.
 pub(in crate::presentation) fn gesture_snap_inputs(
     settings: &LayoutSnapSettings,

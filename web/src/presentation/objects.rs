@@ -33,9 +33,9 @@ pub(in crate::presentation) use layout_align::{
 };
 pub(in crate::presentation) use layout_align_controller::use_canvas_align;
 pub(in crate::presentation) use layout_toolbar::{
-    LayoutCommandMenu, LayoutCommandPill, LayoutSelectionKind, LayoutSnapIntent,
-    LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
-    snap_label as layout_snap_label,
+    LayoutCanvasGridStyle, LayoutCommandMenu, LayoutCommandPill, LayoutSelectionKind,
+    LayoutSnapIntent, LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind,
+    gesture_snap_inputs, layout_canvas_grid_style, snap_label as layout_snap_label,
 };
 pub(in crate::presentation) use layout_transform_toolbar::LayoutTransformToolOverlay;
 pub(in crate::presentation) use layout_transform_toolbar::{

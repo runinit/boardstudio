@@ -7545,6 +7545,16 @@ fn Editor() -> Element {
         })
         .collect::<Vec<_>>();
     let outline_snap_settings = layout_snap_settings.read().clone();
+    let outline_grid_active = outline_inspector
+        .as_ref()
+        .is_some_and(|projection| (projection.editing_points)());
+    let canvas_grid = objects::layout_canvas_grid_style(
+        width,
+        zoom_surface_size().0,
+        outline_pitch.x,
+        outline_snap_settings.snap_fraction,
+        outline_grid_active,
+    );
     let outline_overlay_key = outline_inspector
         .as_ref()
         .map(outline_lifecycle::OutlineInspectorProjection::canvas_edit_key);
@@ -7779,6 +7789,12 @@ fn Editor() -> Element {
                     } else if active_workspace == "Layout" {
                     svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
+                    defs {
+                        pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
+                            circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--wb-grid-large)", stroke: "none" }
+                        }
+                    }
+                    rect { x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}", fill: "url(#m1-layout-grid-small)" }
                     g { transform: "scale(1,-1)",
                         if !(layer_visibility.hidden)().contains("Board") {
                             for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
