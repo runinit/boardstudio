@@ -4,7 +4,7 @@
 //! renderer scene submission are supplied by the page owners. In particular,
 //! model-batch liveness is independent of the renderer's scene sequence.
 
-use super::layout_viewer_source::LayoutSourceLease;
+use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
 use crate::case_preview::CasePreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Asset, BoardReference, PcbModel, ProjectDoc};
@@ -594,6 +594,26 @@ pub(crate) struct ModelDeliveryRows {
     pub(crate) delivered: Vec<DeliveredModel>,
     pub(crate) pending: Vec<String>,
     pub(crate) failures: Vec<ModelFailure>,
+}
+
+/// Settle a Layout model-delivery result only against the exact preview that
+/// started it. `current` is supplied by Runtime after the delivery future ends;
+/// it must return only a preview whose complete source owner is current.
+pub(crate) async fn settle_layout_model_delivery<F, C, R>(
+    expected: Rc<LayoutPreviewSnapshot>,
+    delivery: F,
+    current: C,
+    report: R,
+) where
+    F: Future<Output = Result<(), String>>,
+    C: Fn() -> Option<Rc<LayoutPreviewSnapshot>>,
+    R: FnOnce(String),
+{
+    if let Err(error) = delivery.await
+        && current().is_some_and(|preview| preview.same_live_source(&expected))
+    {
+        report(error);
+    }
 }
 
 impl PartialEq for ModelDeliveryRows {

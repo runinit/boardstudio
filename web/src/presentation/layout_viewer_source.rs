@@ -872,10 +872,19 @@ mod tests {
 
     #[test]
     fn suspended_model_failure_settlement_cannot_target_replacement_preview_owner() {
-        let (snapshot, scope) = accepted(false);
-        let mut state = LayoutPreviewState::default();
+        #[cfg(not(target_arch = "wasm32"))]
+        use crate::model_delivery::settle_layout_model_delivery;
+        #[cfg(target_arch = "wasm32")]
+        use crate::presentation::model_delivery::settle_layout_model_delivery;
+        use std::{
+            future::{Future, poll_fn},
+            task::Waker,
+        };
 
-        let first_generation = state.next_generation().unwrap();
+        let (snapshot, scope) = accepted(false);
+        let state = Rc::new(std::cell::RefCell::new(LayoutPreviewState::default()));
+
+        let first_generation = state.borrow_mut().next_generation().unwrap();
         let first = LayoutSourceCapture::capture(
             &snapshot,
             &scope,
@@ -884,13 +893,48 @@ mod tests {
             BTreeMap::new(),
         )
         .unwrap();
-        state.begin(&first);
-        let captured_delivery = first.accept_preview(preview()).unwrap();
-        state.publish(captured_delivery.clone()).unwrap();
+        state.borrow_mut().begin(&first);
+        let captured_preview = Rc::new(first.accept_preview(preview()).unwrap());
+        state
+            .borrow_mut()
+            .publish(captured_preview.as_ref().clone())
+            .unwrap();
 
-        // Model delivery for A is now suspended. Retire A and publish a same-scope,
-        // same-revision replacement, which exercises the generation/lease ABA case.
-        let second_generation = state.next_generation().unwrap();
+        // Suspend A's delivery future before it reports an error.
+        let release_a = Rc::new(Cell::new(false));
+        let release_a_after_suspend = release_a.clone();
+        let delivery_a = async move {
+            poll_fn(move |context| {
+                if release_a_after_suspend.get() {
+                    std::task::Poll::Ready(())
+                } else {
+                    context.waker().wake_by_ref();
+                    std::task::Poll::Pending
+                }
+            })
+            .await;
+            Err("A model resolver failed".to_owned())
+        };
+        let current_state = state.clone();
+        let reported = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let reported_from_callback = reported.clone();
+        let settlement = settle_layout_model_delivery(
+            captured_preview.clone(),
+            delivery_a,
+            move || current_state.borrow().published.clone(),
+            move |error| reported_from_callback.borrow_mut().push(error),
+        );
+        let mut settlement = Box::pin(settlement);
+        let waker = Waker::noop();
+        let mut context = std::task::Context::from_waker(waker);
+        assert!(matches!(
+            settlement.as_mut().poll(&mut context),
+            std::task::Poll::Pending
+        ));
+
+        // While A is suspended, publish a same-scope, same-revision B. The exact
+        // settlement helper used by Runtime must suppress A's later failure.
+        let second_generation = state.borrow_mut().next_generation().unwrap();
         let second = LayoutSourceCapture::capture(
             &snapshot,
             &scope,
@@ -899,14 +943,44 @@ mod tests {
             BTreeMap::new(),
         )
         .unwrap();
-        state.begin(&second);
-        let replacement = second.accept_preview(preview()).unwrap();
-        state.publish(replacement.clone()).unwrap();
+        state.borrow_mut().begin(&second);
+        let replacement = Rc::new(second.accept_preview(preview()).unwrap());
+        state
+            .borrow_mut()
+            .publish(replacement.as_ref().clone())
+            .unwrap();
+        release_a.set(true);
+        assert!(matches!(
+            settlement.as_mut().poll(&mut context),
+            std::task::Poll::Ready(())
+        ));
 
-        let current = state.published.as_ref().unwrap();
-        assert!(current.same_live_source(&replacement));
-        assert!(!current.same_live_source(&captured_delivery));
-        assert!(!captured_delivery.lease.is_active());
+        assert!(reported.borrow().is_empty());
+        assert!(replacement.same_live_source(&replacement));
+        assert!(!replacement.same_live_source(&captured_preview));
+        assert!(!captured_preview.lease.is_active());
+
+        let current_state = state.clone();
+        let reported_current = reported.clone();
+        block_on(settle_layout_model_delivery(
+            replacement.clone(),
+            async { Err("B model decode failed".to_owned()) },
+            move || current_state.borrow().published.clone(),
+            move |error| reported_current.borrow_mut().push(error),
+        ));
+        assert_eq!(&*reported.borrow(), &["B model decode failed"]);
+
+        fn block_on<F: std::future::Future>(future: F) -> F::Output {
+            let mut future = Box::pin(future);
+            let waker = Waker::noop();
+            let mut context = std::task::Context::from_waker(waker);
+            loop {
+                match future.as_mut().poll(&mut context) {
+                    std::task::Poll::Ready(output) => return output,
+                    std::task::Poll::Pending => std::thread::yield_now(),
+                }
+            }
+        }
     }
 
     #[test]
