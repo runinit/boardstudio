@@ -1,0 +1,32 @@
+# F7.3b Layout layer controls and view context: planning evidence
+
+**Contract:** existing `.scratch/dioxus-shared-viewer/issues/03-shared-viewer-layout.md` and matching draft. No task row or parent is added or closed.
+
+**Source:** paired Dioxus candidate build `frontend-authoring-layers-integrated-20261002`, source `7d09d0a60fbb2cc12e259541614b9483ee618d29`; pinned React reference `5a472a9426e6e38993361da402cd4ec730feb369`. Same accepted archive SHA-256 `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df` was imported in named isolated browser sessions. Full public journey receipt: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/layout-toolbar-paired/layout-view-group-public-readiness.md` SHA-256 `b3f9371f821a420101ff57e4f55c39ce4b868b18ce7cea1f84d16e7e38cb59b1`.
+
+## Source-mapped behavior
+
+React's `AssemblyViewer` passes the decoded `models` to `AssemblyScene`. `AssemblyScene` builds the `Components` group by mapping the accepted board preview's `board.models` in source order. It preserves each model's renderer `id` for visibility and reports an entry available only when a decoded model with that exact ID exists in `models`. Layer visibility uses those same IDs in `hidden` and submits the set to the existing renderer.
+
+Dioxus already has matching private layer row types and conversion in `case_assembly_layers.rs`: `physical_component_layers` preserves each `PcbModel.id`, reference, filename, and delivery availability; `ComponentLayerButton` toggles the row ID in existing `CaseDisplay.hidden`. `shared_viewer.rs` correctly computes current `matching_model_rows` for `ViewerSource::Layout`, and `project_layout_preview` passes those exact decoded rows to the shared renderer. However, the separate `component_layers` value is currently derived only from `matching_preview`, the distinct `NativePreviewSnapshot` input used by the Case/native branch. A Layout viewer has its canonical `LayoutPreviewSnapshot`, not that preview input, so the renderer can show the selected board while the Layers menu has zero per-component rows. This was reproduced in the candidate DOM with Layers expanded: `componentRows=0`, `allRows=6`; text contained only PCB, Copper, Mask openings, Silkscreen, Models, and Keycaps. The correct source is the preview belonging to the same active `ViewerSource` branch, joined to `matching_model_rows`; no model IDs, references, or geometry should be synthesized. Screenshot: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/layout-toolbar-paired/dioxus-zero-component-layers.png` (SHA-256 `a0cc4cbe248b41d2907ac7122d4a821ce5c49988a914864c56326c5529786d28`).
+
+The shared canvas markup currently hard-codes `Interactive 3D Case preview...` for every `ViewerSource`. The Layout canvas is visibly labeled in its workspace as Layout / PCB assembly and picks map to the current Layout part. Its accessible name must describe that Layout context and current Layout-part pick behavior, while Case retains the current Case name.
+
+The paired 1280×577 screenshots at `.scratch/dioxus-frontend-v1/evidence/general-placement-public-20261002/` show the Design view group at the top-right in Dioxus and directly below/left-aligned with the command pill in React. This is a current F3.6 view-group placement mismatch, not a new parent or independent layer-control feature. The existing F3.6 issue/draft now records the specific position at both required viewports.
+
+## Bounded implementation seam
+
+Use the existing active viewer source to select the exact accepted component model list: canonical `LayoutPreviewSnapshot.preview.models` for Layout; the current, owner-matched Native preview models for Native; and the current, owner-matched Case preview models for Case. Reuse `physical_component_layers`, current delivery rows, `CaseDisplay.hidden`, and the existing common renderer. Preserve source order and IDs. Keep pending/missing entries disabled with their existing availability state. Do not add a new model provider, store, API, model alias, or persistent preference mechanism in this change.
+
+Give `SharedViewer` an internal context-specific accessible name so the Layout source identifies Layout PCB assembly and current Layout-item picking, with no Case-only language. Keep the view-group markup separate from command-menu ownership and align its existing CSS position directly under the command pill. Scope CSS to the Layout work area and preserve keyboard focus styles and compact targets.
+
+## Verification required for this slice
+
+- Focused wasm browser test for the production Layout source-to-component-layer selection seam: exact ordered renderer IDs and reference/filename labels, delivered/pending/missing states, and no leakage from a stale or foreign physical preview.
+- Mounted layer-menu behavior test: toggling one available Layout model hides only that exact renderer ID, keeps the other component and global Models group unchanged, then restores that model; unavailable rows remain disabled.
+- Mounted accessibility test for Layout and Case source names, ensuring the Layout name describes Layout picks and Case remains accurately named.
+- Current-production browser proof with the same accepted archive: inspect per-model controls, toggle a named model and observe only that mesh hide/show, make a mapped pick, and exercise 2D → 3D → 2D. Compare toolbar group position in 1280×577 and 375×667, plus Light/Dark. Full F7.3b consumer/readiness gates and F3.6 parent acceptance remain open until all existing issue criteria pass.
+
+## Recorded future-refactor boundary
+
+A common viewer that derives controls from a Case-specific optional preview can silently omit source-specific controls for a valid Layout source even while the renderer projection uses that Layout source. The immediate repair stays source-discriminated at the consumer boundary and reuses existing IDs/state. After parity, assess whether the shared viewer should expose a typed source descriptor bundling accepted scene rows, decoded rows, context/a11y text, and visibility-control projection. This observation does not justify a wider API in the current slice.
