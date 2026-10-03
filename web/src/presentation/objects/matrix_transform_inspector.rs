@@ -12,6 +12,7 @@ use super::matrix_transform_controller::MatrixTransformInspectorMount;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct MatrixTransformInspectorOwner {
     pub editor_instance_id: u64,
+    pub workspace: &'static str,
     pub context_generation: u64,
     pub scope_generation: u64,
     pub scope: Scope,

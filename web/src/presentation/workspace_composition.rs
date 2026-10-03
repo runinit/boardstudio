@@ -21,7 +21,7 @@ pub(super) enum WorkspaceObjectsInput<'a> {
 
 pub(super) enum WorkspaceToolbarInput {
     Layout(Box<super::layout_workspace::ToolbarInput>),
-    Pcb,
+    Pcb(Box<super::pcb_workspace::ToolbarInput>),
     Keymap(super::shared_viewer::DesignViewToolbarProps),
     Keycaps,
     Case,
@@ -79,7 +79,7 @@ pub(super) fn objects(input: WorkspaceObjectsInput<'_>) -> Element {
 pub(super) fn toolbar(input: WorkspaceToolbarInput) -> Element {
     match input {
         WorkspaceToolbarInput::Layout(input) => super::layout_workspace::toolbar(*input),
-        WorkspaceToolbarInput::Pcb => super::pcb_workspace::toolbar(),
+        WorkspaceToolbarInput::Pcb(input) => super::pcb_workspace::toolbar(*input),
         WorkspaceToolbarInput::Keymap(input) => super::keymap_workspace::toolbar(input),
         WorkspaceToolbarInput::Keycaps => super::keycaps_workspace::toolbar(),
         WorkspaceToolbarInput::Case => super::case_workspace::toolbar(),
@@ -120,6 +120,9 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
                 pin_actions: input.pin_actions,
                 apply_actions: input.apply_actions,
                 protected_remap_actions: input.protected_remap_actions,
+                matrix_transform_inspector: input.matrix_transform_inspector,
+                part_position: input.part_position,
+                on_part_position: input.on_part_position,
             }
         },
         WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),

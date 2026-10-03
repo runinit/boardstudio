@@ -24,6 +24,7 @@ pub(in crate::presentation) struct AlignFeedback {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::presentation) struct AlignAction {
+    pub workspace: &'static str,
     pub scope: Scope,
     pub scope_generation: u64,
     pub context: TreeContext,

@@ -1,10 +1,21 @@
 //! PCB-owned workspace surface composition.
 use super::objects;
 use super::pcb_layers::PcbLayerControls;
-use super::pcb_scene::{PcbPartHit, PcbScene};
+use super::pcb_scene::{PcbPartHit, PcbPartPointerDown, PcbScene};
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use dioxus::prelude::*;
+
+pub(super) struct ToolbarInput {
+    pub(super) command_label: String,
+    pub(super) menu_owner_key: String,
+    pub(super) selection_kind: objects::LayoutSelectionKind,
+    pub(super) snap_settings: objects::LayoutSnapSettings,
+    pub(super) transform: objects::LayoutTransformMenuMount,
+    pub(super) align: objects::LayoutAlignMount,
+    pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+}
 
 pub(super) struct CanvasInput {
     pub(super) snapshot: AcceptedSnapshot,
@@ -15,6 +26,7 @@ pub(super) struct CanvasInput {
     pub(super) handlers: CanvasEventHandlers,
     pub(super) on_empty_hit: EventHandler<MouseEvent>,
     pub(super) on_part_hit: EventHandler<PcbPartHit>,
+    pub(super) on_part_pointer_down: EventHandler<PcbPartPointerDown>,
 }
 
 pub(super) fn objects(input: SharedObjectsInput) -> Element {
@@ -36,8 +48,21 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
     }
 }
 
-pub(super) fn toolbar() -> Element {
-    rsx! {}
+pub(super) fn toolbar(input: ToolbarInput) -> Element {
+    rsx! {
+        div { class: "m1-canvas-toolbar",
+            objects::LayoutCommandPill {
+                command_label: input.command_label,
+                menu_owner_key: input.menu_owner_key,
+                transform: input.transform,
+                align: input.align,
+                selection_kind: input.selection_kind,
+                snap_settings: input.snap_settings,
+                on_selection_kind: input.on_selection_kind,
+                on_snap_intent: input.on_snap_intent,
+            }
+        }
+    }
 }
 
 pub(super) fn canvas(input: CanvasInput) -> Element {
@@ -68,6 +93,7 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                         selected_ids: input.selected_ids,
                         generation: input.generation,
                         on_part_hit: input.on_part_hit,
+                        on_part_pointer_down: input.on_part_pointer_down,
                     }
                 }
             }

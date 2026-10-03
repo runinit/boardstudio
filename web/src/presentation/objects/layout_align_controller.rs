@@ -20,6 +20,7 @@ use std::{collections::BTreeSet, rc::Rc};
 #[derive(Clone)]
 struct PendingAlign {
     outcome: OutcomeSlot,
+    workspace: &'static str,
     scope: Scope,
     scope_generation: u64,
     context: TreeContext,
@@ -83,12 +84,13 @@ impl PartialEq for AlignIdentity {
 }
 
 /// Must run at the Editor lifetime, including while the Layout toolbar is hidden.
-pub(in crate::presentation) fn use_layout_align(
+pub(in crate::presentation) fn use_canvas_align(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
+    owner_workspace: &'static str,
 ) -> LayoutAlignMount {
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -111,6 +113,7 @@ pub(in crate::presentation) fn use_layout_align(
         selected.as_ref(),
         current_workspace,
         selected_reference.read().as_deref(),
+        owner_workspace,
     );
 
     // Numeric version is deliberately read as a dependency so the exact request settles after
@@ -135,6 +138,7 @@ pub(in crate::presentation) fn use_layout_align(
                     workspace,
                     scope_generation,
                     &mut selected_reference,
+                    owner_workspace,
                 );
                 settle_pending(
                     &runtime,
@@ -152,6 +156,7 @@ pub(in crate::presentation) fn use_layout_align(
                     scope_generation,
                     selected_reference,
                     &mut feedback,
+                    owner_workspace,
                 );
             }
         },
@@ -188,7 +193,13 @@ pub(in crate::presentation) fn use_layout_align(
         let mut selected_reference = selected_reference;
         move |reference_id: String| {
             let selected = selected_context.peek().clone();
-            let current = project(&runtime, selected.as_ref(), workspace(), None);
+            let current = project(
+                &runtime,
+                selected.as_ref(),
+                workspace(),
+                None,
+                owner_workspace,
+            );
             if current
                 .references
                 .iter()
@@ -218,9 +229,11 @@ pub(in crate::presentation) fn use_layout_align(
                 Some(&selected),
                 current_workspace,
                 Some(&reference_id),
+                owner_workspace,
             );
             if !current.enabled
-                || current_workspace != "Layout"
+                || !workspace_route_matches(current_workspace, owner_workspace)
+                || request.workspace != owner_workspace
                 || current.scope.as_ref() != Some(&selected.scope)
                 || current.context.as_ref() != Some(&selected.context)
                 || current.moving_ids.is_empty()
@@ -329,6 +342,7 @@ pub(in crate::presentation) fn use_layout_align(
             );
             pending.set(Some(PendingAlign {
                 outcome,
+                workspace: request.workspace,
                 scope: selected.scope.clone(),
                 scope_generation: current_generation,
                 context: selected.context.clone(),
@@ -358,6 +372,7 @@ pub(in crate::presentation) fn use_layout_align(
         selected.as_ref(),
         current_workspace,
         projection.selected_reference.as_deref(),
+        owner_workspace,
     );
     let retained_reference = selected_reference.peek().clone();
     let eligible_reference_ids: Vec<_> = projection
@@ -384,6 +399,7 @@ pub(in crate::presentation) fn use_layout_align(
             )
             .map(
                 |((selected, reference_id), (snapshot_token, revision))| AlignAction {
+                    workspace: owner_workspace,
                     scope: selected.scope.clone(),
                     scope_generation: current_scope_generation,
                     context: selected.context.clone(),
@@ -417,15 +433,16 @@ fn reconcile_reference(
     workspace: &'static str,
     _scope_generation: u64,
     selected_reference: &mut Signal<Option<String>>,
+    owner_workspace: &'static str,
 ) {
-    if workspace != "Layout" {
+    if !workspace_route_matches(workspace, owner_workspace) {
         return;
     }
     let selected = selected_context.peek().clone();
     if selected.is_none() {
         return;
     }
-    let current = project(runtime, selected.as_ref(), workspace, None);
+    let current = project(runtime, selected.as_ref(), workspace, None, owner_workspace);
     if !current.reference_authoritative {
         return;
     }
@@ -440,6 +457,25 @@ fn reconcile_reference(
     });
 }
 
+fn workspace_route_matches(current: &str, owner: &str) -> bool {
+    matches!(owner, "Layout" | "PCB") && current == owner
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod workspace_route_tests {
+    use super::workspace_route_matches;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn align_route_is_exactly_scoped_to_its_workspace_owner() {
+        assert!(workspace_route_matches("Layout", "Layout"));
+        assert!(workspace_route_matches("PCB", "PCB"));
+        assert!(!workspace_route_matches("PCB", "Layout"));
+        assert!(!workspace_route_matches("Layout", "PCB"));
+        assert!(!workspace_route_matches("Parts", "Parts"));
+    }
+}
+
 fn clear_stale_feedback(
     runtime: &Runtime,
     selected_context: Signal<Option<ScopedTreeContext>>,
@@ -447,6 +483,7 @@ fn clear_stale_feedback(
     scope_generation: u64,
     selected_reference: Signal<Option<String>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
+    owner_workspace: &'static str,
 ) {
     let Some(current_feedback) = feedback.peek().clone() else {
         return;
@@ -457,6 +494,7 @@ fn clear_stale_feedback(
         selected.as_ref(),
         workspace,
         selected_reference.peek().as_deref(),
+        owner_workspace,
     );
     let still_current = selected.as_ref().is_some_and(|selected| {
         selected.scope == current_feedback.scope
@@ -475,6 +513,7 @@ fn project(
     selected: Option<&ScopedTreeContext>,
     workspace: &'static str,
     selected_reference: Option<&str>,
+    owner_workspace: &'static str,
 ) -> AlignProjection {
     let model = runtime.model();
     let empty = AlignProjection {
@@ -487,7 +526,7 @@ fn project(
         moving_ids: Vec::new(),
         reference_authoritative: false,
     };
-    if workspace != "Layout" {
+    if workspace != owner_workspace {
         return empty;
     }
     let (Some(selected), Some(scope), Some(snapshot)) =
@@ -877,7 +916,7 @@ fn settle_pending(
     let same_scope =
         live_scope.as_ref() == Some(&waiting.scope) && scope_generation == waiting.scope_generation;
     let still_visible_target = same_scope
-        && workspace == "Layout"
+        && workspace == waiting.workspace
         && selected_context.peek().as_ref().is_some_and(|selected| {
             selected.scope == waiting.scope && selected.context == waiting.context
         });

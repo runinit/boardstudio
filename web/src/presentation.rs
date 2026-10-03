@@ -248,9 +248,14 @@ struct WorkspaceCallbackSlots {
     keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
     pcb_empty_hit: EventHandler<MouseEvent>,
     pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
+    pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
     pcb_wiring_edit_board: EventHandler<()>,
     layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pcb_transform_properties: EventHandler<()>,
+    pcb_part_position: EventHandler<pcb_wiring::PcbPartPositionAction>,
     case_action: EventHandler<case_workspace::TreeAction>,
     case_display: EventHandler<case_workspace::DisplayRequest>,
     keymap_layer: EventHandler<String>,
@@ -967,6 +972,35 @@ fn layout_owner_is_current(
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
+fn pcb_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+) -> bool {
+    if current_layout_owner(runtime, workspace, adapter) != *owner || owner.workspace != "PCB" {
+        return false;
+    }
+    let model = runtime.model();
+    owner
+        .scope
+        .as_ref()
+        .is_some_and(|scope| active_board_scope_matches(&model, scope))
+}
+
+fn canvas_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+) -> bool {
+    match owner.workspace {
+        "Layout" => layout_owner_is_current(runtime, workspace, adapter, owner),
+        "PCB" => pcb_owner_is_current(runtime, workspace, adapter, owner),
+        _ => false,
+    }
+}
+
 fn layout_component_inspector_projection(
     model: &ReadModel,
     selected: Option<&objects::ScopedTreeContext>,
@@ -1504,7 +1538,7 @@ fn update_tree_cell_anchor(
     model: &boardstudio_application::ReadModel,
     context: Option<&objects::TreeContext>,
 ) {
-    if owner.workspace != "Layout" {
+    if owner.workspace != "Layout" && owner.workspace != "PCB" {
         anchor.borrow_mut().take();
         return;
     }
@@ -1910,9 +1944,14 @@ fn Editor() -> Element {
         keycaps_finding: EventHandler::new(|_: keycaps_fit::FindingNavigationRequest| {}),
         pcb_empty_hit: EventHandler::new(|_: MouseEvent| {}),
         pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
+        pcb_part_pointer_down: EventHandler::new(|_: pcb_scene::PcbPartPointerDown| {}),
         pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
         layout_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
         layout_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
+        pcb_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
+        pcb_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
+        pcb_transform_properties: EventHandler::new(|_: ()| {}),
+        pcb_part_position: EventHandler::new(|_: pcb_wiring::PcbPartPositionAction| {}),
         case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
         case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
         keymap_layer: EventHandler::new(|_: String| {}),
@@ -2073,20 +2112,39 @@ fn Editor() -> Element {
         adapter.generation,
     );
     let matrix_splay_affect = use_signal(|| MatrixSplayAffect::Following);
-    let matrix_transform_inspector = objects::use_matrix_transform_inspector(
+    let matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
         version,
         adapter.selected_context,
         workspace,
         adapter.generation,
         matrix_splay_affect,
+        "Layout",
     );
-    let layout_align = objects::use_layout_align(
+    let pcb_matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
         version,
         adapter.selected_context,
         workspace,
         adapter.generation,
+        matrix_splay_affect,
+        "PCB",
+    );
+    let layout_align = objects::use_canvas_align(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+        "Layout",
+    );
+    let pcb_align = objects::use_canvas_align(
+        runtime.clone(),
+        version,
+        adapter.selected_context,
+        workspace,
+        adapter.generation,
+        "PCB",
     );
     let mut matrix_setup = objects::use_matrix_setup(
         runtime.clone(),
@@ -2906,6 +2964,97 @@ fn Editor() -> Element {
             snap_settings.set(settings);
         }
     };
+    let on_pcb_selection_kind = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        let mut selection_kind = layout_selection_kind;
+        move |kind: objects::LayoutSelectionKind| {
+            if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            selection_kind.set(kind);
+            let model = runtime.model();
+            let Some(scope) = owner.scope.as_ref() else {
+                tree_cell_anchor.borrow_mut().take();
+                return;
+            };
+            let Some(selected) = adapter
+                .selected_context
+                .read()
+                .clone()
+                .filter(|selected| selected.scope == *scope)
+            else {
+                tree_cell_anchor.borrow_mut().take();
+                return;
+            };
+            if !selection::context_is_current(&model, scope, &selected.context) {
+                tree_cell_anchor.borrow_mut().take();
+                return;
+            }
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let Some(projection) = objects::context_for_selection_kind(
+                &model,
+                &selected.context,
+                kind,
+                retained.as_ref(),
+            ) else {
+                return;
+            };
+            if !selection::context_is_current(&model, scope, &projection.context) {
+                return;
+            }
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&projection.context));
+            selection::submit_context(
+                &runtime,
+                &adapter,
+                objects::TreeSelectRequest {
+                    scope: scope.clone(),
+                    context: projection.context,
+                    mode: SelectionMode::Replace,
+                    outline_action: None,
+                },
+            );
+            if pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                pin_inspector_on_desktop(inspector_panel_settings);
+                objects_open.set(false);
+                inspect_open.set(true);
+            }
+        }
+    };
+    let on_pcb_snap_intent = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let mut snap_settings = layout_snap_settings;
+        move |intent: objects::LayoutSnapIntent| {
+            if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            let mut settings = snap_settings.read().clone();
+            match intent {
+                objects::LayoutSnapIntent::Fraction(value)
+                    if [0.0, 0.125, 0.25, 0.5, 1.0, -1.0, -0.5, -0.1].contains(&value) =>
+                {
+                    settings.snap_fraction = value;
+                }
+                objects::LayoutSnapIntent::GeometrySnap(enabled) => {
+                    settings.geometry_snap = enabled;
+                }
+                objects::LayoutSnapIntent::GapSnap(enabled) => {
+                    settings.gap_snap = enabled;
+                }
+                objects::LayoutSnapIntent::GapOverride(value) => {
+                    settings.gap_override = value;
+                }
+                objects::LayoutSnapIntent::Fraction(_) => return,
+            }
+            snap_settings.set(settings);
+        }
+    };
     let on_keymap_select = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -3131,6 +3280,8 @@ fn Editor() -> Element {
         let scope = render_scope.clone();
         let generation = render_generation;
         let token = snapshot.token;
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
         move |request: pcb_scene::PcbPartHit| {
             if workspace() != "PCB"
                 || request.scope != scope
@@ -3170,12 +3321,22 @@ fn Editor() -> Element {
             {
                 return;
             }
-            let Some(context) = objects::context_for_part(&model, &request.part_id) else {
+            let Some(hit_context) = objects::context_for_part(&model, &request.part_id) else {
                 return;
             };
-            if !selection::context_is_current(&model, &scope, &context) {
+            if !selection::context_is_current(&model, &scope, &hit_context) {
                 return;
             }
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&hit_context));
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let context = objects::context_for_selection_kind(
+                &model,
+                &hit_context,
+                layout_selection_kind(),
+                retained.as_ref(),
+            )
+            .map(|projection| projection.context)
+            .unwrap_or(hit_context);
             let mode = if request.range {
                 SelectionMode::Range
             } else if request.additive {
@@ -3238,6 +3399,116 @@ fn Editor() -> Element {
                 part_ids: Vec::new(),
                 range_part_ids: Vec::new(),
                 mode: SelectionMode::Replace,
+            });
+        }
+    };
+    let on_pcb_part_position = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        move |action: pcb_wiring::PcbPartPositionAction| {
+            if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
+                || action.owner.scope != scope
+                || Some(action.owner.token) != owner.token
+                || Some(action.owner.revision) != owner.revision
+                || action.owner.generation != generation
+            {
+                return;
+            }
+            let model = runtime.model();
+            if model.lifecycle != Lifecycle::Ready
+                || model.durability
+                    != (Durability::Saved {
+                        revision: action.owner.revision,
+                    })
+                || model.display_preview.is_some()
+                || model.gesture.is_some()
+                || !active_board_scope_matches(&model, &action.owner.scope)
+                || model.selected_part_ids.len() != 1
+                || model.selected_part_ids.first() != Some(&action.owner.part_id)
+                || adapter
+                    .selected_context
+                    .read()
+                    .as_ref()
+                    .is_none_or(|selected| {
+                        selected.scope != action.owner.scope
+                            || !matches!(
+                                &selected.context,
+                                objects::TreeContext::Component {
+                                    part_id: Some(part_id),
+                                    matrix_id: None,
+                                    assembly_id: None,
+                                    ..
+                                } if part_id == &action.owner.part_id
+                            )
+                            || !selection::context_is_current(
+                                &model,
+                                &action.owner.scope,
+                                &selected.context,
+                            )
+                    })
+            {
+                return;
+            }
+            let Some(current_snapshot) = model.accepted.as_ref().filter(|snapshot| {
+                snapshot.token == action.owner.token
+                    && snapshot.document.revision == action.owner.revision
+            }) else {
+                return;
+            };
+            let Some(board) = current_snapshot
+                .document
+                .boards
+                .iter()
+                .find(|board| board.id == action.owner.scope.board_id)
+            else {
+                return;
+            };
+            let Some(part) = current_snapshot
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == action.owner.part_id)
+            else {
+                return;
+            };
+            if !board.part_ids.contains(&part.id) || part.locked == Some(true) {
+                return;
+            }
+            let mut position = part.pose.at;
+            let baseline = match action.axis {
+                pcb_wiring::PcbPositionAxis::X => {
+                    let baseline = position.x;
+                    position.x = action.value;
+                    baseline
+                }
+                pcb_wiring::PcbPositionAxis::Y => {
+                    let baseline = position.y;
+                    position.y = action.value;
+                    baseline
+                }
+            };
+            if !action.value.is_finite() || baseline != action.baseline || position == part.pose.at
+            {
+                return;
+            }
+            let operation_id = runtime.operation();
+            runtime.submit(Event::Edit {
+                operation_id,
+                command: EditCommand {
+                    base_revision: action.owner.revision,
+                    transaction_id: format!("pcb-part-position-{}", operation_id.0),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![part.id.clone()],
+                    operation: EditOperation::MoveParts {
+                        positions: vec![Position {
+                            id: part.id.clone(),
+                            at: position,
+                        }],
+                    },
+                },
             });
         }
     };
@@ -4155,6 +4426,14 @@ fn Editor() -> Element {
             if current.scope != render_scope || current.generation != render_generation {
                 return;
             }
+            if !canvas_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                selection::cancel_drag_if_owned(&runtime, &current);
+                drag.borrow_mut().take();
+                if let Some(element) = svg.borrow().as_ref() {
+                    let _ = element.release_pointer_capture(pointer.pointer_id());
+                }
+                return;
+            }
             if runtime.scope().as_ref() != Some(&current.scope)
                 || (adapter.generation)() != current.generation
             {
@@ -4203,7 +4482,7 @@ fn Editor() -> Element {
                     }
                     return;
                 }
-                if !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+                if !canvas_owner_is_current(&runtime, workspace, &adapter, &owner)
                     || owner.scope.as_ref() != Some(&current.scope)
                 {
                     drag.borrow_mut().take();
@@ -4270,6 +4549,7 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let drag = drag.clone();
         let adapter = adapter.clone();
+        let owner = layout_owner.clone();
         let placement = part_placement.clone();
         let snap_settings = layout_snap_settings;
         let render_scope = render_scope.clone();
@@ -4326,6 +4606,14 @@ fn Editor() -> Element {
             else {
                 return;
             };
+            if !canvas_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                selection::cancel_drag_if_owned(&runtime, &current);
+                drag.borrow_mut().take();
+                if let Some(element) = svg.borrow().as_ref() {
+                    let _ = element.release_pointer_capture(pointer.pointer_id());
+                }
+                return;
+            }
             let mut interaction_version = interaction_version;
             interaction_version += 1;
             if current.scope != render_scope || current.generation != render_generation {
@@ -4674,6 +4962,192 @@ fn Editor() -> Element {
             });
         }
     };
+    let on_pcb_part_pointer_down = {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let svg = svg.clone();
+        let drag = drag.clone();
+        let owner = layout_owner.clone();
+        let scope = render_scope.clone();
+        let accepted_token = snapshot.token;
+        let accepted_revision = snapshot.document.revision;
+        let generation = render_generation;
+        let space_down = space_down.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        let canvas_interaction = canvas_interaction.clone();
+        move |request: pcb_scene::PcbPartPointerDown| {
+            if request.scope != scope
+                || request.token != accepted_token
+                || request.generation != generation
+                || !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
+                || !instance_selection.is_current(&runtime.model())
+                || canvas_interaction.current().is_some()
+                || drag.borrow().is_some()
+                || runtime.model().gesture.is_some()
+            {
+                return;
+            }
+            let Some(origin) = coordinates_at(
+                &svg,
+                request.client_x,
+                request.client_y,
+                view_x,
+                view_y,
+                width,
+                height,
+            ) else {
+                return;
+            };
+            if space_down.get() {
+                if let Some(surface) = svg.borrow().as_ref() {
+                    let _ = surface.set_pointer_capture(request.pointer_id as i32);
+                    let options = web_sys::FocusOptions::new();
+                    options.set_prevent_scroll(true);
+                    let _ = surface.focus_with_options(&options);
+                }
+                *drag.borrow_mut() = Some(Drag {
+                    pointer: request.pointer_id,
+                    scope: scope.clone(),
+                    generation,
+                    gesture_generation: None,
+                    origin,
+                    client_x: f64::from(request.client_x),
+                    client_y: f64::from(request.client_y),
+                    positions: vec![],
+                    active: true,
+                    pan: true,
+                    camera: runtime.model().camera.center,
+                });
+                return;
+            }
+            let model = runtime.model();
+            let Some(board) = model.accepted.as_ref().and_then(|snapshot| {
+                snapshot
+                    .document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == scope.board_id)
+            }) else {
+                return;
+            };
+            if !board.part_ids.contains(&request.part_id) {
+                return;
+            }
+            let Some(hit_context) = objects::context_for_part(&model, &request.part_id) else {
+                return;
+            };
+            if !selection::context_is_current(&model, &scope, &hit_context) {
+                return;
+            }
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&hit_context));
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let projection = objects::context_for_selection_kind(
+                &model,
+                &hit_context,
+                layout_selection_kind(),
+                retained.as_ref(),
+            );
+            let context = projection
+                .as_ref()
+                .map(|projection| projection.context.clone())
+                .unwrap_or(hit_context);
+            let mode = if request.range {
+                SelectionMode::Range
+            } else if request.additive {
+                SelectionMode::Toggle
+            } else {
+                SelectionMode::Replace
+            };
+            let range_ids = if mode == SelectionMode::Range {
+                selection::eligible_live_ids(&model)
+                    .into_iter()
+                    .filter(|id| board.part_ids.contains(id))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            if !model.selected_part_ids.contains(&request.part_id)
+                || mode != SelectionMode::Replace
+                || projection
+                    .as_ref()
+                    .is_some_and(|projection| projection.part_ids != model.selected_part_ids)
+            {
+                selection::submit_canvas_selection(
+                    &runtime,
+                    &adapter,
+                    &scope,
+                    generation,
+                    context.clone(),
+                    mode,
+                    range_ids,
+                );
+            } else {
+                let mut selected_context = adapter.selected_context;
+                selected_context.set(Some(objects::ScopedTreeContext {
+                    scope: scope.clone(),
+                    context: context.clone(),
+                }));
+            }
+            if runtime.scope().as_ref() != Some(&scope) || (adapter.generation)() != generation {
+                return;
+            }
+            let current = runtime.model();
+            let Some(current_snapshot) = current.accepted.as_ref() else {
+                return;
+            };
+            if current_snapshot.token != request.token
+                || current_snapshot.document.revision != accepted_revision
+                || !current.selected_part_ids.contains(&request.part_id)
+            {
+                return;
+            }
+            let positions: Vec<_> = current_snapshot
+                .document
+                .parts
+                .iter()
+                .filter(|part| {
+                    current.selected_part_ids.contains(&part.id)
+                        && board.part_ids.contains(&part.id)
+                        && part.locked != Some(true)
+                })
+                .map(|part| Position {
+                    id: part.id.clone(),
+                    at: part.pose.at,
+                })
+                .collect();
+            if positions.is_empty()
+                || positions.len() != current.selected_part_ids.len()
+                || current.lifecycle != Lifecycle::Ready
+                || current.durability
+                    != (Durability::Saved {
+                        revision: current_snapshot.document.revision,
+                    })
+                || current.display_preview.is_some()
+                || current.gesture.is_some()
+            {
+                return;
+            }
+            if let Some(surface) = svg.borrow().as_ref() {
+                let _ = surface.set_pointer_capture(request.pointer_id as i32);
+                let options = web_sys::FocusOptions::new();
+                options.set_prevent_scroll(true);
+                let _ = surface.focus_with_options(&options);
+            }
+            *drag.borrow_mut() = Some(Drag {
+                pointer: request.pointer_id,
+                scope: scope.clone(),
+                generation,
+                gesture_generation: None,
+                origin,
+                client_x: f64::from(request.client_x),
+                client_y: f64::from(request.client_y),
+                positions,
+                active: false,
+                pan: false,
+                camera: Vec2::default(),
+            });
+        }
+    };
     let wheel = {
         let runtime = runtime.clone();
         let svg = svg.clone();
@@ -4756,6 +5230,9 @@ fn Editor() -> Element {
         .pcb_part_hit
         .replace(Box::new(on_pcb_part_hit));
     workspace_callbacks
+        .pcb_part_pointer_down
+        .replace(Box::new(on_pcb_part_pointer_down));
+    workspace_callbacks
         .pcb_wiring_edit_board
         .replace(Box::new(on_pcb_wiring_edit_board));
     workspace_callbacks
@@ -4764,6 +5241,15 @@ fn Editor() -> Element {
     workspace_callbacks
         .layout_snap_intent
         .replace(Box::new(on_layout_snap_intent));
+    workspace_callbacks
+        .pcb_selection_kind
+        .replace(Box::new(on_pcb_selection_kind));
+    workspace_callbacks
+        .pcb_snap_intent
+        .replace(Box::new(on_pcb_snap_intent));
+    workspace_callbacks
+        .pcb_part_position
+        .replace(Box::new(on_pcb_part_position));
     workspace_callbacks
         .case_action
         .replace(Box::new(on_case_action));
@@ -5073,6 +5559,7 @@ fn Editor() -> Element {
                     on_recover_saved: workspace_callbacks.recover_saved,
                     selection_kind: layout_selection_kind(),
                     snap_settings: layout_snap_settings.read().clone(),
+                    command_label: "Layout commands".to_owned(),
                     align: layout_align.clone(),
                     transform,
                     menu_owner_key: format!("{layout_owner:?}"),
@@ -5081,7 +5568,73 @@ fn Editor() -> Element {
                 },
             ))
         }
-        "PCB" => workspace_composition::WorkspaceToolbarInput::Pcb,
+        "PCB" => {
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
+            let supports_kind = |kind| {
+                selected_tree_context.as_ref().is_some_and(|selected| {
+                    objects::context_for_selection_kind(
+                        &model,
+                        &selected.context,
+                        kind,
+                        retained.as_ref(),
+                    )
+                    .is_some()
+                })
+            };
+            let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
+                matches!(
+                    &selected.context,
+                    objects::TreeContext::Matrix { .. }
+                        | objects::TreeContext::Row { .. }
+                        | objects::TreeContext::Column { .. }
+                        | objects::TreeContext::Key { .. }
+                        | objects::TreeContext::Component {
+                            part_id: Some(_),
+                            ..
+                        }
+                )
+            }) && (show_position_inspector
+                || pcb_matrix_transform_inspector.projection.is_some());
+            let on_show_properties = {
+                let runtime = runtime.clone();
+                let adapter = adapter.clone();
+                let owner = layout_owner.clone();
+                let mut objects_open = objects_open;
+                let mut inspect_open = inspect_open;
+                move |_| {
+                    if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
+                        || !properties_available
+                    {
+                        return;
+                    }
+                    pin_inspector_on_desktop(inspector_panel_settings);
+                    objects_open.set(false);
+                    inspect_open.set(true);
+                }
+            };
+            workspace_callbacks
+                .pcb_transform_properties
+                .replace(Box::new(on_show_properties));
+            let transform = objects::LayoutTransformMenuMount {
+                properties_available,
+                column_available: supports_kind(objects::LayoutSelectionKind::Column),
+                row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                on_selection_kind: workspace_callbacks.pcb_selection_kind,
+                on_show_properties: workspace_callbacks.pcb_transform_properties,
+            };
+            workspace_composition::WorkspaceToolbarInput::Pcb(Box::new(
+                pcb_workspace::ToolbarInput {
+                    command_label: "PCB commands".to_owned(),
+                    menu_owner_key: format!("{layout_owner:?}"),
+                    selection_kind: layout_selection_kind(),
+                    snap_settings: layout_snap_settings.read().clone(),
+                    transform,
+                    align: pcb_align.clone(),
+                    on_selection_kind: workspace_callbacks.pcb_selection_kind,
+                    on_snap_intent: workspace_callbacks.pcb_snap_intent,
+                },
+            ))
+        }
         "Keymap" => {
             let on_view_mode = design_consumer_view_mode_handler(
                 runtime.clone(),
@@ -5129,6 +5682,7 @@ fn Editor() -> Element {
                 handlers: canvas_handlers,
                 on_empty_hit: workspace_callbacks.pcb_empty_hit,
                 on_part_hit: workspace_callbacks.pcb_part_hit,
+                on_part_pointer_down: workspace_callbacks.pcb_part_pointer_down,
             },
         ))),
         "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
@@ -5257,6 +5811,12 @@ fn Editor() -> Element {
         )),
         "PCB" => {
             workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
+                let part_position = pcb_wiring::part_position_projection(
+                    &model,
+                    &render_scope,
+                    selected_tree_context.as_ref(),
+                    render_generation,
+                );
                 let firmware_position_projection = pcb_wiring::firmware_position_projection(
                     &source,
                     render_generation,
@@ -5296,6 +5856,9 @@ fn Editor() -> Element {
                     pin_actions: pcb_wiring_pin_actions.clone(),
                     apply_actions: pcb_wiring_apply_actions.clone(),
                     protected_remap_actions: pcb_wiring_protected_remap_actions.clone(),
+                    matrix_transform_inspector: pcb_matrix_transform_inspector.clone(),
+                    part_position,
+                    on_part_position: workspace_callbacks.pcb_part_position,
                 })
             }))
         }
@@ -5905,10 +6468,8 @@ fn coordinates(
     width: f64,
     height: f64,
 ) -> Option<Vec2> {
-    let surface = svg.borrow();
-    let rect = surface.as_ref()?.get_bounding_client_rect();
-    pointer_location(
-        &rect,
+    coordinates_at(
+        svg,
         pointer.client_x(),
         pointer.client_y(),
         x,
@@ -5916,7 +6477,20 @@ fn coordinates(
         width,
         height,
     )
-    .map(|location| location.world)
+}
+
+fn coordinates_at(
+    svg: &Rc<RefCell<Option<SvgElement>>>,
+    client_x: i32,
+    client_y: i32,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Option<Vec2> {
+    let surface = svg.borrow();
+    let rect = surface.as_ref()?.get_bounding_client_rect();
+    pointer_location(&rect, client_x, client_y, x, y, width, height).map(|location| location.world)
 }
 
 fn pointer_location(

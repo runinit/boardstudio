@@ -16,6 +16,19 @@ pub(in crate::presentation) struct PcbPartHit {
     pub(in crate::presentation) range: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::presentation) struct PcbPartPointerDown {
+    pub(in crate::presentation) scope: Scope,
+    pub(in crate::presentation) token: SnapshotToken,
+    pub(in crate::presentation) generation: u64,
+    pub(in crate::presentation) part_id: String,
+    pub(in crate::presentation) pointer_id: i64,
+    pub(in crate::presentation) client_x: i32,
+    pub(in crate::presentation) client_y: i32,
+    pub(in crate::presentation) additive: bool,
+    pub(in crate::presentation) range: bool,
+}
+
 #[derive(Props, Clone, PartialEq)]
 pub(in crate::presentation) struct PcbSceneProps {
     pub(in crate::presentation) snapshot: AcceptedSnapshot,
@@ -23,6 +36,7 @@ pub(in crate::presentation) struct PcbSceneProps {
     pub(in crate::presentation) selected_ids: Vec<String>,
     pub(in crate::presentation) generation: u64,
     pub(in crate::presentation) on_part_hit: EventHandler<PcbPartHit>,
+    pub(in crate::presentation) on_part_pointer_down: EventHandler<PcbPartPointerDown>,
 }
 
 #[component]
@@ -31,6 +45,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
     let scope = props.scope;
     let selected_ids = props.selected_ids;
     let on_part_hit = props.on_part_hit;
+    let on_part_pointer_down = props.on_part_pointer_down;
     let generation = props.generation;
     let hidden_layers = (use_context::<super::LayerVisibility>().hidden)();
 
@@ -86,9 +101,11 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     let part_id = part.id.clone();
                     let keyboard_id = part_id.clone();
                     let click_scope = scope.clone();
+                    let pointer_scope = scope.clone();
                     let keyboard_scope = scope.clone();
                     let token = snapshot.token;
                     let click_hit = on_part_hit;
+                    let pointer_down = on_part_pointer_down;
                     let keyboard_hit = on_part_hit;
                     let click_generation = generation;
                     let keyboard_generation = generation;
@@ -114,6 +131,19 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                             onpointerdown: move |event: PointerEvent| {
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
                                 if pointer.button() != 0 { return; }
+                                let modifiers = event.data().modifiers();
+                                pointer_down.call(PcbPartPointerDown {
+                                    scope: pointer_scope.clone(),
+                                    token,
+                                    generation,
+                                    part_id: part_id.clone(),
+                                    pointer_id: i64::from(pointer.pointer_id()),
+                                    client_x: pointer.client_x(),
+                                    client_y: pointer.client_y(),
+                                    additive: modifiers.ctrl() || modifiers.meta(),
+                                    range: modifiers.shift(),
+                                });
+                                pointer.prevent_default();
                                 pointer.stop_propagation();
                             },
                             onclick: move |event: MouseEvent| {
@@ -377,6 +407,7 @@ mod mounted_layer_tests {
                     selected_ids: Vec::new(),
                     generation: 0,
                     on_part_hit: |_| {},
+                    on_part_pointer_down: |_| {},
                 } }
             }
         }

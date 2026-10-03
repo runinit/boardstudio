@@ -25,7 +25,7 @@ pub(in crate::presentation) use keycap_size_controller::{KeySizeMount, use_key_s
 pub(in crate::presentation) use layout_align::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount,
 };
-pub(in crate::presentation) use layout_align_controller::use_layout_align;
+pub(in crate::presentation) use layout_align_controller::use_canvas_align;
 pub(in crate::presentation) use layout_toolbar::{
     LayoutCommandPill, LayoutSelectionKind, LayoutSelectionSnapStatus, LayoutSnapIntent,
     LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
@@ -38,7 +38,7 @@ pub(in crate::presentation) use matrix_inspector_controller::{
 pub(in crate::presentation) use matrix_setup::{MatrixSetup, MatrixSetupMount};
 pub(in crate::presentation) use matrix_setup_controller::use_matrix_setup;
 pub(in crate::presentation) use matrix_transform_controller::{
-    MatrixTransformInspectorMount, use_matrix_transform_inspector,
+    MatrixTransformInspectorMount, use_workspace_matrix_transform,
 };
 pub(in crate::presentation) use matrix_transform_inspector::MatrixTransformInspector;
 pub(in crate::presentation) use mirrored_pair::{

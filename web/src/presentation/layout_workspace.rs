@@ -26,6 +26,7 @@ pub(super) struct ToolbarInput {
     pub(super) on_recover_saved: EventHandler<()>,
     pub(super) selection_kind: objects::LayoutSelectionKind,
     pub(super) snap_settings: objects::LayoutSnapSettings,
+    pub(super) command_label: String,
     pub(super) align: objects::LayoutAlignMount,
     pub(super) transform: objects::LayoutTransformMenuMount,
     pub(super) menu_owner_key: String,
@@ -77,6 +78,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                 }
             } else {
                 objects::LayoutCommandPill {
+                    command_label: input.command_label,
                     menu_owner_key: input.menu_owner_key,
                     transform: input.transform,
                     align: input.align,

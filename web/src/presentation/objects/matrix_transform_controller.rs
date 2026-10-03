@@ -53,13 +53,14 @@ pub(in crate::presentation) struct MatrixTransformInspectorMount {
 
 /// Called once at the Editor lifetime. Every request and projection resolves the live accepted
 /// matrix again; no document copy survives as a writable store.
-pub(in crate::presentation) fn use_matrix_transform_inspector(
+pub(in crate::presentation) fn use_workspace_matrix_transform(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
     selected_context: Signal<Option<ScopedTreeContext>>,
     workspace: Signal<&'static str>,
     scope_generation: Signal<u64>,
     splay_affect: Signal<MatrixSplayAffect>,
+    owner_workspace: &'static str,
 ) -> MatrixTransformInspectorMount {
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -99,6 +100,7 @@ pub(in crate::presentation) fn use_matrix_transform_inspector(
         generation,
         current_scope_generation,
         current_workspace,
+        owner_workspace,
     );
     let identity = observed_identity.clone();
 
@@ -127,7 +129,8 @@ pub(in crate::presentation) fn use_matrix_transform_inspector(
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != current_generation
                 || request.owner.scope_generation != current_scope_generation
-                || current_workspace != "Layout"
+                || !workspace_route_matches(current_workspace, owner_workspace)
+                || request.owner.workspace != owner_workspace
                 || request.request_id <= last_request_id()
             {
                 return;
@@ -158,6 +161,7 @@ pub(in crate::presentation) fn use_matrix_transform_inspector(
                     scope_generation: current_scope_generation,
                     workspace: current_workspace,
                 },
+                owner_workspace,
             ) else {
                 return;
             };
@@ -281,8 +285,9 @@ fn project_current(
     context_generation: u64,
     scope_generation: u64,
     workspace: &'static str,
+    owner_workspace: &'static str,
 ) -> (Option<MatrixTransformProjection>, bool) {
-    if workspace != "Layout" {
+    if !workspace_route_matches(workspace, owner_workspace) {
         return (None, false);
     }
     let model = runtime.model();
@@ -298,6 +303,7 @@ fn project_current(
             scope_generation,
             workspace,
         },
+        owner_workspace,
     )
     .map_or((None, false), |(projection, editable)| {
         (Some(projection), editable)
@@ -317,8 +323,9 @@ fn project_current_for(
     live_scope: Option<&Scope>,
     selected: Option<&ScopedTreeContext>,
     context: ProjectionContext,
+    owner_workspace: &'static str,
 ) -> Option<(MatrixTransformProjection, bool)> {
-    if context.workspace != "Layout" {
+    if !workspace_route_matches(context.workspace, owner_workspace) {
         return None;
     }
     let scope = live_scope?;
@@ -417,6 +424,7 @@ fn project_current_for(
         MatrixTransformProjection {
             owner: MatrixTransformInspectorOwner {
                 editor_instance_id: context.editor_instance_id,
+                workspace: context.workspace,
                 context_generation: context.context_generation,
                 scope_generation: context.scope_generation,
                 scope: scope.clone(),
@@ -431,6 +439,25 @@ fn project_current_for(
         },
         editable,
     ))
+}
+
+fn workspace_route_matches(current: &str, owner: &str) -> bool {
+    matches!(owner, "Layout" | "PCB") && current == owner
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod workspace_route_tests {
+    use super::workspace_route_matches;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn matrix_transform_owner_cannot_cross_workspace_routes() {
+        assert!(workspace_route_matches("Layout", "Layout"));
+        assert!(workspace_route_matches("PCB", "PCB"));
+        assert!(!workspace_route_matches("PCB", "Layout"));
+        assert!(!workspace_route_matches("Layout", "PCB"));
+        assert!(!workspace_route_matches("Case", "Case"));
+    }
 }
 
 fn matrix_has_linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &str) -> bool {
@@ -587,8 +614,9 @@ fn settle_pending(
                     editor_instance_id: waiting.request.owner.editor_instance_id,
                     context_generation: waiting.request.owner.context_generation,
                     scope_generation: waiting.request.owner.scope_generation,
-                    workspace: "Layout",
+                    workspace: waiting.request.owner.workspace,
                 },
+                waiting.request.owner.workspace,
             )
             .and_then(|(projection, _)| field_value(&projection.fields, waiting.request.field));
             if value.as_ref() == Some(&waiting.request.value) {

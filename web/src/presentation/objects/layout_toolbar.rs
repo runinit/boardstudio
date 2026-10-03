@@ -508,6 +508,7 @@ fn toggle_layout_command_menu(
 
 #[component]
 pub(in crate::presentation) fn LayoutCommandPill(
+    command_label: String,
     menu_owner_key: String,
     selection_kind: LayoutSelectionKind,
     snap_settings: LayoutSnapSettings,
@@ -578,7 +579,7 @@ pub(in crate::presentation) fn LayoutCommandPill(
     });
 
     rsx! {
-        div { id: "m1-layout-command-pill", class: "m1-layout-command-pill", role: "toolbar", aria_label: "Layout commands",
+        div { id: "m1-layout-command-pill", class: "m1-layout-command-pill", role: "toolbar", aria_label: "{command_label}",
             LayoutSelectMenu {
                 open_menu,
                 selection_kind,
