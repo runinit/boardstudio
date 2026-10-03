@@ -1,5 +1,6 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
+use crate::pcb_wiring_mode_operation::electrical_preview_request;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
     SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
@@ -777,25 +778,8 @@ impl Runtime {
         validate_electrical_source(&accepted, &scope)?;
         self.ensure_electrical_source_current(&accepted, &scope)?;
 
-        let configuration = accepted.document.hardware.as_ref().and_then(|hardware| {
-            hardware
-                .boards
-                .iter()
-                .find(|item| item.board_id == scope.board_id)
-        });
         let request_id = format!("pcb-electrical-{}", self.operation().0);
-        let request = CoreRequest::ResolveElectrical {
-            id: request_id.clone(),
-            request: ElectricalPlanRequest {
-                document: (*accepted.document).clone(),
-                instance_id: None,
-                mode: configuration.map_or(ElectricalMode::Matrix, |item| item.mode),
-                locks: configuration.map_or_else(Default::default, |item| item.locks.clone()),
-                controller_profile: None,
-                board_id: Some(scope.board_id.clone()),
-                controller_part_id: configuration.and_then(|item| item.controller_part_id.clone()),
-            },
-        };
+        let request = electrical_preview_request(&request_id, &accepted.document, &scope.board_id);
         let core = self.core.borrow().clone();
         let executor_epoch = self.session.borrow().core_executor_epoch();
         self.ensure_electrical_source_current(&accepted, &scope)?;

@@ -3,7 +3,8 @@ use crate::firmware_position_projection::FirmwarePlanIdentity;
 use boardstudio_application::Scope;
 use boardstudio_core::{
     electrical::ElectricalMode,
-    model::{ElectricalBoardConfiguration, ProjectDoc},
+    electrical::ElectricalPlanRequest,
+    model::{CoreRequest, ElectricalBoardConfiguration, ProjectDoc},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,6 +45,57 @@ pub(crate) struct BoardWiringModeFeedbackTarget {
     pub ui_scope: Scope,
     pub selected_part_id: Option<String>,
     pub scope_generation: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ResolutionAdmission {
+    Idle,
+    Pending(FirmwarePlanIdentity),
+    Current(FirmwarePlanIdentity),
+    Failed(FirmwarePlanIdentity),
+}
+
+pub(crate) fn begin_resolution(
+    admission: &mut ResolutionAdmission,
+    identity: &FirmwarePlanIdentity,
+    force: bool,
+) -> bool {
+    match admission {
+        ResolutionAdmission::Pending(current) if current == identity => return false,
+        ResolutionAdmission::Current(current) | ResolutionAdmission::Failed(current)
+            if !force && current == identity =>
+        {
+            return false;
+        }
+        _ => {}
+    }
+    *admission = ResolutionAdmission::Pending(identity.clone());
+    true
+}
+
+pub(crate) fn electrical_preview_request(
+    request_id: &str,
+    document: &ProjectDoc,
+    board_id: &str,
+) -> CoreRequest {
+    let configuration = document.hardware.as_ref().and_then(|hardware| {
+        hardware
+            .boards
+            .iter()
+            .find(|item| item.board_id == board_id)
+    });
+    CoreRequest::ResolveElectrical {
+        id: request_id.to_owned(),
+        request: ElectricalPlanRequest {
+            document: document.clone(),
+            instance_id: None,
+            mode: configuration.map_or(ElectricalMode::Matrix, |item| item.mode),
+            locks: configuration.map_or_else(Default::default, |item| item.locks.clone()),
+            controller_profile: None,
+            board_id: Some(board_id.to_owned()),
+            controller_part_id: configuration.and_then(|item| item.controller_part_id.clone()),
+        },
+    }
 }
 
 impl BoardWiringModeFeedbackTarget {
@@ -102,7 +154,7 @@ pub(crate) fn propose_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken};
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{Board, ElectricalBoardConfiguration, ElectricalHandoffBaseline};
 
     fn doc() -> ProjectDoc {
@@ -167,6 +219,60 @@ mod tests {
             boards.iter().find(|item| item.board_id == "right").unwrap(),
             &other
         );
+    }
+
+    #[test]
+    fn accepted_direct_revision_replaces_old_current_identity_with_pending() {
+        let identity = |token, revision| FirmwarePlanIdentity {
+            scope: Scope {
+                session_epoch: SessionEpoch(3),
+                document_id: "project".into(),
+                board_id: "left".into(),
+                instance_id: None,
+            },
+            token: SnapshotToken(token),
+            revision,
+            executor_epoch: 4,
+        };
+        let old = identity(1, 0);
+        let next = identity(2, 1);
+        let mut state = ResolutionAdmission::Current(old);
+
+        assert!(begin_resolution(&mut state, &next, false));
+        assert_eq!(state, ResolutionAdmission::Pending(next.clone()));
+        assert!(!begin_resolution(&mut state, &next, false));
+
+        let mut idle = ResolutionAdmission::Idle;
+        assert!(begin_resolution(&mut idle, &next, false));
+        let mut failed = ResolutionAdmission::Failed(identity(1, 0));
+        assert!(begin_resolution(&mut failed, &next, false));
+    }
+
+    #[test]
+    fn resolver_request_reads_direct_mode_and_saved_locks_from_new_document() {
+        let mut document = doc();
+        document.revision = 1;
+        let mut configuration = ElectricalBoardConfiguration {
+            board_id: "left".into(),
+            mode: ElectricalMode::Direct,
+            ..Default::default()
+        };
+        configuration.locks.insert("signal".into(), "P1".into());
+        document
+            .hardware
+            .get_or_insert_with(Default::default)
+            .boards
+            .push(configuration.clone());
+
+        let CoreRequest::ResolveElectrical { request, .. } =
+            electrical_preview_request("resolve-next", &document, "left")
+        else {
+            unreachable!("production request builder must use Core electrical resolution")
+        };
+        assert_eq!(request.document.revision, 1);
+        assert_eq!(request.mode, ElectricalMode::Direct);
+        assert_eq!(request.board_id.as_deref(), Some("left"));
+        assert_eq!(request.locks, configuration.locks);
     }
 
     #[test]

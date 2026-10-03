@@ -9,6 +9,7 @@ use crate::firmware_position_projection::{
     EditSettlement, EditSettlementSource, FirmwarePositionAdmission,
     FirmwarePositionFeedbackTarget, admits_edit, settle_edit,
 };
+use crate::pcb_wiring_mode_operation::{ResolutionAdmission, begin_resolution};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, Scope};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc};
@@ -876,15 +877,18 @@ fn start_resolution(
         resolution.set(PcbWiringResolution::Idle);
         return;
     };
-    match &*resolution.read() {
-        PcbWiringResolution::Pending { identity: pending } if pending == &identity => return,
-        PcbWiringResolution::Current {
-            identity: current, ..
+    let mut admission = match &*resolution.read() {
+        PcbWiringResolution::Idle => ResolutionAdmission::Idle,
+        PcbWiringResolution::Pending { identity } => ResolutionAdmission::Pending(identity.clone()),
+        PcbWiringResolution::Current { identity, .. } => {
+            ResolutionAdmission::Current(identity.clone())
         }
-        | PcbWiringResolution::Failed {
-            identity: current, ..
-        } if !force && current == &identity => return,
-        _ => {}
+        PcbWiringResolution::Failed { identity, .. } => {
+            ResolutionAdmission::Failed(identity.clone())
+        }
+    };
+    if !begin_resolution(&mut admission, &identity, force) {
+        return;
     }
     let request_generation = next_request(latest_request.as_ref());
     resolution.set(PcbWiringResolution::Pending {
