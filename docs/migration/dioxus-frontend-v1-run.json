@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:04:40.619045+00:00",
+    "updated_at": "2026-10-03T23:14:24.354400+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -488,15 +488,15 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "F3.3-C02 drag regression verified. Bounded C04 nudge increments/editable-field exclusion/snap-guide lifecycle qualification dispatched; unchanged Alt evidence reused."
+        "state": "Paired C04 keyboard increments, editable-field exclusion and snap feedback/commit clearing passed. Remaining pointer-cancel clearing qualification running."
       },
       {
         "stream": "PCB",
-        "state": "Fresh attachment navigation now passed on34782; repeat Save/history/reopen being finished. F5.2-C03 paired Apply one-step history verified by normalized public exports."
+        "state": "Fresh module attachment, navigation, repeat Save, Undo/Redo and archive reopen passed on34782. F5.2-C03 paired Apply one-step history verified."
       },
       {
         "stream": "Keymap",
-        "state": "Prior positive encoder/ZMK/history evidence retained. Bounded negative readiness/failure-recovery qualification dispatched on34782."
+        "state": "C05 actual unresolved pin failure and corrected public ZMK export verified on34782. Compact encoder operability qualification running; prior history/reopen evidence reused."
       },
       {
         "stream": "Keycaps",

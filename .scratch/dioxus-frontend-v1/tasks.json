@@ -4943,6 +4943,13 @@
           "path": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
           "result": "Real PCB plan to encoder edits, matching ZMK sources, in-place Undo/Redo, reload and board/project switches passed; scoped criterion verdicts recorded.",
           "acceptance": "No parent closure; negative qualification/remaining compact recovery and F5.2/F8.2 joins remain."
+        },
+        {
+          "at": "2026-10-03T23:14:24.289079+00:00",
+          "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41",
+          "path": ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+          "result": "C05 actual electrical readiness failure and ZMK request rejection, followed by restored P1 and successful public source export, verified.",
+          "acceptance": "No parent closure; compact controls and final joins remain."
         }
       ],
       "criteria": [
@@ -5054,7 +5061,7 @@
         {
           "id": "F6K.4-C05",
           "requirement": "With a fixture and then real F5 data, run existing electrical and firmware requests, and show qualification failures truthfully.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keymap/encoder_inputs.rs",
@@ -5066,7 +5073,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Real F5 resolution and ZMK output passed. Qualify negative electrical/firmware readiness and genuine request-failure feedback; no source gap is established.",
+          "next_action": "Retain actual unresolved encoder-A electrical feedback, failed ZMK source request and successful P1 correction/export on candidate 34782. Firmware compilation is outside this source-export criterion; compact operability remains C07 and final F5.2/F8.2 joins remain open.",
           "finish_condition": "Electrical and firmware requests consume current accepted inputs; readiness and request failures are shown from actual provider outcomes.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_inputs.rs",

@@ -13,3 +13,15 @@ Input used trusted browser mouse and keyboard events. No app runtime state was i
 ## Conclusion
 
 F3.3-C02 passes for the tested candidate: 1 CSS px Alt movement starts a free drag; stationary panel reflow does not move the object or create a drag; Shift/Ctrl selection does not start a drag; and the movement is one Undo/Redo step.
+
+## F3.3-C04: nudge keys and snap-guide feedback
+
+Additional paired browser check on the same REVIUNG41 fixture: pinned TypeScript `5a472a9426e6e38993361da402cd4ec730feb369` (`http://127.0.0.1:5175/`, session `f33c04-key-nudge-ts-20261003`) and Dioxus build `frontend-module-attachment-repair-20261003` (`http://127.0.0.1:34782/`, session `f33c04-key-nudge-dx-20261003`, source `733c1da2abede39a617d2eca2e42d9bd437cea41`). Package proof is `../../frontend-module-attachment-repair-20261003/package-proof.json`; it reports no source/route mismatches.
+
+- **Arrow nudge:** with the `main-U1` tree row focused, ArrowRight moved X from `273.2` to `273.3` mm in both builds (`+0.1 mm`). Shift+ArrowRight moved it from `273.3` to `274.3` mm (`+1.0 mm`) in both.
+- **Editable field and canvas focus:** with the selected part's `X mm` spinbutton focused, ArrowLeft left the part at `274.3` mm on both builds. Focusing the Layout canvas/application and pressing ArrowRight also left it unchanged on both. The mounted nudge route is the focused tree row, not canvas focus; this matches the reference's tested behavior.
+- **Snap guide:** moving U1 toward RST produced a live snapped preview at approximately `(273.2, -43.25)` mm. Dioxus exposed `main-RST · corner / midpoint / center` as a live status label. TypeScript rendered its `.wb-snap-guide` circle/path, with no text in that SVG marker. After pointer-up committed the move, the guide element/status disappeared on both builds.
+
+Input was delivered through trusted browser mouse and keyboard actions. DOM reads were limited to visible rendered parts/guide nodes; no app runtime state was injected. The guide's pointer-cancel clearing path was not separately exercised; commit clearing passed.
+
+The tested C04 legs pass for the mounted tree-item nudge route, editable spinbutton behavior, live snap feedback, and guide removal on commit. The only untested leg here is guide removal on pointer cancel.
