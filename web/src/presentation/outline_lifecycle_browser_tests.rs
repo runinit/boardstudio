@@ -35,6 +35,76 @@ fn mounted_dimension_host() -> Element {
     }
 }
 
+fn coordinate_history_host() -> Element {
+    let mut accepted = use_signal(|| 0.0);
+    rsx! {
+        OutlineCoordinate { label: "Point 1 X mm".to_owned(), value: accepted(), editable: true, on_commit: |_| {} }
+        OutlineCoordinate { label: "Point 1 Y mm".to_owned(), value: 10.0, editable: true, on_commit: |_| {} }
+        button { id: "coordinate-accepted", onclick: move |_| accepted.set(1.5), "Accept coordinate" }
+        button { id: "coordinate-undo", onclick: move |_| accepted.set(0.0), "Undo coordinate" }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn coordinate_undo_restores_accepted_value_without_reviving_a_submitted_draft() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("coordinate-history-mount");
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(coordinate_history_host),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    settle_dimension().await;
+    let x = root
+        .query_selector("input[aria-label='Point 1 X mm']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    let y = root
+        .query_selector("input[aria-label='Point 1 Y mm']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    send_input(&y, "");
+    x.focus().unwrap();
+    send_input(&x, "1.5");
+    send_key(&x, "Enter");
+    root.query_selector("#coordinate-accepted")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    settle_dimension().await;
+    assert_eq!(x.value(), "1.5");
+    assert_eq!(
+        y.value(),
+        "",
+        "another coordinate's dirty draft must remain local"
+    );
+    root.query_selector("#coordinate-undo")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    settle_dimension().await;
+    assert_eq!(
+        x.value(),
+        "0",
+        "Undo must show the restored accepted coordinate"
+    );
+    assert_eq!(
+        y.value(),
+        "",
+        "Undo on X must preserve the unrelated Y draft"
+    );
+    root.remove();
+}
+
 fn mount_dimension() -> (DimensionProbe, web_sys::Element) {
     let probe = DimensionProbe {
         committed: Rc::default(),

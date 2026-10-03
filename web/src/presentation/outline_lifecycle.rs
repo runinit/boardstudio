@@ -1121,6 +1121,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                     h3 { class: "m1-outline-point-heading", "Point {point_index + 1} of {point_count}" }
                     div { class: "m1-outline-coordinate-fields",
                         OutlineCoordinate {
+                            key: format!("{:?}:{:?}:{point_index}:x", action_context.scope, perimeter.target),
                             label: format!("Point {} X mm", point_index + 1),
                             value: point.x,
                             editable: enabled,
@@ -1135,6 +1136,7 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                             },
                         }
                         OutlineCoordinate {
+                            key: format!("{:?}:{:?}:{point_index}:y", action_context.scope, perimeter.target),
                             label: format!("Point {} Y mm", point_index + 1),
                             value: point.y,
                             editable: enabled,
@@ -1549,6 +1551,11 @@ fn OutlineCoordinate(
     on_commit: EventHandler<f64>,
 ) -> Element {
     let mut field = use_signal(|| (value, value.to_string()));
+    use_effect(use_reactive!(|value| {
+        if field.peek().0 != value {
+            field.set((value, value.to_string()));
+        }
+    }));
     let draft = if field().0 == value {
         field().1
     } else {
