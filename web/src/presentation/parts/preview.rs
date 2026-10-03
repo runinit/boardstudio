@@ -78,6 +78,8 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     definition: Option<Rc<PartDefinition>>,
     recipe: Vec<crate::parts_preview::PartsPreviewRecipeMember>,
     recipe_error: Option<String>,
+    recipe_pending: bool,
+    recipe_identity: String,
     preview_title: Option<String>,
     scope: Option<Scope>,
     snapshot_token: SnapshotToken,
@@ -86,7 +88,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let selection_generation = use_context::<super::PartsSelectionGeneration>().0;
     let preview_activation = use_context::<super::PartsPreviewActivation>().0;
-    let recipe = if recipe.is_empty() && recipe_error.is_none() {
+    let recipe = if recipe.is_empty() && recipe_error.is_none() && !recipe_pending {
         definition
             .as_ref()
             .map(
@@ -104,7 +106,11 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     } else {
         recipe
     };
-    let recipe_identity = serde_json::to_string(&recipe).unwrap_or_default();
+    let recipe_identity = format!(
+        "{}:{}",
+        recipe_identity,
+        serde_json::to_string(&recipe).unwrap_or_default()
+    );
     let input = PreviewInput {
         scope: scope.clone(),
         snapshot_token,
@@ -157,9 +163,18 @@ pub(in crate::presentation) fn PartsPreviewPanel(
         }
     }));
     let source = use_resource(use_reactive(
-        (&definition, &input, &generation, &recipe, &recipe_error),
-        |(definition, input, generation, recipe, recipe_error)| async move {
-            let result = if let Some(error) = recipe_error {
+        (
+            &definition,
+            &input,
+            &generation,
+            &recipe,
+            &recipe_error,
+            &recipe_pending,
+        ),
+        |(definition, input, generation, recipe, recipe_error, recipe_pending)| async move {
+            let result = if recipe_pending {
+                Err(PreviewFailure::Unsupported)
+            } else if let Some(error) = recipe_error {
                 Err(PreviewFailure::Failed(error))
             } else {
                 match definition {
@@ -180,16 +195,29 @@ pub(in crate::presentation) fn PartsPreviewPanel(
             &show_3d(),
             &recipe,
             &recipe_error,
+            &recipe_pending,
         ),
         {
             let runtime = runtime.clone();
             let lease_slot = lease_slot.clone();
-            move |(definition, input, generation, scope, show_3d, recipe, recipe_error)| {
+            move |(
+                definition,
+                input,
+                generation,
+                scope,
+                show_3d,
+                recipe,
+                recipe_error,
+                recipe_pending,
+            )| {
                 let runtime = runtime.clone();
                 let lease_slot = lease_slot.clone();
                 let recipe_error = recipe_error.clone();
                 async move {
                     if !show_3d {
+                        return (PreviewOwner { input, generation }, None);
+                    }
+                    if recipe_pending {
                         return (PreviewOwner { input, generation }, None);
                     }
                     if let Some(error) = recipe_error {
@@ -273,7 +301,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
 
     rsx! {
         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
-            h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::catalogue::preferred_label(&definition))}" }
+            h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
             div { class: "m1-design-view-group", role: "group", aria_label: "Part preview view",
                 button {
                     r#type: "button",
@@ -299,13 +327,17 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                 }
             }
             if show_3d() {
-                match matching_sample {
+                if recipe_pending {
+                    p { class: "m1-parts-loading", role: "status", "Preparing assembly footprint preview…" }
+                } else { match matching_sample {
                     None => rsx! { p { class: "m1-parts-loading", role: "status", "Preparing isolated 3D sample…" } },
                     Some(Err(error)) => rsx! { p { class: "m1-parts-load-error", role: "alert", "3D Parts preview failed: {error}" } },
                     Some(Ok(preview)) => rsx! { PartsSampleViewer { preview } },
-                }
+                }}
             } else {
-                match matching {
+                if recipe_pending {
+                    p { class: "m1-parts-loading", role: "status", "Preparing assembly footprint preview…" }
+                } else { match matching {
                     None => rsx! {
                         p { class: "m1-parts-loading", role: "status", "Preparing {definition.name} footprint preview…" }
                     },
@@ -373,7 +405,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                     }
                     PartsPreviewLayers { layers: content.layers, hidden, on_toggle: toggle_layer }
                     },
-                }
+                }}
             }
         }
     }
@@ -447,7 +479,7 @@ async fn load_recipe_preview(
     let mut members = Vec::with_capacity(recipe.len());
     let mut layers = Vec::new();
     for (index, source) in recipe.into_iter().enumerate() {
-        let content = load_single_preview(&source.definition).await?;
+        let content = load_single_preview(&source.definition, &source.side).await?;
         let mut member = content.members.into_iter().next().ok_or_else(|| {
             PreviewFailure::Failed("The footprint preview returned no member.".into())
         })?;
@@ -457,7 +489,7 @@ async fn load_recipe_preview(
         for mut layer in content.layers {
             if layer.id == "part:0" {
                 layer.id = format!("part:{index}");
-                layer.label = super::catalogue::preferred_label(&source.definition);
+                layer.label = super::catalogue::preferred_label(&source.definition).to_owned();
             }
             if !layers
                 .iter()
@@ -478,9 +510,10 @@ async fn load_recipe_preview(
 
 async fn load_single_preview(
     definition: &PartDefinition,
+    part_side: &Side,
 ) -> Result<PreviewContent, PreviewFailure> {
     if definition.kicad_source.is_some() {
-        return source_backed_preview(&definition);
+        return source_backed_preview(definition, part_side);
     }
 
     let generator = definition
@@ -491,8 +524,8 @@ async fn load_single_preview(
         .await
         .map_err(PreviewFailure::Failed)?
         .ok_or(PreviewFailure::Unsupported)?;
-    let keycap = keycap_size(&definition, defaults);
-    let include_keycap = include_keycap(&definition, defaults);
+    let keycap = keycap_size(definition, defaults);
+    let include_keycap = include_keycap(definition, defaults);
     // React draws the library envelope separately from generator graphics.
     let drawings =
         footprint_graphics::generator_drawings((*definition).clone(), None, keycap.map(|_| false))
@@ -512,6 +545,7 @@ async fn load_single_preview(
     } else {
         None
     };
+    let layers = preview_layers(definition, &drawings, outline.as_ref(), part_side);
     let member = PreviewGeometry {
         definition: definition.clone(),
         drawings,
@@ -522,7 +556,6 @@ async fn load_single_preview(
     };
     let view_box =
         recipe_view_box(std::slice::from_ref(&member)).unwrap_or_else(|| "0 0 0 0".into());
-    let layers = preview_layers(&definition, &drawings, outline.as_ref());
     Ok(PreviewContent {
         members: vec![member],
         layers,
@@ -530,12 +563,16 @@ async fn load_single_preview(
     })
 }
 
-fn source_backed_preview(definition: &PartDefinition) -> Result<PreviewContent, PreviewFailure> {
+fn source_backed_preview(
+    definition: &PartDefinition,
+    part_side: &Side,
+) -> Result<PreviewContent, PreviewFailure> {
     let drawings = Rc::new(Vec::new());
     let outline = (!definition.courtyard.is_empty()).then(|| PreviewOutline {
         label: "Courtyard",
         points: definition.courtyard.clone(),
     });
+    let layers = preview_layers(definition, &drawings, outline.as_ref(), part_side);
     let member = PreviewGeometry {
         definition: definition.clone(),
         drawings,
@@ -546,7 +583,6 @@ fn source_backed_preview(definition: &PartDefinition) -> Result<PreviewContent, 
     };
     let view_box =
         recipe_view_box(std::slice::from_ref(&member)).unwrap_or_else(|| "0 0 0 0".into());
-    let layers = preview_layers(definition, &drawings, outline.as_ref());
     Ok(PreviewContent {
         members: vec![member],
         layers,
@@ -644,10 +680,11 @@ fn preview_layers(
     definition: &PartDefinition,
     drawings: &[Graphic],
     outline: Option<&PreviewOutline>,
+    part_side: &Side,
 ) -> Vec<PreviewLayer> {
     let mut copper = BTreeSet::new();
     for pad in &definition.pads {
-        copper.insert(copper_id(pad, definition));
+        copper.insert(copper_id(pad, definition, part_side));
     }
     let mut layers = Vec::new();
     for id in ["copper:F.Cu", "copper:B.Cu"] {
@@ -1045,7 +1082,7 @@ mod tests {
             label: "Keycap",
             points: rectangle_points(Vec2 { x: 18.0, y: 18.0 }),
         };
-        let layers = preview_layers(&definition, &drawings, Some(&outline));
+        let layers = preview_layers(&definition, &drawings, Some(&outline), &Side::Front);
         assert_eq!(
             layers
                 .iter()
@@ -1077,8 +1114,16 @@ mod tests {
             label: "Keycap",
             points: rectangle_points(Vec2 { x: 18.0, y: 18.0 }),
         };
+        let member = PreviewGeometry {
+            definition,
+            drawings: Rc::new(drawings),
+            outline: Some(outline),
+            at: Vec2::default(),
+            rotation: 0.0,
+            side: Side::Front,
+        };
         assert_eq!(
-            view_box(&definition, &drawings, Some(&outline)).as_deref(),
+            recipe_view_box(&[member]).as_deref(),
             Some("-14.000 -12.000 28.000 29.000")
         );
     }
@@ -1095,8 +1140,16 @@ mod tests {
                 crate::footprint_forms::Point(8.0, 7.0),
             ),
         }];
+        let member = PreviewGeometry {
+            definition,
+            drawings: Rc::new(drawings),
+            outline: None,
+            at: Vec2::default(),
+            rotation: 0.0,
+            side: Side::Front,
+        };
         assert_eq!(
-            view_box(&definition, &drawings, None).as_deref(),
+            recipe_view_box(&[member]).as_deref(),
             Some("-3.000 -10.000 14.000 13.000")
         );
     }
@@ -1114,7 +1167,7 @@ mod tests {
                 crate::footprint_forms::Point(1.0, -1.0),
             ),
         }];
-        let layers = preview_layers(&definition, &drawings, None);
+        let layers = preview_layers(&definition, &drawings, None, &Side::Front);
         let ids = layers
             .iter()
             .map(|layer| layer.id.as_str())
@@ -1138,6 +1191,7 @@ mod tests {
             snapshot_token: SnapshotToken(7),
             definition_id: "ergogen:ceoloide/switch_mx".into(),
             definition_json: String::new(),
+            recipe_identity: String::new(),
         };
         let last_input = Rc::new(RefCell::new(None));
         let generation_counter = Rc::new(Cell::new(0));

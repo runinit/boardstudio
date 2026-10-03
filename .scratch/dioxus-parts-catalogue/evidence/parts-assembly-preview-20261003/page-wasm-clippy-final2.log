@@ -1,0 +1,63 @@
+    Checking boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/parts-assembly-preview-20261003/web)
+error[E0382]: borrow of moved value: `matching_recipe`
+    --> src/presentation/parts.rs:1145:55
+     |
+1138 |     let matching_recipe = recipe_state.filter(|(owner, _)| owner == &request);
+     |         --------------- move occurs because `matching_recipe` has type `Option<(AssemblyRecipeRequest, Result<Option<Vec<...>>, ...>)>`, which does not implement the `Copy` trait
+...
+1143 |         .and_then(|(_, result)| result.ok().flatten())
+     |          --------------------------------------------- `matching_recipe` moved due to this method call
+1144 |         .unwrap_or_default();
+1145 |     let recipe_pending = active_assembly.is_some() && matching_recipe.is_none();
+     |                                                       ^^^^^^^^^^^^^^^ value borrowed here after move
+     |
+note: `std::option::Option::<T>::and_then` takes ownership of the receiver `self`, which moves `matching_recipe`
+    --> /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/core/src/option.rs:1537:32
+     = note: the full name for the type has been written to '/home/chris/.local/share/boardstudio/worktrees/case-current-result-status-repair-20261003/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-907fe90d8aaa2957.long-type-12605263405245116003.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+help: consider calling `.as_ref()` to borrow the value's contents
+     |
+1142 |     let recipe = matching_recipe.as_ref()
+     |                                 +++++++++
+help: consider calling `.as_mut()` to mutably borrow the value's contents
+     |
+1142 |     let recipe = matching_recipe.as_mut()
+     |                                 +++++++++
+help: you can `clone` the value and consume it, but this might not be your desired behavior
+     |
+1142 |     let recipe = matching_recipe.clone()
+     |                                 ++++++++
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0382]: borrow of moved value: `matching_recipe`
+    --> src/presentation/parts.rs:1145:55
+     |
+1138 |     let matching_recipe = recipe_state.filter(|(owner, _)| owner == &request);
+     |         --------------- move occurs because `matching_recipe` has type `Option<(AssemblyRecipeRequest, Result<Option<Vec<...>>, ...>)>`, which does not implement the `Copy` trait
+...
+1143 |         .and_then(|(_, result)| result.ok().flatten())
+     |          --------------------------------------------- `matching_recipe` moved due to this method call
+1144 |         .unwrap_or_default();
+1145 |     let recipe_pending = active_assembly.is_some() && matching_recipe.is_none();
+     |                                                       ^^^^^^^^^^^^^^^ value borrowed here after move
+     |
+note: `std::option::Option::<T>::and_then` takes ownership of the receiver `self`, which moves `matching_recipe`
+    --> /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/core/src/option.rs:1537:32
+     = note: the full name for the type has been written to '/home/chris/.local/share/boardstudio/worktrees/case-current-result-status-repair-20261003/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-81f96308bc7d0b50.long-type-3639096562436568093.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+help: consider calling `.as_ref()` to borrow the value's contents
+     |
+1142 |     let recipe = matching_recipe.as_ref()
+     |                                 +++++++++
+help: consider calling `.as_mut()` to mutably borrow the value's contents
+     |
+1142 |     let recipe = matching_recipe.as_mut()
+     |                                 +++++++++
+help: you can `clone` the value and consume it, but this might not be your desired behavior
+     |
+1142 |     let recipe = matching_recipe.clone()
+     |                                 ++++++++
+
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 1 previous error

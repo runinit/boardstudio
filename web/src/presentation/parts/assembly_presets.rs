@@ -2,7 +2,7 @@ use super::catalogue::CatalogEntry;
 use boardstudio_core::model::{PartDefinition, Side, Vec2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum MatrixPresetId {
+pub(in crate::presentation) enum MatrixPresetId {
     MxSolder,
     MxHotswap,
     ChocSolder,
@@ -14,7 +14,7 @@ pub(super) enum MatrixPresetId {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum SwitchOrientation {
+pub(in crate::presentation) enum SwitchOrientation {
     #[default]
     South,
     North,
@@ -108,11 +108,12 @@ fn preset(id: MatrixPresetId) -> &'static Preset {
         .expect("all preset ids are listed")
 }
 
-pub(super) fn resolve(
+pub(super) async fn resolve(
     id: MatrixPresetId,
-    entries: &[&CatalogEntry],
+    entries: &[CatalogEntry],
     reversible: bool,
     orientation: SwitchOrientation,
+    preview_definition: Option<PartDefinition>,
 ) -> Result<Vec<crate::parts_preview::PartsPreviewRecipeMember>, String> {
     let preset = preset(id);
     let find_source = |source: &str| {
@@ -132,7 +133,10 @@ pub(super) fn resolve(
         .ok_or_else(|| format!("Missing switch footprint: {main_source}"))?;
     let mut members = vec![member(
         "switch",
-        &main.definition,
+        preview_definition
+            .as_ref()
+            .filter(|definition| definition.id == main.definition.id)
+            .unwrap_or(&main.definition),
         Vec2 { x: 0.0, y: 0.0 },
         0.0,
         Side::Front,
@@ -180,6 +184,8 @@ pub(super) fn resolve(
             member.at.y = -member.at.y;
             member.rotation = (member.rotation + 180.0) % 360.0;
         }
+        member.definition =
+            super::catalogue::normalize_generator_definition(member.definition.clone()).await?;
     }
     Ok(members)
 }
@@ -188,21 +194,24 @@ fn switch_parameters(
     preset: &Preset,
     reversible: bool,
 ) -> std::collections::BTreeMap<String, serde_json::Value> {
-    let mut parameters = serde_json::from_value(serde_json::json!({
-        "hotswap": preset.hotswap,
-        "solder": !preset.hotswap,
-        "reversible": reversible,
-        "side": "B",
-        "include_keycap": true
-    }))
-    .expect("fixed switch parameters are valid");
+    let mut parameters: std::collections::BTreeMap<String, serde_json::Value> =
+        serde_json::from_value(serde_json::json!({
+            "hotswap": preset.hotswap,
+            "solder": !preset.hotswap,
+            "reversible": reversible,
+            "side": "B",
+            "include_keycap": true
+        }))
+        .expect("fixed switch parameters are valid");
     if preset.family == "choc" {
         parameters.extend(
-            serde_json::from_value(serde_json::json!({
-                "choc_v1_support": true,
-                "choc_v2_support": false,
-                "include_choc_v1_led_cutout_marks": true
-            }))
+            serde_json::from_value::<std::collections::BTreeMap<String, serde_json::Value>>(
+                serde_json::json!({
+                    "choc_v1_support": true,
+                    "choc_v2_support": false,
+                    "include_choc_v1_led_cutout_marks": true
+                }),
+            )
             .expect("fixed Choc parameters are valid"),
         );
     }

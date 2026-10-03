@@ -11,7 +11,7 @@ mod mechanical_profile_ui;
 mod physical_setup;
 mod preview;
 mod standard_profile_lifetime;
-pub(super) use assembly_presets::SwitchOrientation;
+pub(in crate::presentation) use assembly_presets::SwitchOrientation;
 pub(super) use generator_settings::GeneratorPreviewStatus;
 
 #[cfg(any(target_arch = "wasm32", test))]
@@ -55,6 +55,43 @@ pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
 /// count as a user selecting a catalogue item.
 #[derive(Clone, Copy)]
 pub(super) struct PartsPreviewActivation(pub(super) Signal<u64>);
+
+#[derive(Clone, PartialEq)]
+struct AssemblyRecipeRequest {
+    scope: Option<Scope>,
+    snapshot_token: SnapshotToken,
+    selection: Option<(Option<Scope>, String)>,
+    selection_generation: u64,
+    scope_generation: u64,
+    preset: Option<assembly_presets::MatrixPresetId>,
+    orientation: assembly_presets::SwitchOrientation,
+    reversible: bool,
+    entries: Option<Rc<Vec<CatalogEntry>>>,
+    preview_definition: Option<boardstudio_core::model::PartDefinition>,
+}
+
+impl AssemblyRecipeRequest {
+    fn identity(&self) -> String {
+        format!(
+            "{:?}|{:?}|{:?}|{}|{}|{:?}|{:?}|{}|{:?}|{}",
+            self.scope,
+            self.snapshot_token,
+            self.selection,
+            self.selection_generation,
+            self.scope_generation,
+            self.preset,
+            self.orientation,
+            self.reversible,
+            self.entries
+                .as_ref()
+                .map(|entries| Rc::as_ptr(entries) as usize),
+            self.preview_definition
+                .as_ref()
+                .and_then(|definition| serde_json::to_string(definition).ok())
+                .unwrap_or_default(),
+        )
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct GeneratorPreviewDraft {
@@ -219,6 +256,12 @@ pub(super) async fn load_component_definition(
         .find(|entry| entry.definition.id == definition_id)
         .ok_or_else(|| "The selected component is no longer in the catalogue.".to_string())?;
     Ok((*definition.definition).clone())
+}
+
+pub(in crate::presentation) fn placement_label(
+    definition: &boardstudio_core::model::PartDefinition,
+) -> &str {
+    preferred_label(definition)
 }
 
 #[component]
@@ -743,7 +786,7 @@ pub(super) fn PartsLibraryPanel(
                           let scope = scope.clone();
                           rsx! {
                             button {
-                                key: "{preset.id}",
+                                key: "{preset.name}",
                                 class: "m1-parts-catalogue-choice",
                                 type: "button",
                                 role: "option",
@@ -1038,61 +1081,16 @@ pub(super) fn PartsPreviewWorkspace(
     let selection_generation = use_context::<PartsSelectionGeneration>().0;
     let scope_generation = use_context::<super::SelectionAdapter>().generation;
     let workspace = use_context::<super::WorkspaceState>().0;
-    let catalogue = use_catalogue(&snapshot, &scope);
-    let Some(entries) = catalogue.entries else {
-        return if let Some(error) = catalogue.error {
-            rsx! {
-                p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
-            }
-        } else {
-            rsx! {
-                p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
-            }
-        };
-    };
-    let listed_entries = catalogue_choices(&entries);
-    let assembly_preset = use_context::<PartsAssemblySelection>().0();
-    let active_assembly = assembly_preset();
+    let active_assembly = use_context::<PartsAssemblySelection>().0();
     let assembly_orientation = use_context::<PartsAssemblyOrientation>().0();
-    let preview_title = active_assembly.map(|preset| assembly_presets::name(preset).to_owned());
-    let assembly_result = active_assembly.map(|preset| {
-        assembly_presets::resolve(
-            preset,
-            &listed_entries,
-            reversible_layout(&snapshot.document),
-            assembly_orientation(),
-        )
-    });
-    let recipe_error = assembly_result
-        .as_ref()
-        .and_then(|result| result.as_ref().err().cloned());
-    let recipe = assembly_result
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .cloned()
-        .unwrap_or_default();
+    let catalogue = use_catalogue(&snapshot, &scope);
     let search = query().trim().to_lowercase();
+    let listed_entries = catalogue
+        .entries
+        .as_deref()
+        .map(|entries| catalogue_choices(entries))
+        .unwrap_or_default();
     let selected_id = selected_definition_id(&listed_entries, &search, selected(), &scope);
-    let entry = selected_id.as_deref().and_then(|id| {
-        listed_entries
-            .iter()
-            .copied()
-            .find(|entry| entry.definition.id == id)
-            .cloned()
-    });
-    let Some(entry) = entry else {
-        return rsx! {
-            PartsPreviewPanel {
-                definition: None,
-                recipe,
-                recipe_error,
-                preview_title,
-                scope,
-                snapshot_token: snapshot.token,
-                generator_draft: None,
-            }
-        };
-    };
     let generator_draft = store().filter(|draft| {
         generator_settings::owner_is_current(
             &draft.owner,
@@ -1108,18 +1106,80 @@ pub(super) fn PartsPreviewWorkspace(
         .filter(|draft| draft.status == generator_settings::GeneratorPreviewStatus::Ready)
         .and_then(|draft| draft.definition.as_ref())
         .cloned();
-    let mut recipe = recipe;
-    if let Some(preview_definition) = preview_definition.as_ref()
-        && let Some(lead) = recipe.first_mut()
-        && lead.definition.id == preview_definition.id
-    {
-        lead.definition = preview_definition.clone();
-        if let Some(generator) = lead.definition.generator.as_mut() {
-            generator
-                .parameters
-                .extend(lead.generator_parameters.clone());
-        }
-    }
+    let request = AssemblyRecipeRequest {
+        scope: scope.clone(),
+        snapshot_token: snapshot.token,
+        selection: selected(),
+        selection_generation: selection_generation(),
+        scope_generation: scope_generation(),
+        preset: active_assembly,
+        orientation: assembly_orientation,
+        reversible: reversible_layout(&snapshot.document),
+        entries: catalogue.entries.clone(),
+        preview_definition: preview_definition.clone(),
+    };
+    let recipe_resource = use_resource(use_reactive(&request, |request| async move {
+        let result = match (request.preset, request.entries.as_deref()) {
+            (Some(preset), Some(entries)) => assembly_presets::resolve(
+                preset,
+                entries,
+                request.reversible,
+                request.orientation,
+                request.preview_definition.clone(),
+            )
+            .await
+            .map(Some),
+            (Some(_), None) => Ok(None),
+            (None, _) => Ok(Some(Vec::new())),
+        };
+        (request, result)
+    }));
+    let recipe_state = recipe_resource.read().clone();
+    let matching_recipe = recipe_state.filter(|(owner, _)| owner == &request);
+    let recipe_error = matching_recipe
+        .as_ref()
+        .and_then(|(_, result)| result.as_ref().err().cloned());
+    let recipe = matching_recipe
+        .as_ref()
+        .and_then(|(_, result)| result.as_ref().ok().cloned().flatten())
+        .unwrap_or_default();
+    let recipe_pending = active_assembly.is_some() && matching_recipe.is_none();
+    let recipe_identity = request.identity();
+    let preview_title = active_assembly.map(|preset| assembly_presets::name(preset).to_owned());
+    let Some(entries) = catalogue.entries else {
+        return if let Some(error) = catalogue.error {
+            rsx! {
+                p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
+            }
+        } else {
+            rsx! {
+                p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
+            }
+        };
+    };
+    let listed_entries = catalogue_choices(&entries);
+    let entry = selected_id.as_deref().and_then(|id| {
+        listed_entries
+            .iter()
+            .copied()
+            .find(|entry| entry.definition.id == id)
+            .cloned()
+    });
+    let Some(entry) = entry else {
+        return rsx! {
+            PartsPreviewPanel {
+                definition: None,
+                recipe,
+                recipe_error,
+                recipe_pending,
+                recipe_identity,
+                preview_title,
+                scope,
+                snapshot_token: snapshot.token,
+                generator_draft: None,
+            }
+        };
+    };
     let source = match entry.source {
         catalogue::CatalogueSource::Project => ProfileDefinitionSource::Project,
         catalogue::CatalogueSource::Ergogen => ProfileDefinitionSource::Ergogen,
@@ -1136,6 +1196,8 @@ pub(super) fn PartsPreviewWorkspace(
             generator_draft,
             recipe,
             recipe_error,
+            recipe_pending,
+            recipe_identity,
             preview_title,
             source,
         }

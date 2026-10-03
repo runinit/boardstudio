@@ -27,6 +27,8 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
     generator_draft: Option<GeneratorPreviewDraft>,
     recipe: Vec<crate::parts_preview::PartsPreviewRecipeMember>,
     recipe_error: Option<String>,
+    recipe_pending: bool,
+    recipe_identity: String,
     preview_title: Option<String>,
     source: ProfileDefinitionSource,
 ) -> Element {
@@ -197,6 +199,8 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
             definition: Some(Rc::new(preview_definition.unwrap_or_else(|| definition.clone()))),
             recipe,
             recipe_error,
+            recipe_pending,
+            recipe_identity,
             preview_title,
             scope,
             snapshot_token: snapshot.token,

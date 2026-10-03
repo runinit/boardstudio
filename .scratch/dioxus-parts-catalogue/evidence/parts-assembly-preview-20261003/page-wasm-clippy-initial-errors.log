@@ -1,0 +1,87 @@
+    Checking boardstudio-contracts v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/parts-assembly-preview-20261003/contracts/rust)
+   Compiling boardstudio-web v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/parts-assembly-preview-20261003/web)
+    Checking boardstudio_core v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/parts-assembly-preview-20261003/core)
+    Checking boardstudio-application v0.1.0 (/home/chris/.local/share/boardstudio/worktrees/parts-assembly-preview-20261003/application)
+error[E0283]: type annotations needed
+   --> src/presentation/parts/assembly_presets.rs:202:13
+    |
+201 |         parameters.extend(
+    |                    ------ required by a bound introduced by this call
+202 |             serde_json::from_value(serde_json::json!({
+    |             ^^^^^^^^^^^^^^^^^^^^^^ cannot infer type of the type parameter `T` declared on the function `from_value`
+    |
+    = note: the type must implement `std::iter::IntoIterator`
+note: required by a bound in `std::iter::Extend::extend`
+   --> /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/core/src/iter/traits/collect.rs:416:4
+help: consider specifying a concrete type for the type parameter `T`
+    |
+202 |             serde_json::from_value::</* Type */>(serde_json::json!({
+    |                                   ++++++++++++++
+
+error[E0308]: mismatched types
+   --> src/presentation/parts/preview.rs:274:5
+    |
+274 | /     rsx! {
+275 | |         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
+276 | |             h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::cata...
+277 | |             div { class: "m1-design-view-group", role: "group", aria_label: "Part preview view",
+...   |
+379 | |     }
+    | |_____^ expected `String`, found `&str`
+    |
+    = note: this error originates in the macro `rsx` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: try using a conversion method
+    |
+379 |     }.to_string()
+    |      ++++++++++++
+
+error[E0061]: this function takes 3 arguments but 2 arguments were supplied
+   --> src/presentation/parts/preview.rs:650:23
+    |
+650 |         copper.insert(copper_id(pad, definition));
+    |                       ^^^^^^^^^----------------- argument #3 of type `&boardstudio_core::model::Side` is missing
+    |
+note: function defined here
+   --> src/presentation/parts/preview.rs:706:4
+    |
+706 | fn copper_id(pad: &Pad, definition: &PartDefinition, part_side: &Side) -> String {
+    |    ^^^^^^^^^                                         ----------------
+help: provide the argument
+    |
+650 |         copper.insert(copper_id(pad, definition, /* &boardstudio_core::model::Side */));
+    |                                                ++++++++++++++++++++++++++++++++++++++
+
+error[E0277]: `presentation::parts::assembly_presets::MatrixPresetId` doesn't implement `std::fmt::Display`
+   --> src/presentation/parts.rs:744:27
+    |
+744 | /                           rsx! {
+745 | |                             button {
+746 | |                                 key: "{preset.id}",
+747 | |                                 class: "m1-parts-catalogue-choice",
+...   |
+761 | |                           }
+    | |___________________________^ `presentation::parts::assembly_presets::MatrixPresetId` cannot be formatted with the default formatter
+    |
+help: the trait `std::fmt::Display` is not implemented for `presentation::parts::assembly_presets::MatrixPresetId`
+   --> src/presentation/parts/assembly_presets.rs:5:1
+    |
+  5 | pub(in crate::presentation) enum MatrixPresetId {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `rsx` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0618]: expected function, found `std::option::Option<presentation::parts::assembly_presets::MatrixPresetId>`
+    --> src/presentation/parts.rs:1055:27
+     |
+1054 |     let assembly_preset = use_context::<PartsAssemblySelection>().0();
+     |         --------------- `assembly_preset` has type `std::option::Option<presentation::parts::assembly_presets::MatrixPresetId>`
+1055 |     let active_assembly = assembly_preset();
+     |                           ^^^^^^^^^^^^^^^--
+     |                           |
+     |                           call expression requires function
+
+Some errors have detailed explanations: E0061, E0277, E0283, E0308, E0618.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `boardstudio-web` (bin "boardstudio-web") due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `boardstudio-web` (bin "boardstudio-web" test) due to 5 previous errors
