@@ -1,0 +1,1281 @@
+{
+  "checked_utc": "2026-10-03T02:44:51.448650+00:00",
+  "build": "frontend-layout-case-transport-integrated-20261002",
+  "source_commit": "b9e74e37fc34948be9fee97c918b644200778bca",
+  "root_head_at_audit": "2db850b205971a9ad66996933896a4abf46be4a3",
+  "provenance_sha256": "4bc42957cd9528c7dc11cb7c93de7bd61e3b663984c3f91af6fc58377c295cdb",
+  "sources": {
+    "inventory_extra": [],
+    "inventory_missing": [],
+    "local_mismatches": [],
+    "recorded_count": 1342,
+    "git_owned_count": 1335,
+    "git_blob_mismatches": [],
+    "derived_core_outputs": {
+      "core/pkg/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+      "core/pkg/README.md": "91c0d282a50cbe152f6d40e771f2fb3513fa74746a5997568f56fe183b726200",
+      "core/pkg/boardstudio_core.d.ts": "081ab2e71f8e00c397fac9188ce589298a48c7b7d352d9a661aaf602372b95a1",
+      "core/pkg/boardstudio_core.js": "658957ae7674d3d53aac876394b139af2f7e852ea977d49af9e0e22cef566908",
+      "core/pkg/boardstudio_core_bg.wasm": "bc3a091122da2ebcb4eb55d3f0967d2b1943611105068f287c2fc6f0e17aa186",
+      "core/pkg/boardstudio_core_bg.wasm.d.ts": "d2987eb33ed755444dfb439139491c3d240f8c4786769882e0e8c2847d048c1b",
+      "core/pkg/package.json": "044e3ed5ce3c04cbac30a263a499123ba0babf1441a2484ea651d24540439bdf"
+    }
+  },
+  "commands": [
+    {
+      "label": "rustc-version",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/rustc-version.log",
+      "log_sha256": "785f1364c0d5bf077f7bfb885fd4bde99899dfd80ce0fb6226a4527d9b27724c",
+      "log_bytes": 36,
+      "started": "2026-10-03T02:33:30.176899+00:00",
+      "finished": "2026-10-03T02:33:30.199559+00:00",
+      "log_tail": [
+        "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+      ]
+    },
+    {
+      "label": "cargo-version",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/cargo-version.log",
+      "log_sha256": "fb3f25aefd6d5441842d285f5a9b125b3f0f0b0bf2013d9a32677f9e99c6c854",
+      "log_bytes": 36,
+      "started": "2026-10-03T02:33:30.200077+00:00",
+      "finished": "2026-10-03T02:33:30.218468+00:00",
+      "log_tail": [
+        "cargo 1.98.0 (797e8a9bc 2026-08-05)"
+      ]
+    },
+    {
+      "label": "dx-version",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/dx-version.log",
+      "log_sha256": "c18813f2c322f1c7b92d76f6b57d5d12fdb28544c9d0d9171162d79f932cf23f",
+      "log_bytes": 24,
+      "started": "2026-10-03T02:33:30.220234+00:00",
+      "finished": "2026-10-03T02:33:30.245958+00:00",
+      "log_tail": [
+        "dioxus 0.7.10 (57d6794)"
+      ]
+    },
+    {
+      "label": "wasm-pack-version",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/wasm-pack-version.log",
+      "log_sha256": "f9f112a3a860c47f458ea768dbb85026be4bdcdc051efb7fbab251a92864d38d",
+      "log_bytes": 17,
+      "started": "2026-10-03T02:33:30.246930+00:00",
+      "finished": "2026-10-03T02:33:30.250155+00:00",
+      "log_tail": [
+        "wasm-pack 0.15.0"
+      ]
+    },
+    {
+      "label": "node-version",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/node-version.log",
+      "log_sha256": "510734775b8bc8f762a1e5bdb144a2bbc76c4c981a4a50b1bcd9d594c292b18c",
+      "log_bytes": 9,
+      "started": "2026-10-03T02:33:30.251100+00:00",
+      "finished": "2026-10-03T02:33:30.257603+00:00",
+      "log_tail": [
+        "v26.10.0"
+      ]
+    },
+    {
+      "label": "pnpm-version",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/pnpm-version.log",
+      "log_sha256": "166d8c2982f8cb0e3233144935d4fafeb672ee4d5bc7cbaff4b2384be95fda4b",
+      "log_bytes": 7,
+      "started": "2026-10-03T02:33:30.259166+00:00",
+      "finished": "2026-10-03T02:33:30.686606+00:00",
+      "log_tail": [
+        "12.6.0"
+      ]
+    },
+    {
+      "label": "core",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/core.log",
+      "log_sha256": "f22d53bbe7fb06d7b345f1343392d54c6b457746cdd8cb2b0a2284fbeec63768",
+      "log_bytes": 663,
+      "started": "2026-10-03T02:33:30.688011+00:00",
+      "finished": "2026-10-03T02:34:25.538890+00:00",
+      "log_tail": [
+        "[INFO]: Optimizing wasm binaries with `wasm-opt`...",
+        "[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository'. These are not necessary, but recommended",
+        "[INFO]: License key is set in Cargo.toml but no LICENSE file(s) were found; Please add the LICENSE file(s) to your project directory",
+        "[INFO]: \u2728   Done in 54.79s",
+        "[INFO]: \ud83d\udce6   Your wasm pkg is ready to publish at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/core/pkg."
+      ]
+    },
+    {
+      "label": "core-worker",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/core-worker.log",
+      "log_sha256": "9d567ad8d30cb16f46fc0e97b2fac87c1a38610e947c12dfd47a3202b6c432f3",
+      "log_bytes": 860,
+      "started": "2026-10-03T02:34:25.544805+00:00",
+      "finished": "2026-10-03T02:35:48.717148+00:00",
+      "log_tail": [
+        "[INFO]: Optimizing wasm binaries with `wasm-opt`...",
+        "[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository'. These are not necessary, but recommended",
+        "[INFO]: License key is set in Cargo.toml but no LICENSE file(s) were found; Please add the LICENSE file(s) to your project directory",
+        "[INFO]: \u2728   Done in 1m 22s",
+        "[INFO]: \ud83d\udce6   Your wasm pkg is ready to publish at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/core-worker."
+      ]
+    },
+    {
+      "label": "cad-worker",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/cad-worker.log",
+      "log_sha256": "95113faf29fffe297db0e7a2ac23dd655bff23f473265d4cb1995e136732911c",
+      "log_bytes": 858,
+      "started": "2026-10-03T02:35:48.723537+00:00",
+      "finished": "2026-10-03T02:36:48.227925+00:00",
+      "log_tail": [
+        "[INFO]: Optimizing wasm binaries with `wasm-opt`...",
+        "[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository'. These are not necessary, but recommended",
+        "[INFO]: License key is set in Cargo.toml but no LICENSE file(s) were found; Please add the LICENSE file(s) to your project directory",
+        "[INFO]: \u2728   Done in 59.21s",
+        "[INFO]: \ud83d\udce6   Your wasm pkg is ready to publish at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/cad-worker."
+      ]
+    },
+    {
+      "label": "renderer",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/renderer.log",
+      "log_sha256": "748e06c746095a40dfa836e84076f0bb9a587dbacbc467b07f33ccb40b940d06",
+      "log_bytes": 1006064,
+      "started": "2026-10-03T02:36:48.235753+00:00",
+      "finished": "2026-10-03T02:36:55.217579+00:00",
+      "log_tail": [
+        "[INFO]: \u2b07\ufe0f  Installing wasm-bindgen...",
+        "[INFO]: Optimizing wasm binaries with `wasm-opt`...",
+        "[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository', and 'license'. These are not necessary, but recommended",
+        "[INFO]: \u2728   Done in 6.87s",
+        "[INFO]: \ud83d\udce6   Your wasm pkg is ready to publish at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/renderer."
+      ]
+    },
+    {
+      "label": "cad",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/cad.log",
+      "log_sha256": "726058cc517dc9593f5140c5999b3a1f3298c1151115634c716c531267a6eba9",
+      "log_bytes": 3897,
+      "started": "2026-10-03T02:36:55.219183+00:00",
+      "finished": "2026-10-03T02:40:00.167746+00:00",
+      "log_tail": [
+        "    Finished `release` profile [optimized] target(s) in 0.30s",
+        "[INFO]: Optimizing wasm binaries with `wasm-opt`...",
+        "[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository', and 'license'. These are not necessary, but recommended",
+        "[INFO]: :-) Done in 2m 59s",
+        "[INFO]: :-) Your wasm pkg is ready to publish at wasm/pkg."
+      ]
+    },
+    {
+      "label": "fixtures",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/fixtures.log",
+      "log_sha256": "9984522f055a7d958b3d93fe8388ffc2c52d165f8624f11d735a0ad40a08978a",
+      "log_bytes": 199,
+      "started": "2026-10-03T02:40:00.170014+00:00",
+      "finished": "2026-10-03T02:40:01.153643+00:00",
+      "log_tail": [
+        "Prepared copied fixtures and assets in /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/fixtures"
+      ]
+    },
+    {
+      "label": "ergogen-catalogue",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/ergogen-catalogue.log",
+      "log_sha256": "1c37d5f85e45ac757389bc9d8390dfc62a37b6495019bf6eb1d8e82130b39e7e",
+      "log_bytes": 65,
+      "started": "2026-10-03T02:40:01.155578+00:00",
+      "finished": "2026-10-03T02:40:01.501535+00:00",
+      "log_tail": [
+        "$ node scripts/generate.mjs",
+        "Generated 36 bundled Ergogen modules"
+      ]
+    },
+    {
+      "label": "layout-generators",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/layout-generators.log",
+      "log_sha256": "eea1ac8560dc18f8010c71de4ba152072fabc55517a391a6317d64300ff232d0",
+      "log_bytes": 789,
+      "started": "2026-10-03T02:40:01.503253+00:00",
+      "finished": "2026-10-03T02:40:01.611901+00:00",
+      "log_tail": [
+        "(Use `node --trace-warnings ...` to show where the warning was created)",
+        "Verified packaged generator service and ceoloide/switch_mx preview defaults",
+        "(node:3953100) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/assets/layout-generators.js is not specified and it doesn't parse as CommonJS.",
+        "Reparsing as ES module because module syntax was detected. This incurs a performance overhead.",
+        "To eliminate this warning, add \"type\": \"module\" to /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/package.json."
+      ]
+    },
+    {
+      "label": "preview-generator",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/preview-generator.log",
+      "log_sha256": "af42a4aaf12541433bb9f961231f4250dff12397d3bb18982c59b3897584b60c",
+      "log_bytes": 185,
+      "started": "2026-10-03T02:40:01.613803+00:00",
+      "finished": "2026-10-03T02:40:01.683058+00:00",
+      "log_tail": [
+        "(node:3953122) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time",
+        "(Use `node --trace-warnings ...` to show where the warning was created)"
+      ]
+    },
+    {
+      "label": "ergogen-models",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/ergogen-models.log",
+      "log_sha256": "3b5908390568752aea6379263b4864eae0d5c48f2f396e6b5f7948f80256afd4",
+      "log_bytes": 141,
+      "started": "2026-10-03T02:40:01.684966+00:00",
+      "finished": "2026-10-03T02:40:01.760505+00:00",
+      "log_tail": [
+        "staged 88 Ergogen model files at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/assets/ergogen-models"
+      ]
+    },
+    {
+      "label": "page-root",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/page-root.log",
+      "log_sha256": "39279557dec4add408325c01f91c7547ee569b4c53ec437780c04d6d3caedd0e",
+      "log_bytes": 2108,
+      "started": "2026-10-03T02:40:01.763531+00:00",
+      "finished": "2026-10-03T02:40:39.530621+00:00",
+      "log_tail": [
+        " 26.13s  INFO Bundling app...",
+        " 26.44s  INFO Running wasm-bindgen...",
+        " 37.66s  INFO Copying asset (1/2): /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web_bg.wasm",
+        " 37.68s  INFO Copying asset (2/2): /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web.js",
+        " 37.68s  INFO Client build completed successfully! \ud83d\ude80 path=\"/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public\""
+      ]
+    },
+    {
+      "label": "offline-worker-root",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/offline-worker-root.log",
+      "log_sha256": "1b4c7965ca36e3d4849ff424339a891856514c626115502e7d5481bb60098a34",
+      "log_bytes": 859,
+      "started": "2026-10-03T02:40:39.568617+00:00",
+      "finished": "2026-10-03T02:40:43.898497+00:00",
+      "log_tail": [
+        "[INFO]: Optimizing wasm binaries with `wasm-opt`...",
+        "[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository'. These are not necessary, but recommended",
+        "[INFO]: License key is set in Cargo.toml but no LICENSE file(s) were found; Please add the LICENSE file(s) to your project directory",
+        "[INFO]: \u2728   Done in 4.08s",
+        "[INFO]: \ud83d\udce6   Your wasm pkg is ready to publish at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/offline-root."
+      ]
+    },
+    {
+      "label": "embed-offline-root",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/embed-offline-root.log",
+      "log_sha256": "921d191bc59042f801af286c436d1c754d777c047bc0008a79d992f0e067c4e6",
+      "log_bytes": 126,
+      "started": "2026-10-03T02:40:43.900739+00:00",
+      "finished": "2026-10-03T02:40:43.925563+00:00",
+      "log_tail": [
+        "{\"version\":\"frontend-layout-case-transport-integrated-20261002-root\",\"assets\":145,\"wasmBytes\":72336,\"initializerBytes\":96692}"
+      ]
+    },
+    {
+      "label": "page-subpath",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/page-subpath.log",
+      "log_sha256": "638ae648ab69a4a03030be4a6bedae0ab5f24129a5bb33d8f1fe55dc05b80604",
+      "log_bytes": 2108,
+      "started": "2026-10-03T02:40:44.175971+00:00",
+      "finished": "2026-10-03T02:41:19.845323+00:00",
+      "log_tail": [
+        " 24.85s  INFO Bundling app...",
+        " 25.07s  INFO Running wasm-bindgen...",
+        " 35.60s  INFO Copying asset (1/2): /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web_bg.wasm",
+        " 35.61s  INFO Copying asset (2/2): /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public/wasm/boardstudio-web.js",
+        " 35.61s  INFO Client build completed successfully! \ud83d\ude80 path=\"/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/dx/boardstudio-web/release/web/public\""
+      ]
+    },
+    {
+      "label": "offline-worker-subpath",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/offline-worker-subpath.log",
+      "log_sha256": "b25b22240fdd11f67e355d77102b266392d3918b0518c7ac74856b958d9c7f30",
+      "log_bytes": 862,
+      "started": "2026-10-03T02:41:19.872296+00:00",
+      "finished": "2026-10-03T02:41:24.087345+00:00",
+      "log_tail": [
+        "[INFO]: Optimizing wasm binaries with `wasm-opt`...",
+        "[INFO]: Optional fields missing from Cargo.toml: 'description', 'repository'. These are not necessary, but recommended",
+        "[INFO]: License key is set in Cargo.toml but no LICENSE file(s) were found; Please add the LICENSE file(s) to your project directory",
+        "[INFO]: \u2728   Done in 3.98s",
+        "[INFO]: \ud83d\udce6   Your wasm pkg is ready to publish at /home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/offline-subpath."
+      ]
+    },
+    {
+      "label": "embed-offline-subpath",
+      "exit": 0,
+      "command_matches_frozen_builder": true,
+      "log": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/embed-offline-subpath.log",
+      "log_sha256": "6e397b5cf10735ec327c4905760afacb352039f335ebf3cce23b78f71c57bf08",
+      "log_bytes": 129,
+      "started": "2026-10-03T02:41:24.089482+00:00",
+      "finished": "2026-10-03T02:41:24.115997+00:00",
+      "log_tail": [
+        "{\"version\":\"frontend-layout-case-transport-integrated-20261002-subpath\",\"assets\":145,\"wasmBytes\":72353,\"initializerBytes\":96716}"
+      ]
+    }
+  ],
+  "routes": {
+    "root": {
+      "prefix": "/",
+      "site": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/site-root",
+      "asset_count": 145,
+      "actual_file_count": 145,
+      "local_hash_mismatches": [],
+      "extra": [],
+      "missing": [],
+      "escaped": [],
+      "all_asset_hashes": {
+        "index.html": "aa95be5e3231fc0c104e08f6410d276f7fc74de5d6619365d5514c645d9b92d0",
+        "boardstudio_offline_worker.js": "f2c030557ec6aa59908fe487779d88c8e07f0c32f3a860a03c47e3a7baef7d0a",
+        "service-worker.js": "af93a9f08f166b1d1a2c45e32d6f09c4b8a3a8c1a32a7cbf5dbe760f4437090b",
+        "assets/boardstudio-web_bg-dxh7de9c19a53aab4.wasm": "8550024a771a4e6ffb3af9856f5d28d071ffa98463f93a7f4b05a4e44e3f3f55",
+        "assets/boardstudio-web-dxh62d645c5b1a2e8.js": "5c3d356dc10497da280de3c99da6a043fc9bff51d7355b9bcd880f503460f4bf",
+        "assets/firmware-keymap-panel.css": "7707148f27829a3875fff60f487ad9e82184186e934f1ac3a541ec9020b5b04b",
+        "assets/layout-generators.js": "ef239a05e7dad072e709929a57fc1d4ad330107366abf1036e79211ac1a389a0",
+        "assets/m1.css": "096f24e191223580878d00d9a34458b0a54f031b2f1ef4ca357413f8ef756977",
+        "assets/fonts/source-sans-3-upright.woff2": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8",
+        "assets/fonts/source-code-pro-upright.woff2": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792",
+        "assets/fonts/README.md": "ede022134c114a9fb138450a301d10be2d529a033b1cf494feef55ebf0f83783",
+        "assets/layout-generators/provenance.json": "40ff663d08505fe85f489b7f05025cdfe220d083cfc8c466f21a9f5c530d2e3a",
+        "assets/preview-generator/worker.mjs": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+        "assets/preview-generator/kicad.mjs": "373e90ffe7151a7da15280e9ec625f42e7d31fb0ea18f9bfce4068f741cb5b25",
+        "assets/preview-generator/ergogen.mjs": "bc950ed65995456275e3c777c073185fc36b659ac43cd973151cb51a1e8669d2",
+        "assets/preview-generator/catalogue.mjs": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+        "assets/preview-generator/provenance.json": "a91f8ef155cb13a9946c46b168094c254ab198b5c83dcd09c0e4d3f32fe640f1",
+        "assets/ergogen-models/model-abf11f5aa708de06.step": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "assets/ergogen-models/model-dd88db08528e27bb.stp": "e721521543b7d473ca94ea4f72c0cd729670993e7370bc6d66ff6a953b239267",
+        "assets/ergogen-models/model-6579a2cbc962050f.step": "081d32412d8a6d4f5e5e9b61317f8162e508741cd2ff31abf07aa7a007bc7b10",
+        "assets/ergogen-models/model-72eafce764c2c8c8.step": "4713e8888e3da1675c5f7cfddd71d447bad04ad7c8c960cdaf32866e119495a2",
+        "assets/ergogen-models/model-b005ba71dd7f6154.step": "a1ea449c6ac61e84c8acd426518c98f7cda78595ea51861a45752f361d073ebb",
+        "assets/ergogen-models/model-c7513bd290c881d6.step": "9798d2492bcba0423cd8d5e7a970e7a29eed69ed5819ce32d8b91ec8d8717e34",
+        "assets/ergogen-models/model-99935d1e4ab80ae1.step": "669d72c083f226e1f9ee9e9dc8424c18e9641984223ba5422a1235d773a6a9a8",
+        "assets/ergogen-models/model-1fd750d21afd8d90.step": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "assets/ergogen-models/model-59b07f760fe7a533.step": "1e0484f2e1817b790a63b3321b25317e888a8b7b0db1131f737dd59c4b33c10f",
+        "assets/ergogen-models/model-b2616c339413a47a.step": "fb914b387b439bd02d23bf1cc2ba10da460042a1cb012dd754dc92ba81d38f39",
+        "assets/ergogen-models/model-f210401a9363a707.step": "b7bad8be8927df1f75d0080ee41cdd9585a6e428e349fd314da3eb9c9b52ee49",
+        "assets/ergogen-models/model-1974713cb4153226.step": "44a743f8f2af223a451a65d96e4162c97d49c75ba955bd1f0d7e428ce165cbcd",
+        "assets/ergogen-models/model-e61e8858d35d5326.step": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "assets/ergogen-models/model-6f2549d8eeb7617a.step": "150388b930798f1287f90adb7578e2352191ab8f6db5fa2c80dc1fa47b26d23c",
+        "assets/ergogen-models/model-30bbe0514fca7abc.step": "4868c4f92165b5f8d82d41255f9faa490e93db57895259f3045eb1bd3c3e9ded",
+        "assets/ergogen-models/model-0808d5e089f758a9.step": "6a0cdb5042d5bec86879b9a5a4526cadd7d8317a6e453d464aba60d16904d9ae",
+        "assets/ergogen-models/model-2d84f05fbc9d31f2.step": "888d526c5f1b5d74ad14c7130e44edab5b1601eb99ac62b808baa567bf2f1887",
+        "assets/ergogen-models/model-75f9905515585fba.step": "8e7b72c3535e3a39c80ee61b4525c59470ad2a4b3be0a8c0f2013234e31b37e7",
+        "assets/ergogen-models/model-35925f1c2f2ae07f.step": "1685a7ee214eb487be79f34fea42be9cf06a15a0646076254e92d43082921c8c",
+        "assets/ergogen-models/model-787ba7b159c8eb8c.step": "781b7c7a4c4da02dc12ca3c5ab715303eff3859fc3a3a60070c3c3e592649719",
+        "assets/ergogen-models/model-b1e48e04c2f15d6a.step": "9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1",
+        "assets/ergogen-models/model-f17534ee64af486f.step": "28913297e82b1f494260211c6c1f47bdb9121e6b33c851270e38f6960c06e5de",
+        "assets/ergogen-models/model-a649f2d4da1d3f47.step": "b1839f51dbb2ef206c558418a3e3efa020be7080596b1757acebee4ca1bef0ca",
+        "assets/ergogen-models/model-5460d697a34e5739.step": "975e09d47a0a9f58cc539a24ae11acbb05d5548ab2ce309aba8af0a2c51c1b01",
+        "assets/ergogen-models/model-c4bf949f7afbcd78.step": "9d709b7110713abd516c225facc888bbea03fc6fea90c4389cba7699f7032d98",
+        "assets/ergogen-models/model-7bc75efce2b499ae.step": "6530b226f5c9e4e13bbce5696d9efbaa93a64ceb5312a3d3dfe911bd03126fa3",
+        "assets/ergogen-models/model-49225f7a6a90f3e9.step": "c4d4a588c4eed6044441c3f0510e25e991cb13aee4f9702bc98c804d07357da8",
+        "assets/ergogen-models/model-802a5f3b7b30b7d6.step": "f24a00eb2cd78b184456ad0493e0accb3d782317709e087242203ea15fa90557",
+        "assets/ergogen-models/model-60625d978ab9706e.step": "1075a619ac9378e5817975dbadab6bc96c8a197b0040368b115d48ac8f0e0bf0",
+        "assets/ergogen-models/model-8dd813201d3b6c97.step": "ee60af4808791b84723f81aa4e3489cfd3beadcf67de53ef6a94efbb4946148a",
+        "assets/ergogen-models/model-ef20984d35a85882.step": "40d9eafc64f73f8ac97d473def5e0364aded98e35cf5c86f74de5c474b8f0bda",
+        "assets/ergogen-models/model-98692e28c35f6a66.step": "242d2757ad2b93c55c91f03f7a00f76802271c36eeb5df3ab0b2774dcf9f5c17",
+        "assets/ergogen-models/model-9ef8080ce92b404a.step": "feb172578631b76c48a832e94c58b2ffccd73b2d3ae75adb57f4aa1266e97904",
+        "assets/ergogen-models/model-c6b4de3658f8f5f1.step": "8b8d14ee1c33c3376c42eae649f95e19b2ea13c9452e49bd981b74ce7f000b6e",
+        "assets/ergogen-models/model-33e2cb85fa6fd3b1.step": "f9ce942f949487e9f01fd82045e4453ca1e91b0990697f99994f83f224308f05",
+        "assets/ergogen-models/model-fac37f9c22e2bd61.step": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "assets/ergogen-models/model-444f2a171f63ad3d.step": "5e400ef50c97651e6700ebf99ce63cac656825c3ce2f448249dcb6fb5f5aef46",
+        "assets/ergogen-models/model-f4a62286d36e667e.step": "5343f72b9fe095ba999c44c2d42c2045032162dd11066bd4d36865caf3d1fba2",
+        "assets/ergogen-models/model-65351f527d090ca6.step": "88502ca94b12719aef367ebf68ba17d37f02468b0763d5997e70d2b705b609c8",
+        "assets/ergogen-models/model-89448be089197dde.step": "c30e15d8da5c3856f0a5b19ab62f22eef9b06d69161963e77cdf6c0b09a7ac8c",
+        "assets/ergogen-models/model-240e12e26e5ec56f.step": "c65e07a9f21343c3a79efcdc9c439aab14cb7f68bb491c08d95d1fdc007b20e1",
+        "assets/ergogen-models/model-ee32fbf99e115a1b.step": "34b8ead6104d7dfde9212917fbd6f7c9e04e4ad5a64ad45e391f99451a4aaad4",
+        "assets/ergogen-models/model-74991cc98f7c6e8c.step": "1d0ad0687f3fd0cbb745c8f51c709080ebb8a4a69f4221cec473669b4654137c",
+        "assets/ergogen-models/model-dd931656985824ce.stp": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "assets/ergogen-models/model-15676990e2e77131.stl": "173dd44849a52df35cf84bd5f1b7ed112be9e9334fa26531364c7a99690f6b41",
+        "assets/ergogen-models/model-39f9d3ee3defc65b.stp": "081d32412d8a6d4f5e5e9b61317f8162e508741cd2ff31abf07aa7a007bc7b10",
+        "assets/ergogen-models/model-133e416430403684.stl": "cf007a5ced60b58f0b7a94b842accb32555f3e63e33364e455fea786c0fcf59f",
+        "assets/ergogen-models/model-a60c95294dc82f03.stp": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "assets/ergogen-models/model-1ad8c434bee7ce0c.stl": "cbb0e18dccce3973c928819d885e58adf4b1940ee76f91d3a5d993f2a1597a86",
+        "assets/ergogen-models/model-c6a791c74c141ebc.stp": "669d72c083f226e1f9ee9e9dc8424c18e9641984223ba5422a1235d773a6a9a8",
+        "assets/ergogen-models/model-d0d7a5c1c2856da7.stl": "55afc59fed4fed728d28725f2cb5fdab98b4195eea1fc1fe47862f64277f7a41",
+        "assets/ergogen-models/model-ea8e1be2d0137539.step": "0542ee277eeb6988412e0780ae86b23d96fdd118f8242e0bf3224cff7dd7acc4",
+        "assets/ergogen-models/model-bd3dfe48fd09690a.wrl": "99c84a3b99fe565ba7de2cced7b6a3b235cb48a0460b5e44ffad0745c78d0972",
+        "assets/ergogen-models/model-32d905c3628bea71.stp": "6ae146dcff8704aed80e95e8aa4693df567c55ea88027825a98bfcae4b0b92eb",
+        "assets/ergogen-models/model-701061d397d87307.stp": "6cc61fd27e32e4f6fc202b96f26ac1f0e6edb6afce58e36d09a91eac5eeeb71d",
+        "assets/ergogen-models/model-e8cf75da07f551b5.stp": "9ad6b52629349e8ef9a28b6bdc07f5f8f787266d24b025770e9d46c71be1c7c0",
+        "assets/ergogen-models/model-6d5d80c4c3400810.step": "c841576b727e83402939f7efa75149a68e9a9bd1f71e0315ca37b3bbc1a084b5",
+        "assets/ergogen-models/model-423377b8c3e966c5.step": "38e264f27210f9c9e7d4b6ed3effd575e67ebecfe91daee67b169116f1a7fee0",
+        "assets/ergogen-models/model-6e3379ecc5f8661d.step": "b589af7f61b80dfa9fe4cc09064fd67cfa3985e1e7502fc49431fd0f1c806124",
+        "assets/ergogen-models/model-b3d4894560c4e671.step": "57bd00e8cce9a613dab6c6a772c38b9c9e8c5788a193726bfaf21259ceac1a93",
+        "assets/ergogen-models/model-ffbdedb2b829c9c7.step": "fada074dcbd6002573bda3313fae8666b042e4292fa6953b07628b52ae8a6721",
+        "assets/ergogen-models/model-95ef1df1f9fe511f.step": "d843af89bf42dbc1f4d9b0c8252491bba4fd268d5412896ca1610b42a26dea4d",
+        "assets/ergogen-models/model-1b40447332f5b3a1.step": "889acf479c910201a19f966a2db8eddc78979bcebd98e5d6a467baeddce5ea0f",
+        "assets/ergogen-models/model-f1e13e40ec14ec80.step": "205a94ad1adea33c51896170fdd76c41a6a8d38bd7e9aeab30a6734874aedf06",
+        "assets/ergogen-models/model-ccaaa0affa79a09c.step": "c6c84c0464d7ed92994a9b97ace17692be3afde6a70e40231861365bb4e1b44f",
+        "assets/ergogen-models/model-8c264d8c77e357bc.step": "5a6f14a61005b0c85fb9e5f2df0e0a49a64871804f6f29e6545a7472d5d11c60",
+        "assets/ergogen-models/model-8ab343fc5761dadd.step": "7614dacb07ca9d5d2fa471746017330f93e24b8c59cf611c451a6f3306d00efb",
+        "assets/ergogen-models/model-9b6f87c66e70e70b.step": "09dd7624a3b8f556880c3894bb12f8ca051a44a232fd46b3bb00b028b9c3a6b5",
+        "assets/ergogen-models/model-f82282a908e85299.step": "6adc2dadd69b0590ad4fd0a9ff59bc8c3609469e4c9625fbada0c0a7a39830af",
+        "assets/ergogen-models/model-f117564079027662.step": "71d197b0a0a5e5c2114a6882c8a0b0d81c1f9353b5cc8f4b6ef0ffd2e98b5220",
+        "assets/ergogen-models/model-7c6124efe9886b2e.step": "95b5702b6464b91c4446705559665ba4e0b847c9d7aeb77d464d734a51b05035",
+        "assets/ergogen-models/model-9c29d22f0b213985.stl": "46bdc99a714938207f714da97c5838ce1bced94f398853ca4105ac032f7e5a98",
+        "assets/ergogen-models/model-9f20c500d601d014.step": "c5df05cf81a1e4bea1a56c28bef94984beca2ddea3c3a7280071bc9961110bda",
+        "assets/ergogen-models/model-b7dd06bd8032ad37.stl": "3d72509f7268e5042e5c8ce8626469585a1e8037cb1f62a386fe39ed22f5a9b1",
+        "assets/ergogen-models/model-0e97f4f5bccb5a23.step": "a839e845381d485f82997385e07715415e6ea647b6e190e9e01b9c39e2d8b594",
+        "assets/ergogen-models/model-6e3d3b7a6f81093f.step": "92d5f88b10b371ba4108d663f09a9d0fb31789aae59e9bb7ec81fec9286e5b82",
+        "assets/ergogen-models/model-d0f2c5a4f6f777e8.stl": "a6ad53e0943830cd0814f3468c373bb2fce8fa397a09d45d5c68d7f6792fdd44",
+        "assets/ergogen-models/model-1e95755edaa6b175.stl": "359b2ec13d4ee6a5252b5e8ebaaa162254e840dcf0c5d85922a0d6e28a3a3602",
+        "assets/ergogen-models/model-dbff33df922e4496.step": "045808b51863d22a8c3a064827d0401d28fb83f1f6d8d47121bc98dbf3567c9e",
+        "assets/ergogen-models/model-50714c20dcb22ed1.step": "0f450b7b32e31b0c188f87140341ca117b43cfe91d33a3f6ddc8616040500555",
+        "assets/ergogen-models/model-4c60164fa3de356a.stp": "3643ce1269eb16f894533d5697def5b2dbf9b1498cef612a6e7a72dd61b0f238",
+        "assets/ergogen-models/model-efcf28f6cb4a440e.step": "de569b8afc8a919c433d6c22fecb17380da130e3aec72f2c3803eaeefed03933",
+        "assets/ergogen-models/model-878e17d8442c55ac.step": "90cba788b98b336ba2cf8133927b3e1763978315b8313fa449749294bd6a1fec",
+        "assets/ergogen-models/model-5608e022fab26cc4.step": "b68c3659671fb169c1ec18036daa4237a87e3bafae6d029490608920ba9b4537",
+        "assets/ergogen-models/model-fa33027c0a353239.step": "1f45d3e24c83607de7ae1f9a3b122d2afdc454ba5817a6f581ac890dc67ba262",
+        "assets/ergogen-models/model-98acc5fe9c604634.step": "be573eeba862f4cfe074e9294ba07a546392cbb4e9f635e72c5ee43af43fd605",
+        "assets/ergogen-models/model-c60e0fe2462aed93.stp": "870642aebf11045ae2e0022be59ee3efb064d72bfad1ae808fa961941ca9c37f",
+        "assets/ergogen-models/model-8f98e499f0d70ab6.step": "012db17efd7bfbd10b17d9fd304e4d36b960a413b7a3e3cc66eba1832dd02e20",
+        "assets/cad/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/cad/boardstudio_cadrum_wasm.js": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+        "assets/cad/boardstudio_cadrum_wasm.d.ts": "346d955d96c4677239fb0340869964e87eb39159776aad175e56d26f9ecfd3e9",
+        "assets/cad/boardstudio_cadrum_wasm_bg.wasm.d.ts": "4adbcf95ca8e87d962c85990152bd687d10b8855a1349a3aaf86f242832e761d",
+        "assets/cad/boardstudio_cadrum_wasm_bg.wasm": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+        "assets/cad/package.json": "2d2b66395f1ff1286017423fde8fcdb07c82ee7a25f79cf88b44756d5e74d359",
+        "assets/core-worker/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/core-worker/m1_core_worker.js": "7f20fc09fedc4321298487b966648671bd6b41e9787e96027d8a043466ab4a42",
+        "assets/core-worker/m1_core_worker.d.ts": "64c413f850b2988a82cd6c2b409ae1fb4e1e5a778fb89407910a373efc6a9e3e",
+        "assets/core-worker/m1_core_worker_bg.wasm.d.ts": "736230fba096a80ae20eb4e0b80543fdde077253a403ed08aeda735617b85231",
+        "assets/core-worker/m1_core_worker_bg.wasm": "7b659faa20ede648131671b69dfd6ccee162d6e8c43ea126585c11c9f486badf",
+        "assets/core-worker/package.json": "e25932c5a594584bb3f4d37b5b8b21d1c8714c2b2750da74ff5cd7c7e85f80de",
+        "assets/core-worker/entry.js": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd",
+        "assets/cad-worker/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/cad-worker/m1_cad_worker.js": "33d1db380cd80186d3f98ab783ae2ed9d90cfbc67f0bd8b9e5c0e7797752c54d",
+        "assets/cad-worker/m1_cad_worker.d.ts": "a9c3dfa81e69cacbc92dfdeb31dfad915702137a1ce3ef19dc4e755b4e8fe343",
+        "assets/cad-worker/m1_cad_worker_bg.wasm.d.ts": "bb501f2b371f87744e27c101839d07042fb439e74bd7a65e06bf36dba71c0d79",
+        "assets/cad-worker/m1_cad_worker_bg.wasm": "c40f3630e17062d0def30cd0d9eddbd7080cf560c10dd45b0e799bb2b29d3ae3",
+        "assets/cad-worker/package.json": "963f85967843b23868ec829a8bef67f0acc3204dc01ccdc418fde3c049b597ce",
+        "assets/cad-worker/entry.js": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5",
+        "assets/renderer/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/renderer/boardstudio_renderer_wasm.js": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+        "assets/renderer/boardstudio_renderer_wasm.d.ts": "dedc95f6a8dbd4840ce610d5bdc77eb3f65cc9a9ce57a69580240753f25b09c1",
+        "assets/renderer/boardstudio_renderer_wasm_bg.wasm.d.ts": "fd6d34c0e52938f1ae2fef4b01bed1c227c4fa73e96edc9b6888b05b310a4083",
+        "assets/renderer/boardstudio_renderer_wasm_bg.wasm": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+        "assets/renderer/package.json": "f68fa3489e43eee2a86dd3a41f421c9a02a21c6cdc29ebc0e2dd67442e5f1a56",
+        "assets/fixtures/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "assets/fixtures/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "assets/fixtures/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "assets/fixtures/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "assets/fixtures/reviung41.boardstudio": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f",
+        "assets/fixtures/reviung41.json": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae",
+        "assets/fixtures/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "assets/fixtures/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "assets/fixtures/sofle.json": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4",
+        "assets/fixtures/sofle.boardstudio": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899",
+        "assets/fixtures/provenance.json": "63ae786e1e2aff773232fa98d2a693a0e63f837a6a08053bdc8b68a5eb12d9e5",
+        "assets/cad/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932",
+        "assets/layout-generators/src/index.js": "c3f0bce397b188cad56489c865d114d52472d04f55f731689dd8c0b539b72ed9",
+        "assets/layout-generators/generated/catalogue.mjs": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97"
+      },
+      "served": {
+        "index.html": {
+          "url": "http://127.0.0.1:34737/index.html",
+          "status": 200,
+          "bytes": 527,
+          "sha256": "aa95be5e3231fc0c104e08f6410d276f7fc74de5d6619365d5514c645d9b92d0",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/html",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/m1.css": {
+          "url": "http://127.0.0.1:34737/assets/m1.css",
+          "status": 200,
+          "bytes": 86687,
+          "sha256": "096f24e191223580878d00d9a34458b0a54f031b2f1ef4ca357413f8ef756977",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/css",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/firmware-keymap-panel.css": {
+          "url": "http://127.0.0.1:34737/assets/firmware-keymap-panel.css",
+          "status": 200,
+          "bytes": 2414,
+          "sha256": "7707148f27829a3875fff60f487ad9e82184186e934f1ac3a541ec9020b5b04b",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/css",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "service-worker.js": {
+          "url": "http://127.0.0.1:34737/service-worker.js",
+          "status": 200,
+          "bytes": 96692,
+          "sha256": "af93a9f08f166b1d1a2c45e32d6f09c4b8a3a8c1a32a7cbf5dbe760f4437090b",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "boardstudio_offline_worker.js": {
+          "url": "http://127.0.0.1:34737/boardstudio_offline_worker.js",
+          "status": 200,
+          "bytes": 20546,
+          "sha256": "f2c030557ec6aa59908fe487779d88c8e07f0c32f3a860a03c47e3a7baef7d0a",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/core-worker/entry.js": {
+          "url": "http://127.0.0.1:34737/assets/core-worker/entry.js",
+          "status": 200,
+          "bytes": 98,
+          "sha256": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/core-worker/m1_core_worker.js": {
+          "url": "http://127.0.0.1:34737/assets/core-worker/m1_core_worker.js",
+          "status": 200,
+          "bytes": 16940,
+          "sha256": "7f20fc09fedc4321298487b966648671bd6b41e9787e96027d8a043466ab4a42",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/core-worker/m1_core_worker_bg.wasm": {
+          "url": "http://127.0.0.1:34737/assets/core-worker/m1_core_worker_bg.wasm",
+          "status": 200,
+          "bytes": 7496862,
+          "sha256": "7b659faa20ede648131671b69dfd6ccee162d6e8c43ea126585c11c9f486badf",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad-worker/entry.js": {
+          "url": "http://127.0.0.1:34737/assets/cad-worker/entry.js",
+          "status": 200,
+          "bytes": 161,
+          "sha256": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad-worker/m1_cad_worker.js": {
+          "url": "http://127.0.0.1:34737/assets/cad-worker/m1_cad_worker.js",
+          "status": 200,
+          "bytes": 22197,
+          "sha256": "33d1db380cd80186d3f98ab783ae2ed9d90cfbc67f0bd8b9e5c0e7797752c54d",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad-worker/m1_cad_worker_bg.wasm": {
+          "url": "http://127.0.0.1:34737/assets/cad-worker/m1_cad_worker_bg.wasm",
+          "status": 200,
+          "bytes": 6097242,
+          "sha256": "c40f3630e17062d0def30cd0d9eddbd7080cf560c10dd45b0e799bb2b29d3ae3",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad/boardstudio_cadrum_wasm.js": {
+          "url": "http://127.0.0.1:34737/assets/cad/boardstudio_cadrum_wasm.js",
+          "status": 200,
+          "bytes": 26610,
+          "sha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad/boardstudio_cadrum_wasm_bg.wasm": {
+          "url": "http://127.0.0.1:34737/assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+          "status": 200,
+          "bytes": 14518126,
+          "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/renderer/boardstudio_renderer_wasm.js": {
+          "url": "http://127.0.0.1:34737/assets/renderer/boardstudio_renderer_wasm.js",
+          "status": 200,
+          "bytes": 52455,
+          "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/renderer/boardstudio_renderer_wasm_bg.wasm": {
+          "url": "http://127.0.0.1:34737/assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+          "status": 200,
+          "bytes": 858570,
+          "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/layout-generators.js": {
+          "url": "http://127.0.0.1:34737/assets/layout-generators.js",
+          "status": 200,
+          "bytes": 105,
+          "sha256": "ef239a05e7dad072e709929a57fc1d4ad330107366abf1036e79211ac1a389a0",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/preview-generator/worker.mjs": {
+          "url": "http://127.0.0.1:34737/assets/preview-generator/worker.mjs",
+          "status": 200,
+          "bytes": 7798,
+          "sha256": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/preview-generator/catalogue.mjs": {
+          "url": "http://127.0.0.1:34737/assets/preview-generator/catalogue.mjs",
+          "status": 200,
+          "bytes": 487223,
+          "sha256": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/fixtures/sofle.boardstudio": {
+          "url": "http://127.0.0.1:34737/assets/fixtures/sofle.boardstudio",
+          "status": 200,
+          "bytes": 1585714,
+          "sha256": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/octet-stream",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/boardstudio-web-dxh62d645c5b1a2e8.js": {
+          "url": "http://127.0.0.1:34737/assets/boardstudio-web-dxh62d645c5b1a2e8.js",
+          "status": 200,
+          "bytes": 70352,
+          "sha256": "5c3d356dc10497da280de3c99da6a043fc9bff51d7355b9bcd880f503460f4bf",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/boardstudio-web_bg-dxh7de9c19a53aab4.wasm": {
+          "url": "http://127.0.0.1:34737/assets/boardstudio-web_bg-dxh7de9c19a53aab4.wasm",
+          "status": 200,
+          "bytes": 15137705,
+          "sha256": "8550024a771a4e6ffb3af9856f5d28d071ffa98463f93a7f4b05a4e44e3f3f55",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        }
+      },
+      "navigation_index_sha256": "aa95be5e3231fc0c104e08f6410d276f7fc74de5d6619365d5514c645d9b92d0"
+    },
+    "subpath": {
+      "prefix": "/boardstudio/",
+      "site": "/home/chris/.local/share/boardstudio/worktrees/migration-m1-continuation-20261001/web/target/builds/frontend-layout-case-transport-integrated-20261002/site-subpath/boardstudio",
+      "asset_count": 145,
+      "actual_file_count": 145,
+      "local_hash_mismatches": [],
+      "extra": [],
+      "missing": [],
+      "escaped": [],
+      "all_asset_hashes": {
+        "index.html": "421a68c129e83b04d2e5fc7d886b4c834fa6fca7cbb40dafd0193066e47c101d",
+        "boardstudio_offline_worker.js": "f2c030557ec6aa59908fe487779d88c8e07f0c32f3a860a03c47e3a7baef7d0a",
+        "service-worker.js": "c0be42ddd125b5493ca361255eec33dd43103154d33e132e2a4d7d3004b39080",
+        "assets/boardstudio-web_bg-dxh7de9c19a53aab4.wasm": "8550024a771a4e6ffb3af9856f5d28d071ffa98463f93a7f4b05a4e44e3f3f55",
+        "assets/boardstudio-web-dxh4f17cff2211c3f60.js": "43b4eeb5dcee20356855e4c6cd3e4ba21cf8fc41a6f4c37ef51a8bf2cb92976c",
+        "assets/firmware-keymap-panel.css": "7707148f27829a3875fff60f487ad9e82184186e934f1ac3a541ec9020b5b04b",
+        "assets/layout-generators.js": "ef239a05e7dad072e709929a57fc1d4ad330107366abf1036e79211ac1a389a0",
+        "assets/m1.css": "096f24e191223580878d00d9a34458b0a54f031b2f1ef4ca357413f8ef756977",
+        "assets/fonts/source-sans-3-upright.woff2": "5f16566f7a40d39b339ad26be151fa5a1ab1f0c2574c7a2e619765584a1acbd8",
+        "assets/fonts/source-code-pro-upright.woff2": "d95dc751b4d82141259f5c00c9838addaadd3b4eac30dd7db4a0da4921d77792",
+        "assets/fonts/README.md": "ede022134c114a9fb138450a301d10be2d529a033b1cf494feef55ebf0f83783",
+        "assets/layout-generators/provenance.json": "40ff663d08505fe85f489b7f05025cdfe220d083cfc8c466f21a9f5c530d2e3a",
+        "assets/preview-generator/worker.mjs": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+        "assets/preview-generator/kicad.mjs": "373e90ffe7151a7da15280e9ec625f42e7d31fb0ea18f9bfce4068f741cb5b25",
+        "assets/preview-generator/ergogen.mjs": "bc950ed65995456275e3c777c073185fc36b659ac43cd973151cb51a1e8669d2",
+        "assets/preview-generator/catalogue.mjs": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+        "assets/preview-generator/provenance.json": "a91f8ef155cb13a9946c46b168094c254ab198b5c83dcd09c0e4d3f32fe640f1",
+        "assets/ergogen-models/model-abf11f5aa708de06.step": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "assets/ergogen-models/model-dd88db08528e27bb.stp": "e721521543b7d473ca94ea4f72c0cd729670993e7370bc6d66ff6a953b239267",
+        "assets/ergogen-models/model-6579a2cbc962050f.step": "081d32412d8a6d4f5e5e9b61317f8162e508741cd2ff31abf07aa7a007bc7b10",
+        "assets/ergogen-models/model-72eafce764c2c8c8.step": "4713e8888e3da1675c5f7cfddd71d447bad04ad7c8c960cdaf32866e119495a2",
+        "assets/ergogen-models/model-b005ba71dd7f6154.step": "a1ea449c6ac61e84c8acd426518c98f7cda78595ea51861a45752f361d073ebb",
+        "assets/ergogen-models/model-c7513bd290c881d6.step": "9798d2492bcba0423cd8d5e7a970e7a29eed69ed5819ce32d8b91ec8d8717e34",
+        "assets/ergogen-models/model-99935d1e4ab80ae1.step": "669d72c083f226e1f9ee9e9dc8424c18e9641984223ba5422a1235d773a6a9a8",
+        "assets/ergogen-models/model-1fd750d21afd8d90.step": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "assets/ergogen-models/model-59b07f760fe7a533.step": "1e0484f2e1817b790a63b3321b25317e888a8b7b0db1131f737dd59c4b33c10f",
+        "assets/ergogen-models/model-b2616c339413a47a.step": "fb914b387b439bd02d23bf1cc2ba10da460042a1cb012dd754dc92ba81d38f39",
+        "assets/ergogen-models/model-f210401a9363a707.step": "b7bad8be8927df1f75d0080ee41cdd9585a6e428e349fd314da3eb9c9b52ee49",
+        "assets/ergogen-models/model-1974713cb4153226.step": "44a743f8f2af223a451a65d96e4162c97d49c75ba955bd1f0d7e428ce165cbcd",
+        "assets/ergogen-models/model-e61e8858d35d5326.step": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "assets/ergogen-models/model-6f2549d8eeb7617a.step": "150388b930798f1287f90adb7578e2352191ab8f6db5fa2c80dc1fa47b26d23c",
+        "assets/ergogen-models/model-30bbe0514fca7abc.step": "4868c4f92165b5f8d82d41255f9faa490e93db57895259f3045eb1bd3c3e9ded",
+        "assets/ergogen-models/model-0808d5e089f758a9.step": "6a0cdb5042d5bec86879b9a5a4526cadd7d8317a6e453d464aba60d16904d9ae",
+        "assets/ergogen-models/model-2d84f05fbc9d31f2.step": "888d526c5f1b5d74ad14c7130e44edab5b1601eb99ac62b808baa567bf2f1887",
+        "assets/ergogen-models/model-75f9905515585fba.step": "8e7b72c3535e3a39c80ee61b4525c59470ad2a4b3be0a8c0f2013234e31b37e7",
+        "assets/ergogen-models/model-35925f1c2f2ae07f.step": "1685a7ee214eb487be79f34fea42be9cf06a15a0646076254e92d43082921c8c",
+        "assets/ergogen-models/model-787ba7b159c8eb8c.step": "781b7c7a4c4da02dc12ca3c5ab715303eff3859fc3a3a60070c3c3e592649719",
+        "assets/ergogen-models/model-b1e48e04c2f15d6a.step": "9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1",
+        "assets/ergogen-models/model-f17534ee64af486f.step": "28913297e82b1f494260211c6c1f47bdb9121e6b33c851270e38f6960c06e5de",
+        "assets/ergogen-models/model-a649f2d4da1d3f47.step": "b1839f51dbb2ef206c558418a3e3efa020be7080596b1757acebee4ca1bef0ca",
+        "assets/ergogen-models/model-5460d697a34e5739.step": "975e09d47a0a9f58cc539a24ae11acbb05d5548ab2ce309aba8af0a2c51c1b01",
+        "assets/ergogen-models/model-c4bf949f7afbcd78.step": "9d709b7110713abd516c225facc888bbea03fc6fea90c4389cba7699f7032d98",
+        "assets/ergogen-models/model-7bc75efce2b499ae.step": "6530b226f5c9e4e13bbce5696d9efbaa93a64ceb5312a3d3dfe911bd03126fa3",
+        "assets/ergogen-models/model-49225f7a6a90f3e9.step": "c4d4a588c4eed6044441c3f0510e25e991cb13aee4f9702bc98c804d07357da8",
+        "assets/ergogen-models/model-802a5f3b7b30b7d6.step": "f24a00eb2cd78b184456ad0493e0accb3d782317709e087242203ea15fa90557",
+        "assets/ergogen-models/model-60625d978ab9706e.step": "1075a619ac9378e5817975dbadab6bc96c8a197b0040368b115d48ac8f0e0bf0",
+        "assets/ergogen-models/model-8dd813201d3b6c97.step": "ee60af4808791b84723f81aa4e3489cfd3beadcf67de53ef6a94efbb4946148a",
+        "assets/ergogen-models/model-ef20984d35a85882.step": "40d9eafc64f73f8ac97d473def5e0364aded98e35cf5c86f74de5c474b8f0bda",
+        "assets/ergogen-models/model-98692e28c35f6a66.step": "242d2757ad2b93c55c91f03f7a00f76802271c36eeb5df3ab0b2774dcf9f5c17",
+        "assets/ergogen-models/model-9ef8080ce92b404a.step": "feb172578631b76c48a832e94c58b2ffccd73b2d3ae75adb57f4aa1266e97904",
+        "assets/ergogen-models/model-c6b4de3658f8f5f1.step": "8b8d14ee1c33c3376c42eae649f95e19b2ea13c9452e49bd981b74ce7f000b6e",
+        "assets/ergogen-models/model-33e2cb85fa6fd3b1.step": "f9ce942f949487e9f01fd82045e4453ca1e91b0990697f99994f83f224308f05",
+        "assets/ergogen-models/model-fac37f9c22e2bd61.step": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "assets/ergogen-models/model-444f2a171f63ad3d.step": "5e400ef50c97651e6700ebf99ce63cac656825c3ce2f448249dcb6fb5f5aef46",
+        "assets/ergogen-models/model-f4a62286d36e667e.step": "5343f72b9fe095ba999c44c2d42c2045032162dd11066bd4d36865caf3d1fba2",
+        "assets/ergogen-models/model-65351f527d090ca6.step": "88502ca94b12719aef367ebf68ba17d37f02468b0763d5997e70d2b705b609c8",
+        "assets/ergogen-models/model-89448be089197dde.step": "c30e15d8da5c3856f0a5b19ab62f22eef9b06d69161963e77cdf6c0b09a7ac8c",
+        "assets/ergogen-models/model-240e12e26e5ec56f.step": "c65e07a9f21343c3a79efcdc9c439aab14cb7f68bb491c08d95d1fdc007b20e1",
+        "assets/ergogen-models/model-ee32fbf99e115a1b.step": "34b8ead6104d7dfde9212917fbd6f7c9e04e4ad5a64ad45e391f99451a4aaad4",
+        "assets/ergogen-models/model-74991cc98f7c6e8c.step": "1d0ad0687f3fd0cbb745c8f51c709080ebb8a4a69f4221cec473669b4654137c",
+        "assets/ergogen-models/model-dd931656985824ce.stp": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "assets/ergogen-models/model-15676990e2e77131.stl": "173dd44849a52df35cf84bd5f1b7ed112be9e9334fa26531364c7a99690f6b41",
+        "assets/ergogen-models/model-39f9d3ee3defc65b.stp": "081d32412d8a6d4f5e5e9b61317f8162e508741cd2ff31abf07aa7a007bc7b10",
+        "assets/ergogen-models/model-133e416430403684.stl": "cf007a5ced60b58f0b7a94b842accb32555f3e63e33364e455fea786c0fcf59f",
+        "assets/ergogen-models/model-a60c95294dc82f03.stp": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "assets/ergogen-models/model-1ad8c434bee7ce0c.stl": "cbb0e18dccce3973c928819d885e58adf4b1940ee76f91d3a5d993f2a1597a86",
+        "assets/ergogen-models/model-c6a791c74c141ebc.stp": "669d72c083f226e1f9ee9e9dc8424c18e9641984223ba5422a1235d773a6a9a8",
+        "assets/ergogen-models/model-d0d7a5c1c2856da7.stl": "55afc59fed4fed728d28725f2cb5fdab98b4195eea1fc1fe47862f64277f7a41",
+        "assets/ergogen-models/model-ea8e1be2d0137539.step": "0542ee277eeb6988412e0780ae86b23d96fdd118f8242e0bf3224cff7dd7acc4",
+        "assets/ergogen-models/model-bd3dfe48fd09690a.wrl": "99c84a3b99fe565ba7de2cced7b6a3b235cb48a0460b5e44ffad0745c78d0972",
+        "assets/ergogen-models/model-32d905c3628bea71.stp": "6ae146dcff8704aed80e95e8aa4693df567c55ea88027825a98bfcae4b0b92eb",
+        "assets/ergogen-models/model-701061d397d87307.stp": "6cc61fd27e32e4f6fc202b96f26ac1f0e6edb6afce58e36d09a91eac5eeeb71d",
+        "assets/ergogen-models/model-e8cf75da07f551b5.stp": "9ad6b52629349e8ef9a28b6bdc07f5f8f787266d24b025770e9d46c71be1c7c0",
+        "assets/ergogen-models/model-6d5d80c4c3400810.step": "c841576b727e83402939f7efa75149a68e9a9bd1f71e0315ca37b3bbc1a084b5",
+        "assets/ergogen-models/model-423377b8c3e966c5.step": "38e264f27210f9c9e7d4b6ed3effd575e67ebecfe91daee67b169116f1a7fee0",
+        "assets/ergogen-models/model-6e3379ecc5f8661d.step": "b589af7f61b80dfa9fe4cc09064fd67cfa3985e1e7502fc49431fd0f1c806124",
+        "assets/ergogen-models/model-b3d4894560c4e671.step": "57bd00e8cce9a613dab6c6a772c38b9c9e8c5788a193726bfaf21259ceac1a93",
+        "assets/ergogen-models/model-ffbdedb2b829c9c7.step": "fada074dcbd6002573bda3313fae8666b042e4292fa6953b07628b52ae8a6721",
+        "assets/ergogen-models/model-95ef1df1f9fe511f.step": "d843af89bf42dbc1f4d9b0c8252491bba4fd268d5412896ca1610b42a26dea4d",
+        "assets/ergogen-models/model-1b40447332f5b3a1.step": "889acf479c910201a19f966a2db8eddc78979bcebd98e5d6a467baeddce5ea0f",
+        "assets/ergogen-models/model-f1e13e40ec14ec80.step": "205a94ad1adea33c51896170fdd76c41a6a8d38bd7e9aeab30a6734874aedf06",
+        "assets/ergogen-models/model-ccaaa0affa79a09c.step": "c6c84c0464d7ed92994a9b97ace17692be3afde6a70e40231861365bb4e1b44f",
+        "assets/ergogen-models/model-8c264d8c77e357bc.step": "5a6f14a61005b0c85fb9e5f2df0e0a49a64871804f6f29e6545a7472d5d11c60",
+        "assets/ergogen-models/model-8ab343fc5761dadd.step": "7614dacb07ca9d5d2fa471746017330f93e24b8c59cf611c451a6f3306d00efb",
+        "assets/ergogen-models/model-9b6f87c66e70e70b.step": "09dd7624a3b8f556880c3894bb12f8ca051a44a232fd46b3bb00b028b9c3a6b5",
+        "assets/ergogen-models/model-f82282a908e85299.step": "6adc2dadd69b0590ad4fd0a9ff59bc8c3609469e4c9625fbada0c0a7a39830af",
+        "assets/ergogen-models/model-f117564079027662.step": "71d197b0a0a5e5c2114a6882c8a0b0d81c1f9353b5cc8f4b6ef0ffd2e98b5220",
+        "assets/ergogen-models/model-7c6124efe9886b2e.step": "95b5702b6464b91c4446705559665ba4e0b847c9d7aeb77d464d734a51b05035",
+        "assets/ergogen-models/model-9c29d22f0b213985.stl": "46bdc99a714938207f714da97c5838ce1bced94f398853ca4105ac032f7e5a98",
+        "assets/ergogen-models/model-9f20c500d601d014.step": "c5df05cf81a1e4bea1a56c28bef94984beca2ddea3c3a7280071bc9961110bda",
+        "assets/ergogen-models/model-b7dd06bd8032ad37.stl": "3d72509f7268e5042e5c8ce8626469585a1e8037cb1f62a386fe39ed22f5a9b1",
+        "assets/ergogen-models/model-0e97f4f5bccb5a23.step": "a839e845381d485f82997385e07715415e6ea647b6e190e9e01b9c39e2d8b594",
+        "assets/ergogen-models/model-6e3d3b7a6f81093f.step": "92d5f88b10b371ba4108d663f09a9d0fb31789aae59e9bb7ec81fec9286e5b82",
+        "assets/ergogen-models/model-d0f2c5a4f6f777e8.stl": "a6ad53e0943830cd0814f3468c373bb2fce8fa397a09d45d5c68d7f6792fdd44",
+        "assets/ergogen-models/model-1e95755edaa6b175.stl": "359b2ec13d4ee6a5252b5e8ebaaa162254e840dcf0c5d85922a0d6e28a3a3602",
+        "assets/ergogen-models/model-dbff33df922e4496.step": "045808b51863d22a8c3a064827d0401d28fb83f1f6d8d47121bc98dbf3567c9e",
+        "assets/ergogen-models/model-50714c20dcb22ed1.step": "0f450b7b32e31b0c188f87140341ca117b43cfe91d33a3f6ddc8616040500555",
+        "assets/ergogen-models/model-4c60164fa3de356a.stp": "3643ce1269eb16f894533d5697def5b2dbf9b1498cef612a6e7a72dd61b0f238",
+        "assets/ergogen-models/model-efcf28f6cb4a440e.step": "de569b8afc8a919c433d6c22fecb17380da130e3aec72f2c3803eaeefed03933",
+        "assets/ergogen-models/model-878e17d8442c55ac.step": "90cba788b98b336ba2cf8133927b3e1763978315b8313fa449749294bd6a1fec",
+        "assets/ergogen-models/model-5608e022fab26cc4.step": "b68c3659671fb169c1ec18036daa4237a87e3bafae6d029490608920ba9b4537",
+        "assets/ergogen-models/model-fa33027c0a353239.step": "1f45d3e24c83607de7ae1f9a3b122d2afdc454ba5817a6f581ac890dc67ba262",
+        "assets/ergogen-models/model-98acc5fe9c604634.step": "be573eeba862f4cfe074e9294ba07a546392cbb4e9f635e72c5ee43af43fd605",
+        "assets/ergogen-models/model-c60e0fe2462aed93.stp": "870642aebf11045ae2e0022be59ee3efb064d72bfad1ae808fa961941ca9c37f",
+        "assets/ergogen-models/model-8f98e499f0d70ab6.step": "012db17efd7bfbd10b17d9fd304e4d36b960a413b7a3e3cc66eba1832dd02e20",
+        "assets/cad/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/cad/boardstudio_cadrum_wasm.js": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+        "assets/cad/boardstudio_cadrum_wasm.d.ts": "346d955d96c4677239fb0340869964e87eb39159776aad175e56d26f9ecfd3e9",
+        "assets/cad/boardstudio_cadrum_wasm_bg.wasm.d.ts": "4adbcf95ca8e87d962c85990152bd687d10b8855a1349a3aaf86f242832e761d",
+        "assets/cad/boardstudio_cadrum_wasm_bg.wasm": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+        "assets/cad/package.json": "2d2b66395f1ff1286017423fde8fcdb07c82ee7a25f79cf88b44756d5e74d359",
+        "assets/core-worker/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/core-worker/m1_core_worker.js": "7f20fc09fedc4321298487b966648671bd6b41e9787e96027d8a043466ab4a42",
+        "assets/core-worker/m1_core_worker.d.ts": "64c413f850b2988a82cd6c2b409ae1fb4e1e5a778fb89407910a373efc6a9e3e",
+        "assets/core-worker/m1_core_worker_bg.wasm.d.ts": "736230fba096a80ae20eb4e0b80543fdde077253a403ed08aeda735617b85231",
+        "assets/core-worker/m1_core_worker_bg.wasm": "7b659faa20ede648131671b69dfd6ccee162d6e8c43ea126585c11c9f486badf",
+        "assets/core-worker/package.json": "e25932c5a594584bb3f4d37b5b8b21d1c8714c2b2750da74ff5cd7c7e85f80de",
+        "assets/core-worker/entry.js": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd",
+        "assets/cad-worker/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/cad-worker/m1_cad_worker.js": "33d1db380cd80186d3f98ab783ae2ed9d90cfbc67f0bd8b9e5c0e7797752c54d",
+        "assets/cad-worker/m1_cad_worker.d.ts": "a9c3dfa81e69cacbc92dfdeb31dfad915702137a1ce3ef19dc4e755b4e8fe343",
+        "assets/cad-worker/m1_cad_worker_bg.wasm.d.ts": "bb501f2b371f87744e27c101839d07042fb439e74bd7a65e06bf36dba71c0d79",
+        "assets/cad-worker/m1_cad_worker_bg.wasm": "c40f3630e17062d0def30cd0d9eddbd7080cf560c10dd45b0e799bb2b29d3ae3",
+        "assets/cad-worker/package.json": "963f85967843b23868ec829a8bef67f0acc3204dc01ccdc418fde3c049b597ce",
+        "assets/cad-worker/entry.js": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5",
+        "assets/renderer/.gitignore": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+        "assets/renderer/boardstudio_renderer_wasm.js": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+        "assets/renderer/boardstudio_renderer_wasm.d.ts": "dedc95f6a8dbd4840ce610d5bdc77eb3f65cc9a9ce57a69580240753f25b09c1",
+        "assets/renderer/boardstudio_renderer_wasm_bg.wasm.d.ts": "fd6d34c0e52938f1ae2fef4b01bed1c227c4fa73e96edc9b6888b05b310a4083",
+        "assets/renderer/boardstudio_renderer_wasm_bg.wasm": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+        "assets/renderer/package.json": "f68fa3489e43eee2a86dd3a41f421c9a02a21c6cdc29ebc0e2dd67442e5f1a56",
+        "assets/fixtures/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f": "77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f",
+        "assets/fixtures/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b": "31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b",
+        "assets/fixtures/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4": "ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4",
+        "assets/fixtures/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722": "abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722",
+        "assets/fixtures/reviung41.boardstudio": "672d5f581e65bf74b9a5df336f734167bba7642865fa7a0dfa12a96347d64a8f",
+        "assets/fixtures/reviung41.json": "b577dd2009fffbf00489cc8d0f2ccc088861f62a7f30af42470d35c11534bdae",
+        "assets/fixtures/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3": "42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3",
+        "assets/fixtures/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e": "54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e",
+        "assets/fixtures/sofle.json": "800080b686e449d3e14490e3f176a3c069d0d4d0f50e3e25a94440f6201f64e4",
+        "assets/fixtures/sofle.boardstudio": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899",
+        "assets/fixtures/provenance.json": "63ae786e1e2aff773232fa98d2a693a0e63f837a6a08053bdc8b68a5eb12d9e5",
+        "assets/cad/snippets/boardstudio-cadrum-wasm-c22f079619afbc62/inline0.js": "661584a97cb333140706471e99a16bf75c2cdaf43977dc2cf4c88fd35342d932",
+        "assets/layout-generators/src/index.js": "c3f0bce397b188cad56489c865d114d52472d04f55f731689dd8c0b539b72ed9",
+        "assets/layout-generators/generated/catalogue.mjs": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97"
+      },
+      "served": {
+        "index.html": {
+          "url": "http://127.0.0.1:34737/boardstudio/index.html",
+          "status": 200,
+          "bytes": 551,
+          "sha256": "421a68c129e83b04d2e5fc7d886b4c834fa6fca7cbb40dafd0193066e47c101d",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/html",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/m1.css": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/m1.css",
+          "status": 200,
+          "bytes": 86687,
+          "sha256": "096f24e191223580878d00d9a34458b0a54f031b2f1ef4ca357413f8ef756977",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/css",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/firmware-keymap-panel.css": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/firmware-keymap-panel.css",
+          "status": 200,
+          "bytes": 2414,
+          "sha256": "7707148f27829a3875fff60f487ad9e82184186e934f1ac3a541ec9020b5b04b",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/css",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "service-worker.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/service-worker.js",
+          "status": 200,
+          "bytes": 96716,
+          "sha256": "c0be42ddd125b5493ca361255eec33dd43103154d33e132e2a4d7d3004b39080",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "boardstudio_offline_worker.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/boardstudio_offline_worker.js",
+          "status": 200,
+          "bytes": 20546,
+          "sha256": "f2c030557ec6aa59908fe487779d88c8e07f0c32f3a860a03c47e3a7baef7d0a",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/core-worker/entry.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/core-worker/entry.js",
+          "status": 200,
+          "bytes": 98,
+          "sha256": "00a8f8e06887aa81abf42b35cf6fd63e52df858c39dd0aedb54ad04b69339ddd",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/core-worker/m1_core_worker.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/core-worker/m1_core_worker.js",
+          "status": 200,
+          "bytes": 16940,
+          "sha256": "7f20fc09fedc4321298487b966648671bd6b41e9787e96027d8a043466ab4a42",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/core-worker/m1_core_worker_bg.wasm": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/core-worker/m1_core_worker_bg.wasm",
+          "status": 200,
+          "bytes": 7496862,
+          "sha256": "7b659faa20ede648131671b69dfd6ccee162d6e8c43ea126585c11c9f486badf",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad-worker/entry.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/cad-worker/entry.js",
+          "status": 200,
+          "bytes": 161,
+          "sha256": "3181c108d304f69f5766f75f283cbf933e593714d9dfcfa8a37b537be2be20b5",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad-worker/m1_cad_worker.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/cad-worker/m1_cad_worker.js",
+          "status": 200,
+          "bytes": 22197,
+          "sha256": "33d1db380cd80186d3f98ab783ae2ed9d90cfbc67f0bd8b9e5c0e7797752c54d",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad-worker/m1_cad_worker_bg.wasm": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/cad-worker/m1_cad_worker_bg.wasm",
+          "status": 200,
+          "bytes": 6097242,
+          "sha256": "c40f3630e17062d0def30cd0d9eddbd7080cf560c10dd45b0e799bb2b29d3ae3",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad/boardstudio_cadrum_wasm.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/cad/boardstudio_cadrum_wasm.js",
+          "status": 200,
+          "bytes": 26610,
+          "sha256": "60f0f79a3647787f4d570c8f68cc491714d4f65d26961c6de410f34c75d2d03e",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/cad/boardstudio_cadrum_wasm_bg.wasm": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+          "status": 200,
+          "bytes": 14518126,
+          "sha256": "408f80e7dfafcb0fedac20ad7bcc41b1f7cac399cac3f2f1413b8e5788338719",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/renderer/boardstudio_renderer_wasm.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/renderer/boardstudio_renderer_wasm.js",
+          "status": 200,
+          "bytes": 52455,
+          "sha256": "2131b4d8e23929e24e5f533f1cb86264e39ef7532d0dc4fee494bce65e0cc6fc",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/renderer/boardstudio_renderer_wasm_bg.wasm": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/renderer/boardstudio_renderer_wasm_bg.wasm",
+          "status": 200,
+          "bytes": 858570,
+          "sha256": "f406725700e66afc3859e706d15726dd53bfcb10b1c50a15dff3f41212da17a8",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/layout-generators.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/layout-generators.js",
+          "status": 200,
+          "bytes": 105,
+          "sha256": "ef239a05e7dad072e709929a57fc1d4ad330107366abf1036e79211ac1a389a0",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/preview-generator/worker.mjs": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/preview-generator/worker.mjs",
+          "status": 200,
+          "bytes": 7798,
+          "sha256": "4408ed0e0b3f3d70f4650134576613514c3b8358926ced771dd890a896ba98fb",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/preview-generator/catalogue.mjs": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/preview-generator/catalogue.mjs",
+          "status": 200,
+          "bytes": 487223,
+          "sha256": "3acdf3c1000658409c0f288eb338668aa9783a0688c3a37ba91a7b0120ec2b97",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/fixtures/sofle.boardstudio": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/fixtures/sofle.boardstudio",
+          "status": 200,
+          "bytes": 1585714,
+          "sha256": "0e1e06beabfce1c5a2d6bfc472c85ed281435ff2382174b32f9a2bd3d6d58899",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/octet-stream",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/boardstudio-web-dxh4f17cff2211c3f60.js": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/boardstudio-web-dxh4f17cff2211c3f60.js",
+          "status": 200,
+          "bytes": 70362,
+          "sha256": "43b4eeb5dcee20356855e4c6cd3e4ba21cf8fc41a6f4c37ef51a8bf2cb92976c",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "text/javascript",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        },
+        "assets/boardstudio-web_bg-dxh7de9c19a53aab4.wasm": {
+          "url": "http://127.0.0.1:34737/boardstudio/assets/boardstudio-web_bg-dxh7de9c19a53aab4.wasm",
+          "status": 200,
+          "bytes": 15137705,
+          "sha256": "8550024a771a4e6ffb3af9856f5d28d071ffa98463f93a7f4b05a4e44e3f3f55",
+          "equals_package": true,
+          "headers": {
+            "Content-Type": "application/wasm",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": null
+          }
+        }
+      },
+      "navigation_index_sha256": "421a68c129e83b04d2e5fc7d886b4c834fa6fca7cbb40dafd0193066e47c101d"
+    }
+  },
+  "errors": [],
+  "route_workers_distinct": true,
+  "offline_manifests": {
+    "root": {
+      "sha256": "96171dc29983191a1f2ccd1b392605ed5ecd4cef9d54f9afd2114f4089b4c49b",
+      "version": "frontend-layout-case-transport-integrated-20261002-root",
+      "asset_count": 145,
+      "equals_package_inventory": true
+    },
+    "subpath": {
+      "sha256": "02e749a97a693b0e99f33d72a00acec600634cff6e929dbf215b43ed4ccff353",
+      "version": "frontend-layout-case-transport-integrated-20261002-subpath",
+      "asset_count": 145,
+      "equals_package_inventory": true
+    }
+  },
+  "case11_repair_is_in_build_ancestry": false
+}

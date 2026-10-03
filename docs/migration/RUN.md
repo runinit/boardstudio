@@ -1,6 +1,6 @@
 # BoardStudio milestone continuation
 
-Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). The served comparison is still [Dioxus 34736](http://127.0.0.1:34736/); a full package of the integrated Layout layer controls and Case wireless-selection repair is building from `b9e74e37`. Combined strict WASM checks passed. This package has no served or paired-browser acceptance yet. All 62 parents and RF-001–RF-015 remain tracked; older checkpoints below are retained history.
+Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json). The served comparison is [Dioxus 34737](http://127.0.0.1:34737/) from `b9e74e37`, including integrated Layout model-layer controls and Case wireless-selection repair. Full build, strict WASM checks and independent source/package checks passed. Fresh Case wireless edit/Undo/Redo/durable-reload agrees with the same-fixture React journey. Broader visual and workbench gates remain open. All 62 parents and RF-001–RF-015 remain tracked; older checkpoints below are retained history.
 
 ## Active checkpoint — 2026-10-02, combined source freeze
 
