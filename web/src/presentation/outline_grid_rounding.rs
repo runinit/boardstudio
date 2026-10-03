@@ -10,7 +10,7 @@ fn javascript_round(value: f64) -> f64 {
     }
 }
 
-fn rounded(value: f64) -> f64 {
+pub(super) fn rounded(value: f64) -> f64 {
     (value * 1_000_000.0).round() / 1_000_000.0
 }
 

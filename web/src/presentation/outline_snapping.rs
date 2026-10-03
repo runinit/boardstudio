@@ -2,6 +2,7 @@
 use boardstudio_core::model::Vec2;
 #[path = "outline_grid_rounding.rs"]
 mod grid_rounding;
+use grid_rounding::{rounded, snap_to_grid};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Guide {
@@ -154,7 +155,7 @@ pub(super) fn snap_outline_point(
             guides: Vec::new(),
         };
     }
-    let mut at = grid_rounding::snap_to_grid(point, options.grid);
+    let mut at = snap_to_grid(point, options.grid);
     if !options.enabled {
         return Snap {
             at,
