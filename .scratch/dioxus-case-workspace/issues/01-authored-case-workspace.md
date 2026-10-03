@@ -21,3 +21,5 @@
 **Parent graph:** Canonical F7.2 `Start after: INT.1` (satisfied by accepted T1-01); `Acceptance joins: none`. It does not wait for F7.1, F5, F3, F4 or F6. F7.7 keeps the selected physical-instance Case projection and F5.6 join; F7.6 keeps preview/generation/export; F7.4 keeps the generated mechanical configuration editor. This child covers F7.2 authored body presentation/editing. F7.4 supplies mechanical configuration/disable behavior; its existing acceptance join to INT.2 and every other parent dependency stay unchanged. The canonical 62-task graph is unchanged.
 
 **Suggested routing:** Luna Medium author/verifier; batch-eligible Astra review with other low-risk, independently owned UI slices.
+
+**Current reconciliation:** [F7.2 bounded receipt and criterion map](../evidence/issue-01-authored-case-reconciliation-20261003/public-crud-and-mismatch-receipt.md). Retain the listed partial/open criteria and confirmed Escape difference; this does not close the child or parent acceptance.
