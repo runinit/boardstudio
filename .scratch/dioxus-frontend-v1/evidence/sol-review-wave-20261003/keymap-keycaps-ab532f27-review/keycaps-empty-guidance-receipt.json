@@ -1,0 +1,32 @@
+{
+  "candidate_url": "http://127.0.0.1:34751/",
+  "candidate_source": "ab532f275cb14385db3e4e52e5adcb5fb7c3ee18",
+  "candidate_provenance_sha256": "2b1947a952f895dcee23c795cd99f41366245e6189a7be50a515df4e068053f5",
+  "reference_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "reference_screenshot": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/keycaps-empty-state/react-empty-keycaps.png",
+  "reference_screenshot_sha256": "22d978f1bd2d09378a567db92124ea2d663402ca3b7fcf2fdd94ed3f1b8c1d82",
+  "session": "pcb-empty-guidance-review-20261003",
+  "profile": "/home/chris/.local/share/boardstudio/reviews/pcb-ctrl-repair-20261003/keycaps-empty-profile",
+  "viewport": {
+    "width": 1280,
+    "height": 577
+  },
+  "fixture_recipe": [
+    "fresh isolated profile",
+    "New project from chooser",
+    "Keycaps tab"
+  ],
+  "empty_message": "Add switches in Layout to create a keymap.",
+  "assigned_count": "0/0 assigned",
+  "key_options": [
+    {
+      "value": "",
+      "label": "Choose on the layout\u2026"
+    }
+  ],
+  "export_keycap_STEP_disabled": true,
+  "footer": "Untitled keyboard \u00b7 Revision 0 \u00b7 Saved100%",
+  "screenshot": "dioxus-empty-keycaps.png",
+  "screenshot_sha256": "7418b7152f509010a3f12dd75800481f8398c4577d2f00a9ea5ca0672e65a956",
+  "result": "GREEN for accepted empty Keycaps guidance; existing pinned React screenshot reused; no full F6C.1 acceptance claimed"
+}
