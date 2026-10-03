@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:49:50.921391+00:00",
+    "updated_at": "2026-10-03T10:50:09.612866+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
@@ -1297,7 +1297,7 @@
     },
     "integration": {
       "source_commit": "65d49442",
-      "state": "Shared header/footer/empty-action/Case corrections and mounted Export route joined. Combined strict page check repairing actual compile/lint failures; next frozen candidate34763.34762 stays served.",
+      "state": "Joined UI/Export corrections pass strict page WASM all-target Clippy17.97s at65d49442; no new tests or test execution. Frozen package34763 starts next.34762 retained.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1646,6 +1646,13 @@
         "build_id": "frontend-parts-generator-pcb-context-keymap-inspector-20261003",
         "baseline": "frontend-fit-step-outline-repair-20261003",
         "reason": "Guarded page-only candidate; no reuse guard bypass and no source build yet."
+      },
+      "next_candidate_check": {
+        "source_commit": "65d49442",
+        "strict_page_all_targets": "PASS17.97s",
+        "new_tests": 0,
+        "tests_executed": 0,
+        "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/frontend-ui-corrections-export-combined-clippy-final.log"
       }
     },
     "journeys": [
@@ -1898,7 +1905,7 @@
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Combined strict page all-target check assigned cached case-current-result-status-repair target; package next on the same slot.",
+      "root_target": "Single frozen UI/Export package assigned; no agent heavy job assigned.",
       "secondary_target": "No agent compiler assigned.",
       "dispatch": "Max2heavyjobs/1package; ordinaryUI nonewtests; changedjourneys only."
     },
