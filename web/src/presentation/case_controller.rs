@@ -39,9 +39,6 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
     let body_edit_dispatch = use_hook({
         let runtime = runtime.clone();
         move || {
-            let mut request_sequence = request_sequence;
-            let mut pending = pending;
-            let mut feedback = feedback;
             let portal = body_edit_portal;
             let runtime = runtime.clone();
             let dispatch = Rc::new(
@@ -49,6 +46,9 @@ pub(super) fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) 
                       scope: boardstudio_application::Scope,
                       snapshot_token: boardstudio_application::SnapshotToken,
                       revision: u64| {
+                    let mut request_sequence = request_sequence;
+                    let mut pending = pending;
+                    let mut feedback = feedback;
                     if !(portal.editable)() {
                         return;
                     }

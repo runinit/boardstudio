@@ -607,7 +607,7 @@ fn handle_case_gesture(
         preview,
         feedback_field,
         message,
-        mut selection,
+        selection,
     } = context;
     let identity_current = scene.exact
         && scene.scope == identity.scope
