@@ -10,7 +10,10 @@ Pinned React source is `5a472a9426e6e38993361da402cd4ec730feb369`, principally `
 
 The workflow resolves selected-board wiring, rejects full-mode errors, commits wiring only when the accepted document does not already contain that exact generated plan, adopts the accepted result into the same operation, and resolves the plan again. It then captures board-used model bindings and contours, asks existing Core `PrepareExport`/`FinishExport` for the board, runs only Core-issued Ergogen jobs through the existing preview-generator, resolves each physical population, and packs the nested board and handoff archives through Core. Electrical handoff protection occurs only after both archives succeed. The final download is guarded by the original export owner, current accepted lineage, scope, Session executor epoch and Core worker identity.
 
-The export's accepted mutations use the application Session `Event::ExportCommit` path with `ExportCommitRequest::{ApplyElectrical, ProtectElectricalHandoff}`. Runtime submits each child mutation with the active export ID, captured token and scope. Session validates owner and revision, sends it through the normal Core queue, carries the owner through persistence, and advances only that matching export's accepted-snapshot token after a successful save. Unrelated commits and scope changes still cancel the export. Runtime adopts the accepted apply result, resolves against it again, packages, then protects only after package success; the final artifact and `ExportFinished` use the post-protection token. See the exact symbol/source map and remaining evidence limits in [BND.2 reconciliation](../evidence/planning/boundary-gaps.md#session-owned-export-commits-implemented-path-and-remaining-proof). No second document authority, writer, generator, archive worker or Core request protocol is introduced.
+The export uses the existing Session/Core/persistence/history owners. The exact API,
+accepted-token transitions and remaining proof are indexed once in
+[BND.2 source reconciliation](../evidence/planning/boundary-gaps.md#session-owned-export-commits-implemented-path-and-remaining-proof).
+
 
 ## Acceptance for this child
 
