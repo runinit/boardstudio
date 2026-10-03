@@ -1,0 +1,63 @@
+{
+  "source": "fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d",
+  "owned_scope": [
+    "PCB156f41e19b872a50f414e93407308f2b91164a30 ten module rows/geometry/markers",
+    "CaseResetb1f143401b0a1492d221c43e2628880e4a9c8acc"
+  ],
+  "source_sha256": {
+    "web/src/presentation/pcb_module_footprints.rs": "05ef3ebdae71b467bcda4568372ba5166865f171534da45061313b1b145f8812",
+    "web/src/presentation/pcb_scene.rs": "33eb69fe90b352d3218b25b33da485bba8ce5347efeb9a2e930a20e8f647c606",
+    "web/src/presentation/pcb_layers.rs": "7eeeccd8b1fb668b079bc271a2f88d84c7b02e1a80f2f3abb9357e1371a2f70a",
+    "web/src/presentation/canvas_layers.rs": "2b5964c36a31fbd294109e3f1d4761ef4f86661b799ad8524b5f6dbbf988567a",
+    "web/src/presentation/mechanical_settings.rs": "3c616ae740d3e8caea3fc5ddc66cb6a4a3c6cccd4923ab5cc1199636da002516",
+    "web/src/presentation/mechanical_settings_controller.rs": "5c12119e62fe2f9115f0c88911e15dc5ef1f3a2903d84a2e9d594ec6ac2febef",
+    "web/assets/m1.css": "af615009613ce9dbe1e97a291455ea50f6c811f1a3ca1974c2245357f88298f1",
+    ".scratch/dioxus-pcb-view/issues/15-mounted-module-layer-inventory.md": "f158e3b95f1ac4f82b35bb2130e833c1fcb626a9dc135605fd6a51397df73b28",
+    ".scratch/dioxus-pcb-view/drafts/F5.4b-mounted-module-layer-inventory.md": "904aec9bab51f7225e3f1d09e37a9e4b5837b5c5d17cec5a31cf6055fbae65fa",
+    ".scratch/dioxus-case-workspace/evidence/reset-gasket-placement-20261003/IMPLEMENTATION.md": "751af2180bc9cf4493a06903d14e7406e9c136e6de31d4f945fb6559ecf344de"
+  },
+  "source_findings": [],
+  "decision": "No concrete new Standards/Spec defect identified in owned sources; pairedchanged candidate evidence pending.",
+  "checks": {
+    "owned_source_whitespace": "pass dd7697ed..fe86fa05 owned paths",
+    "reviewer_compiler_jobs": 0,
+    "reviewer_browser_journeys": 0
+  },
+  "open_joins": [
+    "PCB owningmodule navigation/focusedfinding/fullvisual criteria",
+    "Modulefree/boardswitch/nonempty clearance fixture evidence fromprior scope notclosedbyemptycollection",
+    "Case fullGasket mechanical/gesture/closureparent criteria"
+  ],
+  "public_receipts": {
+    "module": {
+      "files_sha256": {
+        "MODULE-PUBLIC-RECEIPT.md": "54ebf26a6f43cb53806312a6ff4225445d6d4cb3c786d0a8d512b9c977e41fac",
+        "MODULE-PUBLIC-COMPARISON.json": "5f0a4668e2d5148b414a0091db0cf7a61674c0483b136bf1dffe6664eb0417e0"
+      },
+      "source": "fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d",
+      "url": "http://127.0.0.1:34750/",
+      "provenance_sha256": "3ee7a6c10ba260d41233d5fc1cd1b7f1f518b0bc6b6f029bacae553a59f74740",
+      "result": "435 geometry leaves equal,10labels/order/defaults equal,silkoff independent,workspace retention and savedProjectDoc/revision6 exact semantic equality.",
+      "boundary": "No byte-identicalJSON/ZIP,pixel/interactivity,modulefree/boardswitch/nonemptyclearance or completefindingvisibility claim."
+    },
+    "CaseReset": {
+      "file": "CASE-RESET-PUBLIC-RECEIPT.md",
+      "sha256": "a2e296f5653ad4581117d29eecedff655a5da20586fd38228ec080269e5b0ddd",
+      "original_path": "/home/chris/.local/share/boardstudio/worktrees/case-contextual-plate-inspector-20261003/.scratch/dioxus-case-workspace/evidence/reset-gasket-placement-20261003/public-receipt.md",
+      "source": "fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d",
+      "url": "http://127.0.0.1:34750/boardstudio/",
+      "fixture_sha256": "df38eec77d8cbd2953a8a01449b41819ec8c79638d190fd14dfc7f47e7f6de38",
+      "result": "Paired Reset clears one70x3unlinked manual override;Undo restores,Redo clears;Dioxus portableRedo import insecondfreshprofile keeps empty supports/17pairs/40layers. Layout parameters unchanged; diagnostics71before/after.",
+      "boundary": "Exactreceiptbytes retained; authorreceipt untracked when captured, evidencecommit pending. No independent rerun/archiveaudit or broadergeometry/closurecriterion claim."
+    }
+  },
+  "status_edits": [],
+  "public_findings": [
+    {
+      "axis": "Spec",
+      "finding": "Marker default and toggle parity remains incomplete:React47->72(+25),Dioxus0->28(+28),including3source-caveats present inReactdefault. All28 corresponding contours equal, but visible sets are not equal.",
+      "status": "Preserved current candidate limitation/F5.5 frontier; no speculative identity filter or parentclosure."
+    }
+  ],
+  "final_decision": "Owned module controls/geometry and CaseReset bounded paths supported. No concrete new Standards/source defect; modulemarker default/toggle mismatch remains explicit Spec limitation. Fullparents/childcriteria notclosed."
+}

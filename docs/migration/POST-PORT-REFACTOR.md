@@ -12,7 +12,11 @@ Keep correctness required for parity in the current slice. Defer broad cleanup a
 
 At frontend v1, F9 produces a refactoring handoff grouped by architectural boundary, recurring cause, user impact and uncertainty. Prioritize the future refactor using the accumulated evidence; do not adopt every suggested abstraction automatically.
 
-## Current port checkpoint — 2026-10-02
+## Current port checkpoint
+
+The authoritative current delivery state is [current_progress](dioxus-frontend-v1-run.json). Recent source-specific handoffs retain the outline test-harness/provider-root friction, PCB module default/focused finding visibility mismatch and shared Keycaps worker/viewer capability gap in the machine register. Every parent criterion remains separate from bounded journey evidence.
+
+## Historical port checkpoint — 2026-10-02
 
 The current served build is 34730/d320, with paired same-archive Case 90/90. PCB07+08 now has a reviewed single-header/ordered-section source join at 94480901; its initial duplicate-header and section-order regression is retained under RF-001. The guarded page-only packaging helper is integrated at 4d08ac9b; its reproduced root-config and extra-provider-file guard defects and remaining real-build qualification are retained under RF-009. The full helper-matched baseline is building from e3566700, while all parent gates stay open.
 

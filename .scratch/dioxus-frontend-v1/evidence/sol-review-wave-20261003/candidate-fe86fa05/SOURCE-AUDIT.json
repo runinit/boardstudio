@@ -1,0 +1,33 @@
+{
+  "source": "fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d",
+  "owned_scope": [
+    "PCB156f41e19b872a50f414e93407308f2b91164a30 ten module rows/geometry/markers",
+    "CaseResetb1f143401b0a1492d221c43e2628880e4a9c8acc"
+  ],
+  "source_sha256": {
+    "web/src/presentation/pcb_module_footprints.rs": "05ef3ebdae71b467bcda4568372ba5166865f171534da45061313b1b145f8812",
+    "web/src/presentation/pcb_scene.rs": "33eb69fe90b352d3218b25b33da485bba8ce5347efeb9a2e930a20e8f647c606",
+    "web/src/presentation/pcb_layers.rs": "7eeeccd8b1fb668b079bc271a2f88d84c7b02e1a80f2f3abb9357e1371a2f70a",
+    "web/src/presentation/canvas_layers.rs": "2b5964c36a31fbd294109e3f1d4761ef4f86661b799ad8524b5f6dbbf988567a",
+    "web/src/presentation/mechanical_settings.rs": "3c616ae740d3e8caea3fc5ddc66cb6a4a3c6cccd4923ab5cc1199636da002516",
+    "web/src/presentation/mechanical_settings_controller.rs": "5c12119e62fe2f9115f0c88911e15dc5ef1f3a2903d84a2e9d594ec6ac2febef",
+    "web/assets/m1.css": "af615009613ce9dbe1e97a291455ea50f6c811f1a3ca1974c2245357f88298f1",
+    ".scratch/dioxus-pcb-view/issues/15-mounted-module-layer-inventory.md": "f158e3b95f1ac4f82b35bb2130e833c1fcb626a9dc135605fd6a51397df73b28",
+    ".scratch/dioxus-pcb-view/drafts/F5.4b-mounted-module-layer-inventory.md": "904aec9bab51f7225e3f1d09e37a9e4b5837b5c5d17cec5a31cf6055fbae65fa",
+    ".scratch/dioxus-case-workspace/evidence/reset-gasket-placement-20261003/IMPLEMENTATION.md": "751af2180bc9cf4493a06903d14e7406e9c136e6de31d4f945fb6559ecf344de"
+  },
+  "source_findings": [],
+  "decision": "No concrete new Standards/Spec defect identified in owned sources; pairedchanged candidate evidence pending.",
+  "checks": {
+    "owned_source_whitespace": "pass dd7697ed..fe86fa05 owned paths",
+    "reviewer_compiler_jobs": 0,
+    "reviewer_browser_journeys": 0
+  },
+  "open_joins": [
+    "PCB owningmodule navigation/focusedfinding/fullvisual criteria",
+    "Modulefree/boardswitch/nonempty clearance fixture evidence fromprior scope notclosedbyemptycollection",
+    "Case fullGasket mechanical/gesture/closureparent criteria"
+  ],
+  "public_receipts": "awaiting rootmodule+authorReset34750",
+  "status_edits": []
+}

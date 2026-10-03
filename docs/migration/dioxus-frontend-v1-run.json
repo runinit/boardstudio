@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T07:38:29.068242+00:00",
+    "updated_at": "2026-10-03T07:51:07.429090+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,23 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-fit-step-outline-repair-20261003",
-      "source_commit": "dd7697ed99864040697c905b3d0e28209301d11b",
-      "root_url": "http://127.0.0.1:34749/",
-      "subpath_url": "http://127.0.0.1:34749/boardstudio/",
-      "provenance": "web/target/builds/frontend-fit-step-outline-repair-20261003/provenance.json",
-      "provenance_sha256": "1f3584f7b41b9c2d912381a302657ccf202abc7ebcbf04622ef68bf62c0f932e",
-      "fresh_commands": 22,
-      "inherited_commands": 0,
-      "source_inputs": 1363,
+      "build_id": "frontend-module-layers-case-reset-keymap-fit-20261003",
+      "source_commit": "fe86fa05598dee6ef8ffb02f9f6fcfaa6810f10d",
+      "root_url": "http://127.0.0.1:34750/",
+      "subpath_url": "http://127.0.0.1:34750/boardstudio/",
+      "provenance": "web/target/builds/frontend-module-layers-case-reset-keymap-fit-20261003/provenance.json",
+      "provenance_sha256": "3ee7a6c10ba260d41233d5fc1cd1b7f1f518b0bc6b6f029bacae553a59f74740",
+      "fresh_commands": 8,
+      "inherited_commands": 22,
+      "source_inputs": 1364,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 450.712861,
-      "package_qualification": "Full build passed. Root/subpath sources and assets match, HTTP200 with COEP. Trusted perimeter drag/history/reopen and successful Keycaps STEP export passed paired journeys. Keymap fit framing mismatch was found and repaired for the next candidate."
+      "command_span_seconds": 97.547451,
+      "package_qualification": "Guarded page-only package passed;1364 sources and145 assets/route match; root/subpath200COEP. Case Reset/history/portable reopen passed. Keymap board/selection framing matches within1px; zoom percentages remain different. PCB435 source geometry leaves/all28 corresponding contours match, but default/toggle finding visibility remains different."
     },
     "integration": {
-      "source_commit": "b5da3d7d",
-      "state": "PCB ten-layer inventory, scoped Case Reset, corrected Keymap fit framing and negative-half outline grid policy joined. One combined strict page WASM all-target Clippy passed in17.91seconds. Next page-only candidate starting with verified34749 providers.",
+      "source_commit": "145cb6c0",
+      "state": "Next source adds Parts generator drafts/Apply, Keycaps empty-board guidance and PCB Wiring panel hierarchy. Combined required check found Parts syntax/type errors; author owns direct fixes and affected recheck. Keymap Inspector disclosures and Layout Properties/Relations implementing; real Keycaps3D preview now owns shared CAD/Runtime viewer seam.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1411,7 +1411,7 @@
           "slice": "Keymap footer fit board and selected keys",
           "original_source": "89bedddd",
           "integrated_source": "76c24a04",
-          "state": "34749 paired journey exposed React80% versus Dioxus100% framing. Exact React margins/toolbar clearance correction joined2039fd20; changed34750 framing pending."
+          "state": "34750 board and selectedSW1 framing match within1px. Document/history unchanged. Footer percentages remain89vs80 and303vs271; fullcamera/footer criteria remain."
         },
         {
           "slice": "Keycaps accepted STEP export",
@@ -1423,13 +1423,31 @@
           "slice": "PCB complete mounted-module Layers inventory",
           "original_source": "f99ec6ef",
           "integrated_source": "156f41e1",
-          "state": "All ten React labels/order and accepted geometry mounted; focused author Clippy passed24.27seconds; changed public journey34750 pending."
+          "state": "34750 ten labels/order/defaults and435 source leaves matched; silkoff independent, navigation/save revision6 preserved. All28 corresponding marker contours match, but default0\u219228 differs fromReact47\u219272; nonemptyclearance/otherjoins remain."
         },
         {
           "slice": "Case Reset gasket placement",
           "original_source": "a89162f7",
           "integrated_source": "b1f14340",
-          "state": "Scoped reset clears only gasket supports and preserves closure positions; combined check passed; paired Reset/history/reopen34750 pending."
+          "state": "34750 paired Reset/Undo/Redo/portable fresh reopen passed. Supports cleared/restored exactly; geometry/settings/diagnostics unchanged. Source and receipt independently reviewed; fullCase joins remain."
+        },
+        {
+          "slice": "Parts generator drafts preview and Apply",
+          "original_source": "19571615",
+          "integrated_source": "7ea6372c",
+          "state": "Joined; required combined check exposed Dioxus syntax/import visibility/BTreeMap/Rc/test-fixture typing errors. Direct author repair under assigned check slot; no candidate/public acceptance yet."
+        },
+        {
+          "slice": "Keycaps empty-board next-step guidance",
+          "original_source": "89283a51",
+          "integrated_source": "15888954",
+          "state": "Joined; exact reference empty-state text. OrdinaryUI no newtests; nextcandidatecompile/public evidence pending."
+        },
+        {
+          "slice": "PCB Wiring panel hierarchy",
+          "original_source": "21de0faa",
+          "integrated_source": "145cb6c0",
+          "state": "Joined; Wiring/controller/topology header, conditionalpins, diagnostics beforefirmware and assignmentcount/guidance. Missing Addcontroller chooser intent remains explicit next frontier."
         }
       ],
       "checks": {
@@ -1470,14 +1488,17 @@
           "source_commit": "b5da3d7d",
           "command": "cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings",
           "result": "Pass17.91seconds. No new ordinary-UI tests or broad suite; reused existing focused bug regressions and browser receipts."
+        },
+        "next_parts_pcb_context_check": {
+          "source_commit": "145cb6c0",
+          "result": "Failed as expected on new uncompiled Parts packet;12syntax/type/fixture errors. Author owns same affected strict page WASM repair/recheck; previous passing source evidence reused."
         }
       },
       "candidate_build": {
-        "state": "starting",
-        "build_id": "frontend-module-layers-case-reset-keymap-fit-20261003",
-        "source_commit": "captured by builder after this checkpoint",
+        "state": "awaiting direct Parts compile repair and ready Keymap packet",
+        "build_id": "frontend-parts-generator-pcb-context-keymap-inspector-20261003",
         "baseline": "frontend-fit-step-outline-repair-20261003",
-        "reason": "Provider root preserved; guarded page-only ownership/reuse requested for this UI batch."
+        "reason": "Guarded page-only candidate; no reuse guard bypass and no source build yet."
       }
     },
     "journeys": [
@@ -1565,22 +1586,43 @@
         "candidate": "dd7697ed/34749",
         "receipt": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/STEP-PUBLIC-RECEIPT.json",
         "remaining": "Unexercised error/empty/cancel paths and broader shared3D/preview/fullF6C.5 remain."
+      },
+      {
+        "journey": "PCB ten module layers -> artwork toggles -> navigation -> save",
+        "state": "Bounded paired geometry/control verified; all435 source leaves and28 corresponding marker contours match, but default/toggle findings visibility differs.",
+        "candidate": "fe86fa05/34750",
+        "receipt": ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
+        "remaining": "Generalhost/focus findings, nonemptyclearance, modulefree/boardswitch/owningnavigation and allparentjoins."
+      },
+      {
+        "journey": "Case Reset gasket placement -> Undo/Redo -> portable reopen",
+        "state": "Bounded paired verified; onlymanualsupports clear, exactoverrideUndo restored, generatedgeometry/settings/diagnostics retained.",
+        "candidate": "fe86fa05/34750",
+        "receipt": ".scratch/dioxus-case-workspace/evidence/reset-gasket-placement-20261003/public-receipt.md",
+        "remaining": "BroaderCase contextual, manipulation, pairfixture and fullparentjoins."
+      },
+      {
+        "journey": "Keymap Fit board and selected SW1 -> unchanged history",
+        "state": "Bounded paired framing verified within1px. Visible zoom percentages still differ.",
+        "candidate": "fe86fa05/34750",
+        "receipt": ".scratch/dioxus-keymap-layers/evidence/keymap-fit-controls-20261003/paired-browser-journey.md",
+        "remaining": "Zoomlabel/base camera parity, Grid/Snap/footer and fullF6K.1."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "One guarded page-only package34750; full34749 provider baseline reused only if actual guard accepts.",
-      "secondary_target": "Free after combined17.91second check. Case owns next CAD browser lease.",
-      "dispatch": "No duplicate suites/review handoffs. Authors implement next cohesive UI packets while this candidate packages."
+      "root_target": "Free;34750 guarded package finished in97.55seconds.",
+      "secondary_target": "Parts author directly repairing/rechecking failed newpacket using cachedCase target.",
+      "dispatch": "No repeated passing journey suite. One consolidated review per completed candidate; readysource serially integrated."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Next daily-workflow authoring leaf; trusted drag/history/reopen accepted as bounded evidence.",
-      "PCB": "34750 paired full ten-row Layers journey, accepted geometry and independent visibility.",
-      "Keymap": "34750 final Fit board/selection framing; then contextual Inspector disclosure packet.",
-      "Keycaps": "Next cohesive empty-state/contextual UI packet; successful STEP receipt accepted.",
-      "Case": "34750 Reset gasket placement/history/reopen; Plate contextual Inspector already mounted.",
-      "Parts_Project": "Existing Issue07 generator settings/preview/Apply packet implementing; imported footprint history/preview evidence reused."
+      "Layout": "Properties/Relations contextualpacket nowLayout-owned; obsoleteParts reservation released.",
+      "PCB": "Next Wiring hierarchy34751; explicitordinaryPCBAddcontroller chooser intent next. Generalmarker visibility discrepancy retained.",
+      "Keymap": "Combined Selectedkey/Macros/Encoders disclosurepacket implementing.",
+      "Keycaps": "Actual Core-resolved cap/legend3D preview through existingCADandsharedviewer implementing.",
+      "Case": "Next private contextualcontrols packet; Reset boundedGREEN accepted.",
+      "Parts_Project": "Direct compile repairs for generator drafts/preview/Apply; actualpairedjourney nextcandidate."
     },
     "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit.",
     "served_candidate_history": [
@@ -1598,6 +1640,21 @@
         "assets_per_route": 145,
         "command_span_seconds": 512.218666,
         "package_qualification": "Full22 commands pass; source and both route assets match; root/subpath200 COEP. Changed Parts preview and Case unlink journeys pass. Module source geometry/toggle pass; Layout old delegated capture RED recorded and repair joined for34749."
+      },
+      {
+        "build_id": "frontend-fit-step-outline-repair-20261003",
+        "source_commit": "dd7697ed99864040697c905b3d0e28209301d11b",
+        "root_url": "http://127.0.0.1:34749/",
+        "subpath_url": "http://127.0.0.1:34749/boardstudio/",
+        "provenance": "web/target/builds/frontend-fit-step-outline-repair-20261003/provenance.json",
+        "provenance_sha256": "1f3584f7b41b9c2d912381a302657ccf202abc7ebcbf04622ef68bf62c0f932e",
+        "fresh_commands": 22,
+        "inherited_commands": 0,
+        "source_inputs": 1363,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 450.712861,
+        "package_qualification": "Full build passed. Root/subpath sources and assets match, HTTP200 with COEP. Trusted perimeter drag/history/reopen and successful Keycaps STEP export passed paired journeys. Keymap fit framing mismatch was found and repaired for the next candidate."
       }
     ],
     "consolidated_reviews": [
@@ -1606,6 +1663,12 @@
         "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md",
         "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/AUDIT.json",
         "result": "No outstanding actionable finding in owned deltas; broader parent gates remain."
+      },
+      {
+        "scope": "34750moduleLayers andCaseReset",
+        "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-fe86fa05/REVIEW.md",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-fe86fa05/AUDIT.json",
+        "result": "No new source/Standards defect; boundedgeometry/control/ResetGREEN; modulemarkervisibilitySpec limitationexplicit."
       }
     ]
   }
