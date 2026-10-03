@@ -51,7 +51,9 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
             let runtime = runtime.clone();
             let alive = alive.clone();
             move |(input, _retry)| {
-                let sequence = keycaps_preview_sequence().saturating_add(1);
+                // This effect owns the sequence; reading it reactively here would make its
+                // own write restart the effect and continually cancel the CAD request.
+                let sequence = keycaps_preview_sequence.peek().saturating_add(1);
                 keycaps_preview_sequence.set(sequence);
                 runtime.cancel_keycaps_cad_preview();
                 keycaps_preview.set(None);
