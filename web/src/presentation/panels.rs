@@ -88,6 +88,29 @@ pub(super) fn CompactPanelControls() -> Element {
     }
 }
 
+#[component]
+pub(super) fn CompactPanelScrim() -> Element {
+    let state = use_context::<super::CompactPanelState>();
+    let workspace = use_context::<super::WorkspaceState>().0;
+    let objects_compact = use_compact_viewport(PanelSide::Objects);
+    let inspector_compact = use_compact_viewport(PanelSide::Inspector);
+    let objects_visible = objects_compact() && (state.objects_open)();
+    let inspector_visible = inspector_compact() && (state.inspector_open)();
+    rsx! {
+        if workspace() != "Export" && (objects_visible || inspector_visible) {
+            button {
+                class: "m1-drawer-scrim",
+                aria_label: "Close panels",
+                onclick: move |_| {
+                    focus_panel_toggle(if objects_visible { PanelSide::Objects } else { PanelSide::Inspector });
+                    set_bool(state.objects_open, false);
+                    set_bool(state.inspector_open, false);
+                },
+            }
+        }
+    }
+}
+
 type OutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(PointerEvent)>)>>>;
 type MediaChangeListener =
     Rc<RefCell<Option<(MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>>>;

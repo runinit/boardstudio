@@ -7386,13 +7386,7 @@ fn Editor() -> Element {
     };
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
-            if (objects_open() || inspect_open()) && active_workspace != "Export" {
-                button { class: "m1-drawer-scrim", aria_label: "Close panels", onclick: move |_| {
-                    panels::focus_panel_toggle(if objects_open() { PanelSide::Objects } else { PanelSide::Inspector });
-                    objects_open.set(false);
-                    inspect_open.set(false);
-                } }
-            }
+            panels::CompactPanelScrim {}
             div { class: "m1-editor-body", style: "{panel_layout_style}",
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
                     if let Some(preferences) = guide {
