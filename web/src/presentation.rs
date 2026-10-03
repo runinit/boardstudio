@@ -3143,6 +3143,7 @@ fn Editor() -> Element {
             };
             let accepted = keycaps_navigation::AcceptedNavigationSource {
                 scope: accepted_scope,
+                session_epoch: snapshot.session_epoch,
                 token: snapshot.token,
                 revision: snapshot.document.revision,
                 active_board_id: model.active_board_id.clone(),
@@ -3190,6 +3191,8 @@ fn Editor() -> Element {
                     case_selection.select_layer(scope, layer_id);
                 }
                 keycaps_navigation::RouteAction::SelectCaseBody { scope, body_id } => {
+                    // Dioxus retains body and layer selections independently; clear an older
+                    // layer so the body finding becomes the active, reachable Inspector owner.
                     case_selection_for_owner.clear_layer_for_scope(&scope);
                     body_selection.set(Some(case_viewer::BodySelection { scope, body_id }));
                 }

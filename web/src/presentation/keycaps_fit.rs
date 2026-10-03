@@ -866,6 +866,7 @@ pub(super) fn browser_navigation_fixture() -> (FindingNavigationRequest, Keycaps
         case_preview_current: false,
     };
     let mut document = ProjectDoc::empty("doc", "Project");
+    document.revision = source.revision;
     document.boards.push(Board {
         id: "left".into(),
         name: "Left PCB".into(),
@@ -1118,6 +1119,7 @@ mod tests {
         };
         let accepted_source = super::super::keycaps_navigation::AcceptedNavigationSource {
             scope: current_source.scope.clone(),
+            session_epoch: current_source.scope.session_epoch,
             token: current_source.token,
             revision: current_source.revision,
             active_board_id: "board".into(),

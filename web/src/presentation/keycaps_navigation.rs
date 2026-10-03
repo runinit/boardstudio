@@ -5,7 +5,7 @@
 //! behind the same production seam exercised by its tests.
 
 use super::{keycaps_fit, objects};
-use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core::model::{ProjectDoc, Vec2};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -35,6 +35,7 @@ pub(super) struct RouteEffects {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct AcceptedNavigationSource {
     pub scope: Scope,
+    pub session_epoch: SessionEpoch,
     pub token: SnapshotToken,
     pub revision: u64,
     pub active_board_id: String,
@@ -322,6 +323,7 @@ pub(super) fn admit_accepted_request(
         admission.live_generation,
         &request.source.scope,
     ) || request.source.scope != admission.accepted.scope
+        || request.source.scope.session_epoch != admission.accepted.session_epoch
         || request.source.token != admission.accepted.token
         || request.source.revision != admission.accepted.revision
         || request.source.scope.document_id != admission.document.id
@@ -648,6 +650,7 @@ mod tests {
                 let request = probe.request.clone();
                 let accepted = AcceptedNavigationSource {
                     scope: request.source.scope.clone(),
+                    session_epoch: request.source.scope.session_epoch,
                     token: request.source.token,
                     revision: request.source.revision,
                     active_board_id: "left".into(),
