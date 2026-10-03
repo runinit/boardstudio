@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:14:24.354400+00:00",
+    "updated_at": "2026-10-03T23:16:39.298687+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -492,7 +492,7 @@
       },
       {
         "stream": "PCB",
-        "state": "Fresh module attachment, navigation, repeat Save, Undo/Redo and archive reopen passed on34782. F5.2-C03 paired Apply one-step history verified."
+        "state": "Attachment/history/reopen and Apply step passed. F5.3 conflict, explicit remap review and unrelated-net retention qualification active using accepted public exports."
       },
       {
         "stream": "Keymap",
@@ -504,11 +504,11 @@
       },
       {
         "stream": "Case",
-        "state": "Board association/flip controls qualified; preview error reproduced on unchanged fixture before edits, so not a reassociation regression. Remaining valid-fixture/shared-viewer joins stay open."
+        "state": "Valid-fixture F5.6 physical-instance scope, retained state and shared-preview qualification active; reuse C03 association/flip proof and recorded baseline fixture error."
       },
       {
         "stream": "Parts + Project",
-        "state": "Preference absence/quota fallback verified on34778. Parts34779 actual WebGL context-loss stop/status and 2D return pass; provider failure/retry and renderer initialization failure remain unqualified."
+        "state": "F5.5-C03 accepted profile/model/asset reuse in mounted placement qualification active; fresh attachment/history/reopen evidence retained."
       }
     ],
     "pending_join_packets": [],

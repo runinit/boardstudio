@@ -4994,7 +4994,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Retain the bounded encoder journey; finish scope-switch and real F5 qualification with the handoff owner.",
+          "next_action": "Retain verified actual F5 selected-board encoder/push journey and scope-switch evidence; remaining compact-control qualification belongs to C07 and parent final joins remain F5.2/F8.2.",
           "finish_condition": "Paired proof covers CW and CCW edits at stable encoder/layer identity through accepted save and reimport, including actual F5 rows.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_editor.rs",
@@ -5019,7 +5019,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Reuse reported-push fixture proof; qualify the real F5 handoff when available.",
+          "next_action": "Retain verified actual F5 selected-board encoder/push journey and scope-switch evidence; remaining compact-control qualification belongs to C07 and parent final joins remain F5.2/F8.2.",
           "finish_condition": "Push appears only for a non-null reported push ID and submits that ID through the existing binding path.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_inputs.rs",
