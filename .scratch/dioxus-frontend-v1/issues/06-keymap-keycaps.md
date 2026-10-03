@@ -106,7 +106,7 @@ The private owners below are proposed Rust/Dioxus module boundaries for independ
 | F6K.2 Binding editor and behavior-specific fields | `web/src/presentation/keymap_binding.rs` | `app/src/ui/KeyBindingEditor.tsx`, `app/src/ui/keyBindingChoices.ts` |
 | F6K.3 Macro editing and validation presentation | `web/src/presentation/keymap_macros.rs` | `app/src/ui/KeymapPanel.tsx` macro section |
 | F6K.4 Encoder editor, firmware-position control, and ZMK handoff | `web/src/presentation/keymap_hardware.rs`, with private calls to existing host/core/export adapters | `app/src/ui/KeymapPanel.tsx` encoder section; `app/src/ui/FirmwareKeymapPanel.tsx`; F5's `app/src/ui/WiringPanel.tsx` mount/handoff |
-| F6C.1 Keycaps read projection, key selection, physical 2D canvas | `web/src/presentation/keycaps_view.rs` | `app/src/ui/createKeymapWorkspace.tsx`, `app/src/ui/KeymapLayout.tsx` (Keycaps mode) |
+| F6C.1 Keycaps read projection, key selection, physical 2D canvas | `web/src/presentation/keycaps_scene.rs`, `web/src/presentation/keycaps_workspace.rs` | `app/src/ui/createKeymapWorkspace.tsx`, `app/src/ui/KeymapLayout.tsx` (Keycaps mode) |
 | F6C.2 Board/matrix/per-key profile, legend, color, socket, row and units controls | `web/src/presentation/keycaps_panel.rs` | `app/src/ui/KeycapPanel.tsx`, `app/src/ui/keymap.css` feature rules |
 | F6C.3 Shared key-size drafts and linked resize/reflow integration | `web/src/presentation/key_size_controls.rs` plus private Layout callback owned in the F3 integration slice | `app/src/ui/KeySizeControls.tsx`, `app/src/ui/MatrixInspectorPanel.tsx`, `app/src/ui/Workbench.tsx` resize call site, `app/src/ui/planKeycapResize.ts`, `app/src/ui/keycapReflow.ts` |
 | F6C.4 Fit resolution, finding list/navigation, stale-case state | `web/src/presentation/keycaps_fit.rs` with existing keycap resolution request and accepted scene/finding navigation | `app/src/ui/KeycapPanel.tsx` findings section and `app/src/assemblyPreview.ts` keycap-resolution state |
@@ -179,6 +179,8 @@ Update the [living RF register](../refactor-findings.json) and [post-port takeaw
 ### Coordinator current acceptance — 2026-10-03
 
 Canonical F6K.2, F6K.3, F6C.2 and F6C.4 are accepted in `tasks.json`; earlier open-status notes are preserved historical checkpoints. F6C.4 reuses sufficient paired navigation, Core fit/case qualification and unchanged-source identity/refresh guards as endorsed by consolidated Sol review. [Decision](../evidence/keycaps-f6c4-acceptance-20261003/DECISION.json). F6C.1/full Keycaps and remaining integration/visual gates stay open.
+
+The current F6C.1 source/evidence reconciliation and paired canvas pointer-plus-Enter route are recorded in [`f6c1-criteria-reconciliation.md`](../evidence/keycaps-2d-selection-20261003/f6c1-criteria-reconciliation.md). It preserves the existing F6C.1 criteria and F3.1 acceptance join; no source-backed production gap or new refactoring takeaway was found.
 
 ### BND.1 current package continuation — candidate 34769
 
