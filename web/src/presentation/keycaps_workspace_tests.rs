@@ -105,6 +105,7 @@ fn mounted_inspector() -> Element {
             mechanical_layer_ids: Rc::from([]),
             fit_retry: EventHandler::new(|()| {}),
             fit_navigate: EventHandler::new(|_| {}),
+            on_export: EventHandler::new(|()| {}),
         })}
     }
 }
