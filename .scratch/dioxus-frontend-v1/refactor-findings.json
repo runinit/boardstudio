@@ -777,6 +777,15 @@
           "evidence": ".scratch/dioxus-layout-authoring/evidence/transform-align/rf-handoff.md",
           "observation": "Normal Event::Edit Preview lacks gesture-generation cancellation/clear-preview authority. Fields-only transform and one-shot alignment can use existing commit authority; pointer Stagger/Splay/Origin remain separately gated. Align AABB policy uses accepted courtyard/keycap corners and matrix-local operations.",
           "status": "Source-backed lifecycle prerequisite retained; no pointer-tool or parent parity claim."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "11289ba5: web/src/presentation/objects/existing_half.rs::prepare_existing_half",
+          "evidence": ".scratch/dioxus-layout-authoring/evidence/f32c-existing-half-source-20261003.md",
+          "observation": "Mirror-existing-half eligibility, relationship checks, matrix/layout identity allocation and proposed-document construction now live in a private presentation controller before one ReplaceDocument edit. This ports the existing React frontend policy; Core linked-layout resolution still owns reflected geometry. The action is mounted but not yet browser-qualified.",
+          "current_mitigation": "Keep one captured accepted owner and one normal edit; do not add a second mirror geometry algorithm. Any source-parity repair remains current work, with qualification deferred to the larger candidate.",
+          "post_port_follow_up": "Consider an application-owned typed mirror-existing-layout operation/proposal that centralizes entity allocation and relationship rules, leaving form drafts and accepted-result camera effects in presentation. Evaluate alongside existing matrix/mirror/closure edit planners.",
+          "validation": "Preserve IDs, assemblies and linked geometry, atomic history, stale-source rejection and save/reopen across the same user workflow; measure ownership simplification before generalizing."
         }
       ],
       "linked_cell_assembly_override_20261002": {

@@ -100,7 +100,7 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
 
 **Evidence:** `app/src/ui/planKeycapResize.ts`; `app/src/ui/keycapReflow.ts`; `application/src/interactions.rs`; `core/src/matrix/layout.rs`; `app/src/closureClearance.ts`; `app/src/createProjectActions.ts`; `core/src/lib.rs`; `core/src/model.rs`; `web/src/case_settings.rs`
 
-3 additional source observations are indexed under this RF ID in the ledger.
+4 additional source observations are indexed under this RF ID in the ledger.
 
 ## RF-006: Canonical, physical-instance and isolated sample scopes are easy to conflate
 
