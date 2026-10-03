@@ -1,16 +1,21 @@
 //! Parts-owned retained Ergogen settings drafts and their accepted edit boundary.
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
-use crate::runtime::Runtime;
+use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, Event, OperationId, Scope, TerminalOutcome};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Net, PartDefinition, Pin};
+use boardstudio_core::model::{
+    Asset, EditCommand, EditOperation, EditPhase, Net, PartDefinition, Pin,
+};
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use serde_json::Value;
 use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
+use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
+use web_sys::HtmlInputElement;
 
 #[derive(Clone, Debug)]
 pub(crate) struct GeneratorOwner {
@@ -179,9 +184,6 @@ fn parameters(
         .iter()
         .filter_map(|(key, spec)| {
             let kind = spec.get("type")?.as_str()?.to_owned();
-            if parameter_group(key, &kind, &definition.kind) == "3D model placement" {
-                return None;
-            }
             let value = generator
                 .parameters
                 .get(key)
@@ -541,6 +543,33 @@ fn prepare_generator_edit(
     })
 }
 
+fn prepare_generator_asset_edit(
+    current: &AcceptedSnapshot,
+    owner: &GeneratorOwner,
+    view: &GeneratorView,
+    candidate: PartDefinition,
+    asset: Asset,
+    operation_id: OperationId,
+) -> Result<Event, String> {
+    let mut event = prepare_generator_edit(current, owner, view, candidate, operation_id)?;
+    let Event::Edit { command, .. } = &mut event else {
+        return Err("The model attachment did not produce a document edit.".into());
+    };
+    let EditOperation::ReplaceDocument { document } = &mut command.operation else {
+        return Err("The model attachment did not produce a document replacement.".into());
+    };
+    if document
+        .assets
+        .iter()
+        .any(|existing| existing.id == asset.id)
+    {
+        return Err("The model asset identity is already in use.".into());
+    }
+    document.assets.push(asset.clone());
+    command.target_ids.push(asset.id);
+    Ok(event)
+}
+
 fn merge_generator_field<T: Clone + PartialEq>(
     base: &T,
     latest: &T,
@@ -713,6 +742,17 @@ pub(super) fn GeneratorSettingsEditor(
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
     let pending_apply = use_signal(|| None::<PendingApply>);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
+    let model_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
+    let alive = use_hook(|| Rc::new(Cell::new(true)));
+    let mut model_uploading = use_signal(|| false);
+    use_drop({
+        let alive = alive.clone();
+        let model_sequence = model_sequence.clone();
+        move || {
+            alive.set(false);
+            model_sequence.set(model_sequence.get().wrapping_add(1));
+        }
+    });
     let owner = make_owner(
         &snapshot,
         scope.clone(),
@@ -864,6 +904,234 @@ pub(super) fn GeneratorSettingsEditor(
     let preview_ready = active_draft.as_ref().is_some_and(|draft| {
         draft.status == GeneratorPreviewStatus::Ready && draft.definition.is_some()
     });
+    let import_generator_model = use_callback(move |(parameter, file): (String, web_sys::File)| {
+        if model_uploading()
+            || pending_apply().is_some()
+            || !parameter.ends_with("3dmodel_filename")
+        {
+            return;
+        }
+        if !owner_is_current(
+            &owner,
+            &runtime,
+            selected,
+            scope_generation(),
+            selection_generation(),
+            workspace(),
+        ) {
+            return;
+        }
+        feedback.set(None);
+        model_uploading.set(true);
+        let ticket = model_sequence.get().wrapping_add(1);
+        model_sequence.set(ticket);
+        let model_sequence = model_sequence.clone();
+        let alive = alive.clone();
+        let runtime = runtime.clone();
+        let owner = owner.clone();
+        let error_prefix = parameter_label(&parameter).to_ascii_lowercase();
+        let mut feedback = feedback;
+        let mut model_uploading = model_uploading;
+        let mut pending_apply = pending_apply;
+        spawn_local(async move {
+            let imported = read_model_file(file).await;
+            if !alive.get() || model_sequence.get() != ticket {
+                return;
+            }
+            let imported = match imported {
+                Ok(imported) => imported,
+                Err(message) => {
+                    model_uploading.set(false);
+                    if owner_context_is_current(
+                        &owner,
+                        &runtime,
+                        selected,
+                        scope_generation(),
+                        selection_generation(),
+                        workspace(),
+                    ) {
+                        feedback.set(Some(ScopedFeedback {
+                            owner,
+                            message: format!("{error_prefix}: {message}"),
+                        }));
+                    }
+                    return;
+                }
+            };
+            if !owner_is_current(
+                &owner,
+                &runtime,
+                selected,
+                scope_generation(),
+                selection_generation(),
+                workspace(),
+            ) {
+                model_uploading.set(false);
+                if owner_context_is_current(
+                    &owner,
+                    &runtime,
+                    selected,
+                    scope_generation(),
+                    selection_generation(),
+                    workspace(),
+                ) {
+                    feedback.set(Some(ScopedFeedback {
+                        owner,
+                        message: format!("{error_prefix}: The selected generator changed while the model was being read. Re-select it before importing another model."),
+                    }));
+                }
+                return;
+            }
+            if let Err(message) = imported.store(&runtime.store).await {
+                model_uploading.set(false);
+                if owner_context_is_current(
+                    &owner,
+                    &runtime,
+                    selected,
+                    scope_generation(),
+                    selection_generation(),
+                    workspace(),
+                ) {
+                    feedback.set(Some(ScopedFeedback {
+                        owner,
+                        message: format!("{error_prefix}: {message}"),
+                    }));
+                }
+                return;
+            }
+            if !alive.get() || model_sequence.get() != ticket {
+                return;
+            }
+            if !owner_is_current(
+                &owner,
+                &runtime,
+                selected,
+                scope_generation(),
+                selection_generation(),
+                workspace(),
+            ) {
+                model_uploading.set(false);
+                if owner_context_is_current(
+                    &owner,
+                    &runtime,
+                    selected,
+                    scope_generation(),
+                    selection_generation(),
+                    workspace(),
+                ) {
+                    feedback.set(Some(ScopedFeedback {
+                        owner,
+                        message: format!("{error_prefix}: The selected generator changed before the model could be attached."),
+                    }));
+                }
+                return;
+            }
+            let Some(current) = runtime.model().accepted.clone() else {
+                model_uploading.set(false);
+                feedback.set(Some(ScopedFeedback {
+                    owner,
+                    message: format!("{error_prefix}: The accepted project is unavailable."),
+                }));
+                return;
+            };
+            let latest_definition = current
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == owner.definition_id)
+                .cloned()
+                .unwrap_or_else(|| owner.base_definition.clone());
+            if latest_definition
+                .generator
+                .as_ref()
+                .is_none_or(|generator| {
+                    generator.source != owner.source
+                        || generator.version != owner.generator_version
+                        || generator.parameters != owner.base_parameters
+                })
+            {
+                model_uploading.set(false);
+                feedback.set(Some(ScopedFeedback {
+                    owner,
+                    message: format!("{error_prefix}: The selected generator settings changed while the model was being saved."),
+                }));
+                return;
+            }
+            let asset_id = loop {
+                let candidate = format!("generator-model-{}", runtime.operation().0);
+                if !current
+                    .document
+                    .assets
+                    .iter()
+                    .any(|asset| asset.id == candidate)
+                {
+                    break candidate;
+                }
+            };
+            let asset = Asset {
+                id: asset_id.clone(),
+                name: imported.filename.clone(),
+                media_type: imported.media_type.clone(),
+                sha256: imported.sha256.clone(),
+                license: None,
+                source: Some("local file".into()),
+            };
+            let mut candidate = latest_definition;
+            candidate
+                .generator
+                .as_mut()
+                .expect("validated generator")
+                .parameters
+                .insert(
+                    parameter,
+                    Value::String(format!("boardstudio-asset:{asset_id}")),
+                );
+            let view = GeneratorView {
+                scope: runtime.scope(),
+                selection: selected(),
+                scope_generation: scope_generation(),
+                selection_generation: selection_generation(),
+                workspace: workspace(),
+            };
+            let operation_id = runtime.operation();
+            let event = match prepare_generator_asset_edit(
+                &current,
+                &owner,
+                &view,
+                candidate.clone(),
+                asset,
+                operation_id,
+            ) {
+                Ok(event) => event,
+                Err(message) => {
+                    model_uploading.set(false);
+                    if owner_context_is_current(
+                        &owner,
+                        &runtime,
+                        selected,
+                        scope_generation(),
+                        selection_generation(),
+                        workspace(),
+                    ) {
+                        feedback.set(Some(ScopedFeedback {
+                            owner,
+                            message: format!("{error_prefix}: {message}"),
+                        }));
+                    }
+                    return;
+                }
+            };
+            model_uploading.set(false);
+            let outcome = runtime.observe_operation(operation_id);
+            pending_apply.set(Some(PendingApply {
+                owner,
+                candidate,
+                outcome,
+            }));
+            feedback.set(None);
+            runtime.submit(event);
+        });
+    });
     let on_apply = {
         let runtime = runtime.clone();
         let mut pending_apply = pending_apply;
@@ -930,6 +1198,7 @@ pub(super) fn GeneratorSettingsEditor(
         "Footprint options",
         "Keycap dimensions",
         "Connections",
+        "3D model placement",
         "Advanced footprint options",
     ];
     rsx! {
@@ -943,12 +1212,24 @@ pub(super) fn GeneratorSettingsEditor(
                         fieldset {
                             class: "m1-generator-fields",
                             "aria-label": "{group}",
-                            disabled: pending_apply().is_some(),
+                            disabled: pending_apply().is_some() || model_uploading(),
                             for entry in group_entries {
                                 GeneratorParameterField {
                                     entry: entry.clone(),
                                     value: edits().get(&entry.key).cloned().unwrap_or(entry.value.clone()),
-                                on_change: EventHandler::new({ let key = entry.key.clone(); move |value| change_parameter.call((key.clone(), value)) }),
+                                    on_change: EventHandler::new({ let key = entry.key.clone(); move |value| change_parameter.call((key.clone(), value)) }),
+                                    on_import: import_generator_model,
+                                    busy: model_uploading(),
+                                    feedback: feedback()
+                                        .filter(|message| owner_context_is_current(
+                                            &message.owner,
+                                            &runtime,
+                                            selected,
+                                            scope_generation(),
+                                            selection_generation(),
+                                            workspace(),
+                                        ))
+                                        .map(|message| message.message),
                                 }
                             }
                         }
@@ -964,6 +1245,7 @@ pub(super) fn GeneratorSettingsEditor(
                     GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-load-error", role: "alert", "Generator preview failed: {error}" } },
                 }
             }
+            if model_uploading() { p { role: "status", "Reading and saving generator model…" } }
             if let Some(message) = feedback()
                 .filter(|message| owner_context_is_current(
                     &message.owner,
@@ -992,9 +1274,64 @@ fn GeneratorParameterField(
     entry: GeneratorParameter,
     value: Value,
     on_change: EventHandler<Value>,
+    on_import: EventHandler<(String, web_sys::File)>,
+    busy: bool,
+    feedback: Option<String>,
 ) -> Element {
     let key = entry.key.clone();
     let label = entry.label.clone();
+    if key.to_ascii_lowercase().ends_with("3dmodel_filename") {
+        let current = input_value(&value, &entry.kind);
+        let field_error = feedback.filter(|message| {
+            message
+                .to_ascii_lowercase()
+                .starts_with(&key.replace('_', " ").to_ascii_lowercase())
+        });
+        return rsx! {
+            div { class: "m1-generator-field m1-generator-model-field",
+                label { "{label}",
+                    input {
+                        r#type: "text",
+                        aria_label: "{key}",
+                        value: "{current}",
+                        readonly: true,
+                    }
+                }
+                label { class: "m1-generator-field", "Attach STEP / STL / WRL",
+                    input {
+                        r#type: "file",
+                        accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
+                        disabled: busy,
+                        onchange: move |event| {
+                            let Some(input) = event
+                                .data()
+                                .try_as_web_event()
+                                .and_then(|event| event.target())
+                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                            else {
+                                return;
+                            };
+                            let Some(file) = input.files().and_then(|files| files.get(0)) else {
+                                return;
+                            };
+                            input.set_value("");
+                            on_import.call((key.clone(), file));
+                        }
+                    }
+                }
+                if !current.is_empty() {
+                    button {
+                        r#type: "button",
+                        class: "m1-generator-apply",
+                        disabled: busy,
+                        onclick: move |_| on_change.call(Value::String(String::new())),
+                        "Remove model"
+                    }
+                }
+                if let Some(message) = field_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
+            }
+        };
+    }
     if key == "side" && matches!(value.as_str(), Some("F" | "B")) {
         let selected = value.as_str().unwrap_or("F").to_owned();
         return rsx! {
