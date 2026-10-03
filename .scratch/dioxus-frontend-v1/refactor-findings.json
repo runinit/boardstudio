@@ -539,7 +539,13 @@
           "post_port_follow_up": "Evaluate a supported shared admission contract or another narrow way to keep UI readiness projection and request authority aligned without widening incidental crate APIs.",
           "validation": "Paired exact-archive Case journey shows Generate case disabled when the selected physical scope has no readiness row; native page tests and strict WASM Clippy pass."
         }
-      ]
+      ],
+      "frontend_helper_visibility_20261003": {
+        "evidence": "WASM page compiler warnings at source56a0459d; web/src/presentation.rs board_reference_* and dispatch helpers",
+        "observation": "Five host helper functions used only by the presentation subtree had crate-level visibility while their argument types were presentation-private. This created private-interface warnings and overstated the intended internal API.",
+        "current_mitigation": "Reduced helper visibility to the defining presentation module atd5f915b7; existing child call paths still compile. No public wire/save contract change.",
+        "post_port_follow_up": "Define private workbench host interfaces with visibility matching their actual consumers; avoid exposing composition callbacks as crate APIs by default."
+      }
     },
     {
       "id": "RF-003",
@@ -1008,7 +1014,13 @@
           "evidence": ".scratch/dioxus-pcb-view/evidence/22-mounted-module-placement-inspector-20261003/undo-redo-settled-34765.md",
           "superseded_observation": "Initial report described stale visible Undo draft and assigned repair; settled capture and source provenance do not support that diagnosis. Preserve this correction and the initial uncertainty."
         }
-      ]
+      ],
+      "component_owner_keys_20261003": {
+        "evidence": "WASM page compiler deprecated-key warnings; web/src/presentation/mechanical_settings.rs OpeningControls/CriticalFitControls",
+        "observation": "Keys placed on later sibling component nodes are ignored by Dioxus. The intended owner-remount boundary was therefore not provided by those keys; no saved-state loss is inferred from the warning.",
+        "current_mitigation": "Used existing scoped single-item keyed boundaries, matching the mounting control pattern; source compiles atd5f915b7. Behavioral scope/Undo/reopen qualification remains later.",
+        "post_port_follow_up": "Use one small scoped-owner component boundary for forms so selection/scope retirement does not rely on repeated RSX key-placement details."
+      }
     },
     {
       "id": "RF-007",
