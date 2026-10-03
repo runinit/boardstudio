@@ -2839,10 +2839,10 @@ pub(super) fn OutlineVersionInspector(projection: OutlineInspectorProjection) ->
                                                     let version_id = active_version.clone();
                                                     let connection_id = connection.id.clone();
                                                     move |_| {
-                                                        if connection.points.len() <= 2 { return; }
                                                         let mut after = before.clone();
                                                         if let OutlineFeature::PartEnvelope { connections, .. } = &mut after
                                                             && let Some(connection) = connections.iter_mut().find(|connection| connection.id == connection_id)
+                                                            && connection.points.len() > 2 && index < connection.points.len()
                                                         {
                                                             connection.points.remove(index);
                                                             selected_point.set(index.saturating_sub(1));

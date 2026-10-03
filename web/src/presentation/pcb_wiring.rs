@@ -850,6 +850,10 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let on_review_remap = protected_remap_actions.on_review;
     let existing_connections = matching_plan
         .and_then(|plan| connections::existing_connection_review(&props.source.document, plan));
+    let existing_connection_names = existing_connections
+        .as_ref()
+        .map(|review| review.names().join(", "))
+        .unwrap_or_default();
     let on_release_reviewed_connections = apply_actions.on_release_reviewed_connections;
     let review_connections_identity = mode_identity.clone();
     rsx! {
@@ -977,8 +981,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 }
             }
             if let Some(review) = existing_connections.as_ref() {
-                let connection_names = review.names();
-                p { class: "m1-pcb-wiring-protected",
+                div { class: "m1-pcb-wiring-protected",
                     strong { "Review existing connections" }
                     p { "{review.pin_count} pin connections already belong to {connection_names.join(\", \")}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
                     button {
