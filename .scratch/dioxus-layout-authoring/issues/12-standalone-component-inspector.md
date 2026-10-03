@@ -6,7 +6,7 @@
 
 **Blocked by:** Canonical F3.1 remains the parent dependency. This child is startable when the accepted selected standalone-part identity, current document/scope/token/revision owner and existing edit/navigation ports are available; it does not wait for full F3.1 qualification or another F3.5 child.
 
-**Status:** implementing in isolation; corrected planning commit `41173297` independently CLEAR on Standards and Spec. Private start gates are proven; shared mount proceeds after the Parts reservation is released. Source integration and paired public acceptance remain open.
+**Status:** private leaf and shared Layout mount are integrated; corrected planning commit `41173297` is CLEAR on Standards and Spec. A focused public journey verifies Component layout membership survives Properties → Relations → Properties. That same tab-return journey exposed a constraint draft reset mismatch; the follow-up is frozen in `251175d7` and integrated-candidate verification remains open. Full issue12 paired edit/history/reopen acceptance remains open.
 
 **Planning review:** [exact packet review](../../dioxus-frontend-v1/evidence/sol-review-wave-20261002/f35a-component-inspector-planning-review-41173297-sol-20261002.md).
 
