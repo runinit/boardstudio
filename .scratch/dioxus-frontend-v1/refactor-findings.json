@@ -295,6 +295,12 @@
           "evidence": "web/src/presentation/objects/layout_transform_toolbar.rs",
           "observation": "Actual trusted34769 Stagger handle pointerdown reached the mounted path but no pointer capture/up/edit occurred: native current_target belongs to delegated Dioxus listener rather than SVG handle. Narrow event-target.closest mounted-handle capture correction; one changed paired browser regression only. Repeated event/capture owner assumptions across shared presentation remain a refactor takeaway.",
           "status": "Current parity repair in next34770; browser GREEN pending; no general event framework added."
+        },
+        {
+          "source": "d4870a1b+5d2b4a98+4b517045+ee7321d6+b0935c29",
+          "observation": "Actual paired checks found shared open signals rendering a compact scrim over the desktop canvas, dynamic select value set before Export option existed, and transform handles using cell-only geometry instead of accepted selected parts. Narrow media-aware scrim component, explicit option selection, shared edit operations and reference geometry repair preserve authority. These repeated DOM/lifecycle assumptions explain rework; consolidate typed private pane/event ownership after parity.",
+          "status": "Corrected source and combined strict PASS; next34771 changed public GREEN pending.",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/strict-check.json"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",

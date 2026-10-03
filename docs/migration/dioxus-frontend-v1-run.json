@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T13:38:11.421548+00:00",
+    "updated_at": "2026-10-03T13:49:57.514700+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 8,
@@ -1283,24 +1283,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-six-stream-tools-handles-20261003",
-      "source_commit": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
-      "root_url": "http://127.0.0.1:34769/",
-      "subpath_url": "http://127.0.0.1:34769/boardstudio/",
-      "provenance": "web/target/builds/frontend-six-stream-tools-handles-20261003/provenance.json",
-      "provenance_sha256": "38e1980f3c38f31af1d66676a56d2d6cf57c7a3e4130dea6be2d1cb0eeb2f680",
-      "fresh_commands": 11,
-      "inherited_commands": 11,
+      "build_id": "frontend-compact-authored-mounts-20261003",
+      "source_commit": "47623521afaf96fb54690e2eaf873c1f0e7d2db5",
+      "root_url": "http://127.0.0.1:34770/",
+      "subpath_url": "http://127.0.0.1:34770/boardstudio/",
+      "provenance": "web/target/builds/frontend-compact-authored-mounts-20261003/provenance.json",
+      "provenance_sha256": "a4677af663c0e8286ae5e923bf1884b0230bcc6dc852a3030cc35a68d453365c",
+      "fresh_commands": 8,
+      "inherited_commands": 22,
       "source_inputs": 1373,
       "source_mismatches": 0,
       "assets_per_route": 154,
-      "command_span_seconds": 711.910653,
-      "package_qualification": "22 exact full command records PASS, bounded fixture-only continuation preserved original11-success/1-failure lineage and identical provider outputs; zero maintained-source/served-asset drift on both routes. Changed browser journeys active; broad parent gates unchanged.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/package-proof.json"
+      "command_span_seconds": 116.920869,
+      "package_qualification": "Verified unchanged full34769 providers, fresh page/offline routes, zero source/asset drift; changed compact/transform/Keycaps/Export journeys observed. Desktop scrim and compact Export selector regressions found and repaired for34771; no full parity claim.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34770-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "4940515e",
-      "state": "34769 served and source/asset-qualified. Next34770 includes compact shell170d856d, authored mounts a4a68ac2, bounded callback/type repairs38ac34fc/fb9c57f0/1ee0364c, assembly heading053b07ef, trusted transform capture regression repair aa33bc80 and range receipt4940515e. Combined strict page PASS8.977s; guarded page-only provider reuse packaging next.",
+      "source_commit": "49fce611 plus docs-only Keycaps reconciliation",
+      "state": "34770 source/asset verified. Changed three trusted transform gestures match TypeScript accepted values and single Undo; desktop scrim requires actual Close panels workaround, and global Escape/handle geometry need fixes. Corrected next34771: compact scrim gating, dynamic Export option selection, Stagger/Splay selected-part handle geometry, global Escape, Arrow edits and focus. One combined strict page PASS10.467s; provider reuse package now starts. Six queues continue; F3.1 accepted, F6C.1 reconciliation now ready for the same consolidated review.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -2013,6 +2013,12 @@
         "evidence": ".scratch/dioxus-parts-catalogue/evidence/04-custom-footprint-candidate-34768/RESULTS.md",
         "result": "Native custom definition create/default pad/courtyard edit/UndoRedo/reopen paired GREEN; broader criteria retained.",
         "parent_acceptance": "bounded criterion evidence only"
+      },
+      {
+        "at": "2026-10-03T13:49:57.514700+00:00",
+        "candidate": 34770,
+        "workflow": "Layout transform tools",
+        "result": "Trusted Stagger4.7625/0, Splay-7, Origin15.98/-77.448 match paired reference; one Undo restores each. Actual Close panels workaround required; handle geometry/global Escape correction queued34771. Save/reopen not repeated; unchanged shared edit authority reused."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
@@ -2021,19 +2027,18 @@
       "active": [
         {
           "owner": "root",
-          "job": "34770 guarded page/provider-reuse package",
-          "build_id": "frontend-compact-authored-mounts-20261003",
-          "source_commit": "4940515e",
-          "state": "scheduled after passing strict page check"
+          "job": "34771 guarded page/provider-reuse package",
+          "build_id": "frontend-compact-transform-repair-20261003",
+          "state": "starting after combined strict check"
         }
       ],
       "check": {
-        "source_commit": "4940515e",
+        "source_commit": "49fce6114deba042c2d02eea305d252ec8e44a66",
         "result": "PASS",
-        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34770-20261003/strict-check-final.json",
-        "page_seconds": 8.977097,
-        "unchanged_cad_worker_seconds": 19.879196,
-        "new_ui_tests": 0
+        "log": ".scratch/dioxus-frontend-v1/evidence/candidate-34771-20261003/strict-check.json",
+        "page_seconds": 10.466813,
+        "new_ui_tests": 0,
+        "unchanged_worker": "34769 deployed library strict check reused"
       },
       "next": "Changed paired browser journeys; next compact shell/authored mounts page batch uses verified34769 full providers.",
       "completed_focused_regression": {
@@ -2348,6 +2353,24 @@
         "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/package-proof.json",
         "superseded_at": "2026-10-03T13:36:26.507570+00:00",
         "reason": "34769 full source/asset proof passed; historical qualified evidence retained."
+      },
+      {
+        "build_id": "frontend-six-stream-tools-handles-20261003",
+        "source_commit": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+        "root_url": "http://127.0.0.1:34769/",
+        "subpath_url": "http://127.0.0.1:34769/boardstudio/",
+        "provenance": "web/target/builds/frontend-six-stream-tools-handles-20261003/provenance.json",
+        "provenance_sha256": "38e1980f3c38f31af1d66676a56d2d6cf57c7a3e4130dea6be2d1cb0eeb2f680",
+        "fresh_commands": 11,
+        "inherited_commands": 11,
+        "source_inputs": 1373,
+        "source_mismatches": 0,
+        "assets_per_route": 154,
+        "command_span_seconds": 711.910653,
+        "package_qualification": "22 exact full command records PASS, bounded fixture-only continuation preserved original11-success/1-failure lineage and identical provider outputs; zero maintained-source/served-asset drift on both routes. Changed browser journeys active; broad parent gates unchanged.",
+        "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34769-20261003/package-proof.json",
+        "superseded_at": "2026-10-03T13:49:57.514700+00:00",
+        "reason": "34770 source/asset proof passed; retain earlier qualified journeys."
       }
     ],
     "consolidated_reviews": [
@@ -2600,33 +2623,33 @@
       {
         "stream": "Layout",
         "priority": "first",
-        "candidate": "34769",
-        "state": "Firstpriority: F3.1accepted8/62parentsfromsufficientretained/changedselectionevidence. SeparatetrustedTransform34769RED correctedaa33; next34770GREENpending. Matrixauthoringnextqueueactive."
+        "candidate": "34770",
+        "state": "F3.1 accepted. Stagger/Splay/Origin values and Undo match TS on34770; geometry/Escape/compact blocker correction next34771. Selected-matrix Add object destination default mismatch authoring privately."
       },
       {
         "stream": "PCB",
-        "candidate": "34769",
-        "state": "Owning-module Parts navigation/host marker layer changed journey active34769; prior placement/support preserved."
+        "candidate": "34770",
+        "state": "Exact mounted source route/placement return/archive preservation GREEN34769; three host-default source-caveat marker mismatch traced by author. BroaderPCB criteria retained."
       },
       {
         "stream": "Keymap",
-        "candidate": "34769",
+        "candidate": "34770",
         "state": "Bindings/macros accepted; only flat encoder disclosure styling changed for34769; other Inspector/export controls retained."
       },
       {
         "stream": "Keycaps",
-        "candidate": "34769",
-        "state": "Settings/legends/fit parents accepted; only batching/unmount cancellation changed journey active34769; broader CAD boundary and visual parents open."
+        "candidate": "34770",
+        "state": "Settings/legends/fit accepted; changed 2D pointer+Enter selection GREEN, F6C.1 criterion map ready for consolidated review. Existing mixed/standalone projection tests and history retained; no new click matrix."
       },
       {
         "stream": "Case",
-        "candidate": "34769",
+        "candidate": "34770",
         "state": "Authored editor parent accepted;34769 mechanical/gasket handles changed journey active; authored mount handle packet next34770."
       },
       {
         "stream": "Parts + Project",
-        "candidate": "34769",
-        "state": "34769 RGB/Choc demo variants changed journey active; prior fresh-copy identity/custom editor qualified. Exact fixture URL space repair GREEN."
+        "candidate": "34770",
+        "state": "RGB/Choc demo card/open/fresh-copy/reopen bounded GREEN34769; existing VIK source-backed demo authoring next."
       }
     ],
     "pending_join_packets": [
