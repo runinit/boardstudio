@@ -1,4 +1,5 @@
 use super::*;
+use sha2::{Digest, Sha256};
 
 pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, ArtifactError> {
     validate_plan(&request.plan)?;
@@ -302,6 +303,87 @@ fn normalize_generated_footprint(form: &str) -> String {
     }
 }
 
+fn standalone_footprint_names(definitions: &[&PartDefinition]) -> Vec<String> {
+    let bases = definitions
+        .iter()
+        .map(|definition| safe_name(&definition.name))
+        .collect::<Vec<_>>();
+    let mut counts = HashMap::<String, usize>::new();
+    for name in &bases {
+        *counts.entry(name.clone()).or_default() += 1;
+    }
+    // Reserve unambiguous names first so a disambiguated collision can never
+    // steal a legacy filename that already belongs to another definition.
+    let mut used = bases
+        .iter()
+        .filter(|name| counts.get(name.as_str()) == Some(&1))
+        .cloned()
+        .collect::<HashSet<_>>();
+    definitions
+        .iter()
+        .zip(bases)
+        .map(|(definition, base)| {
+            if counts.get(&base) == Some(&1) {
+                return base;
+            }
+            let digest = Sha256::digest(definition.id.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            let mut length = 10;
+            loop {
+                let candidate = format!("{base}__{}", &digest[..length]);
+                if used.insert(candidate.clone()) {
+                    return candidate;
+                }
+                if length < digest.len() {
+                    length = (length + 4).min(digest.len());
+                } else {
+                    // Document definition IDs are unique; this final suffix
+                    // still makes malformed repeated IDs safe and deterministic.
+                    let mut ordinal = 2;
+                    loop {
+                        let candidate = format!("{base}__{digest}_{ordinal}");
+                        if used.insert(candidate.clone()) {
+                            return candidate;
+                        }
+                        ordinal += 1;
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+fn rename_standalone_footprint(form: &str, name: &str) -> Result<String, ArtifactError> {
+    let document = kiutils_sexpr::parse_one(form)
+        .map_err(|error| err(ArtifactErrorCode::ParseError, error.to_string()))?;
+    let root = document
+        .nodes
+        .first()
+        .ok_or_else(|| validation("Expected standalone footprint"))?;
+    if !matches!(sexpr::head(root), Some("footprint" | "module")) {
+        return Err(validation("Expected standalone footprint"));
+    }
+    let source_name = sexpr::items(root)
+        .and_then(|items| items.get(1))
+        .ok_or_else(|| validation("Standalone footprint has no name"))?;
+    sexpr::replace_spans(form, vec![(sexpr::span(source_name), sexpr::quote(name))])
+        .ok_or_else(|| validation("Could not rename standalone footprint"))
+}
+
+fn disambiguate_standalone_footprint(
+    form: String,
+    definition: &PartDefinition,
+    output_name: &str,
+) -> Result<String, ArtifactError> {
+    if output_name == safe_name(&definition.name) {
+        Ok(form)
+    } else {
+        rename_standalone_footprint(&form, output_name)
+    }
+}
+
 fn finish_standalone(
     plan: &ExportPlan,
     definition_ids: &[String],
@@ -313,16 +395,22 @@ fn finish_standalone(
         .iter()
         .map(|definition| (definition.id.as_str(), definition))
         .collect::<HashMap<_, _>>();
+    let selected_definitions = definition_ids
+        .iter()
+        .map(|id| {
+            definitions.get(id.as_str()).copied().ok_or_else(|| {
+                err(
+                    ArtifactErrorCode::NotFound,
+                    format!("Missing definition: {id}"),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let output_names = standalone_footprint_names(&selected_definitions);
     let mut files = Vec::new();
     let mut skipped_utilities = Vec::new();
     let mut result_index = 0;
-    for id in definition_ids {
-        let definition = definitions.get(id.as_str()).ok_or_else(|| {
-            err(
-                ArtifactErrorCode::NotFound,
-                format!("Missing definition: {id}"),
-            )
-        })?;
+    for (definition, output_name) in selected_definitions.iter().zip(output_names) {
         let content = if is_ergogen(definition) {
             let result = results.get(result_index).ok_or_else(|| {
                 err(
@@ -357,7 +445,11 @@ fn finish_standalone(
             format!(
                 "{}\n",
                 override_models(
-                    normalize_generated_footprint(footprints[0]),
+                    disambiguate_standalone_footprint(
+                        normalize_generated_footprint(footprints[0]),
+                        definition,
+                        &output_name,
+                    )?,
                     definition,
                     &plan.model_paths
                 )?
@@ -367,7 +459,7 @@ fn finish_standalone(
                 source::patch_footprint(
                     &definition.kicad_source.as_ref().expect("checked").source,
                     &FootprintPatch {
-                        footprint_name: Some(safe_name(&definition.name)),
+                        footprint_name: Some(output_name.clone()),
                         reference: Some("REF**".into()),
                         value: Some(definition.name.clone()),
                         placement: Some(Pose2 {
@@ -386,17 +478,21 @@ fn finish_standalone(
         } else {
             format!(
                 "{}\n",
-                native_footprint(
+                disambiguate_standalone_footprint(
+                    native_footprint(
+                        definition,
+                        &format!("definition:{}", definition.id),
+                        None,
+                        &BTreeMap::new(),
+                        &plan.model_paths
+                    )?,
                     definition,
-                    &format!("definition:{}", definition.id),
-                    None,
-                    &BTreeMap::new(),
-                    &plan.model_paths
+                    &output_name
                 )?
             )
         };
         files.push(ArtifactFile {
-            filename: format!("{}.kicad_mod", safe_name(&definition.name)),
+            filename: format!("{output_name}.kicad_mod"),
             content,
         });
     }

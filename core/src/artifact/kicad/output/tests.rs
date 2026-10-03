@@ -540,3 +540,32 @@ fn standalone_bundles_report_board_utility_skips_but_single_export_errors() {
             .contains("Part d1 emits board objects and must be exported on a board")
     );
 }
+
+#[test]
+fn standalone_export_disambiguates_repeated_footprint_names() {
+    let mut document = ergogen_document();
+    document.definitions[0].name = "switch mx".into();
+    document.definitions[1].name = "switch mx".into();
+    let plan = prepare(
+        document,
+        ExportTarget::StandaloneFootprints {
+            definition_ids: vec!["d1".into(), "d2".into()],
+        },
+    );
+    let generated = "(footprint \"switch_mx\" (layer \"F.Cu\") (at 0 0) (uuid \"00000000-0000-5000-a000-000000000000\"))";
+    let artifact = finish_export(FinishExportRequest {
+        plan: plan.clone(),
+        results: vec![
+            result(&plan, 0, generated, vec![]),
+            result(&plan, 1, generated, vec![]),
+        ],
+    })
+    .unwrap();
+
+    assert_eq!(artifact.files.len(), 2);
+    assert_ne!(artifact.files[0].filename, artifact.files[1].filename);
+    for file in &artifact.files {
+        let stem = file.filename.strip_suffix(".kicad_mod").unwrap();
+        assert!(file.content.starts_with(&format!("(footprint \"{stem}\"")));
+    }
+}

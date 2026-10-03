@@ -137,7 +137,11 @@ owns final download cleanup. The shared preview worker has no per-request stop
 operation: cancel or supersession suppresses late delivery, while already-running
 worker work may finish. This adapter should retire when the generic export intent
 coordinator absorbs its captured-scope dispatch, or Core owns the model-binding
-resolution after the frontend port.
+resolution after the frontend port. Core preserves legacy names for unique
+standalone footprints and uses a deterministic definition-ID suffix when sanitized
+names collide; the internal KiCad name matches the emitted filename stem. This
+keeps archive path validation strict while allowing distinct definitions to ship
+together.
 
 The Dioxus Keymap and Keycaps 3D routes reuse the accepted `KeycapsFitState`
 result as the sole source of keycap specs and send those specs to the already packaged
