@@ -7,3 +7,9 @@ On Left PCB/Main, select SW7 (candidate canvas; React selected-key chooser), cha
 Remaining gates: full supported behavior fields, free-form failure recovery, scope/layer/instance races, actual assistive technology, modules/encoders, portable export/reimport, complete GUI visual/responsive equivalence and canonical F6K/F6 joins. Macro/ZMK prior receipts remain separately retained. No parent or entire child is closed by this checkpoint.
 
 Raw snapshots remain at the absolute paths/hashes in artifact-hashes.json. RF009 evidence accounting is retained; no new architectural takeaway from this bounded journey.
+
+## Fresh visual gaps retained
+
+Paired1280×577 screenshots (actually inspected) are `/home/chris/.local/share/boardstudio/retained-tmp/20261002/keymap-Q-react-current.png` and `keymap-Q-dioxus-34737.png`. Accepted Main/SW7Q content agrees; visible GUI does not yet match. React has Keymap/Layers & key behaviors context bar and floating2D/3D assembly/Footprints group; Dioxus lacks both. Dioxus shared Objects still exposes Physical instance/Group objects, displaces board tree downward, omits New board and reference selection footer. Inspector typography, Layers disclosure/row spacing and help differ. Canvas board contour and key labels are present, but position/scale differs. Footer lacks reference fit/zoom/findings controls.
+
+Owners: F6K.1 context/2D presentation and shared-viewer Issue04 view switch; F3.1/T1 shared Objects/selection; shell/F9 footer/control placement. Next bounded visual child should consume proven seams and preserve these existing task owners rather than duplicate contracts or wait for full parents. Project/Keymap author is queued to refine this frontier after current rename repair. These observations supersede neither earlier receipts nor unresolved parent gates.
