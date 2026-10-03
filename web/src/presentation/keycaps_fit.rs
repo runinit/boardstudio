@@ -56,6 +56,12 @@ pub(super) struct FindingNavigationRequest {
     pub target: FindingNavigationTarget,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct CameraBasis {
+    pub bounds: (f64, f64, f64, f64),
+    pub surface: (f64, f64),
+}
+
 #[derive(Clone)]
 pub(super) struct KeycapsFitActions {
     pub state: Option<KeycapsFitState>,
@@ -707,6 +713,174 @@ pub(super) fn finding_navigation_bounds(
         .or_else(|| layout_navigation_bounds(document, scene, target))
 }
 
+/// React's `getBounds` canvas basis for Design/Keycaps: visible board outlines, visible part
+/// selection outlines, and enabled empty matrix cells, with twelve millimetres of breathing room.
+/// This is presentation geometry for camera behavior; Core remains authoritative for CAD bounds.
+pub(super) fn layout_canvas_bounds(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    board_id: &str,
+) -> Option<(f64, f64, f64, f64)> {
+    let board = document.boards.iter().find(|board| board.id == board_id)?;
+    let mut bounds = None;
+    include_board_contours(document, scene, board_id, &mut bounds);
+
+    let visible_part_ids: std::collections::BTreeSet<&str> =
+        board.part_ids.iter().map(String::as_str).collect();
+    let visible_matrices: Vec<_> = document
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            matrix
+                .board_id
+                .as_deref()
+                .is_none_or(|owner| owner == board_id)
+                || matrix
+                    .part_ids
+                    .iter()
+                    .any(|part_id| visible_part_ids.contains(part_id.as_str()))
+        })
+        .collect();
+    let mut matrix_keycaps = std::collections::BTreeMap::new();
+    for matrix in &visible_matrices {
+        let Some(projection) = scene
+            .matrix_scenes
+            .iter()
+            .find(|projection| projection.matrix_id == matrix.id)
+        else {
+            continue;
+        };
+        for cell in projection.cells.iter().filter(|cell| cell.enabled) {
+            let Some(member_id) = cell
+                .member_id
+                .as_deref()
+                .filter(|member_id| visible_part_ids.contains(member_id))
+            else {
+                continue;
+            };
+            let part = document.parts.iter().find(|part| part.id == member_id);
+            let definition = part
+                .and_then(|part| {
+                    document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == part.definition_id)
+                })
+                .or_else(|| {
+                    document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == matrix.definition_id)
+                });
+            let size = part
+                .and_then(|part| part.keycap)
+                .or_else(|| definition.and_then(|definition| definition.keycap))
+                .unwrap_or(Vec2 {
+                    x: (matrix.pitch.x - matrix.edge_gap.map_or(1.0, |gap| gap.x)).max(1.0),
+                    y: (matrix.pitch.y - matrix.edge_gap.map_or(1.0, |gap| gap.y)).max(1.0),
+                });
+            matrix_keycaps.insert(member_id, size);
+        }
+    }
+
+    for part in document
+        .parts
+        .iter()
+        .filter(|part| board.part_ids.contains(&part.id))
+    {
+        let pose = scene
+            .transforms
+            .iter()
+            .find(|transform| transform.id == part.id)
+            .map_or(part.pose, |transform| transform.pose);
+        include_point(&mut bounds, pose.at);
+        let definition = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == part.definition_id);
+        let keycap = (definition.is_some_and(|definition| {
+            matches!(&definition.kind, boardstudio_core::model::PartKind::Switch)
+        }))
+        .then(|| {
+            matrix_keycaps
+                .get(part.id.as_str())
+                .copied()
+                .or(part.keycap)
+                .or_else(|| definition.and_then(|definition| definition.keycap))
+        })
+        .flatten();
+        if let Some(size) = keycap {
+            include_rotated_rect(&mut bounds, pose, size);
+        } else if let Some(definition) = definition {
+            for point in &definition.courtyard {
+                include_local_point(&mut bounds, pose, false, *point);
+            }
+        }
+    }
+
+    for matrix in visible_matrices {
+        let Some(projection) = scene
+            .matrix_scenes
+            .iter()
+            .find(|projection| projection.matrix_id == matrix.id)
+        else {
+            continue;
+        };
+        for cell in projection.cells.iter().filter(|cell| {
+            cell.enabled
+                && cell
+                    .member_id
+                    .as_deref()
+                    .is_none_or(|member| !visible_part_ids.contains(member))
+        }) {
+            // The React canvas uses half-pitch as each matrix cell's local half-size.
+            include_rotated_rect(
+                &mut bounds,
+                cell.pose,
+                Vec2 {
+                    x: matrix.pitch.x,
+                    y: matrix.pitch.y,
+                },
+            );
+        }
+    }
+
+    let (min_x, max_x, min_y, max_y) = bounds.unwrap_or((-35.0, 35.0, -25.0, 25.0));
+    Some((min_x - 12.0, max_x + 12.0, min_y - 12.0, max_y + 12.0))
+}
+
+/// Match React `aspectBounds`: expand, never crop, the camera basis to the current SVG ratio.
+pub(super) fn aspect_bounds(
+    bounds: (f64, f64, f64, f64),
+    surface: (f64, f64),
+) -> (f64, f64, f64, f64) {
+    let (min_x, max_x, min_y, max_y) = bounds;
+    let (width, height) = surface;
+    let ratio = width.max(1.0) / height.max(1.0);
+    let next_width = (max_x - min_x).max((max_y - min_y) * ratio);
+    let next_height = (max_y - min_y).max((max_x - min_x) / ratio);
+    let center_x = (min_x + max_x) * 0.5;
+    let center_y = (min_y + max_y) * 0.5;
+    (
+        center_x - next_width * 0.5,
+        center_x + next_width * 0.5,
+        center_y - next_height * 0.5,
+        center_y + next_height * 0.5,
+    )
+}
+
+pub(super) fn layout_camera_basis(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    board_id: &str,
+    surface: (f64, f64),
+) -> Option<CameraBasis> {
+    Some(CameraBasis {
+        bounds: aspect_bounds(layout_canvas_bounds(document, scene, board_id)?, surface),
+        surface,
+    })
+}
+
 fn include_layout_part_bounds(
     document: &ProjectDoc,
     scene: &SceneDelta,
@@ -946,8 +1120,8 @@ mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{
-        Board, Contour, FindingMarker, KeycapResolution, Part, Pose2, Readiness, SceneDelta, Side,
-        Transform, Vec2,
+        Board, BoardContours, Contour, FindingMarker, KeycapResolution, Part, Pose2, Readiness,
+        SceneDelta, Side, Transform, Vec2,
     };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -988,6 +1162,58 @@ mod tests {
             !retrying.is_current(),
             "failed retry cannot make retained result current"
         );
+    }
+
+    #[wasm_bindgen_test]
+    fn layout_fit_basis_keeps_react_padding_and_source_surface_aspect() {
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Left PCB".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let scene = SceneDelta {
+            module_scenes: vec![],
+            revision: document.revision,
+            transaction_id: "accepted".into(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board".into(),
+                contours: vec![Contour {
+                    points: vec![Vec2 { x: -5.0, y: -10.0 }, Vec2 { x: 5.0, y: 10.0 }],
+                    hole: false,
+                }],
+            }],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        };
+
+        assert_eq!(
+            layout_canvas_bounds(&document, &scene, "board"),
+            Some((-17.0, 17.0, -22.0, 22.0))
+        );
+        let basis = layout_camera_basis(&document, &scene, "board", (725.0, 455.0))
+            .expect("active source canvas has geometry");
+        assert!((basis.bounds.2 + 22.0).abs() < 0.001);
+        assert!((basis.bounds.3 - 22.0).abs() < 0.001);
+        assert!((basis.bounds.1 - basis.bounds.0 - 44.0 * 725.0 / 455.0).abs() < 0.001);
+        assert_eq!(basis.surface, (725.0, 455.0));
     }
 
     #[wasm_bindgen_test]

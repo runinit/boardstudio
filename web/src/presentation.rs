@@ -3465,6 +3465,7 @@ fn Editor() -> Element {
                 ));
             }
         };
+    let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let workspace_rect_bounds = match active_workspace {
         "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
@@ -3473,6 +3474,11 @@ fn Editor() -> Element {
         "Keycaps" => keycaps_view
             .as_deref()
             .and_then(|view| keycaps_bounds(view, keycaps_contours.as_deref().unwrap_or(&[]))),
+        "Layout" => keycaps_fit::layout_canvas_bounds(
+            &snapshot.document,
+            &snapshot.scene,
+            &render_scope.board_id,
+        ),
         _ => None,
     };
     let bounds = workspace_rect_bounds.or_else(|| {
@@ -3490,11 +3496,22 @@ fn Editor() -> Element {
             },
         ))
     });
-    let (min_x, max_x, min_y, max_y) = bounds.unwrap_or((-50.0, 50.0, -50.0, 50.0));
-    let min_x = min_x - 20.0;
-    let max_x = max_x + 20.0;
-    let min_y = min_y - 20.0;
-    let max_y = max_y + 20.0;
+    let bounds = bounds.unwrap_or((-50.0, 50.0, -50.0, 50.0));
+    let bounds = if active_workspace == "Layout" {
+        let surface = svg
+            .borrow()
+            .as_ref()
+            .map(|surface| {
+                let rect = surface.get_bounding_client_rect();
+                (rect.width(), rect.height())
+            })
+            .unwrap_or((1.0, 1.0));
+        keycaps_fit::aspect_bounds(bounds, surface)
+    } else {
+        let (min_x, max_x, min_y, max_y) = bounds;
+        (min_x - 20.0, max_x + 20.0, min_y - 20.0, max_y + 20.0)
+    };
+    let (min_x, max_x, min_y, max_y) = bounds;
     let width = (max_x - min_x).max(50.0) / model.camera.zoom;
     let height = (max_y - min_y).max(50.0) / model.camera.zoom;
     let view_x = (min_x + max_x - width) * 0.5 + model.camera.center.x;
@@ -3528,7 +3545,6 @@ fn Editor() -> Element {
     if canvas_interaction.current().is_some() {
         matrix_setup.can_open = false;
     }
-    let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let pair_placement_owner = mirrored_pair
         .placement
         .as_ref()
@@ -3659,6 +3675,7 @@ fn Editor() -> Element {
         let fit_state = keycaps_fit_state.state.clone();
         let mut pending_camera_fit = pending_keycaps_navigation_fit;
         let mut focused_finding = focused_keycaps_finding;
+        let source_surface = svg.clone();
         let select_tree = workspace_callbacks.select_tree;
         move |request: keycaps_fit::FindingNavigationRequest| {
             let owner = keycaps_navigation::OwnerIdentity {
@@ -3708,6 +3725,19 @@ fn Editor() -> Element {
                 keycaps_navigation::focused_finding_for_admitted_route(&request, &admitted);
             let effects = admitted.effects;
             let navigation_owner = admitted.owner;
+            let source_basis = if workspace() == "Keycaps" {
+                source_surface.borrow().as_ref().and_then(|surface| {
+                    let rect = surface.get_bounding_client_rect();
+                    keycaps_fit::layout_camera_basis(
+                        &snapshot.document,
+                        &snapshot.scene,
+                        &request.source.scope.board_id,
+                        (rect.width(), rect.height()),
+                    )
+                })
+            } else {
+                None
+            };
             focused_finding.set(focused);
             let focus_runtime = runtime.clone();
             let focus_adapter = adapter.clone();
@@ -3715,52 +3745,57 @@ fn Editor() -> Element {
             let focus_case_selection = case_selection_for_owner;
             let focus_workspace = workspace;
             pending_camera_fit.set(None);
-            keycaps_navigation::dispatch_route(effects, &request, |effect| match effect {
-                keycaps_navigation::RouteAction::SetWorkspace(name) => workspace.set(name),
-                keycaps_navigation::RouteAction::SelectTree { scope, context } => {
-                    select_tree.call(objects::TreeSelectRequest {
-                        scope,
-                        context,
-                        mode: SelectionMode::Replace,
-                        outline_action: None,
-                    });
-                }
-                keycaps_navigation::RouteAction::SelectCaseLayer { scope, layer_id } => {
-                    case_selection.select_layer(scope, layer_id);
-                }
-                keycaps_navigation::RouteAction::SelectCaseBody { scope, body_id } => {
-                    // Dioxus retains body and layer selections independently; clear an older
-                    // layer so the body finding becomes the active, reachable Inspector owner.
-                    case_selection_for_owner.clear_layer_for_scope(&scope);
-                    body_selection.set(Some(case_viewer::BodySelection { scope, body_id }));
-                }
-                keycaps_navigation::RouteAction::CloseObjects => objects_open.set(false),
-                keycaps_navigation::RouteAction::OpenInspector => inspect_open.set(true),
-                keycaps_navigation::RouteAction::PinInspector => {
-                    pin_inspector_on_desktop(inspector_settings);
-                }
-                keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
-                    pending_camera_fit.set(Some(request));
-                }
-                keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
-                keycaps_navigation::RouteAction::FocusInspector => {
-                    let scheduled_runtime = focus_runtime.clone();
-                    let scheduled_adapter = focus_adapter.clone();
-                    focus_first_inspector_control_on_next_frame(
-                        navigation_alive.clone(),
-                        navigation_owner.clone(),
-                        move || {
-                            current_keycaps_navigation_owner(
-                                focus_workspace,
-                                &scheduled_runtime,
-                                &scheduled_adapter,
-                                focus_body_selection,
-                                focus_case_selection,
-                            )
-                        },
-                    );
-                }
-            });
+            keycaps_navigation::dispatch_route_with_camera_basis(
+                effects,
+                &request,
+                source_basis,
+                |effect| match effect {
+                    keycaps_navigation::RouteAction::SetWorkspace(name) => workspace.set(name),
+                    keycaps_navigation::RouteAction::SelectTree { scope, context } => {
+                        select_tree.call(objects::TreeSelectRequest {
+                            scope,
+                            context,
+                            mode: SelectionMode::Replace,
+                            outline_action: None,
+                        });
+                    }
+                    keycaps_navigation::RouteAction::SelectCaseLayer { scope, layer_id } => {
+                        case_selection.select_layer(scope, layer_id);
+                    }
+                    keycaps_navigation::RouteAction::SelectCaseBody { scope, body_id } => {
+                        // Dioxus retains body and layer selections independently; clear an older
+                        // layer so the body finding becomes the active, reachable Inspector owner.
+                        case_selection_for_owner.clear_layer_for_scope(&scope);
+                        body_selection.set(Some(case_viewer::BodySelection { scope, body_id }));
+                    }
+                    keycaps_navigation::RouteAction::CloseObjects => objects_open.set(false),
+                    keycaps_navigation::RouteAction::OpenInspector => inspect_open.set(true),
+                    keycaps_navigation::RouteAction::PinInspector => {
+                        pin_inspector_on_desktop(inspector_settings);
+                    }
+                    keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
+                        pending_camera_fit.set(Some(request));
+                    }
+                    keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
+                    keycaps_navigation::RouteAction::FocusInspector => {
+                        let scheduled_runtime = focus_runtime.clone();
+                        let scheduled_adapter = focus_adapter.clone();
+                        focus_first_inspector_control_on_next_frame(
+                            navigation_alive.clone(),
+                            navigation_owner.clone(),
+                            move || {
+                                current_keycaps_navigation_owner(
+                                    focus_workspace,
+                                    &scheduled_runtime,
+                                    &scheduled_adapter,
+                                    focus_body_selection,
+                                    focus_case_selection,
+                                )
+                            },
+                        );
+                    }
+                },
+            );
         }
     };
     let observed_navigation_selection = (adapter.selected_context)();
@@ -3826,10 +3861,24 @@ fn Editor() -> Element {
                 )?;
                 let surface = surface.borrow().clone()?;
                 let rect = surface.get_bounding_client_rect();
+                let destination_surface = (rect.width(), rect.height());
+                let basis = if let Some(basis) = pending_fit.source_basis {
+                    basis
+                } else {
+                    let destination_base = keycaps_fit::layout_canvas_bounds(
+                        &snapshot.document,
+                        &snapshot.scene,
+                        &request.source.scope.board_id,
+                    )?;
+                    keycaps_fit::CameraBasis {
+                        bounds: keycaps_fit::aspect_bounds(destination_base, destination_surface),
+                        surface: destination_surface,
+                    }
+                };
                 Some(keycaps_navigation::DestinationFitGeometry {
-                    base: (min_x, max_x, min_y, max_y),
+                    base: basis.bounds,
                     target: target_bounds,
-                    surface: (rect.width(), rect.height()),
+                    surface: basis.surface,
                 })
             }
         },

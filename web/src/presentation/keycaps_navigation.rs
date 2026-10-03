@@ -103,6 +103,10 @@ pub(super) struct LiveNavigationOwner {
 pub(super) struct PendingLayoutFit {
     pub request: keycaps_fit::FindingNavigationRequest,
     pub owner: NavigationOwner,
+    /// Camera basis captured by the Keycaps owner before routing. React's finding handler
+    /// computes `fitParts` from that source render, then changes workspace; it does not
+    /// recompute the fit against Layout's later canvas dimensions.
+    pub source_basis: Option<keycaps_fit::CameraBasis>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -433,6 +437,15 @@ fn target_exists(
 pub(super) fn dispatch_route(
     effects: RouteEffects,
     request: &keycaps_fit::FindingNavigationRequest,
+    perform: impl FnMut(RouteAction),
+) {
+    dispatch_route_with_camera_basis(effects, request, None, perform);
+}
+
+pub(super) fn dispatch_route_with_camera_basis(
+    effects: RouteEffects,
+    request: &keycaps_fit::FindingNavigationRequest,
+    source_basis: Option<keycaps_fit::CameraBasis>,
     mut perform: impl FnMut(RouteAction),
 ) {
     let generation = effects.generation;
@@ -447,6 +460,7 @@ pub(super) fn dispatch_route(
                 perform(RouteAction::QueueLayoutFit(PendingLayoutFit {
                     request: request.clone(),
                     owner: owner_for_request(request, Destination::Layout(context), generation),
+                    source_basis,
                 }));
             }
         }
@@ -609,6 +623,7 @@ mod tests {
         fit_state: keycaps_fit::KeycapsFitState,
         document: boardstudio_core::model::ProjectDoc,
         initial_live: LiveNavigationOwner,
+        source_basis: keycaps_fit::CameraBasis,
         workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
         focused: Rc<
             RefCell<Option<Signal<Option<super::super::keycaps_finding_marker::FocusedFinding>>>>,
@@ -648,11 +663,18 @@ mod tests {
             live(),
             alive.clone(),
             move || live.read().clone(),
-            |_| {
+            |pending_fit| {
+                let destination_surface = (900.0, 600.0);
+                let basis = pending_fit
+                    .source_basis
+                    .unwrap_or(keycaps_fit::CameraBasis {
+                        bounds: (-100.0, 100.0, -60.0, 60.0),
+                        surface: destination_surface,
+                    });
                 Some(DestinationFitGeometry {
-                    base: (-100.0, 100.0, -60.0, 60.0),
-                    target: (20.0, 40.0, 10.0, 30.0),
-                    surface: (900.0, 600.0),
+                    base: basis.bounds,
+                    target: (-69.07, 87.43, -99.148, -56.948),
+                    surface: basis.surface,
                 })
             },
             {
@@ -717,26 +739,31 @@ mod tests {
                 .expect("mounted production admission accepts the current fixture");
                 focused.set(focused_finding_for_admitted_route(&request, &admitted));
                 let mut pending = probe.pending.borrow().expect("mounted pending fit");
-                dispatch_route(admitted.effects, &request, |action| {
-                    match &action {
-                        RouteAction::SetWorkspace(name) => {
-                            workspace.set(*name);
-                            let mut owner = live.read().clone();
-                            owner.workspace = *name;
-                            live.set(owner);
+                dispatch_route_with_camera_basis(
+                    admitted.effects,
+                    &request,
+                    Some(probe.source_basis),
+                    |action| {
+                        match &action {
+                            RouteAction::SetWorkspace(name) => {
+                                workspace.set(*name);
+                                let mut owner = live.read().clone();
+                                owner.workspace = *name;
+                                live.set(owner);
+                            }
+                            RouteAction::SelectTree { scope, context } => {
+                                let mut owner = live.read().clone();
+                                owner.workspace = "Layout";
+                                owner.scope = Some(scope.clone());
+                                owner.destinations = vec![Destination::Layout(context.clone())];
+                                live.set(owner);
+                            }
+                            RouteAction::QueueLayoutFit(fit) => pending.set(Some(fit.clone())),
+                            _ => {}
                         }
-                        RouteAction::SelectTree { scope, context } => {
-                            let mut owner = live.read().clone();
-                            owner.workspace = "Layout";
-                            owner.scope = Some(scope.clone());
-                            owner.destinations = vec![Destination::Layout(context.clone())];
-                            live.set(owner);
-                        }
-                        RouteAction::QueueLayoutFit(fit) => pending.set(Some(fit.clone())),
-                        _ => {}
-                    }
-                    probe.route_actions.borrow_mut().push(action);
-                });
+                        probe.route_actions.borrow_mut().push(action);
+                    },
+                );
             }
         });
         *probe.schedule.borrow_mut() = Some(on_schedule);
@@ -787,6 +814,10 @@ mod tests {
             fit_state,
             document,
             initial_live,
+            source_basis: keycaps_fit::CameraBasis {
+                bounds: (-100.0, 126.915_439_560_439_52, -126.867, 15.542),
+                surface: (725.0, 455.0),
+            },
             expected: owner,
             workspace: Rc::default(),
             focused: Rc::default(),
@@ -890,6 +921,7 @@ mod tests {
                         }),
                         4,
                     ),
+                    source_basis: None,
                 }),
                 RouteAction::CloseObjects,
                 RouteAction::OpenInspector,
@@ -1141,6 +1173,10 @@ mod tests {
             probe.effects.borrow().first(),
             Some(FitAction::SetCamera(_))
         ));
+        let Some(FitAction::SetCamera(camera)) = probe.effects.borrow().first().copied() else {
+            panic!("accepted route must fit from its captured Keycaps basis");
+        };
+        assert!((camera.zoom - 1.385_94).abs() < 0.001);
         assert!(probe.pending.borrow().unwrap()().is_none());
 
         click_probe("leave-layout");
