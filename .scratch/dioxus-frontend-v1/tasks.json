@@ -1304,7 +1304,7 @@
         {
           "id": "F3.3-C01",
           "requirement": "Direct position/rotation, matrix stagger/splay/origin, alignment and offset/mirror constraints use existing edit operations.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/layout_align_controller.rs",
@@ -1314,10 +1314,11 @@
             "web/src/presentation.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/README.md"
+            ".scratch/dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/README.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/layout/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Qualify remaining direct rotation, pointer transforms, alignment and offset/mirror constraint operations; current paired receipt proves only selected Column OffsetX and Key LocalX edits.",
+          "next_action": "Retain paired current position/matrix rotation-origin/column stagger-splay-origin/offset-mirror constraints with single Undo, plus prior offset/alignment history receipts. Standalone component X/Y scope matches reference; no standalone rotation defect established.",
           "finish_condition": "Each listed action has a live public control and paired accepted edit through its existing edit operation.",
           "owned_files": [
             "web/src/presentation/objects/layout_align_controller.rs",
@@ -2349,9 +2350,11 @@
             "web/src/presentation/parts/catalogue.rs:1",
             "web/src/presentation/parts/modules_catalogue.rs:1"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Canonical/assembly/grouped VIK selection passes; same-name nice-view/nice-nano IDs are identical in both apps and differing labels are presentation-only. Remaining legacy/custom project-override selection needs representative fixture; do not reopen disproved mapping investigation.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs",
@@ -2366,15 +2369,17 @@
         {
           "id": "F4.1-C02",
           "requirement": "Keyboard selection/query changes and empty/no-match/loading/source-error states match React fixtures.",
-          "state": "implemented",
+          "state": "missing",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts.rs:736",
             "web/src/presentation/parts/modules_catalogue.rs:65"
           ],
-          "evidence": [],
+          "evidence": [
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+          ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Fix reproduced assembly search omission: no-match query retains all eight candidate Key assemblies while reference filters to zero. Assigned Parts author; targeted regression required. Keyboard VIK and query/no-match feedback pass; loading/source-error remain unqualified.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts.rs",
@@ -3730,7 +3735,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-pin-lock-controls-20261003/results.md"
           ],
           "blockers": [],
-          "next_action": "Qualify pin choice, lock/unlock, conflict resolution, save/reopen and Undo/Redo on a paired multi-board fixture.",
+          "next_action": "Paired P102 lock/manual conflict and net review Undo/reopen proven in existing Apply receipt. Remaining: lock edit Undo/Redo itself and lock/unlock behavior; do not repeat C02 accepted-net comparisons.",
           "finish_condition": "Paired result proves persisted locks, Core conflict diagnostics, preservation of other board/net data and exact undo behavior.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3748,7 +3753,7 @@
         {
           "id": "F5.3-C02",
           "requirement": "Review existing-connection replacement while preserving unrelated nets and make the replacement undoable.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring.rs:983",
@@ -3756,10 +3761,11 @@
             "web/src/presentation/pcb_wiring/apply.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-pcb-view/evidence/wiring-nextfrontier-20261002/part-inspector-journey/part-inspector-journey.md"
+            ".scratch/dioxus-pcb-view/evidence/wiring-nextfrontier-20261002/part-inspector-journey/part-inspector-journey.md",
+            ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Qualify the mounted Review existing connections action: preserve unrelated nets and restore reviewed assignments through Undo and reopen.",
+          "next_action": "Retain paired explicit review, normalized identical accepted exports, one Undo and fresh archive reopen; unrelated nets and Right PCB preserved. Pin-lock Undo/Redo and protected handoff remain C01/C05.",
           "finish_condition": "Paired fixture shows replaced connections, unrelated nets retained, one undoable edit and exact restoration.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -5382,7 +5388,7 @@
         {
           "id": "F6C.3-C02",
           "requirement": "Port wide/tall actions and mixed-selection display.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -5393,7 +5399,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Candidate34782 mixed SW1 1x4/SW8 1x1 selection showed Mixed, Wide saved 4x1 and Tall 1x4; individual Inspector reselect retained Tall. Complete matching TypeScript journey using a reliable key-selection route; previous SVG hit targeting selected unrelated objects, not an established product defect. No accepted archive comparison yet.",
+          "next_action": "Retain paired Mixed\u2192Wide/Tall common long/short sizing and individual post-save selection checks. Different representative mixed pairs are recorded; broader sizing/history criteria remain separate.",
           "finish_condition": "Heterogeneous sizes display Mixed; Wide and Tall apply the common long/short pair to all selected keys.",
           "owned_files": [
             "web/src/presentation/objects/keycap_size.rs",
@@ -7983,16 +7989,19 @@
         {
           "id": "F8.2-C04",
           "requirement": "Completed file URLs/resources are released.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md"
+            ".scratch/dioxus-frontend-v1/issues/08-export-coordinator-dispatch.md",
+            ".scratch/dioxus-frontend-v1/evidence/int2-acceptance-20261003/final-resource-trace.json",
+            ".scratch/dioxus-frontend-v1/evidence/int2-acceptance-20261003/failure-resource-trace.json",
+            ".scratch/dioxus-frontend-v1/evidence/int2-acceptance-20261003/REVIEW.md"
           ],
           "blockers": [],
-          "next_action": "Retain source lifecycle implementation and qualify URL/resource cleanup in the joined public output journeys.",
+          "next_action": "Retain 4 created/4 revoked Blob URLs and zero anchors across successful export, injected delivery failure, retry and portable copy. Current deliver helper byte-identical to qualified a201a96a source (checked2026-10-03). This is delivery cleanup evidence, not provider-failure proof.",
           "finish_condition": "Completed and failed downloads release temporary URL/resources with no retained owner leak.",
           "owned_files": [
             "web/src/runtime.rs"

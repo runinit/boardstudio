@@ -438,6 +438,20 @@ fn add_object_search_results<'a>(
         .collect()
 }
 
+fn matching_assembly_presets(search: &str) -> Vec<assembly_presets::Preset> {
+    let search = search.trim().to_lowercase();
+    assembly_presets::PRESETS
+        .iter()
+        .copied()
+        .filter(|preset| {
+            search.is_empty()
+                || format!("{} key assembly", preset.name)
+                    .to_lowercase()
+                    .contains(&search)
+        })
+        .collect()
+}
+
 fn add_object_choices(entries: &[CatalogEntry]) -> Vec<&CatalogEntry> {
     catalogue_choices(entries)
 }
@@ -735,6 +749,35 @@ mod add_object_menu_tests {
             ["battery"]
         );
     }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn key_assembly_search_hides_nonmatching_presets_without_losing_categories() {
+        let all = matching_assembly_presets("");
+        assert_eq!(all.len(), 8);
+        assert_eq!(
+            all.iter().map(|preset| preset.name).collect::<Vec<_>>(),
+            [
+                "MX Solder",
+                "MX Hotswap",
+                "Choc V1 Solder",
+                "Choc V1 Hotswap",
+                "MX RGB",
+                "Choc V1 RGB",
+                "MX Hotswap RGB",
+                "Choc V1 Hotswap RGB",
+            ]
+        );
+
+        let none = matching_assembly_presets("no-such-assembly");
+        assert!(none.is_empty());
+
+        let mx = matching_assembly_presets("mx");
+        assert_eq!(
+            mx.iter().map(|preset| preset.name).collect::<Vec<_>>(),
+            ["MX Solder", "MX Hotswap", "MX RGB", "MX Hotswap RGB"]
+        );
+        assert_eq!(matching_assembly_presets("key assembly").len(), 8);
+    }
 }
 
 /// Place inside the existing Objects panel when Parts is the active workspace.
@@ -791,12 +834,8 @@ pub(super) fn PartsLibraryPanel(
             .cloned()
             .collect::<Vec<_>>();
         let module_count = visible_module_groups.len();
-        let matching_assembly = assembly_presets::PRESETS.iter().any(|preset| {
-            search.is_empty()
-                || format!("{} key assembly", preset.name)
-                    .to_lowercase()
-                    .contains(&search)
-        });
+        let visible_assemblies = matching_assembly_presets(&search);
+        let matching_assembly = !visible_assemblies.is_empty();
         let no_matches = groups.is_empty()
             && module_count == 0
             && !matching_assembly
@@ -819,7 +858,7 @@ pub(super) fn PartsLibraryPanel(
                 }
             }
             details { class: "m1-parts-catalogue-scroll m1-parts-assembly-list", open: true,
-                summary { "Key assemblies" small { "8" } }
+                summary { "Key assemblies" small { "{visible_assemblies.len()}" } }
                 if assembly_selection().is_some() {
                     label { class: "m1-parts-search-label", "Switch orientation"
                         select {
@@ -836,7 +875,7 @@ pub(super) fn PartsLibraryPanel(
                     }
                 }
                 div { role: "listbox", "aria-label": "Key assemblies",
-                    for preset in assembly_presets::PRESETS {
+                    for preset in visible_assemblies {
                         { let is_selected = assembly_selection() == Some(preset.id);
                           let preset_id = preset.id;
                           let definition_id = preset.definition_id.to_owned();

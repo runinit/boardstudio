@@ -36,3 +36,20 @@ Normalized board-state comparison ignored revision/history metadata and included
 | `react-after-redo.boardstudio` | `874a2ceb946bf959249b4f3f97597cc9637ed2974fd640e5e099ac0fd9d630b7` | 13 | P101 | pad-24 |
 
 This qualifies one changed Apply history step on the populated fixture and its paired public reference. Pin-conflict behavior, reload/reopen history, and other F5.2/F5.3 branches were not revisited.
+
+## Paired pin-lock conflict and existing-net review (2026-10-03)
+
+Candidate: `frontend-module-attachment-repair-20261003`, source `733c1da2abede39a617d2eca2e42d9bd437cea41`, port 34782, session `bs-mig-4c0a05fa8298`. Reference: pinned React `5a472a9426e6e38993361da402cd4ec730feb369`, port 5175, session `pcb-pin-ts-7dd31abc1fc4`. Both started from the retained paired before-Apply exports above (candidate SHA-256 `83b0039c735cf954167ea88a2431fd0aa1bcdc28995146ba69de982910aae3c6`; React `db5a28c906342a0508401a0145a5cc57f7696e6aec90333f8945c7449f0d307e`). These are the same two-board Sofle project; source fixture SHA-256 is `5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df`.
+
+In both public apps, on Left PCB, I selected `left-diode-24-keys`, created `PCB_REVIEW_TEST`, and assigned its `from` terminal to that net. I then unlocked Row 1 and selected P102, which persisted `locks["row/0"] = "P102"` and produced the same Core-plan diagnostic in both apps: `matrix/left-keys/r0c0/diode already belongs to manual net PCB_REVIEW_TEST; review it before automatic wiring`. The board-level `Review existing connections` summary identified exactly one pin connection on `PCB_REVIEW_TEST`; the plan was shown as unresolved while that conflict remained.
+
+I invoked `Use automatic wiring for these connections` once in each app. The conflict summary/diagnostic disappeared. The public accepted archive at revision 15 retains the Left Row 1 P102 lock and the custom net with no pins. One Undo restored the conflict summary/diagnostic and the diode pin on `PCB_REVIEW_TEST` at revision 16. Re-importing each after-Undo archive into fresh browser sessions (`bs-mig-a6cedb3d5e55` and `pcb-ts-reopen-7dd31abc1fc4`) restored the same visible conflict, which qualifies the saved/reopened state. Normalized `project.json` comparisons (mapping the independently generated custom-net IDs to the shared visible name) are identical between React and Dioxus for both the after-review and after-Undo states, including both board memberships, all net pin sets and all hardware-board assignments/locks. Between after-review and after-Undo, the only net-pin delta is `PCB_REVIEW_TEST`: 0 pins to the single `matrix/left-keys/r0c0/diode` `pad-1` pin; all other net pin sets are unchanged. Both exports keep Right PCB `row/0` unlocked and preserve its other saved wiring configuration.
+
+| Public export | Revision | `PCB_REVIEW_TEST` pins | Left `row/0` lock | SHA-256 |
+| --- | ---: | --- | --- | --- |
+| `candidate-pin-review-after-replacement.boardstudio` | 15 | none | P102 | `4d795b8c8691c56c38cf00b7b0e0c2b4e8ff371dacd9419d9fa49f2bf4a7c635` |
+| `candidate-pin-review-after-undo.boardstudio` | 16 | diode `pad-1` | P102 | `957351af216934e0f010a9e82be52e39b2b7627f720005e25f6fa4890e5bdd3a` |
+| `react-pin-review-after-replacement.boardstudio` | 15 | none | P102 | `e951c1b82da03a7279abdfa18e46608a7e8c34f4c3394385af8d58ed91cf18d2` |
+| `react-pin-review-after-undo.boardstudio` | 16 | diode `pad-1` | P102 | `149ba776c5c740ef34bf46c4e16d0bd42e1a4391ebf64963ebbb0ba0cb575b11` |
+
+This closes the bounded paired public `Review existing connections` + Undo/reopen journey and supplies public lock/conflict-state evidence for C01. It does not exercise Undo/Redo of the pin-lock edit itself. The imported project has `protectedHandoff: null` on both boards, so this journey does not exercise the protected-remap review action (C05); its public route still needs a package-created protected fixture. No Apply action was repeated. Source locations for the exercised production path are `web/src/presentation/pcb_wiring.rs:908-939,983-995`, `web/src/presentation/pcb_wiring/connections.rs:27-101`, and `web/src/presentation/pcb_wiring/pins.rs:256-427`.

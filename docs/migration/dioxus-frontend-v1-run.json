@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T23:35:16.874893+00:00",
+    "updated_at": "2026-10-03T23:43:54.301949+00:00",
     "parent_counts": {
       "accepted": 11,
       "implementing": 40,
@@ -488,11 +488,11 @@
       {
         "stream": "Layout",
         "priority": "Functional gaps alongside other streams; exact visual parity deferred",
-        "state": "C04 verified; C01 direct transforms/matrix/constraints paired qualification active, reusing prior offset/alignment receipts."
+        "state": "C01 transforms and C04 snap/nudge verified; remaining C03 cancellation/final sample and C05 guard scenarios explicit."
       },
       {
         "stream": "PCB",
-        "state": "Attachment/history/reopen and Apply step passed. F5.3 conflict, explicit remap review and unrelated-net retention qualification active using accepted public exports."
+        "state": "F5.3-C02 manual-conflict review/Undo/reopen verified with normalized paired exports; remaining lock edit history and protected-remap state remain C01/C05."
       },
       {
         "stream": "Keymap",
@@ -500,7 +500,7 @@
       },
       {
         "stream": "Keycaps",
-        "state": "Candidate mixed display/Wide/Tall passed bounded Inspector checks. Paired TypeScript leg remains open due to SVG hit-target selection issue; no product defect established."
+        "state": "Mixed-selection Wide/Tall paired reference leg completed via keyboard targeting; C02 verified. Other sizing/selection lifecycle criteria remain."
       },
       {
         "stream": "Case",
@@ -508,7 +508,7 @@
       },
       {
         "stream": "Parts + Project",
-        "state": "F5.5-C03 profile/model reuse verified. F4.1 catalogue browse/select and keyboard/query/state qualification active against identical fixture; model alignment remains separate."
+        "state": "Assembly filtering source repaired; focused WASM regression failed on old behavior and passed on fix. Next combined package/public replay. Same-name attribution difference disproved by exact-ID source trace."
       }
     ],
     "pending_join_packets": [],
@@ -1183,6 +1183,19 @@
         "review": ".scratch/dioxus-frontend-v1/evidence/functional-controls-20261003/module-attachment-review.md",
         "review_sha256": "283af977b4ffb4242fe28c686571072faadb6185036cc59cea1cedb320baabcc",
         "source_commit": "733c1da2abede39a617d2eca2e42d9bd437cea41"
+      },
+      "next_scope": {
+        "id": "parts-assembly-search-20261003",
+        "streams": [
+          "Parts/Project"
+        ],
+        "journeys": [
+          {
+            "id": "assembly-query-filter",
+            "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+          }
+        ]
       }
     },
     "delivery_priority": {

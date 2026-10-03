@@ -32,3 +32,24 @@ The tested C04 legs pass for the mounted tree-item nudge route, editable spinbut
 On Dioxus build `frontend-module-attachment-repair-20261003` only (`http://127.0.0.1:34782/`, REVIUNG41), a bounded trusted Chrome DevTools Protocol touch-cancel check exercised the candidate cancellation path. With touch emulation enabled, the input sequence was `Input.dispatchTouchEvent(touchStart, 902,244)`, `touchMove(900,300)`, `touchMove(898,312)`, then `touchCancel`. During the snapped preview the status read `main-RST · corner / midpoint / center` and U1 previewed at `(273.2, -43.25)` mm. After `touchCancel`, the guide was absent and U1 returned to `(273.2, -15)` mm. The TypeScript native `pointercancel` path was not tested.
 
 Input was sent through the browser CDP `Input` domain after enabling `Emulation.setTouchEmulationEnabled`; only rendered DOM was read back. No page script or application runtime state was injected.
+
+## F3.3-C01: position, matrix transforms, and constraints
+
+Paired public-browser checks used the same REVIUNG41 fixture with pinned TypeScript `5a472a9426e6e38993361da402cd4ec730feb369` at `http://127.0.0.1:5175/` (session `f33c01-criteria-ts-20261003`) and Dioxus candidate `frontend-module-attachment-repair-20261003`, source `733c1da2abede39a617d2eca2e42d9bd437cea41`, at `http://127.0.0.1:34782/` (session `f33c01-criteria-dx-20261003`). Package proof: `../../frontend-module-attachment-repair-20261003/package-proof.json`.
+
+Reused paired records: Column Offset X `0 → 2.0 mm` and Key Local X `0 → 0.5 mm`, each with Undo/Redo/reload, are in [the matrix transform receipt](../../../../dioxus-layout-authoring/evidence/f33b-matrix-transform-paired-20261003/README.md). The six Align anchors with Undo each and final Redo/reload are in [the alignment receipt](../../../../dioxus-layout-authoring/evidence/transform-align/layout-align-paired-20261002/RESULTS.md).
+
+New paired accepted edits, each reverted with one Undo:
+
+- Standalone `main-U1` Properties X changed `273.2 → 274.2 mm` and returned to `273.2 mm` in both apps.
+- With the `right keys` matrix selected, matrix Origin X changed `140.665 → 141.665 mm`; matrix Rotation changed `0 → 5°`. Both fields accepted the same edit in both apps and each Undo restored its original value.
+- With `right keys · Column 1` selected, Stagger changed `0 → 1 mm`, Splay changed `10 → 11°`, and the column Splay Origin X changed `147.285 → 148.285 mm`. Each matched in both apps and each Undo restored baseline.
+- The active Stagger pointer handle was also dragged 10 client px vertically. It changed Column Offset Y `0 → -4.7625 mm` in both apps; one Undo restored `0`. This handle edits the column offset; the distinct Stagger field above edits the stagger value.
+- An Offset constraint on U1 using the default source `main-right-keys-SW1`, Offset X `2 mm`, Offset Y `30 mm`, Rotation `0°` was accepted in both apps. U1 moved from `(273.2, -15)` to approximately `(149.285, -21.02) mm`; one Undo removed the constraint and restored baseline.
+- A Mirror constraint on U1 using source `main-RST`, Vertical axis, coordinate `273.2 mm` was accepted in both apps. U1 moved from `(273.2, -15)` to `(273.2, -45) mm`; one Undo removed the constraint and restored baseline.
+
+Scope note: U1’s direct Properties inspector exposed X/Y but no standalone rotation field in either app. TypeScript’s `Position & rotation` menu item on U1 returned to the same Properties view without exposing a rotation control; Dioxus’s generic transform items were disabled for that Component selection. Selecting the `right keys` matrix enabled the corresponding transform commands in both apps and exposed the matrix Rotation field; selecting Column 1 exposed paired Stagger, Splay, and origin controls. No standalone-part rotation mismatch was reproduced; matrix rotation and the remaining C01 matrix/constraint edits matched in this bounded journey.
+
+No source or build changes were made for this qualification. Browser input used public UI controls and trusted pointer actions; no app runtime state was injected.
+
+Bounded coverage: the reused Align receipt is paired but its Dioxus browser candidate is the earlier `frontend-layout-align-wave-20261002` build (`14d1bfeb...`), not the current `34782` candidate; Align was not replayed here. No standalone-component Rotation field was exposed in the pinned TypeScript inspector, so component rotation itself remains unqualified; only matrix Rotation was edited and paired. Newly exercised values were reverted with Undo, not followed through reload. These limits do not change the paired acceptance results above.
