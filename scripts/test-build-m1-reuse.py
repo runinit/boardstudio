@@ -66,6 +66,7 @@ SOURCE_BYTES = {
     "web/src/presentation/panels_scroll_tests.rs": b"scroll tests before",
     "web/src/presentation/layout_workspace.rs": b'#[cfg(target_arch = "wasm32")]\n#[path = "layout.rs"]\nmod existing;\ninclude!("leaf.rs");\n',
     "web/src/presentation/layout.rs": b"pub fn layout() {}\n",
+    "web/src/presentation/leaf.rs": b"pub fn included_leaf() {}\n",
     "web/src/presentation/objects/layout_toolbar.rs": b"layout toolbar before",
     "web/src/presentation/objects/layout_transform_toolbar.rs": b"layout transform toolbar before",
     "web/src/presentation/keymap.rs": b"mod binding_editor;\n",
@@ -410,6 +411,100 @@ class PageOnlyReuseTests(TestCase):
                 head[path] = body
                 with self._patches(self.mock_environment(root, {}, current, head)):
                     with self.assertRaises(ValueError):
+                        BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertFalse((root / "web/target/builds/candidate").exists())
+
+    def test_transitive_feature_and_legacy_allowlist_cannot_hide_provider_overlap(self):
+        binding = "web/src/presentation/keymap/binding_editor.rs"
+        toolbar = "web/src/presentation/objects/layout_toolbar.rs"
+        cases = (
+            ({"web/Cargo.toml": SOURCE_BYTES["web/Cargo.toml"].replace(
+                b'core-worker = []', b'core-worker = ["page"]')}, binding),
+            ({"web/src/lib.rs": SOURCE_BYTES["web/src/lib.rs"] +
+                b'#[cfg(feature = "core-worker")]\n'
+                b'#[path = "presentation/objects/layout_toolbar.rs"]\nmod shared_toolbar;\n'}, toolbar),
+        )
+        for overrides, path in cases:
+            with self.subTest(path=path, overrides=list(overrides)), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with patch.dict(SOURCE_BYTES, overrides):
+                    self.make_baseline(root)
+                    head = dict(SOURCE_BYTES)
+                    head[path] = b"pub fn changed_provider_input() {}\n"
+                    current = {name: sha(body) for name, body in head.items()}
+                    with self._patches(self.mock_environment(root, {}, current, head)):
+                        with self.assertRaisesRegex(ValueError, "provider|outside page"):
+                            BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertFalse((root / "web/target/builds/candidate").exists())
+
+    def test_transitive_feature_closure_preserves_provider_labels(self):
+        manifest = SOURCE_BYTES["web/Cargo.toml"].replace(
+            b'core-worker = []', b'core-worker = ["bridge"]\nbridge = ["page"]')
+        with TemporaryDirectory() as temporary, patch.dict(SOURCE_BYTES, {"web/Cargo.toml": manifest}):
+            root = Path(temporary)
+            self.make_baseline(root)
+            with self._patches(self.mock_environment(root, {}, head=dict(SOURCE_BYTES))):
+                features = BUILD.page_build_feature_configs(root)
+                self.assertEqual(features[1], frozenset({"core-worker", "bridge", "page"}))
+                ownership = BUILD.page_feature_ownership(root)
+            self.assertEqual(set(ownership["provider_rust_inputs"]), {"core-worker", "cad-worker", "service-worker"})
+            self.assertIn("web/src/presentation/keymap/binding_editor.rs", ownership["provider_rust_inputs"]["core-worker"])
+
+    def test_literal_include_and_nested_inline_paths_are_owned_page_inputs(self):
+        path = "web/src/presentation/keymap/binding_editor.rs"
+        include = "web/src/presentation/keymap/included.rs"
+        nested = "web/src/presentation/keymap/binding_editor/outer/inner/leaf.rs"
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.make_baseline(root)
+            head = dict(SOURCE_BYTES)
+            head[path] += (
+                b'include!("included.rs");\n'
+                b'mod outer { mod inner { #[path = "leaf.rs"] mod leaf; } }\n'
+            )
+            head[include] = b"pub fn included() {}\n"
+            head[nested] = b"pub fn nested_leaf() {}\n"
+            current = {name: sha(body) for name, body in head.items()}
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                checked = BUILD.validate_reuse("candidate", "full-fixture")
+                self.assertEqual(set(checked[6]), {path, include, nested})
+                self.assertTrue({include, nested}.issubset(checked[10]["page_feature_rust_inputs"]))
+            self.assertFalse((root / "web/target/builds/candidate").exists())
+
+    def test_literal_include_alias_is_a_provider_input(self):
+        path = "web/src/presentation/keymap/binding_editor.rs"
+        lib = SOURCE_BYTES["web/src/lib.rs"] + (
+            b'#[cfg(feature = "core-worker")]\n'
+            b'include!("presentation/keymap/binding_editor.rs");\n'
+        )
+        with TemporaryDirectory() as temporary, patch.dict(SOURCE_BYTES, {"web/src/lib.rs": lib}):
+            root = Path(temporary)
+            self.make_baseline(root)
+            head = dict(SOURCE_BYTES)
+            head[path] = b"pub fn changed_provider_input() {}\n"
+            current = {name: sha(body) for name, body in head.items()}
+            with self._patches(self.mock_environment(root, {}, current, head)):
+                with self.assertRaisesRegex(ValueError, "provider|outside page"):
+                    BUILD.validate_reuse("candidate", "full-fixture")
+            self.assertFalse((root / "web/target/builds/candidate").exists())
+
+    def test_unresolved_include_nested_module_and_opaque_registration_fail_closed(self):
+        path = "web/src/presentation/keymap/binding_editor.rs"
+        cases = (
+            b'include!("missing.rs");\n',
+            b'include!("../../../../outside.rs");\n',
+            b'mod outer { mod inner { mod missing; } }\n',
+            b'macro_rules! register { () => { mod hidden; }; } register!();\n',
+        )
+        for registration in cases:
+            with self.subTest(registration=registration), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.make_baseline(root)
+                head = dict(SOURCE_BYTES)
+                head[path] = SOURCE_BYTES[path] + registration
+                current = {name: sha(body) for name, body in head.items()}
+                with self._patches(self.mock_environment(root, {}, current, head)):
+                    with self.assertRaisesRegex(ValueError, "missing|escapes|unsupported|module graph"):
                         BUILD.validate_reuse("candidate", "full-fixture")
                 self.assertFalse((root / "web/target/builds/candidate").exists())
 

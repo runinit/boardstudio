@@ -264,7 +264,48 @@ def page_build_feature_configs(repo_root):
     configurations = tuple(derived)
     if configurations != EXPECTED_PAGE_BUILD_CONFIGS:
         raise ValueError("full build feature matrix differs from the reviewed page/provider ownership")
-    return configurations
+
+    # --features selects roots, not the complete cfg(feature) set. Cargo also
+    # activates local feature dependencies and optional dependency features.
+    dependency_tables = [manifest.get("dependencies", {})]
+    dependency_tables.extend(
+        target.get("dependencies", {}) for target in manifest.get("target", {}).values()
+        if isinstance(target, dict)
+    )
+    optional = {
+        name for table in dependency_tables for name, row in table.items()
+        if isinstance(row, dict) and row.get("optional") is True
+    }
+    if any(not isinstance(items, list) or not all(isinstance(item, str) for item in items)
+           for items in features.values()):
+        raise ValueError("unsupported Cargo feature declarations; refusing provider reuse")
+    namespaced = {item[4:] for items in features.values() for item in items if item.startswith("dep:")}
+    local = dict(features)
+    local.update({name: [f"dep:{name}"] for name in optional - namespaced if name not in local})
+
+    def resolve(roots):
+        enabled = set()
+        pending = list(roots)
+        while pending:
+            name = pending.pop()
+            if name in enabled:
+                continue
+            if name not in local:
+                raise ValueError(f"unknown Cargo feature dependency: {name}")
+            enabled.add(name)
+            for item in local[name]:
+                if item.startswith("dep:"):
+                    if item[4:] not in optional:
+                        raise ValueError(f"unknown optional Cargo dependency: {item}")
+                elif "/" in item:
+                    # Dependency feature/weak-feature activation needs Cargo's
+                    # resolver. Unsupported shapes require the full build.
+                    raise ValueError(f"unsupported Cargo dependency feature: {item}")
+                else:
+                    pending.append(item)
+        return frozenset(enabled)
+
+    return tuple(resolve(roots) for roots in configurations)
 
 
 def _rust_group_end(values, start):
@@ -391,19 +432,17 @@ def _module_base(path):
 
 
 def rust_module_graph(repo_root, root_relative, features):
-    """Resolve active external Rust modules from one locked command root.
-
-    The graph is intentionally limited to the declarations in the source tree;
-    all roots, Cargo features, target, build script and command argv are separately
-    byte-pinned by the reuse proof. Unknown cfgs, paths and missing modules fail
-    closed instead of broadening the page-only set.
-    """
+    """Resolve supported Rust input edges; ambiguous registrations require full builds."""
     repo_root = Path(repo_root).resolve()
     src_root = (repo_root / "web/src").resolve()
     found = set()
     active = set()
+    generated_includes = {
+        "web/src/service_worker.rs": "/offline_manifest.rs",
+        "web/src/bundled_models.rs": "/bundled_ergogen_models.rs",
+    }
 
-    def walk(module_path, module_dir, inherited=True):
+    def walk(module_path, included=False):
         module_path = module_path.resolve()
         try:
             module_path.relative_to(src_root)
@@ -412,17 +451,48 @@ def rust_module_graph(repo_root, root_relative, features):
         relative = module_path.relative_to(repo_root).as_posix()
         if relative in active:
             raise ValueError(f"recursive Rust module graph: {relative}")
-        if relative in found:
-            return
         if not module_path.is_file():
             raise ValueError(f"Rust module is missing from source graph: {relative}")
+        tokens = rust_lex(module_path.read_bytes())
+        # Included code inherits its call site's module context. Rather than
+        # guess directory semantics, only module-free literal includes qualify.
+        if included and any(kind == "ident" and value in {"mod", "macro", "macro_rules"}
+                            for kind, value in tokens):
+            raise ValueError(f"unsupported module registration in included Rust source: {relative}")
+        if relative in found:
+            return
         found.add(relative)
         active.add(relative)
-        tokens = rust_lex(module_path.read_bytes())
+        values = [value for _, value in tokens]
+        for index, (kind, value) in enumerate(tokens):
+            if kind != "ident" or value != "include" or values[index + 1:index + 2] != ["!"]:
+                continue
+            start = index + 2
+            end = _rust_group_end(values, start)
+            expression = values[start + 1:end - 1]
+            if len(expression) == 1:
+                try:
+                    path = json.loads(expression[0])
+                except json.JSONDecodeError as error:
+                    raise ValueError("unsupported literal Rust include path") from error
+                if not isinstance(path, str) or not path:
+                    raise ValueError("unsupported literal Rust include path")
+                walk(module_path.parent / path, included=True)
+            else:
+                expected = generated_includes.get(relative)
+                allowed = ["concat", "!", "(", "env", "!", "(", '"OUT_DIR"', ")", ",",
+                           json.dumps(expected), ")"] if expected else None
+                if expression != allowed:
+                    raise ValueError(f"unsupported dynamic Rust include in module graph: {relative}")
+                # These exact generated tables are owned by the byte-pinned
+                # web/build.rs and hashed generator inputs, and rebuilt fresh.
+        walk_tokens(tokens, module_path, _module_base(module_path), relative)
+        active.remove(relative)
+
+    def walk_tokens(tokens, module_path, module_dir, relative):
         values = [value for _, value in tokens]
         index = 0
         pending_attributes = []
-
         while index < len(values):
             value = values[index]
             if value == ";":
@@ -430,69 +500,70 @@ def rust_module_graph(repo_root, root_relative, features):
                 index += 1
                 continue
             if value == "#" and index + 1 < len(values) and values[index + 1] in ("[", "!"):
-                start = index + 1
-                if values[start] == "!":
-                    start += 1
+                start = index + 1 + (values[index + 1] == "!")
                 end = _rust_group_end(values, start)
                 pending_attributes.append(tokens[index:end])
                 index = end
                 continue
-
-            item_index = index
-            if values[item_index] == "pub":
-                item_index += 1
-                if item_index < len(values) and values[item_index] == "(":
-                    item_index = _rust_group_end(values, item_index)
-            while item_index < len(values) and values[item_index] in ("unsafe", "default"):
-                item_index += 1
-
-            if item_index < len(values) and values[item_index] == "mod":
-                if item_index + 1 >= len(values) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", values[item_index + 1]):
+            item = index
+            if values[item] == "pub":
+                item += 1
+                if item < len(values) and values[item] == "(":
+                    item = _rust_group_end(values, item)
+            while item < len(values) and values[item] in ("unsafe", "default"):
+                item += 1
+            if item < len(values) and values[item] == "mod":
+                if item + 2 >= len(values) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", values[item + 1]):
                     raise ValueError(f"malformed module declaration in {relative}")
-                name = values[item_index + 1]
-                after_name = item_index + 2
+                name = values[item + 1]
+                after_name = item + 2
                 enabled, explicit_path = _module_attributes(pending_attributes, features)
                 pending_attributes.clear()
-                if after_name < len(values) and values[after_name] == ";":
-                    if enabled and inherited:
+                if values[after_name] == ";":
+                    if enabled:
                         if explicit_path is not None:
-                            child = module_path.parent / explicit_path
+                            path_base = module_path.parent if module_dir == _module_base(module_path) else module_dir
+                            child = path_base / explicit_path
                         else:
-                            base = module_dir if module_path.name == "mod.rs" else module_dir
-                            options = [base / f"{name}.rs", base / name / "mod.rs"]
+                            options = [module_dir / f"{name}.rs", module_dir / name / "mod.rs"]
                             existing = [path for path in options if path.is_file()]
                             if len(existing) != 1:
                                 raise ValueError(f"ambiguous or missing Rust module {name} declared by {relative}")
                             child = existing[0]
-                        child = child.resolve()
-                        walk(child, _module_base(child), True)
+                        walk(child)
                     index = after_name + 1
                     continue
-                if after_name < len(values) and values[after_name] == "{":
+                if values[after_name] == "{":
                     end = _rust_group_end(values, after_name)
-                    if enabled and inherited:
-                        # Inline modules rarely own separate source files, but any
-                        # nested external declarations remain part of this feature
-                        # root and must be included in the graph.
-                        inline_name = name
-                        inline_base = module_dir / inline_name
-                        # Recurse with the Rust inline-module directory base.
-                        walk_inline(tokens[after_name + 1:end - 1], module_path, inline_base, relative)
+                    if enabled:
+                        if explicit_path is not None:
+                            raise ValueError(f"unsupported path on inline Rust module: {relative}")
+                        walk_tokens(tokens[after_name + 1:end - 1], module_path, module_dir / name, relative)
                     index = end
                     continue
                 raise ValueError(f"unsupported Rust module item in {relative}")
-
             pending_attributes.clear()
-            # Skip one non-module item. Nested token groups are opaque, so `mod`
-            # text in functions, macro bodies and imports cannot become an edge.
+            if value in {"macro", "macro_rules"}:
+                raise ValueError(f"unsupported macro registration in Rust module graph: {relative}")
+            # Macro expansion cannot be treated as proof of no source edges.
+            macro = item
+            while macro + 2 < len(values) and values[macro + 1:macro + 3] == [":", ":"]:
+                macro += 3
+            if macro + 1 < len(values) and values[macro + 1] == "!":
+                if values[macro] not in {"include", "thread_local", "wasm_bindgen_test_configure"}:
+                    raise ValueError(f"unsupported item macro in Rust module graph: {relative}")
             cursor = index
             while cursor < len(values):
-                if values[cursor] in ("[", "("):
-                    cursor = _rust_group_end(values, cursor)
+                if values[cursor] in ("[", "(", "{"):
+                    end = _rust_group_end(values, cursor)
+                    if any(kind == "ident" and token in {"mod", "macro", "macro_rules"}
+                           for kind, token in tokens[cursor + 1:end - 1]):
+                        raise ValueError(f"unsupported nested registration in Rust module graph: {relative}")
+                    closing = values[end - 1]
+                    cursor = end
+                    if closing == "}":
+                        break
                     continue
-                if values[cursor] == "{":
-                    cursor = _rust_group_end(values, cursor)
-                    break
                 if values[cursor] == ";":
                     cursor += 1
                     break
@@ -501,61 +572,7 @@ def rust_module_graph(repo_root, root_relative, features):
                 raise ValueError(f"could not advance Rust module graph at {relative}")
             index = cursor
 
-        active.remove(relative)
-
-    def walk_inline(body_tokens, module_path, module_dir, owner_relative):
-        # Parse inline modules by preserving their token bytes as a synthetic
-        # Rust file in memory; module paths still resolve relative to the owner.
-        # The common page roots have no external declarations under inline test
-        # modules, which are cfg-disabled in release builds.
-        values = [value for _, value in body_tokens]
-        index = 0
-        pending_attributes = []
-        while index < len(values):
-            if values[index] == "#" and index + 1 < len(values) and values[index + 1] == "[":
-                end = _rust_group_end(values, index + 1)
-                pending_attributes.append(body_tokens[index:end])
-                index = end
-                continue
-            item = index
-            if values[item] == "pub":
-                item += 1
-                if item < len(values) and values[item] == "(":
-                    item = _rust_group_end(values, item)
-            if item < len(values) and values[item] == "mod" and item + 2 < len(values) and values[item + 2] == ";":
-                name = values[item + 1]
-                enabled, explicit_path = _module_attributes(pending_attributes, features)
-                pending_attributes.clear()
-                if enabled:
-                    if explicit_path is None:
-                        options = [module_dir / f"{name}.rs", module_dir / name / "mod.rs"]
-                        existing = [path for path in options if path.is_file()]
-                        if len(existing) != 1:
-                            raise ValueError(f"ambiguous or missing inline Rust module {name} declared by {owner_relative}")
-                        child = existing[0]
-                    else:
-                        child = module_path.parent / explicit_path
-                    walk(child, _module_base(child), True)
-                index = item + 3
-                continue
-            pending_attributes.clear()
-            cursor = index
-            while cursor < len(values):
-                if values[cursor] in ("[", "(", "{"):
-                    cursor = _rust_group_end(values, cursor)
-                    if values[cursor - 1] == "}":
-                        break
-                    continue
-                if values[cursor] == ";":
-                    cursor += 1
-                    break
-                cursor += 1
-            if cursor <= index:
-                raise ValueError(f"could not advance inline Rust module graph at {owner_relative}")
-            index = cursor
-
-    root_path = (repo_root / root_relative).resolve()
-    walk(root_path, _module_base(root_path))
+    walk(repo_root / root_relative)
     return frozenset(found)
 
 
@@ -587,8 +604,7 @@ def page_feature_ownership(repo_root):
     page_graph = set(rust_module_graph(repo_root, "web/src/main.rs", configurations[0]))
     page_graph.update(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0]))
     provider_graphs = {}
-    for features in configurations[1:]:
-        name = next(iter(features))
+    for name, features in zip(("core-worker", "cad-worker", "service-worker"), configurations[1:]):
         provider_graphs[name] = set(rust_module_graph(repo_root, "web/src/lib.rs", features))
     providers = set().union(*provider_graphs.values()) if provider_graphs else set()
     test_graph = set(rust_module_graph(repo_root, "web/src/lib.rs", configurations[0] | {"__test__"}))
@@ -1037,7 +1053,8 @@ def validate_reuse(build_id, baseline_id):
     if not page_rust.issubset(current) or not test_rust.issubset(current):
         missing = sorted((page_rust | test_rust) - set(current))
         raise ValueError(f"page module graph is missing source-manifest inputs: {missing[:8]}")
-    eligible = PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS | {PAGE_ONLY_MAIN_PATH}
+    providers = set().union(*(set(paths) for paths in ownership["provider_rust_inputs"].values()))
+    eligible = (PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS | {PAGE_ONLY_MAIN_PATH}) - providers - NON_PAGE_RUST_ALIASES
     disallowed = sorted(set(changed) - eligible)
     if disallowed:
         raise ValueError(f"changed inputs are outside page/test-only ownership: {disallowed}")
