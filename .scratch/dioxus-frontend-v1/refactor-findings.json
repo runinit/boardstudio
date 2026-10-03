@@ -167,6 +167,12 @@
           "evidence": ".scratch/dioxus-pcb-view/evidence/pcb-protected-remap-20261003/followup-core-session-correction.md",
           "observation": "A normal Session ReplaceDocument cannot clear a protected handoff: CoreEngine::edit invokes electrical::preserve_handoff and restores the old baseline. The bounded action now dispatches Core's existing ReviewElectricalRemap request through a narrow Session event and keeps Session's normal persistence/history authority.",
           "status": "required behavior correction; no duplicate document authority or general operation framework proposed"
+        },
+        {
+          "source": "PCB Issue 13 command pill, isolated source commit d01c18af",
+          "evidence": ".scratch/dioxus-pcb-view/issues/13-canvas-command-pill.md",
+          "observation": "The PCB command pill reuses the shared UI and existing accepted selection, matrix transform, align, snap and Session gesture paths. Private transform/align owners now carry an exact Layout-or-PCB route identity; the Layout admission remains exact and PCB uses a separate current-owner check. This is bounded composition mitigation under RF-001, not a generalized workspace framework or public acceptance claim.",
+          "status": "isolated implementation committed; strict WASM Clippy and test-target compilation pass; browser journey and root integration remain open"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
