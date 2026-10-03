@@ -1,6 +1,7 @@
 //! Read-only Parts catalogue and selected-definition presentation slots.
 mod catalogue;
 mod details;
+mod generator_settings;
 #[cfg(any(target_arch = "wasm32", test))]
 mod mechanical_profile_editor;
 #[cfg(target_arch = "wasm32")]
@@ -9,6 +10,7 @@ mod mechanical_profile_ui;
 mod physical_setup;
 mod preview;
 mod standard_profile_lifetime;
+pub(super) use generator_settings::GeneratorPreviewStatus;
 
 #[cfg(any(target_arch = "wasm32", test))]
 use mechanical_profile_editor::{
@@ -37,6 +39,16 @@ pub(super) type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
 
 #[derive(Clone, Copy)]
 pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct GeneratorPreviewDraft {
+    pub(super) owner: generator_settings::GeneratorOwner,
+    pub(super) definition: Option<boardstudio_core::model::PartDefinition>,
+    pub(super) status: generator_settings::GeneratorPreviewStatus,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct GeneratorDraftStore(pub(super) Signal<Option<GeneratorPreviewDraft>>);
 /// React's library predicate is advisory; Core remains authoritative when SetMatrix is accepted.
 pub(super) fn matrix_input_available(definition: &boardstudio_core::model::PartDefinition) -> bool {
     let press = if let Some(profile) = definition.input_profile.as_ref() {
@@ -865,6 +877,14 @@ pub(super) fn PartsInspectorPanel(
                     }
                 }
             }
+            if let Some(entry) = entry.as_ref().filter(|entry| entry.definition.generator.is_some()) {
+                generator_settings::GeneratorSettingsEditor {
+                    snapshot: snapshot.clone(),
+                    scope: scope.clone(),
+                    selected,
+                    definition: (*entry.definition).clone(),
+                }
+            }
             if !controller_placement_enabled && let Some(entry) = entry.as_ref() {
                 PartsInspectorPlacementAction {
                     entry: entry.clone(),
@@ -946,6 +966,11 @@ pub(super) fn PartsPreviewWorkspace(
     query: PartsQuery,
     selected: PartsSelection,
 ) -> Element {
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let store = use_context::<GeneratorDraftStore>().0;
+    let selection_generation = use_context::<PartsSelectionGeneration>().0;
+    let scope_generation = use_context::<super::SelectionAdapter>().generation;
+    let workspace = use_context::<super::WorkspaceState>().0;
     let catalogue = use_catalogue(&snapshot, &scope);
     let Some(entries) = catalogue.entries else {
         return if let Some(error) = catalogue.error {
@@ -974,9 +999,25 @@ pub(super) fn PartsPreviewWorkspace(
                 definition: None,
                 scope,
                 snapshot_token: snapshot.token,
+                generator_draft: None,
             }
         };
     };
+    let generator_draft = store().filter(|draft| {
+        generator_settings::owner_is_current(
+            &draft.owner,
+            &runtime,
+            selected,
+            scope_generation(),
+            selection_generation(),
+            workspace(),
+        )
+    });
+    let preview_definition = generator_draft
+        .as_ref()
+        .filter(|draft| draft.status == generator_settings::GeneratorPreviewStatus::Ready)
+        .and_then(|draft| draft.definition.as_ref())
+        .cloned();
     let source = match entry.source {
         catalogue::CatalogueSource::Project => ProfileDefinitionSource::Project,
         catalogue::CatalogueSource::Ergogen => ProfileDefinitionSource::Ergogen,
@@ -989,6 +1030,8 @@ pub(super) fn PartsPreviewWorkspace(
             scope,
             selection: selected,
             definition: (*entry.definition).clone(),
+            preview_definition,
+            generator_draft,
             source,
         }
     }

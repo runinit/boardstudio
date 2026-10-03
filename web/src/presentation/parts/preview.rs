@@ -1,4 +1,5 @@
 //! Read-only, source-backed 2D preview for the selected Parts definition.
+use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
 use crate::footprint_forms::{Graphic, Shape};
 use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
@@ -17,6 +18,7 @@ struct PreviewInput {
     scope: Option<Scope>,
     snapshot_token: SnapshotToken,
     definition_id: String,
+    definition_json: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -65,6 +67,7 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     definition: Option<Rc<PartDefinition>>,
     scope: Option<Scope>,
     snapshot_token: SnapshotToken,
+    generator_draft: Option<GeneratorPreviewDraft>,
 ) -> Element {
     let input = PreviewInput {
         scope: scope.clone(),
@@ -72,6 +75,10 @@ pub(in crate::presentation) fn PartsPreviewPanel(
         definition_id: definition
             .as_ref()
             .map_or_else(String::new, |definition| definition.id.clone()),
+        definition_json: definition
+            .as_ref()
+            .and_then(|definition| serde_json::to_string(definition).ok())
+            .unwrap_or_default(),
     };
     let last_input = use_hook(|| Rc::new(RefCell::new(None::<PreviewInput>)));
     let generation_counter = use_hook(|| Rc::new(Cell::new(0_u64)));
@@ -118,6 +125,13 @@ pub(in crate::presentation) fn PartsPreviewPanel(
 
     rsx! {
         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
+            if let Some(draft) = generator_draft.as_ref() {
+                match &draft.status {
+                    GeneratorPreviewStatus::Pending => p { class: "m1-parts-preview-status", role: "status", "Generating the current generator preview…" },
+                    GeneratorPreviewStatus::Ready => p { class: "m1-parts-preview-status", role: "status", "Unapplied generator preview" },
+                    GeneratorPreviewStatus::Failed(error) => p { class: "m1-parts-preview-error", role: "alert", "Generator preview failed; showing the accepted footprint: {error}" },
+                }
+            }
             match matching {
                 None => rsx! {
                     p { class: "m1-parts-loading", role: "status", "Preparing {definition.name} footprint preview…" }

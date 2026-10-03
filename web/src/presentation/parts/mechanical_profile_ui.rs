@@ -1,4 +1,5 @@
 use super::super::{WorkspaceState, selection::SelectionAdapter};
+use super::GeneratorPreviewDraft;
 use super::PartsPreviewPanel;
 use super::PartsSelectionGeneration;
 use super::{
@@ -22,6 +23,8 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
     scope: Option<Scope>,
     mut selection: Signal<Option<(Option<Scope>, String)>>,
     definition: PartDefinition,
+    preview_definition: Option<PartDefinition>,
+    generator_draft: Option<GeneratorPreviewDraft>,
     source: ProfileDefinitionSource,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
@@ -188,9 +191,10 @@ pub(crate) fn PartsMechanicalProfileWorkspace(
             }
         }
         PartsPreviewPanel {
-            definition: Some(Rc::new(definition)),
+            definition: Some(Rc::new(preview_definition.unwrap_or_else(|| definition.clone()))),
             scope,
             snapshot_token: snapshot.token,
+            generator_draft,
         }
     }
 }

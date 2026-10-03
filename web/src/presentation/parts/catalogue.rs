@@ -295,6 +295,15 @@ pub(super) async fn normalize_matrix_definition(
     normalize_matrix_definition_with_module(definition, &module)
 }
 
+/// Normalize a transient Parts generator candidate through the same packaged
+/// service used for construction. This does not edit the accepted document.
+pub(super) async fn normalize_generator_definition(
+    definition: PartDefinition,
+) -> Result<PartDefinition, String> {
+    let module = load_ergogen_module().await?;
+    normalize_matrix_definition_with_module(definition, &module)
+}
+
 fn normalize_matrix_definition_with_module(
     mut definition: PartDefinition,
     module: &JsValue,
