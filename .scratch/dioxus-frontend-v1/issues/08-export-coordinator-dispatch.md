@@ -41,7 +41,14 @@ the existing package entries. It preserves the exact React names, bytes,
 media types, model-file inclusion and scope, and does not add a public Rust
 contract. Authored Case STEP, generated mechanical package and local Keycaps
 STEP stay with their F7/F6 owners and are integrated as separate coordinator
-intents only when their current provider adapters are ready.
+intents only when their current provider adapters are ready. Source review of
+`Runtime::export_step` confirms the existing Core `CasePrepared` path can
+provide authored Case STEP when the selected board has no generated mechanical
+configuration; that exact branch should be reused and must remain guarded by
+the current accepted owner. It does not establish authored-only STEP semantics
+when a generated configuration is present, because the current path resolves
+the generated stack. Keep that latter capability explicit until an owned
+provider path is confirmed.
 
 For full/draft PCB, preserve this ordering from `exports/pcb.ts`:
 
@@ -78,8 +85,9 @@ acceptance criterion is mapped to evidence.
 - Full/draft KiCad's model assets, multi-instance population files, accepted
   wiring commit, package, and protection ordering require an actual combined
   journey; a standalone Core `FinishExport` artifact is not that handoff.
-- `Runtime::export_step` is the current generated assembly STEP provider. It
-  does not by itself establish authored Case STEP semantics or a complete
-  generated mechanical ZIP.
+- `Runtime::export_step` can export authored Case STEP when no generated
+  mechanical configuration is present; the configured/generated case branch
+  resolves the generated stack and must not be relabeled as authored-only.
+  Neither branch by itself establishes a complete generated mechanical ZIP.
 - Actual physical file picker behavior is not a host gate; browser delivery
   evidence should record filename, media type, byte signature, and cleanup.
