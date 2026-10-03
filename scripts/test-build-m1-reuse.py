@@ -40,7 +40,7 @@ core-worker = []
 cad-worker = []
 service-worker = []
 '''
-PROOF["web/src/presentation.rs"] = b"mod keymap;\nmod objects;\nmod layout_workspace;\n"
+PROOF["web/src/presentation.rs"] = b"mod keymap;\nmod objects;\nmod layout_workspace;\nmod library;\n"
 PROOF["web/src/main.rs"] = b'#[cfg(feature = "page")]\nmod presentation;\n'
 PROOF["web/src/lib.rs"] = (
     b'#[cfg(feature = "page")]\nmod presentation;\n'
@@ -84,6 +84,9 @@ SOURCE_BYTES = {
     ".cargo/config.toml": b"[build]\nrustflags = ['-C', 'target-cpu=native']\n",
     ".npmrc": b"strict-peer-dependencies=true\n",
     ".node-version": b"22.0.0\n",
+    BUILD.REUSE_HELPER_PATH: b"current fixture helper source",
+    BUILD.FIXTURE_PREPARATION_PATH: b"fixture preparation before",
+    "web/src/presentation/library.rs": b"pub fn library() {}\n",
 }
 HEAD_BYTES = {**SOURCE_BYTES,
               "web/src/presentation/panels.rs": b"panels after",
@@ -91,6 +94,9 @@ HEAD_BYTES = {**SOURCE_BYTES,
               "web/src/presentation/objects/layout_toolbar.rs": b"layout toolbar after",
               "web/assets/m1.css": b"css after"}
 HEAD_BYTES["web/src/presentation/keymap/binding_editor.rs"] = b"pub fn binding_editor() { let label = \"after\"; }\n"
+HEAD_BYTES[BUILD.REUSE_HELPER_PATH] = b"fixture refresh helper source"
+HEAD_BYTES[BUILD.FIXTURE_PREPARATION_PATH] = b"fixture preparation after"
+HEAD_BYTES["web/src/presentation/library.rs"] = b"pub fn library() { let vik = true; }\n"
 
 
 def sha(data):
@@ -103,6 +109,7 @@ class PageOnlyReuseTests(TestCase):
         baseline = build_root / "full-fixture"
         baseline.mkdir(parents=True)
         sources = {name: sha(body) for name, body in SOURCE_BYTES.items()}
+        sources[BUILD.REUSE_HELPER_PATH] = next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS))[1]
         commands = []
         for label in (
             "rustc-version", "cargo-version", "dx-version", "wasm-pack-version", "node-version", "pnpm-version",
@@ -150,7 +157,7 @@ class PageOnlyReuseTests(TestCase):
                 "assets": {p.relative_to(site).as_posix(): sha(p.read_bytes()) for p in site.rglob("*") if p.is_file()},
             }
         provenance = {
-            "source_commit": "a" * 40,
+            "source_commit": next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS))[0],
             "status": "complete",
             "sources": sources,
             "commands": commands,
@@ -206,8 +213,11 @@ class PageOnlyReuseTests(TestCase):
             return [sys.executable, str(root / "scripts/stage-ergogen-models.py"), "--source-root", str(root / "ergogen/library/vendor"), "--destination", str(web / "assets/ergogen-models"), "--manifest", str(baseline / "ergogen-models-catalog.json")]
         raise AssertionError(label)
 
-    def mock_environment(self, root, provenance, current=None, head=None):
+    def mock_environment(self, root, provenance, current=None, head=None, *, helper_changed=False):
         current = current or {name: sha(body) for name, body in SOURCE_BYTES.items()}
+        current = dict(current)
+        if not helper_changed:
+            current[BUILD.REUSE_HELPER_PATH] = next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS))[1]
         head = head or HEAD_BYTES
         for name, body in head.items():
             path = root / name
@@ -216,6 +226,8 @@ class PageOnlyReuseTests(TestCase):
 
         def check_output(command, **kwargs):
             if command[:2] == ["git", "rev-parse"]:
+                if len(command) == 3 and ":" in command[2]:
+                    return next(iter(BUILD.COMPATIBLE_FULL_BUILD_HELPERS.values())) + "\n"
                 return "b" * 40 if kwargs.get("text") else b"b" * 40
             if command[:3] == ["git", "cat-file", "-e"]:
                 return b""
@@ -724,6 +736,85 @@ fn CommandPill() -> Element {
                     {name: sha((Path(base[mode]["site"]) / name).read_bytes()) for name in base[mode]["assets"]},
                     base_route_hashes[mode],
                 )
+
+    def test_fixture_refresh_uses_exact_helper_proof_and_seven_fresh_commands(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline, base = self.make_baseline(root, extra_asset="assets/fixtures/old.json")
+            current = {name: sha(body) for name, body in SOURCE_BYTES.items()}
+            current[BUILD.FIXTURE_PREPARATION_PATH] = sha(HEAD_BYTES[BUILD.FIXTURE_PREPARATION_PATH])
+            current["web/src/presentation/library.rs"] = sha(HEAD_BYTES["web/src/presentation/library.rs"])
+            current[BUILD.REUSE_HELPER_PATH] = sha(HEAD_BYTES[BUILD.REUSE_HELPER_PATH])
+            calls = []
+
+            def executor(argv, cwd, env, stdout, stderr):
+                calls.append(argv)
+                if argv[0] == "node" and Path(argv[1]).name == "prepare-m1-fixtures.mjs":
+                    fixtures = Path(argv[2])
+                    fixtures.mkdir(parents=True, exist_ok=True)
+                    (fixtures / "sofle.boardstudio").write_bytes(b"unchanged Sofle fixture")
+                    (fixtures / "vik.boardstudio").write_bytes(b"new VIK fixture")
+                    (fixtures / "provenance.json").write_text('{"fixture":"vik"}\n')
+                elif argv[0] == "dx":
+                    public = root / "web/target/dx/boardstudio-web/release/web/public"
+                    (public / "assets").mkdir(parents=True, exist_ok=True)
+                    (public / "index.html").write_text("fresh fixture-refresh page")
+                    (public / "assets/fresh-page.js").write_text("new page")
+                elif argv[0] == "wasm-pack":
+                    out = Path(argv[argv.index("--out-dir") + 1])
+                    out.mkdir(parents=True, exist_ok=True)
+                    (out / "boardstudio_offline_worker.js").write_text("fresh offline worker")
+                elif argv[0] == "node" and Path(argv[1]).name == "embed-worker-wasm.mjs":
+                    Path(argv[4]).write_text("fresh embedded worker")
+                else:
+                    raise AssertionError(argv)
+                return subprocess.CompletedProcess(argv, 0)
+
+            patches = self.mock_environment(root, base, current, HEAD_BYTES, helper_changed=True)
+            patches.append(patch.object(BUILD.subprocess, "run", side_effect=executor))
+            with self._patches(patches):
+                BUILD.build_reuse("fixture-candidate", "full-fixture", refresh_fixtures=True)
+
+            output = root / "web/target/builds/fixture-candidate"
+            receipt = json.loads((output / "provenance.json").read_text())
+            self.assertEqual(len(calls), 7)
+            self.assertEqual(len(receipt["commands"]), 7)
+            self.assertEqual([Path(command["log"]).stem for command in receipt["commands"]], [
+                "fixtures", "page-root", "offline-worker-root", "embed-offline-root",
+                "page-subpath", "offline-worker-subpath", "embed-offline-subpath",
+            ])
+            self.assertEqual(receipt["inherited_full_build_commands"], 22)
+            self.assertEqual(len(receipt["inherited_full_build_lineage"]), 22)
+            self.assertEqual(receipt["reuse_mode"], "fixture-refresh-provider-reuse")
+            self.assertEqual(receipt["helper_compatibility"]["compatibility"], "pinned-bbd4-full-build-helper")
+            self.assertEqual(set(receipt["changed_allowlisted_inputs"]), {
+                BUILD.REUSE_HELPER_PATH, BUILD.FIXTURE_PREPARATION_PATH,
+                "web/src/presentation/library.rs",
+            })
+            self.assertEqual(
+                receipt["root"]["reused_provider_assets"],
+                {name: data for name, data in base["root"]["assets"].items()
+                 if name.startswith(BUILD.FIXTURE_REFRESH_INHERITED_PREFIXES)},
+            )
+            root_fixtures = receipt["root"]["refreshed_fixture_assets"]
+            self.assertEqual(root_fixtures, receipt["subpath"]["refreshed_fixture_assets"])
+            self.assertIn("assets/fixtures/vik.boardstudio", root_fixtures)
+            self.assertNotIn("assets/fixtures/old.json", root_fixtures)
+            self.assertEqual(
+                {name: data for name, data in receipt["root"]["reused_provider_assets"].items()
+                 if name.startswith(("assets/core-worker/", "assets/cad-worker/", "assets/cad/", "assets/renderer/"))},
+                {name: data for name, data in base["root"]["assets"].items()
+                 if name.startswith(("assets/core-worker/", "assets/cad-worker/", "assets/cad/", "assets/renderer/"))},
+            )
+
+            baseline_provenance_path = baseline / "provenance.json"
+            baseline_provenance = json.loads(baseline_provenance_path.read_text())
+            baseline_provenance["sources"][BUILD.REUSE_HELPER_PATH] = "f" * 64
+            baseline_provenance_path.write_text(json.dumps(baseline_provenance))
+            rejected_patches = self.mock_environment(root, base, current, HEAD_BYTES, helper_changed=True)
+            with self._patches(rejected_patches):
+                with self.assertRaisesRegex(ValueError, "neither unchanged nor the pinned compatible"):
+                    BUILD.validate_reuse("rejected", "full-fixture", refresh_fixtures=True)
 
     def test_source_asset_and_provenance_drift_during_build_are_retained_as_failures(self):
         expected_errors = {

@@ -48,9 +48,19 @@ PAGE_ONLY_PROOF_PATHS = (
     "web/Cargo.toml",
     "web/build.rs",
     "core/Cargo.toml",
-    "scripts/build-m1.py",
 )
 PAGE_ONLY_MAIN_PATH = "web/src/main.rs"
+REUSE_HELPER_PATH = "scripts/build-m1.py"
+FIXTURE_PREPARATION_PATH = "scripts/prepare-m1-fixtures.mjs"
+# The page-reuse guard changed in the full candidate at bbd4. Reuse remains
+# compatible with that exact full-build helper only when the baseline source
+# identity, source-manifest SHA-256, and Git blob identity all agree.
+COMPATIBLE_FULL_BUILD_HELPERS = {
+    (
+        "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+        "f350570e89f57ade0ba87d0a891d84826b318f056fab4da518826d4a750f705f",
+    ): "157c6222db575eeec7d30be1e72e45ba49fb7a22",
+}
 CORE_TEST_ONLY_PATHS = frozenset({"core/tests/electrical_wiring.rs"})
 NON_PAGE_RUST_ALIASES = frozenset({"web/src/presentation/objects/layout_align_geometry.rs"})
 REUSED_PROVIDER_PREFIXES = (
@@ -61,6 +71,9 @@ REUSED_PROVIDER_PREFIXES = (
     "assets/fixtures/",
     "assets/ergogen-models/",
 )
+FIXTURE_REFRESH_INHERITED_PREFIXES = tuple(
+    prefix for prefix in REUSED_PROVIDER_PREFIXES if prefix != "assets/fixtures/"
+) + ("assets/layout-generators", "assets/preview-generator/")
 
 # Full builds produce these generated files. Their maintained source inputs are
 # still hashed; generated copies are validated as packaged assets instead.
@@ -1032,7 +1045,50 @@ def checked_baseline(build_id):
     return baseline, provenance, provenance_path, provenance_hash, expected_tools, command_log_hashes
 
 
-def validate_reuse(build_id, baseline_id):
+def verified_reuse_helper(provenance, current_helper_hash):
+    """Prove the baseline helper is either unchanged or the pinned bbd4 helper."""
+    source_commit = provenance["source_commit"]
+    baseline_helper_hash = provenance["sources"].get(REUSE_HELPER_PATH)
+    if not isinstance(baseline_helper_hash, str):
+        raise ValueError("baseline source manifest is missing the guarded reuse helper")
+    compatible_blob = COMPATIBLE_FULL_BUILD_HELPERS.get((source_commit, baseline_helper_hash))
+    if compatible_blob is not None:
+        try:
+            blob = subprocess.check_output(
+                ["git", "rev-parse", f"{source_commit}:{REUSE_HELPER_PATH}"],
+                cwd=REPO,
+                text=True,
+                stderr=subprocess.PIPE,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise ValueError("compatible full-build helper source cannot be verified") from error
+        if blob != compatible_blob:
+            raise ValueError("compatible full-build helper Git identity differs")
+        compatibility = "pinned-bbd4-full-build-helper"
+    elif baseline_helper_hash == current_helper_hash:
+        try:
+            baseline_bytes = subprocess.check_output(
+                ["git", "show", f"{source_commit}:{REUSE_HELPER_PATH}"],
+                cwd=REPO,
+                stderr=subprocess.PIPE,
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise ValueError("baseline helper source cannot be verified") from error
+        if hashlib.sha256(baseline_bytes).hexdigest() != baseline_helper_hash:
+            raise ValueError("baseline helper source does not match its source manifest")
+        compatibility = "identical-committed-helper"
+    else:
+        raise ValueError("baseline helper is neither unchanged nor the pinned compatible full-build helper")
+    return {
+        "compatibility": compatibility,
+        "baseline_source_commit": source_commit,
+        "baseline_sha256": baseline_helper_hash,
+        "current_sha256": current_helper_hash,
+        "baseline_git_blob": compatible_blob,
+    }
+
+
+def validate_reuse(build_id, baseline_id, *, refresh_fixtures=False):
     if not valid_build_id(build_id):
         raise ValueError("build id must be alphanumeric with optional hyphens")
     if not valid_build_id(baseline_id):
@@ -1043,6 +1099,7 @@ def validate_reuse(build_id, baseline_id):
     baseline, provenance, provenance_path, provenance_hash, tools, command_log_hashes = checked_baseline(baseline_id)
     current = sources()
     old = provenance["sources"]
+    helper_compatibility = verified_reuse_helper(provenance, current.get(REUSE_HELPER_PATH, ""))
     added = set(current) - set(old)
     removed = set(old) - set(current)
     if removed:
@@ -1055,7 +1112,14 @@ def validate_reuse(build_id, baseline_id):
         missing = sorted((page_rust | test_rust) - set(current))
         raise ValueError(f"page module graph is missing source-manifest inputs: {missing[:8]}")
     providers = set().union(*(set(paths) for paths in ownership["provider_rust_inputs"].values()))
-    eligible = (PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS | {PAGE_ONLY_MAIN_PATH}) - providers - NON_PAGE_RUST_ALIASES
+    eligible = (PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS |
+                {PAGE_ONLY_MAIN_PATH, REUSE_HELPER_PATH}) - providers - NON_PAGE_RUST_ALIASES
+    if refresh_fixtures:
+        eligible |= {FIXTURE_PREPARATION_PATH}
+        if FIXTURE_PREPARATION_PATH not in changed:
+            raise ValueError("fixture refresh requires a changed fixture-preparation source")
+    elif FIXTURE_PREPARATION_PATH in changed:
+        raise ValueError("fixture-preparation changes require explicit --refresh-fixtures-from")
     disallowed = sorted(set(changed) - eligible)
     if disallowed:
         raise ValueError(f"changed inputs are outside page/test-only ownership: {disallowed}")
@@ -1072,7 +1136,7 @@ def validate_reuse(build_id, baseline_id):
             raise ValueError(f"changed source is absent from the current committed candidate: {path}") from error
         if hashlib.sha256(head_bytes).hexdigest() != current[path]:
             raise ValueError(f"page-owned Rust or asset input has uncommitted changes: {path}")
-        if path in old:
+        if path in old and path != REUSE_HELPER_PATH:
             try:
                 baseline_bytes = subprocess.check_output(
                     ["git", "show", f"{provenance['source_commit']}:{path}"], cwd=REPO, stderr=subprocess.PIPE
@@ -1103,7 +1167,8 @@ def validate_reuse(build_id, baseline_id):
         if not page_main_delta_is_page_only(baseline_main.decode("utf-8"), current_main.decode("utf-8")):
             raise ValueError("main.rs changed outside cfg-page module roots or the native test stand-in")
     return (output, baseline, provenance, provenance_path, provenance_hash, current,
-            changed, tools, command_log_hashes, syntax_signatures, ownership)
+            changed, tools, command_log_hashes, syntax_signatures, ownership,
+            helper_compatibility)
 
 
 def ignore_rebuilt_assets(directory, names):
@@ -1115,10 +1180,12 @@ def ignore_rebuilt_assets(directory, names):
     }]
 
 
-def build_reuse(build_id, baseline_id):
+def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
     (output, baseline, base_provenance, baseline_provenance_path,
      baseline_provenance_hash, source_before, changed, tools, command_log_hashes,
-     syntax_signatures, ownership) = validate_reuse(build_id, baseline_id)
+     syntax_signatures, ownership, helper_compatibility) = validate_reuse(
+         build_id, baseline_id, refresh_fixtures=refresh_fixtures
+     )
     # All guards run before this point. Reserve output only after validation.
     output.mkdir(parents=True, exist_ok=False)
     (output / "tmp").mkdir()
@@ -1126,8 +1193,12 @@ def build_reuse(build_id, baseline_id):
     provenance = {
         "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
         "build_id": build_id,
-        "reuse_mode": "page-only-provider-reuse",
-        "scope": "Fresh page and offline route packages; verified full-build providers reused.",
+        "reuse_mode": "fixture-refresh-provider-reuse" if refresh_fixtures else "page-only-provider-reuse",
+        "scope": (
+            "Fresh fixtures, page, and offline route packages; verified full-build providers reused."
+            if refresh_fixtures else
+            "Fresh page and offline route packages; verified full-build providers reused."
+        ),
         "status": "running",
         "base_build": str(baseline),
         "base_source_commit": base_provenance["source_commit"],
@@ -1147,17 +1218,20 @@ def build_reuse(build_id, baseline_id):
             for row in base_provenance["commands"]
         ],
         "changed_allowlisted_inputs": changed,
+        "fixture_refresh": refresh_fixtures,
+        "helper_compatibility": helper_compatibility,
         "audited_page_leaf_inputs": {
             name: list(paths) for name, paths in PAGE_ONLY_LEAF_PATHS.items()
         },
         "changed_rust_syntax_signatures": syntax_signatures,
         "page_feature_ownership": ownership,
         "dependency_proof": {
-            "statement": "Page-only Rust inputs are resolved from the exact page binary and library module roots under the locked wasm32 page feature set, then subtracted against the three provider library roots from the full build command matrix. New/moved module inputs must remain inside that derived page-only graph; deletions require a full build. Separate cfg(test) module files and the single unchanged-Core-target integration test are recorded as test-only and are not package command inputs. Cargo manifests, lib root, build script, and this helper remain byte-identical; main.rs may differ only by cfg-page external module roots and its native test-only presentation stand-in. The layout_align_geometry core-worker test alias remains explicitly excluded.",
+            "statement": "Page-only Rust inputs are resolved from the exact page binary and library module roots under the locked wasm32 page feature set, then subtracted against the three provider library roots from the full build command matrix. New/moved module inputs must remain inside that derived page-only graph; deletions require a full build. Separate cfg(test) module files and the single unchanged-Core-target integration test are recorded as test-only and are not package command inputs. Cargo manifests, lib root, build script, and main.rs retain their source/feature proofs. The build helper must match the baseline or pass its explicit committed compatibility proof; a fixture-preparation source change is accepted only in fixture-refresh mode. The layout_align_geometry core-worker test alias remains explicitly excluded.",
             "source_hashes": {
                 **{path: source_before[path] for path in PAGE_ONLY_PROOF_PATHS},
                 PAGE_ONLY_MAIN_PATH: source_before[PAGE_ONLY_MAIN_PATH],
             },
+            "reuse_helper": helper_compatibility,
             "build_features": {
                 "page": sorted(page_build_feature_configs(REPO)[0]),
                 "provider": [sorted(features) for features in page_build_feature_configs(REPO)[1:]],
@@ -1183,8 +1257,11 @@ def build_reuse(build_id, baseline_id):
             print(log.read_text()[-10000:], file=sys.stderr)
             raise SystemExit(result.returncode)
 
-    run("layout-generators", ["node", REPO / "scripts/web/build-layout-generators.mjs", output / "layout-generator-assets"])
-    run("preview-generator", ["node", REPO / "scripts/web/build-preview-generator.mjs", output / "preview-generator-assets"])
+    if refresh_fixtures:
+        run("fixtures", ["node", REPO / FIXTURE_PREPARATION_PATH, output / "fixtures"])
+    else:
+        run("layout-generators", ["node", REPO / "scripts/web/build-layout-generators.mjs", output / "layout-generator-assets"])
+        run("preview-generator", ["node", REPO / "scripts/web/build-preview-generator.mjs", output / "preview-generator-assets"])
     for mode, prefix in [("root", "/"), ("subpath", "/boardstudio/")]:
         public = WEB / "target/dx/boardstudio-web/release/web/public"
         # Keep the existing CLI behavior: preserve Dioxus's public output before
@@ -1202,9 +1279,10 @@ def build_reuse(build_id, baseline_id):
         # Stage only the exact inherited providers from the validated baseline.
         # The candidate site never starts as a copy of the prior site, so stale
         # or unrelated baseline files cannot leak into this route.
+        inherited_prefixes = FIXTURE_REFRESH_INHERITED_PREFIXES if refresh_fixtures else REUSED_PROVIDER_PREFIXES
         inherited_providers = {
             path: file_hash for path, file_hash in route["assets"].items()
-            if path.startswith(REUSED_PROVIDER_PREFIXES)
+            if path.startswith(inherited_prefixes)
         }
         for relative in sorted(inherited_providers):
             source = Path(route["site"]) / relative
@@ -1213,8 +1291,11 @@ def build_reuse(build_id, baseline_id):
             shutil.copy2(source, target)
         shutil.copytree(public, destination, dirs_exist_ok=True)
         shutil.copytree(WEB / "assets", assets, dirs_exist_ok=True, ignore=ignore_rebuilt_assets)
-        shutil.copytree(output / "layout-generator-assets", assets, dirs_exist_ok=True)
-        shutil.copytree(output / "preview-generator-assets", assets, dirs_exist_ok=True)
+        if refresh_fixtures:
+            shutil.copytree(output / "fixtures", assets / "fixtures", dirs_exist_ok=True)
+        else:
+            shutil.copytree(output / "layout-generator-assets", assets, dirs_exist_ok=True)
+            shutil.copytree(output / "preview-generator-assets", assets, dirs_exist_ok=True)
         manifest = output / f"offline-manifest-{mode}.json"
         required = sorted({str(path.relative_to(destination)) for path in destination.rglob("*") if path.is_file()} | {"service-worker.js", "boardstudio_offline_worker.js"})
         manifest.write_text(json.dumps({"version": f"{build_id}-{mode}", "assets": required}, indent=2)+"\n")
@@ -1224,7 +1305,7 @@ def build_reuse(build_id, baseline_id):
             str(path.relative_to(destination)): digest(path) for path in sorted(destination.rglob("*")) if path.is_file()}}
         candidate_providers = {
             path: file_hash for path, file_hash in provenance[mode]["assets"].items()
-            if path.startswith(REUSED_PROVIDER_PREFIXES)
+            if path.startswith(inherited_prefixes)
         }
         if candidate_providers != inherited_providers:
             provenance["status"] = "failed-reused-provider-drift"
@@ -1238,6 +1319,21 @@ def build_reuse(build_id, baseline_id):
                 (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
                 raise SystemExit(f"Reused provider asset changed during staging: {mode}:{path}")
         provenance[mode]["reused_provider_assets"] = inherited_providers
+        if refresh_fixtures:
+            fixture_assets = {
+                path: file_hash for path, file_hash in provenance[mode]["assets"].items()
+                if path.startswith("assets/fixtures/")
+            }
+            fresh_fixture_assets = {
+                f"assets/fixtures/{path.relative_to(output / 'fixtures').as_posix()}": sha256_file(path)
+                for path in sorted((output / "fixtures").rglob("*")) if path.is_file()
+            }
+            if fixture_assets != fresh_fixture_assets:
+                provenance["status"] = "failed-fixture-refresh-drift"
+                provenance["fixture_refresh_error"] = mode
+                (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
+                raise SystemExit(f"Refreshed fixture path set or bytes changed during staging: {mode}")
+            provenance[mode]["refreshed_fixture_assets"] = fixture_assets
         provenance["commands"][-1]["site_manifest_sha256"] = digest(manifest)
         provenance["commands"][-1]["site_asset_count"] = len(provenance[mode]["assets"])
         (output / "provenance.json").write_text(json.dumps(provenance, indent=2)+"\n")
@@ -1342,7 +1438,9 @@ def build_full(build_id):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Build a full M1 candidate or a guarded page-only reuse candidate.")
     parser.add_argument("build_id", help="unique alphanumeric/hyphen build identifier")
-    parser.add_argument("--reuse-providers-from", metavar="FULL_BUILD_ID", help="reuse verified providers from a complete full build")
+    reuse = parser.add_mutually_exclusive_group()
+    reuse.add_argument("--reuse-providers-from", metavar="FULL_BUILD_ID", help="reuse verified providers from a complete full build")
+    reuse.add_argument("--refresh-fixtures-from", metavar="FULL_BUILD_ID", help="refresh demo fixtures and page/offline routes from a compatible complete full build")
     args = parser.parse_args(argv)
     if not valid_build_id(args.build_id):
         parser.error("build id must be alphanumeric with optional hyphens")
@@ -1351,6 +1449,14 @@ def main(argv=None):
             parser.error("baseline build id must be alphanumeric with optional hyphens")
         try:
             build_reuse(args.build_id, args.reuse_providers_from)
+        except ValueError as error:
+            parser.error(str(error))
+        return
+    if args.refresh_fixtures_from is not None:
+        if not valid_build_id(args.refresh_fixtures_from):
+            parser.error("baseline build id must be alphanumeric with optional hyphens")
+        try:
+            build_reuse(args.build_id, args.refresh_fixtures_from, refresh_fixtures=True)
         except ValueError as error:
             parser.error(str(error))
         return
