@@ -8,7 +8,7 @@
 
 **Capability start condition:** Current generated support rows, exact MechanicalSettings owner identity, and the mounted Case shared viewer are available for the same accepted Scope.
 
-**Status:** isolated source implementation and the assigned page-only strict Clippy check passed; the integrated candidate's unlink journey remains with the coordinator. See the [implementation handoff](../evidence/14-case-contextual-gasket-support-unlink/implementation-handoff.md). This ticket does not close Issue07, F7.5, F7.2/F7.4, F7.3, F7.8, or any canonical parent gate.
+**Status:** isolated source implementation and the assigned page-only strict Clippy check passed. The original5b React reference journey and integrated candidate `a76fa2bd` both passed the bounded toolbar unlink, Undo/Redo, and portable save/reopen journey. See the [implementation handoff](../evidence/14-case-contextual-gasket-support-unlink/implementation-handoff.md) for archive and screenshot receipts. Consolidated Sol review remains with the coordinator. This ticket does not close Issue07, F7.5, F7.2/F7.4, F7.3, F7.8, or any canonical parent gate.
 
 **Reviewed draft:** [Case contextual gasket support unlink](../drafts/14-case-contextual-gasket-support-unlink.md).
 
