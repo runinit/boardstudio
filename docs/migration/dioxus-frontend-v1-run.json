@@ -733,7 +733,7 @@
     "assets_per_route": 145,
     "elapsed_seconds": 497.463121,
     "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
-    "qualification": "Root package/source/served bytes verified; independent package review and paired public acceptance open."
+    "qualification": "Independent Sol package/source/served bytes verified; root and subpath saved-editor offline reload passed; paired public acceptance remains open."
   },
   "pending_integration_wave_20261002": {
     "source": "d585492012a60937879e89a8618c1d533fddba4e",
@@ -754,7 +754,7 @@
     "root_url": "http://127.0.0.1:34735/",
     "subpath_url": "http://127.0.0.1:34735/boardstudio/",
     "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
-    "acceptance": "Root package/source/served bytes verified; independent package review and paired public acceptance open."
+    "acceptance": "Independent Sol package/source/served bytes verified; root and subpath saved-editor offline reload passed; paired public acceptance remains open."
   },
   "active_source_freeze": {
     "build": "frontend-authoring-layers-integrated-20261002",
@@ -768,8 +768,9 @@
     "provenance_sha256": "aabc367a69f40dce0601226a7909a21f71950824534137a2d41a7253d66b7a66",
     "qualification": "Root package/source/served bytes verified; independent package review and paired public acceptance open.",
     "commit": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
-    "state": "complete; source lease released",
-    "public_acceptance": "paired journeys ongoing; no full parent closure"
+    "state": "complete and independently verified; source lease released",
+    "public_acceptance": "paired journeys ongoing; no full parent closure",
+    "review": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261002/frontend-authoring-layers-full-package-review-7d09d0a6-sol-20261002.md"
   },
   "retained_checkpoint_history": [
     {
