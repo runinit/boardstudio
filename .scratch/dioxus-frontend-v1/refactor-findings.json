@@ -581,15 +581,16 @@
           "date": "2026-10-03",
           "task": "BND.1 groups-of-eight preview cancellation parity",
           "baseline": "current Keycaps isolate before chunk adapter",
-          "certainty": "confirmed source gap; bounded private repair authored, served cancellation proof pending",
+          "certainty": "confirmed source parity gap repaired; user-visible unmount/success path qualified; in-worker cancel-message path is not called by Runtime",
           "evidence": [
             "web/src/cad_worker.rs",
             "cad/src/index.ts",
-            ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+            ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
           ],
           "observation": "The Dioxus worker invoked build_keycaps once with the entire preview spec vector, while the pinned TypeScript wrapper builds groups of eight and yields between them. The packaged Rust WASM engine remains authoritative; this was a host scheduling/cancellation parity gap, not a missing CAD capability.",
-          "current_mitigation": "The isolated adapter invokes the existing export in groups of eight, yields between groups, checks cancellation before the next group and validates each returned batch revision before combining stable body/legend meshes. No generic request/CAD engine/public contract change.",
-          "remaining": "Root combined source check/package and one changed preview-cancellation journey are pending. Do not infer mid-kernel preemption or parent acceptance."
+          "current_mitigation": "The adapter invokes the existing export in groups of eight, yields between groups, checks cancellation if received before a later group, and validates each returned batch revision before combining stable body/legend meshes. The Keycaps Runtime currently closes/terminates its worker on unmount or supersession instead of sending that message. Candidate34769 exercised pending-preview unmount, no late publication, and successful retry with no browser errors.",
+          "remaining": "BND.1 remains bounded/open; worker-message cancellation is unreachable through the Keycaps product owner. Immediate worker termination currently provides disposal without a second settlement lifecycle. Consider changing Runtime only if a measured user benefit emerges; no mid-kernel preemption or parent acceptance is claimed."
         }
       ]
     },
@@ -1472,16 +1473,17 @@
           "date": "2026-10-03",
           "task": "BND.1 preview chunk boundary correction",
           "baseline": "Keycaps isolate before groups-of-eight adapter",
-          "certainty": "confirmed worker scheduling parity gap; synchronous-kernel limitation retained",
+          "certainty": "confirmed bounded cancellation granularity; product unmount and retry qualified on candidate34769",
           "evidence": [
             "cad/src/index.ts",
             "web/src/cad_worker.rs",
-            ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+            ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
           ],
           "observation": "The source wrapper contract can yield only between build_keycaps calls. A Dioxus one-call preview could not process worker cancel messages between groups; the step kernel remains non-preemptible.",
-          "current_mitigation": "Dioxus now mirrors eight-spec batches and yields to the worker event loop after each batch. Cancellation is checked before further batches and suppresses completion; STEP remains a single call whose late result is rejected.",
+          "current_mitigation": "Dioxus mirrors eight-spec batches and yields to the worker event loop. The product Runtime currently closes the feature worker on Keycaps unmount/supersession, so worker-message checks are not exercised from this route; candidate34769 observed a pending-preview unmount, no late publication, successful subsequent preview, and no console/page errors. Each kernel batch and STEP remain synchronous.",
           "post_port": "After React retirement, remove the parallel TypeScript host policy only through the authorized F9 cutover; keep the packaged Rust CAD export as the sole geometry engine. Do not relabel the executable TS wrapper as generated glue.",
-          "validation": "Combined check and one changed cancellation/preview journey on the root-served candidate; existing unrelated fit/history/keycap field matrices are not repeated."
+          "validation": "Current preview/unmount/retry path is retained at candidate34769. Explicit worker-message cancellation and mid-kernel preemption were not claimed. No follow-up Runtime change is justified without an actual user benefit."
         }
       ],
       "continuations": [

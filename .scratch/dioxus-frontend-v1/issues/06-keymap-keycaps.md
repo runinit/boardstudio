@@ -179,3 +179,7 @@ Update the [living RF register](../refactor-findings.json) and [post-port takeaw
 ### Coordinator current acceptance — 2026-10-03
 
 Canonical F6K.2, F6K.3, F6C.2 and F6C.4 are accepted in `tasks.json`; earlier open-status notes are preserved historical checkpoints. F6C.4 reuses sufficient paired navigation, Core fit/case qualification and unchanged-source identity/refresh guards as endorsed by consolidated Sol review. [Decision](../evidence/keycaps-f6c4-acceptance-20261003/DECISION.json). F6C.1/full Keycaps and remaining integration/visual gates stay open.
+
+### BND.1 current package continuation — candidate 34769
+
+The current worker sends the existing Rust WASM keycap builder groups of eight with an event-loop yield and per-batch revision check. Candidate 34769 on the retained c6 fixture qualified one visible product lifecycle path: begin a real pending keycap preview, switch to 2D, observe no late 3D result, then retry 3D successfully with no browser errors. Runtime currently terminates its feature-owned worker immediately on unmount/supersession, so the worker's explicit cancellation message branch is unreachable from this Keycaps route. Preserve that observed immediate-disposal policy; a second Runtime cancellation/settlement owner is deferred absent a measured user benefit. This route does not claim mid-batch or STEP kernel preemption and does not close BND.1, F6C.5, or their existing joins.

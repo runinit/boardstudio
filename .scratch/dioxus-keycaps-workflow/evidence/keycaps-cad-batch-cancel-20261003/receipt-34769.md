@@ -1,0 +1,31 @@
+# Keycap preview and in-flight unmount — candidate 34769
+
+## Candidate and fixture
+
+- Candidate: `http://127.0.0.1:34769/boardstudio/`
+- Frozen source: `bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1`
+- Provenance SHA-256: `38e1980f3c38f31af1d66676a56d2d6cf57c7a3e4130dea6be2d1cb0eeb2f680`
+- Packaging proof: `34769/package-proof.json` (root-retained; full22 command lineage, 1,373 page sources and 154 assets per route, zero route mismatches)
+- Browser: named `agent-browser` session `keycaps_bnd1_preview-2318ea1a1376`, 1280×577.
+- Fixture: `/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-findings-f6c4-c6.boardstudio`, SHA-256 `9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6`.
+- Existing successful 24-cap/25-body cap-plus-legend and hide/show proof is reused from [34757 preview receipt](../../../dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md); existing STEP proof/review is reused without re-export.
+
+## Changed journey
+
+On the imported c6 fixture, the Keycaps 3D assembly view rendered the 24 generated caps and reported “3D preview updated.” The browser loaded the packaged `assets/cad-worker/entry.js`. I then returned to 2D, started 3D again, waited until the UI showed “Generating keycap CAD…”, and switched back to 2D while that pending status was visible. After one second, the UI remained in the physical 2D Keycaps workspace with no stale 3D completion or pending-status message. A subsequent 3D selection successfully rendered again and returned “3D preview updated.” Console and page-error logs were empty after the changed route.
+
+The captures are `34769-inflight-unmount.png` (2D state after the pending preview was unmounted) and `34769-retry-preview.png` (successful 3D retry).
+
+## Boundary and limits
+
+The pending-preview unmount uses the existing Runtime disposal path, which terminates the feature-owned worker immediately and suppresses late publication; the observed successful retry confirms that the next request remains usable. This journey does not show the worker's explicit `kind: cancel` message being sent. `Runtime::cancel_keycaps_cad_preview` currently closes the worker, so that message branch is unreachable from the Keycaps UI. The new worker adapter nevertheless matches the pinned TypeScript groups-of-eight calls and yields between batches during ordinary processing. No user benefit has yet justified changing Runtime from immediate termination to a second cancellation/settlement lifecycle.
+
+A running `build_keycaps` batch and the STEP call remain synchronous and cannot be interrupted mid-kernel. The 2D unmount result proves no stale result was published through the product path; it does not prove cooperative cancellation inside a batch or complete BND.1/F6C.5 acceptance. Existing source/revision guards, stable cap/legend identities, layer behavior, and STEP receipt are reused. No additional field, STEP, or lifecycle matrix was run.
+
+## Parent reconciliation and RF
+
+F6C.4 is accepted by the coordinator from source equivalence, existing Core tests and guards, plus the retained representative paired finding-navigation route. Its detailed evidence limits remain described in the [canonical criteria map](../keycaps-closure-reconciliation-20261003/criteria.md). F6C.2 and INT.2 remain accepted. BND.1 and F6C.5 remain open with their true joins unchanged.
+
+RF-003/RF-010 handoff: the private worker now follows reference batch size/yield policy, but the product cancellation owner is immediate worker termination; the explicit worker-message branch is not reachable from current Keycaps Runtime. Retain that narrow boundary note and do not invent a Runtime redesign without a measured benefit. No task graph/status is changed here.
+
+Capture SHA-256: `34769-inflight-unmount.png` `c076a01127645943705280de3ffca0f8fac41be88fd3ae3c17c14703e4a6dd7b`; `34769-retry-preview.png` `ec3dbe8a7cbf957d9fa7a1abe1569fbcb987926dc67afe20bcab06737bf1e7a3`.
