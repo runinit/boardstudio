@@ -270,6 +270,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
         .map_or(0.0, |basis| basis.splay_angle);
     let current_owner = owner.clone();
     let current_context = context.clone();
+    let matrix_for_key = matrix.clone();
+    let owner_for_key = owner.clone();
+    let context_for_key = context.clone();
     let runtime_for_start = runtime.0.clone();
     let svg_for_start = svg.0.clone();
     let drag_for_start = drag.clone();
@@ -311,6 +314,9 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
         }
         pointer.prevent_default();
         pointer.stop_propagation();
+        let focus_options = web_sys::FocusOptions::new();
+        focus_options.set_prevent_scroll(true);
+        let _ = capture.focus_with_options(&focus_options);
         let angle_origin = match gesture {
             TransformGesture::Splay { origin, .. } => origin,
             _ => Vec2::default(),
@@ -566,7 +572,97 @@ pub(in crate::presentation) fn LayoutTransformToolOverlay(
                 &mut guide_for_key,
             );
             on_finish.call(());
+            return;
         }
+        if !matches!(
+            key.key().as_str(),
+            "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"
+        ) || !transform_owner_is_current(
+            &runtime_for_key,
+            workspace,
+            scope_generation,
+            selected_context,
+            &owner_for_key,
+            &context_for_key,
+        ) || !transform_start_is_editable(&runtime_for_key, &owner_for_key, &matrix_for_key)
+        {
+            return;
+        }
+        let Some(target) = key
+            .target()
+            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+            .and_then(|target| target.closest(".m1-transform-handle").ok().flatten())
+        else {
+            return;
+        };
+        let step = if key.shift_key() { 1.0 } else { 0.1 };
+        let delta = Vec2 {
+            x: match key.key().as_str() {
+                "ArrowLeft" => -step,
+                "ArrowRight" => step,
+                _ => 0.0,
+            },
+            y: match key.key().as_str() {
+                "ArrowDown" => -step,
+                "ArrowUp" => step,
+                _ => 0.0,
+            },
+        };
+        let operation = match target.get_attribute("aria-label").as_deref() {
+            Some("Drag to stagger") => {
+                let mut next = matrix_for_key.clone();
+                let row = context_row(&context_for_key);
+                let index = row.unwrap_or(selected_column) as usize;
+                let offsets = if row.is_some() {
+                    &mut next.row_offsets
+                } else {
+                    &mut next.column_offsets
+                };
+                offsets.resize(offsets.len().max(index + 1), Vec2::default());
+                offsets[index].x += delta.x;
+                offsets[index].y += delta.y;
+                EditOperation::SetMatrix {
+                    matrix: next,
+                    definitions: None,
+                }
+            }
+            Some("Move splay origin") => EditOperation::SetMatrixSplay {
+                matrix_id: matrix_for_key.id.clone(),
+                column: selected_column,
+                change: MatrixSplayChange::Origin {
+                    world: Some(Vec2 {
+                        x: handle_point.x + delta.x,
+                        y: handle_point.y + delta.y,
+                    }),
+                },
+            },
+            Some("Drag to splay") if delta.x != 0.0 => EditOperation::SetMatrixSplay {
+                matrix_id: matrix_for_key.id.clone(),
+                column: selected_column,
+                change: MatrixSplayChange::Angle {
+                    angle: angle_degrees
+                        + delta.x.signum() * if key.shift_key() { 5.0 } else { 1.0 },
+                    affect: splay_affect(),
+                },
+            },
+            _ => return,
+        };
+        key.prevent_default();
+        key.stop_propagation();
+        let Some(revision) = owner_for_key.revision else {
+            return;
+        };
+        let operation_id = runtime_for_key.operation();
+        runtime_for_key.submit(Event::Edit {
+            operation_id,
+            command: EditCommand {
+                base_revision: revision,
+                transaction_id: format!("layout-transform-key-{}", operation_id.0),
+                phase: EditPhase::Commit,
+                target_ids: vec![matrix_for_key.id.clone()],
+                operation,
+            },
+        });
     });
 
     let selected_row = context_row(&context);
