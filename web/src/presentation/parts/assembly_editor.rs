@@ -258,7 +258,7 @@ fn AssemblyDraftFields(
     on_save: EventHandler<MouseEvent>,
     on_close: EventHandler<MouseEvent>,
 ) -> Element {
-    let mut value = use_signal(|| draft.value.clone());
+    let value = use_signal(|| draft.value.clone());
     let render_value = value();
     let member_definitions = definitions
         .iter()
@@ -271,16 +271,22 @@ fn AssemblyDraftFields(
         section { class: "m1-parts-assembly-editor", "aria-label": "Assembly editor",
             h3 { "Assembly editor" }
             label { class: "m1-parts-assembly-field", "Name"
-                input { value: "{render_value.name}", disabled: pending, oninput: move |event| { let mut value = value; value.with_mut(|value| value.name = event.value()); on_change.call(AssemblyDraft { value: value(), ..draft.clone() }); } }
+                { let name_draft = draft.clone(); let name_change = on_change.clone();
+                  rsx! { input { value: "{render_value.name}", disabled: pending, oninput: move |event| { let mut value = value; value.with_mut(|value| value.name = event.value()); name_change.call(AssemblyDraft { value: value(), ..name_draft.clone() }); } } }
+                }
             }
             for member in render_value.members.clone() {
-                fieldset { class: "m1-parts-assembly-member", key: "{member.id}",
+                { let definition_id = member.id.clone(); let side_id = member.id.clone(); let x_id = member.id.clone(); let y_id = member.id.clone(); let rotation_id = member.id.clone(); let remove_id = member.id.clone();
+                  let definition_draft = draft.clone(); let side_draft = draft.clone(); let x_draft = draft.clone(); let y_draft = draft.clone(); let rotation_draft = draft.clone(); let remove_draft = draft.clone();
+                  let definition_change = on_change.clone(); let side_change = on_change.clone(); let x_change = on_change.clone(); let y_change = on_change.clone(); let rotation_change = on_change.clone(); let remove_change = on_change.clone();
+                  rsx! {
+                  fieldset { class: "m1-parts-assembly-member", key: "{member.id}",
                     legend { "{member.id}" }
                     label { class: "m1-parts-assembly-field", "Component"
                         select {
                             value: member.definition_id.as_deref().unwrap_or(""),
                             disabled: pending,
-                            onchange: move |event| update_member(value, draft.clone(), on_change, member.id.clone(), MemberPatch::Definition(event.value())),
+                            onchange: move |event| update_member(value, definition_draft.clone(), definition_change, definition_id.clone(), MemberPatch::Definition(event.value())),
                             option { value: "", "Visual model only" }
                             for definition in member_definitions.iter() {
                                 option { value: "{definition.id}", "{definition.name}" }
@@ -291,19 +297,21 @@ fn AssemblyDraftFields(
                         select {
                             value: if matches!(&member.side, Side::Back) { "back" } else { "front" },
                             disabled: pending,
-                            onchange: move |event| update_member(value, draft.clone(), on_change, member.id.clone(), MemberPatch::Side(event.value() == "back")),
+                            onchange: move |event| update_member(value, side_draft.clone(), side_change, side_id.clone(), MemberPatch::Side(event.value() == "back")),
                             option { value: "front", "Front" }
                             option { value: "back", "Back" }
                         }
                     }
                     div { class: "m1-parts-assembly-transform",
-                        label { "X (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.x}", disabled: pending, oninput: move |event| update_member(value, draft.clone(), on_change, member.id.clone(), MemberPatch::X(event.value())) } }
-                        label { "Y (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.y}", disabled: pending, oninput: move |event| update_member(value, draft.clone(), on_change, member.id.clone(), MemberPatch::Y(event.value())) } }
-                        label { "Angle (°)" input { r#type: "number", step: "1", value: "{member.pose.rotation}", disabled: pending, oninput: move |event| update_member(value, draft.clone(), on_change, member.id.clone(), MemberPatch::Rotation(event.value())) } }
+                        label { "X (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.x}", disabled: pending, oninput: move |event| update_member(value, x_draft.clone(), x_change, x_id.clone(), MemberPatch::X(event.value())) } }
+                        label { "Y (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.y}", disabled: pending, oninput: move |event| update_member(value, y_draft.clone(), y_change, y_id.clone(), MemberPatch::Y(event.value())) } }
+                        label { "Angle (°)" input { r#type: "number", step: "1", value: "{member.pose.rotation}", disabled: pending, oninput: move |event| update_member(value, rotation_draft.clone(), rotation_change, rotation_id.clone(), MemberPatch::Rotation(event.value())) } }
                     }
-                    button { r#type: "button", disabled: pending, onclick: move |_| { let mut value = value; value.with_mut(|value| value.members.retain(|candidate| candidate.id != member.id)); on_change.call(AssemblyDraft { value: value(), ..draft.clone() }); }, "Remove component" }
-                }
+                    button { r#type: "button", disabled: pending, onclick: move |_| { let mut value = value; value.with_mut(|value| value.members.retain(|candidate| candidate.id != remove_id)); remove_change.call(AssemblyDraft { value: value(), ..remove_draft.clone() }); }, "Remove component" }
+                  }
+                  }}
             }
+            { let add_draft = draft.clone(); let add_change = on_change.clone();
             button { r#type: "button", disabled: pending, onclick: move |_| {
                 let mut value = value;
                 if let Some(id) = member_id(&value()) {
@@ -316,9 +324,10 @@ fn AssemblyDraftFields(
                         side: Side::Front,
                         models: Vec::new(),
                     }));
-                    on_change.call(AssemblyDraft { value: value(), ..draft.clone() });
+                    add_change.call(AssemblyDraft { value: value(), ..add_draft.clone() });
                 }
             }, "Add component" }
+            }
             div { class: "m1-parts-assembly-actions",
                 button { r#type: "button", disabled: pending, onclick: on_save, "Save assembly" }
                 button { r#type: "button", disabled: pending, onclick: on_close, "Close editor" }
