@@ -478,7 +478,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
             }
             div { role: "tablist", aria_label: "Inspector details", class: "m1-layout-component-tabs",
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { reset(); tab.set(InspectorTab::Properties); } }, "Properties" }
+                button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != InspectorTab::Properties { reset(); } tab.set(InspectorTab::Properties); } }, "Properties" }
                 button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Relations}", onclick: move |_| tab.set(InspectorTab::Relations), "Relations" }
             }
             if tab() == InspectorTab::Properties {
