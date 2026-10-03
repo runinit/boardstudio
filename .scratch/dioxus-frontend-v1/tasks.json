@@ -98,7 +98,7 @@
       "depends_on": [],
       "priority": "P0",
       "effort": "M",
-      "status": "planned",
+      "status": "implementing",
       "acceptance": "Use the existing packaged Rust WASM build_keycaps export; prove a crate-private host/worker request path with a current fixture, revision identity and disposal/cancellation. Core ResolveKeycaps alone and generic Case STEP are insufficient. Document existing CAD asset/build inputs, stable body/legend IDs, scope/revision validation, preview chunk/yield cancellation and non-preemptible STEP late-result suppression. If existing callable capability is genuinely insufficient, leave dependent keycap CAD acceptance open and present the concrete public-contract decision before changing APIs.",
       "boundary_status": "Existing Rust CAD WASM build_keycaps is public and packaged, but current web CAD enum/worker request path lacks keycaps. Prefer private wire/host types, not changes to public web::cad_jobs types. No new engine function or public contract indicated.",
       "external_gates": [],
@@ -114,7 +114,15 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:24:12.298959+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Existing keycap CAD bridge, Session export-owned token sequencing and mounted panels/drawers are implemented; source reconciliation and final candidate qualification remain active, not unstarted planning."
+        }
+      ]
     },
     {
       "id": "BND.2",
@@ -126,7 +134,7 @@
       "depends_on": [],
       "priority": "P0",
       "effort": "M",
-      "status": "planned",
+      "status": "implementing",
       "acceptance": "Characterize React export own-commit adoption and current immutable Session export token. Prove a private orchestration using existing accepted edits that preserves resolve/wiring commit/package/protection commit/delivery order, rejects unrelated changes and never protects failed packaging. If existing Session APIs cannot safely express it, record the exact required contract and keep only dependent export acceptance open before an API change.",
       "boundary_status": "Existing application export token has no adopt transition; this is unresolved adapter/contract feasibility, not already-supported semantics. No weakened stale guards or direct second document authority.",
       "external_gates": [],
@@ -142,7 +150,15 @@
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true,
         "contract_review_reuse": "Reuse current contract; routine private frontend work proceeds to integrated candidate review."
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:24:12.298985+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Existing keycap CAD bridge, Session export-owned token sequencing and mounted panels/drawers are implemented; source reconciliation and final candidate qualification remain active, not unstarted planning."
+        }
+      ]
     },
     {
       "id": "F2.1",
@@ -241,7 +257,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "planned",
+      "status": "implementing",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/02-projects-shared-ui.md",
       "shared_edit_owner": "integration coordinator",
@@ -256,7 +272,15 @@
         "policy": "AGENT-ROUTING.md",
         "extra_high_trigger": "unresolved material review question or difficult evidenced bug; not automatic by effort size",
         "refactoring_handoff_required": true
-      }
+      },
+      "status_history": [
+        {
+          "at": "2026-10-03T14:24:12.298991+00:00",
+          "from": "planned",
+          "to": "implementing",
+          "reason": "Existing keycap CAD bridge, Session export-owned token sequencing and mounted panels/drawers are implemented; source reconciliation and final candidate qualification remain active, not unstarted planning."
+        }
+      ]
     },
     {
       "id": "F2.4",
@@ -3134,8 +3158,8 @@
     "boundary_slices": 2,
     "status": {
       "accepted": 9,
-      "planned": 23,
-      "implementing": 30
+      "implementing": 33,
+      "planned": 20
     }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",

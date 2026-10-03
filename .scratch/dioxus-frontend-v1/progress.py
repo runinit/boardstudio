@@ -126,14 +126,15 @@ def main():
     commands.add_parser("check", help="Check record consistency without running application tests")
     commands.add_parser("sync", help="Refresh derived counts and the readable RF report")
     status = commands.add_parser("set-status", help="Coordinator-only parent transition and derived refresh")
-    status.add_argument("parent")
+    status.add_argument("parent", nargs="+", help="one or more parent IDs; updates publish together")
     status.add_argument("status", choices=("planned", "implementing", "accepted"))
     status.add_argument("--reason", required=True)
     status.add_argument("--decision")
     args = parser.parse_args()
     run, graph = read(RUN), read(TASKS)
     if args.command == "set-status":
-        set_status(graph, args)
+        for parent in args.parent:
+            set_status(graph, argparse.Namespace(**(vars(args) | {"parent": parent})))
     if args.command in ("sync", "set-status"):
         parent_counts = counts(graph["tasks"])
         graph["counts"]["status"] = {k: v for k, v in parent_counts.items() if k != "total"}
