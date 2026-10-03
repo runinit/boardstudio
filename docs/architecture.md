@@ -126,6 +126,19 @@ Project session, board, or instance changes clear the previous scene and cache.
 Export model packaging has its own asset resolver because it packages source files
 rather than meshes.
 
+The Dioxus standalone KiCad-footprint export is a private Runtime adapter over the
+existing Core `PrepareExport`/`FinishExport` and archive-packing operations. It
+captures the accepted export scope before awaiting, resolves authored assets from
+the existing browser store and bundled model registry, and invokes the existing
+Ergogen preview worker only for jobs requested by the accepted Core plan. Artifact
+buffers stay in the Rust/WASM and existing worker path until the browser download
+boundary; failures and stale ownership are reported through Runtime, which also
+owns final download cleanup. The shared preview worker has no per-request stop
+operation: cancel or supersession suppresses late delivery, while already-running
+worker work may finish. This adapter should retire when the generic export intent
+coordinator absorbs its captured-scope dispatch, or Core owns the model-binding
+resolution after the frontend port.
+
 The Dioxus Keymap and Keycaps 3D routes reuse the accepted `KeycapsFitState`
 result as the sole source of keycap specs and send those specs to the already packaged
 `build_keycaps` service through a dedicated `CadWorker` facade. Runtime owns a

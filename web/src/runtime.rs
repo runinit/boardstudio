@@ -258,6 +258,17 @@ struct FirmwareExportCapture {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct FootprintExportCapture {
+    scope: Scope,
+    token: SnapshotToken,
+    revision: u64,
+    session_epoch: boardstudio_application::SessionEpoch,
+    document_id: String,
+    executor_epoch: boardstudio_application::ExecutorEpoch,
+    core_worker_identity: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct FirmwareAcceptedIdentity {
     session_epoch: boardstudio_application::SessionEpoch,
     document_id: String,
@@ -350,6 +361,7 @@ pub struct Runtime {
     step_exports: RefCell<BTreeSet<OperationId>>,
     keycaps_step_exports: RefCell<BTreeSet<OperationId>>,
     firmware_exports: RefCell<BTreeMap<OperationId, FirmwareExportCapture>>,
+    footprint_exports: RefCell<BTreeMap<OperationId, FootprintExportCapture>>,
     latest_firmware_export: Cell<Option<OperationId>>,
     firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
@@ -441,6 +453,7 @@ impl Runtime {
             step_exports: RefCell::new(BTreeSet::new()),
             keycaps_step_exports: RefCell::new(BTreeSet::new()),
             firmware_exports: RefCell::new(BTreeMap::new()),
+            footprint_exports: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
             firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
@@ -1868,6 +1881,7 @@ impl Runtime {
                 let is_keycaps_step_export =
                     self.keycaps_step_exports.borrow_mut().remove(&operation_id);
                 let firmware_capture = self.firmware_exports.borrow_mut().remove(&operation_id);
+                self.footprint_exports.borrow_mut().remove(&operation_id);
                 let delivery_error = self
                     .firmware_export_delivery_errors
                     .borrow_mut()
@@ -1986,33 +2000,44 @@ impl Runtime {
                 let is_step_export =
                     self.step_exports.borrow().contains(&operation_id) || is_keycaps_step_export;
                 let is_firmware_export = self.firmware_exports.borrow().contains_key(&operation_id);
-                let work: Result<ArchiveWorkFuture<'_>, String> =
-                    self.archive_export_options.dispatch(
-                        operation_id,
-                        is_step_export,
-                        is_firmware_export,
-                        || -> ArchiveWorkFuture<'_> {
-                            if is_keycaps_step_export {
-                                Box::pin(self.keycaps_step_bytes(operation_id, &snapshot, &scope))
-                            } else {
-                                Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
-                            }
-                        },
-                        |embed_used_models| -> ArchiveWorkFuture<'_> {
-                            Box::pin(self.pack_archive(
-                                operation_id,
-                                &snapshot,
-                                &scope,
-                                embed_used_models,
-                            ))
-                        },
-                        || -> ArchiveWorkFuture<'_> {
-                            Box::pin(self.firmware_bytes(operation_id, &snapshot, &scope))
-                        },
-                    );
-                let result = match work {
-                    Ok(future) => future.await,
-                    Err(reason) => Err(reason),
+                let is_footprint_export =
+                    self.footprint_exports.borrow().contains_key(&operation_id);
+                let result = if is_footprint_export {
+                    self.footprint_export_bytes(operation_id, &snapshot, &scope)
+                        .await
+                } else {
+                    let work: Result<ArchiveWorkFuture<'_>, String> =
+                        self.archive_export_options.dispatch(
+                            operation_id,
+                            is_step_export,
+                            is_firmware_export,
+                            || -> ArchiveWorkFuture<'_> {
+                                if is_keycaps_step_export {
+                                    Box::pin(self.keycaps_step_bytes(
+                                        operation_id,
+                                        &snapshot,
+                                        &scope,
+                                    ))
+                                } else {
+                                    Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
+                                }
+                            },
+                            |embed_used_models| -> ArchiveWorkFuture<'_> {
+                                Box::pin(self.pack_archive(
+                                    operation_id,
+                                    &snapshot,
+                                    &scope,
+                                    embed_used_models,
+                                ))
+                            },
+                            || -> ArchiveWorkFuture<'_> {
+                                Box::pin(self.firmware_bytes(operation_id, &snapshot, &scope))
+                            },
+                        );
+                    match work {
+                        Ok(future) => future.await,
+                        Err(reason) => Err(reason),
+                    }
                 };
                 let result = if is_firmware_export {
                     let owner_is_current =
@@ -2033,7 +2058,12 @@ impl Runtime {
                             });
                         }
                         let artifact_id = format!("archive-{}", operation_id.0);
-                        let (filename, media_type) = if is_firmware_export {
+                        let (filename, media_type) = if is_footprint_export {
+                            (
+                                format!("{}-footprints.zip", snapshot.document.name),
+                                Some("application/zip".to_owned()),
+                            )
+                        } else if is_firmware_export {
                             (
                                 format!("{}-zmk.zip", snapshot.document.name),
                                 Some("application/zip".to_owned()),
@@ -2123,6 +2153,7 @@ impl Runtime {
             Effect::CancelExport { operation_id } => {
                 self.cancelled_exports.borrow_mut().insert(operation_id);
                 self.archive_export_options.cancel(operation_id);
+                self.footprint_exports.borrow_mut().remove(&operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
@@ -3611,6 +3642,126 @@ impl Runtime {
             scope,
         });
     }
+
+    pub(crate) fn export_footprints(self: &Rc<Self>) {
+        let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert(
+                "Open a project before exporting its footprint library.",
+            ));
+            return;
+        };
+        let model = self.model();
+        let Some(snapshot) = model.accepted else {
+            self.apply_report(RuntimeReport::alert(
+                "Footprint export requires a ready accepted snapshot.",
+            ));
+            return;
+        };
+        if snapshot.document.definitions.is_empty() {
+            self.apply_report(RuntimeReport::alert(
+                "Add a component definition before exporting footprints.",
+            ));
+            return;
+        }
+        self.clear_alert();
+        let operation_id = self.operation();
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        self.footprint_exports.borrow_mut().insert(
+            operation_id,
+            FootprintExportCapture {
+                scope: scope.clone(),
+                token: snapshot.token,
+                revision: snapshot.document.revision,
+                session_epoch: snapshot.session_epoch,
+                document_id: snapshot.document.id.clone(),
+                executor_epoch,
+                core_worker_identity: Rc::as_ptr(&core) as usize,
+            },
+        );
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+
+    async fn footprint_export_bytes(
+        self: &Rc<Self>,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<Vec<u8>, String> {
+        let capture = self
+            .footprint_exports
+            .borrow()
+            .get(&operation_id)
+            .cloned()
+            .ok_or_else(|| "Footprint export owner was cancelled or superseded.".to_owned())?;
+        if capture.scope != *scope
+            || capture.token != snapshot.token
+            || capture.revision != snapshot.document.revision
+            || capture.session_epoch != snapshot.session_epoch
+            || capture.document_id != snapshot.document.id
+        {
+            return Err("Footprint export no longer matches its captured project.".into());
+        }
+        let core = self.core.borrow().clone();
+        let runtime = self.clone();
+        let ensure_current = || {
+            if runtime.footprint_export_capture_is_current(operation_id, &capture, &core) {
+                Ok(())
+            } else {
+                Err("Footprint export was cancelled, superseded, or its source changed.".into())
+            }
+        };
+        let preview_generator = || {
+            if let Some(worker) = runtime.preview_generator.borrow().as_ref() {
+                return Ok(worker.clone());
+            }
+            let url = resource_url("assets/preview-generator/worker.mjs")?;
+            let worker = Rc::new(
+                crate::preview_generator::PreviewGeneratorClient::new(&url)
+                    .map_err(|error| error.to_string())?,
+            );
+            *runtime.preview_generator.borrow_mut() = Some(worker.clone());
+            Ok(worker)
+        };
+        crate::export_footprints::build_zip(
+            operation_id,
+            snapshot,
+            scope,
+            &core,
+            &self.store,
+            capture.executor_epoch.0,
+            ensure_current,
+            preview_generator,
+        )
+        .await
+    }
+
+    fn footprint_export_capture_is_current(
+        &self,
+        operation_id: OperationId,
+        capture: &FootprintExportCapture,
+        core: &Rc<CoreWorker>,
+    ) -> bool {
+        let current_core = self.core.borrow().clone();
+        let accepted = self.model().accepted;
+        self.footprint_exports.borrow().get(&operation_id) == Some(capture)
+            && self.export_current(operation_id, capture.token, &capture.scope)
+            && self.scope().as_ref() == Some(&capture.scope)
+            && accepted.as_ref().is_some_and(|snapshot| {
+                snapshot.token == capture.token
+                    && snapshot.document.id == capture.document_id
+                    && snapshot.document.revision == capture.revision
+                    && snapshot.scene.revision == capture.revision
+                    && snapshot.session_epoch == capture.session_epoch
+            })
+            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
+            && Rc::as_ptr(&current_core) as usize == capture.core_worker_identity
+            && Rc::ptr_eq(core, &current_core)
+    }
+
     pub(crate) fn export_project_copy(self: &Rc<Self>) {
         if self.model().accepted.is_none() {
             return;
@@ -4785,7 +4936,7 @@ async fn resolve_native_model_paths<
 #[path = "native_model_mapping_tests.rs"]
 mod native_model_mapping_tests;
 
-fn validate_preview_worker_envelope(
+pub(crate) fn validate_preview_worker_envelope(
     reply: &serde_json::Value,
     request: &serde_json::Value,
     worker_generation: u64,

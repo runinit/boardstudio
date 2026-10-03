@@ -247,6 +247,8 @@ fn export_rows(
     let dxf_runtime = runtime.clone();
     let dxf_export =
         EventHandler::new(move |()| dxf_runtime.export_board_outline(OutlineExportFormat::Dxf));
+    let footprints_runtime = runtime.clone();
+    let footprints_export = EventHandler::new(move |()| footprints_runtime.export_footprints());
     let mut rows = vec![
         ExportRow {
             label: "KiCad board",
@@ -280,12 +282,12 @@ fn export_rows(
             label: "KiCad footprints",
             detail: "Component footprint library",
             ready: !document.definitions.is_empty(),
-            available: false,
+            available: true,
             reason: document
                 .definitions
                 .is_empty()
-                .then_some("Review the board outline and layout findings."),
-            on_export: None,
+                .then_some("Add a component definition before exporting footprints."),
+            on_export: Some(footprints_export),
         },
         ExportRow {
             label: "SVG board outline",

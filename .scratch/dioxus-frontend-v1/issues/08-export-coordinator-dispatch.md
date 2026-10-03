@@ -22,6 +22,10 @@ SVG/DXF action is a direct, scope-guarded Core artifact call; subsequent work
 should route it through the same export intent owner rather than adding more
 per-format lifecycle code.
 
+## First runnable provider child
+
+The mounted standalone KiCad footprints action is tracked separately in [F8.2a](08-export-footprints-slice.md). It uses the existing Core standalone-footprints prepare/finish provider, preview-generator conversion, and Core archive pack path. This child preserves the parent criteria and does not claim the generic coordinator or F8.2/F8.3 acceptance.
+
 ## First implementation slice
 
 Unify route actions behind one private export intent/coordinator in Runtime.

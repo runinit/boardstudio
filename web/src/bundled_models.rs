@@ -27,6 +27,139 @@ pub(crate) async fn generated_model_ids(
     generated_model_ids_with_module(document, layout_generator_module().await?)
 }
 
+/// Resolves model assets used by every standalone footprint definition using
+/// the retained Ergogen model-binding owner. Like the reference `modelFiles`,
+/// an unused definition is resolved with the artifact provider's default
+/// standalone part, while definitions with instances resolve once per part.
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub(crate) async fn footprint_export_model_ids(
+    document: &boardstudio_core::model::ProjectDoc,
+) -> Result<Vec<String>, String> {
+    use boardstudio_core::model::{Part, PartDefinition, Pose2, Side, Vec2};
+    use js_sys::{Function, JsString};
+    use serde::Serialize;
+    use std::collections::HashSet;
+    use wasm_bindgen::{JsCast, JsValue};
+
+    fn module_function(module: &JsValue, name: &str) -> Result<Function, String> {
+        js_sys::Reflect::get(module, &JsString::from(name))
+            .map_err(|error| format!("Ergogen {name} export is unavailable: {error:?}"))?
+            .dyn_into::<Function>()
+            .map_err(|error| format!("Ergogen {name} export is unavailable: {error:?}"))
+    }
+
+    fn to_js_value(value: &impl Serialize) -> Result<JsValue, String> {
+        let json = serde_json::to_string(value).map_err(|error| error.to_string())?;
+        js_sys::JSON::parse(&json)
+            .map_err(|error| format!("Could not prepare Ergogen query: {error:?}"))
+    }
+
+    fn is_supported_ergogen(
+        predicate: &Function,
+        module: &JsValue,
+        definition: &PartDefinition,
+    ) -> Result<bool, String> {
+        let Some(generator) = &definition.generator else {
+            return Ok(false);
+        };
+        predicate
+            .call1(module, &generator.source.clone().into())
+            .map_err(|error| format!("Could not inspect {} generator: {error:?}", definition.id))
+            .map(|value| value.as_bool().unwrap_or(false))
+    }
+
+    fn resolve_for_part(
+        resolver: &Function,
+        module: &JsValue,
+        definition: &PartDefinition,
+        part: &Part,
+    ) -> Result<Vec<String>, String> {
+        let definition = to_js_value(definition)?;
+        let part = to_js_value(part)?;
+        let ids = resolver
+            .call2(module, &definition, &part)
+            .map_err(|error| format!("Could not resolve generated model references: {error:?}"))?;
+        serde_wasm_bindgen::from_value(ids)
+            .map_err(|error| format!("Generated model references are invalid: {error}"))
+    }
+
+    fn standalone_part(definition: &PartDefinition) -> Part {
+        Part {
+            id: format!("definition:{}", definition.id),
+            definition_id: definition.id.clone(),
+            reference: "REF**".into(),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            keycap: None,
+            outline: None,
+            locked: None,
+            properties: None,
+            generator_parameters: Some(
+                definition
+                    .generator
+                    .as_ref()
+                    .map(|generator| generator.parameters.clone())
+                    .unwrap_or_default(),
+            ),
+        }
+    }
+
+    let module = layout_generator_module().await?;
+    let is_ergogen = module_function(&module, "isErgogen")?;
+    let model_asset_ids = module_function(&module, "modelAssetIds")?;
+    let mut seen = HashSet::new();
+    let mut ids = Vec::new();
+    let mut push_unique = |values: Vec<String>| {
+        for id in values {
+            if seen.insert(id.clone()) {
+                ids.push(id);
+            }
+        }
+    };
+
+    for definition in &document.definitions {
+        push_unique(
+            definition
+                .models
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|model| model.asset_id.clone())
+                .collect(),
+        );
+        if !is_supported_ergogen(&is_ergogen, &module, definition)? {
+            continue;
+        }
+        let parts = document
+            .parts
+            .iter()
+            .filter(|part| part.definition_id == definition.id)
+            .collect::<Vec<_>>();
+        if parts.is_empty() {
+            push_unique(resolve_for_part(
+                &model_asset_ids,
+                &module,
+                definition,
+                &standalone_part(definition),
+            )?);
+        } else {
+            for part in parts {
+                push_unique(resolve_for_part(
+                    &model_asset_ids,
+                    &module,
+                    definition,
+                    part,
+                )?);
+            }
+        }
+    }
+
+    Ok(ids)
+}
+
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub(crate) async fn generated_model_asset_ids_for_paths(
     paths: &[String],
