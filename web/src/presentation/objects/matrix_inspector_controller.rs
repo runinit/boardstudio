@@ -1876,7 +1876,6 @@ async fn duplicate_design_variant(
     if !alive.get() {
         return Err("The matrix design variant owner closed.".into());
     }
-    let source_id = document.id.clone();
     let source_session_epoch = request.owner.scope.session_epoch;
     let variant_session_epoch = boardstudio_application::SessionEpoch(
         source_session_epoch
