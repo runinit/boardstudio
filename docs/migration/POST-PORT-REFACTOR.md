@@ -64,6 +64,8 @@ At the recorded baseline `c827c4e6`, the presentation spanned 1,399 lines and Ru
 
 Evidence: [presentation.rs](../../web/src/presentation.rs), [runtime.rs](../../web/src/runtime.rs), [Workbench.tsx](../../app/src/ui/Workbench.tsx).
 
+The paired34762 empty-board and placement-hint comparison found effective CSS drift despite matching labels and working actions: the empty primary was40px instead of34px, the secondary used accent instead of ink, Project/Export were boxed, and retained revision text moved footer coordinates. Scoped corrections are current parity work; no architectural cause is inferred. After the port, assess one shared style/token contract and contextual shell projection, measuring cascade conflicts before extracting. See [the empty-board receipt](../../.scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34762.json) and [placement comparison](../../.scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34762-hint.json).
+
 ### RF-001 Case/shared-viewer composition evidence
 
 The paired Case exploration at integration source `89b1de8a` confirms the visible Case hierarchy/editor split at the current composition seam: Case still calls the generic Layout-oriented Objects tree, the authored editor is mounted in the Inspector, and mechanical settings remain in the central Case panel. Existing Case body/mechanical controllers are present, so the parity correction is a root-owned contextual composition around existing feature owners. This is current correctness work; it does not establish that composition modularity caused the mismatch or authorize a broad refactor. See the [source/UI audit](../../.scratch/dioxus-frontend-v1/evidence/case-shared3d-parity-reset-20261002/AUDIT.md).

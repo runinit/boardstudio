@@ -329,6 +329,15 @@
           "mitigation": "Keep the correction private and scoped to the root header, Project settings view and shell CSS; existing Runtime and theme preference remain authoritative.",
           "post_port": "Measure workflow file intersections after parity before considering a private shell-component boundary.",
           "status": "No new RF ID; required paired candidate qualification remains open."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "Paired34762/React5a472a94 screenshots and computed empty-action styles; next correctionsbd971126/6d799257",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34762.json; .scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34762-hint.json",
+          "observation": "Copied UI controls diverged in effective CSS: empty primary40px versusreference34px, secondary accent versusink; Project/Export boxed rather thanplain, and footer coordinates shifted by retained revision text. Source presence and matching action labels did not establish placement/style parity. Exact architecture cause is not established.",
+          "mitigation": "Correct only observed scoped CSS/composition, view paired actual surfaces once, and reuse unchanged action/history evidence. Current footer/shell corrections remain in their waiting packet.",
+          "post_port": "Assess a shared style/token contract and contextual shell projection after parity; measure cascade conflicts and cross-feature style changes before extracting. Record Layout module/finding overlay visual differences as unresolved feature coverage, not an invented cause.",
+          "status": "Verified visual drift; bounded source repairs in progress; no broad redesign or new RF ID."
         }
       ],
       "case_mechanical_resolution_display_20261003": {

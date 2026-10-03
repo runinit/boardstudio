@@ -12,7 +12,7 @@
     "Browse individual parts opens Parts; Dioxus query initially empty, React retains prior reset-switch query; board owner preserved."
   ],
   "outcome": "Changed contextual navigation/Cancel/Browse GREEN; source guards handle current scope/token/revision/lifecycle/gesture. Not a new matrix creation/history qualification.",
-  "visual_inspection": "Root viewed both full screenshots. Prompt heading/description and actions present; primary D34? served minimum40 vs TS34, secondary Daccent vs TSink corrected in next-source bd971126. Header/footer/control spacing differences belong to their shared packets. React also displays old module outlines on empty Board2; no reference bug disposition inferred here.",
+  "visual_inspection": "Root viewed both full screenshots. Prompt heading/description and actions present; primary servedDminimum40 versusTS34, secondary Daccent vs TSink corrected in next-source bd971126. Header/footer/control spacing differences belong to their shared packets. React also displays old module outlines on empty Board2; no reference bug disposition inferred here.",
   "next": "Qualify only corrected action computed size/color on next candidate; consolidated review pending. ParentF5.1/F3.2/F3.7 remain open.",
   "errors": [],
   "screenshots": [

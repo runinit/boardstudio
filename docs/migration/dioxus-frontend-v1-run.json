@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T10:28:03.173871+00:00",
+    "updated_at": "2026-10-03T10:40:07.951052+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,24 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-pcb-add-outline-undo-case-blur-20261003",
-      "source_commit": "2107f980e9b45c341bff10548c7156b28de0e388",
-      "root_url": "http://127.0.0.1:34761/",
-      "subpath_url": "http://127.0.0.1:34761/boardstudio/",
-      "provenance": "web/target/builds/frontend-pcb-add-outline-undo-case-blur-20261003/provenance.json",
-      "provenance_sha256": "2d218936e847ba8f4d8680e5ecc4b3f5a05c3ce88c85a2152e2397cd84020ac9",
+      "build_id": "frontend-footer-empty-assemblies-shell-20261003",
+      "source_commit": "900068a0df413059732f9f365abd598734b7f86c",
+      "root_url": "http://127.0.0.1:34762/",
+      "subpath_url": "http://127.0.0.1:34762/boardstudio/",
+      "provenance": "web/target/builds/frontend-footer-empty-assemblies-shell-20261003/provenance.json",
+      "provenance_sha256": "319f378ba0d2eb0855059d2368e1e8028c0c6267e0a50a22b9ed8e8a195e1251",
       "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1367,
+      "source_inputs": 1370,
       "source_mismatches": 0,
-      "source_verification": "Recorded commit for tracked inputs;7 generated untracked inputs compared to retained files. Current next-batch source differs intentionally.",
       "assets_per_route": 145,
-      "command_span_seconds": 96.103273,
-      "package_qualification": "Strict page WASM all-target Clippy PASS6.85s; package/root+subpath200 COEP PASS. Same-context Outline Undo and Case Enter/blur GREEN. PCB component search\u2192Layout preview/cancel/commit GREEN; placement hint missing and staged next. No full parent closure."
+      "command_span_seconds": 96.365056,
+      "package_qualification": "Strict page WASM all-target17.54s;1370sources/145assets-route0mismatch,root/subpath200COOP/COEP. Changed Boardoutline route, empty entry/cancel/Browse and placementhintGREEN. Sharedshell/footer/Parts receipts active; visual corrections staged. No parent closure."
     },
     "integration": {
-      "source_commit": "d5f9cff4935bc7727cc67143c6bdc2791e6f209d",
-      "state": "Combined Parts normalized assembly recipes, shared footer, empty-board entry, component hint, Board outline Add entry and project shell integrated. Strict page WASM all-target check PASS17.54s after two mechanical integration corrections. Source frozen for next package;34761 remains alive.",
+      "source_commit": "12449589fbf8e792df87af68c0f181ce8079c569",
+      "state": "34762 served and fresh-source proof retained. Next small corrections: one Case configured-board action8da5e360, unboxed Project/Export6d799257, empty action typographybd971126; footer placement correction authoring. Export/Geometry scripts continue in isolation.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1866,14 +1865,14 @@
         "state": "bounded paired verified; no false busy warning; both disclosures remain open",
         "candidate": "2107f980/34761",
         "evidence": ".scratch/dioxus-case-workspace/evidence/issue-12-show-and-f72-disclosure-34760/public-receipt.md",
-        "remaining": "Mount/gasket CRUD and mismatch transition frontier; broader F7.2 criteria."
+        "remaining": "34761Mount/GasketCRUD+mismatchGREEN;34762Tray/wall/bodyselection/filter/UndoRedo/reloadGREEN reported, receiptpending. Nextduplicate-actionfix and consolidatedF7.2reconciliation."
       },
       {
         "journey": "PCB Add object\u2192component preview\u2192cancel/commit",
-        "state": "changed navigation and placement transitions verified; missing hint staged",
+        "state": "34761preview/cancel/commit/focus/Browse GREEN;34762exactplacementhint/Escape removalGREEN",
         "candidate": "2107f980/34761",
         "evidence": ".scratch/dioxus-pcb-view/evidence/20-add-object-20261003/public-34761.json",
-        "remaining": "Hint/Browse delta and consolidated review; full inventory and parent criteria remain."
+        "remaining": "Consolidatedreview; othermenu and fullparent criteria retained."
       },
       {
         "journey": "Linked key width\u2192mirrored counterpart/reflow\u2192history/reopen",
@@ -1881,20 +1880,34 @@
         "candidate": "04c85b88/34759",
         "evidence": ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md",
         "remaining": "Selecting both halves together; F3.2/F3.5 joins and full F6C.3 remain."
+      },
+      {
+        "journey": "PCBAdd\u2192Boardoutline\u2192LayoutOutlineInspector",
+        "state": "bounded paired verified",
+        "candidate": "900068a0/34762",
+        "evidence": ".scratch/dioxus-layout-authoring/evidence/f34e-add-object-outline-entry-20261003/README.md",
+        "remaining": "Fulloutline/canvas/Geometryscripts criteria retained."
+      },
+      {
+        "journey": "EmptyBoard2\u2192Matrixform\u2192Cancel\u2192BrowseParts",
+        "state": "ChangednavigationGREEN; primary/secondary style correctionstaged",
+        "candidate": "900068a0/34762",
+        "evidence": ".scratch/dioxus-pcb-view/evidence/21-empty-board-entry-20261003/public-34762.json",
+        "remaining": "Correctedactionstylequalify nextcandidate; broadermatrix/parentcriteriaretained."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "One page/provider-reuse package scheduled; source freeze held.34761 stays alive.",
-      "secondary_target": "No agent compiler assigned; cached target free after combined check.",
-      "dispatch": "Max2heavy jobs/1package; ordinaryUI no newtests; only changed pairedjourneys."
+      "root_target": "No package active;34762alive. Nextcoherentcorrectionbatch staging.",
+      "secondary_target": "No agent compiler assigned.",
+      "dispatch": "Max2heavyjobs/1package; ordinaryUI nonewtests; changedjourneys only."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": [
-      "Serve combined footer/emptyboard/normalizedParts/Boardoutline/hint/projectshell candidate34762.",
-      "Run only changed paired journeys; reuse unchanged history/source/delivery evidence; one consolidatedSol review.",
-      "Qualify current coordinator packet, then implement source-pinned Layout board Inspector child15.",
-      "Continue isolated Export and Geometry scripts work; repair observed Case duplicate configured-board action; retain all parents/RF."
+      "Join pending footer placement/source and Parts/Case receipts, then serve small sharedUI correctioncandidate.",
+      "Only changed shell/menu/actionsize/Caseonebutton journey; reuse34762/olderpassing behavior.",
+      "One consolidatedSol candidate report, exactF7.2criterion reconciliation using existingrepresentativeproof, retainunmetparents/RF.",
+      "Qualify coordinatorpacket then nextLayoutboardInspector child15; isolatedExport andGeometryscripts implement realexistingproviders."
     ],
     "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
@@ -2075,6 +2088,22 @@
         "assets_per_route": 145,
         "command_span_seconds": 91.798235,
         "package_qualification": "Strict page WASM all-target Clippy PASS14.78s; guarded package/root+subpath200 COEP PASS. Newboard paired create/select/history/reload GREEN. Matrix Right/noninitial-instance duplicate GREEN reported; receipt incoming. Case Show/disclosure deltas active. Unchanged34759 consumer/focus/Inspector evidence reused. Full parent criteria remain."
+      },
+      {
+        "build_id": "frontend-pcb-add-outline-undo-case-blur-20261003",
+        "source_commit": "2107f980e9b45c341bff10548c7156b28de0e388",
+        "root_url": "http://127.0.0.1:34761/",
+        "subpath_url": "http://127.0.0.1:34761/boardstudio/",
+        "provenance": "web/target/builds/frontend-pcb-add-outline-undo-case-blur-20261003/provenance.json",
+        "provenance_sha256": "2d218936e847ba8f4d8680e5ecc4b3f5a05c3ce88c85a2152e2397cd84020ac9",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1367,
+        "source_mismatches": 0,
+        "source_verification": "Recorded commit for tracked inputs;7 generated untracked inputs compared to retained files. Current next-batch source differs intentionally.",
+        "assets_per_route": 145,
+        "command_span_seconds": 96.103273,
+        "package_qualification": "Strict page WASM all-target Clippy PASS6.85s; package/root+subpath200 COEP PASS. Same-context Outline Undo and Case Enter/blur GREEN. PCB component search\u2192Layout preview/cancel/commit GREEN; placement hint missing and staged next. No full parent closure."
       }
     ],
     "consolidated_reviews": [
