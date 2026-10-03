@@ -11,6 +11,8 @@ pub(in crate::presentation) fn CanvasStatusFooter(
     board_available: bool,
     selection_available: bool,
     zoom_percent: f64,
+    findings_count: Option<usize>,
+    on_toggle_findings: EventHandler<()>,
     on_fit_board: EventHandler<()>,
     on_fit_selection: EventHandler<()>,
     on_zoom_out: EventHandler<()>,
@@ -58,6 +60,12 @@ pub(in crate::presentation) fn CanvasStatusFooter(
             button { class: "m1-canvas-footer-zoom", r#type: "button", aria_label: "Zoom out", title: "Zoom out", onclick: move |_| on_zoom_out.call(()), "−" }
             span { class: "m1-canvas-footer-zoom-label", "{zoom_percent:.0}%" }
             button { class: "m1-canvas-footer-zoom", r#type: "button", aria_label: "Zoom in", title: "Zoom in", onclick: move |_| on_zoom_in.call(()), "+" }
+        }
+        if let Some(count) = findings_count {
+            super::layout_findings::LayoutFindingsFooterButton {
+                count,
+                on_toggle: on_toggle_findings,
+            }
         }
     }
 }

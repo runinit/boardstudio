@@ -51,6 +51,7 @@ pub(super) struct InspectorInput {
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
     pub(super) board_inspector: Option<super::board_inspector::BoardInspectorProjection>,
     pub(super) on_board_rename: EventHandler<super::board_inspector::BoardRenameAction>,
+    pub(super) findings_page: Option<super::layout_findings::InspectorMount>,
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
@@ -132,6 +133,18 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 }
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
+    if let Some(page) = input.findings_page.filter(|page| page.open) {
+        return rsx! {
+            super::layout_findings::LayoutFindingsInspector {
+                open: page.open,
+                document: page.document,
+                findings: page.findings,
+                source: page.source,
+                on_close: page.on_close,
+                on_navigate: page.on_navigate,
+            }
+        };
+    }
     if input.geometry_scripts_open {
         return rsx! {
             super::geometry_scripts::GeometryScriptsEditor {

@@ -388,14 +388,14 @@ fn KeycapsFitFinding(
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct FindingGroup {
-    label: String,
-    findings: Vec<Finding>,
+pub(super) struct FindingGroup {
+    pub(super) label: String,
+    pub(super) findings: Vec<Finding>,
 }
 
 /// Mirror the established React FindingList oracle: collapse duplicate feature wrappers,
 /// severity-sort the stable result, and group by the first resolved target label.
-fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
+pub(super) fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingGroup> {
     let findings = presented_findings(findings, document);
     let mut groups: Vec<FindingGroup> = Vec::new();
     for finding in findings {
@@ -413,7 +413,7 @@ fn grouped_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<FindingG
     groups
 }
 
-fn presented_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<Finding> {
+pub(super) fn presented_findings(findings: &[Finding], document: &ProjectDoc) -> Vec<Finding> {
     let board_ids: std::collections::HashSet<&str> = document
         .boards
         .iter()
@@ -479,7 +479,7 @@ fn scope_title(scope: &FindingScope) -> &'static str {
     }
 }
 
-fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<String> {
+pub(super) fn finding_target_label(finding: &Finding, document: &ProjectDoc) -> Option<String> {
     let active_outline = document.board_outlines.iter().find_map(|owner| {
         owner
             .versions
@@ -1124,7 +1124,7 @@ fn finding_action_label(
         })
 }
 
-fn target_board_id(target: &FindingNavigationTarget) -> &str {
+pub(super) fn target_board_id(target: &FindingNavigationTarget) -> &str {
     match target {
         FindingNavigationTarget::Outline { board_id }
         | FindingNavigationTarget::MechanicalLayer { board_id, .. }

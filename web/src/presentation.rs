@@ -27,6 +27,7 @@ mod keymap_workspace;
 mod layout_camera;
 #[cfg(test)]
 mod layout_component_inspector_tests;
+mod layout_findings;
 mod layout_viewer;
 pub(crate) mod layout_viewer_source;
 mod layout_workspace;
@@ -1031,6 +1032,195 @@ fn layout_owner_is_current(
         .scope
         .as_ref()
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
+}
+
+fn layout_finding_context(
+    model: &ReadModel,
+    target: &keycaps_fit::FindingNavigationTarget,
+) -> Option<objects::TreeContext> {
+    use keycaps_fit::FindingNavigationTarget as Target;
+    match target {
+        Target::Part { part_id, .. } => objects::component_context_for_finding_part(model, part_id),
+        Target::Matrix { matrix_id, .. } => Some(objects::TreeContext::Matrix {
+            matrix_id: matrix_id.clone(),
+        }),
+        Target::Outline { board_id } => Some(objects::TreeContext::Outline {
+            board_id: board_id.clone(),
+        }),
+        Target::Board { board_id } => Some(objects::TreeContext::Outline {
+            board_id: board_id.clone(),
+        }),
+        Target::Body { .. } | Target::MechanicalLayer { .. } => None,
+    }
+}
+
+fn layout_finding_is_live(
+    model: &ReadModel,
+    request: &layout_findings::Request,
+    destination_board: &str,
+) -> bool {
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return false;
+    };
+    if !keycaps_fit::presented_findings(&snapshot.scene.findings, &snapshot.document)
+        .iter()
+        .any(|finding| finding == &request.finding)
+        || keycaps_fit::finding_navigation_target(&request.finding, &snapshot.document).as_ref()
+            != Some(&request.target)
+        || keycaps_fit::target_board_id(&request.target) != destination_board
+    {
+        return false;
+    }
+    snapshot
+        .document
+        .boards
+        .iter()
+        .any(|board| board.id == destination_board)
+        && layout_finding_context(model, &request.target).is_some()
+}
+
+fn source_matches_layout_owner(
+    source: &layout_findings::Source,
+    owner: &LayoutOwnerIdentity,
+    allow_board_hop: bool,
+) -> bool {
+    owner.workspace == "Layout"
+        && owner.token == Some(source.token)
+        && owner.revision == Some(source.revision)
+        && owner.scope.as_ref().is_some_and(|scope| {
+            scope.session_epoch == source.scope.session_epoch
+                && scope.document_id == source.scope.document_id
+                && (allow_board_hop || scope.board_id == source.scope.board_id)
+        })
+        && (allow_board_hop || owner.generation == source.generation)
+}
+
+fn perform_layout_finding_navigation(
+    runtime: Rc<Runtime>,
+    adapter: SelectionAdapter,
+    owner: LayoutOwnerIdentity,
+    request: layout_findings::Request,
+    workspace: Signal<&'static str>,
+    mut objects_open: Signal<bool>,
+    mut inspect_open: Signal<bool>,
+    mut findings_open: Signal<bool>,
+    inspector_settings: Signal<PanelSettings>,
+    focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
+    svg: Rc<RefCell<Option<SvgElement>>>,
+    alive: Rc<Cell<bool>>,
+    body_selection: Signal<Option<case_viewer::BodySelection>>,
+    case_selection: case_viewer::CaseSelection,
+    select_tree: EventHandler<objects::TreeSelectRequest>,
+    resumed_after_board_navigation: bool,
+) {
+    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+        || !source_matches_layout_owner(&request.source, &owner, resumed_after_board_navigation)
+    {
+        return;
+    }
+    let Some(scope) = owner.scope.as_ref() else {
+        return;
+    };
+    let model = runtime.model();
+    if !layout_finding_is_live(&model, &request, &scope.board_id) {
+        return;
+    }
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return;
+    };
+    let Some(context) = layout_finding_context(&model, &request.target) else {
+        return;
+    };
+    select_tree.call(objects::TreeSelectRequest {
+        scope: scope.clone(),
+        context: context.clone(),
+        mode: SelectionMode::Replace,
+        outline_action: None,
+    });
+    let route_model = runtime.model();
+    let Some(route_snapshot) = route_model.accepted.as_ref() else {
+        return;
+    };
+    if workspace() != "Layout"
+        || runtime.scope().as_ref() != Some(scope)
+        || route_snapshot.token != request.source.token
+        || route_snapshot.document.revision != request.source.revision
+    {
+        return;
+    }
+    let route_generation = (adapter.generation)();
+
+    let destination = keycaps_navigation::Destination::Layout(context);
+    let navigation_owner = keycaps_navigation::NavigationOwner {
+        workspace: "Layout",
+        scope: scope.clone(),
+        generation: route_generation,
+        token: request.source.token,
+        revision: request.source.revision,
+        destination,
+    };
+    if let Some(surface) = svg.borrow().as_ref() {
+        let rect = surface.get_bounding_client_rect();
+        let surface_size = (rect.width(), rect.height());
+        if let (Some(base), Some(target_bounds)) = (
+            keycaps_fit::layout_camera_basis(
+                &snapshot.document,
+                &snapshot.scene,
+                &scope.board_id,
+                surface_size,
+            ),
+            keycaps_fit::finding_navigation_bounds(
+                &snapshot.document,
+                &snapshot.scene,
+                &request.finding.id,
+                &request.target,
+            ),
+        ) {
+            let live_owner = keycaps_navigation::LiveNavigationOwner {
+                workspace: "Layout",
+                scope: Some(scope.clone()),
+                generation: route_generation,
+                token: Some(request.source.token),
+                revision: Some(request.source.revision),
+                destinations: vec![navigation_owner.destination.clone()],
+            };
+            if let Some(camera) = keycaps_navigation::destination_camera_fit(
+                &navigation_owner,
+                &live_owner,
+                base.bounds,
+                target_bounds,
+                surface_size,
+            ) {
+                runtime.submit(Event::SetCamera {
+                    operation_id: runtime.operation(),
+                    center: camera.center,
+                    zoom: camera.zoom,
+                });
+            }
+        }
+    }
+
+    focused_finding.set(Some(keycaps_finding_marker::FocusedFinding {
+        scope: scope.clone(),
+        token: request.source.token,
+        revision: request.source.revision,
+        finding_id: request.finding.id,
+    }));
+    findings_open.set(false);
+    objects_open.set(false);
+    inspect_open.set(true);
+    pin_inspector_on_desktop(inspector_settings);
+    let focus_runtime = runtime.clone();
+    let focus_adapter = adapter.clone();
+    focus_first_inspector_control_on_next_frame(alive, navigation_owner, move || {
+        current_keycaps_navigation_owner(
+            workspace,
+            &focus_runtime,
+            &focus_adapter,
+            body_selection,
+            case_selection,
+        )
+    });
 }
 
 fn pcb_owner_is_current(
@@ -2150,6 +2340,8 @@ fn Editor() -> Element {
     let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
     let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
     let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
+    let layout_findings_open = use_signal(|| false);
+    let pending_layout_finding = use_signal(|| None::<layout_findings::Request>);
     let pending_keycaps_navigation_fit =
         use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
     let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
@@ -4173,6 +4365,181 @@ fn Editor() -> Element {
             );
         }
     };
+    let on_toggle_layout_findings = use_callback({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let mut findings_open = layout_findings_open;
+        let mut inspect_open = inspect_open;
+        let mut objects_open = objects_open;
+        let inspector_settings = inspector_panel_settings;
+        move |()| {
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            findings_open.set(!findings_open());
+            inspect_open.set(true);
+            objects_open.set(false);
+            pin_inspector_on_desktop(inspector_settings);
+        }
+    });
+    let on_close_layout_findings = use_callback({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let mut findings_open = layout_findings_open;
+        let mut scripts_open = geometry_scripts_open;
+        move |()| {
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            findings_open.set(false);
+            scripts_open.set(false);
+            if let Some(element) = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.get_element_by_id("m1-layout-findings-trigger"))
+                .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+            {
+                let _ = element.focus();
+            }
+        }
+    });
+    let on_layout_finding = use_callback({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = layout_owner.clone();
+        let workspace = workspace;
+        let objects_open = objects_open;
+        let inspect_open = inspect_open;
+        let findings_open = layout_findings_open;
+        let inspector_settings = inspector_panel_settings;
+        let mut pending = pending_layout_finding;
+        let focused_finding = focused_keycaps_finding;
+        let svg = svg.clone();
+        let alive = keycaps_navigation_alive.clone();
+        let body_selection = case_body_selection;
+        let case_selection = case_selection;
+        let select_tree = workspace_callbacks.select_tree;
+        let navigate = workspace_callbacks.navigate;
+        move |request: layout_findings::Request| {
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+                || !source_matches_layout_owner(&request.source, &owner, false)
+            {
+                return;
+            }
+            let model = runtime.model();
+            let Some(snapshot) = model.accepted.as_ref() else {
+                return;
+            };
+            if !keycaps_fit::presented_findings(&snapshot.scene.findings, &snapshot.document)
+                .iter()
+                .any(|finding| finding == &request.finding)
+                || keycaps_fit::finding_navigation_target(&request.finding, &snapshot.document)
+                    .as_ref()
+                    != Some(&request.target)
+                || !layout_findings::target_has_live_layout_destination(
+                    &request.target,
+                    &snapshot.document,
+                )
+            {
+                return;
+            }
+            let target_board = keycaps_fit::target_board_id(&request.target).to_owned();
+            let Some(scope) = owner.scope.as_ref() else {
+                return;
+            };
+            if target_board != scope.board_id {
+                pending.set(Some(request));
+                navigate.call((scope.clone(), target_board, None));
+                return;
+            }
+            perform_layout_finding_navigation(
+                runtime,
+                adapter,
+                owner,
+                request,
+                workspace,
+                objects_open,
+                inspect_open,
+                findings_open,
+                inspector_settings,
+                focused_finding,
+                svg,
+                alive,
+                body_selection,
+                case_selection,
+                select_tree,
+                false,
+            );
+        }
+    });
+    use_effect(use_reactive(
+        (&pending_layout_finding(), &layout_owner, &active_workspace),
+        {
+            let runtime = runtime.clone();
+            let adapter = adapter.clone();
+            let objects_open = objects_open;
+            let inspect_open = inspect_open;
+            let findings_open = layout_findings_open;
+            let inspector_settings = inspector_panel_settings;
+            let mut pending = pending_layout_finding;
+            let focused_finding = focused_keycaps_finding;
+            let svg = svg.clone();
+            let alive = keycaps_navigation_alive.clone();
+            let body_selection = case_body_selection;
+            let case_selection = case_selection;
+            let select_tree = workspace_callbacks.select_tree;
+            move |(request, owner, active_workspace)| {
+                let Some(request) = request else {
+                    return;
+                };
+                if active_workspace != "Layout" {
+                    pending.set(None);
+                    return;
+                }
+                if !source_matches_layout_owner(&request.source, &owner, true) {
+                    pending.set(None);
+                    return;
+                }
+                let Some(scope) = owner.scope.as_ref() else {
+                    pending.set(None);
+                    return;
+                };
+                let target_board = keycaps_fit::target_board_id(&request.target);
+                if scope.board_id == request.source.scope.board_id {
+                    return;
+                }
+                if scope.board_id != target_board {
+                    pending.set(None);
+                    return;
+                }
+                let model = runtime.model();
+                if !layout_finding_is_live(&model, &request, target_board) {
+                    pending.set(None);
+                    return;
+                }
+                pending.set(None);
+                perform_layout_finding_navigation(
+                    runtime.clone(),
+                    adapter.clone(),
+                    owner,
+                    request,
+                    workspace,
+                    objects_open,
+                    inspect_open,
+                    findings_open,
+                    inspector_settings,
+                    focused_finding,
+                    svg.clone(),
+                    alive.clone(),
+                    body_selection,
+                    case_selection,
+                    select_tree,
+                    true,
+                );
+            }
+        },
+    ));
     let observed_navigation_selection = (adapter.selected_context)();
     let observed_navigation_generation = (adapter.generation)();
     keycaps_navigation::use_pending_layout_fit(
@@ -6160,6 +6527,19 @@ fn Editor() -> Element {
                 outline_inspector: outline_inspector.clone().map(Box::new),
                 board_inspector: board_inspector_projection,
                 on_board_rename: board_inspector.on_rename,
+                findings_page: Some(layout_findings::InspectorMount {
+                    open: layout_findings_open(),
+                    document: Rc::new(document.clone()),
+                    findings: snapshot.scene.findings.clone(),
+                    source: layout_findings::Source {
+                        scope: render_scope.clone(),
+                        token: snapshot.token,
+                        revision: snapshot.document.revision,
+                        generation: render_generation,
+                    },
+                    on_close: on_close_layout_findings,
+                    on_navigate: on_layout_finding,
+                }),
             },
         )),
     };
@@ -6803,6 +7183,14 @@ fn Editor() -> Element {
                         board_available: true,
                         selection_available: footer_selection_available,
                         zoom_percent,
+                        findings_count: (active_workspace == "Layout").then(|| {
+                            keycaps_fit::presented_findings(
+                                &snapshot.scene.findings,
+                                &snapshot.document,
+                            )
+                            .len()
+                        }),
+                        on_toggle_findings: on_toggle_layout_findings,
                         on_fit_board: on_fit_keymap_board,
                         on_fit_selection: on_fit_keymap_selection,
                         on_zoom_out: on_zoom_keymap_out,
@@ -6813,6 +7201,15 @@ fn Editor() -> Element {
                     }
                 } else {
                     span { "{model.camera.zoom * 100.0:.0}%" }
+                }
+                if active_workspace == "Layout" && layout_assembly_3d() {
+                    layout_findings::LayoutFindingsFooterButton {
+                        count: keycaps_fit::presented_findings(
+                            &snapshot.scene.findings,
+                            &snapshot.document,
+                        ).len(),
+                        on_toggle: on_toggle_layout_findings,
+                    }
                 }
             }
         }
