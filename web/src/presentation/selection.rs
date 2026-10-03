@@ -115,6 +115,43 @@ pub(super) fn submit_context(
     let Some(ids) = objects::resolve_selection(&model, &request.context) else {
         return;
     };
+    let matrix_id = match &request.context {
+        TreeContext::Matrix { matrix_id }
+        | TreeContext::Row { matrix_id, .. }
+        | TreeContext::Column { matrix_id, .. }
+        | TreeContext::Key { matrix_id, .. } => Some(matrix_id.clone()),
+        _ => None,
+    };
+    if let Some(matrix_id) = matrix_id {
+        let target_part_id = match &request.context {
+            TreeContext::Key { row, column, .. } => {
+                Some(format!("matrix/{matrix_id}/r{row}c{column}"))
+            }
+            _ => model.selection_anchor_id.clone().filter(|anchor| {
+                matches!(
+                    objects::context_for_part(&model, anchor),
+                    Some(TreeContext::Key { matrix_id: anchor_matrix, .. }) if anchor_matrix == matrix_id
+                )
+            }),
+        };
+        if let Some(target_part_id) = target_part_id
+            && let Some(hit_context) = objects::context_for_part(&model, &target_part_id)
+            && submit_matrix_cell_selection(
+                runtime,
+                adapter,
+                &request.scope,
+                (adapter.generation)(),
+                matrix_id,
+                target_part_id,
+                &hit_context,
+                request.context.clone(),
+                request.mode,
+            )
+            .is_some()
+        {
+            return;
+        }
+    }
     let eligible: Vec<_> = eligible_live_ids(&model);
     let ids: Vec<_> = ids
         .into_iter()
@@ -214,6 +251,80 @@ pub(super) fn submit_canvas_selection(
             anchor_scope.set(Some(scope.clone()));
         }
     }
+    Some(ids)
+}
+
+pub(super) fn submit_matrix_cell_selection(
+    runtime: &Rc<Runtime>,
+    adapter: &SelectionAdapter,
+    scope: &Scope,
+    generation: u64,
+    matrix_id: String,
+    target_part_id: String,
+    hit_context: &TreeContext,
+    context: TreeContext,
+    mode: SelectionMode,
+) -> Option<Vec<String>> {
+    if runtime.scope().as_ref() != Some(scope) || (adapter.generation)() != generation {
+        return None;
+    }
+    let TreeContext::Key {
+        matrix_id: hit_matrix_id,
+        row,
+        column,
+    } = hit_context
+    else {
+        return None;
+    };
+    if hit_matrix_id != &matrix_id
+        || target_part_id != format!("matrix/{matrix_id}/r{row}c{column}")
+    {
+        return None;
+    }
+    let model = runtime.model();
+    if !context_is_current(&model, scope, &context) {
+        return None;
+    }
+    let eligible = eligible_live_ids(&model);
+    if !eligible.iter().any(|id| id == &target_part_id) {
+        return None;
+    }
+    let range_anchor_is_current = mode != SelectionMode::Range
+        || ((adapter.anchor_scope)().as_ref() == Some(scope)
+            && model.selection_anchor_id.as_ref().is_some_and(|anchor| {
+                eligible.iter().any(|id| id == anchor)
+                    && matches!(
+                        objects::context_for_part(&model, anchor),
+                        Some(TreeContext::Key { matrix_id: anchor_matrix, .. })
+                            if anchor_matrix == matrix_id
+                    )
+            }));
+    let (context, mode) = if mode == SelectionMode::Range && range_anchor_is_current {
+        (hit_context.clone(), SelectionMode::Range)
+    } else if mode == SelectionMode::Range {
+        (context, SelectionMode::Replace)
+    } else {
+        (context, mode)
+    };
+    let ids = objects::resolve_selection(&model, &context)?
+        .into_iter()
+        .filter(|id| eligible.iter().any(|candidate| candidate == id))
+        .collect::<Vec<_>>();
+    let mut selected_context = adapter.selected_context;
+    selected_context.set(Some(ScopedTreeContext {
+        scope: scope.clone(),
+        context,
+    }));
+    runtime.submit(Event::SelectMatrixCell {
+        operation_id: runtime.operation(),
+        scope: scope.clone(),
+        matrix_id,
+        target_part_id,
+        part_ids: ids.clone(),
+        mode,
+    });
+    let mut anchor_scope = adapter.anchor_scope;
+    anchor_scope.set(Some(scope.clone()));
     Some(ids)
 }
 

@@ -204,6 +204,16 @@ pub enum Event {
         range_part_ids: Vec<String>,
         mode: SelectionMode,
     },
+    /// Select a projected matrix scope from an actual primary-cell hit. Keeping the hit
+    /// separate from the projected IDs preserves the clicked cell as the Shift-range anchor.
+    SelectMatrixCell {
+        operation_id: OperationId,
+        scope: Scope,
+        matrix_id: String,
+        target_part_id: String,
+        part_ids: Vec<String>,
+        mode: SelectionMode,
+    },
     Navigate {
         operation_id: OperationId,
         board_id: String,
@@ -700,6 +710,160 @@ impl Session {
                         &mut effects,
                     );
                 }
+            }
+            Event::SelectMatrixCell {
+                operation_id,
+                scope,
+                matrix_id,
+                target_part_id,
+                part_ids,
+                mode,
+            } => {
+                let Some(snapshot) = self.model.accepted.as_ref() else {
+                    self.settle(
+                        operation_id,
+                        TerminalOutcome::Rejected("no accepted document is open".into()),
+                        &mut effects,
+                    );
+                    return effects;
+                };
+                let scope_is_current = snapshot.session_epoch == scope.session_epoch
+                    && snapshot.document.id == scope.document_id
+                    && self.model.active_board_id == scope.board_id
+                    && self.model.active_instance_id == scope.instance_id;
+                let Some(board) = snapshot
+                    .document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == scope.board_id)
+                else {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                    return effects;
+                };
+                let Some(matrix) = snapshot
+                    .document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == matrix_id)
+                else {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                    return effects;
+                };
+                let scope_is_current = scope_is_current
+                    && matrix
+                        .board_id
+                        .as_ref()
+                        .is_none_or(|board_id| board_id == &scope.board_id);
+                let board_parts = board
+                    .part_ids
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<HashSet<_>>();
+                let document_parts = snapshot
+                    .document
+                    .parts
+                    .iter()
+                    .map(|part| part.id.as_str())
+                    .collect::<HashSet<_>>();
+                let Some(scene) = snapshot
+                    .scene
+                    .matrix_scenes
+                    .iter()
+                    .find(|scene| scene.matrix_id == matrix_id)
+                else {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                    return effects;
+                };
+                let mut primary_cells = scene
+                    .cells
+                    .iter()
+                    .filter_map(|cell| {
+                        let id = cell.member_id.as_deref()?;
+                        (cell.enabled
+                            && matrix.part_ids.iter().any(|member| member == id)
+                            && board_parts.contains(id)
+                            && document_parts.contains(id))
+                        .then(|| (cell.row, cell.column, id.to_owned()))
+                    })
+                    .collect::<Vec<_>>();
+                primary_cells.sort_by_key(|(row, column, _)| (*row, *column));
+                let target_is_live = primary_cells.iter().any(|(_, _, id)| id == &target_part_id);
+                if !scope_is_current || !target_is_live {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                    return effects;
+                }
+                let incoming = part_ids
+                    .into_iter()
+                    .filter(|id| {
+                        board_parts.contains(id.as_str()) && document_parts.contains(id.as_str())
+                    })
+                    .collect::<Vec<_>>();
+                let mut retained_anchor = self.model.selection_anchor_id.clone();
+                let mut effective_mode = mode;
+                let selected = if mode == SelectionMode::Range {
+                    let anchor = retained_anchor.as_deref().and_then(|anchor| {
+                        primary_cells
+                            .iter()
+                            .find(|(_, _, id)| id == anchor)
+                            .map(|(row, column, _)| (*row, *column, anchor.to_owned()))
+                    });
+                    let target = primary_cells
+                        .iter()
+                        .find(|(_, _, id)| id == &target_part_id)
+                        .map(|(row, column, _)| (*row, *column));
+                    if let (
+                        Some((anchor_row, anchor_column, _)),
+                        Some((target_row, target_column)),
+                    ) = (anchor, target)
+                    {
+                        primary_cells
+                            .iter()
+                            .filter(|(row, column, _)| {
+                                *row >= anchor_row.min(target_row)
+                                    && *row <= anchor_row.max(target_row)
+                                    && *column >= anchor_column.min(target_column)
+                                    && *column <= anchor_column.max(target_column)
+                            })
+                            .map(|(_, _, id)| id.clone())
+                            .collect::<Vec<_>>()
+                    } else {
+                        effective_mode = SelectionMode::Replace;
+                        retained_anchor = Some(target_part_id.clone());
+                        incoming
+                    }
+                } else {
+                    retained_anchor = Some(target_part_id.clone());
+                    incoming
+                };
+                match effective_mode {
+                    SelectionMode::Replace | SelectionMode::Range => {
+                        self.model.selected_part_ids = selected;
+                    }
+                    SelectionMode::Add => {
+                        for id in selected {
+                            if !self.model.selected_part_ids.contains(&id) {
+                                self.model.selected_part_ids.push(id);
+                            }
+                        }
+                    }
+                    SelectionMode::Toggle => {
+                        for id in selected {
+                            if let Some(index) = self
+                                .model
+                                .selected_part_ids
+                                .iter()
+                                .position(|current| current == &id)
+                            {
+                                self.model.selected_part_ids.remove(index);
+                            } else {
+                                self.model.selected_part_ids.push(id);
+                            }
+                        }
+                    }
+                }
+                self.model.selection_mode = effective_mode;
+                self.model.selection_anchor_id = retained_anchor;
+                self.settle(operation_id, TerminalOutcome::Completed, &mut effects);
             }
             Event::Navigate {
                 operation_id,
@@ -2001,6 +2165,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         | Event::Redo { operation_id }
         | Event::RetrySave { operation_id }
         | Event::SelectParts { operation_id, .. }
+        | Event::SelectMatrixCell { operation_id, .. }
         | Event::Navigate { operation_id, .. }
         | Event::SetCamera { operation_id, .. }
         | Event::StartGeneration { operation_id, .. }

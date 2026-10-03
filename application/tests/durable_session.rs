@@ -43,6 +43,77 @@ fn fixture() -> ProjectDoc {
     document
 }
 
+fn matrix_range_fixture() -> (ProjectDoc, Vec<String>) {
+    let mut document = fixture();
+    let mut member_ids = Vec::new();
+    let mut board_part_ids = Vec::new();
+    for row in 0..3 {
+        for column in 0..3 {
+            if (row, column) == (1, 1) {
+                continue;
+            }
+            let id = format!("matrix/main/r{row}c{column}");
+            let mut part = document.parts[0].clone();
+            part.id = id.clone();
+            part.reference = format!("SW{}", member_ids.len() + 1);
+            member_ids.push(id.clone());
+            board_part_ids.push(id.clone());
+            document.parts.push(part);
+            if (row, column) == (0, 1) {
+                let companion_id = format!("{id}/diode");
+                let mut companion = document.parts.last().unwrap().clone();
+                companion.id = companion_id.clone();
+                companion.reference = "D1".into();
+                member_ids.push(companion_id.clone());
+                board_part_ids.push(companion_id);
+                document.parts.push(companion);
+            }
+        }
+    }
+    document.boards.push(Board {
+        id: "main".into(),
+        name: "Main".into(),
+        outline_ids: vec![],
+        part_ids: board_part_ids,
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.matrices.push(Matrix {
+        id: "main".into(),
+        name: None,
+        rows: 3,
+        columns: 3,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2 { x: 0.0, y: 0.0 },
+        definition_id: "switch".into(),
+        part_ids: member_ids.clone(),
+        board_id: Some("main".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_offsets: vec![],
+        column_offsets: vec![],
+        column_staggers: vec![],
+        column_splays: vec![],
+        column_origins: vec![],
+        cells: vec![MatrixCell {
+            row: 1,
+            column: 1,
+            enabled: false,
+            definition_id: None,
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (document, member_ids)
+}
+
 fn protected_fixture() -> ProjectDoc {
     let mut document = fixture();
     document.hardware = Some(HardwareConfiguration {
@@ -1046,6 +1117,82 @@ fn selection_navigation_and_camera_updates_are_session_only() {
         }
     );
     assert_eq!(session.read_model().accepted.as_ref().unwrap().token, token);
+}
+
+#[test]
+fn matrix_range_selects_rectangle_of_live_primary_members_and_keeps_anchor() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let (document, matrix_scope_ids) = matrix_range_fixture();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(501),
+        document,
+    });
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    let accepted = session.read_model().accepted.as_ref().unwrap();
+    let scope = boardstudio_application::Scope {
+        session_epoch: accepted.session_epoch,
+        document_id: accepted.document.id.clone(),
+        board_id: "main".into(),
+        instance_id: None,
+    };
+
+    let anchor = "matrix/main/r0c1".to_owned();
+    let target = "matrix/main/r2c1".to_owned();
+    session.submit(Event::SelectMatrixCell {
+        operation_id: OperationId(502),
+        scope: scope.clone(),
+        matrix_id: "main".into(),
+        target_part_id: anchor.clone(),
+        // The projection is an extent whose first member differs from the clicked key.
+        part_ids: matrix_scope_ids.clone(),
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    session.submit(Event::SelectMatrixCell {
+        operation_id: OperationId(503),
+        scope: scope.clone(),
+        matrix_id: "main".into(),
+        target_part_id: target.clone(),
+        part_ids: vec![target.clone()],
+        mode: boardstudio_application::SelectionMode::Range,
+    });
+
+    assert_eq!(
+        session.read_model().selected_part_ids,
+        vec![anchor.clone(), target]
+    );
+    assert_eq!(
+        session.read_model().selection_anchor_id.as_deref(),
+        Some(anchor.as_str())
+    );
+    assert_eq!(
+        session.read_model().selection_mode,
+        boardstudio_application::SelectionMode::Range
+    );
+
+    let repeated_target = "matrix/main/r2c0".to_owned();
+    session.submit(Event::SelectMatrixCell {
+        operation_id: OperationId(504),
+        scope,
+        matrix_id: "main".into(),
+        target_part_id: repeated_target,
+        part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Range,
+    });
+    assert_eq!(
+        session.read_model().selected_part_ids,
+        vec![
+            "matrix/main/r0c0",
+            "matrix/main/r0c1",
+            "matrix/main/r1c0",
+            "matrix/main/r2c0",
+            "matrix/main/r2c1"
+        ]
+    );
+    assert_eq!(
+        session.read_model().selection_anchor_id.as_deref(),
+        Some(anchor.as_str())
+    );
 }
 
 #[test]

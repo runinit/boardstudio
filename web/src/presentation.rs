@@ -7300,6 +7300,7 @@ fn Editor() -> Element {
                                             let matrix_id = matrix.id.clone();
                                             let cell_row = cell.row;
                                             let cell_column = cell.column;
+                                            let target_part_id = cell.member_id.clone();
                                             let runtime = runtime.clone();
                                             let adapter = adapter.clone();
                                             let space_down = space_down.clone();
@@ -7327,9 +7328,13 @@ fn Editor() -> Element {
                                                     let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
                                                     let context = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref())
                                                         .map(|projection| projection.context)
-                                                        .unwrap_or(hit_context);
+                                                        .unwrap_or_else(|| hit_context.clone());
                                                     let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
-                                                    selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
+                                                    if let Some(target_part_id) = target_part_id.clone() {
+                                                        selection::submit_matrix_cell_selection(&runtime, &adapter, &scope, generation, matrix_id.clone(), target_part_id, &hit_context, context, mode);
+                                                    } else {
+                                                        selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
+                                                    }
                                                 }
                                             } }
                                         }
@@ -7399,8 +7404,12 @@ fn Editor() -> Element {
                                         let projection = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref());
                                         let target_ids = projection.as_ref().map(|projection| projection.part_ids.clone())
                                             .unwrap_or_else(|| selection::resolve_context(&current, &hit_context).unwrap_or_default());
-                                        let context = projection.map(|projection| projection.context).unwrap_or(hit_context);
-                                        if !current.selected_part_ids.contains(&id)
+                                        let context = projection.map(|projection| projection.context).unwrap_or_else(|| hit_context.clone());
+                                        if let objects::TreeContext::Key { matrix_id, row, column } = &hit_context
+                                            && id == format!("matrix/{matrix_id}/r{row}c{column}")
+                                        {
+                                            selection::submit_matrix_cell_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, matrix_id.clone(), id.clone(), &hit_context, context.clone(), mode);
+                                        } else if !current.selected_part_ids.contains(&id)
                                             || mode != SelectionMode::Replace
                                             || target_ids != current.selected_part_ids
                                         {
@@ -7417,6 +7426,7 @@ fn Editor() -> Element {
                                         }
                                         let current = runtime.model();
                                         if !current.selected_part_ids.contains(&id) { return; }
+                                        if mode != SelectionMode::Replace { return; }
                                         let Some(snapshot) = current.accepted else { return; };
                                         let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
                                         if positions.is_empty() { return; }
