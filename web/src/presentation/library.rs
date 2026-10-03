@@ -823,47 +823,19 @@ mod mounted_tests {
             .query_selector(".m1-project-menu-library")
             .unwrap()
             .expect("menu instance uses the dropdown composition");
-        let menu_children = project_menu.children();
-        assert_eq!(
-            menu_children
-                .item(0)
-                .unwrap()
-                .get_attribute("class")
-                .as_deref(),
-            Some("m1-project-menu-heading")
-        );
-        assert_eq!(
-            menu_children
-                .item(1)
-                .unwrap()
-                .get_attribute("class")
-                .as_deref(),
-            Some("m1-project-menu-actions")
-        );
-        assert_eq!(
-            menu_children
-                .item(2)
-                .unwrap()
-                .get_attribute("class")
-                .as_deref(),
-            Some("m1-project-current")
-        );
-        assert_eq!(
-            menu_children
-                .item(3)
-                .unwrap()
-                .get_attribute("class")
-                .as_deref(),
-            Some("m1-library-content m1-library-scroll")
-        );
-        assert_eq!(
-            menu_children
-                .item(4)
-                .unwrap()
-                .get_attribute("class")
-                .as_deref(),
-            Some("m1-project-menu-footer")
-        );
+        let mut menu_child = project_menu.first_element_child();
+        for expected in [
+            "m1-project-menu-heading",
+            "m1-project-menu-actions",
+            "m1-project-current",
+            "m1-library-content m1-library-scroll",
+            "m1-project-menu-footer",
+        ] {
+            let child = menu_child.expect("expected direct menu child");
+            assert_eq!(child.get_attribute("class").as_deref(), Some(expected));
+            menu_child = child.next_element_sibling();
+        }
+        assert!(menu_child.is_none(), "unexpected direct menu child");
         assert!(
             root.query_selector(".m1-project-menu-heading h2")
                 .unwrap()
