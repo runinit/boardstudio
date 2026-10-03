@@ -1274,8 +1274,9 @@
         {
           "source": "fe86fa05/34750",
           "evidence": ".scratch/dioxus-pcb-view/evidence/15-mounted-module-layers-20261003/public-receipt.md",
-          "observation": "Module source geometry and all28 corresponding marker contours match, but default/toggle marker visibility differs fromReact (0\u219228 vs47\u219272; three source caveats already visible inReactdefault). Existing general host/focused findings rendering remains unported; counts alone do not identify target-ID/focus/classification cause.",
-          "status": "Confirmed visible parity gap retained for F5.5; no speculative identity-string filter or backend correction."
+          "observation": "Module source geometry and all28 corresponding marker contours match, but default/toggle marker visibility differs fromReact (0\u219228 vs47\u219272; three source caveats already visible inReactdefault). Pinned Workbench.tsx identifies the concrete gap: Dioxus emitted only module-targeted error markers and hid the entire marker component when the module layer was off; React keeps current-board host errors visible and suppresses only marker IDs targeting current-board module instances. Focused-finding override remains separate because PCB has no equivalent focused-finding owner.",
+          "current_mitigation": "PCB issue15 isolated correction now mirrors the accepted current-board error-marker/module-target predicate and leaves non-module error markers visible when the module finding layer is hidden. No marker-ID string filtering or backend change was introduced.",
+          "status": "Source correction awaiting the next integrated paired candidate; exact changed marker delta and history/document preservation remain open. This does not close F5.4/F5.5 or any parent."
         },
         {
           "source": "Issue 02 VIK module React reference pin",

@@ -252,7 +252,7 @@ pub(in crate::presentation) fn PcbScene(props: PcbSceneProps) -> Element {
                     on_select: on_module_select,
                 }
             }
-            super::pcb_module_footprints::ModuleFindingMarkers {
+            super::pcb_module_footprints::PcbFindingMarkers {
                 snapshot: snapshot.clone(), board_id: scope.board_id.clone(),
             }
         }

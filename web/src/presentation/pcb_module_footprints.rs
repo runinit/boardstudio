@@ -208,11 +208,9 @@ pub(super) fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Elem
 }
 
 #[component]
-pub(super) fn ModuleFindingMarkers(snapshot: AcceptedSnapshot, board_id: String) -> Element {
+pub(super) fn PcbFindingMarkers(snapshot: AcceptedSnapshot, board_id: String) -> Element {
     let visibility = use_context::<LayerVisibility>();
-    if (visibility.modules_hidden)().contains("module-findings") {
-        return rsx! {};
-    }
+    let module_findings_hidden = (visibility.modules_hidden)().contains("module-findings");
     let module_ids = snapshot
         .document
         .modules
@@ -220,22 +218,35 @@ pub(super) fn ModuleFindingMarkers(snapshot: AcceptedSnapshot, board_id: String)
         .filter(|module| module.host_board_id == board_id)
         .map(|module| module.id.as_str())
         .collect::<BTreeSet<_>>();
-    let finding_ids = snapshot
+    // Mirror Workbench.tsx's moduleFindingIds projection: classify every
+    // finding against mounted-module instance IDs on this host board, then
+    // hide only those error markers when the module layer is off. Host error
+    // markers stay visible in PCB independently of module-layer visibility.
+    let module_finding_ids = snapshot
+        .scene
+        .findings
+        .iter()
+        .filter(|finding| {
+            finding
+                .target_ids
+                .iter()
+                .any(|id| module_ids.contains(id.as_str()))
+        })
+        .map(|finding| finding.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let visible_error_ids = snapshot
         .scene
         .findings
         .iter()
         .filter(|finding| {
             finding.severity == Severity::Error
-                && finding
-                    .target_ids
-                    .iter()
-                    .any(|id| module_ids.contains(id.as_str()))
+                && !(module_findings_hidden && module_finding_ids.contains(finding.id.as_str()))
         })
         .map(|finding| finding.id.as_str())
         .collect::<BTreeSet<_>>();
     rsx! {
         for marker in snapshot.scene.finding_markers.iter().filter(|marker| {
-            marker.board_id == board_id && finding_ids.contains(marker.finding_id.as_str())
+            marker.board_id == board_id && visible_error_ids.contains(marker.finding_id.as_str())
         }) {
             g { key: "{marker.finding_id}", class: "wb-outline-finding", "data-finding-id": "{marker.finding_id}",
                 for (index, contour) in marker.contours.iter().enumerate() {
