@@ -1,6 +1,7 @@
 use super::setup_guide::{PendingNewKeyboard, SetupGuideRequest};
 use crate::runtime::Runtime;
-use boardstudio_core::model::{PartKind, ProjectDoc};
+use boardstudio_application::{AcceptedSnapshot, Event, SessionEpoch, SnapshotToken};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, PartKind, ProjectDoc};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, JsString, Object};
@@ -14,6 +15,46 @@ enum ListStatus {
     Loading,
     Ready,
     Failed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ProjectNameOwner {
+    session_epoch: SessionEpoch,
+    document_id: String,
+}
+
+impl From<&AcceptedSnapshot> for ProjectNameOwner {
+    fn from(snapshot: &AcceptedSnapshot) -> Self {
+        Self {
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ProjectNameSubmission {
+    owner: ProjectNameOwner,
+    token: SnapshotToken,
+    revision: u64,
+}
+
+impl From<&AcceptedSnapshot> for ProjectNameSubmission {
+    fn from(snapshot: &AcceptedSnapshot) -> Self {
+        Self {
+            owner: ProjectNameOwner::from(snapshot),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+        }
+    }
+}
+
+impl ProjectNameSubmission {
+    fn matches(&self, snapshot: &AcceptedSnapshot) -> bool {
+        self.owner == ProjectNameOwner::from(snapshot)
+            && self.token == snapshot.token
+            && self.revision == snapshot.document.revision
+    }
 }
 
 #[derive(Clone)]
@@ -241,11 +282,21 @@ pub(super) fn Library() -> Element {
     let start_new_menu = start_new.clone();
     let recovery_required =
         runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired;
-    let current = runtime
-        .model()
-        .accepted
+    let current_snapshot = runtime.model().accepted;
+    let current = current_snapshot
         .as_ref()
         .map(|snapshot| snapshot.document.clone());
+    let has_current = current.is_some();
+    let name_owner = current_snapshot.as_ref().map(ProjectNameOwner::from);
+    let current_name = current
+        .as_ref()
+        .map(|document| document.name.clone())
+        .unwrap_or_default();
+    let mut project_name = use_signal(|| current_name.clone());
+    use_effect(use_reactive!(|name_owner, current_name| {
+        let _ = name_owner;
+        project_name.set(current_name.clone());
+    }));
     let current_project_id = current.as_ref().map(|document| document.id.clone());
     let accepted_identity = current.as_ref().map(|document| document.id.clone());
     let mut saved = use_signal(Vec::<Arc<ProjectDoc>>::new);
@@ -319,11 +370,61 @@ pub(super) fn Library() -> Element {
     let reviung = runtime.clone();
     let sofle = runtime.clone();
     let import = runtime.clone();
+    let rename_runtime = runtime.clone();
+    let rename_mounted = mounted.clone();
+    let current_name_for_blur = current_name.clone();
+    let current_owner_for_blur = name_owner.clone();
     let mut guide_request = project_created;
     let mut guide_request_counter = guide_request_counter;
     let retry_generations = request_generation.clone();
     rsx! {
         section { class: "m1-library", "aria-label": "Your keyboards",
+            if has_current {
+                section { class: "m1-project-current", "aria-label": "Current project",
+                    h2 { "Current project" }
+                    label { "Project name"
+                        input {
+                            "aria-label": "Project name",
+                            title: "Rename project",
+                            value: "{project_name}",
+                            oninput: move |event: FormEvent| project_name.set(event.value()),
+                            onkeydown: {
+                                let accepted_name = current_name.clone();
+                                move |event: KeyboardEvent| {
+                                    match event.data().key().to_string().as_str() {
+                                        "Enter" => {
+                                            event.prevent_default();
+                                            if let Some(input) = event
+                                                .data()
+                                                .try_as_web_event()
+                                                .and_then(|event| event.target())
+                                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                            {
+                                                let _ = input.blur();
+                                            }
+                                        }
+                                        "Escape" => project_name.set(accepted_name.clone()),
+                                        _ => {}
+                                    }
+                                }
+                            },
+                            onblur: move |_| {
+                                let draft = project_name();
+                                if draft.trim().is_empty() || draft.trim() == current_name_for_blur {
+                                    project_name.set(current_name_for_blur.clone());
+                                } else if let Some(owner) = current_owner_for_blur.clone() {
+                                    commit_project_name(
+                                        &rename_runtime,
+                                        &owner,
+                                        &rename_mounted,
+                                        &draft,
+                                    );
+                                }
+                            },
+                        }
+                    }
+                }
+            }
             header { class: "m1-library-heading",
                 h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{cards.len()}" } } }
                 span { "Saved in this browser" }
@@ -384,5 +485,357 @@ pub(super) fn Library() -> Element {
             if pending_new().is_some() { p { role: "status", "Creating keyboard…" } }
             if !new_error().is_empty() { p { role: "alert", "{new_error()}" } }
         }
+    }
+}
+
+fn renamed_document(document: &ProjectDoc, value: &str) -> Option<ProjectDoc> {
+    let name = value.trim();
+    if name.is_empty() || name == document.name {
+        return None;
+    }
+    let mut renamed = document.clone();
+    renamed.name = name.to_owned();
+    Some(renamed)
+}
+
+fn commit_project_name(
+    runtime: &Rc<Runtime>,
+    owner: &ProjectNameOwner,
+    mounted: &Rc<Cell<bool>>,
+    value: &str,
+) {
+    if !mounted.get() {
+        return;
+    }
+    let Some(snapshot) = runtime.model().accepted else {
+        return;
+    };
+    if *owner != ProjectNameOwner::from(&snapshot) {
+        runtime.report("Project changed while renaming; the project name was not changed.");
+        return;
+    }
+    let Some(document) = renamed_document(&snapshot.document, value) else {
+        return;
+    };
+    let submission = ProjectNameSubmission::from(&snapshot);
+    let Some(current) = runtime.model().accepted else {
+        return;
+    };
+    if !mounted.get() || !submission.matches(&current) || *owner != ProjectNameOwner::from(&current)
+    {
+        runtime.report("Project changed while renaming; the project name was not changed.");
+        return;
+    }
+    let operation_id = runtime.operation();
+    runtime.submit(Event::Edit {
+        operation_id,
+        command: EditCommand {
+            base_revision: submission.revision,
+            transaction_id: format!("m1-project-name-{}", operation_id.0),
+            phase: EditPhase::Commit,
+            target_ids: vec![document.id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(document),
+            },
+        },
+    });
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use boardstudio_application::{Completion, Effect, OperationId, SaveResult, Session};
+    use boardstudio_core::CoreEngine;
+    use std::{cell::RefCell, rc::Rc};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+    use web_sys::{
+        Event as DomEvent, HtmlInputElement, KeyboardEvent as DomKeyboardEvent, KeyboardEventInit,
+    };
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    struct Seed {
+        state: Rc<RefCell<Option<Signal<u64>>>>,
+    }
+
+    fn host() -> Element {
+        let seed = use_context::<Rc<Seed>>();
+        let version = use_signal(|| 0_u64);
+        *seed.state.borrow_mut() = Some(version);
+        let project_created = use_signal(|| None::<SetupGuideRequest>);
+        let pending_new = use_signal(|| None::<PendingNewKeyboard>);
+        let new_error = use_signal(String::new);
+        use_context_provider(|| version);
+        use_context_provider(|| project_created);
+        use_context_provider(|| pending_new);
+        use_context_provider(|| new_error);
+        rsx! { Library {} }
+    }
+
+    async fn settle() {
+        gloo_timers::future::TimeoutFuture::new(80).await;
+    }
+
+    fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
+        let mut pending = initial;
+        while let Some(effect) = pending.pop() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => {
+                    let reply = core.handle(*request);
+                    pending.extend(session.complete(Completion::Core {
+                        request_id,
+                        executor_epoch,
+                        reply: Box::new(reply),
+                    }));
+                }
+                Effect::Persist {
+                    save_attempt_id, ..
+                } => {
+                    pending.extend(session.complete(Completion::Persist {
+                        save_attempt_id,
+                        result: SaveResult::Committed,
+                    }));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn accepted(document: ProjectDoc) -> (Session, CoreEngine) {
+        let mut session = Session::new();
+        let mut core = CoreEngine::new();
+        let effects = session.submit(boardstudio_application::Event::Open {
+            operation_id: OperationId(40),
+            document,
+        });
+        advance(&mut session, &mut core, effects);
+        assert!(session.read_model().accepted.is_some());
+        (session, core)
+    }
+
+    fn field() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#project-name-mounted-regression input[aria-label='Project name']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    fn type_value(input: &HtmlInputElement, value: &str) {
+        let _ = input.focus();
+        input.set_value(value);
+        let event = DomEvent::new("input").unwrap();
+        event.init_event_with_bubbles_and_cancelable("input", true, true);
+        input.dispatch_event(&event).unwrap();
+    }
+
+    fn press(input: &HtmlInputElement, key: &str) {
+        let init = KeyboardEventInit::new();
+        init.set_key(key);
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        let event = DomKeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap();
+        input.dispatch_event(&event).unwrap();
+    }
+
+    fn publish(
+        runtime: &Runtime,
+        seed: &Seed,
+        snapshot: boardstudio_application::AcceptedSnapshot,
+    ) {
+        runtime.set_definition_name_test_state(snapshot, None);
+        if let Some(mut version) = *seed.state.borrow() {
+            version.set(version() + 1);
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn project_menu_name_draft_survives_unrelated_accepted_revision_and_commits_latest_document()
+     {
+        let (mut session, mut core) = accepted(ProjectDoc::empty("menu-name", "Sofle v2"));
+        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
+        let runtime = Runtime::new().unwrap();
+        runtime.set_definition_name_test_state(snapshot.clone(), session.scope());
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("project-name-mounted-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed.clone());
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+
+        assert_eq!(field().value(), "Sofle v2");
+        type_value(&field(), "  My custom keyboard  ");
+        settle().await;
+
+        let mut unrelated = snapshot.document.as_ref().clone();
+        unrelated
+            .parameters
+            .insert("independent".into(), serde_json::json!(42));
+        let effects = session.submit(boardstudio_application::Event::Edit {
+            operation_id: OperationId(41),
+            command: EditCommand {
+                base_revision: snapshot.document.revision,
+                transaction_id: "project-name-unrelated-edit".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["independent".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(unrelated),
+                },
+            },
+        });
+        advance(&mut session, &mut core, effects);
+        let latest = session.read_model().accepted.as_ref().unwrap().clone();
+        runtime.set_definition_name_test_state(latest.clone(), session.scope());
+        if let Some(mut version) = *seed.state.borrow() {
+            version.set(version() + 1);
+        }
+        settle().await;
+
+        assert_eq!(
+            field().value(),
+            "  My custom keyboard  ",
+            "an unrelated accepted revision must not discard the menu's active name draft"
+        );
+        let _ = field().blur();
+        settle().await;
+        let event = runtime
+            .take_definition_name_test_event()
+            .expect("the mounted blur submits through Runtime");
+        let effects = session.submit(event);
+        advance(&mut session, &mut core, effects);
+        let committed = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(committed.document.revision, latest.document.revision + 1);
+        assert_eq!(committed.document.name, "My custom keyboard");
+        assert_eq!(
+            committed.document.parameters.get("independent"),
+            Some(&serde_json::json!(42)),
+            "the latest accepted unrelated field must survive the rename"
+        );
+        publish(&runtime, &seed, committed.clone());
+        settle().await;
+        assert_eq!(field().value(), "My custom keyboard");
+
+        let effects = session.submit(boardstudio_application::Event::Undo {
+            operation_id: OperationId(42),
+        });
+        advance(&mut session, &mut core, effects);
+        let undone = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(undone.document.name, "Sofle v2");
+        assert_eq!(
+            undone.document.parameters.get("independent"),
+            Some(&serde_json::json!(42)),
+            "Undoing the rename must leave the earlier unrelated edit accepted"
+        );
+        publish(&runtime, &seed, undone);
+        settle().await;
+        assert_eq!(field().value(), "Sofle v2");
+
+        let effects = session.submit(boardstudio_application::Event::Redo {
+            operation_id: OperationId(43),
+        });
+        advance(&mut session, &mut core, effects);
+        let redone = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(redone.document.name, "My custom keyboard");
+        publish(&runtime, &seed, redone);
+        settle().await;
+        assert_eq!(field().value(), "My custom keyboard");
+
+        type_value(&field(), "Keyboard entered");
+        press(&field(), "Enter");
+        settle().await;
+        let event = runtime
+            .take_definition_name_test_event()
+            .expect("Enter blurs the field and submits the same rename event");
+        let effects = session.submit(event);
+        advance(&mut session, &mut core, effects);
+        let entered = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(entered.document.name, "Keyboard entered");
+        publish(&runtime, &seed, entered);
+        settle().await;
+
+        type_value(&field(), "Canceled draft");
+        press(&field(), "Escape");
+        settle().await;
+        assert_eq!(field().value(), "Keyboard entered");
+        let _ = field().blur();
+        settle().await;
+        assert!(runtime.take_definition_name_test_event().is_none());
+
+        type_value(&field(), "   ");
+        let _ = field().blur();
+        settle().await;
+        assert_eq!(field().value(), "Keyboard entered");
+        assert!(runtime.take_definition_name_test_event().is_none());
+
+        type_value(&field(), "Keyboard entered");
+        let _ = field().blur();
+        settle().await;
+        assert!(runtime.take_definition_name_test_event().is_none());
+
+        type_value(&field(), "Draft from the prior project");
+        let (replacement_session, _) =
+            accepted(ProjectDoc::empty("replacement", "Replacement project"));
+        let replacement = replacement_session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .clone();
+        publish(&runtime, &seed, replacement);
+        settle().await;
+        assert_eq!(field().value(), "Replacement project");
+        let _ = field().blur();
+        settle().await;
+        assert!(
+            runtime.take_definition_name_test_event().is_none(),
+            "a draft owned by the prior project must not be submitted for its replacement"
+        );
+
+        type_value(&field(), "Draft before same-project reopen");
+        let effects = session.submit(boardstudio_application::Event::Open {
+            operation_id: OperationId(44),
+            document: ProjectDoc::empty("menu-name", "Reopened same project"),
+        });
+        advance(&mut session, &mut core, effects);
+        let reopened = session.read_model().accepted.as_ref().unwrap().clone();
+        publish(&runtime, &seed, reopened);
+        settle().await;
+        assert_eq!(field().value(), "Reopened same project");
+        let _ = field().blur();
+        settle().await;
+        assert!(
+            runtime.take_definition_name_test_event().is_none(),
+            "a reopened project incarnation must not accept a draft from its previous session epoch"
+        );
     }
 }
