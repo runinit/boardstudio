@@ -26,7 +26,7 @@ pub(crate) struct LayoutSourceIdentity {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LayoutPreviewRequest {
-    Authored(PrepareExportRequest),
+    Authored(Box<PrepareExportRequest>),
     Imported {
         reference: BoardReference,
         asset: Asset,
@@ -319,7 +319,7 @@ impl LayoutSourceCapture {
                 asset,
             }
         } else {
-            LayoutPreviewRequest::Authored(PrepareExportRequest {
+            LayoutPreviewRequest::Authored(Box::new(PrepareExportRequest {
                 snapshot_token: request_token,
                 expected_revision: snapshot.document.revision,
                 document: snapshot.document.as_ref().clone(),
@@ -328,7 +328,7 @@ impl LayoutSourceCapture {
                 },
                 contours: contours.clone(),
                 model_paths: model_paths.clone(),
-            })
+            }))
         };
 
         let owner = LayoutSourceIdentity::from_accepted(snapshot, scope, source_generation);
@@ -356,7 +356,7 @@ impl LayoutSourceCapture {
             (LayoutPreviewRequest::Authored(request), None) => {
                 Ok(ArtifactRequest::PreparePreview {
                     id,
-                    request: request.clone(),
+                    request: request.as_ref().clone(),
                 })
             }
             (LayoutPreviewRequest::Imported { .. }, Some(source)) if !source.is_empty() => {
@@ -402,6 +402,12 @@ impl LayoutSourceCapture {
 }
 
 impl LayoutPreviewSnapshot {
+    pub(crate) fn same_live_source(&self, expected: &Self) -> bool {
+        self.owner == expected.owner
+            && Rc::ptr_eq(&self.lease, &expected.lease)
+            && self.lease.matches(&self.owner)
+    }
+
     /// A renderer reference selects only a unique Part on this captured board and
     /// only while the full accepted scope and source generation still match.
     pub(crate) fn part_for_current_pick(
@@ -631,6 +637,127 @@ mod tests {
     }
 
     #[test]
+    fn imported_layout_component_model_flows_through_existing_asset_and_mesh_delivery_route() {
+        #[cfg(not(target_arch = "wasm32"))]
+        use crate::model_delivery::{
+            AssetSelection, MeshArrays, ModelAssetSource, ModelBatchIdentity, ModelDeliveryAdapter,
+            ModelDeliveryPorts, ModelOwnerIdentity, ResolvedModelAsset, VerifiedModelBytes,
+            native_model_path_assets, resolve_preview_assets,
+        };
+        #[cfg(target_arch = "wasm32")]
+        use crate::presentation::model_delivery::{
+            AssetSelection, MeshArrays, ModelAssetSource, ModelBatchIdentity, ModelDeliveryAdapter,
+            ModelDeliveryPorts, ModelOwnerIdentity, ResolvedModelAsset, VerifiedModelBytes,
+            native_model_path_assets, resolve_preview_assets,
+        };
+        use sha2::{Digest, Sha256};
+        use std::{future::Future, task::Waker};
+
+        let (snapshot, scope) = accepted(true);
+        let model_bytes = b"accepted-layout-component-model".to_vec();
+        let model_sha = Sha256::digest(&model_bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let mut document = snapshot.document.as_ref().clone();
+        document.assets.push(Asset {
+            id: "component-model".into(),
+            name: "mcu.step".into(),
+            media_type: "model/step".into(),
+            sha256: model_sha.clone(),
+            license: None,
+            source: None,
+        });
+        document.board_references[0]
+            .model_assets
+            .insert("models/mcu.step".into(), "component-model".into());
+        let snapshot = AcceptedSnapshot {
+            document: Arc::new(document),
+            ..snapshot
+        };
+        let capture = source_capture(&snapshot, &scope);
+        let preview = capture.accept_preview(preview()).unwrap();
+
+        let native = native_model_path_assets(&preview.path_assets);
+        let selections = resolve_preview_assets(
+            &preview.preview.models,
+            preview.board_reference.as_ref(),
+            &native,
+            &preview.document,
+            |_| None,
+            |_| None,
+        )
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            selections.get("U1:0"),
+            Some(&AssetSelection::Archived(ResolvedModelAsset {
+                id: "component-model".into(),
+                sha256: model_sha.clone(),
+                filename: "mcu.step".into(),
+                source: ModelAssetSource::Document,
+            }))
+        );
+
+        let decode_count = Rc::new(Cell::new(0));
+        let decode_count_for_port = decode_count.clone();
+        let bytes_for_port = model_bytes.clone();
+        let ports = ModelDeliveryPorts {
+            load_verified_bytes: Rc::new(move |asset| {
+                let bytes = bytes_for_port.clone();
+                Box::pin(async move { Ok(Some(VerifiedModelBytes::verify(bytes, &asset.sha256)?)) })
+            }),
+            decode_stl: Rc::new(|_| Box::pin(async { Ok(MeshArrays::default()) })),
+            decode_wrl: Rc::new(|_| Box::pin(async { Ok(MeshArrays::default()) })),
+            read_step: Rc::new(move |_, _| {
+                decode_count_for_port.set(decode_count_for_port.get() + 1);
+                Box::pin(async {
+                    Ok(MeshArrays {
+                        positions: vec![0.0; 9],
+                        normals: vec![1.0; 9],
+                        colors: None,
+                    })
+                })
+            }),
+        };
+        let owner = ModelOwnerIdentity::new_layout(
+            preview.owner.scope.clone(),
+            preview.owner.snapshot_token,
+            preview.owner.source_generation,
+            &preview.lease,
+        );
+        let batch = ModelBatchIdentity::new(owner, preview.owner.accepted_revision, 1);
+        let lease = preview.lease.clone();
+        let expected_owner = preview.owner.clone();
+        let rows = block_on(ModelDeliveryAdapter::default().deliver_models(
+            preview.preview.revision,
+            &preview.preview.models,
+            &selections,
+            &ports,
+            &batch,
+            Rc::new(move || lease.matches(&expected_owner)),
+        ))
+        .expect("the accepted Layout model delivery should finish while current");
+
+        assert_eq!(decode_count.get(), 1);
+        assert_eq!(rows.delivered.len(), 1);
+        assert_eq!(rows.delivered[0].id, "U1:0");
+        assert!(rows.failures.is_empty());
+
+        fn block_on<F: Future>(future: F) -> F::Output {
+            let mut future = Box::pin(future);
+            let waker = Waker::noop();
+            let mut context = std::task::Context::from_waker(waker);
+            loop {
+                match future.as_mut().poll(&mut context) {
+                    std::task::Poll::Ready(output) => return output,
+                    std::task::Poll::Pending => std::thread::yield_now(),
+                }
+            }
+        }
+    }
+
+    #[test]
     fn authored_request_uses_existing_prepare_preview_and_rejects_wrong_preview_revision() {
         let (snapshot, scope) = accepted(false);
         let capture = source_capture(&snapshot, &scope);
@@ -741,6 +868,45 @@ mod tests {
         assert!(state.retire_generation(second_generation));
         assert!(state.published.is_none());
         assert!(!second.lease.is_active());
+    }
+
+    #[test]
+    fn suspended_model_failure_settlement_cannot_target_replacement_preview_owner() {
+        let (snapshot, scope) = accepted(false);
+        let mut state = LayoutPreviewState::default();
+
+        let first_generation = state.next_generation().unwrap();
+        let first = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            first_generation,
+            "layout-preview-suspended-model-error-a".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&first);
+        let captured_delivery = first.accept_preview(preview()).unwrap();
+        state.publish(captured_delivery.clone()).unwrap();
+
+        // Model delivery for A is now suspended. Retire A and publish a same-scope,
+        // same-revision replacement, which exercises the generation/lease ABA case.
+        let second_generation = state.next_generation().unwrap();
+        let second = LayoutSourceCapture::capture(
+            &snapshot,
+            &scope,
+            second_generation,
+            "layout-preview-suspended-model-error-b".into(),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        state.begin(&second);
+        let replacement = second.accept_preview(preview()).unwrap();
+        state.publish(replacement.clone()).unwrap();
+
+        let current = state.published.as_ref().unwrap();
+        assert!(current.same_live_source(&replacement));
+        assert!(!current.same_live_source(&captured_delivery));
+        assert!(!captured_delivery.lease.is_active());
     }
 
     #[test]

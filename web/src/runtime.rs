@@ -1584,6 +1584,20 @@ impl Runtime {
             && self.layout_preview.borrow().owns(owner)
     }
 
+    fn report_layout_model_delivery_error(
+        &self,
+        expected: &crate::presentation::layout_viewer_source::LayoutPreviewSnapshot,
+        error: String,
+    ) {
+        if self
+            .layout_preview()
+            .is_some_and(|current| current.same_live_source(expected))
+            && self.layout_source_owner_is_current(&expected.owner)
+        {
+            self.report(format!("Layout model preview failed: {error}"));
+        }
+    }
+
     async fn deliver_layout_models(
         self: &Rc<Self>,
         preview: Rc<crate::presentation::layout_viewer_source::LayoutPreviewSnapshot>,
@@ -1768,7 +1782,7 @@ impl Runtime {
         let result = match &capture.request {
             crate::presentation::layout_viewer_source::LayoutPreviewRequest::Authored(request) => {
                 self.run_preview_pipeline(
-                    request.clone(),
+                    request.as_ref().clone(),
                     operation,
                     capture.owner.scope.clone(),
                     capture.owner.source_generation,
@@ -1792,10 +1806,8 @@ impl Runtime {
                 if let Some(published) = published {
                     let runtime = self.clone();
                     spawn_local(async move {
-                        if let Err(error) = runtime.deliver_layout_models(published).await
-                            && runtime.layout_preview().is_some()
-                        {
-                            runtime.report(format!("Layout model preview failed: {error}"));
+                        if let Err(error) = runtime.deliver_layout_models(published.clone()).await {
+                            runtime.report_layout_model_delivery_error(&published, error);
                         }
                     });
                 }
