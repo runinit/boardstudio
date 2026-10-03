@@ -96,6 +96,14 @@ fn project_name(document: &ProjectDoc) -> String {
     }
 }
 
+fn matches_project_search(document: &ProjectDoc, query: &str) -> bool {
+    let query = query.trim();
+    query.is_empty()
+        || project_name(document)
+            .to_lowercase()
+            .contains(&query.to_lowercase())
+}
+
 fn preview(document: &ProjectDoc) -> Result<Preview, ()> {
     let mut keys = Vec::new();
     for part in &document.parts {
@@ -314,6 +322,7 @@ pub(super) fn Library(project_menu: bool) -> Element {
     let current_project_id = current.as_ref().map(|document| document.id.clone());
     let accepted_identity = current.as_ref().map(|document| document.id.clone());
     let mut saved = use_signal(Vec::<Arc<ProjectDoc>>::new);
+    let mut search_query = use_signal(String::new);
     let mut status = use_signal(|| ListStatus::Loading);
     let mut retry = use_signal(|| 0_u64);
     let retry_value = retry();
@@ -388,6 +397,10 @@ pub(super) fn Library(project_menu: bool) -> Element {
                 .map(|document| (Arc::clone(document), false)),
         );
     }
+    let saved_count = cards.len();
+    let query = search_query();
+    cards.retain(|(document, _)| matches_project_search(document, &query));
+    let no_search_matches = cards.is_empty() && !query.trim().is_empty();
     let reviung = runtime.clone();
     let sofle = runtime.clone();
     let menu_reviung = runtime.clone();
@@ -469,8 +482,21 @@ pub(super) fn Library(project_menu: bool) -> Element {
             }
             div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
                 header { class: "m1-library-heading",
-                    h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{cards.len()}" } } }
+                    h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{saved_count}" } } }
                     span { "Saved in this browser" }
+                }
+                div { class: "m1-keyboard-search",
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M13.5 13.5 18 18M15 8.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" } }
+                    input {
+                        r#type: "search",
+                        aria_label: "Search saved keyboards",
+                        placeholder: "Search your keyboards",
+                        value: "{query}",
+                        oninput: move |event: FormEvent| search_query.set(event.value()),
+                    }
+                    if !query.is_empty() {
+                        button { r#type: "button", onclick: move |_| search_query.set(String::new()), "Clear search" }
+                    }
                 }
                 if status() == ListStatus::Loading {
                     p { role: "status", "Loading saved keyboards…" }
@@ -499,6 +525,9 @@ pub(super) fn Library(project_menu: bool) -> Element {
                     for (document, is_current) in cards {
                         KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required }
                     }
+                }
+                if no_search_matches {
+                    p { class: "m1-keyboard-empty", "No keyboards match your search." }
                 }
                 if project_menu {
                     div { class: "m1-project-menu-demo-actions",
@@ -669,6 +698,21 @@ mod mounted_tests {
         gloo_timers::future::TimeoutFuture::new(80).await;
     }
 
+    async fn wait_for_saved_cards(root: &web_sys::Element, expected: u32) {
+        for _ in 0..40 {
+            if root
+                .query_selector_all(".m1-keyboard-card")
+                .unwrap()
+                .length()
+                == expected
+            {
+                return;
+            }
+            settle().await;
+        }
+        panic!("expected {expected} saved keyboard cards to load");
+    }
+
     async fn wait_outcome(
         runtime: &Rc<Runtime>,
         slot: &crate::operation_outcomes::OutcomeSlot,
@@ -767,6 +811,18 @@ mod mounted_tests {
             .unwrap()
     }
 
+    fn search_field() -> HtmlInputElement {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(".m1-keyboard-search input[aria-label='Search saved keyboards']")
+            .unwrap()
+            .expect("the saved keyboard search is mounted")
+            .dyn_into()
+            .unwrap()
+    }
+
     fn type_value(input: &HtmlInputElement, value: &str) {
         let _ = input.focus();
         input.set_value(value);
@@ -790,6 +846,27 @@ mod mounted_tests {
         let (session, core) = accepted(ProjectDoc::empty("menu-name", "Sofle v2"));
         let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
         let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let mut search_one = ProjectDoc::empty("menu-search-alpha", "Alpha Board");
+        search_one.revision = 1;
+        let mut search_two = ProjectDoc::empty("menu-search-ergonomic", "Ergonomic 75%");
+        search_two.revision = 1;
+        let mut search_three = ProjectDoc::empty("menu-search-untitled", "  ");
+        search_three.revision = 1;
+        runtime
+            .store
+            .save_document(&search_one, &Default::default())
+            .await
+            .unwrap();
+        runtime
+            .store
+            .save_document(&search_two, &Default::default())
+            .await
+            .unwrap();
+        runtime
+            .store
+            .save_document(&search_three, &Default::default())
+            .await
+            .unwrap();
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
@@ -818,6 +895,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
+        wait_for_saved_cards(&root, 4).await;
 
         let project_menu = root
             .query_selector(".m1-project-menu-library")
@@ -861,6 +939,89 @@ mod mounted_tests {
                 .text_content()
                 .unwrap()
                 .contains("Setup guide")
+        );
+
+        let search = search_field();
+        assert_eq!(
+            search.get_attribute("placeholder").as_deref(),
+            Some("Search your keyboards")
+        );
+        type_value(&search, "  sOfLe  ");
+        settle().await;
+        assert_eq!(
+            root.query_selector_all(".m1-keyboard-card")
+                .unwrap()
+                .length(),
+            1,
+            "trimmed case-insensitive search includes the current keyboard"
+        );
+        assert_eq!(
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Sofle v2")
+        );
+        type_value(&search, "alpha");
+        settle().await;
+        assert_eq!(
+            root.query_selector_all(".m1-keyboard-card")
+                .unwrap()
+                .length(),
+            1
+        );
+        assert_eq!(
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Alpha Board")
+        );
+        type_value(&search, "untitled");
+        settle().await;
+        assert_eq!(
+            root.query_selector_all(".m1-keyboard-card")
+                .unwrap()
+                .length(),
+            1
+        );
+        assert_eq!(
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Untitled keyboard")
+        );
+        type_value(&search, "missing");
+        settle().await;
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("No keyboards match your search.")
+        );
+        assert!(
+            root.query_selector(".m1-project-menu-demo-actions button")
+                .unwrap()
+                .is_some(),
+            "demo actions stay outside the saved-keyboard filter"
+        );
+        let clear_search = root
+            .query_selector(".m1-keyboard-search button")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        clear_search.click();
+        settle().await;
+        assert_eq!(search.value(), "");
+        assert_eq!(
+            root.query_selector_all(".m1-keyboard-card")
+                .unwrap()
+                .length(),
+            4
         );
 
         assert_eq!(field().value(), "Sofle v2");
@@ -1040,6 +1201,18 @@ mod mounted_tests {
         );
         assert_eq!(field().value(), stored.name);
         let _ = runtime.store.delete_project("menu-name".into()).await;
+        let _ = runtime
+            .store
+            .delete_project("menu-search-alpha".into())
+            .await;
+        let _ = runtime
+            .store
+            .delete_project("menu-search-ergonomic".into())
+            .await;
+        let _ = runtime
+            .store
+            .delete_project("menu-search-untitled".into())
+            .await;
         let _ = web_sys::window()
             .unwrap()
             .document()
