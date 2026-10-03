@@ -1,0 +1,33 @@
+{
+  "build": "frontend-contextual-case-mirror-keycaps-20261002",
+  "source": "f261a327858f51a1de4928374bc65b669e2792a3",
+  "url": "http://127.0.0.1:34734/",
+  "react_source": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "fixture_sha256": "5b17071a819e4cfa28531913685e8fedf84cbdd361cefccb3b16befd6c0776df",
+  "viewport": [
+    1280,
+    577
+  ],
+  "observations": [
+    {
+      "journey": "Mirror form names Parity left/right \u2192 Preview placement \u2192 Escape",
+      "dioxus": "settled plain form remains editable, input values retained, accepted Revision9 unchanged",
+      "react": "settled form absent, Objects stays70parts",
+      "status": "parity difference sent to existing F3.2b author; not accepted",
+      "capture_sha256": {
+        "dioxus": "5f1a6452b42877d1663690e468169ee2d815a9da72597a4e0dbbddcd26056572",
+        "react": "bc8c92fc5da0ea2b06149c178aebd83f0e6fef3908c16224578de1e52b858a60"
+      },
+      "limitation": "Early selector assumption and async observation corrected using actual plain form/input DOM; both captures visually inspected."
+    },
+    {
+      "journey": "Cancel form \u2192 offline on \u2192 root reload",
+      "service_worker_controlled": true,
+      "workspace_present": true,
+      "svg_paths": 24,
+      "accepted_status": "Sofle v2 \u00b7 Revision9 \u00b7 Saved",
+      "offline_restored": false,
+      "qualification": "root saved-editor reload only; subpath/full history/export/3D qualification not inferred"
+    }
+  ]
+}
