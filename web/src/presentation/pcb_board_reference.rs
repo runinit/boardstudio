@@ -607,8 +607,8 @@ pub(super) fn Editor(
     let busy = use_signal(|| false);
     let error = use_signal(|| None::<String>);
 
-    use_effect(use_reactive!(
-        (&reference, &owner, disabled, busy(), discovery_retry()),
+    use_effect(use_reactive(
+        (&reference, &owner, &disabled, &busy(), &discovery_retry()),
         {
             let runtime = runtime.clone();
             let mut model_paths = model_paths;
@@ -694,7 +694,7 @@ pub(super) fn Editor(
                     }
                 });
             }
-        }
+        },
     ));
 
     let on_action = use_callback({

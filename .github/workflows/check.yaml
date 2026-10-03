@@ -30,11 +30,11 @@ jobs:
           sudo apt-get install --yes --no-install-recommends kicad
           kicad-cli version | grep '^10\.'
       - run: rustup target add wasm32-unknown-unknown
+      - name: Compile Dioxus frontend source
+        run: cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web
       - run: cargo install wasm-pack --locked --version 0.15.0
       - run: pnpm --dir app exec playwright install --with-deps chromium
       - run: pnpm run check
-      - name: Compile Dioxus frontend source
-        run: cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web
       - run: pnpm run test:e2e:dev
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
