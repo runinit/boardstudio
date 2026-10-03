@@ -1,0 +1,17 @@
+[INFO]: 🎯  Checking for the Wasm target...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.18s
+[INFO]: ⬇️  Installing wasm-bindgen...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/main.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web-74ecf9cb6aa79cd1.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:41851/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 1 test
+Invoking test: presentation::library::mounted_tests::delayed_rename_persist_after_owner_replacement_cannot_update_new_project
+test presentation::library::mounted_tests::delayed_rename_persist_after_owner_replacement_cannot_update_new_project ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 116 filtered out; finished in 0.28s
+
