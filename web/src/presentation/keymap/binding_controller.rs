@@ -755,7 +755,10 @@ pub(in crate::presentation) fn use_binding_operations(
         workspace(),
         admission_current.as_ref(),
     );
-    let enabled = pending.read().is_none() && admission_snapshot.is_some();
+    // Keep the mounted controls focusable while an edit is settling so native
+    // Tab navigation can advance after a blur commit. The event handler below
+    // still rejects every additional request while `pending` is populated.
+    let enabled = admission_snapshot.is_some();
     let feedback_guard = feedback.read();
     let visible_feedback = feedback_guard.as_ref().and_then(|state| {
         let source = source.as_ref()?;
