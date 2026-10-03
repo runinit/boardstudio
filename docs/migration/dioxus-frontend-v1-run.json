@@ -443,20 +443,20 @@
   "bounded_ticket_count": 44,
   "non_superseded_bounded_ticket_count": 43,
   "latest_demo": {
-    "build_id": "frontend-case-outline-delivery-reuse-20261003",
-    "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
-    "root_url": "http://127.0.0.1:34745/",
-    "subpath_url": "http://127.0.0.1:34745/boardstudio/",
-    "provenance": "web/target/builds/frontend-case-outline-delivery-reuse-20261003/provenance.json",
-    "provenance_sha256": "e3aca64def87476fa30e780bad2db172b3bbc07ab77d315863f9a721fbb59641",
+    "build_id": "frontend-pcb-keycaps-delivery-reuse-20261003",
+    "source_commit": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010",
+    "root_url": "http://127.0.0.1:34746/",
+    "subpath_url": "http://127.0.0.1:34746/boardstudio/",
+    "provenance": "web/target/builds/frontend-pcb-keycaps-delivery-reuse-20261003/provenance.json",
+    "provenance_sha256": "150d13b011c712f09474d3d987fbac838c18996ea3d2d15bb816070b75f10dd5",
     "fresh_commands": 8,
     "inherited_commands": 22,
     "source_inputs": 1359,
     "source_mismatches": 0,
     "assets_per_route": 145,
-    "command_finished_at": "2026-10-03T06:24:56.232581+00:00",
-    "command_span_seconds": 92.658554,
-    "package_qualification": "Guarded page reuse passed; root/subpath HTTP200 with COEP verified. Changed public Case/Outline journeys in progress."
+    "command_finished_at": "2026-10-03T06:34:40.274174+00:00",
+    "command_span_seconds": 132.386374,
+    "package_qualification": "Guarded reuse passed; root/subpath HTTP200 COEP verified. Main header, Inspector and Ctrl-add fixes served; measured spacing and Ctrl-remove follow-ups joined for next build."
   },
   "mechanical_clearance_ticket": {
     "issue": ".scratch/dioxus-case-workspace/issues/08-mechanical-clearance-projection.md",
@@ -754,20 +754,20 @@
     ]
   },
   "current_comparison_build": {
-    "build_id": "frontend-case-outline-delivery-reuse-20261003",
-    "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
-    "root_url": "http://127.0.0.1:34745/",
-    "subpath_url": "http://127.0.0.1:34745/boardstudio/",
-    "provenance": "web/target/builds/frontend-case-outline-delivery-reuse-20261003/provenance.json",
-    "provenance_sha256": "e3aca64def87476fa30e780bad2db172b3bbc07ab77d315863f9a721fbb59641",
+    "build_id": "frontend-pcb-keycaps-delivery-reuse-20261003",
+    "source_commit": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010",
+    "root_url": "http://127.0.0.1:34746/",
+    "subpath_url": "http://127.0.0.1:34746/boardstudio/",
+    "provenance": "web/target/builds/frontend-pcb-keycaps-delivery-reuse-20261003/provenance.json",
+    "provenance_sha256": "150d13b011c712f09474d3d987fbac838c18996ea3d2d15bb816070b75f10dd5",
     "fresh_commands": 8,
     "inherited_commands": 22,
     "source_inputs": 1359,
     "source_mismatches": 0,
     "assets_per_route": 145,
-    "command_finished_at": "2026-10-03T06:24:56.232581+00:00",
-    "command_span_seconds": 92.658554,
-    "package_qualification": "Guarded page reuse passed; root/subpath HTTP200 with COEP verified. Changed public Case/Outline journeys in progress."
+    "command_finished_at": "2026-10-03T06:34:40.274174+00:00",
+    "command_span_seconds": 132.386374,
+    "package_qualification": "Guarded reuse passed; root/subpath HTTP200 COEP verified. Main header, Inspector and Ctrl-add fixes served; measured spacing and Ctrl-remove follow-ups joined for next build."
   },
   "active_source_freeze": {
     "state": "released",
@@ -1271,7 +1271,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T06:26:37.789599+00:00",
+    "updated_at": "2026-10-03T06:44:20.931600+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
     "parent_counts": {
       "accepted": 2,
@@ -1281,24 +1281,24 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-case-outline-delivery-reuse-20261003",
-      "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
-      "root_url": "http://127.0.0.1:34745/",
-      "subpath_url": "http://127.0.0.1:34745/boardstudio/",
-      "provenance": "web/target/builds/frontend-case-outline-delivery-reuse-20261003/provenance.json",
-      "provenance_sha256": "e3aca64def87476fa30e780bad2db172b3bbc07ab77d315863f9a721fbb59641",
+      "build_id": "frontend-pcb-keycaps-delivery-reuse-20261003",
+      "source_commit": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010",
+      "root_url": "http://127.0.0.1:34746/",
+      "subpath_url": "http://127.0.0.1:34746/boardstudio/",
+      "provenance": "web/target/builds/frontend-pcb-keycaps-delivery-reuse-20261003/provenance.json",
+      "provenance_sha256": "150d13b011c712f09474d3d987fbac838c18996ea3d2d15bb816070b75f10dd5",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1359,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_finished_at": "2026-10-03T06:24:56.232581+00:00",
-      "command_span_seconds": 92.658554,
-      "package_qualification": "Guarded page reuse passed; root/subpath HTTP200 with COEP verified. Changed public Case/Outline journeys in progress."
+      "command_finished_at": "2026-10-03T06:34:40.274174+00:00",
+      "command_span_seconds": 132.386374,
+      "package_qualification": "Guarded reuse passed; root/subpath HTTP200 COEP verified. Main header, Inspector and Ctrl-add fixes served; measured spacing and Ctrl-remove follow-ups joined for next build."
     },
     "integration": {
-      "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840",
-      "state": "34745 served with Case support sizing and Outline Undo repair; shared-header/camera and PCB modifier repairs active.",
+      "source_commit": "fc76acf5",
+      "state": "Ready next source joins: KiCad import, measured header/pill CSS, synthetic PCB propagation; import failure-owner repair finishing.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1359,6 +1359,30 @@
           "original_source": "ddc53653df10f7010ae6b66c7686429539e1ffbc",
           "integrated_source": "ed5af2c9",
           "state": "Integrated and served34745; focused GREEN 2/2 and independent source assessment clear; changed public journey in progress."
+        },
+        {
+          "slice": "PCB compatibility and synthetic pointer propagation",
+          "original_source": "498e2edf +75341410",
+          "integrated_source": "40a75c15 +c89bdc53",
+          "state": "Ctrl-add public GREEN34746; Ctrl-remove RED then minimal synthetic propagation fix joined; next candidate GREEN pending."
+        },
+        {
+          "slice": "Keymap Keycaps header and finding Inspector geometry",
+          "original_source": "4e857e08 +8e468491",
+          "integrated_source": "05c0f137 +ff9bc182",
+          "state": "Main header/no overlap, post-navigation SVG725x499 and visible Inspector verified34746. Measured2px pre-navigation offset/pill height correction joined; next camera receipt pending."
+        },
+        {
+          "slice": "Parts KiCad footprint import",
+          "original_source": "b6d0e0ce +7ee4ef8c",
+          "integrated_source": "fe5530c6 +5226968a",
+          "state": "Joined; author strict page WASM all-target Clippy passed. Reviewer found stale failure-feedback owner gap; focused repair finishing before next package."
+        },
+        {
+          "slice": "Legacy Case support admission",
+          "original_source": "3e8aac8e +e4a89812",
+          "integrated_source": "a2bd8b54 +dc564678",
+          "state": "Minimal source independently clear; focused old-guard RED then GREEN1/1; no provider semantics change."
         }
       ],
       "checks": {
@@ -1374,12 +1398,17 @@
           "result": "Expected bug RED; repaired GREEN 2/2. Unrelated coordinate dirty draft preserved.",
           "receipt": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/outline-coordinate-undo-repair-receipt.json",
           "independent_source_assessment": "Sol Parts clear; actual repaired public Undo/Redo/reopen pending."
+        },
+        "combined_header_pcb_case_clippy": {
+          "source_commit": "a2bd8b54",
+          "command": "cargo clippy --locked --manifest-path web/Cargo.toml --no-default-features --features page --target wasm32-unknown-unknown --all-targets -- -D warnings",
+          "result": "pass27.88s; subsequent ordinary CSS and known stop_propagation changes reuse unchanged evidence."
         }
       },
       "candidate_build": {
         "state": "complete",
-        "build_id": "frontend-case-outline-delivery-reuse-20261003",
-        "source_commit": "e4bad4a6f03fd5a76fabdfb1b33809f2cd106840"
+        "build_id": "frontend-pcb-keycaps-delivery-reuse-20261003",
+        "source_commit": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010"
       }
     },
     "journeys": [
@@ -1403,9 +1432,9 @@
       },
       {
         "journey": "Outline copy/rename -> active selection -> reopen",
-        "state": "Version option fix integrated; actual perimeter edit Undo stale draft reproduced and repaired; fresh public history/reopen pending.",
-        "candidate": "32a57ed3/34743 \u2192 next joined candidate",
-        "remaining": "Repaired coordinate Undo/Redo/reopen, point drawing/dragging and full F3.4/F3.7 criteria."
+        "state": "Bounded paired verified: Generated coordinate edit, Undo/Redo and reopen; all34 polygon coordinates equal reference.",
+        "candidate": "e4bad4a6/34745",
+        "remaining": "Canvas handles/drawing/cancel/snapping/keyboard and full F3.4/F3.7 criteria; next F34d author active."
       },
       {
         "journey": "Parts pad rename and deletion",
@@ -1415,9 +1444,9 @@
       },
       {
         "journey": "Keycaps finding -> Layout selection/Inspector/camera",
-        "state": "Selection and contextual Inspector verified; measured camera mismatch assigned to shared canvas/header repair.",
-        "candidate": "32a57ed3/34743",
-        "remaining": "Fresh camera comparison and F6C.4 criteria."
+        "state": "Selection/Inspector verified;34746 header and post-navigation viewport match;2px source canvas correction joined for exact camera replay.",
+        "candidate": "a2bd8b54/34746",
+        "remaining": "Final changed camera replay and full F6C.4 criteria."
       },
       {
         "journey": "Project library noncurrent/current deletion and replacement reopening",
@@ -1425,22 +1454,29 @@
         "candidate": "32a57ed3/34743",
         "remaining": "Full F2.2 lifecycle/archive/stale/error criteria.",
         "receipt": ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-32a-parts-project-views-review.md"
+      },
+      {
+        "journey": "Case linked gasket Cut length edit -> Undo/Redo -> reopen",
+        "state": "Bounded same-original-archive paired verified;70x3\u219275x3, Undo70x3, Redo/reopen75x3; saved linked anchor identities, dimensions and outline match, float delta1.11e-16.",
+        "candidate": "e4bad4a6/34745",
+        "receipt": ".scratch/dioxus-case-workspace/evidence/13-contextual-gasket-support-sizing/public-receipt.md",
+        "remaining": "Pad width and other contextual/configuration, blocked/loading/error and full F7.2/F7.4 joins remain. Earlier zero rows were transient loading; no persistent bug or cache repair claimed."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Free; guarded page build34745 completed in92.66s.",
-      "secondary_target": "PCB modifier repair focused regression/check in assigned f73 target.",
-      "dispatch": "Coordinator assigned; at most two heavy jobs and one package build."
+      "root_target": "Free; guarded package34746 complete132.39s. Next build joins ready repairs once source frozen.",
+      "secondary_target": "Parts import failure-owner correction affected cached check only.",
+      "dispatch": "Coordinator assigned; no broad suites or repeated unchanged journeys."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Repaired Outline edit/Undo/Redo/reopen public replay on34745.",
-      "PCB": "Confirmed trusted Ctrl-click regression; isolated minimal pointer lifecycle repair.",
-      "Keymap": "Shared context-header placement repair with Keycaps author; global view handoff verified.",
-      "Keycaps": "Measured camera/header/footer geometry and finding-route Inspector scroll repair.",
-      "Case": "New gasket support linked sizing public journey on34745.",
-      "Parts_Project": "Prior changed packet verified; next KiCad import frontier assigned Luna High."
+      "Layout": "Canvas point handles/drag/preview/cancel/snapping/keyboard source author active; coordinate history packet verified.",
+      "PCB": "Synthetic pointerdown propagation correction joined; strengthened Ctrl add/remove GREEN next build.",
+      "Keymap": "Shared view state handoff and header main repair verified; spacing CSS next candidate.",
+      "Keycaps": "Measured2px pre-navigation correction joined; exact camera replay next build.",
+      "Case": "Same-archive linked sizing history/reopen verified; remaining Inspector/control criteria queued.",
+      "Parts_Project": "Prior edit/delete packet verified; KiCad import joined and failure feedback owner repair finishing."
     }
   }
 }

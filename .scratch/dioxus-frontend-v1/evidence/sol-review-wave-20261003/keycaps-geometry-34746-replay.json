@@ -1,0 +1,57 @@
+{
+  "candidate": {
+    "url": "http://127.0.0.1:34746/",
+    "source_commit": "a2bd8b54e6ec6efe7559b22fd6cf752c63cce010",
+    "captured_in_browser_session": "keycaps-geometry-repair-f7d2bd82afec"
+  },
+  "reference": {
+    "url": "http://127.0.0.1:5173/",
+    "source_commit": "5a472a9426e6e38993361da402cd4ec730feb369",
+    "paired_baseline": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/react-c6-before-finding.json"
+  },
+  "viewport": [1280, 577],
+  "fixture": {
+    "path": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/keycaps-findings-f6c4-c6.boardstudio",
+    "sha256": "9027125846d2878176f127ec39b60c9ab605a0eb2a4b9019e10dbba846fe87a6",
+    "project_id": "m1-sofle-v2-copy",
+    "revision": 12
+  },
+  "candidate_pre_navigation": {
+    "workspace": "Keycaps",
+    "context_rect": [235, 44, 725, 42],
+    "view_controls_rect": [247, 96, 200.359375, 40],
+    "svg_rect": [235, 86, 725, 457],
+    "svg_viewBox": "-77.07000000000002 -23.542 242.36400000000003 158.40900000000002",
+    "runtime_report_rows": 0,
+    "screenshot": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/dioxus-c6-geometry-repair-before.png",
+    "screenshot_sha256": "16433740244e3d9cc4b1a7866cedacd33cadd9d04645a7549fd413ab5a4aa682"
+  },
+  "reference_pre_navigation": {
+    "workspace": "Keycaps",
+    "svg_rect": [235, 88, 725, 455],
+    "svg_viewBox": "-42.72071978021975 -15.542000000000002 226.91543956043952 142.409",
+    "evidence": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/react-c6-before-finding.json"
+  },
+  "candidate_post_navigation": {
+    "action": "Select affected geometry for left-keys-SW1 and left-keys-SW2 clearance finding",
+    "workspace": "Layout",
+    "selected_inspector_heading": "left-keys-SW1",
+    "inspector_tabs": ["Properties", "Relations"],
+    "inspector_scroll_top": 0,
+    "svg_rect": [235, 44, 725, 499],
+    "svg_viewBox": "-65.79297987027448 21.02599422799423 149.94595974054891 103.2041847041847",
+    "footer_rect": [543, 34],
+    "runtime_report_rows": 0,
+    "screenshot": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/dioxus-c6-geometry-repair-after.png",
+    "screenshot_sha256": "0d577d8de311d3862f313367f03d028242122a956e9e1007aaef9cc64c5c9673"
+  },
+  "reference_post_navigation": {
+    "workspace": "Layout",
+    "svg_rect": [235, 44, 725, 499],
+    "svg_viewBox": "-65.46487054917921 21.70348340548339 149.28974109835835 102.75252525252527",
+    "evidence": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/react-c6-after-finding.json",
+    "screenshot": "/home/chris/.local/share/boardstudio/reviews/layout-batch-32a57ed3-sol-20261003/react-c6-after-finding.png",
+    "screenshot_sha256": "033b752016a73eb676eca9041ce4fe9d5d25160c1df6d348c1507a7f3cce8c27"
+  },
+  "observation": "Candidate SVG viewport dimensions now match the retained React pair after navigation; the accepted route places the SW1 heading and Properties/Relations tabs visibly at the top with inspector scrollTop 0. Before navigation the candidate's 42px context row and view controls do not overlap. A follow-up CSS-only commit 8e468491 addresses the remaining 2px pre-navigation SVG y/height delta and 7px post-navigation Layout command-pill height seen in this replay; it is not present in source_commit a2bd8b54 and requires candidate rebuild/recheck. Post-navigation camera viewBox differs from React by about 0.4%, visible target contour bounds are within approximately 3px at this viewport; no camera algorithm change was made."
+}
