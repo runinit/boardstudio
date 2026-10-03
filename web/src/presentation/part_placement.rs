@@ -1558,6 +1558,18 @@ pub(super) fn selected_key_component_operation(
             side: None,
         });
     }
+    let assemblies_changed = current.as_ref().is_none_or(|previous| {
+        previous.definition_id != cell.definition_id
+            || previous.variant != cell.variant
+            || previous.assemblies != cell.assemblies
+    });
+    let is_mirror_target = accepted
+        .layouts
+        .iter()
+        .any(|layout| layout.matrix_id == *matrix_id && layout.mirror_link.is_some());
+    if assemblies_changed && is_mirror_target {
+        cell.assemblies_local = Some(true);
+    }
     matrix
         .cells
         .retain(|existing| existing.row != *row || existing.column != *column);
@@ -3104,6 +3116,178 @@ mod tests {
         assert_eq!(matrix.cells[0].definition_id.as_deref(), Some("switch:mx"));
         assert!(matrix.cells[0].assemblies.is_empty());
         assert_eq!(definitions.unwrap()[0].id, "switch:mx");
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn linked_target_key_replacement_stays_local_through_core_sync_and_history() {
+        let mut document = fixture();
+        document.definitions.push(switch_definition("switch:base"));
+        let mut source = matrix_fixture();
+        source.id = "matrix-source".into();
+        source.cells.push(MatrixCell {
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("switch:base".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: Vec::new(),
+            assemblies_local: None,
+        });
+        let mut target = matrix_fixture();
+        target.id = "matrix-target".into();
+        document.matrices = vec![source, target];
+        document.layouts = vec![
+            boardstudio_core::model::Layout {
+                id: "layout-source".into(),
+                name: "Left".into(),
+                board_id: "board-main".into(),
+                matrix_id: "matrix-source".into(),
+                part_ids: Vec::new(),
+                mirror_link: None,
+            },
+            boardstudio_core::model::Layout {
+                id: "layout-target".into(),
+                name: "Right".into(),
+                board_id: "board-main".into(),
+                matrix_id: "matrix-target".into(),
+                part_ids: Vec::new(),
+                mirror_link: Some(boardstudio_core::model::LayoutMirrorLink {
+                    source_id: "layout-source".into(),
+                    axis_x: 0.0,
+                }),
+            },
+        ];
+        let mut engine = boardstudio_core::CoreEngine::new();
+        let opened = engine.handle(boardstudio_core::model::CoreRequest::Open {
+            id: "open-linked".into(),
+            document,
+        });
+        let boardstudio_core::model::CoreReply::Scene {
+            document: opened_document,
+            ..
+        } = opened
+        else {
+            panic!("the linked source fixture opens in Core");
+        };
+        let accepted = *opened_document;
+        let target_before = accepted
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-target")
+            .unwrap();
+        assert_eq!(
+            target_before.cells[0].definition_id.as_deref(),
+            Some("switch:base")
+        );
+        assert_eq!(target_before.cells[0].assemblies_local, None);
+
+        let scope = Scope {
+            session_epoch: SessionEpoch(7),
+            document_id: accepted.id.clone(),
+            board_id: "board-main".into(),
+            instance_id: None,
+        };
+        let selection = ScopedTreeContext {
+            scope,
+            context: TreeContext::Key {
+                matrix_id: "matrix-target".into(),
+                row: 0,
+                column: 0,
+            },
+        };
+        let EditOperation::SetMatrix {
+            matrix,
+            definitions,
+        } = selected_key_component_operation(
+            &accepted,
+            &selection.scope,
+            &selection,
+            &switch_definition("switch:replacement"),
+        )
+        .unwrap()
+        else {
+            panic!("a switch replacement uses SetMatrix");
+        };
+        assert_eq!(
+            matrix.cells[0].definition_id.as_deref(),
+            Some("switch:replacement")
+        );
+        assert_eq!(matrix.cells[0].assemblies_local, Some(true));
+        let replacement = engine.handle(boardstudio_core::model::CoreRequest::Edit {
+            id: "replace-linked-key".into(),
+            command: EditCommand {
+                base_revision: accepted.revision,
+                transaction_id: "replace-linked-key".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["matrix-target".into(), "switch:replacement".into()],
+                operation: EditOperation::SetMatrix {
+                    matrix,
+                    definitions,
+                },
+            },
+        });
+        let boardstudio_core::model::CoreReply::Scene {
+            document: replaced_document,
+            ..
+        } = replacement
+        else {
+            panic!("Core accepts and synchronizes the linked-key replacement");
+        };
+        let replaced = *replaced_document;
+        let target_after = replaced
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-target")
+            .unwrap();
+        assert_eq!(
+            target_after.cells[0].definition_id.as_deref(),
+            Some("switch:replacement")
+        );
+        assert_eq!(target_after.cells[0].assemblies_local, Some(true));
+
+        let undone = engine.handle(boardstudio_core::model::CoreRequest::Undo {
+            id: "undo-linked-key".into(),
+        });
+        let boardstudio_core::model::CoreReply::Scene {
+            document: undone_document,
+            ..
+        } = undone
+        else {
+            panic!("the linked-key replacement is undoable");
+        };
+        let undone_target = undone_document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-target")
+            .unwrap();
+        assert_eq!(
+            undone_target.cells[0].definition_id.as_deref(),
+            Some("switch:base")
+        );
+        assert_eq!(undone_target.cells[0].assemblies_local, None);
+
+        let redone = engine.handle(boardstudio_core::model::CoreRequest::Redo {
+            id: "redo-linked-key".into(),
+        });
+        let boardstudio_core::model::CoreReply::Scene {
+            document: redone_document,
+            ..
+        } = redone
+        else {
+            panic!("the linked-key replacement is redoable");
+        };
+        let redone_target = redone_document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-target")
+            .unwrap();
+        assert_eq!(
+            redone_target.cells[0].definition_id.as_deref(),
+            Some("switch:replacement")
+        );
+        assert_eq!(redone_target.cells[0].assemblies_local, Some(true));
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

@@ -17,6 +17,8 @@ use mechanical_profile_editor::{
 };
 pub(in crate::presentation) use preview::PartsPreviewPanel;
 pub(super) use standard_profile_lifetime::PartsStandardProfileLifetime;
+#[cfg(all(test, target_arch = "wasm32"))]
+mod placement_action_tests;
 
 use crate::parts_mechanical_profile::ProfileDefinitionSource;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
@@ -479,24 +481,11 @@ pub(super) fn PartsInspectorPanel(
                 }
             }
             if !controller_placement_enabled && let Some(entry) = entry.as_ref() {
-                { let definition_id = entry.definition.id.clone();
-                  let kind = entry.definition.kind.clone();
-                  let can_apply = matches!(kind, boardstudio_core::model::PartKind::Switch)
-                      || matrix_input_available(&entry.definition);
-                  rsx! {
-                    button {
-                        class: "m1-parts-place-component",
-                        r#type: "button",
-                        disabled: placement_busy || (apply_to_key && !can_apply),
-                        onclick: move |_| on_place_component.call(
-                            super::part_placement::ComponentPlacementAction::PartsInspector {
-                                definition_id: definition_id.clone(),
-                                kind: kind.clone(),
-                            }
-                        ),
-                        if apply_to_key { "Apply to selected key" } else { "Place component" }
-                    }
-                  }
+                PartsInspectorPlacementAction {
+                    entry: entry.clone(),
+                    apply_to_key,
+                    busy: placement_busy,
+                    on_place: on_place_component,
                 }
             }
             if controller_placement_enabled {
@@ -529,6 +518,33 @@ pub(super) fn PartsInspectorPanel(
         }
         if let Some(message) = placement_error {
             p { class: "m1-parts-placement-error", role: "alert", "{message}" }
+        }
+    }
+}
+
+#[component]
+fn PartsInspectorPlacementAction(
+    entry: CatalogEntry,
+    apply_to_key: bool,
+    busy: bool,
+    on_place: EventHandler<super::part_placement::ComponentPlacementAction>,
+) -> Element {
+    let definition_id = entry.definition.id.clone();
+    let kind = entry.definition.kind.clone();
+    let can_apply_to_key = matches!(kind, boardstudio_core::model::PartKind::Switch)
+        || matrix_input_available(&entry.definition);
+    rsx! {
+        button {
+            class: "m1-parts-place-component",
+            r#type: "button",
+            disabled: busy || (apply_to_key && !can_apply_to_key),
+            onclick: move |_| on_place.call(
+                super::part_placement::ComponentPlacementAction::PartsInspector {
+                    definition_id: definition_id.clone(),
+                    kind: kind.clone(),
+                }
+            ),
+            if apply_to_key { "Apply to selected key" } else { "Place component" }
         }
     }
 }
