@@ -1,0 +1,28 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/main.rs (/home/chris/.local/share/boardstudio/worktrees/project-menu-name-19-20261002/web/target/wasm32-unknown-unknown/debug/deps/boardstudio_web-5e4b21e31a4405b5.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:41459/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+Loading Wasm module...
+using deprecated parameters for the initialization function; pass a single object instead
+
+running 8 tests
+Invoking test: presentation::library::mounted_tests::retained_project_name_action_is_rejected_after_library_unmount
+test presentation::library::mounted_tests::retained_project_name_action_is_rejected_after_library_unmount ... ok
+Invoking test: presentation::library::mounted_tests::project_menu_name_reports_real_persist_failure_without_accepting_the_rename
+test presentation::library::mounted_tests::project_menu_name_reports_real_persist_failure_without_accepting_the_rename ... ok
+Invoking test: presentation::library::mounted_tests::project_menu_name_draft_survives_unrelated_accepted_revision_and_commits_latest_document
+test presentation::library::mounted_tests::project_menu_name_draft_survives_unrelated_accepted_revision_and_commits_latest_document ... ok
+Invoking test: presentation::library::mounted_tests::noncurrent_delete_preserves_accepted_document_and_undo_history
+test presentation::library::mounted_tests::noncurrent_delete_preserves_accepted_document_and_undo_history ... ok
+Invoking test: presentation::library::mounted_tests::failed_current_project_replacement_keeps_the_record_and_dialog_available
+test presentation::library::mounted_tests::failed_current_project_replacement_keeps_the_record_and_dialog_available ... ok
+Invoking test: presentation::library::mounted_tests::delayed_rename_persist_after_owner_replacement_cannot_update_new_project
+test presentation::library::mounted_tests::delayed_rename_persist_after_owner_replacement_cannot_update_new_project ... ok
+Invoking test: presentation::library::mounted_tests::current_project_delete_sorts_remaining_records_by_stored_name
+test presentation::library::mounted_tests::current_project_delete_sorts_remaining_records_by_stored_name ... ok
+Invoking test: presentation::library::mounted_tests::current_project_delete_cancel_and_confirm_use_the_observed_replacement_path
+test presentation::library::mounted_tests::current_project_delete_cancel_and_confirm_use_the_observed_replacement_path ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 155 filtered out; finished in 3.27s
+

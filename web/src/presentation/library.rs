@@ -88,7 +88,7 @@ struct Preview {
     height: f64,
 }
 
-fn project_name(document: &ProjectDoc) -> String {
+fn project_display_name(document: &ProjectDoc) -> String {
     if document.name.trim().is_empty() {
         "Untitled keyboard".into()
     } else {
@@ -99,9 +99,51 @@ fn project_name(document: &ProjectDoc) -> String {
 fn matches_project_search(document: &ProjectDoc, query: &str) -> bool {
     let query = query.trim();
     query.is_empty()
-        || project_name(document)
+        || project_display_name(document)
             .to_lowercase()
             .contains(&query.to_lowercase())
+}
+
+fn focus_library_search() {
+    spawn_local(async move {
+        gloo_timers::future::TimeoutFuture::new(0).await;
+        if let Some(input) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| {
+                document
+                    .query_selector(".m1-keyboard-search input")
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|element| element.dyn_into::<HtmlInputElement>().ok())
+        {
+            let _ = input.focus();
+        }
+    });
+}
+
+fn focus_delete_trigger(project_id: String) {
+    spawn_local(async move {
+        gloo_timers::future::TimeoutFuture::new(0).await;
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+            return;
+        };
+        let Ok(buttons) = document.query_selector_all(".m1-keyboard-delete") else {
+            return;
+        };
+        for index in 0..buttons.length() {
+            let Some(button) = buttons
+                .item(index)
+                .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+            else {
+                continue;
+            };
+            if button.get_attribute("data-project-id").as_deref() == Some(project_id.as_str()) {
+                let _ = button.focus();
+                return;
+            }
+        }
+    });
 }
 
 fn preview(document: &ProjectDoc) -> Result<Preview, ()> {
@@ -181,16 +223,22 @@ fn preview(document: &ProjectDoc) -> Result<Preview, ()> {
 
 fn sort_saved(documents: &mut [ProjectDoc]) {
     documents.sort_by(|left, right| {
-        JsString::from(project_name(left))
-            .locale_compare(&project_name(right), &Array::new(), &Object::new())
+        JsString::from(project_display_name(left))
+            .locale_compare(&project_display_name(right), &Array::new(), &Object::new())
             .cmp(&0)
     });
 }
 
 #[component]
-fn KeyboardCard(document: Arc<ProjectDoc>, current: bool, recovery_required: bool) -> Element {
+fn KeyboardCard(
+    document: Arc<ProjectDoc>,
+    current: bool,
+    recovery_required: bool,
+    deletable: bool,
+) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
-    let name = project_name(&document);
+    let mut pending_delete = use_context::<Signal<Option<Arc<ProjectDoc>>>>();
+    let name = project_display_name(&document);
     let preview = preview(&document);
     let action_name = if recovery_required {
         format!("Recover from {name} (discard pending changes)")
@@ -267,7 +315,18 @@ fn KeyboardCard(document: Arc<ProjectDoc>, current: bool, recovery_required: boo
                         }
                     },
                 }
-        }
+                if deletable {
+                    button {
+                        class: "m1-keyboard-delete",
+                        r#type: "button",
+                        aria_label: "Delete {name}",
+                        title: "Delete {name}",
+                        "data-project-id": "{document.id}",
+                        onclick: move |_| pending_delete.set(Some(document.clone())),
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6" } }
+                    }
+                }
+            }
     }
 }
 
@@ -323,6 +382,30 @@ pub(super) fn Library(project_menu: bool) -> Element {
     let accepted_identity = current.as_ref().map(|document| document.id.clone());
     let mut saved = use_signal(Vec::<Arc<ProjectDoc>>::new);
     let mut search_query = use_signal(String::new);
+    let mut pending_delete = use_signal(|| None::<Arc<ProjectDoc>>);
+    let deleting_project = use_signal(|| false);
+    let mut delete_error = use_signal(String::new);
+    use_context_provider(|| pending_delete);
+    let pending_delete_open = pending_delete().is_some();
+    use_effect(use_reactive!(|pending_delete_open| {
+        let Some(dialog) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| {
+                document
+                    .query_selector(".m1-project-delete-dialog")
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|element| element.dyn_into::<web_sys::HtmlDialogElement>().ok())
+        else {
+            return;
+        };
+        if pending_delete_open && !dialog.open() {
+            let _ = dialog.show_modal();
+        } else if !pending_delete_open && dialog.open() {
+            dialog.close();
+        }
+    }));
     let mut status = use_signal(|| ListStatus::Loading);
     let mut retry = use_signal(|| 0_u64);
     let retry_value = retry();
@@ -412,6 +495,14 @@ pub(super) fn Library(project_menu: bool) -> Element {
     let mut guide_request = project_created;
     let mut guide_request_counter = guide_request_counter;
     let retry_generations = request_generation.clone();
+    let pending_delete_action = pending_delete;
+    let mut deleting_action = deleting_project;
+    let mut delete_error_action = delete_error;
+    let retry_after_delete = retry;
+    let saved_after_delete = saved;
+    let delete_generation = request_generation.clone();
+    let delete_runtime = runtime.clone();
+    let delete_mounted = mounted.clone();
     rsx! {
         section { class: if project_menu { "m1-library m1-project-menu-library" } else { "m1-library" }, "aria-label": if project_menu { "Project menu" } else { "Your keyboards" },
             if project_menu {
@@ -523,7 +614,7 @@ pub(super) fn Library(project_menu: bool) -> Element {
                         span { class: "m1-keyboard-detail", "Start with guided setup" }
                     }
                     for (document, is_current) in cards {
-                        KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required }
+                        KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required, deletable: project_menu }
                     }
                 }
                 if no_search_matches {
@@ -576,6 +667,99 @@ pub(super) fn Library(project_menu: bool) -> Element {
                         },
                             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 3h5l2 2 2-2h5v13h-5l-2 2-2-2H3ZM10 5v13" } }
                             "Setup guide"
+                        }
+                    }
+                }
+            }
+            if project_menu {
+                dialog {
+                    class: "m1-project-delete-dialog",
+                    aria_labelledby: "m1-project-delete-title",
+                    aria_describedby: "m1-project-delete-description",
+                    onkeydown: move |event: KeyboardEvent| event.stop_propagation(),
+                    oncancel: move |event| {
+                        event.prevent_default();
+                        if !deleting_project() {
+                            if let Some(project) = pending_delete() {
+                                focus_delete_trigger(project.id.clone());
+                            }
+                            pending_delete.set(None);
+                            delete_error.set(String::new());
+                        }
+                    },
+                    if let Some(project) = pending_delete() {
+                        h2 { id: "m1-project-delete-title", "Delete “{project_display_name(&project)}”?" }
+                    } else {
+                        h2 { id: "m1-project-delete-title", "Delete keyboard?" }
+                    }
+                    p { id: "m1-project-delete-description", "This removes the keyboard saved in this browser. This cannot be undone. Any project copies you downloaded will be kept." }
+                    if !delete_error().is_empty() {
+                        p { role: "alert", "{delete_error()}" }
+                    }
+                    div { class: "m1-project-delete-actions",
+                        button {
+                            r#type: "button",
+                            autofocus: true,
+                            disabled: deleting_project(),
+                            onclick: move |_| {
+                                if !deleting_project() {
+                                    if let Some(project) = pending_delete() {
+                                        focus_delete_trigger(project.id.clone());
+                                    }
+                                    pending_delete.set(None);
+                                    delete_error.set(String::new());
+                                }
+                            },
+                            "Cancel"
+                        }
+                        button {
+                            class: "m1-project-delete-confirm",
+                            r#type: "button",
+                            disabled: deleting_project(),
+                            onclick: move |_| {
+                                if deleting_action() {
+                                    return;
+                                }
+                                let Some(project) = pending_delete_action() else {
+                                    return;
+                                };
+                                deleting_action.set(true);
+                                delete_error_action.set(String::new());
+                                let runtime = delete_runtime.clone();
+                                let mut pending_delete = pending_delete_action;
+                                let mut deleting = deleting_action;
+                                let mut delete_error = delete_error_action;
+                                let mut retry = retry_after_delete;
+                                let mut saved = saved_after_delete;
+                                let generations = delete_generation.clone();
+                                let mounted = delete_mounted.clone();
+                                spawn_local(async move {
+                                    let result = runtime.delete_saved_project(project.id.clone()).await;
+                                    if !mounted.get() {
+                                        return;
+                                    }
+                                    match result {
+                                        Ok(()) => {
+                                            let remaining = saved
+                                                .read()
+                                                .iter()
+                                                .filter(|saved| saved.id != project.id)
+                                                .cloned()
+                                                .collect();
+                                            saved.set(remaining);
+                                            pending_delete.set(None);
+                                            if let Some(generation) = generations.get().checked_add(1) {
+                                                generations.set(generation);
+                                                retry += 1;
+                                            }
+                                            focus_library_search();
+                                        }
+                                        Err(_) => delete_error.set("This keyboard could not be deleted. Try again.".into()),
+                                    }
+                                    deleting.set(false);
+                                });
+                            },
+                            if deleting_project() { "Deleting…" } else { "Delete keyboard" }
                         }
                     }
                 }
@@ -713,6 +897,12 @@ mod mounted_tests {
         panic!("expected {expected} saved keyboard cards to load");
     }
 
+    async fn clean_saved_projects(runtime: &Runtime, ids: &[&str]) {
+        for id in ids {
+            let _ = runtime.store.delete_project((*id).into()).await;
+        }
+    }
+
     async fn wait_outcome(
         runtime: &Rc<Runtime>,
         slot: &crate::operation_outcomes::OutcomeSlot,
@@ -788,6 +978,57 @@ mod mounted_tests {
         (session, core)
     }
 
+    fn mount_menu(runtime: Rc<Runtime>, root_id: &str) -> web_sys::Element {
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id(root_id);
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        root
+    }
+
+    fn click(root: &web_sys::Element, selector: &str) {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("missing {selector}"))
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    }
+
+    fn remove_test_root(root_id: &str) {
+        if let Some(root) = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id(root_id)
+            && let Some(parent) = root.parent_node()
+        {
+            let _ = parent.remove_child(&root);
+        }
+    }
+
     fn project_name_action() -> ProjectNameCommitAction {
         PROJECT_NAME_ACTION_PROBE.with(|probe| {
             probe
@@ -795,6 +1036,373 @@ mod mounted_tests {
                 .clone()
                 .expect("the mounted Library publishes the action used by its name field")
         })
+    }
+
+    #[wasm_bindgen_test]
+    async fn current_project_delete_cancel_and_confirm_use_the_observed_replacement_path() {
+        remove_test_root("delete-current-mounted-regression");
+        remove_test_root("delete-current-failure-regression");
+        let document = ProjectDoc::empty("delete-current-ui", "Current board");
+        let (session, core) = accepted(document.clone());
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        clean_saved_projects(
+            &runtime,
+            &[
+                "delete-current-ui",
+                "delete-failure-current",
+                "delete-failure-alpha",
+            ],
+        )
+        .await;
+        runtime
+            .store
+            .save_document(&document, &Default::default())
+            .await
+            .unwrap();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let root = mount_menu(runtime.clone(), "delete-current-mounted-regression");
+        settle().await;
+        wait_for_saved_cards(&root, 1).await;
+
+        let trigger = root
+            .query_selector(".m1-keyboard-delete[data-project-id='delete-current-ui']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        trigger.click();
+        settle().await;
+        let dialog = root
+            .query_selector(".m1-project-delete-dialog")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlDialogElement>()
+            .unwrap();
+        assert!(dialog.open());
+        assert!(
+            dialog
+                .text_content()
+                .unwrap()
+                .contains("Delete “Current board”?")
+        );
+        dialog
+            .dispatch_event(&DomEvent::new("cancel").unwrap())
+            .unwrap();
+        settle().await;
+        assert!(!dialog.open());
+        assert!(
+            runtime
+                .store
+                .load_document("delete-current-ui".into())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        let active = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .active_element()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        assert_eq!(
+            active.get_attribute("data-project-id").as_deref(),
+            Some("delete-current-ui"),
+            "Escape restores focus to the initiating delete button"
+        );
+
+        trigger.click();
+        settle().await;
+        click(&root, ".m1-project-delete-confirm");
+        let mut replacement_id = None;
+        for _ in 0..100 {
+            settle().await;
+            let accepted = runtime.model().accepted;
+            if let Some(accepted) = accepted
+                && accepted.document.id != "delete-current-ui"
+                && runtime
+                    .store
+                    .load_document("delete-current-ui".into())
+                    .await
+                    .unwrap()
+                    .is_none()
+            {
+                replacement_id = Some(accepted.document.id.clone());
+                break;
+            }
+        }
+        let replacement_id = replacement_id.expect("the durable fallback must precede deletion");
+        assert_eq!(runtime.store.active_project_id("").unwrap(), replacement_id);
+        assert!(!dialog.open());
+        clean_saved_projects(&runtime, &[&replacement_id]).await;
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
+    }
+
+    #[wasm_bindgen_test]
+    async fn current_project_delete_sorts_remaining_records_by_stored_name() {
+        let current = ProjectDoc::empty("delete-sort-current", "Current keyboard");
+        let alpha = ProjectDoc::empty("delete-sort-alpha", "Alpha keyboard");
+        let unnamed = ProjectDoc::empty("delete-sort-unnamed", "");
+        let (session, core) = accepted(current.clone());
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        clean_saved_projects(
+            &runtime,
+            &[
+                "delete-sort-current",
+                "delete-sort-alpha",
+                "delete-sort-unnamed",
+            ],
+        )
+        .await;
+        for document in [&current, &alpha, &unnamed] {
+            runtime
+                .store
+                .save_document(document, &Default::default())
+                .await
+                .unwrap();
+        }
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let root = mount_menu(runtime.clone(), "delete-current-sort-regression");
+        settle().await;
+        wait_for_saved_cards(&root, 3).await;
+        click(
+            &root,
+            ".m1-keyboard-delete[data-project-id='delete-sort-current']",
+        );
+        settle().await;
+        click(&root, ".m1-project-delete-confirm");
+
+        let mut expected_replacement = false;
+        for _ in 0..100 {
+            settle().await;
+            if runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|accepted| accepted.document.id == "delete-sort-unnamed")
+                && runtime
+                    .store
+                    .load_document("delete-sort-current".into())
+                    .await
+                    .unwrap()
+                    .is_none()
+            {
+                expected_replacement = true;
+                break;
+            }
+        }
+        assert!(
+            expected_replacement,
+            "the raw blank name sorts before the displayed Untitled fallback"
+        );
+        assert!(
+            runtime
+                .store
+                .load_document("delete-sort-alpha".into())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        clean_saved_projects(&runtime, &["delete-sort-alpha", "delete-sort-unnamed"]).await;
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
+    }
+
+    #[wasm_bindgen_test]
+    async fn failed_current_project_replacement_keeps_the_record_and_dialog_available() {
+        remove_test_root("delete-current-failure-regression");
+        let current = ProjectDoc::empty("delete-failure-current", "Current board");
+        let candidate = ProjectDoc::empty("delete-failure-alpha", "Alpha board");
+        let (session, core) = accepted(current.clone());
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        clean_saved_projects(
+            &runtime,
+            &["delete-failure-current", "delete-failure-alpha"],
+        )
+        .await;
+        for document in [&current, &candidate] {
+            runtime
+                .store
+                .save_document(document, &Default::default())
+                .await
+                .unwrap();
+        }
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        crate::runtime::project_name_test_support::fail_next_persist(
+            &runtime,
+            "replacement storage failed",
+        );
+        let root = mount_menu(runtime.clone(), "delete-current-failure-regression");
+        settle().await;
+        wait_for_saved_cards(&root, 2).await;
+        click(
+            &root,
+            ".m1-keyboard-delete[data-project-id='delete-failure-current']",
+        );
+        settle().await;
+        click(&root, ".m1-project-delete-confirm");
+
+        let mut saw_error = false;
+        for _ in 0..100 {
+            settle().await;
+            if root
+                .query_selector(".m1-project-delete-dialog [role='alert']")
+                .unwrap()
+                .is_some()
+            {
+                saw_error = true;
+                break;
+            }
+        }
+        assert!(
+            saw_error,
+            "a failed replacement stays actionable in the dialog"
+        );
+        assert!(
+            root.query_selector(".m1-project-delete-dialog")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlDialogElement>()
+                .unwrap()
+                .open()
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            "delete-failure-current"
+        );
+        assert_eq!(
+            runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Ready
+        );
+        assert!(
+            runtime
+                .store
+                .load_document("delete-failure-current".into())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            runtime
+                .store
+                .load_document("delete-failure-alpha".into())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        click(&root, ".m1-project-delete-confirm");
+        let mut retried = false;
+        for _ in 0..100 {
+            settle().await;
+            let accepted = runtime.model().accepted;
+            if accepted
+                .as_ref()
+                .is_some_and(|accepted| accepted.document.id == "delete-failure-alpha")
+                && runtime
+                    .store
+                    .load_document("delete-failure-current".into())
+                    .await
+                    .unwrap()
+                    .is_none()
+            {
+                retried = true;
+                break;
+            }
+        }
+        assert!(
+            retried,
+            "the still-open dialog can retry and finish deletion"
+        );
+        clean_saved_projects(&runtime, &["delete-failure-alpha"]).await;
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
+    }
+
+    #[wasm_bindgen_test]
+    async fn noncurrent_delete_preserves_accepted_document_and_undo_history() {
+        remove_test_root("delete-noncurrent-mounted-regression");
+        let current = ProjectDoc::empty("delete-noncurrent-active", "Current board");
+        let saved = ProjectDoc::empty("delete-noncurrent-target", "Other board");
+        let (session, core) = accepted(current.clone());
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        clean_saved_projects(
+            &runtime,
+            &["delete-noncurrent-active", "delete-noncurrent-target"],
+        )
+        .await;
+        for document in [&current, &saved] {
+            runtime
+                .store
+                .save_document(document, &Default::default())
+                .await
+                .unwrap();
+        }
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+
+        let initial = runtime.model().accepted.unwrap();
+        let mut renamed = (*initial.document).clone();
+        renamed.name = "Current board edited".into();
+        let edit = submit(&runtime, |operation_id| Event::Edit {
+            operation_id,
+            command: EditCommand {
+                base_revision: initial.document.revision,
+                transaction_id: "delete-noncurrent-history-edit".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![renamed.id.clone()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(renamed),
+                },
+            },
+        });
+        assert_eq!(
+            wait_outcome(&runtime, &edit).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        let before_delete = runtime.model().accepted.unwrap();
+        runtime
+            .delete_saved_project("delete-noncurrent-target".into())
+            .await
+            .unwrap();
+        let after_delete = runtime.model().accepted.unwrap();
+        assert_eq!(after_delete.document, before_delete.document);
+        assert_eq!(after_delete.session_epoch, before_delete.session_epoch);
+        assert_eq!(after_delete.token, before_delete.token);
+        assert!(
+            runtime
+                .store
+                .load_document("delete-noncurrent-target".into())
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        let undo = submit(&runtime, |operation_id| Event::Undo { operation_id });
+        assert_eq!(
+            wait_outcome(&runtime, &undo).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Current board"
+        );
+        clean_saved_projects(&runtime, &["delete-noncurrent-active"]).await;
     }
 
     fn field() -> HtmlInputElement {

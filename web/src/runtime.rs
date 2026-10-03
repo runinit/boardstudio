@@ -4,8 +4,8 @@ use crate::pcb_wiring_mode_operation::electrical_preview_request;
 #[cfg(test)]
 use boardstudio_application::GenerationStatus;
 use boardstudio_application::{
-    AcceptedSnapshot, Completion, Effect, Event, JobId, Lifecycle, OperationId, ReadModel,
-    SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
+    ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
@@ -50,7 +50,8 @@ enum ProjectNamePersistTestBehavior {
     Fail(String),
     Gate(ProjectNamePersistGate),
 }
-use js_sys::{Array, Function, Reflect, Uint8Array};
+use gloo_timers::future::TimeoutFuture;
+use js_sys::{Array, Function, JsString, Object, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -315,6 +316,8 @@ pub struct Runtime {
     notify: RefCell<Option<Notifier>>,
     status: RefCell<RuntimeReport>,
     open_sequence: Cell<u64>,
+    project_deletion_pending: Cell<bool>,
+    project_deletion_open: Cell<Option<OperationId>>,
     cad_scene: RefCell<Option<Rc<CadScene>>>,
     cad_worker: RefCell<Option<(Scope, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
@@ -362,6 +365,18 @@ pub struct Runtime {
     #[cfg(test)]
     project_name_test_effects: RefCell<Vec<Effect>>,
 }
+
+struct ProjectDeletionLease {
+    runtime: Rc<Runtime>,
+}
+
+impl Drop for ProjectDeletionLease {
+    fn drop(&mut self) {
+        self.runtime.project_deletion_open.set(None);
+        self.runtime.project_deletion_pending.set(false);
+    }
+}
+
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
         Self::new_with_restoration(true)
@@ -389,6 +404,8 @@ impl Runtime {
                 "Open a saved keyboard or an editable demo copy.",
             )),
             open_sequence: Cell::new(0),
+            project_deletion_pending: Cell::new(false),
+            project_deletion_open: Cell::new(None),
             cad_scene: RefCell::new(None),
             cad_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
@@ -686,6 +703,16 @@ impl Runtime {
     pub(crate) fn create_new_keyboard(
         self: &Rc<Self>,
     ) -> Result<(String, crate::operation_outcomes::OutcomeSlot), String> {
+        self.create_new_keyboard_inner(false)
+    }
+
+    fn create_new_keyboard_inner(
+        self: &Rc<Self>,
+        allow_project_deletion: bool,
+    ) -> Result<(String, crate::operation_outcomes::OutcomeSlot), String> {
+        if self.project_deletion_pending.get() && !allow_project_deletion {
+            return Err("A saved keyboard deletion is in progress.".into());
+        }
         let project_id = browser_uuid()?;
         let board_id = browser_uuid()?;
         let outline_id = browser_uuid()?;
@@ -716,11 +743,273 @@ impl Runtime {
 
         let operation_id = self.operation();
         let outcome = self.observe_operation(operation_id);
+        if allow_project_deletion {
+            self.project_deletion_open.set(Some(operation_id));
+        }
         self.submit(Event::Open {
             operation_id,
             document,
         });
         Ok((project_id, outcome))
+    }
+
+    pub(crate) async fn delete_saved_project(
+        self: &Rc<Self>,
+        project_id: String,
+    ) -> Result<(), String> {
+        let lease = self.begin_project_deletion()?;
+        self.supersede_pending_opens_for_deletion()?;
+        let initial = if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            self.recover_active_project_for_deletion().await?
+        } else {
+            self.wait_for_saved_active_document().await?
+        };
+
+        let deleting_active = initial.document.id == project_id;
+        let expected_current = if deleting_active {
+            let mut remaining = self
+                .store
+                .list_documents()
+                .await
+                .map_err(|error| format!("Could not list saved keyboards: {error}"))?;
+            remaining.retain(|document| document.id != project_id);
+            remaining.sort_by(|left, right| {
+                JsString::from(left.name.clone())
+                    .locale_compare(&right.name, &Array::new(), &Object::new())
+                    .cmp(&0)
+            });
+
+            if let Some(first) = remaining.first() {
+                let replacement_id = first.id.clone();
+                let replacement = self
+                    .store
+                    .load_document(replacement_id.clone())
+                    .await
+                    .map_err(|error| format!("Could not open the next saved keyboard: {error}"))?
+                    .ok_or_else(|| {
+                        "The next saved keyboard is unavailable; the current keyboard was kept."
+                            .to_owned()
+                    })?;
+                self.ensure_delete_owner(&initial)?;
+                match self
+                    .open_project_for_deletion(replacement, replacement_id)
+                    .await
+                {
+                    Ok(accepted) => Some(accepted),
+                    Err(error) => {
+                        if self.model().lifecycle == Lifecycle::RecoveryRequired
+                            && self.ensure_delete_owner(&initial).is_ok()
+                            && let Err(restore_error) =
+                                self.recover_active_project_for_deletion().await
+                        {
+                            return Err(format!(
+                                "{error} The current keyboard could not be restored: {restore_error}"
+                            ));
+                        }
+                        return Err(error);
+                    }
+                }
+            } else {
+                self.ensure_delete_owner(&initial)?;
+                let (replacement_id, outcome) = self.create_new_keyboard_inner(true)?;
+                Some(
+                    self.wait_for_project_open(
+                        outcome,
+                        &replacement_id,
+                        Some(self.open_sequence.get()),
+                    )
+                    .await?,
+                )
+            }
+        } else {
+            None
+        };
+
+        let current = self
+            .model()
+            .accepted
+            .ok_or_else(|| "The active keyboard changed before deletion completed.".to_owned())?;
+        if let Some(expected) = expected_current {
+            if current.document.id != expected.document.id
+                || current.session_epoch != expected.session_epoch
+                || current.token != expected.token
+                || current.document.revision != expected.document.revision
+            {
+                return Err(
+                    "The replacement keyboard changed before deletion completed; the saved keyboard was kept."
+                        .into(),
+                );
+            }
+        } else if current.document.id != initial.document.id
+            || current.session_epoch != initial.session_epoch
+        {
+            return Err(
+                "The active keyboard changed before deletion completed; the saved keyboard was kept."
+                    .into(),
+            );
+        }
+
+        self.store
+            .delete_project(project_id)
+            .await
+            .map_err(|error| format!("This keyboard could not be deleted. Try again. {error}"))?;
+        drop(lease);
+        Ok(())
+    }
+
+    fn begin_project_deletion(self: &Rc<Self>) -> Result<ProjectDeletionLease, String> {
+        if self.project_deletion_pending.replace(true) {
+            return Err("Another saved keyboard deletion is already in progress.".into());
+        }
+        Ok(ProjectDeletionLease {
+            runtime: self.clone(),
+        })
+    }
+
+    fn supersede_pending_opens_for_deletion(&self) -> Result<u64, String> {
+        let sequence = self
+            .open_sequence
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| "Open identity exhausted.".to_owned())?;
+        self.open_sequence.set(sequence);
+        Ok(sequence)
+    }
+
+    fn ensure_delete_owner(&self, initial: &AcceptedSnapshot) -> Result<(), String> {
+        let current = self
+            .model()
+            .accepted
+            .ok_or_else(|| "The active keyboard changed before deletion completed.".to_owned())?;
+        if current.document.id != initial.document.id
+            || current.session_epoch != initial.session_epoch
+        {
+            return Err(
+                "The active keyboard changed before deletion completed; the saved keyboard was kept."
+                    .into(),
+            );
+        }
+        Ok(())
+    }
+
+    async fn wait_for_saved_active_document(self: &Rc<Self>) -> Result<AcceptedSnapshot, String> {
+        for _ in 0..1_200 {
+            let model = self.model();
+            if model.lifecycle == Lifecycle::Ready
+                && let Some(accepted) = model.accepted
+                && matches!(
+                    model.durability,
+                    Durability::Saved { revision } if revision == accepted.document.revision
+                )
+            {
+                return Ok(accepted);
+            }
+            if model.lifecycle == Lifecycle::RecoveryRequired {
+                return Err(
+                    "Recover or open a saved keyboard before deleting the current keyboard.".into(),
+                );
+            }
+            TimeoutFuture::new(25).await;
+        }
+        Err("The active keyboard did not finish saving; no saved keyboard was deleted.".into())
+    }
+
+    async fn open_project_for_deletion(
+        self: &Rc<Self>,
+        document: ProjectDoc,
+        expected_id: String,
+    ) -> Result<AcceptedSnapshot, String> {
+        let sequence = self.supersede_pending_opens_for_deletion()?;
+        let operation_id = self.operation();
+        let outcome = self.observe_operation(operation_id);
+        self.project_deletion_open.set(Some(operation_id));
+        if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            self.submit(Event::RecoverWithDocument {
+                operation_id,
+                document,
+            });
+        } else {
+            self.submit(Event::Open {
+                operation_id,
+                document,
+            });
+        }
+        self.wait_for_project_open(outcome, &expected_id, Some(sequence))
+            .await
+    }
+
+    async fn recover_active_project_for_deletion(
+        self: &Rc<Self>,
+    ) -> Result<AcceptedSnapshot, String> {
+        let accepted = self.model().accepted.ok_or_else(|| {
+            "Recover or open a saved keyboard before deleting the current keyboard.".to_owned()
+        })?;
+        let document = self
+            .store
+            .load_document(accepted.document.id.clone())
+            .await
+            .map_err(|error| format!("Could not restore the current saved keyboard: {error}"))?
+            .ok_or_else(|| {
+                "The current keyboard has no durable saved copy; deletion was cancelled.".to_owned()
+            })?;
+        let current = self
+            .model()
+            .accepted
+            .ok_or_else(|| "The active keyboard changed during deletion recovery.".to_owned())?;
+        if current.document.id != accepted.document.id || current.token != accepted.token {
+            return Err("The active keyboard changed during deletion recovery.".into());
+        }
+        let operation_id = self.operation();
+        let outcome = self.observe_operation(operation_id);
+        let sequence = self.open_sequence.get();
+        self.project_deletion_open.set(Some(operation_id));
+        self.submit(Event::RecoverWithDocument {
+            operation_id,
+            document,
+        });
+        self.wait_for_project_open(outcome, &accepted.document.id, Some(sequence))
+            .await
+    }
+
+    async fn wait_for_project_open(
+        self: &Rc<Self>,
+        outcome: crate::operation_outcomes::OutcomeSlot,
+        expected_id: &str,
+        expected_sequence: Option<u64>,
+    ) -> Result<AcceptedSnapshot, String> {
+        for _ in 0..1_200 {
+            #[cfg(all(test, target_arch = "wasm32"))]
+            crate::runtime::project_name_test_support::run_pending(self).await;
+            if let Some(outcome) = outcome.borrow_mut().take() {
+                if outcome != TerminalOutcome::Completed {
+                    return Err(format!(
+                        "The replacement keyboard could not be saved; the original keyboard was kept. {outcome:?}"
+                    ));
+                }
+                if expected_sequence.is_some_and(|sequence| self.open_sequence.get() != sequence) {
+                    return Err(
+                        "A newer project open superseded the replacement; the saved keyboard was kept."
+                            .into(),
+                    );
+                }
+                let accepted = self
+                    .model()
+                    .accepted
+                    .ok_or_else(|| "The replacement keyboard was not accepted.".to_owned())?;
+                if accepted.document.id != expected_id {
+                    return Err(
+                        "The replacement keyboard did not become active; the saved keyboard was kept."
+                            .into(),
+                    );
+                }
+                return Ok(accepted);
+            }
+            TimeoutFuture::new(25).await;
+        }
+        Err(
+            "The replacement keyboard did not finish saving; the original keyboard was kept."
+                .into(),
+        )
     }
 
     /// Resolve mechanical settings against the exact accepted source and the proposed canonical
@@ -1040,6 +1329,21 @@ impl Runtime {
     }
 
     pub fn submit(self: &Rc<Self>, event: Event) {
+        if self.project_deletion_pending.get() {
+            let open_operation = match &event {
+                Event::Open { operation_id, .. }
+                | Event::RecoverWithDocument { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            };
+            if let Some(operation_id) = open_operation {
+                if self.project_deletion_open.get() == Some(operation_id) {
+                    self.project_deletion_open.set(None);
+                } else {
+                    self.report("Wait for the saved keyboard deletion to finish before opening another project.");
+                    return;
+                }
+            }
+        }
         #[cfg(test)]
         let test_event = event.clone();
         #[cfg(test)]
@@ -3458,9 +3762,12 @@ impl Runtime {
     }
     pub fn open_fixture(self: &Rc<Self>, name: &str) {
         let name = name.to_owned();
-        let Ok(sequence) = self.begin_open() else {
-            self.report("Open identity exhausted.");
-            return;
+        let sequence = match self.begin_open() {
+            Ok(sequence) => sequence,
+            Err(error) => {
+                self.report(error);
+                return;
+            }
         };
         let this = self.clone();
         spawn_local(async move {
@@ -3478,6 +3785,9 @@ impl Runtime {
         });
     }
     fn begin_open(&self) -> Result<u64, String> {
+        if self.project_deletion_pending.get() {
+            return Err("A saved keyboard deletion is in progress.".into());
+        }
         let sequence = self
             .open_sequence
             .get()
@@ -3487,9 +3797,12 @@ impl Runtime {
         Ok(sequence)
     }
     pub fn import_file(self: &Rc<Self>, file: web_sys::File) {
-        let Ok(sequence) = self.begin_open() else {
-            self.report("Open identity exhausted.");
-            return;
+        let sequence = match self.begin_open() {
+            Ok(sequence) => sequence,
+            Err(error) => {
+                self.report(error);
+                return;
+            }
         };
         let this = self.clone();
         spawn_local(async move {
@@ -3553,9 +3866,12 @@ impl Runtime {
         Ok(())
     }
     pub fn open_saved(self: &Rc<Self>, id: String) {
-        let Ok(sequence) = self.begin_open() else {
-            self.report("Open identity exhausted.");
-            return;
+        let sequence = match self.begin_open() {
+            Ok(sequence) => sequence,
+            Err(error) => {
+                self.report(error);
+                return;
+            }
         };
         let this = self.clone();
         spawn_local(async move {

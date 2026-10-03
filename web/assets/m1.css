@@ -140,7 +140,19 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-setup-guide__primary { border-color: var(--wb-accent); color: var(--wb-on-accent); background: var(--wb-accent); }
 .m1-setup-guide__secondary { color: var(--wb-accent); }
 .m1-keyboard-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 14px; }
-.m1-keyboard-card { min-width: 0; }
+.m1-keyboard-card { position: relative; min-width: 0; }
+.m1-library .m1-keyboard-delete { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 32px; min-height: 32px; padding: 6px; border: 1px solid var(--wb-rule); border-radius: 4px; color: var(--wb-muted); background: var(--wb-panel); cursor: pointer; }
+.m1-keyboard-delete svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.m1-keyboard-delete:hover, .m1-keyboard-delete:focus-visible { color: var(--wb-status-error); }
+.m1-project-delete-dialog { width: min(420px, calc(100vw - 40px)); box-sizing: border-box; max-height: calc(100dvh - 40px); margin: auto; padding: 24px; border: 1px solid var(--wb-rule); border-radius: 8px; background: var(--wb-panel); color: var(--wb-ink); box-shadow: 0 12px 40px rgb(0 0 0 / 30%); }
+.m1-project-delete-dialog::backdrop { background: rgb(0 0 0 / 50%); }
+.m1-project-delete-dialog h2 { margin: 0 0 12px; font-size: 18px; overflow-wrap: anywhere; }
+.m1-project-delete-dialog p { color: var(--wb-muted); font-size: 13px; line-height: 1.5; white-space: normal; }
+.m1-project-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.m1-project-delete-actions button { width: auto; min-height: 36px; padding: 8px 12px; border: 1px solid var(--wb-rule); border-radius: 4px; background: var(--wb-raised); color: var(--wb-ink); cursor: pointer; }
+.m1-project-delete-actions .m1-project-delete-confirm { background: var(--wb-status-error); color: #fff; border-color: var(--wb-status-error); }
+.m1-project-delete-actions button:disabled { opacity: .6; cursor: wait; }
+.m1-project-delete-actions .m1-project-delete-confirm:hover { filter: brightness(.9); }
 .m1-library .m1-keyboard-tile { display: flex; min-width: 0; flex-direction: column; gap: 5px; padding: 0 0 8px; border: 0; border-radius: 4px; color: var(--wb-ink); text-align: left; background: transparent; cursor: pointer; }
 .m1-keyboard-card.is-current .m1-keyboard-preview { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
 .m1-keyboard-preview { display: grid; place-items: center; width: 100%; height: 108px; margin-bottom: 4px; padding: 14px; border-radius: 4px; color: var(--wb-geometry-key); background: var(--wb-canvas); }
