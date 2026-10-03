@@ -40,12 +40,14 @@ pub(super) fn ExportWorkspace(
         if let Some(document) = web_sys::window().and_then(|window| window.document()) {
             let workspace = workspace;
             let return_workspace = return_workspace;
-            let listener = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |event| {
-                if event.key() == "Escape" && workspace() == "Export" {
-                    event.prevent_default();
-                    workspace.set(return_workspace());
-                }
-            });
+            let listener = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
+                move |event: web_sys::KeyboardEvent| {
+                    if event.key() == "Escape" && workspace() == "Export" {
+                        event.prevent_default();
+                        workspace.set(return_workspace());
+                    }
+                },
+            );
             let _ = document
                 .add_event_listener_with_callback("keydown", listener.as_ref().unchecked_ref());
             *retained.borrow_mut() = Some((document, listener));
@@ -136,7 +138,7 @@ pub(super) fn ExportWorkspace(
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct ExportRow {
     label: &'static str,
     detail: &'static str,
