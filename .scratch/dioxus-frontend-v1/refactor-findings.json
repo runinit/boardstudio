@@ -822,6 +822,15 @@
           ],
           "during_port": "Retain source compile checks and separate source, fixture, visual, and packaged journey claims. Reviewers clear only the evidence actually inspected; production composition requires production-level verification.",
           "post_port_proposal": "Evaluate machine-checked receipt viewport/link/source identities and maintained production composition journeys during the consolidated conformance refactor."
+        },
+        {
+          "date": "2026-10-02",
+          "task": "PCB Core ApplyElectrical lock revalidation audit",
+          "baseline": "57829464369f40556c57e2de7520e7109950793b",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/apply-current-plan-20261002/core-apply-lock-audit.md",
+          "observation": "React/Dioxus Resolve supplies saved board locks, but Core ApplyElectrical re-resolves the same revision with an empty lock map; assignment locked-state enters the plan fingerprint, so a valid lock-bearing plan is rejected as changed inputs. This is source-derived pending a direct Core request red/green regression.",
+          "current_mitigation": "F5.2d uses the existing Core materializer on its exact accepted Current plan and submits one strict-revision Session ReplaceDocument edit. Separate Core issue 09 fixes the existing direct ApplyElectrical request for its callers.",
+          "status": "Core defect ticket drafted; independent review and direct request regression required before calling the correction verified."
         }
       ],
       "handoff_evidence": [

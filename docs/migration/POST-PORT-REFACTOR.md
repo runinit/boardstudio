@@ -251,6 +251,10 @@ The pinned React Sofle flow shows a board-level Wiring plan when nothing or a co
 
 The private Runtime adapter and Wiring/selected-switch projection are now authored at source commit `626668b7`; an executor-identity/UI parity follow-up is under exact-source review. The [implementation handoff](../../.scratch/dioxus-pcb-view/evidence/wiring-context-20261002/implementation-handoff.md) records current hashes and root’s mount/CSS contract. Compilation, public pairing and F5.2/F5.3/INT.2 remain open.
 
+### RF-009 Core ApplyElectrical lock revalidation
+
+The selected-board Resolve path supplies persisted `ElectricalBoardConfiguration.locks`, while the existing Core `ApplyElectrical` handler re-resolves the same document/revision with an empty lock map before comparing assignment fingerprints. Because assignment lock state is included in that fingerprint, a valid locked plan can be rejected as changed inputs. The bounded source audit and Core-owned regression ticket are in the [Apply lock audit](../../.scratch/dioxus-pcb-view/evidence/apply-current-plan-20261002/core-apply-lock-audit.md) and [draft Issue 09](../../.scratch/dioxus-pcb-view/drafts/tickets/09-core-apply-electrical-honors-saved-locks.md); direct request red/green is still required. The independent F5.2d private Apply route uses the existing materializer with its exact accepted Current plan and one normal Session edit, and does not claim Issue 09 is fixed. No public request/schema change or new RF ID is proposed.
+
 ## RF-010
 
 **Cancellation has different guarantees at worker and kernel boundaries** — theoretical / async resource lifecycle. confirmed limitation; not automatically a design defect.
