@@ -52,6 +52,9 @@ pub(in crate::presentation) struct LayoutAlignMount {
 pub(in crate::presentation) fn LayoutAlignToolbar(
     mount: LayoutAlignMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
+    show_relationships: bool,
+    has_selection_context: bool,
+    on_show_relationships: EventHandler<()>,
 ) -> Element {
     let on_align = mount.on_align;
     let is_open = open_menu() == Some(LayoutCommandMenu::Align);
@@ -125,6 +128,17 @@ pub(in crate::presentation) fn LayoutAlignToolbar(
                         class: if feedback.succeeded { "m1-layout-align-feedback" } else { "m1-layout-align-feedback is-error" },
                         role: if feedback.succeeded { "status" } else { "alert" },
                         "{feedback.message}"
+                    }
+                }
+                if show_relationships {
+                    button {
+                        r#type: "button",
+                        disabled: !has_selection_context,
+                        onclick: move |_| {
+                            on_show_relationships.call(());
+                            close_layout_command_menu(open_menu, LayoutCommandMenu::Align);
+                        },
+                        "Relationships"
                     }
                 }
             }

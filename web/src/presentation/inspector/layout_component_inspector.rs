@@ -120,13 +120,8 @@ pub enum LayoutComponentInspectorAction {
 #[derive(Props, Clone, PartialEq)]
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
+    pub inspector_tab: Signal<super::layout_workspace::LayoutInspectorTab>,
     pub on_action: EventHandler<LayoutComponentInspectorAction>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum InspectorTab {
-    Properties,
-    Relations,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -154,7 +149,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let owner = owner.clone();
         move |_| latest_capture.set(owner.clone())
     }));
-    let mut tab = use_signal(|| InspectorTab::Properties);
+    let mut tab = props.inspector_tab;
     let mut constraint_open = use_signal(|| projection.active_constraint.is_some());
     let mut x = use_signal(|| format!("{:.2}", projection.position.x));
     let mut y = use_signal(|| format!("{:.2}", projection.position.y));
@@ -214,7 +209,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let part_id = owner.part_id.clone();
     use_effect(use_reactive((&identity,), {
         move |_| {
-            tab.set(InspectorTab::Properties);
             constraint_open.set(has_initial_constraint);
             error.set(None);
         }
@@ -478,10 +472,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
             }
             div { role: "tablist", aria_label: "Inspector details", class: "m1-layout-component-tabs",
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != InspectorTab::Properties { reset(); } tab.set(InspectorTab::Properties); } }, "Properties" }
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == InspectorTab::Relations}", onclick: move |_| tab.set(InspectorTab::Relations), "Relations" }
+                button { r#type: "button", role: "tab", aria_selected: "{tab() == super::layout_workspace::LayoutInspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != super::layout_workspace::LayoutInspectorTab::Properties { reset(); } tab.set(super::layout_workspace::LayoutInspectorTab::Properties); } }, "Properties" }
+                button { r#type: "button", role: "tab", aria_selected: "{tab() == super::layout_workspace::LayoutInspectorTab::Relations}", onclick: move |_| tab.set(super::layout_workspace::LayoutInspectorTab::Relations), "Relations" }
             }
-            if tab() == InspectorTab::Properties {
+            if tab() == super::layout_workspace::LayoutInspectorTab::Properties {
                 p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
                 if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
                 if !projection.layouts.is_empty() {
@@ -649,7 +643,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             } else {
                 h2 { "Relationships" }
                 p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
-                button { r#type: "button", onclick: move |_| tab.set(InspectorTab::Properties), "Edit placement relationship" }
+                button { r#type: "button", onclick: move |_| tab.set(super::layout_workspace::LayoutInspectorTab::Properties), "Edit placement relationship" }
                 p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
             }
         }

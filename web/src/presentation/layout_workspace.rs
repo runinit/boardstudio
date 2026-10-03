@@ -34,6 +34,9 @@ pub(super) struct ToolbarInput {
     pub(super) open_menu: Signal<Option<objects::LayoutCommandMenu>>,
     pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pub(super) has_selection_context: bool,
+    pub(super) show_relationships: bool,
+    pub(super) on_show_relationships: EventHandler<()>,
 }
 
 pub(super) struct InspectorInput {
@@ -48,10 +51,21 @@ pub(super) struct InspectorInput {
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
     pub(super) key_size: objects::KeySizeMount,
     pub(super) matrix_transform_inspector: objects::MatrixTransformInspectorMount,
+    pub(super) inspector_tab: Signal<LayoutInspectorTab>,
+    pub(super) matrix_relationship_summary: Option<String>,
+    pub(super) matrix_relationship_target: Option<objects::TreeSelectRequest>,
+    pub(super) on_select_context: EventHandler<objects::TreeSelectRequest>,
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
     pub(super) board_inspector: Option<super::board_inspector::BoardInspectorProjection>,
     pub(super) on_board_rename: EventHandler<super::board_inspector::BoardRenameAction>,
     pub(super) findings_page: Option<super::layout_findings::InspectorMount>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LayoutInspectorTab {
+    #[default]
+    Properties,
+    Relations,
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
@@ -97,6 +111,9 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                     snap_settings: input.snap_settings,
                     on_selection_kind: input.on_selection_kind,
                     on_snap_intent: input.on_snap_intent,
+                    has_selection_context: input.has_selection_context,
+                    show_relationships: input.show_relationships,
+                    on_show_relationships: input.on_show_relationships,
                 }
             }
             if let Some(reason) = input.save_failure.as_ref() {
@@ -153,6 +170,12 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         };
     }
     let board_context_header = input.board_inspector.is_some();
+    let matrix_context_tabs = input.component_inspector.is_none()
+        && input.outline_inspector.is_none()
+        && input.board_inspector.is_none()
+        && input.matrix_transform_inspector.projection.is_some();
+    let show_matrix_relations =
+        matrix_context_tabs && input.inspector_tab() == LayoutInspectorTab::Relations;
     rsx! {
         if input.outline_inspector.is_none() && input.component_inspector.is_none() {
         if let Some(title) = input.context_title.as_ref() {
@@ -162,43 +185,78 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             }
         }
         }
-        if input.outline_inspector.is_none() {
-            if let Some(projection) = input.component_inspector {
-                super::inspector::LayoutComponentInspector {
-                    projection,
-                    on_action: input.on_component_inspector_action,
+        if matrix_context_tabs {
+            div { class: "m1-layout-component-tabs", role: "tablist", aria_label: "Inspector details",
+                button {
+                    role: "tab",
+                    aria_selected: "{input.inspector_tab() == LayoutInspectorTab::Properties}",
+                    onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Properties),
+                    "Properties"
                 }
-            } else if input.show_position_inspector { super::inspector::Inspector {} }
-        }
-        if let Some(projection) = input.matrix_inspector.projection.clone() {
-            objects::MatrixInspector {
-                projection,
-                request_sequence: input.matrix_inspector.request_sequence,
-                editable: input.matrix_inspector.editable,
-                busy: input.matrix_inspector.busy,
-                feedback: input.matrix_inspector.feedback.clone(),
-                on_edit: input.matrix_inspector.on_edit,
-                on_apply_preset: input.matrix_inspector.on_apply_preset,
-                on_delete: input.matrix_inspector.on_delete,
-                on_unlink: input.matrix_inspector.on_unlink,
-                on_duplicate: input.matrix_inspector.on_duplicate,
+                button {
+                    role: "tab",
+                    aria_selected: "{input.inspector_tab() == LayoutInspectorTab::Relations}",
+                    onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Relations),
+                    "Relations"
+                }
             }
         }
-        if input.key_size.projection.is_some() {
-            objects::KeySizeControls { mount: input.key_size }
-        }
-        if input.matrix_transform_inspector.projection.is_some() {
-            objects::MatrixTransformInspector {
-                mount: input.matrix_transform_inspector,
+        if show_matrix_relations {
+            section { class: "m1-layout-component-inspector", aria_label: "Relationships",
+                h2 { "Relationships" }
+                p { class: "m1-layout-component-relation-summary", "{input.matrix_relationship_summary.as_deref().unwrap_or(\"No saved placement relationship on this selection.\")}" }
+                if let Some(target) = input.matrix_relationship_target.as_ref() {
+                    button {
+                        r#type: "button",
+                        onclick: move |_| {
+                            input.inspector_tab.set(LayoutInspectorTab::Properties);
+                            input.on_select_context.call(target.clone());
+                        },
+                        "Edit placement relationship"
+                    }
+                }
+                p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
             }
-        }
-        if let Some(projection) = input.outline_inspector {
-            super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
-        }
-        if let Some(projection) = input.board_inspector {
-            super::board_inspector::BoardInspector {
-                projection,
-                on_rename: input.on_board_rename,
+        } else {
+            if input.outline_inspector.is_none() {
+                if let Some(projection) = input.component_inspector {
+                    super::inspector::LayoutComponentInspector {
+                        projection,
+                        inspector_tab: input.inspector_tab,
+                        on_action: input.on_component_inspector_action,
+                    }
+                } else if input.show_position_inspector { super::inspector::Inspector {} }
+            }
+            if let Some(projection) = input.matrix_inspector.projection.clone() {
+                objects::MatrixInspector {
+                    projection,
+                    request_sequence: input.matrix_inspector.request_sequence,
+                    editable: input.matrix_inspector.editable,
+                    busy: input.matrix_inspector.busy,
+                    feedback: input.matrix_inspector.feedback.clone(),
+                    on_edit: input.matrix_inspector.on_edit,
+                    on_apply_preset: input.matrix_inspector.on_apply_preset,
+                    on_delete: input.matrix_inspector.on_delete,
+                    on_unlink: input.matrix_inspector.on_unlink,
+                    on_duplicate: input.matrix_inspector.on_duplicate,
+                }
+            }
+            if input.key_size.projection.is_some() {
+                objects::KeySizeControls { mount: input.key_size }
+            }
+            if input.matrix_transform_inspector.projection.is_some() {
+                objects::MatrixTransformInspector {
+                    mount: input.matrix_transform_inspector,
+                }
+            }
+            if let Some(projection) = input.outline_inspector {
+                super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
+            }
+            if let Some(projection) = input.board_inspector {
+                super::board_inspector::BoardInspector {
+                    projection,
+                    on_rename: input.on_board_rename,
+                }
             }
         }
     }

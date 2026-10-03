@@ -560,8 +560,11 @@ pub(in crate::presentation) fn LayoutCommandPill(
     snap_settings: LayoutSnapSettings,
     transform: super::layout_transform_toolbar::LayoutTransformMenuMount,
     align: super::layout_align::LayoutAlignMount,
+    show_relationships: bool,
     on_selection_kind: EventHandler<LayoutSelectionKind>,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
+    has_selection_context: bool,
+    on_show_relationships: EventHandler<()>,
 ) -> Element {
     let outside_listener = use_hook(|| {
         Rc::new(RefCell::new(
@@ -637,6 +640,9 @@ pub(in crate::presentation) fn LayoutCommandPill(
             super::layout_align::LayoutAlignToolbar {
                 mount: align,
                 open_menu,
+                show_relationships,
+                has_selection_context,
+                on_show_relationships,
             }
             LayoutSnapMenu {
                 open_menu,

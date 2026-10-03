@@ -1564,36 +1564,29 @@ fn layout_component_inspector_projection(
                 })
         })
         .collect();
-    let layouts: Vec<_> = document
-        .layouts
+    let is_matrix_member = document
+        .matrices
         .iter()
-        .filter(|layout| layout.board_id == board.id)
-        .map(|layout| inspector::LayoutChoice {
-            id: layout.id.clone(),
-            name: layout.name.clone(),
-        })
-        .collect();
-    let active_layout = document
-        .layouts
-        .iter()
-        .find(|layout| layout.board_id == board.id && layout.part_ids.contains(part_id));
-    let paired_layout = active_layout.and_then(|layout| {
-        layout
-            .mirror_link
-            .as_ref()
-            .and_then(|link| {
-                document
-                    .layouts
-                    .iter()
-                    .find(|item| item.id == link.source_id)
+        .any(|matrix| matrix.part_ids.contains(part_id));
+    let layouts: Vec<_> = if is_matrix_member {
+        Vec::new()
+    } else {
+        document
+            .layouts
+            .iter()
+            .filter(|layout| layout.board_id == board.id)
+            .map(|layout| inspector::LayoutChoice {
+                id: layout.id.clone(),
+                name: layout.name.clone(),
             })
-            .or_else(|| {
-                document.layouts.iter().find(|item| {
-                    item.mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == layout.id)
-                })
-            })
+            .collect()
+    };
+    let active_layout = document.layouts.iter().find(|layout| {
+        layout.board_id == board.id
+            && (layout.part_ids.contains(part_id)
+                || document.matrices.iter().any(|matrix| {
+                    matrix.id == layout.matrix_id && matrix.part_ids.contains(part_id)
+                }))
     });
     let active_constraint = document
         .constraints
@@ -1603,24 +1596,8 @@ fn layout_component_inspector_projection(
                 && board.part_ids.iter().any(|id| id == constraint.source())
         })
         .cloned();
-    let relationship_summary = if let Some(partner) = paired_layout {
-        format!(
-            "Key assemblies, diodes and components mirror with {}. Replace a component on one half to keep it local.",
-            partner.name
-        )
-    } else if active_layout.is_some() {
-        "This layout is independent. Its geometry and components can be edited separately."
-            .to_owned()
-    } else if let Some(constraint) = active_constraint.as_ref() {
-        let source = board_parts
-            .iter()
-            .find(|candidate| candidate.id == constraint.source())
-            .map(|candidate| candidate.reference.as_str())
-            .unwrap_or("A part");
-        format!("{source} drives {}.", part.reference)
-    } else {
-        "No saved placement relationship on this selection.".to_owned()
-    };
+    let relationship_summary =
+        layout_relationship_summary(document, board, active_layout, Some(part));
     let definition_kind = match &definition.kind {
         PartKind::Switch => "switch",
         PartKind::Controller => "controller",
@@ -1652,6 +1629,145 @@ fn layout_component_inspector_projection(
         active_constraint,
         relationship_summary,
     })
+}
+
+fn matrix_context_relationship_summary(
+    model: &ReadModel,
+    selected: Option<&objects::ScopedTreeContext>,
+) -> Option<String> {
+    let selected = selected?;
+    if !selection::context_is_current(model, &selected.scope, &selected.context) {
+        return None;
+    }
+    let matrix_id = match &selected.context {
+        objects::TreeContext::Matrix { matrix_id }
+        | objects::TreeContext::Row { matrix_id, .. }
+        | objects::TreeContext::Column { matrix_id, .. }
+        | objects::TreeContext::Key { matrix_id, .. } => matrix_id,
+        objects::TreeContext::Component {
+            matrix_id: Some(matrix_id),
+            ..
+        } => matrix_id,
+        _ => return None,
+    };
+    let snapshot = model.accepted.as_ref()?;
+    let document = &snapshot.document;
+    let board_id = &selected.scope.board_id;
+    let layout = document
+        .layouts
+        .iter()
+        .find(|layout| layout.board_id == *board_id && layout.matrix_id == *matrix_id);
+    let board = document.boards.iter().find(|board| board.id == *board_id)?;
+    Some(layout_relationship_summary(
+        document,
+        board,
+        layout,
+        matrix_context_active_part(model, selected),
+    ))
+}
+
+fn matrix_context_relationship_target(
+    model: &ReadModel,
+    selected: Option<&objects::ScopedTreeContext>,
+) -> Option<objects::TreeSelectRequest> {
+    let selected = selected?;
+    let part = matrix_context_active_part(model, selected)?;
+    let context = objects::component_context_for_finding_part(model, &part.id)?;
+    Some(objects::TreeSelectRequest {
+        scope: selected.scope.clone(),
+        context,
+        mode: SelectionMode::Replace,
+        outline_action: None,
+    })
+}
+
+fn matrix_context_active_part<'a>(
+    model: &'a ReadModel,
+    selected: &objects::ScopedTreeContext,
+) -> Option<&'a Part> {
+    if !selection::context_is_current(model, &selected.scope, &selected.context) {
+        return None;
+    }
+    let board = model
+        .accepted
+        .as_ref()?
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == selected.scope.board_id)?;
+    let context_parts = objects::resolve_selection(model, &selected.context)?;
+    model
+        .selected_part_ids
+        .iter()
+        .find(|part_id| context_parts.contains(part_id) && board.part_ids.contains(part_id))
+        .and_then(|part_id| {
+            model
+                .accepted
+                .as_ref()?
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == *part_id)
+        })
+}
+
+fn layout_relationship_summary(
+    document: &boardstudio_core::model::ProjectDoc,
+    board: &boardstudio_core::model::Board,
+    active_layout: Option<&boardstudio_core::model::Layout>,
+    active_part: Option<&Part>,
+) -> String {
+    let paired_layout = active_layout.and_then(|layout| {
+        layout
+            .mirror_link
+            .as_ref()
+            .and_then(|link| {
+                document.layouts.iter().find(|candidate| {
+                    candidate.board_id == board.id && candidate.id == link.source_id
+                })
+            })
+            .or_else(|| {
+                document.layouts.iter().find(|candidate| {
+                    candidate.board_id == board.id
+                        && candidate
+                            .mirror_link
+                            .as_ref()
+                            .is_some_and(|link| link.source_id == layout.id)
+                })
+            })
+    });
+    if let Some(partner) = paired_layout {
+        return format!(
+            "Key assemblies, diodes and components mirror with {}. Replace a component on one half to keep it local.",
+            partner.name
+        );
+    }
+    if active_layout.is_some() {
+        return "This layout is independent. Its geometry and components can be edited separately."
+            .to_owned();
+    }
+    let driven = active_part.and_then(|target| {
+        document
+            .constraints
+            .iter()
+            .find(|constraint| {
+                constraint.target() == target.id.as_str()
+                    && board
+                        .part_ids
+                        .iter()
+                        .any(|part_id| part_id == constraint.source())
+            })
+            .map(|constraint| {
+                let source = document
+                    .parts
+                    .iter()
+                    .find(|part| part.id == constraint.source())
+                    .map(|part| part.reference.as_str())
+                    .unwrap_or("A part");
+                format!("{source} drives {}.", target.reference)
+            })
+    });
+    driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
 }
 
 fn update_layout_selection_kind_for_tree_context(
@@ -2649,6 +2765,7 @@ fn Editor() -> Element {
     let render_generation = (adapter.generation)();
     let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
+    let layout_context_tab = use_signal(layout_workspace::LayoutInspectorTab::default);
     let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
     let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
     let layout_transform_tool_owner =
@@ -6963,6 +7080,13 @@ fn Editor() -> Element {
                     open_menu: layout_command_menu,
                     on_selection_kind: workspace_callbacks.layout_selection_kind,
                     on_snap_intent: workspace_callbacks.layout_snap_intent,
+                    show_relationships: true,
+                    has_selection_context: matrix_transform_inspector.projection.is_some()
+                        || component_inspector.is_some(),
+                    on_show_relationships: EventHandler::new(move |()| {
+                        layout_context_tab.set(layout_workspace::LayoutInspectorTab::Relations);
+                        inspect_open.set(true);
+                    }),
                 },
             ))
         }
@@ -7034,6 +7158,9 @@ fn Editor() -> Element {
                     align: pcb_align.clone(),
                     on_selection_kind: workspace_callbacks.pcb_selection_kind,
                     on_snap_intent: workspace_callbacks.pcb_snap_intent,
+                    show_relationships: false,
+                    has_selection_context: false,
+                    on_show_relationships: EventHandler::new(|()| {}),
                 },
             ))
         }
@@ -7371,6 +7498,16 @@ fn Editor() -> Element {
                 matrix_inspector,
                 key_size,
                 matrix_transform_inspector,
+                inspector_tab: layout_context_tab,
+                matrix_relationship_summary: matrix_context_relationship_summary(
+                    &model,
+                    selected_tree_context.as_ref(),
+                ),
+                matrix_relationship_target: matrix_context_relationship_target(
+                    &model,
+                    selected_tree_context.as_ref(),
+                ),
+                on_select_context: workspace_callbacks.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
                 board_inspector: board_inspector_projection,
                 on_board_rename: board_inspector.on_rename,

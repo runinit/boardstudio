@@ -359,6 +359,7 @@ fn mounted_component_inspector_host() -> Element {
     let _ = render_generation();
     let workspace = use_signal(|| "Layout");
     let selection_kind = use_signal(objects::LayoutSelectionKind::default);
+    let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let inspect_open = use_signal(|| true);
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
     let anchor_scope = use_signal(|| None::<Scope>);
@@ -427,7 +428,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-clear", onclick: { let mut generation = render_generation; move |_| { clear_probe.select(None); generation += 1; } }, "Clear selection" }
         button { id: "component-inspector-unrelated-refresh", onclick: { let mut generation = render_generation; move |_| { refresh_probe.accept_unrelated_revision(); generation += 1; } }, "Accept unrelated revision" }
         if let Some(projection) = projection {
-            LayoutComponentInspector { projection, on_action: action_handler }
+            LayoutComponentInspector { projection, inspector_tab, on_action: action_handler }
         }
     }
 }

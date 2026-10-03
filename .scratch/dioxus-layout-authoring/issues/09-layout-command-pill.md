@@ -11,7 +11,8 @@ Start only after the existing F3.3a Select/Snap child and the Transform and Alig
 - Compose one floating Layout command pill in the existing canvas toolbar, in React order: Select, Transform, Align, Snap. Keep the Design view selector (2D / 3D assembly / Footprints) in its separate group directly below/adjacent as in the pinned reference; do not merge view state into command state.
 - Remove the separate Select/Snap placement and extra selection-context chip only if their useful context is preserved in the existing tree/Inspector/status. Do not hide or duplicate selection facts; this ticket is about the command surface and its controls.
 - Root owns the shared composition and root-lifetime signals. Reuse the existing leaf components and callbacks; no additional selection, snap, transform, alignment, or document store.
-- Relationships is intentionally omitted until F3.5 provides a real inspector route. Do not show a dead button to create visual parity.
+- Relationships routes the selected Layout scope to the shared F3.5 Relations tab and is disabled without a current selection context. Keep it inside the Align menu as in React; do not add a separate toolbar state or imply that broader F3.5 acceptance is complete.
+- RF handoff: no new refactoring takeaway observed. Keep accepted context, relation projection and tab state in the existing Editor/inspector owners; preserve RF-001 as the shared composition boundary.
 - Preserve active transform finish/cancel affordance and open-menu dismissal semantics without pushing the pill outside compact viewport bounds.
 
 ## Acceptance

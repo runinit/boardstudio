@@ -16,6 +16,9 @@ pub(super) struct ToolbarInput {
     pub(super) align: objects::LayoutAlignMount,
     pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pub(super) has_selection_context: bool,
+    pub(super) show_relationships: bool,
+    pub(super) on_show_relationships: EventHandler<()>,
 }
 
 pub(super) struct CanvasInput {
@@ -77,6 +80,9 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                 snap_settings: input.snap_settings,
                 on_selection_kind: input.on_selection_kind,
                 on_snap_intent: input.on_snap_intent,
+                has_selection_context: input.has_selection_context,
+                show_relationships: input.show_relationships,
+                on_show_relationships: input.on_show_relationships,
             }
         }
     }
