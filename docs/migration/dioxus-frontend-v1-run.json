@@ -1271,8 +1271,8 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T08:36:58.655282+00:00",
-    "authority": "Latest user: Layout first, six queues, one waiting packet/stream, journey/criterion reporting, less testing/more implementation.",
+    "updated_at": "2026-10-03T08:53:27.237288+00:00",
+    "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 2,
       "planned": 45,
@@ -1281,23 +1281,23 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-parts-case-mounting-fixed-20261003",
-      "source_commit": "e2e88ec69d613aefc9748333f4e0d9c8b14b3feb",
-      "root_url": "http://127.0.0.1:34756/",
-      "subpath_url": "http://127.0.0.1:34756/boardstudio/",
-      "provenance": "web/target/builds/frontend-parts-case-mounting-fixed-20261003/provenance.json",
-      "provenance_sha256": "9cc5f919b8c1a19a0c47b476b619b46cd3279144699ab95c817c29deb2040c75",
+      "build_id": "frontend-keycaps-menu-zoom-repairs-20261003",
+      "source_commit": "d7742d46ad0e4dc05d5eb229c7c7de50e6f7945c",
+      "root_url": "http://127.0.0.1:34757/",
+      "subpath_url": "http://127.0.0.1:34757/boardstudio/",
+      "provenance": "web/target/builds/frontend-keycaps-menu-zoom-repairs-20261003/provenance.json",
+      "provenance_sha256": "f5e98f1b521a06c1b8cc91631e8fcdee550972489d8d5e3830a1a4c9e1c0f2e3",
       "fresh_commands": 8,
       "inherited_commands": 22,
       "source_inputs": 1365,
       "source_mismatches": 0,
       "assets_per_route": 145,
-      "command_span_seconds": 101.177424,
-      "package_qualification": "Package/source/assets/root+subpath200 COEP PASS. Parts metadata corrections and Case mounting controls served. Keycaps34755 blank preview RED; source effect-loop fix next. Contextual Layout and Keymap changed journeys GREEN34755 reused. Project menu stacking defect and remaining mount owner/ID source corrections retained."
+      "command_span_seconds": 98.041699,
+      "package_qualification": "Guarded page package/source/assets/root+subpath HTTP200 COEP PASS; strict page WASM all-target Clippy PASS17.66s. Actual Keycaps cap/legend3D and layers GREEN, Keymap80/96/25/400 zoom GREEN, Project menu overlay/1px preview outline GREEN. Case unique mount IDs GREEN; edited blocked assembly loses settings suggestions, active source repair. No whole-parent acceptance claimed."
     },
     "integration": {
-      "source_commit": "4820ff08",
-      "state": "Next repair batch includes Keycaps effect-loop c67657b2, Case owner8c6bca32 and unique mount IDs4820ff08. Layout active-Properties click draft guard and Keymap footer source next; Parts menu z-layer correction active.",
+      "source_commit": "87b79733",
+      "state": "Latest served source d7742d46; subsequent evidence-only joins through87b79733. Layout matrix daily workflow is authored in coordinated private view and controller packets; root PCB contextual Objects pane, Parts contextual2D/3D and Case blocked-generation settings projection next. Keymap/Keycaps continue coherent workflows. No active package lease.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1453,7 +1453,7 @@
           "slice": "Layout component membership tab reset",
           "original_source": "5c34c0ce",
           "integrated_source": "b3c6909b",
-          "state": "34752membershipGREEN retained;34755 whole Properties tab-return reset GREEN receiptfc3febc7. Active Properties re-click source follow-up next."
+          "state": "34752 membership and34755 whole Properties tab-return GREEN retained. Active Properties re-click guard8ed609be served34757; narrow changed replay remains. Matrix workflow now active."
         },
         {
           "slice": "Keymap Inspector disclosures",
@@ -1477,13 +1477,13 @@
           "slice": "Keycaps real CAD cap and legend preview",
           "original_source": "cd91879d",
           "integrated_source": "76c07aa8+f9929a45",
-          "state": "34755 actual blank/pending RED: effect reads then writes own sequence, continually cancels. Fixed untracked peek c67657b2, targeted source diagnosis clear; next browser GREEN pending."
+          "state": "34755 blank/pending actual RED; untracked sequence peek repair c67657b2 integrated. Actual34757 interactive cap/legend3D and visibility layers GREEN; receipt7bee0c41+87b79733. Shared viewer lifecycle and broader parent criteria remain."
         },
         {
           "slice": "Case mounting and hardware controls",
           "original_source": "cd6ef00d",
           "integrated_source": "007c7a82+65f32148+e2e88ec6+8c6bca32+4820ff08",
-          "state": "Base/React predicates/disclosure served34756; new owner-remount and cross-collection ID corrections joined next page. Changed CRUD/adoption journey active."
+          "state": "34757 mount-ID collision fixed and actual distinct IDs GREEN; ordinary Boss X edit saves but blocked assembly drops current suggestions. Existing mechanical settings resolver projection repair active. Full CRUD/adoption journey remains open."
         }
       ],
       "checks": {
@@ -1657,11 +1657,11 @@
         "state": "Bounded paired framing verified within1px. Visible zoom percentages still differ.",
         "candidate": "fe86fa05/34750",
         "receipt": ".scratch/dioxus-keymap-layers/evidence/keymap-fit-controls-20261003/paired-browser-journey.md",
-        "remaining": "Zoomlabel/base camera parity, Grid/Snap/footer and fullF6K.1."
+        "remaining": "Full footer Grid/Snap and fullF6K.1; changed visible zoom parity separately verified34757."
       },
       {
         "journey": "Layout Properties\u2192Relations\u2192Properties whole draft reset",
-        "state": "Bounded paired GREEN34755; acceptedmembership kept, unsavedconstraintdraft reset to default. Active-tab re-click follow-up next.",
+        "state": "Bounded paired GREEN34755 retained. Active Properties re-click guard8ed609be served34757; new delta not newly claimed.",
         "candidate": "243aa551/34755",
         "receipt": ".scratch/dioxus-layout-authoring/evidence/f35a-layout-membership-tab-reset-20261003/",
         "remaining": "Matrix/cell authoring and broader Layout parent criteria."
@@ -1672,24 +1672,45 @@
         "candidate": "243aa551/34755",
         "receipt": ".scratch/dioxus-keymap-layers/evidence/keymap-editor-disclosures-20261003/paired-browser-journey.md",
         "remaining": "Footer/camera and broader Keymap editor parent criteria."
+      },
+      {
+        "journey": "PCB ordinary controller -> placement -> PCB -> Undo/Redo -> reload/fresh portable reopen",
+        "state": "Bounded paired GREEN34755, U2 at119.0625,61.9125,24 pads; new actual part and unchanged original parts preserved.",
+        "candidate": "243aa551/34755",
+        "receipt": ".scratch/dioxus-pcb-view/evidence/17-controller-chooser-20261003/public-receipt.json",
+        "remaining": "Chooser stale/cancel/guide branches and broad PCB/Parts visual criteria."
+      },
+      {
+        "journey": "Keycaps real cap/legend3D -> global and individual layer hide/restore",
+        "state": "Actual34755 blank RED ->34757 GREEN;24 caps and1 legend; Cherry global plus SA override and selected colors rendered. Native color set through input/change DOM events; no physical picker claim.",
+        "candidate": "d7742d46/34757",
+        "receipt": ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
+        "remaining": "Shared3D stale/error/cancel lifecycle, Keymap3D consumer and fullF6C.5."
+      },
+      {
+        "journey": "Keymap Fit board80% -> Zoom in96% -> wheel/button25/400 clamps",
+        "state": "Bounded paired GREEN34757; geometry differs about1\u20132px. CLI physical wheel inert; standard cancelable DOM WheelEvents exercised production listener. Revision3 Saved unchanged.",
+        "candidate": "d7742d46/34757",
+        "receipt": ".scratch/dioxus-keymap-layers/evidence/keymap-fit-controls-20261003/zoom-controls-paired-journey.md",
+        "remaining": "Grid/Snap/full footer and complete Keymap parent criteria."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
     "heavy_slots": {
-      "root_target": "Next guarded page package reuses full frontend-keycaps-controller-layout-20261003 providers; max one package.",
-      "secondary_target": "Root assigns cached Case target for one combined Parts/Case page WASM all-target Clippy.",
+      "root_target": "No active package. Next page-only batch uses guarded provider reuse from full frontend-keycaps-controller-layout-20261003 baseline when source graph allows; max one package.",
+      "secondary_target": "No active check. Root assigns cached Case target for one combined page WASM all-target Clippy after ready batch joins.",
       "dispatch": "Max two heavy jobs; no duplicate author checks or unchanged browser sweeps."
     },
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "next_work": {
-      "Layout": "Finish single34755 draft-reset delta; then existing Issue04 matrix/cell daily workflow. MatrixInspector/controller already mounted; broader edit/growth/history gates remain.",
-      "PCB": "34755 ordinary controller chooser paired placement/Undo/Redo/reopen; next missing PCB daily workflow.",
-      "Keymap": "34755 final disclosure-owner delta; isolated footer zoom factor/label parity authoring.",
-      "Keycaps": "34755 real cap/legend Hybrid CAD preview and visibility toggles; fix only observed defects.",
-      "Case": "Mounting/hardware joined007c7a82; pin and run changed CRUD/adoption actions on next page batch.",
-      "Parts_Project": "Metadata preservation fixed4b074779+a1c371b7; next integrated qualification and existing Project menu visual composition delta. Menu source7ae521b6 already in integration; no duplicate reimplementation."
+      "Layout": "Complete one full matrix settings/add row/add column/duplicate/delete mounted workflow; view+controller authors coordinated. Reuse existing selection/history evidence.",
+      "PCB": "Root authors contextual flat board parts/outline Objects inventory and matching footer; controller placement34755 GREEN retained. Broad findings/layers/selection gates stay open.",
+      "Keymap": "Binding/macro/encoder daily workflow parity inventory and one changed integrated journey; no duplicate ordinary UI tests.",
+      "Keycaps": "Next profile/legend/matrix override daily workflow; actual cap/legend3D/layers34757 GREEN and STEP34749 retained.",
+      "Case": "Keep mount settings, findings and suggestions available for the exact current scope even when CAD generation blocks; existing mechanical resolver projection, no CAD kernel redesign.",
+      "Parts_Project": "Freeze34757 menu overlay/1px outline receipt; implement contextual Parts2D/3D preview/header/Back. Metadata three-way rebase source clear, mounted concurrency boundary remains explicit."
     },
-    "execution_policy": "One required affected compile, one changed paired browser journey and one consolidated candidate review; reuse unchanged evidence. Ordinary reversible UI gets no new tests. Real bugs keep focused regressions and remaining acceptance gates explicit.",
+    "execution_policy": "Ordinary reversible UI gets no new tests. Run one required affected compile/check per integrated batch, inspect only changed paired browser journeys, and use one consolidated candidate review. Reuse unchanged history/reopen evidence. Real reproduced bugs retain one focused regression. Parent criteria, blocker history and RF ledger remain explicit.",
     "served_candidate_history": [
       {
         "build_id": "frontend-outline-module-case-delivery-20261003",
@@ -1793,6 +1814,21 @@
         "assets_per_route": 145,
         "command_span_seconds": 464.642372,
         "package_qualification": "Full build and source/assets/root+subpath 200 COEP pass. Includes Keycaps real CAD preview, PCB ordinary controller chooser and final Layout/Keymap contextual repairs. Only changed browser deltas active; unchanged prior evidence reused."
+      },
+      {
+        "build_id": "frontend-parts-case-mounting-fixed-20261003",
+        "source_commit": "e2e88ec69d613aefc9748333f4e0d9c8b14b3feb",
+        "root_url": "http://127.0.0.1:34756/",
+        "subpath_url": "http://127.0.0.1:34756/boardstudio/",
+        "provenance": "web/target/builds/frontend-parts-case-mounting-fixed-20261003/provenance.json",
+        "provenance_sha256": "9cc5f919b8c1a19a0c47b476b619b46cd3279144699ab95c817c29deb2040c75",
+        "fresh_commands": 8,
+        "inherited_commands": 22,
+        "source_inputs": 1365,
+        "source_mismatches": 0,
+        "assets_per_route": 145,
+        "command_span_seconds": 101.177424,
+        "package_qualification": "Package/source/assets/root+subpath200 COEP PASS. Parts metadata corrections and Case mounting controls served. Keycaps34755 blank preview RED; source effect-loop fix next. Contextual Layout and Keymap changed journeys GREEN34755 reused. Project menu stacking defect and remaining mount owner/ID source corrections retained."
       }
     ],
     "consolidated_reviews": [
