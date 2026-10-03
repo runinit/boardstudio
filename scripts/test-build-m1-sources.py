@@ -21,6 +21,25 @@ INPUTS = (
 
 
 class BuildSourceTests(TestCase):
+    def test_generated_core_package_does_not_change_maintained_source_inventory(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = ("core/src/lib.rs", "core/pkg/boardstudio_core_bg.wasm")
+            for name in inputs:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"initial")
+            paths = ("\0".join(inputs) + "\0").encode()
+            with patch.object(BUILD, "REPO", root), patch.object(
+                BUILD.subprocess, "check_output", return_value=paths
+            ):
+                original = BUILD.sources()
+                (root / inputs[1]).write_bytes(b"regenerated wasm")
+                self.assertEqual(BUILD.sources(), original)
+                self.assertEqual(set(original), {inputs[0]})
+                (root / inputs[0]).write_bytes(b"changed Rust source")
+                self.assertNotEqual(BUILD.sources(), original)
+
     def test_catalogue_inputs_are_hashed_and_changes_trip_the_final_guard(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)

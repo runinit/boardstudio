@@ -66,6 +66,7 @@ REUSED_PROVIDER_PREFIXES = (
 # still hashed; generated copies are validated as packaged assets instead.
 GENERATED_SOURCE_PATHS = (
     "web/target/",
+    "core/pkg/",
     "cad/wasm/pkg/",
     "cad/.cache/",
     "renderer/pkg/",
