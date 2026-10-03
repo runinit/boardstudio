@@ -11,6 +11,8 @@ mod export_footprints;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 #[path = "macro_accessible_names.rs"]
 mod macro_accessible_names;
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+mod pcb_handoff;
 #[cfg(all(feature = "page", any(test, target_arch = "wasm32")))]
 mod setup_guide_state;
 

@@ -173,6 +173,38 @@ fn firmware_export_bytes_for_delivery(
     }
 }
 
+fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
+    let Some(board_id) = plan.board_id.as_deref() else {
+        return false;
+    };
+    if plan.revision != document.revision {
+        return false;
+    }
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+        return false;
+    };
+    let configuration = document.hardware.as_ref().and_then(|hardware| {
+        hardware
+            .boards
+            .iter()
+            .find(|entry| entry.board_id == board_id)
+    });
+    let prefix = format!("generated/electrical/{board_id}/");
+    let current = document
+        .nets
+        .iter()
+        .filter(|net| net.id.starts_with(&prefix))
+        .collect::<Vec<_>>();
+    current.len() == plan.nets.len()
+        && configuration.is_some_and(|configuration| {
+            configuration.mode == plan.mode
+                && configuration.controller_part_id == plan.controller_part_id
+        })
+        && plan.nets.iter().all(|net| {
+            current.iter().any(|candidate| *candidate == net) && board.net_ids.contains(&net.id)
+        })
+}
+
 fn firmware_export_capture_matches(
     capture: &FirmwareExportCapture,
     scope: Option<&Scope>,
@@ -269,6 +301,18 @@ struct FootprintExportCapture {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct PcbHandoffCapture {
+    scope: Scope,
+    token: SnapshotToken,
+    revision: u64,
+    session_epoch: boardstudio_application::SessionEpoch,
+    document_id: String,
+    executor_epoch: boardstudio_application::ExecutorEpoch,
+    core_worker_identity: usize,
+    draft: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct FirmwareAcceptedIdentity {
     session_epoch: boardstudio_application::SessionEpoch,
     document_id: String,
@@ -362,6 +406,7 @@ pub struct Runtime {
     keycaps_step_exports: RefCell<BTreeSet<OperationId>>,
     firmware_exports: RefCell<BTreeMap<OperationId, FirmwareExportCapture>>,
     footprint_exports: RefCell<BTreeMap<OperationId, FootprintExportCapture>>,
+    pcb_handoff_exports: RefCell<BTreeMap<OperationId, PcbHandoffCapture>>,
     latest_firmware_export: Cell<Option<OperationId>>,
     firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
@@ -454,6 +499,7 @@ impl Runtime {
             keycaps_step_exports: RefCell::new(BTreeSet::new()),
             firmware_exports: RefCell::new(BTreeMap::new()),
             footprint_exports: RefCell::new(BTreeMap::new()),
+            pcb_handoff_exports: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
             firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
@@ -1882,6 +1928,7 @@ impl Runtime {
                     self.keycaps_step_exports.borrow_mut().remove(&operation_id);
                 let firmware_capture = self.firmware_exports.borrow_mut().remove(&operation_id);
                 self.footprint_exports.borrow_mut().remove(&operation_id);
+                self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
                 let delivery_error = self
                     .firmware_export_delivery_errors
                     .borrow_mut()
@@ -2002,7 +2049,19 @@ impl Runtime {
                 let is_firmware_export = self.firmware_exports.borrow().contains_key(&operation_id);
                 let is_footprint_export =
                     self.footprint_exports.borrow().contains_key(&operation_id);
-                let result = if is_footprint_export {
+                let is_pcb_handoff_export = self
+                    .pcb_handoff_exports
+                    .borrow()
+                    .contains_key(&operation_id);
+                let result = if is_pcb_handoff_export {
+                    let draft = self
+                        .pcb_handoff_exports
+                        .borrow()
+                        .get(&operation_id)
+                        .is_some_and(|capture| capture.draft);
+                    self.pcb_handoff_bytes(operation_id, &snapshot, &scope, draft)
+                        .await
+                } else if is_footprint_export {
                     self.footprint_export_bytes(operation_id, &snapshot, &scope)
                         .await
                 } else {
@@ -2075,6 +2134,20 @@ impl Runtime {
                             )
                         } else if is_step_export {
                             ("keyboard.step".to_owned(), None)
+                        } else if is_pcb_handoff_export {
+                            let draft = self
+                                .pcb_handoff_exports
+                                .borrow()
+                                .get(&operation_id)
+                                .is_some_and(|capture| capture.draft);
+                            (
+                                format!(
+                                    "{}-{}pcb-handoff.zip",
+                                    snapshot.document.name,
+                                    if draft { "draft-" } else { "" }
+                                ),
+                                Some("application/zip".to_owned()),
+                            )
                         } else {
                             (archive_filename(&snapshot.document.name), None)
                         };
@@ -2154,6 +2227,7 @@ impl Runtime {
                 self.cancelled_exports.borrow_mut().insert(operation_id);
                 self.archive_export_options.cancel(operation_id);
                 self.footprint_exports.borrow_mut().remove(&operation_id);
+                self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
@@ -3683,6 +3757,373 @@ impl Runtime {
             operation_id,
             scope,
         });
+    }
+
+    pub(crate) fn export_kicad_board(self: &Rc<Self>, draft: bool) {
+        let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert("Select a board before KiCad export."));
+            return;
+        };
+        let model = self.model();
+        let Some(snapshot) = model.accepted else {
+            self.apply_report(RuntimeReport::alert(
+                "KiCad export requires a ready accepted snapshot.",
+            ));
+            return;
+        };
+        let board_exists = snapshot
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id);
+        let pcb_ready = snapshot
+            .scene
+            .board_readiness
+            .iter()
+            .find(|readiness| readiness.board_id == scope.board_id)
+            .map_or(snapshot.scene.readiness.pcb, |readiness| readiness.pcb);
+        if model.active_board_id != scope.board_id || !board_exists || !pcb_ready {
+            self.apply_report(RuntimeReport::alert(
+                "Resolve PCB findings before exporting this board.",
+            ));
+            return;
+        }
+        self.clear_alert();
+        let operation_id = self.operation();
+        let core = self.core.borrow().clone();
+        let capture = PcbHandoffCapture {
+            scope: scope.clone(),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            session_epoch: snapshot.session_epoch,
+            document_id: snapshot.document.id.clone(),
+            executor_epoch: self.session.borrow().core_executor_epoch(),
+            core_worker_identity: Rc::as_ptr(&core) as usize,
+            draft,
+        };
+        self.pcb_handoff_exports
+            .borrow_mut()
+            .insert(operation_id, capture);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+
+    async fn pcb_handoff_bytes(
+        self: &Rc<Self>,
+        operation_id: OperationId,
+        initial_snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        draft: bool,
+    ) -> Result<Vec<u8>, String> {
+        let mut capture = self
+            .pcb_handoff_exports
+            .borrow()
+            .get(&operation_id)
+            .cloned()
+            .ok_or_else(|| "KiCad export owner was cancelled or superseded.".to_owned())?;
+        if capture.draft != draft
+            || capture.scope != *scope
+            || capture.token != initial_snapshot.token
+            || capture.revision != initial_snapshot.document.revision
+        {
+            return Err("KiCad export no longer matches its captured board.".into());
+        }
+        let core = self.core.borrow().clone();
+        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
+        let mut snapshot = initial_snapshot.clone();
+        let mut plan = self
+            .resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &core, &capture)
+            .await?;
+        let errors = plan
+            .diagnostics
+            .iter()
+            .filter(|finding| finding.severity == "error")
+            .map(|finding| finding.message.clone())
+            .collect::<Vec<_>>();
+        if !draft && !errors.is_empty() {
+            return Err(errors.join("\n"));
+        }
+        if !pcb_wiring_is_applied(&snapshot.document, &plan) {
+            capture = self
+                .commit_pcb_handoff(
+                    operation_id,
+                    &capture,
+                    boardstudio_application::ExportCommitRequest::ApplyElectrical {
+                        plan: plan.clone(),
+                        draft,
+                    },
+                )
+                .await?;
+            snapshot = self
+                .model()
+                .accepted
+                .ok_or_else(|| "Accepted board snapshot disappeared after wiring.".to_owned())?;
+            plan = self
+                .resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &core, &capture)
+                .await?;
+            let errors = plan
+                .diagnostics
+                .iter()
+                .filter(|finding| finding.severity == "error")
+                .map(|finding| finding.message.clone())
+                .collect::<Vec<_>>();
+            if !draft && !errors.is_empty() {
+                return Err(errors.join("\n"));
+            }
+        }
+        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
+        let mut populations = Vec::new();
+        for instance in snapshot
+            .document
+            .hardware
+            .as_ref()
+            .into_iter()
+            .flat_map(|hardware| hardware.instances.iter())
+            .filter(|instance| instance.board_id == scope.board_id)
+        {
+            let population = self
+                .resolve_pcb_handoff_plan(
+                    operation_id,
+                    &snapshot,
+                    scope,
+                    Some(&instance.id),
+                    &core,
+                    &capture,
+                )
+                .await?;
+            if !draft
+                && population
+                    .diagnostics
+                    .iter()
+                    .any(|finding| finding.severity == "error")
+            {
+                return Err(format!(
+                    "Resolve wiring findings for {} before export",
+                    instance.name
+                ));
+            }
+            populations.push((instance.name.clone(), population));
+        }
+        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
+        let generator = || {
+            if let Some(worker) = self.preview_generator.borrow().as_ref() {
+                return Ok(worker.clone());
+            }
+            let url = resource_url("assets/preview-generator/worker.mjs")?;
+            let worker = Rc::new(
+                crate::preview_generator::PreviewGeneratorClient::new(&url)
+                    .map_err(|error| error.to_string())?,
+            );
+            *self.preview_generator.borrow_mut() = Some(worker.clone());
+            Ok(worker)
+        };
+        let archive = {
+            let runtime = self.clone();
+            let is_current = || {
+                if runtime.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
+                    Ok(())
+                } else {
+                    Err(
+                        "KiCad export was cancelled, superseded, or its accepted source changed."
+                            .into(),
+                    )
+                }
+            };
+            crate::pcb_handoff::build_handoff(
+                operation_id,
+                &snapshot,
+                scope,
+                plan.clone(),
+                populations,
+                &core,
+                &self.store,
+                capture.executor_epoch.0,
+                is_current,
+                generator,
+                draft,
+            )
+            .await?
+        };
+        if !self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
+            return Err("KiCad export was superseded before wiring protection.".into());
+        }
+        capture = self
+            .commit_pcb_handoff(
+                operation_id,
+                &capture,
+                boardstudio_application::ExportCommitRequest::ProtectElectricalHandoff { plan },
+            )
+            .await?;
+        if !self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
+            return Err("KiCad handoff was superseded before delivery.".into());
+        }
+        Ok(archive)
+    }
+
+    async fn resolve_pcb_handoff_plan(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        instance_id: Option<&str>,
+        core: &Rc<CoreWorker>,
+        capture: &PcbHandoffCapture,
+    ) -> Result<ElectricalPlan, String> {
+        if !self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+            return Err("Accepted board changed before wiring resolution.".into());
+        }
+        let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == scope.board_id)
+        });
+        let controller_part_id = snapshot
+            .document
+            .hardware
+            .as_ref()
+            .and_then(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .find(|instance| Some(instance.id.as_str()) == instance_id)
+            })
+            .and_then(|instance| instance.controller_part_id.clone())
+            .or_else(|| {
+                configuration.and_then(|configuration| configuration.controller_part_id.clone())
+            });
+        let request_id = format!(
+            "pcb-handoff-{}-wiring-{}",
+            operation_id.0,
+            instance_id.unwrap_or("board")
+        );
+        let request = CoreRequest::ResolveElectrical {
+            id: request_id.clone(),
+            request: ElectricalPlanRequest {
+                document: (*snapshot.document).clone(),
+                instance_id: instance_id.map(str::to_owned),
+                mode: configuration
+                    .map_or(ElectricalMode::Matrix, |configuration| configuration.mode),
+                locks: configuration.map_or_else(Default::default, |configuration| {
+                    configuration.locks.clone()
+                }),
+                controller_profile: None,
+                board_id: Some(scope.board_id.clone()),
+                controller_part_id,
+            },
+        };
+        let reply = core
+            .request(&request_id, &capture.executor_epoch.0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Wiring resolution failed: {error}"))?;
+        if !self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+            return Err("Accepted board changed during wiring resolution.".into());
+        }
+        let plan = match reply {
+            CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
+            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+            CoreReply::ElectricalResolved { .. } | CoreReply::Error { .. } => {
+                return Err("Core returned wiring for another KiCad export.".into());
+            }
+            _ => return Err("Core returned an unexpected wiring reply.".into()),
+        };
+        if plan.revision != snapshot.document.revision
+            || plan.board_id.as_deref() != Some(scope.board_id.as_str())
+            || plan.instance_id.as_deref() != instance_id
+        {
+            return Err("Core resolved wiring for another board or revision.".into());
+        }
+        Ok(plan)
+    }
+
+    async fn commit_pcb_handoff(
+        self: &Rc<Self>,
+        export_operation_id: OperationId,
+        capture: &PcbHandoffCapture,
+        commit: boardstudio_application::ExportCommitRequest,
+    ) -> Result<PcbHandoffCapture, String> {
+        if !self.pcb_handoff_capture_is_current(
+            export_operation_id,
+            capture,
+            &self.core.borrow().clone(),
+        ) {
+            return Err("KiCad export no longer owns the accepted wiring source.".into());
+        }
+        let operation_id = self.operation();
+        let outcome = self.observe_operation(operation_id);
+        self.submit(Event::ExportCommit {
+            operation_id,
+            export_operation_id,
+            token: capture.token,
+            scope: capture.scope.clone(),
+            commit,
+        });
+        for _ in 0..1_200 {
+            if let Some(outcome) = outcome.borrow_mut().take() {
+                if outcome != TerminalOutcome::Completed {
+                    return Err(format!(
+                        "Could not accept export wiring change: {outcome:?}"
+                    ));
+                }
+                let accepted = self.model().accepted.ok_or_else(|| {
+                    "Accepted board snapshot disappeared after export wiring.".to_owned()
+                })?;
+                let mut updated = capture.clone();
+                updated.token = accepted.token;
+                updated.revision = accepted.document.revision;
+                if accepted.session_epoch != updated.session_epoch
+                    || accepted.document.id != updated.document_id
+                    || accepted.scene.revision != updated.revision
+                    || !self.export_current(export_operation_id, updated.token, &updated.scope)
+                {
+                    return Err("Export wiring changed the captured project or board.".into());
+                }
+                self.pcb_handoff_exports
+                    .borrow_mut()
+                    .insert(export_operation_id, updated.clone());
+                return Ok(updated);
+            }
+            TimeoutFuture::new(25).await;
+        }
+        Err("Export wiring save did not complete.".into())
+    }
+
+    fn pcb_handoff_capture_is_current(
+        &self,
+        operation_id: OperationId,
+        capture: &PcbHandoffCapture,
+        core: &Rc<CoreWorker>,
+    ) -> bool {
+        let current_core = self.core.borrow().clone();
+        let accepted = self.model().accepted;
+        self.pcb_handoff_exports.borrow().get(&operation_id) == Some(capture)
+            && self.export_current(operation_id, capture.token, &capture.scope)
+            && self.scope().as_ref() == Some(&capture.scope)
+            && accepted.as_ref().is_some_and(|snapshot| {
+                snapshot.token == capture.token
+                    && snapshot.document.id == capture.document_id
+                    && snapshot.document.revision == capture.revision
+                    && snapshot.scene.revision == capture.revision
+                    && snapshot.session_epoch == capture.session_epoch
+            })
+            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
+            && Rc::as_ptr(&current_core) as usize == capture.core_worker_identity
+            && Rc::ptr_eq(core, &current_core)
+    }
+
+    fn require_pcb_handoff_current(
+        &self,
+        operation_id: OperationId,
+        capture: &PcbHandoffCapture,
+        core: &Rc<CoreWorker>,
+    ) -> Result<(), String> {
+        if self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+            Ok(())
+        } else {
+            Err("KiCad export was cancelled, superseded, or its accepted source changed.".into())
+        }
     }
 
     async fn footprint_export_bytes(

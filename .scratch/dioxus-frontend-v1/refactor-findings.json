@@ -584,7 +584,7 @@
       "category": "architecture / transaction theory",
       "confidence": "confirmed contract mismatch for PCB workflow",
       "impact_priority": "high",
-      "status": "observed; structural proposal deferred until post-port review",
+      "status": "private Session-owned export-commit path implemented in current F8.3a source packet; integrated download/history qualification pending",
       "discovered": "2026-10-02",
       "baseline": "c827c4e6",
       "workflows": [
@@ -600,10 +600,10 @@
       ],
       "observation": "Session export captures an immutable token and cancels registered exports on accepted commits. React PCB export deliberately adopts its own wiring and protection commits, with packaging before protection, while unrelated changes invalidate output.",
       "impact": "A naive port either cancels its own valid export or weakens stale-output guards. Ownership of a multi-step operation and its accepted document lineage is not represented uniformly.",
-      "during_port": "BND.2 must prove safe private operation/commit correlation; preserve ordering and reject all unrelated changes. If impossible through existing contracts, record a concrete API proposal before dependent code.",
+      "during_port": "BND.2/F8.3a uses a private export-owned commit event with independent child operation settlement, normal accepted persistence/history, exact owner/token/scope checks and token advancement only for that owner. Preserve package-before-protection order and reject unrelated changes.",
       "post_port_proposal": "Evaluate explicit operation lineage/transaction ownership across session jobs, edits, persistence and artifact delivery, with a documented consistency model.",
       "validation_needed": "Race matrix: owned versus unrelated commits, save failure, navigation, cancellation and packaging failure; no stale delivery and no protection without successful packaging.",
-      "decision": "proposal only; no refactor/API/schema change approved by this entry",
+      "decision": "Necessary narrow private application/runtime API change authorized for the parity slice; broader operation-lineage refactor remains deferred",
       "follow_up_owner": "post-port refactoring triage; discovering workflow maintains evidence",
       "linked_tasks": [
         "BND.2",
@@ -616,6 +616,13 @@
           "observation": "The new PCB Wiring mode action filters successful Saved feedback against its old request token/revision after the accepted edit advances them. Independent review found success feedback unreachable; proposal-only tests missed production settlement.",
           "during_port": "Separate stable feedback target and exact operation outcome from stale-action request identity; add mounted accepted-refresh/settlement tests before integrating.",
           "post_port": "Assess transaction-owned accepted-version transitions consistently across export and authoring feedback. Preserve pre-submit stale guards; do not waive visible feedback or history acceptance."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "F8.3a isolated source packet; integrated commit pending",
+          "observation": "The full/draft KiCad adapter now submits applied-wiring and post-package protection mutations as child operations tied to the parent export. Session runs both through the normal Core queue/persistence/history and advances only that still-registered owner's snapshot token; other active exports are cancelled. The changed browser/download journey and save-failure/unrelated-edit race evidence remain pending, so no lifecycle matrix claim is made.",
+          "evidence": ".scratch/dioxus-frontend-v1/issues/08-export-pcb-handoff-slice.md; .scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md",
+          "status": "source-level mitigation in isolated packet; parent and runtime qualification remain open"
         }
       ]
     },

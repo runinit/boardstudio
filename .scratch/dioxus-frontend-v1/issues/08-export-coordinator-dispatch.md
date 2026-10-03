@@ -24,7 +24,7 @@ per-format lifecycle code.
 
 ## First runnable provider child
 
-The mounted standalone KiCad footprints action is tracked separately in [F8.2a](08-export-footprints-slice.md). It uses the existing Core standalone-footprints prepare/finish provider, preview-generator conversion, and Core archive pack path. This child preserves the parent criteria and does not claim the generic coordinator or F8.2/F8.3 acceptance.
+The mounted standalone KiCad footprints action is tracked separately in [F8.2a](08-export-footprints-slice.md). It uses the existing Core standalone-footprints prepare/finish provider, preview-generator conversion, and Core archive pack path. The full/draft selected-board provider is tracked in [F8.3a](08-export-pcb-handoff-slice.md). Both children preserve the parent criteria and do not claim generic F8.2/F8.3 acceptance.
 
 ## First implementation slice
 
@@ -37,15 +37,14 @@ After every await, reject a result whose captured owner is no longer current;
 never deliver an older board or session result.
 
 The current mounted providers are project archive, SVG/DXF, ZMK firmware,
-standalone footprint ZIP, and ordinary authored Case STEP. Public evidence is
+standalone footprint ZIP, full/draft KiCad board handoff, and ordinary authored Case STEP. Public evidence is
 bounded to the actual SVG/DXF downloads on 34763, the footprint ZIP on 34767,
 the Keymap-local ZMK download, and local Keycaps STEP; see the [parent criteria
 map](08-export.md#current-f8-evidence-and-remaining-criteria-2026-10-03).
 Project archive remains without paired Export-route verification. Full/draft
-KiCad rows and generated mechanical package are deliberately unavailable in
-the mounted source, so do not describe them as connected merely because Core
-providers or readiness data exist. The full/draft ordering requirements below
-are still the implementation boundary for wiring those rows. Ordinary
+KiCad now use a private Session-owned accepted-snapshot transition around
+apply → package → protect; their changed Dioxus journey remains pending.
+Generated mechanical package is still unavailable. Ordinary
 authored Case STEP works only when the selected board has no generated
 mechanical configuration; the configured path resolves the generated stack
 and does not establish authored-only STEP semantics. Generated mechanical ZIP
@@ -85,7 +84,8 @@ acceptance criterion is mapped to evidence.
   at the coordinator boundary, not inferred from per-format state helpers.
 - Full/draft KiCad's model assets, multi-instance population files, accepted
   wiring commit, package, and protection ordering require an actual combined
-  journey; a standalone Core `FinishExport` artifact is not that handoff.
+  Dioxus journey; the pinned React baseline and source implementation are not
+  that proof.
 - `Runtime::export_step` can export authored Case STEP when no generated
   mechanical configuration is present; the configured/generated case branch
   resolves the generated stack and must not be relabeled as authored-only.

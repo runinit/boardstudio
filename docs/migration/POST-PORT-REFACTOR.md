@@ -136,13 +136,13 @@ Session export captures an immutable token and cancels registered exports on acc
 
 **Impact:** A naive port either cancels its own valid export or weakens stale-output guards. Ownership of a multi-step operation and its accepted document lineage is not represented uniformly.
 
-**During the port:** BND.2 must prove safe private operation/commit correlation; preserve ordering and reject all unrelated changes. If impossible through existing contracts, record a concrete API proposal before dependent code.
+**During the port:** F8.3a now carries apply/protect mutations as child Session operations owned by one still-current export. Normal Core queueing, persistence and history remain authoritative; only that registered owner advances its accepted token, and unrelated commits cancel other owners. Preserve this bounded path while the browser/package gates complete.
 
 **After the port:** Evaluate explicit operation lineage/transaction ownership across session jobs, edits, persistence and artifact delivery, with a documented consistency model.
 
-**Validate:** Race matrix: owned versus unrelated commits, save failure, navigation, cancellation and packaging failure; no stale delivery and no protection without successful packaging.
+**Validate:** Current integrated full/draft downloads must prove output and accepted history. Later focused race evidence should cover save failure, cancellation/unrelated changes and packaging failure; the source packet does not claim that lifecycle matrix is green.
 
-Evidence: [session.rs](../../application/src/session.rs), [context.ts](../../app/src/exports/context.ts), [pcb.ts](../../app/src/exports/pcb.ts), [runtime.rs](../../web/src/runtime.rs).
+Evidence: [session.rs](../../application/src/session.rs), [context.ts](../../app/src/exports/context.ts), [pcb.ts](../../app/src/exports/pcb.ts), [runtime.rs](../../web/src/runtime.rs), [F8.3a packet](../../.scratch/dioxus-frontend-v1/issues/08-export-pcb-handoff-slice.md), and [pinned React receipt](../../.scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/REACT-RECEIPT.md).
 
 ## RF-005
 

@@ -263,8 +263,29 @@ pub enum Event {
         operation_id: OperationId,
         scope: Scope,
     },
+    /// A document mutation owned by an active export. The child operation is
+    /// persisted through the normal Core/Session path; only the matching export
+    /// owner may advance its captured snapshot token.
+    ExportCommit {
+        operation_id: OperationId,
+        export_operation_id: OperationId,
+        token: SnapshotToken,
+        scope: Scope,
+        commit: ExportCommitRequest,
+    },
     Close {
         operation_id: OperationId,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExportCommitRequest {
+    ApplyElectrical {
+        plan: boardstudio_core::electrical::ElectricalPlan,
+        draft: bool,
+    },
+    ProtectElectricalHandoff {
+        plan: boardstudio_core::electrical::ElectricalPlan,
     },
 }
 
@@ -402,6 +423,16 @@ enum IntentKind {
     GestureCommit(EditCommand),
     Generate(Scope),
     Export(Scope),
+    ExportCommit {
+        owner: ExportCommitOwner,
+        commit: ExportCommitRequest,
+    },
+}
+#[derive(Clone, Debug)]
+struct ExportCommitOwner {
+    operation_id: OperationId,
+    token: SnapshotToken,
+    scope: Scope,
 }
 #[derive(Clone, Debug)]
 struct Intent {
@@ -419,6 +450,7 @@ enum ActiveKind {
     Undo,
     Redo,
     GestureCommit,
+    ExportCommit,
 }
 #[derive(Clone, Debug)]
 struct ActiveCore {
@@ -429,6 +461,7 @@ struct ActiveCore {
     gesture_generation: Option<u64>,
     preview_transaction_id: Option<String>,
     preview_cancelled: bool,
+    export_owner: Option<ExportCommitOwner>,
 }
 #[derive(Clone, Debug)]
 struct PendingSave {
@@ -438,6 +471,7 @@ struct PendingSave {
     kind: ActiveKind,
     save_attempt_id: SaveAttemptId,
     retry_operation_id: Option<OperationId>,
+    export_owner: Option<ExportCommitOwner>,
 }
 #[derive(Clone, Debug)]
 struct Gesture {
@@ -1002,6 +1036,29 @@ impl Session {
                 operation_id,
                 scope,
             } => self.enqueue_aux(operation_id, IntentKind::Export(scope), &mut effects),
+            Event::ExportCommit {
+                operation_id,
+                export_operation_id,
+                token,
+                scope,
+                commit,
+            } => {
+                let owner = ExportCommitOwner {
+                    operation_id: export_operation_id,
+                    token,
+                    scope,
+                };
+                if !self.export_is_current(owner.operation_id, owner.token, &owner.scope) {
+                    self.settle(operation_id, TerminalOutcome::Superseded, &mut effects);
+                } else {
+                    self.enqueue(
+                        operation_id,
+                        IntentKind::ExportCommit { owner, commit },
+                        true,
+                        &mut effects,
+                    );
+                }
+            }
             Event::Close { operation_id } => self.close(operation_id, &mut effects),
         }
         if self.active_core.is_none()
@@ -1197,6 +1254,10 @@ impl Session {
             IntentKind::ReviewElectricalRemap { base_revision, .. } if strict_revision => {
                 Some(*base_revision)
             }
+            IntentKind::ExportCommit { commit, .. } => Some(match commit {
+                ExportCommitRequest::ApplyElectrical { plan, .. }
+                | ExportCommitRequest::ProtectElectricalHandoff { plan } => plan.revision,
+            }),
             _ => None,
         };
         if captured_revision.is_some_and(|revision| {
@@ -1328,6 +1389,16 @@ impl Session {
                 {
                     Some(*base_revision)
                 }
+                IntentKind::ExportCommit { owner, commit } => {
+                    if !self.export_is_current(owner.operation_id, owner.token, &owner.scope) {
+                        self.settle(intent.operation_id, TerminalOutcome::Superseded, effects);
+                        continue;
+                    }
+                    Some(match commit {
+                        ExportCommitRequest::ApplyElectrical { plan, .. }
+                        | ExportCommitRequest::ProtectElectricalHandoff { plan } => plan.revision,
+                    })
+                }
                 _ => None,
             };
             if captured_revision.is_some_and(|revision| {
@@ -1352,6 +1423,10 @@ impl Session {
                     Some(command.transaction_id.clone())
                 }
                 IntentKind::GesturePreview(command) => Some(command.transaction_id.clone()),
+                _ => None,
+            };
+            let export_owner = match &intent.kind {
+                IntentKind::ExportCommit { owner, .. } => Some(owner.clone()),
                 _ => None,
             };
             let (request, kind, gesture_generation) = match intent.kind {
@@ -1397,6 +1472,27 @@ impl Session {
                     ActiveKind::ReviewElectricalRemap,
                     None,
                 ),
+                IntentKind::ExportCommit { owner, commit } => {
+                    let request = match commit {
+                        ExportCommitRequest::ApplyElectrical { plan, draft } => {
+                            CoreRequest::ApplyElectrical {
+                                id: request_wire_id.clone(),
+                                base_revision: plan.revision,
+                                plan,
+                                draft,
+                            }
+                        }
+                        ExportCommitRequest::ProtectElectricalHandoff { plan } => {
+                            CoreRequest::ProtectElectricalHandoff {
+                                id: request_wire_id.clone(),
+                                base_revision: plan.revision,
+                                board_id: owner.scope.board_id,
+                                plan,
+                            }
+                        }
+                    };
+                    (request, ActiveKind::ExportCommit, None)
+                }
                 IntentKind::Undo => (
                     CoreRequest::Undo {
                         id: request_wire_id.clone(),
@@ -1449,6 +1545,7 @@ impl Session {
                 gesture_generation,
                 preview_transaction_id,
                 preview_cancelled: false,
+                export_owner,
             });
             effects.push(Effect::Core {
                 operation_id: intent.operation_id,
@@ -1518,6 +1615,7 @@ impl Session {
                 ActiveKind::Open
                 | ActiveKind::Commit
                 | ActiveKind::ReviewElectricalRemap
+                | ActiveKind::ExportCommit
                 | ActiveKind::Undo
                 | ActiveKind::Redo
                 | ActiveKind::GestureCommit,
@@ -1549,6 +1647,7 @@ impl Session {
                     kind: active.kind,
                     save_attempt_id,
                     retry_operation_id: None,
+                    export_owner: active.export_owner,
                 });
                 self.model.lifecycle = Lifecycle::Saving;
                 self.model.durability = Durability::Saving {
@@ -1638,7 +1737,11 @@ impl Session {
                     self.epoch()
                 };
                 self.cancel_job(effects);
-                self.cancel_exports(effects);
+                if let Some(owner) = &pending.export_owner {
+                    self.cancel_exports_except(owner.operation_id, effects);
+                } else {
+                    self.cancel_exports(effects);
+                }
                 let token = SnapshotToken(self.next_token);
                 self.next_token += 1;
                 self.model.accepted = Some(AcceptedSnapshot {
@@ -1647,6 +1750,18 @@ impl Session {
                     document: pending.document.clone(),
                     scene: pending.scene.clone(),
                 });
+                if let Some(owner) = &pending.export_owner
+                    && let Some(export) =
+                        self.exports
+                            .iter_mut()
+                            .find(|(operation, scope, old_token)| {
+                                *operation == owner.operation_id
+                                    && *scope == owner.scope
+                                    && *old_token == owner.token
+                            })
+                {
+                    export.2 = token;
+                }
                 self.model.display_preview = None;
                 self.display_preview_transaction_id = None;
                 self.model.durability = Durability::Saved {
@@ -1990,6 +2105,20 @@ impl Session {
             self.settle(operation_id, TerminalOutcome::Cancelled, effects);
         }
     }
+    fn cancel_exports_except(&mut self, retained: OperationId, effects: &mut Vec<Effect>) {
+        let mut keep = Vec::new();
+        for export in std::mem::take(&mut self.exports) {
+            if export.0 == retained {
+                keep.push(export);
+            } else {
+                effects.push(Effect::CancelExport {
+                    operation_id: export.0,
+                });
+                self.settle(export.0, TerminalOutcome::Cancelled, effects);
+            }
+        }
+        self.exports = keep;
+    }
     fn cancel_job(&mut self, effects: &mut Vec<Effect>) {
         if let Some((job_id, operation_id, _)) = self.active_job.take() {
             effects.push(Effect::CancelJob { job_id });
@@ -2171,6 +2300,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         | Event::StartGeneration { operation_id, .. }
         | Event::CancelGeneration { operation_id }
         | Event::StartExport { operation_id, .. }
+        | Event::ExportCommit { operation_id, .. }
         | Event::Close { operation_id } => Some(*operation_id),
         _ => None,
     }

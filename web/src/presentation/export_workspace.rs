@@ -249,26 +249,31 @@ fn export_rows(
         EventHandler::new(move |()| dxf_runtime.export_board_outline(OutlineExportFormat::Dxf));
     let footprints_runtime = runtime.clone();
     let footprints_export = EventHandler::new(move |()| footprints_runtime.export_footprints());
+    let kicad_runtime = runtime.clone();
+    let kicad_export = EventHandler::new(move |()| kicad_runtime.export_kicad_board(false));
+    let draft_kicad_runtime = runtime.clone();
+    let draft_kicad_export =
+        EventHandler::new(move |()| draft_kicad_runtime.export_kicad_board(true));
     let mut rows = vec![
         ExportRow {
             label: "KiCad board",
             detail: "Placements, resolved wiring, and board edges for KiCad",
             ready: pcb_ready && wiring_ready,
-            available: false,
+            available: true,
             reason: if pcb_ready && wiring_ready {
                 None
             } else {
                 wiring_blocker
             },
-            on_export: None,
+            on_export: Some(kicad_export),
         },
         ExportRow {
             label: "Draft KiCad board",
             detail: "Incomplete wiring with a findings report",
             ready: pcb_ready,
-            available: false,
+            available: true,
             reason: (!pcb_ready).then_some("Review the board outline and layout findings."),
-            on_export: None,
+            on_export: Some(draft_kicad_export),
         },
         ExportRow {
             label: "ZMK firmware",
