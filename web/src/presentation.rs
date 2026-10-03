@@ -865,6 +865,20 @@ fn keymap_bounds(view: &keymap::KeymapView, contours: &[Contour]) -> Option<(f64
     bounds
 }
 
+fn keymap_toolbar_height() -> f64 {
+    web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| {
+            document
+                .query_selector(".m1-design-canvas-toolbar")
+                .ok()
+                .flatten()
+        })
+        .map(|toolbar| toolbar.get_bounding_client_rect().height())
+        .filter(|height| height.is_finite() && *height > 0.0)
+        .unwrap_or(42.0)
+}
+
 fn keycaps_bounds(
     view: &keycaps_scene::KeycapsView,
     contours: &[Contour],
@@ -3809,9 +3823,12 @@ fn Editor() -> Element {
             return;
         };
         let rect = surface.get_bounding_client_rect();
-        let Some(camera) =
-            keymap::fit_camera(canvas_bounds, target_bounds, (rect.width(), rect.height()))
-        else {
+        let Some(camera) = keymap::fit_camera(
+            canvas_bounds,
+            target_bounds,
+            (rect.width(), rect.height()),
+            keymap_toolbar_height(),
+        ) else {
             return;
         };
         keymap_runtime.submit(Event::SetCamera {
@@ -3863,9 +3880,12 @@ fn Editor() -> Element {
             return;
         };
         let rect = surface.get_bounding_client_rect();
-        let Some(camera) =
-            keymap::fit_camera(canvas_bounds, target_bounds, (rect.width(), rect.height()))
-        else {
+        let Some(camera) = keymap::fit_camera(
+            canvas_bounds,
+            target_bounds,
+            (rect.width(), rect.height()),
+            keymap_toolbar_height(),
+        ) else {
             return;
         };
         selection_runtime.submit(Event::SetCamera {
