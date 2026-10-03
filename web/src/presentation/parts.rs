@@ -7,6 +7,7 @@ mod generator_settings;
 mod mechanical_profile_editor;
 #[cfg(target_arch = "wasm32")]
 mod mechanical_profile_ui;
+mod module_profile_editor;
 mod modules_catalogue;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod physical_setup;
@@ -1095,7 +1096,7 @@ pub(super) fn PartsInspectorPanel(
             if let Some(module_id) = selected_module_id.as_deref() {
                 if let Some(module) = module_catalogue.entries.as_deref().and_then(|entries| entries.iter().find(|entry| entry.definition.id == module_id)) {
                     { let variants = module_catalogue.entries.as_deref().map(|entries| modules_catalogue::variants(entries, &module.row)).unwrap_or_default();
-                      rsx! { modules_catalogue::ModuleInspector { module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement } }
+                      rsx! { modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement } }
                     }
                 } else if let Some(error) = module_catalogue.error.as_ref() {
                     p { class: "m1-parts-load-error", role: "alert", "Module sources could not be loaded: {error}" }

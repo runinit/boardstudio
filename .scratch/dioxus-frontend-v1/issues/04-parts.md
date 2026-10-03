@@ -107,6 +107,18 @@ The task graph is in `/tmp/boardstudio-workflow-plans/F4.json`. Suggested slices
 | F4.6 | Saved key assembly editor and preview | F4.1, F4.4; F3 matrix/board placement seam before Place/Apply controls | Assembly editor draft/forms, member/model controls, save/apply/place UI | Assembly document types and generic edit path exist; React sample/placement/controller helpers are UI logic that must be ported without changing the contract. |
 | F4.7 | VIK/module source profile review in Parts | F4.1, F4.4; F5 for mounted use; F7 for physical-fit acceptance | Module source preview, library-level profile editor, variant/readiness presentation | Module catalogue and import/profile operations exist. Keep mounted module controls, wiring and board overlays in F5. |
 
+#### Bounded module-profile editor refinement
+
+The library-level module inspector's manual profile editor edits measured volumes,
+functional openings, candidate model bindings/transforms, and the supported rotary
+profile through the ordinary accepted `SetModuleDefinition` edit. Keep the draft
+scoped to the selected module/session/scope and rebase only those profile fields on
+the latest accepted definition; unrelated accepted metadata must survive. Existing
+project-owned definition deletion or a conflicting profile edit rejects. This
+surface records manual evidence and qualification only: asynchronous source
+extraction, mounted-module wiring/placement and Case assembly acceptance remain
+separate joins. A mounted editor does not close F4.7 or the parent F4 workflow.
+
 F4.2 custom definitions do not require full F3 for editing/import/round-trip. F4.3 generator and F4.4 preview are independent of matrix authoring after INT.1 provides their private host contract. F4.5 part-fit profile UI can be built as a library action while Case remains downstream. F4.6 save can be delivered before placement if Place/Apply is held for its actual F3 dependency; do not mark F4 complete on that partial state. F4.7 source/profile UI may be built before F5, but its mounted-instance behavior is explicitly downstream.
 
 ### Source and file map

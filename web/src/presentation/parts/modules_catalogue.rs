@@ -1,5 +1,6 @@
 //! Lazy, read-only projection of the packaged VIK module catalogue.
-use boardstudio_application::{Scope, SnapshotToken};
+use super::module_profile_editor::ModuleProfileEditor;
+use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{HardwareOutput, ModuleDefinition, Side};
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
@@ -402,6 +403,7 @@ pub(super) fn ModuleSourcePreview(module: ModuleEntry) -> Element {
 
 #[component]
 pub(super) fn ModuleInspector(
+    snapshot: AcceptedSnapshot,
     module: ModuleEntry,
     variants: Vec<ModuleEntry>,
     scope: Option<Scope>,
@@ -497,6 +499,13 @@ pub(super) fn ModuleInspector(
         }
         a { href: "{source_url}", target: "_blank", rel: "noreferrer", "Pinned source ↗" }
         p { class: "m1-parts-empty", "{source_summary}" }
+        ModuleProfileEditor {
+            snapshot,
+            definition: (*module.definition).clone(),
+            project_owned,
+            scope: scope.clone(),
+            selected,
+        }
     }
 }
 
