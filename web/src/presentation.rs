@@ -1352,6 +1352,36 @@ fn pcb_add_layout_open_handler(
     })
 }
 
+fn pcb_add_outline_select_handler(
+    runtime: Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: SelectionAdapter,
+    owner: LayoutOwnerIdentity,
+    assembly_3d: Signal<bool>,
+    on_select: EventHandler<objects::TreeSelectRequest>,
+) -> EventHandler<objects::TreeSelectRequest> {
+    let mut workspace = workspace;
+    let mut assembly_3d = assembly_3d;
+    EventHandler::new(move |request| {
+        let objects::TreeContext::Outline { board_id } = &request.context else {
+            on_select.call(request);
+            return;
+        };
+        let Some(owner_scope) = owner.scope.as_ref() else {
+            return;
+        };
+        if board_id != &owner_scope.board_id
+            || request.scope != *owner_scope
+            || !pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+        {
+            return;
+        }
+        workspace.set("Layout");
+        assembly_3d.set(false);
+        on_select.call(request);
+    })
+}
+
 fn canvas_owner_is_current(
     runtime: &Runtime,
     workspace: Signal<&'static str>,
@@ -6530,6 +6560,23 @@ fn Editor() -> Element {
             };
             let pcb_add_is_current =
                 pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &pcb_add_owner);
+            let mut pcb_shared_objects = shared_objects;
+            pcb_shared_objects.on_select = pcb_add_outline_select_handler(
+                runtime.clone(),
+                workspace,
+                adapter.clone(),
+                pcb_add_owner.clone(),
+                layout_assembly_3d,
+                pcb_shared_objects.on_select,
+            );
+            pcb_shared_objects.on_open_geometry_scripts = pcb_add_layout_open_handler(
+                runtime.clone(),
+                workspace,
+                adapter.clone(),
+                pcb_add_owner.clone(),
+                layout_assembly_3d,
+                pcb_shared_objects.on_open_geometry_scripts,
+            );
             let mut pcb_matrix_setup = matrix_setup.clone();
             pcb_matrix_setup.can_open = pcb_add_is_current
                 && pcb_matrix_setup.projection.is_none()
@@ -6558,7 +6605,7 @@ fn Editor() -> Element {
             );
             workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
                 pcb_workspace::ObjectsInput {
-                    shared: shared_objects,
+                    shared: pcb_shared_objects,
                     matrix_setup: pcb_matrix_setup,
                     mirrored_pair: pcb_mirrored_pair,
                     on_place_component: part_placement.on_place_component,
