@@ -16,7 +16,7 @@
     "scope": "Exact prior record with every checkpoint, review reference, acceptance scope, build failure and journey retained; consult only for historical evidence."
   },
   "current_progress": {
-    "updated_at": "2026-10-03T19:46:54.896080+00:00",
+    "updated_at": "2026-10-03T20:19:25.871997+00:00",
     "parent_counts": {
       "accepted": 10,
       "implementing": 41,
@@ -25,20 +25,20 @@
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
     "served_candidate": {
-      "build_id": "frontend-functional-selection-20261003",
-      "source_commit": "c85160c70c09c69289c6c9fd330dc5f357552c32",
-      "root_url": "http://127.0.0.1:34776/",
-      "subpath_url": "http://127.0.0.1:34776/boardstudio/",
-      "provenance": "web/target/builds/frontend-functional-selection-20261003/provenance.json",
-      "provenance_sha256": "057ac248598153797ad950c434fbed9d3f5762e2d8998857363d041a392a7fac",
+      "build_id": "frontend-criteria-encoder-20261003",
+      "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
+      "root_url": "http://127.0.0.1:34777/",
+      "subpath_url": "http://127.0.0.1:34777/boardstudio/",
+      "provenance": "web/target/builds/frontend-criteria-encoder-20261003/provenance.json",
+      "provenance_sha256": "96afb5d367640c68886b13597409a384977f866ffba02da69bb2dda5517e073c",
       "fresh_commands": 8,
       "inherited_commands": 22,
-      "source_inputs": 1385,
+      "source_inputs": 1389,
       "source_mismatches": 0,
       "assets_per_route": 190,
-      "command_span_seconds": 147.557471,
-      "package_qualification": "Combined compiler/package; current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
-      "package_proof": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/package-proof.json",
+      "command_span_seconds": 139.566504,
+      "package_qualification": "Combined package provenance, current source hashes and local assets verified; live asset checks performed by record-candidate. Functional journey evidence is separate.",
+      "package_proof": ".scratch/dioxus-frontend-v1/evidence/frontend-criteria-encoder-20261003/package-proof.json",
       "release_warnings": {
         "root": 0,
         "subpath": 0
@@ -48,8 +48,8 @@
     "refactor_ledger": ".scratch/dioxus-frontend-v1/refactor-findings.json",
     "authority": "CONSTRAINTS.md; docs/agents/issue-tracker.md#frontend-delivery-records",
     "integration": {
-      "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
-      "state": "Combined source integrated; nine browser-executed Keymap checks and focused tooling checks pass. Preparing immutable candidate.",
+      "source_commit": "9548c3f06153008da68400b6fc566e35101a20dd",
+      "state": "Application candidate 34777 passed the real-plan encoder/ZMK journey. Five delivery fixes are implemented; the later host-only publication rollback repair passed focused checks. Remaining lifecycle qualification is explicit in criteria.",
       "packets": [
         {
           "stream": "Layout",
@@ -306,7 +306,8 @@
           "qualification": "Paired focused behavior passed on34775; visual/context parity findings remain."
         }
       ],
-      "qualification": "Focused red/green regressions plus listed paired public behaviors verified; remaining visual/context and broader parent criteria retained."
+      "qualification": "Nine Keymap WASM browser checks, focused tooling checks, combined compiler/package and affected browser journeys passed. Broader parent joins and unexecuted lifecycle branches remain.",
+      "application_candidate_source": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4"
     },
     "journeys": [
       {
@@ -404,6 +405,14 @@
           "provenance": "web/target/builds/frontend-source-batch-20261003-5/provenance.json",
           "provenance_sha256": "ef5f71c5086563dfefb6b53ed8e2108485b30d0d7072214a67c47794b86321bd",
           "qualification": "Package/source/HTTP assets only. No new application tests, browser journeys or review."
+        },
+        {
+          "build_id": "frontend-criteria-encoder-20261003",
+          "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
+          "exit_code": 0,
+          "result": "complete",
+          "proof": ".scratch/dioxus-frontend-v1/evidence/frontend-criteria-encoder-20261003/package-proof.json",
+          "qualification": "Existing compiler gate passed; eight fresh and 22 inherited commands; zero release warnings. Affected browser results are recorded under qualification."
         }
       ],
       "source_compile": {
@@ -434,15 +443,21 @@
         "exit_code": 0,
         "latest_log": "/home/chris/.local/share/boardstudio/retained-tmp/20261003/source-batch-typecheck-20261003-18.log",
         "warnings": 0
+      },
+      "latest_compiler": {
+        "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
+        "exit_code": 0,
+        "command": "cargo check --manifest-path web/Cargo.toml --locked --target wasm32-unknown-unknown --no-default-features --features page --bin boardstudio-web",
+        "log": "web/target/builds/frontend-criteria-encoder-20261003/page-check.log"
       }
     },
     "execution_policy": "docs/agents/issue-tracker.md#frontend-delivery-records",
     "candidate_review": {
-      "candidate": "frontend-functional-selection-20261003",
-      "review": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md",
-      "review_sha256": "65f316307f9edfedf46646232b7580254e6fdf41de7f496b4f5e2df60cb484a9",
-      "state": "Sol6.1High PASS scoped selection correction and functional qualification controls; broader parent acceptance open.",
-      "previous_review": ".scratch/dioxus-frontend-v1/evidence/layout-ready-repair-20261003/review.md"
+      "candidate": "frontend-criteria-encoder-20261003",
+      "review": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+      "review_sha256": "810b7332db44067e50c40f746dd5ad1bb701149d13819099f814134901e26b24",
+      "state": "Sol 6.1 High code/tooling PASS; encoder journey passed; shared preview lifecycle partially qualified. No parent accepted.",
+      "previous_review": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md"
     },
     "parent_acceptances": [
       {
@@ -470,15 +485,15 @@
       },
       {
         "stream": "PCB",
-        "state": "34775: manual Row1\u2192P101\u2192Apply settles and export actions available, matching TS. Persistence/history/conflict criteria remain; no data-loss defect reproduced."
+        "state": "34777: actual accepted electrical plan feeds Keymap encoder inputs. Prior Apply proof retained; F5.2 one-Apply history, F5.3 pin persistence/conflicts and concrete module/instance UI gaps remain."
       },
       {
         "stream": "Keymap",
-        "state": "34775: CW F5 and Push F6 edits save and persist across workspace-tab switches. Push exists in collapsed disclosure; compact accessibility snapshot omission corrected. F5/F8 joins remain."
+        "state": "34777: real F5 encoder handoff, CW/CCW/Push edits, paired ZMK source, in-place history, reload and board/project switches pass. Negative outcomes and compact/recovery criteria remain."
       },
       {
         "stream": "Keycaps",
-        "state": "34775: paired SW1 3D and byte-identical STEP download pass. F6C.3/.5 remaining criteria retained; no new source gap in happy path."
+        "state": "34777: pending board/project preview switches and paired empty-profile STEP error/retry pass. In-flight revision and genuine provider-failure branches remain; existing matching STEP bytes reused."
       },
       {
         "stream": "Case",
@@ -491,8 +506,8 @@
     ],
     "pending_join_packets": [],
     "next_work": [
-      "Package the settled encoder handoff and tooling batch; qualify PCB to Keymap to ZMK plus unresolved shared-viewer/export lifecycle transitions.",
-      "Use progress.py ready to assign exact criteria; preserve unassessed checks as bounded investigations and implemented checks as qualification work."
+      "Use progress.py ready --kind implement for F2.4-C05, F5.5-C02 and F5.6-C03; keep six workbench queues and one waiting packet per stream.",
+      "Use ready --kind qualify for implemented criteria and ready --kind investigate for unassessed criteria. Reuse this candidate evidence and qualify only the named remaining branches."
     ],
     "process_retro": {
       "source": "User-invoked /home/chris/.agents/skills/retro/SKILL.md; current session Git/compiler/CI sources",
@@ -528,16 +543,24 @@
     "qualification": {
       "trigger": "functional_scope",
       "active_scope": {
-        "id": "functional-selection-20261003",
-        "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
+        "id": "functional-criteria-encoder-20261003",
+        "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
         "streams": [
-          "Layout"
+          "Keymap",
+          "PCB",
+          "Keycaps",
+          "Case"
         ],
         "journeys": [
           {
-            "id": "objects-selection-mode",
-            "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
-            "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
+            "id": "encoder-f5-handoff",
+            "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
+            "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md"
+          },
+          {
+            "id": "shared-preview-export-lifecycle",
+            "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
+            "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
           }
         ]
       },
@@ -642,61 +665,118 @@
               }
             ]
           }
+        },
+        {
+          "trigger": "functional_scope",
+          "active_scope": {
+            "id": "functional-selection-20261003",
+            "source_commit": "6f8ee398386e1a6ffb6b08346fd85cdd0dacbf7a",
+            "streams": [
+              "Layout"
+            ],
+            "journeys": [
+              {
+                "id": "objects-selection-mode",
+                "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
+                "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md"
+              }
+            ]
+          },
+          "phase": "qualified",
+          "unmet_start_conditions": [],
+          "candidate_build_id": "frontend-functional-selection-20261003",
+          "source_commit": "c85160c70c09c69289c6c9fd330dc5f357552c32",
+          "journeys": [
+            {
+              "id": "objects-selection-mode",
+              "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
+              "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md",
+              "state": "passed",
+              "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+              "verified": "Matrix/Column/Key/Part/Row tree selections set matching mode; Outline retains mode. Actual canvas clicks select whole matrix, column or row as chosen."
+            }
+          ],
+          "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
+          "started_at": "2026-10-03T18:35:56.070232+00:00",
+          "review": {
+            "profile": "sol-review",
+            "state": "completed",
+            "verdict": "pass",
+            "review": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md",
+            "review_sha256": "65f316307f9edfedf46646232b7580254e6fdf41de7f496b4f5e2df60cb484a9"
+          },
+          "completed_behavior_checks": [
+            "Tree context sets canvas selection kind",
+            "Trusted canvas hits honor Matrix, Column and Row modes",
+            "Outline selection preserves the last component-selection mode"
+          ],
+          "unmet_acceptance_conditions": [
+            "Only this bounded functional selection scope qualified; broader parent criteria and cross-workbench joins remain."
+          ],
+          "next_scope": {
+            "id": "functional-criteria-encoder-20261003",
+            "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
+            "streams": [
+              "Keymap",
+              "PCB",
+              "Keycaps",
+              "Case"
+            ],
+            "journeys": [
+              {
+                "id": "encoder-f5-handoff",
+                "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
+                "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md"
+              },
+              {
+                "id": "shared-preview-export-lifecycle",
+                "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
+                "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
+              }
+            ]
+          }
         }
       ],
-      "phase": "qualified",
+      "phase": "qualifying",
       "unmet_start_conditions": [],
-      "candidate_build_id": "frontend-functional-selection-20261003",
-      "source_commit": "c85160c70c09c69289c6c9fd330dc5f357552c32",
+      "candidate_build_id": "frontend-criteria-encoder-20261003",
+      "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
       "journeys": [
         {
-          "id": "objects-selection-mode",
-          "scope": "Objects Matrix/Row/Column/Key/Component selection updates actual canvas interaction mode; excluded contexts retain mode.",
-          "spec": ".scratch/dioxus-layout-authoring/issues/09-layout-command-pill.md",
+          "id": "encoder-f5-handoff",
+          "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
+          "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md",
           "state": "passed",
-          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-          "verified": "Matrix/Column/Key/Part/Row tree selections set matching mode; Outline retains mode. Actual canvas clicks select whole matrix, column or row as chosen."
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+          "verified": "Real PCB plan reports left-SW25; CW F5/CCW F6/Push SPACE settle; paired ZMK source matches; fresh in-place Undo/Redo, reload and board/project round trips pass.",
+          "limitation": "ZIPs differ only in electrical-plan central/peripheral revision: React 16 versus Dioxus 15. F5.2 Apply history, negative provider outcomes and compact encoder-edit qualification are separate."
+        },
+        {
+          "id": "shared-preview-export-lifecycle",
+          "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
+          "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md",
+          "state": "partial",
+          "evidence": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+          "verified": "Pending preview board/project switches suppress the old result; paired empty-profile STEP error and restored-profile retry pass; retained unmount evidence reused.",
+          "remaining": "In-flight revision change, genuine provider-failure recovery and export lifecycle branches not covered by existing receipts remain unverified."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
-      "started_at": "2026-10-03T18:35:56.070232+00:00",
+      "started_at": "2026-10-03T19:54:05.167118+00:00",
       "review": {
         "profile": "sol-review",
+        "model": "gpt-6.1-sol",
+        "reasoning": "high",
         "state": "completed",
         "verdict": "pass",
-        "review": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/review.md",
-        "review_sha256": "65f316307f9edfedf46646232b7580254e6fdf41de7f496b4f5e2df60cb484a9"
+        "qualification_verdict": "bounded; remaining lifecycle branches recorded",
+        "review": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+        "review_sha256": "810b7332db44067e50c40f746dd5ad1bb701149d13819099f814134901e26b24"
       },
-      "completed_behavior_checks": [
-        "Tree context sets canvas selection kind",
-        "Trusted canvas hits honor Matrix, Column and Row modes",
-        "Outline selection preserves the last component-selection mode"
-      ],
       "unmet_acceptance_conditions": [
-        "Only this bounded functional selection scope qualified; broader parent criteria and cross-workbench joins remain."
-      ],
-      "next_scope": {
-        "id": "functional-criteria-encoder-20261003",
-        "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
-        "streams": [
-          "Keymap",
-          "PCB",
-          "Keycaps",
-          "Case"
-        ],
-        "journeys": [
-          {
-            "id": "encoder-f5-handoff",
-            "scope": "PCB current-plan encoder edits and push, Undo/Redo/reopen and ZMK output",
-            "spec": ".scratch/dioxus-keymap-layers/issues/06-encoder-rotation-editor.md"
-          },
-          {
-            "id": "shared-preview-export-lifecycle",
-            "scope": "Remaining shared 3D scope/unmount and STEP/export readiness/retry transitions",
-            "spec": ".scratch/dioxus-frontend-v1/issues/06-keymap-keycaps.md"
-          }
-        ]
-      }
+        "Finish the explicitly remaining preview/export lifecycle criteria; the bounded in-flight revision attempt settled before mutation.",
+        "Complete remaining parent criteria and final joins; this scoped candidate does not accept additional parents."
+      ]
     },
     "delivery_priority": {
       "authority": "User on 2026-10-03: make the app work; layout parity last; improve UI along the way because the design will change.",
@@ -714,20 +794,38 @@
       "previous_priority": "Layout-first closure and contextual visual parity packet."
     },
     "functional_batch": {
-      "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
-      "verified_candidate": "frontend-layout-ready-repair-20261003",
+      "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+      "verified_candidate": "frontend-criteria-encoder-20261003",
       "implemented": [
-        "Objects tree to canvas selection mode synchronization",
-        "Functional-scope candidate qualification without Layout visual gate"
+        "Criterion dispatch/qualification/closure queries for all 52 open parents",
+        "Current electrical-plan encoder projection with fingerprint/scope and own-edit settlement",
+        "Provenance-derived publication and owned browser helper"
       ],
       "verified_behaviors": [
-        "SVG/DXF/footprints/ZMK/archive download and archive integrity",
-        "Paired key-size roundtrip produces identical SVG",
-        "Project create/archive import/assembly placement/footprint import with reopen",
-        "Case generation/view controls/mechanical package download",
-        "Paired Keycaps 3D preview and byte-identical STEP download"
+        "Paired real-plan encoder rotation/push ZMK source output",
+        "In-place encoder Undo/Redo, reload and board/project switches",
+        "Paired empty-profile STEP error and retry",
+        "Pending preview board/project switches"
       ],
-      "remaining": "Broader parent criteria and final joins remain; cosmetic layout parity deferred."
+      "remaining": "Broader parent criteria and final joins remain; visual layout parity is deferred.",
+      "previous_batches": [
+        {
+          "receipt": ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+          "verified_candidate": "frontend-layout-ready-repair-20261003",
+          "implemented": [
+            "Objects tree to canvas selection mode synchronization",
+            "Functional-scope candidate qualification without Layout visual gate"
+          ],
+          "verified_behaviors": [
+            "SVG/DXF/footprints/ZMK/archive download and archive integrity",
+            "Paired key-size roundtrip produces identical SVG",
+            "Project create/archive import/assembly placement/footprint import with reopen",
+            "Case generation/view controls/mechanical package download",
+            "Paired Keycaps 3D preview and byte-identical STEP download"
+          ],
+          "remaining": "Broader parent criteria and final joins remain; cosmetic layout parity deferred."
+        }
+      ]
     }
   }
 }

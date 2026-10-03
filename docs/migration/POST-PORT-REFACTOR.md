@@ -1640,9 +1640,13 @@ All stable RF IDs and detailed source observations remain in the ledger. The [ea
       ".scratch/dioxus-frontend-v1/tasks.json",
       ".scratch/dioxus-frontend-v1/progress.py",
       "scripts/migration_candidate.py",
-      "scripts/migration-browser.py"
+      "scripts/migration-browser.py",
+      ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
     ],
-    "post_port": "Assess shared typed provenance and read-model ownership after migration; do not create a second tracker. Preserve historical parent prose as history rather than dispatch truth."
+    "post_port": "Assess shared typed provenance and read-model ownership after migration; do not create a second tracker. Preserve historical parent prose as history rather than dispatch truth.",
+    "review_correction": "The first mapping over-attributed partial successful-path/source evidence to 12 compound criteria. The single candidate review retained those citations and changed their states to implemented with explicit remaining branches. A verified row must cover its entire stated requirement; source presence and a nearby passing workflow are insufficient.",
+    "publication_repair": "Review found the initial atomic proof write outside transaction rollback. A post-replace directory-fsync failure regression reproduced absent/existing-proof corruption; moving that write into rollback coverage passed all 8 publication tests. Application assets were unchanged.",
+    "browser_setup_limits": "The bounded pass excluded false empty-profile setup with retained per-key overrides, an obsolete reference-server URL and post-reload Undo attempts without edit history. Named sessions and scoped full inspection helped; assignments must also pin the live reference URL and observable preconditions. Reuse valid prior evidence instead of treating these harness mistakes as application defects."
   }
 }
 ```

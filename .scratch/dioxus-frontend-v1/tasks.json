@@ -611,7 +611,7 @@
         {
           "id": "F2.2-C03",
           "requirement": "Import validated archives; malformed input leaves current project intact; stale opens/imports cannot replace newer selection.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs:702",
@@ -622,7 +622,7 @@
             ".scratch/dioxus-parts-catalogue/evidence/05-import-kicad-footprint-paired-journey-20261003.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Reuse valid archive import evidence; qualify malformed project-archive preservation and stale project open/import supersession. Footprint-parser rejection is separate evidence.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -666,7 +666,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
-        "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
+        "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt. Candidate review 2026-10-03 corrected partial-evidence overclaims for F2.2-C03: source is implemented; full behavioral qualification remains."
       }
     },
     {
@@ -1142,7 +1142,7 @@
         {
           "id": "F3.2-C02",
           "requirement": "Arrow keys adjust pending placement by active snap increment, Enter commits and Escape cancels with no revision/history change.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/objects/matrix_placement_controller.rs",
@@ -1152,7 +1152,7 @@
             ".scratch/dioxus-layout-authoring/evidence/f32-preset-placement-20261003/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Reuse receipt for this narrow preset-placement criterion; confirm it remains representative if placement controller changes.",
+          "next_action": "Reuse observed Arrow/Escape and pointer-commit behavior; execute Dioxus Enter commit on the same placement fixture, then confirm snap and one history step.",
           "finish_condition": "Arrow adjustment, Enter commit and Escape cancellation all preserve the stated snap/revision/history semantics in paired public scenarios.",
           "owned_files": [
             "web/src/presentation/objects/matrix_placement_controller.rs",
@@ -1222,7 +1222,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:29:50Z",
         "coverage": "complete",
-        "note": "All four current acceptance clauses represented; historical progress/boundary claims were treated as context, and only criterion-specific existing journeys are verified."
+        "note": "All four current acceptance clauses represented; historical progress/boundary claims were treated as context, and only criterion-specific existing journeys are verified. Candidate review narrowed evidence for F3.2-C02: partial behavior/source proof is retained; remaining branches are explicit qualification."
       }
     },
     {
@@ -3156,7 +3156,7 @@
         {
           "id": "F4.6-C03",
           "requirement": "Save through edit/Undo/Redo/reload; Apply to matrix or board via F3 public seam.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/parts/assembly_editor.rs:1",
@@ -3166,7 +3166,7 @@
             ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
           ],
           "blockers": [],
-          "next_action": "Qualify this behavior in a paired public journey.",
+          "next_action": "Reuse assembly placement/reopen evidence; qualify saved assembly edit, Undo/Redo, matrix Apply and board Apply through the public F3 seam.",
           "finish_condition": "Paired public evidence confirms the behavior and its side effects.",
           "owned_files": [
             "web/src/presentation/parts/assembly_editor.rs",
@@ -3203,7 +3203,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:37:09Z",
         "coverage": "complete",
-        "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt."
+        "note": "Split existing parent acceptance text into independently decidable behaviors; original scope and joins preserved. Implemented is source inspection only; verified cites existing journey/receipt. Candidate review 2026-10-03 corrected partial-evidence overclaims for F4.6-C03: source is implemented; full behavioral qualification remains."
       }
     },
     {
@@ -3589,7 +3589,7 @@
         {
           "id": "F5.2-C03",
           "requirement": "Apply validates existing revision/fingerprint checks and commits exactly one undoable edit.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring/apply.rs",
@@ -3599,7 +3599,7 @@
             ".scratch/dioxus-pcb-view/evidence/pcb-apply-ui-20261002/receipt.md"
           ],
           "blockers": [],
-          "next_action": "Reuse the known source owner settlement receipt and the bounded 34775 paired Apply evidence; parent-level multi-board and error/history joins remain.",
+          "next_action": "Reuse current-plan source settlement and paired Apply evidence; qualify that Apply contributes exactly one history step and Undo/Redo restores the accepted board state.",
           "finish_condition": "Receipt proves exact accepted current plan, one normal edit, exact operation settlement and rejected-edit feedback; paired journey confirms one history step and Undo/Redo.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -3644,7 +3644,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:32:35+00:00",
         "coverage": "complete",
-        "note": "Split every clause of the existing parent acceptance into independent checks; states reflect source/evidence qualification, not parent acceptance. Historical baseline/prose findings are retained as context and are not newly classified as defects."
+        "note": "Split every clause of the existing parent acceptance into independent checks; states reflect source/evidence qualification, not parent acceptance. Historical baseline/prose findings are retained as context and are not newly classified as defects. Candidate review 2026-10-03 corrected partial-evidence overclaims for F5.2-C03: source is implemented; full behavioral qualification remains."
       }
     },
     {
@@ -4918,13 +4918,20 @@
           "path": ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
           "result": "Encoder typed edits, legacy PCB firmware-position editor and Export ZMK row are mounted; full F5 handoff and remaining qualification criteria remain.",
           "acceptance": "No full-parent acceptance claimed."
+        },
+        {
+          "at": "2026-10-03T20:18:15.523405+00:00",
+          "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
+          "path": ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+          "result": "Real PCB plan to encoder edits, matching ZMK sources, in-place Undo/Redo, reload and board/project switches passed; scoped criterion verdicts recorded.",
+          "acceptance": "No parent closure; negative qualification/remaining compact recovery and F5.2/F8.2 joins remain."
         }
       ],
       "criteria": [
         {
           "id": "F6K.4-C01",
           "requirement": "Use the agreed F5 selected-board handoff for supported encoders, push inputs, electrical readiness, and legacy firmware-position values.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keymap/encoder_inputs.rs",
@@ -4932,10 +4939,12 @@
           ],
           "evidence": [
             ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/encoder-tests-final.log"
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/encoder-tests-final.log",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            ".scratch/dioxus-keymap-layers/evidence/F6K.4b-browser-20261002/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Qualify the integrated current F5 plan/fingerprint handoff through real encoder and push edits, history/reopen and delivered ZMK source.",
+          "next_action": "Retain the integrated real-plan journey and consolidated review; satisfy the separate remaining criteria and F5.2/F8.2 final parent joins.",
           "finish_condition": "A current accepted F5 selected-board plan provides supported encoder/push identities, readiness and legacy values, with fingerprint carried through the mounted projection and stale-plan rejection.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_inputs.rs",
@@ -4956,7 +4965,8 @@
             "web/src/presentation/keymap/binding_controller.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md"
+            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
           "next_action": "Retain the bounded encoder journey; finish scope-switch and real F5 qualification with the handoff owner.",
@@ -4980,7 +4990,8 @@
             "web/src/presentation/keymap/encoder_editor.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md"
+            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
           "next_action": "Reuse reported-push fixture proof; qualify the real F5 handoff when available.",
@@ -4997,7 +5008,7 @@
         {
           "id": "F6K.4-C04",
           "requirement": "Preserve the existing PCB Wiring-panel quick binding editor and its legacy SetKeyBinding behavior alongside the typed Keymap surface.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/pcb_wiring.rs",
@@ -5005,10 +5016,12 @@
             "web/src/presentation/keymap/binding_controller.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md"
+            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md",
+            ".scratch/dioxus-keymap-layers/evidence/F6K.4b-browser-20261002/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Retain both the legacy PCB editor and typed Keymap surface while integrating the F5 handoff.",
+          "next_action": "Retain the integrated real-plan journey and consolidated review; satisfy the separate remaining criteria and F5.2/F8.2 final parent joins.",
           "finish_condition": "Existing Wiring quick binding remains mounted and submits the legacy SetKeyBinding path while typed layer/encoder edits remain available in Keymap.",
           "owned_files": [
             "web/src/presentation/pcb_wiring.rs",
@@ -5031,10 +5044,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/encoder-tests-final.log"
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/encoder-tests-final.log",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Qualify the integrated current F5 plan/fingerprint handoff through real encoder and push edits, history/reopen and delivered ZMK source.",
+          "next_action": "Real F5 resolution and ZMK output passed. Qualify negative electrical/firmware readiness and genuine request-failure feedback; no source gap is established.",
           "finish_condition": "Electrical and firmware requests consume current accepted inputs; readiness and request failures are shown from actual provider outcomes.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_inputs.rs",
@@ -5049,17 +5063,18 @@
         {
           "id": "F6K.4-C06",
           "requirement": "Deliver the same ZMK package/output; verify rotation and push source output.",
-          "state": "implemented",
+          "state": "verified",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keymap/panel.rs",
             "web/src/presentation/keymap/encoder_editor.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md"
+            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Reuse bounded source-output/export evidence and finish output qualification through the current F8 provider with the real F5 handoff.",
+          "next_action": "Retain the integrated real-plan journey and consolidated review; satisfy the separate remaining criteria and F5.2/F8.2 final parent joins.",
           "finish_condition": "Generated rotation and push bindings are present in delivered ZMK output and match the pinned reference semantics.",
           "owned_files": [
             "web/src/presentation/keymap/panel.rs",
@@ -5080,10 +5095,11 @@
             "web/src/presentation/keymap/binding_controller.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md"
+            ".scratch/dioxus-keymap-layers/evidence/encoder-public-workflow/RESULTS.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Reuse the existing bounded history/reimport and compact evidence; qualify recovery and real-plan replacement when finishing F6K.4.",
+          "next_action": "Fresh in-place Undo/Redo, reload, board/project round trips and retained validation recovery passed. Qualify a compact encoder-edit journey and remaining provider/module recovery branches without repeating proven history.",
           "finish_condition": "Encoder edits survive Undo/Redo and save/reload; compact controls remain operable and failure/recovery returns to current accepted state.",
           "owned_files": [
             "web/src/presentation/keymap/encoder_editor.rs",
@@ -5098,10 +5114,10 @@
         }
       ],
       "criteria_accounting": {
-        "source_commit": "9f9085852c98f66ef37aa669359ab3f3e49306c5",
-        "assessed_at": "2026-10-03T19:31:25Z",
+        "source_commit": "287cd2665f0ec1165ab0e3f8fb76ececdc0febc4",
+        "assessed_at": "2026-10-03T20:18:15.523405+00:00",
         "coverage": "complete",
-        "note": "Split every independently decidable acceptance clause. Fixture-backed CW/CCW/Push and legacy-editor capability is present; baseline source still lacks the actual accepted F5 plan/fingerprint handoff. F5.2 and F8.2 remain the unchanged acceptance joins. Current F5 plan/fingerprint join implemented at 9f9085852c98f66ef37aa669359ab3f3e49306c5; public candidate qualification follows."
+        "note": "Split every independently decidable acceptance clause. Fixture-backed CW/CCW/Push and legacy-editor capability is present; baseline source still lacks the actual accepted F5 plan/fingerprint handoff. F5.2 and F8.2 remain the unchanged acceptance joins. Current F5 plan/fingerprint join implemented at 9f9085852c98f66ef37aa669359ab3f3e49306c5; public candidate qualification follows. Candidate 34777 qualifies the actual F5 handoff, reported push identities and paired ZMK source. Consolidated review approves C01/C04/C06; C05 negative outcomes and C07 remaining compact/recovery branches stay implemented."
       }
     },
     {
@@ -5629,7 +5645,7 @@
         {
           "id": "F6C.5-C02",
           "requirement": "Show caps and separate legend inlays, colors, pending/error/retry behavior, and current assembly layer visibility.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keycaps_scene.rs",
@@ -5638,10 +5654,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/keycaps-3d-preview-20261003/RECEIPT.md",
-            ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md"
+            ".scratch/dioxus-frontend-v1/evidence/keymap-3d-consumer-20261003/paired-receipt.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Retain generated cap/legend, color, and layer visibility evidence; complete remaining pending/error/retry states under current viewer owner.",
+          "next_action": "Reuse caps/legends/colors/layer evidence and paired empty-profile error/retry. Genuine provider-failure recovery remains unexercised; no new application defect was reproduced.",
           "finish_condition": "Caps and separate legend bodies use accepted color/specs; pending/error/retry state is truthful and current assembly layer controls act on those bodies.",
           "owned_files": [
             "web/src/presentation/keycaps_scene.rs",
@@ -5664,10 +5681,11 @@
             "web/src/cad_worker.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md"
+            ".scratch/dioxus-keycaps-workflow/evidence/keycaps-cad-batch-cancel-20261003/receipt-34769.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Current source has source/revision and owner guards plus worker termination/unmount suppression; retain the focused pending-unmount and retry receipt. No new gap is established.",
+          "next_action": "Pending board/project switches passed and retained unmount evidence applies. Qualify a document revision change during an active preview; the bounded attempt settled before mutation.",
           "finish_condition": "Changed owner/revision or unmounted consumer suppresses stale publication; a subsequent current request succeeds.",
           "owned_files": [
             "web/src/presentation/layout_viewer.rs",
@@ -5707,7 +5725,7 @@
         {
           "id": "F6C.5-C05",
           "requirement": "Port keycap STEP through accepted snapshot, existing resolver, BND.1-proven CAD bridge, revision check and download delivery.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keycaps_fit.rs",
@@ -5716,10 +5734,11 @@
           ],
           "evidence": [
             ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md",
-            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md"
+            ".scratch/dioxus-frontend-v1/evidence/functional-delivery-20261003/journey.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Retain the byte-identical paired STEP receipt; finish unchanged BND.1/F8.2 acceptance joins and error/readiness paths.",
+          "next_action": "Reuse accepted resolver/bridge review and valid STEP delivery. Stale revision rejection during an active export and final BND.1/F8.2 joins remain.",
           "finish_condition": "The existing resolver and accepted snapshot feed the private CAD bridge; stale revisions are rejected and valid STEP is delivered.",
           "owned_files": [
             "web/src/presentation/keycaps_fit.rs",
@@ -5737,17 +5756,18 @@
         {
           "id": "F6C.5-C06",
           "requirement": "Verify valid STEP bytes and established empty/error/readiness messages.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/cad_worker.rs",
             "web/src/presentation/layout_viewer.rs"
           ],
           "evidence": [
-            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md"
+            ".scratch/dioxus-frontend-v1/evidence/sol-review-wave-20261003/candidate-dd7697ed/REVIEW.md",
+            ".scratch/dioxus-frontend-v1/evidence/functional-criteria-delivery-20261003/consolidated-review.md"
           ],
           "blockers": [],
-          "next_action": "Reuse the byte-identical successful STEP evidence and finish existing empty/error/readiness message branches through their providers.",
+          "next_action": "Paired empty-profile message and restored-profile retry now pass; reuse prior identical-fixture STEP bytes. Genuine provider-error feedback remains unexercised.",
           "finish_condition": "Downloaded STEP is valid and matches reference bytes; empty, provider error, and readiness states use the established messages.",
           "owned_files": [
             "web/src/cad_worker.rs",
@@ -5761,9 +5781,9 @@
       ],
       "criteria_accounting": {
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
-        "assessed_at": "2026-10-03T19:31:25Z",
+        "assessed_at": "2026-10-03T20:18:15.523405+00:00",
         "coverage": "complete",
-        "note": "Focused accounting of the existing shared viewer, CAD preview, STEP and lifecycle paths. Current source guards are wired and receipts prove bounded visible/STEP paths; no new source gap is established. F7.3, F8.2 and BND.1 joins remain unchanged."
+        "note": "Focused accounting of the existing shared viewer, CAD preview, STEP and lifecycle paths. Current source guards are wired and receipts prove bounded visible/STEP paths; no new source gap is established. F7.3, F8.2 and BND.1 joins remain unchanged. Candidate review 2026-10-03 corrected partial-evidence overclaims for F6C.5-C02, F6C.5-C06: source is implemented; full behavioral qualification remains. Candidate review narrowed evidence for F6C.5-C05: partial behavior/source proof is retained; remaining branches are explicit qualification. Candidate 34777 adds pending board/project switches and paired empty-profile STEP message/retry. In-flight revision mutation and genuine provider-failure branches remain explicit; no new source gap or repair ticket."
       }
     },
     {
@@ -5878,7 +5898,7 @@
         {
           "id": "F6.6-C03",
           "requirement": "Compare profile/legend/size/color/fit workflows on identical saved fixtures.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/keycaps_settings.rs",
@@ -5890,7 +5910,7 @@
             ".scratch/dioxus-frontend-v1/evidence/keycaps-size-reflow-20261003/paired-linked-resize.md"
           ],
           "blockers": [],
-          "next_action": "Reuse paired settings/legend/fit and selected linked-size evidence; retain full-parent joins.",
+          "next_action": "Reuse paired linked-size, 3D and successful STEP evidence; qualify profile, legend, color and fit edits on the same saved fixture.",
           "finish_condition": "Representative paired profile, legend, size, color and fit workflows use equivalent saved fixtures and preserve accepted state.",
           "owned_files": [
             "web/src/presentation/keycaps_settings.rs",
@@ -6013,7 +6033,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:31:25Z",
         "coverage": "complete",
-        "note": "Aggregate criterion accounting preserves the joins and independently usable fixture evidence. Visual comparison remains explicitly deferred under the 2026-10-03 delivery priority; F2.3, F5.2 and F7.6 remain unchanged acceptance joins."
+        "note": "Aggregate criterion accounting preserves the joins and independently usable fixture evidence. Visual comparison remains explicitly deferred under the 2026-10-03 delivery priority; F2.3, F5.2 and F7.6 remain unchanged acceptance joins. Candidate review narrowed evidence for F6.6-C03: partial behavior/source proof is retained; remaining branches are explicit qualification."
       }
     },
     {
@@ -6439,7 +6459,7 @@
         {
           "id": "F7.3-C04",
           "requirement": "Support camera fit/top/bottom/isometric, orbit and zoom controls.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/shared_viewer.rs",
@@ -6450,7 +6470,7 @@
             ".scratch/dioxus-shared-viewer/evidence/case-viewport-layout/public/README.md"
           ],
           "blockers": [],
-          "next_action": "Reconcile camera receipts to current candidate when the viewer is next packaged.",
+          "next_action": "Reuse Top/Fit/Exploded/Section and reachable view-control evidence; execute Bottom, Isometric, orbit and zoom in the public Case viewer.",
           "finish_condition": "Camera controls produce expected observable viewpoints across actual consumers.",
           "owned_files": [
             "web/src/presentation/shared_viewer.rs"
@@ -6627,7 +6647,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:34:54Z",
         "coverage": "complete",
-        "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers."
+        "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers. Candidate review retained F7.3-C04 as implemented because its public receipt covers only a subset of the stated controls/branches."
       }
     },
     {
@@ -6693,7 +6713,7 @@
         {
           "id": "F7.4-C01",
           "requirement": "Migrate represented construction/mount/shell/frame/plate choices and case-configuration inherited/custom profiles, overrides and extraction; keep reusable PartDefinition profiles F4-owned.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6706,7 +6726,7 @@
             ".scratch/dioxus-case-workspace/evidence/public-mechanical-settings/candidate-0cad7577/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Check profile assignment/extraction and inherited/custom override receipts against current source, especially disabled/missing profile paths.",
+          "next_action": "Reuse CNC/configuration, disable/history and instance-scoped settings evidence; qualify inherited/custom profiles, overrides and extraction in the public Case inspector.",
           "finish_condition": "Represented Case settings work through existing resolver; F4 retains reusable profile authoring.",
           "owned_files": [
             "web/src/presentation/mechanical_settings.rs",
@@ -6847,7 +6867,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:34:54Z",
         "coverage": "complete",
-        "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers."
+        "note": "Canonical F7 acceptance clauses were decomposed into independently assessable capability criteria. Source presence is implemented; verified requires an existing receipt/check. Baseline prose is not a gap; visual-only differences are deferred by CONSTRAINTS. Historical public-API approval language is not treated as a blocker. F7.2 is intentionally untouched; original parent start/acceptance joins are preserved in tasks.json and not misreported as capability blockers. Candidate review retained F7.4-C01 as implemented because its public receipt covers only a subset of the stated controls/branches."
       }
     },
     {
@@ -8002,7 +8022,7 @@
         {
           "id": "F8.3-C01",
           "requirement": "Full KiCad is enabled only for PCB-ready selected board plus ready wiring; draft KiCad is enabled for PCB-ready board and includes incomplete-wiring findings.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs:3820",
@@ -8013,7 +8033,7 @@
             ".scratch/dioxus-frontend-v1/evidence/export-pcb-handoff-20261003/34770-HEADING-GREEN.md"
           ],
           "blockers": [],
-          "next_action": "Reuse paired full/draft output receipt for this bounded leaf.",
+          "next_action": "Reuse successful fully wired mechanical-package proof; qualify draft/incomplete-wiring readiness and its findings before declaring all readiness branches verified.",
           "finish_condition": "Full/draft readiness and findings match reference on the selected board.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -8084,7 +8104,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
-        "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
+        "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted. Candidate review corrected F8.3-C01: ready-only artifact evidence does not cover draft/incomplete-wiring readiness."
       }
     },
     {
@@ -8152,7 +8172,7 @@
         {
           "id": "F8.4-C01",
           "requirement": "Export-route firmware follows reference readiness (ready wiring, controller, at least one assignment), emits existing ZMK 0.3.0 ZIP and electrical plan.",
-          "state": "verified",
+          "state": "implemented",
           "classification": "functional",
           "sources": [
             "web/src/runtime.rs",
@@ -8163,7 +8183,7 @@
             ".scratch/dioxus-frontend-v1/evidence/case-keymap-current/keymap-layered-public/current-qualification/RESULTS.md"
           ],
           "blockers": [],
-          "next_action": "Reuse ready-row paired download and Keymap-local provider proof.",
+          "next_action": "Reuse successful ready ZMK export evidence; qualify disabled/not-ready explanations for missing wiring, controller or assignments.",
           "finish_condition": "Ready Export row produces semantic ZIP parity and includes electrical plan; local Keymap entry remains owner-backed.",
           "owned_files": [
             "web/src/runtime.rs",
@@ -8233,7 +8253,7 @@
         "source_commit": "07b4c3466b1f388073e8e1f9d619b0703223d770",
         "assessed_at": "2026-10-03T19:35:06Z",
         "coverage": "complete",
-        "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted."
+        "note": "All current acceptance clauses for this parent were split into independently decidable criteria; broad baseline RED context was excluded as a requirement. Parent remains open unless all required criteria and joins are accepted. Candidate review corrected F8.4-C01: ready-only firmware evidence does not cover missing-prerequisite explanations."
       }
     },
     {
