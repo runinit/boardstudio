@@ -1103,6 +1103,36 @@
         "F2.2",
         "F3.2"
       ]
+    },
+    {
+      "id": "RF-015",
+      "title": "Shared viewer controls can read a different source than the rendered scene",
+      "category": "architecture / source ownership",
+      "confidence": "confirmed source-selection defect; broader interface improvement is a hypothesis",
+      "impact_priority": "medium",
+      "status": "minimal private source-discriminated repair in isolated F7.3b slice; independent review and current package/public verification pending",
+      "discovered": "2026-10-02",
+      "baseline": "7d09d0a60fbb2cc12e259541614b9483ee618d29",
+      "workflows": [
+        "F3.6",
+        "F7.3b"
+      ],
+      "evidence": [
+        "web/src/presentation/shared_viewer.rs",
+        "web/src/presentation/case_assembly_layers.rs",
+        ".scratch/dioxus-shared-viewer/evidence/layout-canonical-layer-controls-20261002/planning-evidence.md"
+      ],
+      "observation": "At paired candidate source 7d09d0a, the common renderer projected and displayed the current Layout board from LayoutPreviewSnapshot while its per-component layer rows were derived only from the separate NativePreviewSnapshot input. The Layout DOM showed zero model rows despite rendered component meshes. Scope-specific delivery rows and row controls already existed; source discrimination at the consumer was missing.",
+      "impact": "A valid active scene can display component meshes while omitting their visibility controls, so auxiliary controls silently diverge from the accepted scene source.",
+      "during_port": "Select the accepted ordered model rows from the active viewer source and join only that source's current delivery rows; keep renderer IDs, display state and the common viewer unchanged.",
+      "post_port_proposal": "After parity, evaluate a private typed viewer-source descriptor that bundles the accepted scene rows, decoded delivery rows, context/a11y text and visibility projection. Do not widen public APIs or clone the viewer for this repair.",
+      "validation_needed": "Current accepted Layout model rows produce ordered per-model controls; exact available toggles affect only the matching mesh; stale/foreign source rows do not leak; Case/native consumers retain their existing source and accessibility context. Verify in a current production package and paired browser journey.",
+      "decision": "Fix source-selection correctness now; assess broader source descriptor only after parity.",
+      "follow_up_owner": "F7.3b shared viewer consumer qualification",
+      "linked_tasks": [
+        "F7.3b",
+        "F3.6"
+      ]
     }
   ]
 }

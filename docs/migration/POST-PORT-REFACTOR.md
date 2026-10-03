@@ -38,6 +38,7 @@ Temporary storage pressure also exposed an execution reliability cost: inactive 
 | [RF-012](#rf-012) | Renderer host relies on reflective method names and partial capability wrappers | confirmed wrapper shape; maintenance risk needs measurement | medium | F3, F4, F6, F7 |
 | [RF-013](#rf-013) | Object tree containers have invalid required-child semantics | confirmed inherited critical axe violation in candidate and React | high | F3, F9 |
 | [RF-014](#rf-014) | Host callback ownership must survive browser terminal events | confirmed production defect; minimal source repair reviewed/integrated | high | F2, F3, F9 |
+| [RF-015](#rf-015) | Shared viewer controls can read a different source than the rendered scene | confirmed source-selection defect; broader interface improvement is a hypothesis | medium | F3.6, F7.3b |
 
 ## RF-001
 
@@ -455,6 +456,12 @@ Frontend next candidate119c9d059c002057e73b3fd3a36648a9681c9cd6 is served at3472
 A real IndexedDB request error can precede transaction abort or be handled while the transaction commits. The prior observer settled on that intermediate event and dropped closures still installed in the browser. Cancellation before polling also left invalid callbacks. Three real Chromium production regressions failed; five pass after terminal-only settlement and private callback detachment. Independent source review is clear and repair `d5eaafaf` is integrated. Full packaging/public checks remain open, and the original Matrix save abort cause remains unknown.
 
 Retain this ownership rule for the later host lifecycle audit without assuming other observers are defective. [Exact finding and red/green evidence](../../.scratch/dioxus-frontend-tranche-1/evidence/idb-observer-repair-20261002/FINDING.md).
+
+## RF-015
+
+The paired Layout viewer at `7d09d0a60fbb2cc12e259541614b9483ee618d29` rendered its accepted scene from `LayoutPreviewSnapshot`, but derived per-component visibility rows only from the distinct `NativePreviewSnapshot` input. A current Layout scene therefore showed meshes while its Layers menu had zero component controls. The local evidence records the observed DOM and source ownership; the bounded repair selects model rows from the active source and reuses existing renderer IDs, delivery state, and visibility controls.
+
+This confirms the consumer source-selection defect, not a need to clone the shared viewer. After parity, assess whether a private typed viewer-source descriptor should keep scene rows, decoded delivery rows, visibility projection, and accessibility context together. Verify exact-model hide/show and preservation of Case/native behavior in the fresh package before treating the repair as qualified. [F7.3b source inventory](../../.scratch/dioxus-shared-viewer/evidence/layout-canonical-layer-controls-20261002/planning-evidence.md).
 
 ### Shared integration and packaging checkpoint — 2026-10-02
 

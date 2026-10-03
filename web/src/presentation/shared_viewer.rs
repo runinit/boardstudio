@@ -330,14 +330,32 @@ pub(crate) fn CaseSharedViewer(
         ViewerSource::Cad(_) | ViewerSource::Native(_) | ViewerSource::Layout(_) => Vec::new(),
     };
     let assembly_layers = assembly_layers_with_stack(generated_layers, configured_stack_ids);
-    let component_layers = matching_preview.map_or_else(Vec::new, |preview| {
-        physical_component_layers(&preview.preview.models, matching_model_rows)
+    let (layout_source_active, layout_models) = match &source {
+        ViewerSource::Layout(preview) => (
+            true,
+            preview
+                .lease
+                .matches(&preview.owner)
+                .then_some(preview.preview.models.as_slice()),
+        ),
+        ViewerSource::Cad(_) | ViewerSource::Native(_) => (false, None),
+    };
+    let physical_models = matching_preview.map(|preview| preview.preview.models.as_slice());
+    let component_models =
+        component_models_for_source(layout_source_active, layout_models, physical_models);
+    let component_layers = component_models.map_or_else(Vec::new, |models| {
+        physical_component_layers(models, matching_model_rows)
     });
+    let canvas_context = match &source {
+        ViewerSource::Layout(_) => ViewerCanvasContext::Layout,
+        ViewerSource::Cad(_) | ViewerSource::Native(_) => ViewerCanvasContext::Case,
+    };
     rsx! {
         SharedViewer {
             projection,
             assembly_layers,
             component_layers,
+            canvas_context,
             selected_layer,
             display,
             theme,
@@ -354,6 +372,37 @@ enum ViewerSource {
     Cad(Rc<CadScene>),
     Native(Rc<NativePreviewSnapshot>),
     Layout(Rc<LayoutPreviewSnapshot>),
+}
+
+fn component_models_for_source<'a>(
+    layout_source_active: bool,
+    layout_models: Option<&'a [boardstudio_core::model::PcbModel]>,
+    physical_models: Option<&'a [boardstudio_core::model::PcbModel]>,
+) -> Option<&'a [boardstudio_core::model::PcbModel]> {
+    if layout_source_active {
+        layout_models
+    } else {
+        physical_models
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ViewerCanvasContext {
+    Case,
+    Layout,
+}
+
+impl ViewerCanvasContext {
+    fn accessible_name(self) -> &'static str {
+        match self {
+            Self::Case => {
+                "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display."
+            }
+            Self::Layout => {
+                "Interactive 3D Layout PCB assembly. Click a visible component to select its current Layout part; use the controls to navigate and change display."
+            }
+        }
+    }
 }
 
 impl ViewerSource {
@@ -780,6 +829,7 @@ fn SharedViewer(
     projection: Rc<RendererSceneProjection>,
     assembly_layers: Vec<super::case_assembly_layers::CaseAssemblyLayer>,
     component_layers: Vec<super::case_assembly_layers::CaseComponentLayer>,
+    canvas_context: ViewerCanvasContext,
     selected_layer: String,
     display: CaseDisplay,
     theme: String,
@@ -1742,7 +1792,7 @@ fn SharedViewer(
                 canvas {
                     style: "width:100%;height:100%;display:block",
                     tabindex: "0", role: "img",
-                    "aria-label": "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display.",
+                    "aria-label": "{canvas_context.accessible_name()}",
                     onmounted: mount_host,
                     onpointerdown: on_pointer_down,
                     onpointermove: on_pointer_move,
@@ -2108,5 +2158,73 @@ mod tests {
             ["gasket:plate:lower", "gasket:plate:upper"]
         );
         assert_eq!(preference_ids("case-body-1"), ["case-body-1"]);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn canvas_accessible_names_match_the_active_workflow_context() {
+        assert!(
+            ViewerCanvasContext::Layout
+                .accessible_name()
+                .contains("Layout PCB assembly")
+        );
+        assert!(
+            ViewerCanvasContext::Layout
+                .accessible_name()
+                .contains("current Layout part")
+        );
+        assert!(
+            ViewerCanvasContext::Case
+                .accessible_name()
+                .contains("3D Case preview")
+        );
+        assert!(
+            !ViewerCanvasContext::Layout
+                .accessible_name()
+                .contains("Case preview")
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn component_rows_use_active_layout_models_without_falling_back_to_case_models() {
+        use boardstudio_core::model::{PcbModel, Pose2, Side, Vec2, Vec3};
+
+        fn model(id: &str, reference: &str) -> PcbModel {
+            PcbModel {
+                id: id.to_owned(),
+                reference: reference.to_owned(),
+                path: format!("models/{reference}.step"),
+                pose: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                side: Side::Front,
+                offset: Vec3::default(),
+                rotation: Vec3::default(),
+                scale: Vec3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            }
+        }
+
+        let layout_models = [model("layout-switch", "SW1")];
+        let case_models = [model("case-switch", "SW1")];
+
+        assert_eq!(
+            component_models_for_source(true, Some(&layout_models), Some(&case_models))
+                .unwrap()
+                .iter()
+                .map(|model| model.id.as_str())
+                .collect::<Vec<_>>(),
+            ["layout-switch"]
+        );
+        assert!(component_models_for_source(true, None, Some(&case_models)).is_none());
+        assert_eq!(
+            component_models_for_source(false, Some(&layout_models), Some(&case_models)).unwrap()
+                [0]
+            .id,
+            "case-switch"
+        );
     }
 }
