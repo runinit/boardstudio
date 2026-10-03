@@ -675,8 +675,8 @@ pub(super) fn ComponentModelEditor(
         }
     };
     let binding = initial_model(&definition);
-    let transform_commit = {
-        let runtime = runtime.clone();
+    let transform_commit = use_callback({
+        let runtime_for_transform = runtime.clone();
         let owner = owner.clone();
         let original = definition.clone();
         let selected = selected;
@@ -685,7 +685,7 @@ pub(super) fn ComponentModelEditor(
         let mut pending = pending;
         let mut error = error;
         let mut notice = notice;
-        move |field: VectorField, axis: Axis, value: f64| {
+        move |(field, axis, value): (VectorField, Axis, f64)| {
             let Some(asset_id) = asset_id.as_deref() else {
                 return;
             };
@@ -693,7 +693,7 @@ pub(super) fn ComponentModelEditor(
                 return;
             }
             match submit_model_transform(
-                &runtime,
+                &runtime_for_transform,
                 &owner,
                 &selected,
                 selection_generation(),
@@ -720,7 +720,7 @@ pub(super) fn ComponentModelEditor(
                 })),
             }
         }
-    };
+    });
     let remove_model = {
         let runtime = runtime.clone();
         let owner = owner.clone();
@@ -787,9 +787,9 @@ pub(super) fn ComponentModelEditor(
                 }
                 fieldset { disabled: busy,
                     legend { "Model alignment" }
-                    ModelVectorEditor { title: "Offset", value: model.offset, unit: "mm", positive: false, on_commit: move |(axis, value)| transform_commit(VectorField::Offset, axis, value) }
-                    ModelVectorEditor { title: "Rotation", value: model.rotation, unit: "°", positive: false, on_commit: move |(axis, value)| transform_commit(VectorField::Rotation, axis, value) }
-                    ModelVectorEditor { title: "Scale", value: model.scale, unit: "×", positive: true, on_commit: move |(axis, value)| transform_commit(VectorField::Scale, axis, value) }
+                    ModelVectorEditor { title: "Offset", value: model.offset, unit: "mm", positive: false, on_commit: move |(axis, value)| transform_commit.call((VectorField::Offset, axis, value)) }
+                    ModelVectorEditor { title: "Rotation", value: model.rotation, unit: "°", positive: false, on_commit: move |(axis, value)| transform_commit.call((VectorField::Rotation, axis, value)) }
+                    ModelVectorEditor { title: "Scale", value: model.scale, unit: "×", positive: true, on_commit: move |(axis, value)| transform_commit.call((VectorField::Scale, axis, value)) }
                 }
                 button { r#type: "button", disabled: busy, onclick: remove_model, "Remove attached model" }
             } else {
