@@ -1469,3 +1469,6 @@ Current comparison: http://127.0.0.1:34731/ (source792e88af). Actual guarded reu
 ### Frontend current progress — 2026-10-03, F6C.4 acceptance
 
 The coordinator accepts F6C.4 from sufficient retained paired fit/finding navigation, Core qualification and independently equivalent guarded source, endorsed in consolidated Sol review. INT.2 is accepted; no criterion or join changed. Portfolio: **7 accepted /32 implementing /23 planned /62**. [Immutable decision](../../.scratch/dioxus-frontend-v1/evidence/keycaps-f6c4-acceptance-20261003/DECISION.json). The authoritative live record remains `dioxus-frontend-v1-run.json:current_progress`; full Keycaps, changed34769 journeys and cutover remain open.
+
+
+Current frontend parent accounting: F3.1 accepted from unchanged canonical criteria and sufficient retained/changed public evidence; **8 accepted / 31 implementing / 23 planned / 62 total**. The authority remains `dioxus-frontend-v1-run.json:current_progress`; F3.6 transform repair and full Layout remain open. Immutable decision: `.scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json`.

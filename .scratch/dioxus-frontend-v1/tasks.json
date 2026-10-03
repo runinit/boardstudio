@@ -313,7 +313,7 @@
         "INT.1"
       ],
       "acceptance_after": [],
-      "status": "implementing",
+      "status": "accepted",
       "external_gates": [],
       "spec": ".scratch/dioxus-frontend-v1/issues/03-layout.md",
       "shared_edit_owner": "integration coordinator",
@@ -336,14 +336,34 @@
           "from": "planned",
           "to": "implementing",
           "reason": "Reconciled already-mounted implementation and retained evidence; no acceptance gate waived."
+        },
+        {
+          "at": "2026-10-03T13:38:11.421548+00:00",
+          "from": "implementing",
+          "to": "accepted",
+          "reason": "Accepted by coordinator from sufficient retained and changed public evidence and consolidated Sol6.1High assessment; canonicalcriteria/dependencies/history retained.",
+          "decision": ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json"
         }
       ],
       "progress_evidence": {
-        "updated_at": "2026-10-03T08:59:38.988296+00:00",
-        "checkpoint": "Served d7742d46/34757; next batch source38757073+84fbf801+ead8fe7c+0c17fd37",
-        "scope": "34755/d7742d46 retained accepted selection and tree/Inspector pathways; current Layout Properties/Relations owner and PCB actual-part selection source integrated.",
-        "remaining": "Selection/outline navigation broad keyboard and acceptance joins remain.",
-        "acceptance": "Existing acceptance/dependencies unchanged. Boundary_status is the historical planning statement; this progress entry describes current implementation."
+        "updated_at": "2026-10-03T13:38:11.421548+00:00",
+        "checkpoint": "Qualified34769withretained34768andearlierpublicevidence",
+        "scope": "All four unchanged canonical tree/selection/scope/keyboard clauses. Retained T1-10 hierarchy/disclosure/tree-canvas/Ctrl-Cmd/membership/keyboard, outline/version/bridge and scoped cancellation authority; changed34768desktop/compact Objects/focus; changed34769primary rectangle/clicked anchor plus focused native disabled/companion regression. BrowserCLI heldShift not forwarded, both paired handlers use documented syntheticmodifierfallback. No exhaustiveeverymodifier/race claim. F3.6Transform no-op is separate, fixedsourceaa33bc80 awaiting34770GREEN; fullLayout/otherparents/cutover remain open.",
+        "remaining": "NoneforunchangedF3.1clauses; otherLayout/toolparentsremainopen.",
+        "acceptance": "Canonicalcriteriaandjoinsunchanged; boundeddecisionrecord.scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/DECISION.json"
+      },
+      "completion_evidence": {
+        "parent": "F3.1",
+        "at": "2026-10-03T13:38:11.421548+00:00",
+        "candidate_source": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+        "candidate_url": "http://127.0.0.1:34769/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/REVIEW.md",
+        "review_sha256": "f8eb6d39b527a5bf07cf2916a28fa545e6b5dc149df56b611db803ef5f7d23cf",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "54750cd00044c1bf6e16dd27b0c90a9f0472056dbc9ed85735a3a88cac34c5b2",
+        "criteria_accounting": ".scratch/dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md",
+        "scope": "All four unchanged canonical tree/selection/scope/keyboard clauses. Retained T1-10 hierarchy/disclosure/tree-canvas/Ctrl-Cmd/membership/keyboard, outline/version/bridge and scoped cancellation authority; changed34768desktop/compact Objects/focus; changed34769primary rectangle/clicked anchor plus focused native disabled/companion regression. BrowserCLI heldShift not forwarded, both paired handlers use documented syntheticmodifierfallback. No exhaustiveeverymodifier/race claim. F3.6Transform no-op is separate, fixedsourceaa33bc80 awaiting34770GREEN; fullLayout/otherparents/cutover remain open.",
+        "decision": "Accepted by coordinator from sufficient retained and changed public evidence and consolidated Sol6.1High assessment; canonicalcriteria/dependencies/history retained."
       }
     },
     {
@@ -3089,7 +3109,12 @@
     "total": 62,
     "workflow_slices": 58,
     "integration_slices": 2,
-    "boundary_slices": 2
+    "boundary_slices": 2,
+    "status": {
+      "accepted": 8,
+      "planned": 23,
+      "implementing": 31
+    }
   },
   "agent_policy": ".scratch/dioxus-frontend-v1/agent-policy.json",
   "agent_policy_date": "2026-10-02",

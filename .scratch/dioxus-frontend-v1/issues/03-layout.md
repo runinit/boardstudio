@@ -174,3 +174,8 @@ The milestone-level prerequisites above describe integration context. The refine
 ### Refactoring observation handoff
 
 Update the [living RF register](../refactor-findings.json) and [post-port takeaways](../../../docs/migration/POST-PORT-REFACTOR.md) for architectural, design, theoretical or quality issues discovered in this slice, or record “No new refactoring takeaway observed” with reviewed scope. Distinguish confirmed findings from hypotheses; include evidence, impact, current mitigation, later proposal and validation. This does not authorize unrelated refactoring or defer required parity fixes.
+
+
+### Current F3.1 acceptance — 2026-10-03
+
+F3.1 is accepted under its four unchanged canonical clauses. The decision and immutable consolidated review are in `../evidence/layout-f31-acceptance-20261003/DECISION.json`. Retained hierarchy, navigation, scoped cancellation and keyboard/focus qualification combine with the changed three-primary-key anchored rectangle journey on34769. Both paired Shift legs explicitly record the CLI synthetic-modifier limitation. Full Layout and the separate F3.6 Stagger capture defect remain open; its bounded repair is queued for34770. No new exhaustive modifier/race gate is introduced.

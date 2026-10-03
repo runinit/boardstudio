@@ -1,0 +1,13 @@
+{
+  "parent": "F3.1",
+  "at": "2026-10-03T13:38:11.421548+00:00",
+  "candidate_source": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+  "candidate_url": "http://127.0.0.1:34769/boardstudio/",
+  "review": ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/REVIEW.md",
+  "review_sha256": "f8eb6d39b527a5bf07cf2916a28fa545e6b5dc149df56b611db803ef5f7d23cf",
+  "audit": ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/AUDIT.json",
+  "audit_sha256": "54750cd00044c1bf6e16dd27b0c90a9f0472056dbc9ed85735a3a88cac34c5b2",
+  "criteria_accounting": ".scratch/dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md",
+  "scope": "All four unchanged canonical tree/selection/scope/keyboard clauses. Retained T1-10 hierarchy/disclosure/tree-canvas/Ctrl-Cmd/membership/keyboard, outline/version/bridge and scoped cancellation authority; changed34768desktop/compact Objects/focus; changed34769primary rectangle/clicked anchor plus focused native disabled/companion regression. BrowserCLI heldShift not forwarded, both paired handlers use documented syntheticmodifierfallback. No exhaustiveeverymodifier/race claim. F3.6Transform no-op is separate, fixedsourceaa33bc80 awaiting34770GREEN; fullLayout/otherparents/cutover remain open.",
+  "decision": "Accepted by coordinator from sufficient retained and changed public evidence and consolidated Sol6.1High assessment; canonicalcriteria/dependencies/history retained."
+}

@@ -1273,12 +1273,12 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T13:36:26.507570+00:00",
+    "updated_at": "2026-10-03T13:38:11.421548+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
-      "accepted": 7,
+      "accepted": 8,
       "planned": 23,
-      "implementing": 32,
+      "implementing": 31,
       "total": 62
     },
     "parents_source": ".scratch/dioxus-frontend-v1/tasks.json",
@@ -2581,6 +2581,19 @@
         "criteria_accounting": ".scratch/dioxus-keycaps-workflow/evidence/keycaps-closure-reconciliation-20261003/criteria.md",
         "scope": "Canonical fit/findings/navigation clause only. Retained paired SW1 route/focused marker, production navigation/RAF ownership qualification, existing Core invalid/swept/current-case-feature/stale-case tests, accepted-token/revision refresh and stale/failure guards. Independent byte equivalence from qualified34768 to bbd4da1b. INT.2 accepted. Does not accept F6C.1/full Keycaps/preview/cutover or hide remaining visual differences; no new every-invalid-setting browser matrix.",
         "decision": "Accepted by coordinator under unchanged canonical criteria from sufficient existing public/source/Core evidence and consolidated Sol recommendation; independent demo package failure does not gate this unchanged fit capability."
+      },
+      {
+        "parent": "F3.1",
+        "at": "2026-10-03T13:38:11.421548+00:00",
+        "candidate_source": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+        "candidate_url": "http://127.0.0.1:34769/boardstudio/",
+        "review": ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/REVIEW.md",
+        "review_sha256": "f8eb6d39b527a5bf07cf2916a28fa545e6b5dc149df56b611db803ef5f7d23cf",
+        "audit": ".scratch/dioxus-frontend-v1/evidence/layout-f31-acceptance-20261003/AUDIT.json",
+        "audit_sha256": "54750cd00044c1bf6e16dd27b0c90a9f0472056dbc9ed85735a3a88cac34c5b2",
+        "criteria_accounting": ".scratch/dioxus-layout-authoring/evidence/f31-canonical-criteria-reconciliation-20261003.md",
+        "scope": "All four unchanged canonical tree/selection/scope/keyboard clauses. Retained T1-10 hierarchy/disclosure/tree-canvas/Ctrl-Cmd/membership/keyboard, outline/version/bridge and scoped cancellation authority; changed34768desktop/compact Objects/focus; changed34769primary rectangle/clicked anchor plus focused native disabled/companion regression. BrowserCLI heldShift not forwarded, both paired handlers use documented syntheticmodifierfallback. No exhaustiveeverymodifier/race claim. F3.6Transform no-op is separate, fixedsourceaa33bc80 awaiting34770GREEN; fullLayout/otherparents/cutover remain open.",
+        "decision": "Accepted by coordinator from sufficient retained and changed public evidence and consolidated Sol6.1High assessment; canonicalcriteria/dependencies/history retained."
       }
     ],
     "active_streams": [
@@ -2588,7 +2601,7 @@
         "stream": "Layout",
         "priority": "first",
         "candidate": "34769",
-        "state": "First priority: anchored primary-cell range paired GREEN; Stagger trusted pointer RED found/fixed for34770; other transform changes paired qualification active."
+        "state": "Firstpriority: F3.1accepted8/62parentsfromsufficientretained/changedselectionevidence. SeparatetrustedTransform34769RED correctedaa33; next34770GREENpending. Matrixauthoringnextqueueactive."
       },
       {
         "stream": "PCB",
