@@ -1273,7 +1273,7 @@
     "independent_review_sha256": "d3a3a0322a1284dd8611f00c57d6792adbc1793d33be57db64cf74f33474afc4"
   },
   "current_progress": {
-    "updated_at": "2026-10-03T11:19:13.593284+00:00",
+    "updated_at": "2026-10-03T11:23:45.363302+00:00",
     "authority": "Latest user: Layout first, six queues, one waiting packet per stream, journey/criterion reporting, less testing and more implementation. Necessary API/design changes authorized.",
     "parent_counts": {
       "accepted": 3,
@@ -1299,8 +1299,8 @@
       "package_proof": ".scratch/dioxus-frontend-v1/evidence/candidate-34764-20261003/package-proof.json"
     },
     "integration": {
-      "source_commit": "533501d9",
-      "state": "34764 served and source/asset proof completed. Board/Geometry/VIK changedlegs active; nextbatchKeycapsclearancedisclosure,Casecontextualselection,Layoutfindings,Exportfootprints,PCBmountedInspector. All62parents/RFhistory retained.",
+      "source_commit": "e889f93a",
+      "state": "34764 remainsserved; focusedExportcontext and CurrentprojectstatusGREEN. Nextsourcejoins: Keycaps93ef, footprintExport609f/RF1a20, correctedCasee889. Layoutdraft-owner/header/ID and presetghost repairs, Partsselectedmodulepreview and PCBmountedInspector active.",
       "packets": [
         {
           "slice": "Layout perimeter editing",
@@ -1924,6 +1924,21 @@
         "reused": "public-34762.json: entry/actions/cancel/Browse and acceptedrevision unchanged; prior newboard history/reopen and current-source display guards. No repeated action/history pass.",
         "limits": "Contextual Board Inspector generic Position and Objects grouping/header gaps remain; nextchild15 addresses board Inspector. No fullF3/F5parent acceptance.",
         "tool_notes": "Initial eval syntax error and screenshot CDP timeout were tooling failures; after closing only root-owned superseded test tabs, capture succeeded. They are not app behavior failures."
+      },
+      {
+        "journey": "Outline\u2192Export\u2192Review wiring\u2192Layout",
+        "state": "Focused actualRED34763 and GREEN34764; currentBoard Inspector returns without staleoutline",
+        "candidate": "661296fe/34764",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/export-workspace-34764-20261003",
+        "reused": "ExistingExportdownload/Back/Escape and selection/history proof; no repeatedmatrix",
+        "limits": "No broaderExportprovider/geometry qualification."
+      },
+      {
+        "journey": "Project menu Current project status nesting",
+        "state": "GREEN34764: Revision7\u00b7Saved span is insideCurrentprojectregion",
+        "candidate": "661296fe/34764",
+        "evidence": ".scratch/dioxus-frontend-v1/evidence/export-workspace-34764-20261003/current-project-status-34764-green.json",
+        "limits": "Generalfooterfindingsplacement still implementing."
       }
     ],
     "criterion_accounting": "Preserve every parent criterion. These are bounded journey receipts, not complete criterion counts; unassessed criteria remain open.",
