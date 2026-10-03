@@ -12,7 +12,7 @@ use std::{
 };
 use wasm_bindgen_futures::spawn_local;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct GeneratorOwner {
     pub(super) scope: Option<Scope>,
     pub(super) selection: Option<(Option<Scope>, String)>,
@@ -21,9 +21,27 @@ pub(crate) struct GeneratorOwner {
     pub(super) definition_id: String,
     pub(super) base_definition: PartDefinition,
     pub(super) source: String,
+    pub(super) generator_version: String,
     pub(super) base_parameters: BTreeMap<String, Value>,
+    pub(super) project_owned_at_start: bool,
     pub(super) scope_generation: u64,
     pub(super) selection_generation: u64,
+}
+
+impl PartialEq for GeneratorOwner {
+    fn eq(&self, other: &Self) -> bool {
+        self.scope == other.scope
+            && self.selection == other.selection
+            && self.session_epoch == other.session_epoch
+            && self.document_id == other.document_id
+            && self.definition_id == other.definition_id
+            && self.source == other.source
+            && self.generator_version == other.generator_version
+            && self.base_parameters == other.base_parameters
+            && self.project_owned_at_start == other.project_owned_at_start
+            && self.scope_generation == other.scope_generation
+            && self.selection_generation == other.selection_generation
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -83,9 +101,11 @@ pub(super) fn owner_is_current(
         .find(|definition| definition.id == owner.definition_id)
     {
         Some(definition) => definition.generator.as_ref().is_some_and(|generator| {
-            generator.source == owner.source && generator.parameters == owner.base_parameters
+            generator.source == owner.source
+                && generator.version == owner.generator_version
+                && generator.parameters == owner.base_parameters
         }),
-        None => true,
+        None => !owner.project_owned_at_start,
     }
 }
 
@@ -137,7 +157,13 @@ fn make_owner(
         definition_id: definition.id.clone(),
         base_definition: definition.clone(),
         source: generator.source.clone(),
+        generator_version: generator.version.clone(),
         base_parameters: generator.parameters.clone(),
+        project_owned_at_start: snapshot
+            .document
+            .definitions
+            .iter()
+            .any(|accepted| accepted.id == definition.id),
         scope_generation,
         selection_generation,
     })
@@ -456,28 +482,32 @@ fn prepare_generator_edit(
         || current.session_epoch != owner.session_epoch
         || current.document.id != owner.document_id
         || candidate.id != owner.definition_id
-        || candidate
-            .generator
-            .as_ref()
-            .map(|generator| generator.source.as_str())
-            != Some(owner.source.as_str())
+        || candidate.generator.as_ref().is_none_or(|generator| {
+            generator.source != owner.source || generator.version != owner.generator_version
+        })
     {
         return Err("The Parts project, generator selection, or view changed before Apply.".into());
     }
-    let original = current
+    let accepted_definition = current
         .document
         .definitions
         .iter()
         .find(|definition| definition.id == owner.definition_id)
-        .cloned()
-        .unwrap_or_else(|| owner.base_definition.clone());
+        .cloned();
+    if accepted_definition.is_none() && owner.project_owned_at_start {
+        return Err("The selected project generator definition was removed.".into());
+    }
+    let original = accepted_definition.unwrap_or_else(|| owner.base_definition.clone());
     if original.generator.as_ref().is_none_or(|generator| {
-        generator.source != owner.source || generator.parameters != owner.base_parameters
+        generator.source != owner.source
+            || generator.version != owner.generator_version
+            || generator.parameters != owner.base_parameters
     }) {
         return Err(
             "The selected generator definition changed while these settings were open.".into(),
         );
     }
+    let candidate = rebase_generator_candidate(&owner.base_definition, &original, &candidate)?;
     let nets = remap_terminal_nets(current, &original, &candidate)?;
     let mut document = current.document.as_ref().clone();
     if let Some(existing) = document
@@ -510,6 +540,46 @@ fn prepare_generator_edit(
             },
         },
     })
+}
+
+fn rebase_generator_candidate(
+    base: &PartDefinition,
+    latest: &PartDefinition,
+    candidate: &PartDefinition,
+) -> Result<PartDefinition, String> {
+    if base.id != latest.id || candidate.id != latest.id {
+        return Err("The selected generator definition changed identity.".into());
+    }
+    let mut rebased = latest.clone();
+    macro_rules! merge_field {
+        ($field:ident) => {
+            if candidate.$field != base.$field {
+                if latest.$field != base.$field && latest.$field != candidate.$field {
+                    return Err(format!(
+                        "The selected generator definition's {} changed while this draft was open.",
+                        stringify!($field).replace('_', " ")
+                    ));
+                }
+                rebased.$field = candidate.$field.clone();
+            }
+        };
+    }
+    merge_field!(hardware_profile);
+    merge_field!(input_profile);
+    merge_field!(name);
+    merge_field!(kind);
+    merge_field!(keycap);
+    merge_field!(envelope_source);
+    merge_field!(kicad_source);
+    merge_field!(terminals);
+    merge_field!(matrix_terminals);
+    merge_field!(envelope_notice);
+    merge_field!(courtyard);
+    merge_field!(pads);
+    merge_field!(models);
+    merge_field!(generator);
+    merge_field!(mechanical_profile);
+    Ok(rebased)
 }
 
 #[derive(Clone)]
@@ -563,7 +633,7 @@ pub(super) fn GeneratorSettingsEditor(
         definition
             .generator
             .as_ref()
-            .map(|generator| generator.parameters.clone()),
+            .map(|generator| (generator.version.clone(), generator.parameters.clone())),
         scope.clone(),
         selected(),
     );
@@ -704,7 +774,10 @@ pub(super) fn GeneratorSettingsEditor(
         let runtime = runtime.clone();
         let mut pending_apply = pending_apply;
         let mut feedback = feedback;
-        let current_owner = owner.clone();
+        let current_owner = active_draft
+            .as_ref()
+            .map(|draft| draft.owner.clone())
+            .unwrap_or_else(|| owner.clone());
         let selected = selected;
         let active_draft = active_draft.clone();
         move |_| {
@@ -895,5 +968,174 @@ fn GeneratorParameterField(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::{MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use std::sync::Arc;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    const DEFINITION_ID: &str = "ergogen:ceoloide/switch_mx";
+
+    fn definition() -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id": DEFINITION_ID,
+            "name": "MX switch",
+            "kind": "switch",
+            "courtyard": [
+                {"x": -7.0, "y": -4.0},
+                {"x": 7.0, "y": -4.0},
+                {"x": 7.0, "y": 4.0}
+            ],
+            "pads": [{
+                "id": "pad-1", "number": "1", "at": {"x": 0.0, "y": 0.0},
+                "size": {"x": 2.0, "y": 2.0}, "shape": "circle"
+            }],
+            "generator": {
+                "source": "ceoloide/switch_mx", "version": "bundled-1",
+                "parameters": {"keycap_width": 18, "keycap_height": 18}
+            }
+        }))
+        .expect("generator definition")
+    }
+
+    fn snapshot(definitions: Vec<PartDefinition>, revision: u64) -> AcceptedSnapshot {
+        let mut document = ProjectDoc::empty("generator-merge", "Sofle v2");
+        document.revision = revision;
+        document.definitions = definitions;
+        let scene: SceneDelta = serde_json::from_value(serde_json::json!({
+            "revision": revision,
+            "transactionId": "generator-merge-fixture",
+            "changedIds": [], "transforms": [], "matrixScenes": [],
+            "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+            "readiness": {"layout": true, "outline": true, "pcb": true, "case": false}
+        }))
+        .expect("scene");
+        AcceptedSnapshot {
+            token: SnapshotToken(revision + 10),
+            session_epoch: SessionEpoch(3),
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        }
+    }
+
+    fn scope() -> Scope {
+        Scope {
+            session_epoch: SessionEpoch(3),
+            document_id: "generator-merge".into(),
+            board_id: "left-pcb".into(),
+            instance_id: None,
+        }
+    }
+
+    fn view(scope: &Scope) -> GeneratorView {
+        GeneratorView {
+            scope: Some(scope.clone()),
+            selection: Some((Some(scope.clone()), DEFINITION_ID.into())),
+            scope_generation: 11,
+            selection_generation: 7,
+            workspace: "Parts",
+        }
+    }
+
+    fn mechanical_profile() -> MechanicalPartProfile {
+        MechanicalPartProfile {
+            source_geometry: None,
+            pcb_holes: None,
+            clearance_volumes: None,
+            openings: None,
+            clearances: None,
+            supported_thickness: None,
+            switch_family: None,
+            definition_id: DEFINITION_ID.into(),
+            source: "latest accepted metadata".into(),
+            cutouts: Vec::new(),
+            plate_to_pcb: 0.8,
+        }
+    }
+
+    fn changed_candidate(base: &PartDefinition) -> PartDefinition {
+        let mut candidate = base.clone();
+        let generator = candidate.generator.as_mut().expect("generator");
+        generator
+            .parameters
+            .insert("keycap_width".into(), Value::from(20));
+        candidate.pads[0].size.x = 3.0;
+        candidate.courtyard[0].x = -8.0;
+        candidate
+    }
+
+    #[wasm_bindgen_test]
+    fn retained_generator_apply_merges_latest_metadata_and_rejects_deleted_owner() {
+        let base = definition();
+        let base_snapshot = snapshot(vec![base.clone()], 4);
+        let scope = scope();
+        let selection = Some((Some(scope.clone()), DEFINITION_ID.into()));
+        let owner = make_owner(&base_snapshot, Some(scope.clone()), selection, &base, 11, 7)
+            .expect("owner");
+        assert!(owner.project_owned_at_start);
+
+        let mut latest = base.clone();
+        latest.name = "Latest accepted name".into();
+        latest.mechanical_profile = Some(mechanical_profile());
+        let latest_snapshot = snapshot(vec![latest.clone()], 5);
+        let current_owner = make_owner(
+            &latest_snapshot,
+            Some(scope.clone()),
+            Some((Some(scope.clone()), DEFINITION_ID.into())),
+            &latest,
+            11,
+            7,
+        )
+        .expect("current owner");
+        assert_eq!(
+            owner, current_owner,
+            "non-generator metadata keeps the draft owner"
+        );
+
+        let candidate = changed_candidate(&base);
+        let event = prepare_generator_edit(
+            &latest_snapshot,
+            &owner,
+            &view(&scope),
+            candidate.clone(),
+            OperationId(701),
+        )
+        .expect("candidate rebases onto the latest accepted document");
+        let Event::Edit { command, .. } = event else {
+            panic!("Apply should submit one ordinary edit");
+        };
+        assert_eq!(command.base_revision, 5);
+        let EditOperation::ReplaceDocument { document } = command.operation else {
+            panic!("Apply should replace the current document");
+        };
+        let applied = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == DEFINITION_ID)
+            .expect("applied definition");
+        assert_eq!(applied.name, "Latest accepted name");
+        assert_eq!(applied.mechanical_profile, latest.mechanical_profile);
+        assert_eq!(applied.generator, candidate.generator);
+        assert_eq!(applied.pads, candidate.pads);
+        assert_eq!(applied.courtyard, candidate.courtyard);
+
+        let deleted_snapshot = snapshot(Vec::new(), 6);
+        assert!(
+            prepare_generator_edit(
+                &deleted_snapshot,
+                &owner,
+                &view(&scope),
+                candidate,
+                OperationId(702),
+            )
+            .is_err()
+        );
     }
 }
