@@ -40,6 +40,12 @@ pub(super) type PartsSelection = Signal<Option<(Option<Scope>, String)>>;
 #[derive(Clone, Copy)]
 pub(super) struct PartsSelectionGeneration(pub(super) Signal<u64>);
 
+/// Explicit catalogue activation resets the local preview mode. Search/filter
+/// changes use `PartsSelectionGeneration` for stale-work admission, but do not
+/// count as a user selecting a catalogue item.
+#[derive(Clone, Copy)]
+pub(super) struct PartsPreviewActivation(pub(super) Signal<u64>);
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct GeneratorPreviewDraft {
     owner: generator_settings::GeneratorOwner,
@@ -662,6 +668,7 @@ pub(super) fn PartsLibraryPanel(
 ) -> Element {
     let mut view_generation = use_signal(|| 0_u64);
     let mut generation = use_context::<PartsSelectionGeneration>().0;
+    let mut preview_activation = use_context::<PartsPreviewActivation>().0;
     let catalogue = use_catalogue(&snapshot, &scope);
     let content = if let Some(entries) = catalogue.entries {
         let choices = group_choices(&entries);
@@ -725,6 +732,7 @@ pub(super) fn PartsLibraryPanel(
                                                 selected.set(Some((scope.clone(), id.clone())));
                                                 view_generation.set(view_generation() + 1);
                                                 generation.with_mut(|value| *value = value.wrapping_add(1));
+                                                preview_activation.with_mut(|value| *value = value.wrapping_add(1));
                                                 on_select.call(());
                                             },
                                             "{preferred_label(&entry.definition)}"

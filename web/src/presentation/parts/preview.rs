@@ -3,7 +3,7 @@ use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
 use crate::footprint_forms::{Graphic, Shape};
 use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
+use boardstudio_core::model::{EnvelopeOrigin, PartDefinition, Side, Vec2};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -19,6 +19,7 @@ struct PreviewInput {
     snapshot_token: SnapshotToken,
     definition_id: String,
     definition_json: String,
+    selection_generation: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -69,6 +70,9 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     snapshot_token: SnapshotToken,
     generator_draft: Option<GeneratorPreviewDraft>,
 ) -> Element {
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let selection_generation = use_context::<super::PartsSelectionGeneration>().0;
+    let preview_activation = use_context::<super::PartsPreviewActivation>().0;
     let input = PreviewInput {
         scope: scope.clone(),
         snapshot_token,
@@ -79,11 +83,46 @@ pub(in crate::presentation) fn PartsPreviewPanel(
             .as_ref()
             .and_then(|definition| serde_json::to_string(definition.as_ref()).ok())
             .unwrap_or_default(),
+        selection_generation: selection_generation(),
     };
     let last_input = use_hook(|| Rc::new(RefCell::new(None::<PreviewInput>)));
     let generation_counter = use_hook(|| Rc::new(Cell::new(0_u64)));
     let current_owner = next_preview_owner(&last_input, &generation_counter, input.clone());
     let generation = current_owner.generation;
+    let lease_slot = use_hook(|| Rc::new(crate::parts_preview::PartsPreviewLeaseSlot::default()));
+    use_drop({
+        let lease_slot = lease_slot.clone();
+        move || lease_slot.invalidate()
+    });
+    let show_3d = use_signal(|| false);
+    let previous_activation = use_hook(|| Rc::new(RefCell::new(None::<(String, u64)>)));
+    let previous_preview_generation = use_hook(|| Rc::new(Cell::new(None::<u64>)));
+    use_effect(use_reactive(
+        (&input.definition_id, &preview_activation()),
+        {
+            let previous_activation = previous_activation.clone();
+            let lease_slot = lease_slot.clone();
+            move |(definition_id, activation_generation)| {
+                let activation = (definition_id, activation_generation);
+                let mut previous = previous_activation.borrow_mut();
+                if previous.as_ref() != Some(&activation) {
+                    *previous = Some(activation);
+                    show_3d.set(false);
+                    lease_slot.invalidate();
+                }
+            }
+        },
+    ));
+    use_effect(use_reactive((&generation,), {
+        let previous_preview_generation = previous_preview_generation.clone();
+        let lease_slot = lease_slot.clone();
+        move |(generation,)| {
+            let previous = previous_preview_generation.replace(Some(generation));
+            if previous.is_some_and(|previous| previous != generation) {
+                lease_slot.invalidate();
+            }
+        }
+    }));
     let source = use_resource(use_reactive(
         (&definition, &input, &generation),
         |(definition, input, generation)| async move {
@@ -94,9 +133,64 @@ pub(in crate::presentation) fn PartsPreviewPanel(
             (PreviewOwner { input, generation }, result)
         },
     ));
+    let sample_source = use_resource(use_reactive(
+        (&definition, &input, &generation, &scope, &show_3d()),
+        {
+            let runtime = runtime.clone();
+            let lease_slot = lease_slot.clone();
+            move |(definition, input, generation, scope, show_3d)| {
+                let runtime = runtime.clone();
+                let lease_slot = lease_slot.clone();
+                async move {
+                    if !show_3d {
+                        return (PreviewOwner { input, generation }, None);
+                    }
+                    let result = async {
+                        let scope = scope.ok_or_else(|| {
+                            "Open a project before preparing the Parts sample.".to_owned()
+                        })?;
+                        let definition = definition.ok_or_else(|| {
+                            "Select a component before preparing the Parts sample.".to_owned()
+                        })?;
+                        let accepted = runtime
+                            .model()
+                            .accepted
+                            .ok_or_else(|| "No accepted project is available.".to_owned())?;
+                        if accepted.token != input.snapshot_token
+                            || runtime.scope().as_ref() != Some(&scope)
+                            || accepted.document.id != scope.document_id
+                        {
+                            return Err(
+                                "The accepted Parts selection changed before preview.".into()
+                            );
+                        }
+                        let request_token = format!(
+                            "parts-sample-{}-{}-{}",
+                            accepted.token.0, accepted.document.revision, generation
+                        );
+                        let capture = crate::parts_preview::PartsPreviewCapture::capture(
+                            &accepted,
+                            &scope,
+                            generation,
+                            request_token,
+                            &definition,
+                        )?;
+                        lease_slot.replace(capture.lease.clone());
+                        runtime
+                            .prepare_parts_library_preview(capture)
+                            .await
+                            .map(Rc::new)
+                    }
+                    .await;
+                    (PreviewOwner { input, generation }, Some(result))
+                }
+            }
+        },
+    ));
     let mut visibility = use_signal(Visibility::default);
 
     let Some(definition) = definition else {
+        lease_slot.invalidate();
         return rsx! {
             section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
                 p { class: "m1-parts-empty", role: "status", "Select a component from the Parts catalogue to preview its footprint." }
@@ -110,6 +204,10 @@ pub(in crate::presentation) fn PartsPreviewPanel(
     let matching = source_state
         .filter(|(owner, _)| owner_is_current(owner, &current_owner))
         .map(|(_, result)| result);
+    let sample_state = sample_source.read().clone();
+    let matching_sample = sample_state
+        .filter(|(owner, _)| owner_is_current(owner, &current_owner))
+        .and_then(|(_, result)| result);
 
     let toggle_layer = move |layer_id: String| {
         let mut next = visibility();
@@ -125,6 +223,24 @@ pub(in crate::presentation) fn PartsPreviewPanel(
 
     rsx! {
         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
+            h2 { class: "m1-library-workspace-title", "{super::catalogue::preferred_label(&definition)}" }
+            div { class: "m1-design-view-group", role: "group", aria_label: "Part preview view",
+                button {
+                    r#type: "button",
+                    aria_pressed: "{!show_3d()}",
+                    onclick: move |_| {
+                        show_3d.set(false);
+                        lease_slot.invalidate();
+                    },
+                    "2D footprint"
+                }
+                button {
+                    r#type: "button",
+                    aria_pressed: "{show_3d()}",
+                    onclick: move |_| show_3d.set(true),
+                    "3D model"
+                }
+            }
             if let Some(draft) = generator_draft.as_ref() {
                 match &draft.status {
                     GeneratorPreviewStatus::Pending => rsx! { p { class: "m1-parts-preview-status", role: "status", "Generating the current generator preview…" } },
@@ -132,18 +248,24 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                     GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-preview-error", role: "alert", "Generator preview failed; showing the accepted footprint: {error}" } },
                 }
             }
-            match matching {
-                None => rsx! {
-                    p { class: "m1-parts-loading", role: "status", "Preparing {definition.name} footprint preview…" }
-                },
-                Some(Err(PreviewFailure::Unsupported)) => rsx! {
-                    p { class: "m1-parts-empty", role: "status", "A source-backed Parts preview is not available for this definition yet." }
-                },
-                Some(Err(PreviewFailure::Failed(error))) => rsx! {
-                    p { class: "m1-parts-load-error", role: "alert", "Footprint preview failed: {error}" }
-                },
-                Some(Ok(content)) => rsx! {
-                    h2 { class: "m1-library-workspace-title", "{super::catalogue::preferred_label(&definition)}" }
+            if show_3d() {
+                match matching_sample {
+                    None => rsx! { p { class: "m1-parts-loading", role: "status", "Preparing isolated 3D sample…" } },
+                    Some(Err(error)) => rsx! { p { class: "m1-parts-load-error", role: "alert", "3D Parts preview failed: {error}" } },
+                    Some(Ok(preview)) => rsx! { PartsSampleViewer { preview } },
+                }
+            } else {
+                match matching {
+                    None => rsx! {
+                        p { class: "m1-parts-loading", role: "status", "Preparing {definition.name} footprint preview…" }
+                    },
+                    Some(Err(PreviewFailure::Unsupported)) => rsx! {
+                        p { class: "m1-parts-empty", role: "status", "A source-backed Parts preview is not available for this definition yet." }
+                    },
+                    Some(Err(PreviewFailure::Failed(error))) => rsx! {
+                        p { class: "m1-parts-load-error", role: "alert", "Footprint preview failed: {error}" }
+                    },
+                    Some(Ok(content)) => rsx! {
                     if let Some(notice) = definition.envelope_notice.as_deref().filter(|notice| !notice.is_empty()) {
                         p { class: "m1-parts-preview-note", role: "status", "{notice}" }
                     }
@@ -191,7 +313,68 @@ pub(in crate::presentation) fn PartsPreviewPanel(
                         }
                     }
                     PartsPreviewLayers { layers: content.layers, hidden, on_toggle: toggle_layer }
-                },
+                    },
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) -> Element {
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let theme = use_context::<super::super::ResolvedTheme>().0;
+    let mut display = use_signal(super::super::case_display::CaseDisplay::default);
+    let on_signal = {
+        let runtime = runtime.clone();
+        let preview = preview.clone();
+        move |event: super::super::shared_viewer::ScopedViewerSignal| {
+            if !event.is_current()
+                || !runtime.parts_preview_snapshot_is_current(&preview)
+                || event.identity.scope != preview.owner.scope
+                || event.identity.snapshot_token != preview.owner.snapshot_token
+            {
+                return;
+            }
+            if let super::super::shared_viewer::ViewerSignalKind::Failed(message) = event.kind {
+                runtime.report(message);
+            }
+        }
+    };
+    let on_display_change = {
+        let runtime = runtime.clone();
+        let preview = preview.clone();
+        move |event: super::super::shared_viewer::ScopedDisplayChange| {
+            if event.is_current()
+                && runtime.parts_preview_snapshot_is_current(&preview)
+                && event.identity.scope == preview.owner.scope
+                && event.identity.snapshot_token == preview.owner.snapshot_token
+            {
+                display.set(event.display);
+            }
+        }
+    };
+    rsx! {
+        section { class: "m1-parts-sample-viewer", "aria-label": "3D footprint model preview",
+            if preview.preview.models.is_empty() {
+                p { class: "m1-parts-preview-status", role: "status", "No 3D model is linked to this definition." }
+            }
+            if let Some(rows) = preview.model_rows.as_ref() {
+                for failure in &rows.failures {
+                    p { class: "m1-parts-load-error", role: "alert", "{failure.reference}: {failure.reason}" }
+                }
+            }
+            super::super::shared_viewer::CaseSharedViewer {
+                scene: None,
+                preview: None,
+                layout_preview: None,
+                parts_preview: Some(preview.clone()),
+                model_rows: None,
+                selected_layer: "pcb".to_owned(),
+                display: display(),
+                resolved_theme: theme().to_owned(),
+                on_signal,
+                on_display_change,
             }
         }
     }

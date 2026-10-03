@@ -270,6 +270,7 @@ pub(crate) fn CaseSharedViewer(
     preview: Option<Rc<NativePreviewSnapshot>>,
     layout_preview: Option<Rc<LayoutPreviewSnapshot>>,
     keycaps_preview: Option<crate::runtime::KeycapsCadPreview>,
+    parts_preview: Option<Rc<crate::parts_preview::PartsPreviewSnapshot>>,
     model_rows: Option<ModelDeliveryRows>,
     selected_layer: String,
     display: CaseDisplay,
@@ -291,6 +292,7 @@ pub(crate) fn CaseSharedViewer(
         .map(ViewerSource::Cad)
         .or_else(|| preview.clone().map(ViewerSource::Native))
         .or_else(|| layout_preview.clone().map(ViewerSource::Layout))
+        .or_else(|| parts_preview.clone().map(ViewerSource::Parts))
     else {
         return rsx! { p { role: "alert", "3D preview source is unavailable." } };
     };
@@ -309,6 +311,10 @@ pub(crate) fn CaseSharedViewer(
             model_rows.as_ref()
         }
         ViewerSource::Layout(_) => None,
+        ViewerSource::Parts(preview) if preview.lease.matches(&preview.owner) => {
+            preview.model_rows.as_ref()
+        }
+        ViewerSource::Parts(_) => None,
     };
     let inputs = ProjectionInputs {
         source: source.pointer(),
@@ -408,7 +414,10 @@ pub(crate) fn CaseSharedViewer(
                 })
                 .unwrap_or_default()
         }
-        ViewerSource::Cad(_) | ViewerSource::Native(_) | ViewerSource::Layout(_) => Vec::new(),
+        ViewerSource::Cad(_)
+        | ViewerSource::Native(_)
+        | ViewerSource::Layout(_)
+        | ViewerSource::Parts(_) => Vec::new(),
     };
     let assembly_layers = assembly_layers_with_stack(generated_layers, configured_stack_ids);
     let (layout_source_active, layout_models) = match &source {
@@ -419,7 +428,7 @@ pub(crate) fn CaseSharedViewer(
                 .matches(&preview.owner)
                 .then_some(preview.preview.models.as_slice()),
         ),
-        ViewerSource::Cad(_) | ViewerSource::Native(_) => (false, None),
+        ViewerSource::Cad(_) | ViewerSource::Native(_) | ViewerSource::Parts(_) => (false, None),
     };
     let physical_models = matching_preview.map(|preview| preview.preview.models.as_slice());
     let component_models =
@@ -435,6 +444,7 @@ pub(crate) fn CaseSharedViewer(
             _ => ViewerCanvasContext::Layout,
         },
         ViewerSource::Cad(_) | ViewerSource::Native(_) => ViewerCanvasContext::Case,
+        ViewerSource::Parts(_) => ViewerCanvasContext::Parts,
     };
     rsx! {
         SharedViewer {
@@ -459,6 +469,7 @@ enum ViewerSource {
     Cad(Rc<CadScene>),
     Native(Rc<NativePreviewSnapshot>),
     Layout(Rc<LayoutPreviewSnapshot>),
+    Parts(Rc<crate::parts_preview::PartsPreviewSnapshot>),
 }
 
 fn component_models_for_source<'a>(
@@ -476,6 +487,7 @@ fn component_models_for_source<'a>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ViewerCanvasContext {
     Case,
+    Parts,
     Layout,
     Keymap,
     Keycaps,
@@ -486,6 +498,9 @@ impl ViewerCanvasContext {
         match self {
             Self::Case => {
                 "Interactive 3D Case preview. Click a visible body to select its current mapped item; use the controls to navigate and change display."
+            }
+            Self::Parts => {
+                "Interactive 3D Parts sample preview. Navigate the isolated read-only sample; it cannot edit the active project."
             }
             Self::Layout => {
                 "Interactive 3D Layout PCB assembly. Click a visible component to select its current Layout part; use the controls to navigate and change display."
@@ -498,6 +513,46 @@ impl ViewerCanvasContext {
             }
         }
     }
+
+    fn fit_label(self) -> &'static str {
+        match self {
+            Self::Parts => "Fit sample",
+            Self::Case => "Fit case",
+            Self::Layout => "Fit layout",
+            Self::Keymap => "Fit Keymap",
+            Self::Keycaps => "Fit Keycaps",
+        }
+    }
+
+    fn camera_label(self) -> &'static str {
+        match self {
+            Self::Parts => "Parts sample camera",
+            Self::Case => "Case camera",
+            Self::Layout => "Layout camera",
+            Self::Keymap => "Keymap camera",
+            Self::Keycaps => "Keycaps camera",
+        }
+    }
+
+    fn display_label(self) -> &'static str {
+        match self {
+            Self::Parts => "Parts sample display mode",
+            Self::Case => "Case display mode",
+            Self::Layout => "Layout display mode",
+            Self::Keymap => "Keymap display mode",
+            Self::Keycaps => "Keycaps display mode",
+        }
+    }
+
+    fn assembly_label(self) -> &'static str {
+        match self {
+            Self::Parts => "Parts sample view",
+            Self::Case => "Case assembly view",
+            Self::Layout => "Layout assembly view",
+            Self::Keymap => "Keymap assembly view",
+            Self::Keycaps => "Keycaps assembly view",
+        }
+    }
 }
 
 impl ViewerSource {
@@ -506,6 +561,7 @@ impl ViewerSource {
             (Self::Cad(left), Self::Cad(right)) => Rc::ptr_eq(left, right),
             (Self::Native(left), Self::Native(right)) => Rc::ptr_eq(left, right),
             (Self::Layout(left), Self::Layout(right)) => Rc::ptr_eq(left, right),
+            (Self::Parts(left), Self::Parts(right)) => Rc::ptr_eq(left, right),
             _ => false,
         }
     }
@@ -515,6 +571,7 @@ impl ViewerSource {
             Self::Cad(scene) => Rc::as_ptr(scene) as usize,
             Self::Native(preview) => Rc::as_ptr(preview) as usize,
             Self::Layout(preview) => Rc::as_ptr(preview) as usize,
+            Self::Parts(preview) => Rc::as_ptr(preview) as usize,
         }
     }
 
@@ -523,6 +580,7 @@ impl ViewerSource {
             Self::Cad(scene) => (&scene.scope, scene.token),
             Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
             Self::Layout(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
+            Self::Parts(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
         }
     }
 
@@ -535,6 +593,7 @@ impl ViewerSource {
             Self::Cad(scene) => (&scene.scope, scene.token),
             Self::Native(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
             Self::Layout(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
+            Self::Parts(preview) => (&preview.owner.scope, preview.owner.snapshot_token),
         };
         owner.advance_source(scope.clone(), token, inputs)
     }
@@ -561,6 +620,10 @@ impl ViewerSource {
                     && Rc::ptr_eq(&current.lease, &preview.lease)
                     && preview.lease.matches(&preview.owner)
             }),
+            Self::Parts(preview) => {
+                preview.lease.matches(&preview.owner)
+                    && runtime.parts_preview_snapshot_is_current(preview)
+            }
         }
     }
 }
@@ -583,6 +646,7 @@ fn project_source(
         ViewerSource::Layout(preview) => {
             project_layout_preview(preview, identity, theme, model_rows, keycaps_preview)
         }
+        ViewerSource::Parts(preview) => project_parts_preview(preview, identity, theme, model_rows),
     }
 }
 
@@ -826,6 +890,54 @@ fn project_layout_preview(
         identity,
         input,
         layers,
+        handles: Vec::new(),
+    })
+}
+
+fn project_parts_preview(
+    preview: &crate::parts_preview::PartsPreviewSnapshot,
+    identity: ViewerIdentity,
+    theme: &str,
+    model_rows: Option<&ModelDeliveryRows>,
+) -> Result<RendererSceneProjection, String> {
+    if preview.owner.scope != identity.scope
+        || preview.owner.snapshot_token != identity.snapshot_token
+        || !preview.lease.matches(&preview.owner)
+    {
+        return Err("Parts sample does not match the active viewer owner".into());
+    }
+    let board = preview
+        .sample_document
+        .boards
+        .iter()
+        .find(|board| board.id == "sample-board")
+        .ok_or_else(|| "Parts sample board is unavailable".to_owned())?;
+    let packet = serde_json::json!({
+        "revision": identity.renderer_sequence,
+        "kind": "assembly",
+        "theme": theme,
+        "view": "assembled",
+        "keepCamera": true,
+        "selectedLayer": "",
+        "hidden": [],
+        "board": {
+            "revision": identity.renderer_sequence,
+            "thickness": board.thickness,
+            "contours": &preview.contours,
+            "surfaces": &preview.preview.surfaces,
+            "holes": &preview.preview.holes,
+            "models": &preview.preview.models
+        },
+        "models": [],
+        "mechanicalStack": []
+    });
+    let input = js_sys::JSON::parse(&packet.to_string()).map_err(js_error)?;
+    let models = loaded_model_inputs(model_rows);
+    Reflect::set(&input, &"models".into(), &models).map_err(js_error)?;
+    Ok(RendererSceneProjection {
+        identity,
+        input,
+        layers: vec![("pcb".to_owned(), "PCB".to_owned())],
         handles: Vec::new(),
     })
 }
@@ -1923,7 +2035,7 @@ fn SharedViewer(
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
             div { class: "m1-case-view-toolbar",
-                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "Fit case" }
+                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "{canvas_context.fit_label()}" }
                 if can_edit_gaskets {
                     button {
                         r#type: "button",
@@ -1972,7 +2084,7 @@ fn SharedViewer(
                 details { class: "m1-case-view-settings",
                     summary { "View controls" }
                     div { class: "m1-case-view-settings-body",
-            div { role: "group", "aria-label": "Case camera",
+            div { role: "group", "aria-label": "{canvas_context.camera_label()}",
                 button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
                 button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
                 button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
@@ -1981,7 +2093,7 @@ fn SharedViewer(
                 button { onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
                 button { onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
             }
-            div { role: "group", "aria-label": "Case display mode",
+            div { role: "group", "aria-label": "{canvas_context.display_label()}",
                 for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
                     {
                         let mut transient = transient;
@@ -1994,7 +2106,7 @@ fn SharedViewer(
                     }
                 }
             }
-            div { role: "group", "aria-label": "Case assembly view",
+            div { role: "group", "aria-label": "{canvas_context.assembly_label()}",
                 for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
                     {
                         let mut transient = transient;

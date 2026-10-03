@@ -1,10 +1,12 @@
 # 03: Inspect isolated Parts 2D and 3D previews
 
-**Status:** ready-for-agent; dispatch waits for the declared start blockers and concrete private consumer contract.
+**Status:** implementing the standalone selected-definition 2D/3D route; later assembly/companion and full-parent criteria remain open.
 
 **Parent:** F4.4, “Inspect isolated 2D and 3D library previews” in `.scratch/dioxus-frontend-v1/tasks.json`.
 
 **Start blockers:** F4.1 (accepted Parts selected-definition/companion inputs) and F7.1 (reviewed common-viewer feasibility/adapter contract).
+
+**Operational start:** Capability-level inputs are callable: Parts mounts the accepted catalogue selection and immutable selected definition in its central workspace; the page-binary renderer host and shared viewer are mounted for other workspaces; F7.1's private contract has a reviewed source receipt. This starts only the standalone selected-definition preview consumer. It does not close F4.1 or F7.1, change their canonical graph edges, or satisfy this issue's F7.3/INT.2 acceptance joins. See `../evidence/parts-03-start-capability-20261003.md`.
 
 **Acceptance joins:** F7.3 (single shared viewer plus isolated sample-project consumer) and INT.2 (scoped async/file/asset delivery seam). These are joins, not additional start blockers. Preserve the parent graph and all existing joins unchanged.
 
@@ -38,6 +40,12 @@ Parts-private implementation owns only the sample-preview composition and local 
 ## Verification packet for implementation
 
 Before public-browser comparison, retain identical fixture IDs, selected recipe/companions, scope stamp, expected 2D geometry/service output and expected sample-project asset/pose inputs. Exercise rapid definition changes, same-definition recipe changes, 2D/3D toggles during pending work, model retry, leaving Parts/unmount, missing model, conversion failure, renderer failure and return to 2D. Confirm stale completions do not replace the current scene and active project revision/history/assets are byte-for-byte or identity-equivalent before/after. Pair public-browser captures with the React oracle at the supported desktop/compact breakpoints and light/dark themes. Run only the affected frontend, provider and browser checks named in the eventual source-checked dispatch packet; do not substitute compiler success or a mocked sample for the public behavior and real service joins.
+
+## Bounded first source slice
+
+The first implementation packet wires the already-mounted selected-definition preview into a local 2D/3D header. The existing Parts 2D projector remains the source for the footprint view. The new 3D producer copies only the accepted definition and source asset descriptors into a disposable one-part board sample, clears its terminal-net overrides, and runs the existing Core → preview-worker → Core pipeline plus the existing model-delivery adapter and shared viewer. It captures the accepted project scope, token, revision, document identity and Parts selection generation; explicit catalogue activation resets the view to 2D, while query edits do not. Returning to 2D, selection/source changes, and unmount retire the sample lease. Sample viewer events are read-only and are not mapped to live project parts.
+
+This slice does not yet claim companion assemblies, same-definition recipe projection, paired React geometry parity, supported responsive/theme coverage, provider retry parity, or F7.3/INT.2 joins. Those criteria remain unchecked until the specific mounted public journey and their source/provider contracts are verified. The selected-definition path is not full F4.4 parent acceptance.
 
 ## RF handoff
 

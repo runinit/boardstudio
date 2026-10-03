@@ -2296,6 +2296,8 @@ fn Editor() -> Element {
     let parts_selection: PartsSelection = use_signal(|| None);
     let parts_selection_generation = use_signal(|| 0u64);
     use_context_provider(|| parts::PartsSelectionGeneration(parts_selection_generation));
+    let parts_preview_activation = use_signal(|| 0u64);
+    use_context_provider(|| parts::PartsPreviewActivation(parts_preview_activation));
     let parts_generator_draft = use_signal(|| None::<parts::GeneratorPreviewDraft>);
     use_context_provider(|| parts::GeneratorDraftStore(parts_generator_draft));
     let layout_target: Signal<Option<String>> = use_signal(|| None);

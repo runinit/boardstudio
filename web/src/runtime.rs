@@ -3107,6 +3107,182 @@ impl Runtime {
         }
     }
 
+    /// Prepare a Parts-only disposable sample through the existing Core,
+    /// generator worker, and model-delivery ports. `capture` is owned by the
+    /// mounted Parts preview and becomes stale as soon as that selection or
+    /// accepted project changes.
+    pub(crate) async fn prepare_parts_library_preview(
+        self: &Rc<Self>,
+        capture: crate::parts_preview::PartsPreviewCapture,
+    ) -> Result<crate::parts_preview::PartsPreviewSnapshot, String> {
+        if !self.parts_preview_capture_is_current(&capture) {
+            capture.lease.invalidate();
+            return Err("Parts preview source changed before preparation".into());
+        }
+        let operation = self.operation().0;
+        if operation == 0 || operation > 9_007_199_254_740_991 {
+            capture.lease.invalidate();
+            return Err(
+                "Parts preview operation identity is outside the safe integer range".into(),
+            );
+        }
+        let current_capture = capture.clone();
+        let weak = Rc::downgrade(self);
+        let is_current: Rc<dyn Fn() -> bool> = Rc::new(move || {
+            weak.upgrade()
+                .is_some_and(|runtime| runtime.parts_preview_capture_is_current(&current_capture))
+        });
+        let preview = self
+            .run_preview_pipeline(
+                capture.request.clone(),
+                operation,
+                capture.sample_scope.clone(),
+                capture.owner.source_generation,
+                is_current.clone(),
+            )
+            .await?;
+        if !is_current() {
+            capture.lease.invalidate();
+            return Err("Parts preview became stale after geometry preparation".into());
+        }
+
+        let native_paths =
+            crate::presentation::model_delivery::native_model_path_assets(&capture.path_assets);
+        let unique_model_paths = preview
+            .models
+            .iter()
+            .map(|model| model.path.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let mut ergogen_ids_by_path = BTreeMap::new();
+        if !unique_model_paths.is_empty() {
+            let ids =
+                crate::bundled_models::generated_model_asset_ids_for_paths(&unique_model_paths)
+                    .await?;
+            if !is_current() {
+                capture.lease.invalidate();
+                return Err("Parts model resolution became stale".into());
+            }
+            if ids.len() != unique_model_paths.len() {
+                capture.lease.invalidate();
+                return Err("Model path resolver returned an incomplete Parts mapping".into());
+            }
+            ergogen_ids_by_path.extend(unique_model_paths.iter().cloned().zip(ids));
+        }
+        let selections = crate::presentation::model_delivery::resolve_preview_assets(
+            &preview.models,
+            None,
+            &native_paths,
+            &capture.sample_document,
+            |path| ergogen_ids_by_path.get(path).cloned().flatten(),
+            |asset_id| {
+                crate::bundled_models::bundled_model(asset_id).map(|model| {
+                    crate::presentation::model_delivery::ResolvedModelAsset {
+                        id: model.id.to_owned(),
+                        sha256: model.sha256.to_owned(),
+                        filename: model.filename.to_owned(),
+                        source: crate::presentation::model_delivery::ModelAssetSource::Packaged {
+                            url_path: model.url_path.to_owned(),
+                        },
+                    }
+                })
+            },
+        )
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let owner = crate::presentation::model_delivery::ModelOwnerIdentity::new_parts(
+            capture.owner.scope.clone(),
+            capture.owner.snapshot_token,
+            capture.owner.source_generation,
+            &capture.lease,
+        );
+        let batch = crate::presentation::model_delivery::ModelBatchIdentity::new(
+            owner.clone(),
+            capture.owner.accepted_revision,
+            capture.owner.source_generation,
+        );
+        let owner_scope = capture.owner.scope.clone();
+        let owner_token = capture.owner.snapshot_token;
+        let source_generation = capture.owner.source_generation;
+        let lease = capture.lease.clone();
+        let owner_is_current = Rc::new(
+            move |candidate: &crate::presentation::model_delivery::ModelOwnerIdentity| {
+                candidate.is_current_parts_owner(
+                    &owner_scope,
+                    owner_token,
+                    source_generation,
+                    &lease,
+                )
+            },
+        );
+        let ports = self.model_delivery_ports(
+            capture.owner.scope.clone(),
+            capture.owner.snapshot_token,
+            capture.owner.accepted_revision,
+            is_current.clone(),
+            owner_is_current,
+        );
+        let model_rows = self
+            .case_model_delivery
+            .deliver_models(
+                preview.revision,
+                &preview.models,
+                &selections,
+                &ports,
+                &batch,
+                is_current.clone(),
+            )
+            .await;
+        if !is_current() {
+            capture.lease.invalidate();
+            return Err("Parts model delivery became stale before publication".into());
+        }
+        let model_rows =
+            model_rows.ok_or_else(|| "Parts model delivery was superseded".to_owned())?;
+        capture.accept_preview(preview, Some(model_rows))
+    }
+
+    fn parts_preview_capture_is_current(
+        &self,
+        capture: &crate::parts_preview::PartsPreviewCapture,
+    ) -> bool {
+        let Some(scope) = self.scope() else {
+            return false;
+        };
+        let Some(accepted) = self.model().accepted else {
+            return false;
+        };
+        capture.lease.matches(&capture.owner)
+            && capture.owner.scope == scope
+            && capture.owner.snapshot_token == accepted.token
+            && capture.owner.accepted_revision == accepted.document.revision
+            && capture.owner.scope.session_epoch == accepted.session_epoch
+            && capture.owner.scope.document_id == accepted.document.id
+            && capture.owner.accepted_document_identity
+                == std::sync::Arc::as_ptr(&accepted.document) as usize
+    }
+
+    pub(crate) fn parts_preview_snapshot_is_current(
+        &self,
+        preview: &crate::parts_preview::PartsPreviewSnapshot,
+    ) -> bool {
+        let Some(scope) = self.scope() else {
+            return false;
+        };
+        let Some(accepted) = self.model().accepted else {
+            return false;
+        };
+        preview.lease.matches(&preview.owner)
+            && preview.owner.scope == scope
+            && preview.owner.snapshot_token == accepted.token
+            && preview.owner.accepted_revision == accepted.document.revision
+            && preview.owner.scope.session_epoch == accepted.session_epoch
+            && preview.owner.scope.document_id == accepted.document.id
+            && preview.owner.accepted_document_identity
+                == std::sync::Arc::as_ptr(&accepted.document) as usize
+    }
+
     fn set_native_preview_pending(
         &self,
         owner: crate::case_preview::CasePreviewOwnerIdentity,

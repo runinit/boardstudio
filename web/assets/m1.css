@@ -388,6 +388,15 @@ h2 { font-size: 13px; line-height: 1.3; margin: 0; font-weight: 650; }
 .m1-parts-detail-list dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--wb-ink); }
 .m1-parts-detail-list code { font-family: var(--wb-mono); }
 .m1-parts-preview { flex: 1; min-width: 0; min-height: 0; }
+.m1-parts-preview > h2 { margin: 10px 12px 0; color: var(--wb-ink); font-size: 16px; }
+.m1-parts-sample-viewer { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.m1-parts-sample-viewer > p { margin: 8px 12px; }
+.m1-parts-sample-viewer > .m1-case-view { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.m1-parts-sample-viewer .m1-case-view-canvas-shell { position: relative; display: flex; flex: 1; min-width: 0; min-height: 160px; }
+.m1-parts-sample-viewer .m1-case-view-canvas-shell > canvas { flex: 1; width: 100%; min-width: 0; min-height: 0; height: 100%; }
+.m1-parts-sample-viewer .m1-case-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex: none; }
+.m1-parts-sample-viewer .m1-case-view-settings { padding: 6px 10px; }
+.m1-parts-sample-viewer .m1-case-view-settings-body { position: absolute; z-index: 5; top: 44px; right: 0; width: min(360px, 100%); max-height: calc(100% - 52px); overflow: auto; padding: 12px; border: 1px solid var(--wb-rule); background: var(--wb-panel); }
 .m1-generator-settings { display: grid; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--wb-rule); }
 .m1-generator-settings details { min-width: 0; }
 .m1-generator-settings summary { padding: 8px 0; color: var(--wb-ink); cursor: pointer; font-size: var(--wb-type-label); font-weight: 600; }

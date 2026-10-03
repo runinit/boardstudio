@@ -6,6 +6,7 @@
 
 use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
 use crate::case_preview::CasePreviewOwnerLease;
+use crate::parts_preview::PartsPreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Asset, BoardReference, PcbModel, ProjectDoc};
 use sha2::{Digest, Sha256};
@@ -33,6 +34,12 @@ impl ModelSourceLease for CasePreviewOwnerLease {
 impl ModelSourceLease for LayoutSourceLease {
     fn is_active(&self) -> bool {
         LayoutSourceLease::is_active(self)
+    }
+}
+
+impl ModelSourceLease for PartsPreviewOwnerLease {
+    fn is_active(&self) -> bool {
+        PartsPreviewOwnerLease::is_active(self)
     }
 }
 
@@ -86,6 +93,22 @@ impl ModelOwnerIdentity {
         }
     }
 
+    pub(crate) fn new_parts(
+        scope: Scope,
+        snapshot_token: SnapshotToken,
+        source_generation: u64,
+        source_owner: &Rc<PartsPreviewOwnerLease>,
+    ) -> Self {
+        let source_owner: Rc<dyn ModelSourceLease> = source_owner.clone();
+        Self {
+            scope,
+            snapshot_token,
+            viewer_instance: 0,
+            projection_generation: source_generation,
+            source_owner: Rc::downgrade(&source_owner),
+        }
+    }
+
     fn same_owner(&self, other: &Self) -> bool {
         self.scope == other.scope
             && self.snapshot_token == other.snapshot_token
@@ -129,6 +152,25 @@ impl ModelOwnerIdentity {
         current_token: SnapshotToken,
         source_generation: u64,
         current_owner: &Rc<LayoutSourceLease>,
+    ) -> bool {
+        self.scope == *current_scope
+            && self.snapshot_token == current_token
+            && self.viewer_instance == 0
+            && self.projection_generation == source_generation
+            && self.source_owner.upgrade().is_some_and(|captured| {
+                let current_owner: Rc<dyn ModelSourceLease> = current_owner.clone();
+                Rc::ptr_eq(&captured, &current_owner)
+                    && captured.is_active()
+                    && current_owner.is_active()
+            })
+    }
+
+    pub(crate) fn is_current_parts_owner(
+        &self,
+        current_scope: &Scope,
+        current_token: SnapshotToken,
+        source_generation: u64,
+        current_owner: &Rc<PartsPreviewOwnerLease>,
     ) -> bool {
         self.scope == *current_scope
             && self.snapshot_token == current_token

@@ -255,6 +255,17 @@ pub(crate) fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Elemen
                 on_display_change,
                 mechanical_settings: None,
             }
+        CaseSharedViewer {
+            scene: None,
+            preview: None,
+            layout_preview: Some(preview),
+            parts_preview: None,
+            model_rows,
+            selected_layer: "pcb".to_owned(),
+            display: display(),
+            resolved_theme: theme,
+            on_signal,
+            on_display_change,
         }
     }
 }
