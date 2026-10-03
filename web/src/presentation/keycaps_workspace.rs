@@ -126,6 +126,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     h2 { "Keycaps" }
                     span { class: "m1-keycaps-inspector-assigned-count", "{assigned_count}/{key_count} assigned" }
                 }
+                if view.keys.is_empty() {
+                    p { class: "m1-keycaps-empty-note", role: "status", "Add switches in Layout to create a keymap." }
+                }
                 if let Some(actions) = settings_actions.clone() {
                     KeycapsBoardSettingsEditor { settings: view.board_settings.clone(), actions: actions.clone() }
                     details { class: "m1-keycaps-disclosure", open: true,
