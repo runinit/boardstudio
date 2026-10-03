@@ -69,7 +69,8 @@ pub(in crate::presentation) fn use_matrix_placement(
             let mut selected_context = selected_context;
             let mut anchor_scope = anchor_scope;
             move |(_, current_workspace, current_generation)| {
-                if let Some(waiting) = pending.read().clone() {
+                let waiting = pending.read().clone();
+                if let Some(waiting) = waiting {
                     let Some(outcome) = waiting.outcome.borrow().clone() else {
                         return;
                     };
@@ -170,7 +171,7 @@ pub(in crate::presentation) fn use_matrix_placement(
         let canvas_interaction = canvas_interaction.clone();
         let mut request_id = request_id;
         let mut preparing = preparing;
-        let mut placement = placement;
+        let placement = placement;
         let mut error = error;
         let assembly_orientation = assembly_orientation.0;
         move |preset: crate::presentation::parts::MatrixPresetId| {
@@ -330,11 +331,8 @@ pub(in crate::presentation) fn use_matrix_placement(
             {
                 return;
             }
-            if let Some(mut active) = placement
-                .read()
-                .clone()
-                .filter(|active| active.owner == movement.owner)
-            {
+            let active = placement.read().clone();
+            if let Some(mut active) = active.filter(|active| active.owner == movement.owner) {
                 active.matrix.origin = movement.center;
                 placement.set(Some(active));
             }
@@ -345,7 +343,7 @@ pub(in crate::presentation) fn use_matrix_placement(
         let mut preparing = preparing;
         let mut placement = placement;
         let mut error = error;
-        let mut pending = pending;
+        let pending = pending;
         let canvas_interaction = canvas_interaction.clone();
         move |owner: MatrixPlacementOwner| {
             if pending.read().is_some()
