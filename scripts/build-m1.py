@@ -62,6 +62,13 @@ COMPATIBLE_FULL_BUILD_HELPERS = {
     ): "157c6222db575eeec7d30be1e72e45ba49fb7a22",
 }
 CORE_TEST_ONLY_PATHS = frozenset({"core/tests/electrical_wiring.rs"})
+# These standalone harnesses import this helper; candidate commands never execute
+# them. Keep their bytes in source provenance and the final drift guard while
+# treating their edits as verification-only, just like cfg(test) Rust inputs.
+BUILD_TEST_ONLY_PATHS = frozenset({
+    "scripts/test-build-m1-reuse.py",
+    "scripts/test-build-m1-sources.py",
+})
 NON_PAGE_RUST_ALIASES = frozenset({"web/src/presentation/objects/layout_align_geometry.rs"})
 REUSED_PROVIDER_PREFIXES = (
     "assets/cad/",
@@ -1116,7 +1123,7 @@ def validate_reuse(build_id, baseline_id, *, refresh_fixtures=False):
         missing = sorted((page_rust | test_rust) - set(current))
         raise ValueError(f"page module graph is missing source-manifest inputs: {missing[:8]}")
     providers = set().union(*(set(paths) for paths in ownership["provider_rust_inputs"].values()))
-    eligible = (PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS |
+    eligible = (PAGE_ONLY_ALLOWLIST | page_rust | test_rust | CORE_TEST_ONLY_PATHS | BUILD_TEST_ONLY_PATHS |
                 {PAGE_ONLY_MAIN_PATH, REUSE_HELPER_PATH}) - providers - NON_PAGE_RUST_ALIASES
     if refresh_fixtures:
         eligible |= {FIXTURE_PREPARATION_PATH}
@@ -1229,8 +1236,10 @@ def build_reuse(build_id, baseline_id, *, refresh_fixtures=False):
         },
         "changed_rust_syntax_signatures": syntax_signatures,
         "page_feature_ownership": ownership,
+        "build_test_only_inputs": sorted(BUILD_TEST_ONLY_PATHS),
+        "changed_build_test_only_inputs": sorted(set(changed) & BUILD_TEST_ONLY_PATHS),
         "dependency_proof": {
-            "statement": "Page-only Rust inputs are resolved from the exact page binary and library module roots under the locked wasm32 page feature set, then subtracted against the three provider library roots from the full build command matrix. New/moved module inputs must remain inside that derived page-only graph; deletions require a full build. Separate cfg(test) module files and the single unchanged-Core-target integration test are recorded as test-only and are not package command inputs. Cargo manifests, lib root, build script, and main.rs retain their source/feature proofs. The build helper must match the baseline or pass its explicit committed compatibility proof; a fixture-preparation source change is accepted only in fixture-refresh mode. The layout_align_geometry core-worker test alias remains explicitly excluded.",
+            "statement": "Page-only Rust inputs are resolved from the exact page binary and library module roots under the locked wasm32 page feature set, then subtracted against the three provider library roots from the full build command matrix. New/moved module inputs must remain inside that derived page-only graph; deletions require a full build. Separate cfg(test) module files and the single unchanged-Core-target integration test are recorded as test-only and are not package command inputs. The two explicitly named standalone Python build-test harnesses likewise remain hashed but are not executed by package commands. Other scripts still require unchanged provider input or the explicit fixture/helper proof. Cargo manifests, lib root, build script, and main.rs retain their source/feature proofs. The build helper must match the baseline or pass its explicit committed compatibility proof; a fixture-preparation source change is accepted only in fixture-refresh mode. The layout_align_geometry core-worker test alias remains explicitly excluded.",
             "source_hashes": {
                 **{path: source_before[path] for path in PAGE_ONLY_PROOF_PATHS},
                 PAGE_ONLY_MAIN_PATH: source_before[PAGE_ONLY_MAIN_PATH],

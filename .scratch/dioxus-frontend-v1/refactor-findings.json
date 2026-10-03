@@ -1410,6 +1410,14 @@
           "evidence": "docs/agents/issue-tracker.md#frontend-delivery-records",
           "observation": "Old ready-for-agent and missing-capability text outlived mounted topology controls; record-only coordinator commits also prompted an unnecessary fresh isolate. These are concrete freshness/ownership ambiguities that can duplicate implementation and worktree setup.",
           "current_mitigation": "One canonical parent graph/live operation record, verify relevant current source, and keep an assigned source base across record-only commits. Preserve existing worktrees/history; do not synchronize every historical issue paragraph."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "Actual build-m1.py fixture-refresh preflight atfe73cb32",
+          "evidence": "docs/migration/dioxus-frontend-v1-run.json:current_progress.heavy_slots.package_attempts",
+          "observation": "Source provenance correctly included a changed standalone packaging test harness, but reuse ownership treated it as a production provider input and rejected the candidate before compilation. Test-only input classification was incomplete, not evidence of an engine change.",
+          "current_mitigation": "Retain hashes/current-commit identity/final drift checks for both explicitly named standalone packaging-test runners; allow their verification-only edits while all other script/provider restrictions remain. Record the rejected attempt; retry the maintained build without rebuilding unchanged engines.",
+          "validation": "A later combined helper regression check plus actual refreshed package must show test-only edits are accepted, arbitrary production script changes still rejected, and source/provider hashes preserved."
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",
