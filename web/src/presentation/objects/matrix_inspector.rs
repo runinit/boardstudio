@@ -250,7 +250,7 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
     let apply_revision = projection.revision;
     let apply_baseline_variant = projection.baseline_variant.clone();
     let on_apply = props.on_apply_preset;
-    let mut preset_request_id = use_signal(|| None::<u64>);
+    let preset_request_id = use_signal(|| None::<u64>);
     let mut submitted_preset_id = preset_request_id;
     let editable = props.editable;
     let busy = props.busy;
@@ -609,7 +609,10 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 ));
                 return;
             }
-            let text = replacement_text.unwrap_or_else(|| draft());
+            let text = match replacement_text {
+                Some(text) => text,
+                None => draft(),
+            };
             let value = match kind {
                 MatrixFieldKind::Name => {
                     let name = text.trim();
@@ -666,24 +669,10 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                     _ => return,
                 },
             };
-            let current = match field {
-                MatrixEditField::Name => match kind {
-                    MatrixFieldKind::Name => value.clone(),
-                    _ => return,
-                },
-                MatrixEditField::Rows => value.clone(),
-                MatrixEditField::Columns => value.clone(),
-                MatrixEditField::PitchX => value.clone(),
-                MatrixEditField::PitchY => value.clone(),
-                MatrixEditField::SwitchDefinition => value.clone(),
-                MatrixEditField::DiodeDirection => value.clone(),
-                MatrixEditField::EdgeGapX => value.clone(),
-                MatrixEditField::EdgeGapY => value.clone(),
-            };
             let baseline = draft_baseline();
             let displayed_name_is_unchanged = field == MatrixEditField::Name
-                && matches!(&current, MatrixEditValue::Name(Some(name)) if name == accepted_display.trim());
-            if current == baseline || displayed_name_is_unchanged {
+                && matches!(&value, MatrixEditValue::Name(Some(name)) if name == accepted_display.trim());
+            if value == baseline || displayed_name_is_unchanged {
                 draft.set(accepted_display.clone());
                 dirty.set(false);
                 stale.set(false);

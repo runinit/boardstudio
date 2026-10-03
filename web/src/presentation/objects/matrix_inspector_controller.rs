@@ -40,7 +40,6 @@ struct PendingMatrixPreset {
 #[derive(Clone)]
 struct PendingMatrixDelete {
     request: MatrixDeleteRequest,
-    operation_id: OperationId,
     outcome: OutcomeSlot,
     base_token: SnapshotToken,
     base_revision: u64,
@@ -121,7 +120,7 @@ pub(in crate::presentation) fn use_matrix_inspector(
     let preparing_preset = use_signal(|| false);
     let duplicating = use_signal(|| false);
     let feedback = use_signal(Vec::<MatrixEditFeedback>::new);
-    let mut switch_catalog = use_signal(Vec::<PartDefinition>::new);
+    let switch_catalog = use_signal(Vec::<PartDefinition>::new);
     let mut switch_catalog_loaded = use_signal(|| false);
     use_effect(move || {
         if switch_catalog_loaded() {
@@ -185,7 +184,6 @@ pub(in crate::presentation) fn use_matrix_inspector(
         let mut last_request_id = last_request_id;
         let mut pending = pending;
         let mut feedback = feedback;
-        let switch_catalog = switch_catalog;
         move |request: MatrixEditRequest| {
             let current_generation = context_generation.borrow().value;
             let current_workspace = workspace();
@@ -362,7 +360,6 @@ pub(in crate::presentation) fn use_matrix_inspector(
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let mut last_request_id = last_request_id;
-        let mut pending_preset = pending_preset;
         let mut preparing_preset = preparing_preset;
         let mut feedback = feedback;
         move |request: MatrixPresetRequest| {
@@ -569,7 +566,6 @@ pub(in crate::presentation) fn use_matrix_inspector(
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let mut pending_delete = pending_delete;
-        let mut feedback = feedback;
         move |request: MatrixDeleteRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
@@ -625,7 +621,6 @@ pub(in crate::presentation) fn use_matrix_inspector(
             let outcome = runtime.observe_operation(operation_id);
             pending_delete.set(Some(PendingMatrixDelete {
                 request: request.clone(),
-                operation_id,
                 outcome,
                 base_token: snapshot.token,
                 base_revision: snapshot.document.revision,
@@ -708,7 +703,6 @@ pub(in crate::presentation) fn use_matrix_inspector(
     let on_add_row = use_callback({
         let runtime = runtime.clone();
         let mut request_sequence = request_sequence;
-        let on_edit = on_edit;
         let context_generation = context_generation.clone();
         move |()| {
             let selected = selected_context.read().clone();
@@ -754,7 +748,6 @@ pub(in crate::presentation) fn use_matrix_inspector(
     let on_add_column = use_callback({
         let runtime = runtime.clone();
         let mut request_sequence = request_sequence;
-        let on_edit = on_edit;
         let context_generation = context_generation.clone();
         move |()| {
             let selected = selected_context.read().clone();
@@ -1142,7 +1135,7 @@ fn project_current_for(
             pitch_x: matrix.pitch.x,
             pitch_y: matrix.pitch.y,
             definition_id: matrix.definition_id.clone(),
-            switch_choices: switch_choices(&snapshot.document, &matrix.definition_id),
+            switch_choices: switch_choices(&snapshot.document, &[], &matrix.definition_id),
             diode_direction: matrix.diode_direction.unwrap_or(DiodeDirection::Row2col),
             edge_gap_x: matrix.edge_gap.as_ref().map_or(1.0, |gap| gap.x),
             edge_gap_y: matrix.edge_gap.as_ref().map_or(1.0, |gap| gap.y),
@@ -1335,7 +1328,7 @@ fn settle_pending_preset(
 }
 
 fn settle_pending_delete(
-    runtime: &Runtime,
+    runtime: &Rc<Runtime>,
     scope_generation: u64,
     pending: &mut Signal<Option<PendingMatrixDelete>>,
     selected_context: Signal<Option<ScopedTreeContext>>,

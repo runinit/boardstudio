@@ -228,7 +228,7 @@ pub(crate) fn use_mechanical_settings_mount(
     });
 
     let version = use_context::<Signal<u64>>();
-    let mut resolved_mechanical = use_signal(|| None::<MechanicalSettingsResolvedProjection>);
+    let resolved_mechanical = use_signal(|| None::<MechanicalSettingsResolvedProjection>);
     let resolving_mechanical = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(SettingsSourceKey, MechanicalSettingsIdentity)>,
