@@ -1,12 +1,12 @@
 {
   "run": "dioxus-frontend-v1-20261001",
   "scope": "100% frontend: all TSX, UI state, theming and responsive/interaction behavior",
-  "status": "Current execution checkpoint (2026-10-02): Six streams continue. Served candidate frontend-contextual-case-mirror-keycaps-20261002 is f261a327 at http://127.0.0.1:34734/ and /boardstudio/: 22 successful commands, 1331 source hashes, 145 assets per route, independently verified. Bounded paired Case12 and Keycaps06 receipts are awaiting review; Mirror inner-form visual differences remain under repair. Parts15 and ZMK source d5854920 passed independent join review and strict supported WASM all-target Clippy (15.66s), pending the next package. PCB layer controls, canonical Layout3D, component placement, battery settings, finding navigation and macro labels advance in isolation. Sol 6.1 High reviews; configured 30/live 11 concurrency. All 62 parents and RF-001\u2013RF-014 retained; no full workbench acceptance.",
+  "status": "Current execution checkpoint (2026-10-02): six workbench streams continue. Served comparison remains frontend-ready-export-theme-reuse-20261002, source d7ff5e3dcae67a719caf6660cfcff57c3811df34 at http://127.0.0.1:34736/ and /boardstudio/. Integration b9e74e37 includes independently reviewed Layout model-layer ownership/responsive controls and Case wireless transport admission repairs; strict combined page/core-worker WASM all-target Clippy passed in 8.00s. Full candidate frontend-layout-case-transport-integrated-20261002 is building; it is not served or publicly accepted yet. Parts chooser, PCB Wiring mode, Keycaps finding navigation, Case live preview and Project menu name remain under source repair/review. Layout contextual component Inspector planning advances from proven capabilities. Sol 6.1 High reviews; configured ceiling30/runtime11 including coordinator. All62 canonical parents and RF-001\u2013RF-015 retained; paired browser and full parent acceptance gates remain open.",
   "six_stream_parity": {
     "spec": ".scratch/dioxus-workbench-parity/spec.md",
     "stream_reconciliation": ".scratch/dioxus-workbench-parity/stream-reconciliation.md",
     "confirmed_at": "2026-10-02",
-    "status": "Current execution checkpoint (2026-10-02): Six streams continue. Served candidate frontend-contextual-case-mirror-keycaps-20261002 is f261a327 at http://127.0.0.1:34734/ and /boardstudio/: 22 successful commands, 1331 source hashes, 145 assets per route, independently verified. Bounded paired Case12 and Keycaps06 receipts are awaiting review; Mirror inner-form visual differences remain under repair. Parts15 and ZMK source d5854920 passed independent join review and strict supported WASM all-target Clippy (15.66s), pending the next package. PCB layer controls, canonical Layout3D, component placement, battery settings, finding navigation and macro labels advance in isolation. Sol 6.1 High reviews; configured 30/live 11 concurrency. All 62 parents and RF-001\u2013RF-014 retained; no full workbench acceptance.",
+    "status": "Current execution checkpoint (2026-10-02): six workbench streams continue. Served comparison remains frontend-ready-export-theme-reuse-20261002, source d7ff5e3dcae67a719caf6660cfcff57c3811df34 at http://127.0.0.1:34736/ and /boardstudio/. Integration b9e74e37 includes independently reviewed Layout model-layer ownership/responsive controls and Case wireless transport admission repairs; strict combined page/core-worker WASM all-target Clippy passed in 8.00s. Full candidate frontend-layout-case-transport-integrated-20261002 is building; it is not served or publicly accepted yet. Parts chooser, PCB Wiring mode, Keycaps finding navigation, Case live preview and Project menu name remain under source repair/review. Layout contextual component Inspector planning advances from proven capabilities. Sol 6.1 High reviews; configured ceiling30/runtime11 including coordinator. All62 canonical parents and RF-001\u2013RF-015 retained; paired browser and full parent acceptance gates remain open.",
     "active_feature_contracts": {
       "composition": {
         "ticket": ".scratch/dioxus-workbench-parity/issues/01-private-workbench-composition.md",
@@ -919,5 +919,22 @@
         }
       }
     }
-  ]
+  ],
+  "execution_checkpoint_history": [
+    {
+      "previous_status": "Current execution checkpoint (2026-10-02): Six streams continue. Served candidate frontend-contextual-case-mirror-keycaps-20261002 is f261a327 at http://127.0.0.1:34734/ and /boardstudio/: 22 successful commands, 1331 source hashes, 145 assets per route, independently verified. Bounded paired Case12 and Keycaps06 receipts are awaiting review; Mirror inner-form visual differences remain under repair. Parts15 and ZMK source d5854920 passed independent join review and strict supported WASM all-target Clippy (15.66s), pending the next package. PCB layer controls, canonical Layout3D, component placement, battery settings, finding navigation and macro labels advance in isolation. Sol 6.1 High reviews; configured 30/live 11 concurrency. All 62 parents and RF-001\u2013RF-014 retained; no full workbench acceptance.",
+      "superseded_by": "layout-case transport package in progress; historical evidence retained"
+    }
+  ],
+  "current_build_in_progress": {
+    "build": "frontend-layout-case-transport-integrated-20261002",
+    "source_commit": "b9e74e37",
+    "status": "building; no served URL yet",
+    "log": "/home/chris/.local/share/boardstudio/retained-tmp/20261002/frontend-layout-case-transport-integrated-build.log",
+    "included_repairs": [
+      "Layout model-layer source identity and responsive view group",
+      "Case wireless transport accepted owner admission"
+    ],
+    "verification": "combined strict page/core-worker WASM all-target Clippy green; root composition review and fresh paired browser qualification pending"
+  }
 }
