@@ -2,6 +2,22 @@
 
 Last reviewed: 2026-10-03.
 
+## Delivery records and skill overrides — user update 2026-10-03
+
+The user authorized workflow changes to remove duplicate documents, reviews and
+handoffs. [Frontend delivery records](docs/agents/issue-tracker.md#frontend-delivery-records)
+defines the single-owner update process. Use references to existing specs, receipts
+and candidate reviews. The coordinator publishes parent status and new RF evidence;
+derived counts and the readable RF report update in one command. Existing history,
+criteria, dependencies and acceptance evidence stay intact.
+
+For this run, to-spec/to-tickets refine the existing spec and real frontier without
+another approval quiz or a duplicate specification. implement-spec uses the existing
+integration branch and isolated authors; the coordinator joins ready commits directly.
+Ordinary reversible UI does not require TDD, a merger agent, per-child review, worktree
+reset or cleanup. Review the completed candidate once and recheck affected repairs.
+These user-authorized overrides govern conflicting historical skill/workflow defaults.
+
 ## Delivery priority and reduced repeated testing — user update 2026-10-03
 
 The user chose Layout-first delivery, six persistent queues, one implemented

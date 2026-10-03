@@ -40,7 +40,7 @@ Luna may correct its own obvious syntax, type or formatting errors during normal
 
 Fill these fields immediately before assigning a packet; do not pause the whole project to rewrite every spec:
 
-1. Parent task and packet ID, exact source/spec baseline, active workspace, author profile and separate verifier/reviewer.
+1. Parent/packet ID, existing spec/React journey and isolated source owner. Use the single candidate reviewer; a separate per-packet verifier is optional.
 2. One observable result, existing React source/fixture/action trace, expected output/visual states and non-goals.
 3. Actual callable types/methods/callbacks, accepted scope/revision identity, draft/commit/cancel behavior, and relevant existing regression oracle.
 4. Exact private files the author may edit; coordinator-owned integration files and a bounded handoff for any shared edit. Confirm no overlapping owner.
@@ -59,7 +59,7 @@ The coordinator serializes shared presentation/runtime/global CSS/build/ledger e
 
 Batch several small low/normal-risk packets from the same workflow into one Sol review of a bounded exact candidate. The review must cover **every included packet's Standards and Spec obligations** and the integration diff. Batching reduces repeated context, not review coverage. Shared-boundary/transaction/renderer changes use the necessary API/design authority and the same integrated candidate review. Resolve an actual blocking uncertainty with a focused investigation; do not require a separate approval sequence. Use `review_mode` in the routing map. The seven flagged parent tasks require a current reviewed contract, not seven additional review sessions: F7.3 can inherit an unchanged reviewed F7.1 contract, and F8.2 an unchanged reviewed BND.2 contract. Only new/changed boundaries or insufficient proof need another design review; integrated code review still applies. Any new uncertainty upgrades the packet's review mode even when its parent was initially ordinary.
 
-Authors supply the pinned reference journey and available affected checks; paired public qualification runs on the integrated candidate. Existing sufficient evidence is reused; no separate complete per-child browser run is a prerequisite for integration. Sol can request targeted checks. If a reviewer or debugger fixes a bug, use a different reviewer for the resulting patch. F9 joins whole-workflow evidence and final integration; a review batch cannot waive its release requirements.
+Authors supply the pinned reference journey and available affected checks; paired public qualification runs on the integrated candidate. Existing sufficient evidence is reused; no separate complete per-child browser run is a prerequisite for integration. Sol can request targeted checks. The independent candidate reviewer assesses author/debugger repairs in the same consolidated review; changed checks are targeted. F9 joins whole-workflow evidence and final integration; a review batch cannot waive its release requirements.
 
 The reviewed candidate is identified by commit plus any exact diff/artifact hashes. Later edits invalidate only the affected review/evidence and require the corresponding checks again. Other authors may continue on nonoverlapping work while a frozen candidate is reviewed. CAD-heavy checks stay serial; isolate browser sessions/stores and coordinate shared build directories.
 
@@ -95,11 +95,11 @@ Prepare F7.1, BND.1 and BND.2 with Luna High source mapping, then use Sol 6.1 Hi
 
 ## Escalation and feedback
 
-- **Unclear contract before editing:** stop only the affected packet, preserve the source evidence and propose the narrow question/change. Sol 6.1 High reviews it. Use existing authorization for necessary private/public API, schema and design changes. External publication/cutover retains its final human approval.
-- **Behavioral failure:** preserve an expected-failure reproduction, actual result and exact candidate. Send Astra High the packet, diff, fixture/actions, logs and attempted explanation. Other independent work continues.
-- **Still uncertain after High:** A focused Sol 6.1 High review gets the retained evidence plus what the prior review ruled out; difficult repair work may use the existing Astra debug allocation. Prefer a discriminating experiment over another broad rewrite. Avoid resetting context by reopening the entire milestone.
-- **After repair:** rerun affected checks, obtain independent review of the new candidate, and update RF findings. Do not change a test/budget/contract just to make the repair pass.
-- **Calibration:** after the first reviewed public tranche, record first-pass acceptance, types of escaped defects, retry/review time and observed usage where available. Keep Medium for routine success, route recurring state/lifecycle mistakes to High or smaller packets, and reserve Sol for independent review and Astra for evidence-led repair. Do not manufacture numerical throughput or cost savings.
+Investigate a concrete blocker in the affected packet while other queues continue.
+Preserve the failing reproduction and use the existing API/design authorization for
+necessary repairs. Sol reviews those repairs with the candidate; use a targeted
+experiment for a difficult bug. Reuse sufficient unchanged evidence. The coordinator
+publishes status/RF updates under [frontend delivery records](../../docs/agents/issue-tracker.md#frontend-delivery-records).
 
 ## Runtime controls and truthful provenance
 

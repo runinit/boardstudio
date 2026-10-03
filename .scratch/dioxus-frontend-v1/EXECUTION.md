@@ -72,15 +72,17 @@ This ordering prioritizes visible frontend progress. It does not schedule engine
 
 No new public API is approved or assumed by this plan. BND.1 proves a private path to an existing Rust WASM keycap export; BND.2 resolves export-owned commit lineage. These are bounded frontend integration tasks with explicit outputs, not backend rewrite milestones. A4 is an early contract check, not a reason to block project panels or existing 2D workflows. If a public service capability is actually absent, record the smallest concrete proposal and affected task; continue work with existing boundaries. Do not replace the missing feature with a permanent placeholder.
 
-## Evidence and handoff per slice
+## Evidence and handoff
 
-A task handoff names its baseline, exact source/diff and owned files; the reference fixture/action trace; initial missing/failing behavior when correcting a bug; affected native/WASM/build checks; paired browser captures for meaningful states in light/dark and desktop/compact; keyboard/focus and axe observations; output/history/storage assertions; independent Standards/Spec reviews; and unresolved limits. Include request/scope identity, stale/error/cancel paths when an async adapter changes.
+Follow [frontend delivery records](../../docs/agents/issue-tracker.md#frontend-delivery-records).
+Authors provide one frozen commit and one receipt for changed behavior. The coordinator
+publishes live queue/status and RF evidence; Sol reviews one integrated candidate.
+Reuse unchanged proof and run only the combined affected check and changed journeys.
+Source/asset freshness, snapshot authority and final parent joins remain required.
 
-Use `agent-browser` for browser work. Keep task browser sessions and test stores isolated. Reuse sufficient unchanged evidence; rerun affected checks after integration changes. CAD-heavy functional tests stay serial under the existing project policy even when authors work in parallel. A build passing is not visual or workflow acceptance.
-
-The existing page-only build helper may reuse maintained providers only while its source/hash guard passes. Any changed provider inputs require the affected provider rebuild and browser checks. Keep the exact root and `/boardstudio/` asset/deployment behavior. Do not publish a fresh demo label against an older source artifact.
-
-Actual screen-reader testing remains an external host gate; keyboard/axe/AX trees do not close it. Carry the existing frozen UI/live failures, ineligible CAD comparison and unperformed resource/material evidence accurately. Determine their relevance to changed frontend paths under F9; neither silently waive them nor replace frontend work with unrelated backend optimization.
+Use `agent-browser` with a named isolated session/profile. Cleanup affects only that
+session. Full accessibility/cutover gates remain with F9; ordinary slices do not
+re-run their whole neighboring lifecycle, theme and fixture matrix.
 
 ## Source accountability
 
@@ -90,14 +92,14 @@ F9.1 follows transitive UI-owned TS imports and records their replacement or ret
 
 ## Refactoring takeaways during implementation
 
-The user requested a living record of architectural, design, theoretical and general software-quality issues encountered during the rewrite. Update [post-port takeaways](../../docs/migration/POST-PORT-REFACTOR.md) and the [RF register](refactor-findings.json) at every workflow handoff/review, or state that no new takeaway was observed. Record evidence and uncertainty, impact, current mitigation, later proposal and validation. F9 carries the accumulated register into the major post-port refactoring phase. Required correctness stays in the current slice; broader structural redesign is deferred without waiving acceptance gates.
+The user requires architecture, design, theory and software-quality takeaways retained for post-port refactoring. Authors report new evidence in their packet receipt; the coordinator updates the [RF register](refactor-findings.json), then `progress.py sync` generates the readable report. A no-new-finding note stays in the receipt. Preserve stable IDs, uncertainty and prior evidence. Required parity fixes remain current work; F9 hands over the register for the later structural refactor.
 
 ### Crate boundary checkpoint
 
 The page binary's Runtime/presentation and the publicly imported `boardstudio_web` library are separate crate boundaries. A `pub(crate)` method added to the library cannot be called by that binary. F7.1/INT.1 must choose private wrapper placement in the consumer's crate or an existing sufficient public facade; prove the call path before declaring the adapter ready. Do not silently make methods public to bypass this constraint. See RF-002 in the post-port register.
 
 
-## Current verified frontier — 2026-10-02
+## Historical verified frontier — 2026-10-02
 
 The canonical `tasks.json` remains at 62 parents; no `start_after` or `acceptance_after` edge is changed by this handoff. Thirty-nine child tickets are published. `PARALLEL-EXECUTION.md` maps each published child to its unchanged parent. Eleven runtime slots are available, with no more than three disjoint Luna authors active by default and reserved review, verification, QA and serialized integration capacity.
 

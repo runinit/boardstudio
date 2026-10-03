@@ -99,3 +99,15 @@ The 2026-10-02 source audit corrects the earlier broad roadmap: project rename/d
 ## Refactoring takeaways during implementation
 
 The user requested a living record of architectural, design, theoretical and general software-quality issues encountered during the rewrite. Update [post-port takeaways](../../docs/migration/POST-PORT-REFACTOR.md) and the [RF register](refactor-findings.json) at every workflow handoff/review, or state that no new takeaway was observed. Record evidence and uncertainty, impact, current mitigation, later proposal and validation. F9 carries the accumulated register into the major post-port refactoring phase. Required correctness stays in the current slice; broader structural redesign is deferred without waiving acceptance gates.
+
+
+## Delivery record refinement — 2026-10-03
+
+The user needs implementation progress without duplicate JSON/issue/review upkeep.
+One live operations record references the canonical graph, receipts and finalized
+candidate review. Counts and the readable RF report are derived views. Authors refine
+existing specs/tickets and return one commit/receipt; the coordinator updates state
+and accepts criterion-complete parents against preserved joins. Historical records
+remain reachable. Validate record consistency and reference/hash integrity at this
+existing tracker seam; this change adds no application test or review handoff.
+See [frontend delivery records](../../docs/agents/issue-tracker.md#frontend-delivery-records).

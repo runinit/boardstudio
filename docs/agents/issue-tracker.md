@@ -51,10 +51,10 @@ separate; placeholders do not complete the corresponding full frontend milestone
 
 The user requires architectural, design, theoretical and software-quality issues
 encountered during the rewrite to be retained for the later major refactoring phase.
-Every slice author and independent reviewer updates the
-[post-port takeaways](../migration/POST-PORT-REFACTOR.md) and
-[machine register](../../.scratch/dioxus-frontend-v1/refactor-findings.json), or records
-“No new refactoring takeaway observed” with the reviewed scope. Use stable RF IDs,
+Authors report new findings in their single packet receipt. The coordinator updates
+the [machine register](../../.scratch/dioxus-frontend-v1/refactor-findings.json);
+the [post-port takeaways](../migration/POST-PORT-REFACTOR.md) are generated from it.
+A scoped “No new refactoring takeaway observed” stays in the receipt. Use stable RF IDs,
 source evidence, confidence, impact, current mitigation, later proposal and validation.
 Required parity/correctness remains current work; deferred structural cleanup never
 waives acceptance or authorizes unrelated API/schema changes. F9 consolidates the
@@ -88,3 +88,40 @@ browser journey and one consolidated candidate review, reusing unchanged evidenc
 Keep shared integration serial and six queues active, with one waiting packet per
 stream. Necessary migration API/design/visibility changes are authorized by the
 2026-10-02 user decision in CONSTRAINTS.md; external cutover remains separate. Every handoff continues to record RF takeaways.
+
+
+### Frontend delivery records
+
+Read current progress with `python3 .scratch/dioxus-frontend-v1/progress.py show`.
+It reads the [live operations record](../migration/dioxus-frontend-v1-run.json)
+and derives parent counts from the [canonical graph](../../.scratch/dioxus-frontend-v1/tasks.json).
+Use `show --json` for the current fields and `check` for record consistency.
+Historical checkpoints are disclosed through the live record's `history` pointer.
+
+1. Authors refine the existing issue/spec, implement in their isolate, and return
+   one commit plus one receipt pointer. The receipt names the changed React journey,
+   actual checks and limitations, and any new RF evidence. A chat message with these
+   references is sufficient for queueing; another handoff document is optional.
+2. The coordinator joins ready commits serially, updates only `current_progress`
+   for the served candidate and six queues, and runs one combined affected check.
+   RUN, PLAN, stream reconciliation and issue prose link here instead of maintaining
+   another live counter, candidate summary or synchronized JSON state.
+3. Sol reviews the frozen candidate once. Finalize one candidate review/AUDIT pair
+   at a stable repository path. Parent decisions reference that pair by path/hash;
+   they own their criterion verdict and retained joins. Reuse unchanged evidence.
+   Earlier review copies remain historical; create no future per-parent review copies.
+4. The coordinator changes a parent with `progress.py set-status <ID> <status>
+   --reason <reason>`; acceptance also requires `--decision <DECISION.json>`.
+   The command checks final joins and review hashes, records a decision reference,
+   and refreshes derived counts and the readable RF report. Parent criteria and
+   the dependency graph remain in their existing canonical rows.
+5. For a new architecture/design/theory/quality observation, the coordinator updates
+   the RF JSON once, then runs `progress.py sync`. The readable report is generated.
+   A no-new-finding note stays in the packet receipt and creates no ledger copy.
+
+This replaces per-slice planning/source/merger approvals and repeated document
+publication for the active frontend run. New tickets are created only for distinct
+runnable work; existing tickets are refined for clarifications or discovered gaps.
+Necessary API/design changes retain the user authorization in CONSTRAINTS.md.
+Cutover and external publication remain separate. Browser authors own named sessions
+and profiles; lifecycle cleanup is restricted to that named session.

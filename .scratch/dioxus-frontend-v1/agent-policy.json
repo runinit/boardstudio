@@ -952,5 +952,13 @@
     "candidate": "One consolidated Sol review and changed paired journeys; reuse unchanged evidence.",
     "broaden": "Only a failure or identified unresolved risk justifies more checks.",
     "parent_gates": "All62 acceptance criteria and RF history retained."
+  },
+  "documentation_workflow": "docs/agents/issue-tracker.md#frontend-delivery-records",
+  "skill_overrides": {
+    "authority": "CONSTRAINTS.md#delivery-records-and-skill-overrides--user-update-2026-10-03",
+    "planning": "Refine existing specs/tickets; no repeat quiz or duplicate publication.",
+    "implementation": "Existing integration branch; direct serial coordinator joins; ordinary UI has no TDD or separate merger requirement.",
+    "review": "One finalized candidate review; parent decisions reference it.",
+    "records": "Coordinator owns parent/live/RF updates; derived views refresh through progress.py sync."
   }
 }

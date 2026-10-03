@@ -1,6 +1,8 @@
+Current operations and counts: `python3 .scratch/dioxus-frontend-v1/progress.py show`. Use [the delivery workflow](../../docs/agents/issue-tracker.md#frontend-delivery-records); dated frontiers below are retained history.
+
 # Six-stream queue and first-slice reconciliation
 
-Current execution checkpoint (2026-10-02): Six workbench streams continue. Served candidate frontend-layout-case-transport-integrated-20261002 is source b9e74e37fc34948be9fee97c918b644200778bca at http://127.0.0.1:34737/ and /boardstudio/. Full22 commands passed,1342 input hashes have zero drift,145 assets per route independently verified;21 critical served responses per route match. Layout model-layer ownership/responsive view group and Case wireless transport admission repairs are included. Fresh same-fixture Case browser comparison: Wireless accepted, Undo Wired, Redo Wireless and durable reload agree with React; broader Case/portable and Layout paired visual gates remain open. Contextual Layout Inspector is implementing; Parts chooser, PCB Wiring mode, Keycaps navigation, Case live generation and Project name continue repair/review. Sol6.1 High reviewers; configured30/runtime11 including root. All62 canonical parents and RF-001–RF-015 retained; no full workbench acceptance.
+Historical execution checkpoint (2026-10-02): Six workbench streams continue. Served candidate frontend-layout-case-transport-integrated-20261002 is source b9e74e37fc34948be9fee97c918b644200778bca at http://127.0.0.1:34737/ and /boardstudio/. Full22 commands passed,1342 input hashes have zero drift,145 assets per route independently verified;21 critical served responses per route match. Layout model-layer ownership/responsive view group and Case wireless transport admission repairs are included. Fresh same-fixture Case browser comparison: Wireless accepted, Undo Wired, Redo Wireless and durable reload agree with React; broader Case/portable and Layout paired visual gates remain open. Contextual Layout Inspector is implementing; Parts chooser, PCB Wiring mode, Keycaps navigation, Case live generation and Project name continue repair/review. Sol6.1 High reviewers; configured30/runtime11 including root. All62 canonical parents and RF-001–RF-015 retained; no full workbench acceptance.
 
 Retained preceding checkpoint: Current execution checkpoint (2026-10-02): six workbench streams continue. Served comparison remains frontend-ready-export-theme-reuse-20261002, source d7ff5e3dcae67a719caf6660cfcff57c3811df34 at http://127.0.0.1:34736/ and /boardstudio/. Integration b9e74e37 includes independently reviewed Layout model-layer ownership/responsive controls and Case wireless transport admission repairs; strict combined page/core-worker WASM all-target Clippy passed in 8.00s. Full candidate frontend-layout-case-transport-integrated-20261002 is building; it is not served or publicly accepted yet. Parts chooser, PCB Wiring mode, Keycaps finding navigation, Case live preview and Project menu name remain under source repair/review. Layout contextual component Inspector planning advances from proven capabilities. Sol 6.1 High reviews; configured ceiling30/runtime11 including coordinator. All62 canonical parents and RF-001–RF-015 retained; paired browser and full parent acceptance gates remain open.
 
@@ -17,7 +19,7 @@ Earlier checkpoints below retain historical evidence and blockers; the current s
 **Canonical graph:** `.scratch/dioxus-frontend-v1/tasks.json` remains 62 parents with all criteria, start rationale, and `acceptance_after` joins unchanged.
 **Historic bounded records:** 48 published / 47 non-superseded before this plan. Those historical totals are not recast as actionable or completed work here.
 
-## Current active frontier — 2026-10-02
+## Historical frontier — 2026-10-02
 
 Current editable candidate: [Dioxus34727](http://127.0.0.1:34727/), build `frontend-outline-integrated-20261002`, exact source `c701233ea7bab6a4c794cba38cabf13be3a0b498`. Pinned React oracle: [5173](http://127.0.0.1:5173/), source `5a472a9426e6e38993361da402cd4ec730feb369`. Eight packaging commands,1289 source hashes and145 route assets verified. The machine run and PLAN carry the current integration; the first-slice tables below are retained history, not current dispatch status.
 
@@ -74,7 +76,7 @@ Operational starts below name the seam the child actually consumes; they do not 
 
 No proof here promotes a parent to complete. Every narrower child gate must have source-backed review and actual browser evidence before it is used to release work that otherwise waits on a whole parent.
 
-## Worktree ownership and review cadence
+## Historical worktree ownership and review cadence
 
 The coordinator created clean isolated author branches from the docs-only base `89b1de8a`:
 
@@ -89,6 +91,6 @@ The coordinator created clean isolated author branches from the docs-only base `
 
 A private composition preparation issue is retained as `issues/01-private-workbench-composition.md` and is associated with accepted INT.1; it creates no canonical parent. Its reviewed v3 contract lives at `evidence/workbench-composition-contract-v3-reviewed.md`. The six private leaves and dispatcher are implemented and mounted at integration `10377780`; source review and the integrated build are clear. The corrected Keymap selected-option remount regression passes on candidate `92db0b8f`, while full Keymap/F6K acceptance and six-workspace paired characterization remain incomplete. This preparation does not accept a feature/user journey or canonical parent.
 
-For every stream handoff: attach the exact source/contract hash, author and independent reviewer, canonical parents/joins preserved, tests actually run, and public status words. Update `POST-PORT-REFACTOR.md` plus `refactor-findings.json` with an evidence-backed existing RF update, or record “No new refactoring takeaway observed” and the reviewed scope. Composition preparation retains RF-001; audits or fixes may update RF-006/RF-009 only for specifically evidenced behavior, without a new duplicate ID or accessibility waiver.
+Current handoffs follow [frontend delivery records](../../docs/agents/issue-tracker.md#frontend-delivery-records): one frozen commit and one existing receipt pointer. The coordinator publishes status/RF deltas; generated counts/reports and finalized candidate review references replace duplicate handoff/status/review copies. Stable parent joins and RF IDs are retained.
 
 Execution update (2026-10-02): PCB07+08 source join 94480901 is clear and passes 229 native/strict WASM checks. Guarded page/CSS reuse helper 4d08ac9b is clear with 13 normal + 13 optimized checks; its matching full baseline is building from e3566700. Layout command pill is mounted and compiling, with source review and public menu journey pending. Parts13 has its own Luna High author alongside 14; Case16 starts from proved same-owner model-ID capabilities. Keycaps ordering/overlap and controller mounted settlement coverage remain active corrections. The user-facing build is still 34730/d320 until fresh package verification. Future leaf reuse expansion is a reviewed-planning queue item, not an applied bypass.

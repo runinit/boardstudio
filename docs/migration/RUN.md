@@ -1,8 +1,8 @@
 # BoardStudio milestone continuation
 
-Current active checkpoint: [frontend run state](dioxus-frontend-v1-run.json), field `current_progress`, is the authoritative source for served build, parent counts, verified journeys and current queues. Layout-first delivery and six workbench streams continue under the reduced verification policy in [CONSTRAINTS.md](../../CONSTRAINTS.md).
+Current frontend state: [live operations](dioxus-frontend-v1-run.json), field `current_progress`, and its linked canonical task graph. Run `python3 .scratch/dioxus-frontend-v1/progress.py show` for derived parent counts, the served candidate and six queues. [Delivery records](../agents/issue-tracker.md#frontend-delivery-records) defines the one-place update process.
 
-Current parent accounting (2026-10-03): **6 accepted / 33 implementing / 23 planned / 62 total**. F7.2 authored Case editing, F6K.2 typed bindings, F6K.3 structured macros and F6C.2 Keycaps settings/legends are accepted from consolidated reviews and sufficient paired workflows. Layout-first work and the architecture/refactoring ledger continue; use the authoritative record above for current source and queues.
+Parent decisions and candidate reviews are referenced from their canonical records. This document is a historical run narrative; its dated counts/builds are not current status.
 
 Current comparison candidate: [Dioxus34768](http://127.0.0.1:34768/boardstudio/) and [TypeScript5173](http://127.0.0.1:5173/). Guarded provider reuse:8commands112.46s; strict page20.046s;1372source inputs/146assets per route match. Changed Objects/Keymap, encoder-output and native custom-editor receipts are consolidated-reviewed with remaining visual/parent limits retained. Full34769 source integrates real transform/range/Case handles, PCB source/host findings, Keycaps cancellation and RGB/Choc demos; combined affected checks are underway. [Package proof](../../.scratch/dioxus-frontend-v1/evidence/candidate-34768-20261003/package-proof.json). Rejected34766 remains unserved.
 
@@ -22,17 +22,17 @@ Earlier checkpoints below retain historical evidence and blockers. Their build U
 
 Current priority: **100% frontend Dioxus migration**. See [frontend v1 roadmap](DIOXUS-FRONTEND-V1.md), [task graph](../../.scratch/dioxus-frontend-v1/PLAN.md) and [current run](dioxus-frontend-v1-run.json). The 2026-10-01 clarification prioritizes porting all existing TSX, themes and interface behavior. F1 is implemented and verified as the first shell/theme increment ([handoff](../../.scratch/dioxus-frontend-v1/evidence/handoff.md)); The user-requested F3a correction now restores default keycaps, five Layout layers and the shared footprint toggle ([current demo/evidence](../../.scratch/dioxus-frontend-v1/evidence/layout-layers/handoff.md)). Full F2–F9 remain open. Existing engines/providers remain underneath. The prior M1 run below is retained foundation/evidence, with its acceptance limits unchanged.
 
-## Latest frontend integration — 2026-10-02
+## Historical frontend integration — 2026-10-02
 
 The [current run](dioxus-frontend-v1-run.json) records the active six-stream frontier. Current served candidate: [root](http://127.0.0.1:34729/) and [subpath](http://127.0.0.1:34729/boardstudio/), build `frontend-inspector-idb-integrated-20261002` from source `71a144ec3a58c8e7fe8169fae5fbe8429f995f6a` (22/22 commands, 1,291 verified source hashes, zero drift, 145 assets per route). The same Sofle fixture gives Inspector native-wheel scrollTop 288 in React and 515 in Dioxus; the same real Find a key keyboard sequence selects `left-thumbs-SW5` in both React and Dioxus. These are bounded scroll and selection/reachability parity results only, not edit/Undo/save qualification. Receipts are in [Inspector evidence](../../.scratch/dioxus-frontend-v1/evidence/inspector-wheel-20261002/README.md). Source HEAD now includes Case issues 09+0c+e72, Firmware 192+c98+ff+af, Objects heading 830 and camera-centering e600+b153 at 4185a6a6+f782fc08; this served build predates them. Case Issue11→Issue10 public proof is held because PcbModel emits `${KIPRJMOD}/assets/...` while its adapter expects a relative key; Sol is verifying a repair. Camera centering has a green standalone paired run at 34728; integrated public verification remains pending, and zoom remains discrepant (React 755, Dioxus 461). Strict WASM all-target checks pass for the new wave. Native checks are blocked by the required `on_export` callback missing from the `keymap_panel_lifecycle` harness while Sol repairs it. Full workbench parity and parent acceptance remain open.
 
 The next implementation wave contains PCB physical-setup proposals (`0dd1f3ce`), firmware-position handoff (`6fe8fb87`) and Keycaps fit findings (`448c3274`), now under independent Astra source Spec/Standards review before integration. The Keycaps production candidate has a project-activation renderer hang; paired acceptance remains open while diagnosis proceeds. Layout fields-only Transform, PCB Editor-owned physical intents, Keymap firmware-position UI, Case pre-CAD native PCB preview and the Parts/Project packaged-byte provider are the continuing frontier. User concurrency ceiling: 30; this session provides 11 slots including the coordinator. The architecture/refactor ledger remains mandatory. No parent criteria are closed by these source or planning statuses.
 
-## Current bounded-ticket ledger
+## Historical bounded-ticket ledger
 
 The prior ledger recorded 48 published bounded tickets (47 non-superseded). Three additional exact-reviewed Layout children—Transform properties, Align, and command-pill integration—are now published under `.scratch/dioxus-layout-authoring/issues/`. Publication does not imply dispatchability or acceptance. Four source-backed F3.2 execution children are now published under `.scratch/dioxus-layout-authoring/issues/`, each with only the canonical F3.1 start gate. The 62-parent graph and F3.2/F3.3/F3.7 acceptance relationships are unchanged. Exact-hash Spec/Standards reports and source mapping are retained in `.scratch/dioxus-layout-authoring/evidence/ticket-split/`.
 
-## Current frontend planning — 2026-10-02
+## Historical frontend planning — 2026-10-02
 
 The user requested remaining-work planning with multiple agents for each workflow.
 Workflow authors and different reviewers expanded F2–F9 into 58 workflow slices,
