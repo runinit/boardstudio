@@ -1,5 +1,6 @@
 //! Private form for the real selected-matrix name, size, and pitch fields.
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_core::model::DiodeDirection;
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,6 +16,83 @@ pub(in crate::presentation) enum MatrixEditField {
     Columns,
     PitchX,
     PitchY,
+    SwitchDefinition,
+    ApplyPreset,
+    DiodeDirection,
+    EdgeGapX,
+    EdgeGapY,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::presentation) enum MatrixPreset {
+    MxSolder,
+    MxHotswap,
+    ChocSolder,
+    ChocHotswap,
+    MxRgb,
+    ChocRgb,
+    MxHotswapRgb,
+    ChocHotswapRgb,
+}
+
+impl MatrixPreset {
+    pub(super) fn parse(value: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|preset| preset.as_str() == value)
+    }
+
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::MxSolder => "mx-solder",
+            Self::MxHotswap => "mx-hotswap",
+            Self::ChocSolder => "choc-solder",
+            Self::ChocHotswap => "choc-hotswap",
+            Self::MxRgb => "mx-rgb",
+            Self::ChocRgb => "choc-rgb",
+            Self::MxHotswapRgb => "mx-hotswap-rgb",
+            Self::ChocHotswapRgb => "choc-hotswap-rgb",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::MxSolder => "MX Solder",
+            Self::MxHotswap => "MX Hotswap",
+            Self::ChocSolder => "Choc V1 Solder",
+            Self::ChocHotswap => "Choc V1 Hotswap",
+            Self::MxRgb => "MX RGB",
+            Self::ChocRgb => "Choc V1 RGB",
+            Self::MxHotswapRgb => "MX Hotswap RGB",
+            Self::ChocHotswapRgb => "Choc V1 Hotswap RGB",
+        }
+    }
+
+    const ALL: [Self; 8] = [
+        Self::MxSolder,
+        Self::MxHotswap,
+        Self::ChocSolder,
+        Self::ChocHotswap,
+        Self::MxRgb,
+        Self::ChocRgb,
+        Self::MxHotswapRgb,
+        Self::ChocHotswapRgb,
+    ];
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::presentation) enum SwitchOrientation {
+    South,
+    North,
+}
+
+impl SwitchOrientation {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::South => "south",
+            Self::North => "north",
+        }
+    }
 }
 
 impl MatrixEditField {
@@ -25,6 +103,11 @@ impl MatrixEditField {
             Self::Columns => "columns",
             Self::PitchX => "pitch-x",
             Self::PitchY => "pitch-y",
+            Self::SwitchDefinition => "switch-definition",
+            Self::ApplyPreset => "apply-preset",
+            Self::DiodeDirection => "diode-direction",
+            Self::EdgeGapX => "edge-gap-x",
+            Self::EdgeGapY => "edge-gap-y",
         }
     }
 }
@@ -36,6 +119,10 @@ pub(in crate::presentation) enum MatrixEditValue {
     Columns(u32),
     PitchX(f64),
     PitchY(f64),
+    SwitchDefinition(String),
+    DiodeDirection(DiodeDirection),
+    EdgeGapX(f64),
+    EdgeGapY(f64),
 }
 
 /// Draft owner excludes accepted token/revision so unrelated accepted edits do not erase text.
@@ -62,6 +149,14 @@ pub(in crate::presentation) struct MatrixInspectorProjection {
     pub columns: u32,
     pub pitch_x: f64,
     pub pitch_y: f64,
+    pub definition_id: String,
+    pub switch_choices: Vec<(String, String)>,
+    pub diode_direction: DiodeDirection,
+    pub edge_gap_x: f64,
+    pub edge_gap_y: f64,
+    pub preset: Option<MatrixPreset>,
+    pub orientation: Option<SwitchOrientation>,
+    pub baseline_variant: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,6 +168,33 @@ pub(in crate::presentation) struct MatrixEditRequest {
     pub field: MatrixEditField,
     pub baseline: MatrixEditValue,
     pub value: MatrixEditValue,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::presentation) struct MatrixPresetRequest {
+    pub owner: MatrixInspectorOwner,
+    pub request_id: u64,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub baseline_variant: Option<String>,
+    pub preset: MatrixPreset,
+    pub orientation: SwitchOrientation,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::presentation) struct MatrixDeleteRequest {
+    pub owner: MatrixInspectorOwner,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::presentation) struct MatrixDuplicateRequest {
+    pub owner: MatrixInspectorOwner,
+    pub snapshot_token: SnapshotToken,
+    pub revision: u64,
+    pub preset: MatrixPreset,
+    pub orientation: SwitchOrientation,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,21 +221,93 @@ pub(in crate::presentation) struct MatrixInspectorProps {
     pub busy: bool,
     pub feedback: Vec<MatrixEditFeedback>,
     pub on_edit: EventHandler<MatrixEditRequest>,
+    pub on_apply_preset: EventHandler<MatrixPresetRequest>,
+    pub on_delete: EventHandler<MatrixDeleteRequest>,
+    pub on_duplicate: EventHandler<MatrixDuplicateRequest>,
 }
 
 #[component]
 pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     let projection = &props.projection;
+    let mut preset_draft = use_signal(|| projection.preset.unwrap_or(MatrixPreset::MxSolder));
+    let mut orientation_draft =
+        use_signal(|| projection.orientation.unwrap_or(SwitchOrientation::South));
+    let accepted_matrix_id = projection.owner.matrix_id.clone();
+    let accepted_preset = projection.preset;
+    let accepted_orientation = projection.orientation;
+    let mut preset_draft_for_effect = preset_draft;
+    let mut orientation_draft_for_effect = orientation_draft;
+    use_effect(use_reactive(
+        (&accepted_matrix_id, &accepted_preset, &accepted_orientation),
+        move |(_, preset, orientation)| {
+            preset_draft_for_effect.set(preset.unwrap_or(MatrixPreset::MxSolder));
+            orientation_draft_for_effect.set(orientation.unwrap_or(SwitchOrientation::South));
+        },
+    ));
+    let mut apply_sequence = props.request_sequence;
+    let apply_owner = projection.owner.clone();
+    let apply_token = projection.snapshot_token;
+    let apply_revision = projection.revision;
+    let apply_baseline_variant = projection.baseline_variant.clone();
+    let on_apply = props.on_apply_preset;
+    let mut preset_request_id = use_signal(|| None::<u64>);
+    let mut submitted_preset_id = preset_request_id;
+    let editable = props.editable;
+    let busy = props.busy;
+    let mut apply_preset = move || {
+        if !editable || busy {
+            return;
+        }
+        let Some(request_id) = apply_sequence().checked_add(1) else {
+            return;
+        };
+        apply_sequence.set(request_id);
+        submitted_preset_id.set(Some(request_id));
+        on_apply.call(MatrixPresetRequest {
+            owner: apply_owner.clone(),
+            request_id,
+            snapshot_token: apply_token,
+            revision: apply_revision,
+            baseline_variant: apply_baseline_variant.clone(),
+            preset: preset_draft(),
+            orientation: orientation_draft(),
+        });
+    };
+    let delete_request = MatrixDeleteRequest {
+        owner: projection.owner.clone(),
+        snapshot_token: projection.snapshot_token,
+        revision: projection.revision,
+    };
+    let duplicate_base = MatrixDuplicateRequest {
+        owner: projection.owner.clone(),
+        snapshot_token: projection.snapshot_token,
+        revision: projection.revision,
+        preset: preset_draft(),
+        orientation: orientation_draft(),
+    };
+    let preset_feedback = props.feedback.iter().find(|feedback| {
+        feedback.owner == projection.owner
+            && feedback.field == MatrixEditField::ApplyPreset
+            && preset_request_id() == Some(feedback.request_id)
+    });
     let name_feedback = props.feedback.clone();
     let rows_feedback = props.feedback.clone();
     let columns_feedback = props.feedback.clone();
     let pitch_x_feedback = props.feedback.clone();
     let pitch_y_feedback = props.feedback.clone();
+    let switch_feedback = props.feedback.clone();
+    let diode_feedback = props.feedback.clone();
+    let edge_gap_x_feedback = props.feedback.clone();
+    let edge_gap_y_feedback = props.feedback.clone();
     let name_key = owner_key(&projection.owner, MatrixEditField::Name);
     let rows_key = owner_key(&projection.owner, MatrixEditField::Rows);
     let columns_key = owner_key(&projection.owner, MatrixEditField::Columns);
     let pitch_x_key = owner_key(&projection.owner, MatrixEditField::PitchX);
     let pitch_y_key = owner_key(&projection.owner, MatrixEditField::PitchY);
+    let switch_key = owner_key(&projection.owner, MatrixEditField::SwitchDefinition);
+    let diode_key = owner_key(&projection.owner, MatrixEditField::DiodeDirection);
+    let edge_gap_x_key = owner_key(&projection.owner, MatrixEditField::EdgeGapX);
+    let edge_gap_y_key = owner_key(&projection.owner, MatrixEditField::EdgeGapY);
     // Each field needs its own template root: nested component keys do not
     // create an identity boundary in Dioxus static templates.
     rsx! {
@@ -179,6 +373,109 @@ pub(in crate::presentation) fn MatrixInspector(props: MatrixInspectorProps) -> E
                 }
                 }}
             }
+            h3 { "Key assembly" }
+            div { class: "m1-matrix-inspector-fields",
+                label { class: "m1-matrix-field",
+                    span { "Assembly preset" }
+                    select {
+                        aria_label: "Apply matrix preset",
+                        value: "{preset_draft().as_str()}",
+                        disabled: !props.editable || props.busy,
+                        onchange: move |event: FormEvent| {
+                            if let Some(preset) = MatrixPreset::parse(&event.value()) {
+                                preset_draft.set(preset);
+                            }
+                        },
+                        for preset in MatrixPreset::ALL {
+                            option { value: "{preset.as_str()}", selected: preset_draft() == preset, "{preset.label()}" }
+                        }
+                    }
+                }
+                label { class: "m1-matrix-field",
+                    span { "Switch orientation" }
+                    select {
+                        aria_label: "Switch orientation",
+                        value: "{orientation_draft().as_str()}",
+                        disabled: !props.editable || props.busy,
+                        onchange: move |event: FormEvent| {
+                            orientation_draft.set(if event.value() == "north" { SwitchOrientation::North } else { SwitchOrientation::South });
+                        },
+                        option { value: "south", selected: orientation_draft() == SwitchOrientation::South, "South-facing LED" }
+                        option { value: "north", selected: orientation_draft() == SwitchOrientation::North, "North-facing LED" }
+                    }
+                }
+                button {
+                    disabled: !props.editable || props.busy,
+                    onclick: move |_| apply_preset(),
+                    "Update assembly preset"
+                }
+                button {
+                    disabled: props.busy,
+                    onclick: move |_| props.on_duplicate.call(duplicate_base.clone()),
+                    "Duplicate design as variant"
+                }
+                {rsx! {
+                    MatrixFieldEditor {
+                        key: "{switch_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
+                        revision: projection.revision, field: MatrixEditField::SwitchDefinition,
+                        label: "Matrix part definition", value: projection.definition_id.clone(),
+                        baseline: MatrixEditValue::SwitchDefinition(projection.definition_id.clone()), kind: MatrixFieldKind::Choice,
+                        choices: projection.switch_choices.clone(),
+                        request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                        feedback: switch_feedback, on_edit: props.on_edit,
+                    }
+                }}
+                {rsx! {
+                    MatrixFieldEditor {
+                        key: "{diode_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
+                        revision: projection.revision, field: MatrixEditField::DiodeDirection,
+                        label: "Diode direction", value: diode_direction_value(projection.diode_direction),
+                        baseline: MatrixEditValue::DiodeDirection(projection.diode_direction), kind: MatrixFieldKind::Choice,
+                        choices: vec![("row2col".to_owned(), "Rows to columns".to_owned()), ("col2row".to_owned(), "Columns to rows".to_owned())],
+                        request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                        feedback: diode_feedback, on_edit: props.on_edit,
+                    }
+                }}
+            }
+            h3 { "Keycap spacing" }
+            p { class: "m1-matrix-edit-status", "Preview only" }
+            div { class: "m1-matrix-inspector-fields",
+                {rsx! {
+                    MatrixFieldEditor {
+                        key: "{edge_gap_x_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
+                        revision: projection.revision, field: MatrixEditField::EdgeGapX,
+                        label: "Edge gap X", value: projection.edge_gap_x.to_string(),
+                        baseline: MatrixEditValue::EdgeGapX(projection.edge_gap_x), kind: MatrixFieldKind::NonnegativeNumber,
+                        choices: Vec::new(), request_sequence: props.request_sequence,
+                        editable: props.editable, busy: props.busy, feedback: edge_gap_x_feedback, on_edit: props.on_edit,
+                    }
+                }}
+                {rsx! {
+                    MatrixFieldEditor {
+                        key: "{edge_gap_y_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
+                        revision: projection.revision, field: MatrixEditField::EdgeGapY,
+                        label: "Edge gap Y", value: projection.edge_gap_y.to_string(),
+                        baseline: MatrixEditValue::EdgeGapY(projection.edge_gap_y), kind: MatrixFieldKind::NonnegativeNumber,
+                        choices: Vec::new(), request_sequence: props.request_sequence,
+                        editable: props.editable, busy: props.busy, feedback: edge_gap_y_feedback, on_edit: props.on_edit,
+                    }
+                }}
+            }
+            p { class: "m1-matrix-edit-status", "Keycap preview {(projection.pitch_x - projection.edge_gap_x).max(0.0):.1} × {(projection.pitch_y - projection.edge_gap_y).max(0.0):.1} mm" }
+            if let Some(feedback) = preset_feedback {
+                if feedback.state == MatrixEditState::Failed {
+                    p { role: "alert", "{feedback.message.as_deref().unwrap_or(\"The matrix preset was not saved.\")}" }
+                } else if feedback.state == MatrixEditState::Saved {
+                    p { role: "status", "Preset updated" }
+                }
+            }
+            h3 { "Matrix actions" }
+            button {
+                class: "m1-matrix-edit-status",
+                disabled: !props.editable || props.busy,
+                onclick: move |_| props.on_delete.call(delete_request.clone()),
+                "Delete matrix"
+            }
             if props.busy {
                 p { class: "m1-matrix-edit-status", role: "status", "Saving matrix change…" }
             }
@@ -191,6 +488,8 @@ enum MatrixFieldKind {
     Name,
     PositiveInteger,
     PositiveNumber,
+    NonnegativeNumber,
+    Choice,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -203,6 +502,8 @@ struct MatrixFieldEditorProps {
     value: String,
     baseline: MatrixEditValue,
     kind: MatrixFieldKind,
+    #[props(default)]
+    choices: Vec<(String, String)>,
     request_sequence: Signal<u64>,
     editable: bool,
     busy: bool,
@@ -297,7 +598,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
         let revision = props.revision;
         let on_edit = props.on_edit;
         let accepted_display = props.value.clone();
-        move || {
+        move |replacement_text: Option<String>| {
             if busy || !editable || submitted_request_id().is_some() {
                 return;
             }
@@ -308,7 +609,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 ));
                 return;
             }
-            let text = draft();
+            let text = replacement_text.unwrap_or_else(|| draft());
             let value = match kind {
                 MatrixFieldKind::Name => {
                     let name = text.trim();
@@ -340,6 +641,30 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                         return;
                     }
                 },
+                MatrixFieldKind::NonnegativeNumber => match text.trim().parse::<f64>() {
+                    Ok(value) if value.is_finite() && value >= 0.0 => match field {
+                        MatrixEditField::EdgeGapX => MatrixEditValue::EdgeGapX(value),
+                        MatrixEditField::EdgeGapY => MatrixEditValue::EdgeGapY(value),
+                        _ => return,
+                    },
+                    _ => {
+                        error.set(Some(
+                            "Enter a finite number greater than or equal to zero.".to_owned(),
+                        ));
+                        return;
+                    }
+                },
+                MatrixFieldKind::Choice => match field {
+                    MatrixEditField::SwitchDefinition => {
+                        MatrixEditValue::SwitchDefinition(text.clone())
+                    }
+                    MatrixEditField::DiodeDirection => match text.as_str() {
+                        "row2col" => MatrixEditValue::DiodeDirection(DiodeDirection::Row2col),
+                        "col2row" => MatrixEditValue::DiodeDirection(DiodeDirection::Col2row),
+                        _ => return,
+                    },
+                    _ => return,
+                },
             };
             let current = match field {
                 MatrixEditField::Name => match kind {
@@ -350,6 +675,10 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 MatrixEditField::Columns => value.clone(),
                 MatrixEditField::PitchX => value.clone(),
                 MatrixEditField::PitchY => value.clone(),
+                MatrixEditField::SwitchDefinition => value.clone(),
+                MatrixEditField::DiodeDirection => value.clone(),
+                MatrixEditField::EdgeGapX => value.clone(),
+                MatrixEditField::EdgeGapY => value.clone(),
             };
             let baseline = draft_baseline();
             let displayed_name_is_unchanged = field == MatrixEditField::Name
@@ -394,7 +723,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
         move |event: KeyboardEvent| match event.data().key() {
             Key::Enter => {
                 event.prevent_default();
-                commit();
+                commit(None);
             }
             Key::Escape => {
                 event.prevent_default();
@@ -431,17 +760,42 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
     let step = match props.kind {
         MatrixFieldKind::Name => "any",
         MatrixFieldKind::PositiveInteger => "1",
-        MatrixFieldKind::PositiveNumber => "any",
+        MatrixFieldKind::PositiveNumber | MatrixFieldKind::NonnegativeNumber => "any",
+        MatrixFieldKind::Choice => "any",
     };
     let min = match props.kind {
         MatrixFieldKind::Name => None,
         MatrixFieldKind::PositiveInteger => Some("1"),
         MatrixFieldKind::PositiveNumber => Some("0"),
+        MatrixFieldKind::NonnegativeNumber => Some("0"),
+        MatrixFieldKind::Choice => None,
     };
+    let mut commit_choice = commit.clone();
+    let choices = props.choices.clone();
+    let is_select = props.kind == MatrixFieldKind::Choice;
     rsx! {
         label { class: if error_text.is_some() || stale() { "m1-matrix-field has-error" } else { "m1-matrix-field" },
             span { "{props.label}" }
             span { class: "m1-matrix-field-input",
+                if is_select {
+                    select {
+                        value: "{input_value}",
+                        disabled: !props.editable || props.busy || stale(),
+                        "aria-label": props.label,
+                        "aria-invalid": error_text.is_some() || stale(),
+                        onchange: move |event: FormEvent| {
+                            let value = event.value();
+                            draft.set(value.clone());
+                            dirty.set(true);
+                            error.set(None);
+                            status.set(Some("Saving…".to_owned()));
+                            commit_choice(Some(value));
+                        },
+                        for (value, label) in choices {
+                            option { value: "{value}", selected: input_value == value, "{label}" }
+                        }
+                    }
+                } else {
                 input {
                     r#type: input_type,
                     step: step,
@@ -462,11 +816,12 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                     },
                     onblur: {
                         let mut commit = commit.clone();
-                        move |_| commit()
+                        move |_| commit(None)
                     },
                     onkeydown: on_keydown,
                 }
-                if matches!(props.kind, MatrixFieldKind::PositiveNumber) { small { "mm" } }
+                }
+                if matches!(props.kind, MatrixFieldKind::PositiveNumber | MatrixFieldKind::NonnegativeNumber) { small { "mm" } }
             }
             if stale() {
                 small { role: "alert", "The accepted value changed. Press Escape to reload it." }
@@ -511,4 +866,11 @@ fn owner_key(owner: &MatrixInspectorOwner, field: MatrixEditField) -> String {
         encode(&owner.matrix_id),
         format_args!("{target}-{}", field.key()),
     )
+}
+
+fn diode_direction_value(direction: DiodeDirection) -> String {
+    match direction {
+        DiodeDirection::Row2col => "row2col".to_owned(),
+        DiodeDirection::Col2row => "col2row".to_owned(),
+    }
 }

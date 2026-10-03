@@ -6,7 +6,7 @@
 
 **Blocked by:** Canonical F3.2 start gate F3.1 (Layout tree, board scope and selection), as recorded in the 62-task graph. No new child-to-child dependency is introduced.
 
-**Status:** Published; implementation starts after canonical F3.1 is satisfied. No sibling-ticket dependency is added.
+**Status:** Implementation in progress after the F3.1 start gate. Matrix configuration fields and structural actions are being delivered as one private Inspector workflow; integrated browser acceptance remains open. No sibling-ticket dependency is added.
 
 - [ ] Selecting a matrix exposes its name, row/column dimensions, pitch, supported key assembly/switch choice, diode direction, and keycap edge-gap preview settings. Dimension inputs follow the existing validation and matrix-resize rules; preset updates retain compatible saved key/member information and report source validation errors without partially applying a change.
 - [ ] Preserve related structural actions at their reference entry points: Add object offers Add row/Add column for the selected matrix; its inspector supports Delete matrix and a working Duplicate design as variant handoff. The variant action clones the whole current ProjectDoc to a new UUID/name, opens the copy, applies the selected preset to the target matrix, and accepts/saves that project. If the preset edit fails, restore/open the original project and report the error. This root-owned callback is required for completion, not an optional permanently-disabled control; do not treat it as Undo in the original project.
