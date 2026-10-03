@@ -941,6 +941,13 @@
           "evidence": ".scratch/dioxus-keymap-layers/evidence/keymap-fit-controls-20261003/paired-browser-journey.md",
           "observation": "The settled paired Keymap route showed React Fit board and Fit selection actions while the Dioxus footer exposed only Undo/Redo and zoom percentage. The bounded repair reuses the existing camera event/state; zoom and Grid/Snap remain explicitly owned by existing viewport/Snap criteria. This is a concrete presentation control gap, not evidence for a new camera abstraction or public API.",
           "current_mitigation": "F6K.1 ticket 01 now specifies guarded current-board/current-selection fit through the private Keymap view controls. No new refactoring takeaway observed."
+        },
+        {
+          "date": "2026-10-03",
+          "task": "F6K.1d Keymap editor disclosures",
+          "evidence": ".scratch/dioxus-keymap-layers/issues/11-keymap-editor-disclosures.md",
+          "observation": "Pinned React wraps the active Keys, Macros, and Encoders panes in the same native InspectorSection behavior. The current Dioxus Keymap tabs and editor contents are already callable; the bounded parity repair adds only per-pane presentation state around the existing content. This does not support a new shared state framework or data/API change.",
+          "current_mitigation": "One private Keymap panel wrapper retains native disclosure state while a pane remains mounted and defaults open on remount. Keep F6K acceptance and the independent editor data/history criteria open; no new architectural finding observed."
         }
       ],
       "handoff_evidence": [

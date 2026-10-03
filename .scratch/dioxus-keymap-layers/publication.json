@@ -23,6 +23,12 @@
       "status": "implementing",
       "profile": "luna-medium",
       "planning_review": "clear at ac474b4175c7d013b5cd73aa59ad5fe1309073c3"
+    },
+    {
+      "id": "F6K.1d",
+      "issue": "issues/11-keymap-editor-disclosures.md",
+      "status": "implementing",
+      "profile": "luna-medium"
     }
   ]
 }

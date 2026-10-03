@@ -58,6 +58,10 @@ pub(in crate::presentation) fn KeymapPanel(
             )
         },
     );
+    let encoder_heading = format!(
+        "Encoders · {}",
+        active_layer.map_or("Base", |layer| layer.name.as_ref())
+    );
     let no_matches = !search.is_empty() && matching_key_count == 0;
     let layer_count = view.layers.len();
     let key_count = view.keys.len();
@@ -142,52 +146,64 @@ pub(in crate::presentation) fn KeymapPanel(
                 "Export ZMK source"
             }
             if selected_editor() == KeymapEditor::Keys {
-                section { class: "m1-keymap-key-selection", "aria-label": "Selected key",
-                    h3 { "{heading}" }
-                    label { class: "m1-keymap-search-label", "Find a key"
-                        input {
-                            class: "m1-keymap-search",
-                            r#type: "search",
-                            "aria-label": "Find a key",
-                            value: "{query}",
-                            oninput: move |event: FormEvent| query.set(event.value()),
+                details { class: "m1-keymap-editor-section", open: true,
+                    summary { span { "{heading}" } }
+                    div { class: "m1-keymap-section-body",
+                        label { class: "m1-keymap-search-label", "Find a key"
+                            input {
+                                class: "m1-keymap-search",
+                                r#type: "search",
+                                "aria-label": "Find a key",
+                                value: "{query}",
+                                oninput: move |event: FormEvent| query.set(event.value()),
+                            }
                         }
-                    }
-                    label { class: "m1-keymap-select-label", "Selected key"
-                        select {
-                            class: "m1-keymap-select",
-                            "aria-label": "Selected key",
-                            value: selected.map_or("", |key| key.id.as_ref()),
-                            onchange: move |event: FormEvent| on_select_key.call(event.value()),
-                            option { value: "", selected: selected.is_none(), "Choose on the layout…" }
-                            for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
-                                option {
-                                    key: "{key.id}",
-                                    value: "{key.id}",
-                                    selected: selected.is_some_and(|current| current.id == key.id),
-                                    "{key.reference} · {key.binding_title}"
+                        label { class: "m1-keymap-select-label", "Selected key"
+                            select {
+                                class: "m1-keymap-select",
+                                "aria-label": "Selected key",
+                                value: selected.map_or("", |key| key.id.as_ref()),
+                                onchange: move |event: FormEvent| on_select_key.call(event.value()),
+                                option { value: "", selected: selected.is_none(), "Choose on the layout…" }
+                                for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
+                                    option {
+                                        key: "{key.id}",
+                                        value: "{key.id}",
+                                        selected: selected.is_some_and(|current| current.id == key.id),
+                                        "{key.reference} · {key.binding_title}"
+                                    }
                                 }
                             }
                         }
-                    }
-                    if key_count == 0 {
-                        p { class: "m1-keymap-empty", role: "status", "No keys are available on this board." }
-                    } else if let Some(key) = selected {
-                        if no_matches {
+                        if key_count == 0 {
+                            p { class: "m1-keymap-empty", role: "status", "No keys are available on this board." }
+                        } else if let Some(key) = selected {
+                            if no_matches {
+                                p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
+                            }
+                            p { class: "m1-keymap-selected-label", "{key.binding_title}" }
+                        } else if no_matches {
                             p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
+                        } else {
+                            p { class: "m1-keymap-empty", role: "status", "Select a switch on the layout to assign its behavior." }
                         }
-                        p { class: "m1-keymap-selected-label", "{key.binding_title}" }
-                    } else if no_matches {
-                        p { class: "m1-keymap-empty", role: "status", "No keys match this search." }
-                    } else {
-                        p { class: "m1-keymap-empty", role: "status", "Select a switch on the layout to assign its behavior." }
+                        {keys_editor}
                     }
-                    {keys_editor}
                 }
             } else if selected_editor() == KeymapEditor::Macros {
-                {macros_editor}
+                details { class: "m1-keymap-editor-section", open: true,
+                    summary { span { "Macros" } }
+                    div { class: "m1-keymap-section-body",
+                        {macros_editor}
+                    }
+                }
             } else {
-                {encoders_editor}
+                details { class: "m1-keymap-editor-section", open: true,
+                    summary { span { "{encoder_heading}" } }
+                    div { class: "m1-keymap-section-body",
+                        {encoders_editor}
+                    }
+                }
             }
         }
     }
