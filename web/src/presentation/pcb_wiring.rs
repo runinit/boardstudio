@@ -845,7 +845,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
         .unwrap_or_default();
     let protected_remap_actions = props.protected_remap_actions.clone();
     let protected_remap_identity = protected_remap_actions.identity.clone();
-    let on_review_remap = protected_remap_actions.on_review.clone();
+    let on_review_remap = protected_remap_actions.on_review;
     rsx! {
         section { class: "m1-pcb-wiring",
             p { class: "m1-pcb-wiring-breadcrumb", "{display.board_name} / PCB" }

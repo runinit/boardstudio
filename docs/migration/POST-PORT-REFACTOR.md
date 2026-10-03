@@ -261,6 +261,8 @@ The selected-board Resolve path supplies persisted `ElectricalBoardConfiguration
 
 ### RF-009 guarded packaging ownership extension
 
+**Qualification correction, 2026-10-03:** the focused author suite is not a completed ownership proof. Independent matched-baseline negative cases found provider-overlap precedence, worker feature expansion and include/inline-module gaps. Reuse is withheld while Sol repairs conservative guards; full22 remains available. Preserve the initial observation below as historical proposal, not current safety qualification.
+
 The prior fixed page-leaf provider reuse contract could not admit ordinary Rust UI module edits without rebuilding unchanged CAD/Core providers. A narrow implementation now derives eligible Rust paths from active page and worker feature module graphs, while preserving the old explicit leaf list and full22 build path. Cargo feature ownership and locked command identity remain pinned; ambiguous modules, provider overlap, shared Cargo/build inputs, deleted paths, and unknown cfg syntax fail closed. The known Core test alias and test-only Core integration source are recorded explicitly. This is a build-time ownership proof, not frontend acceptance or a completed performance result. See [the focused expected-red and guard results](../../.scratch/dioxus-frontend-v1/evidence/packaging-page-rust-reuse-20261003/RESULTS.md); real helper-matched baseline/reuse packaging and root/subpath/offline verification remain open.
 ### RF-009 protected-remap evidence correction
 
