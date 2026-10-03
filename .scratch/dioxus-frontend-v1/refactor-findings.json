@@ -265,6 +265,15 @@
           "post_port_follow_up": "After parity, measure presentation cross-workflow file intersections and evaluate stable workspace composition boundaries while retaining one accepted Session owner.",
           "validation": "Compare affected files changed across a representative Layout contextual Inspector slice; after parity, show independent leaf work can be verified without widening unrelated composition and preserves the exact accepted owner.",
           "status": "bounded source implementation; combined check, paired browser journey and review pending; no parent closure"
+        },
+        {
+          "source": "PCB Issue 23 mounted-module service-clearance/support editor; isolated implementation from f4d2aad9",
+          "evidence": ".scratch/dioxus-pcb-view/issues/23-mounted-module-supports-and-clearance.md; .scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md; web/src/presentation/pcb_module_inspector.rs",
+          "observation": "The bounded follow-up adds service-clearance and source-hole support-ring/standoff controls to the existing mounted placement leaf, reusing its accepted snapshot, local draft and guarded SetMountedModule owner. Core remains the validation and resolution authority; no public API or second document store is introduced.",
+          "current_mitigation": "Keep authored text fields in the selected Inspector draft; submit one complete MountedModule through the existing operation after the current project/session/board/module/token/revision guard.",
+          "post_port_follow_up": "After F5 parity, measure whether the shared presentation composition surface remains a repeated workflow edit hotspot; do not generalize module-specific draft or Core validation into a framework before that evidence.",
+          "validation": "Existing 34765 placement Save/reopen and settled Undo/Redo receipts are reused unchanged. New service/support controls require root combined check and one changed paired journey; no compiler/public result is inferred from this isolated source packet.",
+          "status": "isolated implementation frozen; combined check and changed public journey pending; no F5.5 or parent acceptance claimed"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -816,6 +825,13 @@
           "evidence": ".scratch/dioxus-frontend-v1/evidence/source-wave-20261002/current-wave-refresh.json",
           "observation": "Keymap search/tab lifetime must follow accepted selected-owner changes; React keys its Inspector content by board/scope/part, while the Dioxus unscoped query hid newly canvas-selected SW18 behind stale SW17 filter. Actual production-mounted repair6c2468f3 has expected red\u2192green, independent/browser gates remain open.",
           "status": "Current correctness repairs and independent/browser gates retained; structural refactoring deferred; no parent closure."
+        },
+        {
+          "date": "2026-10-03",
+          "source": "PCB Issue 23 mounted-module support/clearance continuation",
+          "evidence": ".scratch/dioxus-pcb-view/issues/23-mounted-module-supports-and-clearance.md; web/src/presentation/pcb_module_inspector.rs",
+          "observation": "Support-hole identities are source-local to the selected ModuleDefinition; resolved support coordinates are read-only data from the accepted module scene. The edit remains scoped to the selected project/document/session/board/module and does not persist a displayed physical-instance projection.",
+          "status": "private UI implementation reuses the accepted scoped owner; changed paired save/history/reopen evidence pending"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Physical setup controls need rendered identity envelopes and live guide-stage predicates across asynchronous normalization; stale handlers and bare feedback can retarget/leak across scopes. Astra production regression repair active; public guide join remains open.",
@@ -1238,6 +1254,12 @@
           "evidence": "/home/chris/.local/share/boardstudio/packages/frontend-board-geometry-vik-20261003/provenance.json; .scratch/dioxus-parts-catalogue/evidence/issue02-vik-module-preview-20261003/RESULTS.md",
           "observation": "On source 661296fe5633e2327488cd56738c14ab81c22341, the packaged 43,356,120-byte module asset hash matched the source; grouped row, three variant IDs, Inspector source/readiness projection and the Case-gate change passed. The same screenshot showed a stale MX center preview after selecting a module, so this result qualifies only the Inspector leg.",
           "status": "module Inspector leg green; exact source-preview correction and paired changed candidate replay remain open; no parent acceptance"
+        },
+        {
+          "source": "PCB Issue 23 service-clearance/support authoring continuation",
+          "evidence": ".scratch/dioxus-pcb-view/issues/23-mounted-module-supports-and-clearance.md; .scratch/dioxus-pcb-view/evidence/22-mounted-module-inspector-20261003/placement-save-reopen.md",
+          "observation": "The pinned React ModuleInspector exposes these fields in the existing placement form. The retained 34765 receipt proves only the earlier pose/attachment Save and reopen; Issue 23 acceptance requires the changed support/clearance public journey and one consolidated candidate check.",
+          "status": "source implemented in isolation; no changed-package or support/clearance browser acceptance claim"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: Machine top-level status/current integration still cited5944/34697 despite newer reviewed source andbd671ae8 served build. Corrected records explicitly separate current source14d1bfeb, servedbd671ae8/34720 and running successor build. Historical receipts retained; no parent closure.",

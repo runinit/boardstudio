@@ -2,7 +2,9 @@
 //! Module source definitions and their footprint/circuit ownership remain untouched.
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Event, Lifecycle, Scope};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ModuleAttachment, Side};
+use boardstudio_core::model::{
+    EditCommand, EditOperation, EditPhase, ModuleAttachment, ModuleSupport, Side,
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -21,6 +23,15 @@ pub(super) struct InspectorInput {
     pub(super) scope: Scope,
     pub(super) module_id: String,
     pub(super) selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+}
+
+#[derive(Clone, Default)]
+struct SupportDraft {
+    mount_id: String,
+    outer_diameter: String,
+    hole_diameter: String,
+    z: String,
+    height: String,
 }
 
 pub(super) fn inspector(input: InspectorInput) -> Element {
@@ -67,6 +78,7 @@ fn PcbMountedModuleInspector(
     };
     let mut draft = use_signal(|| instance.clone());
     let mut feedback = use_signal(String::new);
+    let mut support_draft = use_signal(SupportDraft::default);
     let accepted_instance = instance.clone();
     use_effect(use_reactive!(|accepted_instance| {
         if *draft.peek() != accepted_instance {
@@ -145,6 +157,9 @@ fn PcbMountedModuleInspector(
         feedback.set("Module removal submitted for save.".into());
     };
     let boards = document.boards.clone();
+    let source_mounts = definition.mounts.clone();
+    let add_source_mounts = source_mounts.clone();
+    let has_source_mounts = !source_mounts.is_empty();
     let instances = document
         .hardware
         .as_ref()
@@ -156,6 +171,24 @@ fn PcbMountedModuleInspector(
         .filter(|item| item.board_id == board_id)
         .map(|item| (item.id.clone(), item.name.clone()))
         .collect::<Vec<_>>();
+    let resolved_supports = input
+        .snapshot
+        .scene
+        .module_scenes
+        .iter()
+        .find(|module| module.id == input.module_id)
+        .map(|module| module.mount_supports.clone())
+        .unwrap_or_default();
+    let support_section = if draft().attachment == ModuleAttachment::Case {
+        "Case support rings"
+    } else {
+        "Board standoffs"
+    };
+    let support_kind = if draft().attachment == ModuleAttachment::Case {
+        "ring"
+    } else {
+        "standoff"
+    };
     let editable = input.snapshot.document.id == input.scope.document_id
         && input.snapshot.session_epoch == input.scope.session_epoch;
 
@@ -242,6 +275,109 @@ fn PcbMountedModuleInspector(
                     option { value: "board", "Board" }
                     option { value: "case", "Case" }
                 }
+            }
+            label { "Extra service clearance (mm)"
+                input { r#type: "number", min: "0", step: "0.1", aria_label: "Module service clearance", value: "{draft().service_clearance}", disabled: !editable,
+                    oninput: move |event| {
+                        let raw = event.value();
+                        let number = if raw.trim().is_empty() { Some(0.0) } else { raw.parse::<f64>().ok() };
+                        if let Some(number) = number.filter(|number| number.is_finite() && *number >= 0.0) {
+                            draft.with_mut(|value| value.service_clearance = number);
+                        }
+                    }
+                }
+            }
+            section { class: "m1-pcb-module-supports", "aria-label": "{support_section}",
+                h3 { "{support_section}" }
+                p { "Choose a source PCB hole and enter designer-selected ring dimensions. Z and height are module-midplane millimetres; these values are not vendor specifications." }
+                for (index, support) in draft().mount_supports.iter().enumerate() {
+                    div { key: "{support.mount_id}", class: "m1-pcb-module-support-row",
+                        span { "{support.mount_id} · OD {support.outer_diameter} / ID {support.hole_diameter} · Z {support.z} · height {support.height} mm" }
+                        button { r#type: "button", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| draft.with_mut(|value| value.mount_supports.remove(index)), "Remove" }
+                    }
+                }
+                if !resolved_supports.is_empty() {
+                    div { class: "m1-pcb-module-support-preview", "aria-label": "Resolved support geometry",
+                        strong { "Resolved {support_section}" }
+                        for (index, support) in resolved_supports.iter().enumerate() {
+                            p { key: "{support.mount_id}-{index}", "{support.mount_id} · center {support.at.x:.2}, {support.at.y:.2} mm · OD {support.outer_diameter:.2} / ID {support.hole_diameter:.2} mm · Z {support.z:.2} · height {support.height:.2} mm" }
+                        }
+                    }
+                }
+                label { "Source mounting hole"
+                    select {
+                        aria_label: "Support source mounting hole",
+                        value: "{support_draft().mount_id}",
+                        disabled: !editable || !has_source_mounts,
+                        onchange: move |event| support_draft.with_mut(|value| value.mount_id = event.value()),
+                        option { value: "", "Choose module hole…" }
+                        for mount in &source_mounts {
+                            option { value: "{mount.source_id}", "{mount.source_id} · source drill {mount.diameter} mm" }
+                        }
+                    }
+                }
+                div { class: "m1-pcb-module-support-fields",
+                    label { "Outer diameter (mm)"
+                        input { r#type: "number", step: "0.1", aria_label: "Support outer diameter", value: "{support_draft().outer_diameter}", disabled: !editable,
+                            oninput: move |event| support_draft.with_mut(|value| value.outer_diameter = event.value())
+                        }
+                    }
+                    label { "Hole diameter (mm)"
+                        input { r#type: "number", step: "0.1", aria_label: "Support hole diameter", value: "{support_draft().hole_diameter}", disabled: !editable,
+                            oninput: move |event| support_draft.with_mut(|value| value.hole_diameter = event.value())
+                        }
+                    }
+                    label { "Z from midplane (mm)"
+                        input { r#type: "number", step: "0.1", aria_label: "Support Z from midplane", value: "{support_draft().z}", disabled: !editable,
+                            oninput: move |event| support_draft.with_mut(|value| value.z = event.value())
+                        }
+                    }
+                    label { "Ring height (mm)"
+                        input { r#type: "number", step: "0.1", aria_label: "Support ring height", value: "{support_draft().height}", disabled: !editable,
+                            oninput: move |event| support_draft.with_mut(|value| value.height = event.value())
+                        }
+                    }
+                }
+                button { r#type: "button", disabled: !editable || !has_source_mounts, onclick: move |_| {
+                    let fields = support_draft().clone();
+                    let source_mount = add_source_mounts.iter().find(|mount| mount.source_id == fields.mount_id);
+                    let Some(mount) = source_mount else {
+                        feedback.set("Choose a source mounting hole before adding a support.".into());
+                        return;
+                    };
+                    let parsed = [fields.outer_diameter.as_str(), fields.hole_diameter.as_str(), fields.z.as_str(), fields.height.as_str()]
+                        .map(str::parse::<f64>);
+                    let [Ok(outer_diameter), Ok(hole_diameter), Ok(z), Ok(height)] = parsed else {
+                        feedback.set("Enter finite support dimensions before adding a support.".into());
+                        return;
+                    };
+                    if ![outer_diameter, hole_diameter, z, height].iter().all(|number| number.is_finite())
+                        || fields.outer_diameter.trim().is_empty()
+                        || fields.hole_diameter.trim().is_empty()
+                        || fields.z.trim().is_empty()
+                        || fields.height.trim().is_empty()
+                        || outer_diameter <= hole_diameter
+                        || hole_diameter < mount.diameter
+                        || height <= 0.0
+                    {
+                        feedback.set("Support dimensions must be finite; outer diameter must exceed the hole, the hole must clear the source drill, and height must be positive.".into());
+                        return;
+                    }
+                    if draft().mount_supports.iter().any(|support| support.mount_id == mount.source_id) {
+                        feedback.set("This source mounting hole already has a support. Remove it before adding another.".into());
+                        return;
+                    }
+                    draft.with_mut(|value| value.mount_supports.push(ModuleSupport {
+                        mount_id: mount.source_id.clone(),
+                        outer_diameter,
+                        hole_diameter,
+                        z,
+                        height,
+                    }));
+                    support_draft.set(SupportDraft::default());
+                    feedback.set(String::new());
+                }, "Add specified {support_kind}" }
+                if !has_source_mounts { p { "This module snapshot has no source mounting holes for support placement." } }
             }
             label { input { r#type: "checkbox", checked: draft().detached, disabled: !editable,
                 onchange: move |event| draft.with_mut(|value| value.detached = event.checked())
