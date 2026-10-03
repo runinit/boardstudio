@@ -73,44 +73,48 @@ pub(in crate::presentation) fn EncoderEditor(props: EncoderEditorProps) -> Eleme
                                 h4 { "{label}" }
                                 details { key: "{clockwise_key}", open: true,
                                     summary { "Clockwise" }
-                                    BindingEditor {
-                                        key: "{clockwise_component_key}",
-                                        scope: input_identity.scope.clone(),
-                                        admission_token: input_identity.token,
-                                        admission_revision: input_identity.revision,
-                                        input_identity: Some(input_identity.clone()),
-                                        active_layer_id: active_layer_id.clone(),
-                                        target: clockwise_target,
-                                        key_label: clockwise_label,
-                                        editor_instance_id,
-                                        request_sequence,
-                                        value: clockwise,
-                                        layers: layers.clone(),
-                                        macros: macros.clone(),
-                                        enabled,
-                                        feedback: feedback.clone(),
-                                        on_change,
+                                    for component_key in [clockwise_component_key] {
+                                        BindingEditor {
+                                            key: "{component_key}",
+                                            scope: input_identity.scope.clone(),
+                                            admission_token: input_identity.token,
+                                            admission_revision: input_identity.revision,
+                                            input_identity: Some(input_identity.clone()),
+                                            active_layer_id: active_layer_id.clone(),
+                                            target: clockwise_target,
+                                            key_label: clockwise_label,
+                                            editor_instance_id,
+                                            request_sequence,
+                                            value: clockwise,
+                                            layers: layers.clone(),
+                                            macros: macros.clone(),
+                                            enabled,
+                                            feedback: feedback.clone(),
+                                            on_change,
+                                        }
                                     }
                                 }
                                 details { key: "{counterclockwise_key}", open: true,
                                     summary { "Counterclockwise" }
-                                    BindingEditor {
-                                        key: "{counterclockwise_component_key}",
-                                        scope: input_identity.scope.clone(),
-                                        admission_token: input_identity.token,
-                                        admission_revision: input_identity.revision,
-                                        input_identity: Some(input_identity.clone()),
-                                        active_layer_id: active_layer_id.clone(),
-                                        target: counterclockwise_target,
-                                        key_label: counterclockwise_label,
-                                        editor_instance_id,
-                                        request_sequence,
-                                        value: counterclockwise,
-                                        layers: layers.clone(),
-                                        macros: macros.clone(),
-                                        enabled,
-                                        feedback: feedback.clone(),
-                                        on_change,
+                                    for component_key in [counterclockwise_component_key] {
+                                        BindingEditor {
+                                            key: "{component_key}",
+                                            scope: input_identity.scope.clone(),
+                                            admission_token: input_identity.token,
+                                            admission_revision: input_identity.revision,
+                                            input_identity: Some(input_identity.clone()),
+                                            active_layer_id: active_layer_id.clone(),
+                                            target: counterclockwise_target,
+                                            key_label: counterclockwise_label,
+                                            editor_instance_id,
+                                            request_sequence,
+                                            value: counterclockwise,
+                                            layers: layers.clone(),
+                                            macros: macros.clone(),
+                                            enabled,
+                                            feedback: feedback.clone(),
+                                            on_change,
+                                        }
                                     }
                                 }
                                 if let Some((key_id, binding)) = push {
@@ -120,27 +124,30 @@ pub(in crate::presentation) fn EncoderEditor(props: EncoderEditorProps) -> Eleme
                                             key_id: key_id.clone(),
                                         };
                                         let target_key = target.stable_key();
+                                        let component_key = format!("{editor_instance_id}-{target_key}");
                                         let key_label = format!("{label} push button");
                                         rsx! {
                                             details { key: "{target_key}",
                                                 summary { "Push button" }
-                                                BindingEditor {
-                                                    key: "{editor_instance_id}-{target_key}",
-                                                    scope: input_identity.scope.clone(),
-                                                    admission_token: input_identity.token,
-                                                    admission_revision: input_identity.revision,
-                                                    input_identity: Some(input_identity.clone()),
-                                                    active_layer_id: active_layer_id.clone(),
-                                                    target,
-                                                    key_label,
-                                                    editor_instance_id,
-                                                    request_sequence,
-                                                    value: binding,
-                                                    layers: layers.clone(),
-                                                    macros: macros.clone(),
-                                                    enabled,
-                                                    feedback: feedback.clone(),
-                                                    on_change,
+                                                for component_key in [component_key] {
+                                                    BindingEditor {
+                                                        key: "{component_key}",
+                                                        scope: input_identity.scope.clone(),
+                                                        admission_token: input_identity.token,
+                                                        admission_revision: input_identity.revision,
+                                                        input_identity: Some(input_identity.clone()),
+                                                        active_layer_id: active_layer_id.clone(),
+                                                        target,
+                                                        key_label,
+                                                        editor_instance_id,
+                                                        request_sequence,
+                                                        value: binding,
+                                                        layers: layers.clone(),
+                                                        macros: macros.clone(),
+                                                        enabled,
+                                                        feedback: feedback.clone(),
+                                                        on_change,
+                                                    }
                                                 }
                                             }
                                         }
