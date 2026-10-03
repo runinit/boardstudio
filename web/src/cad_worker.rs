@@ -167,7 +167,9 @@ impl CadWorker {
             .await
     }
 
-    pub(crate) async fn request_keycaps_step(
+    /// Export Core-resolved KeycapSpecs through this library's existing CAD worker.
+    /// The page binary is a separate crate, while its request wire remains private here.
+    pub async fn request_keycaps_step(
         &self,
         request_id: String,
         job_id: String,

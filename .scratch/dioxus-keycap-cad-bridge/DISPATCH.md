@@ -2,9 +2,9 @@
 
 ## Ownership and seam
 
-This ticket has no start dependencies in the canonical 62-task graph. It supplies the existing BND.1 prerequisite for F6C.5 and implements the React Keycaps-panel STEP action against an accepted board snapshot. The existing Rust CAD WASM package exports `build_keycaps`, and the page's `CadWorker` already initializes that package in an independent module worker. Keep the adapter private in the page/worker composition; do not widen `boardstudio_web` or generated contracts.
+This ticket has no start dependencies in the canonical 62-task graph. It supplies the existing BND.1 prerequisite for F6C.5 and implements the React Keycaps-panel STEP action against an accepted board snapshot. The existing Rust CAD WASM package exports `build_keycaps`, and the page's `CadWorker` already initializes that package in an independent module worker. The page binary and `boardstudio_web` library are separate crates, so the page needs one dedicated public `CadWorker::request_keycaps_step` method; keep its keycap wire types private and do not expose a general-purpose request field or generated contract.
 
-Do not add a CAD engine function, format, or duplicate builder. A private worker wire shape may carry the existing `KeycapSpec` values and accepted snapshot identity to `build_keycaps`; it must remain distinct from public `CadOperation`/`CadRequest` types. This implementation is authorized to add private request and host composition needed to complete the download action.
+Do not add a CAD engine function, format, or duplicate builder. A private worker wire shape may carry the existing `KeycapSpec` values and accepted snapshot identity to `build_keycaps`; it remains distinct from public `CadOperation`/`CadRequest` types. The one narrow method is the only new cross-crate surface needed to complete the download action.
 
 ## Source and behavior
 
