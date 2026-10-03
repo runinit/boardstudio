@@ -1,0 +1,17 @@
+{
+  "candidate": "900068a0df413059732f9f365abd598734b7f86c",
+  "url": "http://127.0.0.1:34762/",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "fixture": "Same retained archive lineage; freshDMain34parts,ReactMain35 from prior34761 placement; no new commit in this changed hint journey.",
+  "journey": "PCB Main board -> Add object -> search reset switch tht -> reset switch tht top -> Layout pending preview -> focus canvas -> Escape.",
+  "reference_hint": "Place reset switch tht top \u00b7 Click or Enter to place \u00b7 Esc cancels",
+  "candidate_hint": "Place reset switch tht top \u00b7 Click or Enter to place \u00b7 Esc cancels",
+  "outcome": "Changed hint text/label/position and Escape removal GREEN; DRevision8Saved unchanged.34761commit/history and Browse proof reused.",
+  "visual_inspection": "Root viewed both screenshot files; hint is positioned at corresponding lower-right canvas inset in both. SharedObjects/Inspector/footer/module-overlay differences remain original parents.",
+  "screenshots": [
+    "react-hint-34762.png",
+    "dioxus-hint-34762.png"
+  ],
+  "errors": [],
+  "remaining": "Consolidated review; other Add menu features and full parents remain open."
+}

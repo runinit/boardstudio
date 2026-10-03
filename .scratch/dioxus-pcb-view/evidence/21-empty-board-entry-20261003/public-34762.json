@@ -1,0 +1,23 @@
+{
+  "candidate": "900068a0df413059732f9f365abd598734b7f86c",
+  "url": "http://127.0.0.1:34762/",
+  "reference": "5a472a9426e6e38993361da402cd4ec730feb369",
+  "reference_url": "http://127.0.0.1:5173/",
+  "fixture": "Same retained controller archive lineage; Main has35parts in React from prior placement and34 in fresh Dioxus import; selected Board2 has0parts in both. Original archive untouched. New board creation only setup;34760 history proof reused.",
+  "viewport": "1280x940",
+  "journey": [
+    "PCB Board2 empty canvas shows identical heading, description, Add key matrix and Browse individual parts.",
+    "Add key matrix opens existing New matrix form in Layout for Board2.",
+    "Cancel closes form with Board2 still0parts; DioxusRevision8Saved unchanged.",
+    "Browse individual parts opens Parts; Dioxus query initially empty, React retains prior reset-switch query; board owner preserved."
+  ],
+  "outcome": "Changed contextual navigation/Cancel/Browse GREEN; source guards handle current scope/token/revision/lifecycle/gesture. Not a new matrix creation/history qualification.",
+  "visual_inspection": "Root viewed both full screenshots. Prompt heading/description and actions present; primary D34? served minimum40 vs TS34, secondary Daccent vs TSink corrected in next-source bd971126. Header/footer/control spacing differences belong to their shared packets. React also displays old module outlines on empty Board2; no reference bug disposition inferred here.",
+  "next": "Qualify only corrected action computed size/color on next candidate; consolidated review pending. ParentF5.1/F3.2/F3.7 remain open.",
+  "errors": [],
+  "screenshots": [
+    "react-empty.png",
+    "dioxus-empty.png"
+  ],
+  "checks": "Combined page WASM all-target strict17.54s,1370source0mismatch,145assets-route0; no new tests."
+}
