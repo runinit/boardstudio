@@ -6,6 +6,7 @@ use dioxus::prelude::*;
 pub(super) struct ObjectsInput {
     pub(super) shared: SharedObjectsInput,
     pub(super) matrix_setup: objects::MatrixSetupMount,
+    pub(super) matrix_inspector: objects::MatrixInspectorMount,
     pub(super) mirrored_pair: objects::MirroredPairMount,
     pub(super) pair_created: Signal<Option<objects::MirroredPairCreated>>,
     pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
@@ -56,6 +57,7 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 on_navigate: input.shared.on_navigate,
                 on_nudge: input.shared.on_nudge,
                 matrix_setup: Some(input.matrix_setup),
+                matrix_inspector: Some(input.matrix_inspector),
                 mirrored_pair: Some(input.mirrored_pair),
                 pair_created: Some(input.pair_created),
                 on_place_component: Some(input.on_place_component),
@@ -147,6 +149,9 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 busy: input.matrix_inspector.busy,
                 feedback: input.matrix_inspector.feedback.clone(),
                 on_edit: input.matrix_inspector.on_edit,
+                on_apply_preset: input.matrix_inspector.on_apply_preset,
+                on_delete: input.matrix_inspector.on_delete,
+                on_duplicate: input.matrix_inspector.on_duplicate,
             }
         }
         if input.key_size.projection.is_some() {

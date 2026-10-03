@@ -129,6 +129,7 @@ pub(super) fn Objects(
     parts_query: Option<super::parts::PartsQuery>,
     on_browse_parts: Option<EventHandler<()>>,
     placement_error: Option<String>,
+    matrix_inspector: Option<MatrixInspectorMount>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let workspace = use_context::<super::WorkspaceState>().0;
@@ -238,6 +239,7 @@ pub(super) fn Objects(
                 LayoutAddObjectEntry {
                     matrix_setup,
                     mirrored_pair,
+                    matrix_inspector,
                     snapshot: snapshot.clone(),
                     scope: active_scope.clone(),
                     on_place_component,
@@ -445,6 +447,7 @@ pub(super) fn Objects(
 fn LayoutAddObjectEntry(
     matrix_setup: Option<MatrixSetupMount>,
     mirrored_pair: Option<MirroredPairMount>,
+    matrix_inspector: Option<MatrixInspectorMount>,
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
@@ -460,6 +463,15 @@ fn LayoutAddObjectEntry(
     let matrix_open = matrix_setup
         .as_ref()
         .map(|mount| (mount.can_open, mount.on_open));
+    let matrix_actions = matrix_inspector.as_ref().and_then(|mount| {
+        mount.projection.as_ref().map(|projection| {
+            (
+                projection.matrix_label.clone(),
+                mount.on_add_row,
+                mount.on_add_column,
+            )
+        })
+    });
     rsx! {
         div { class: "m1-layout-add-object",
             button {
@@ -503,6 +515,27 @@ fn LayoutAddObjectEntry(
                                 },
                                 "Matrix…"
                                 small { "Rows, columns & key assemblies" }
+                            }
+                        }
+                    }
+                    if let Some((matrix_label, on_add_row, on_add_column)) = matrix_actions {
+                        section { "aria-label": "Selected matrix",
+                            h3 { "{matrix_label}" }
+                            button {
+                                r#type: "button",
+                                onclick: move |_| {
+                                    menu_open.set(false);
+                                    on_add_row.call(());
+                                },
+                                "Add row"
+                            }
+                            button {
+                                r#type: "button",
+                                onclick: move |_| {
+                                    menu_open.set(false);
+                                    on_add_column.call(());
+                                },
+                                "Add column"
                             }
                         }
                     }

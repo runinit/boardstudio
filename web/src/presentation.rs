@@ -5706,6 +5706,7 @@ fn Editor() -> Element {
             layout_workspace::ObjectsInput {
                 shared: shared_objects,
                 matrix_setup: matrix_setup.clone(),
+                matrix_inspector: matrix_inspector.clone(),
                 mirrored_pair: mirrored_pair.clone(),
                 pair_created: pair_created_selection,
                 on_place_component: part_placement.on_place_component,

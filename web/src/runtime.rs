@@ -321,6 +321,11 @@ fn browser_uuid() -> Result<String, String> {
         .ok_or_else(|| "Could not generate a project identity.".to_string())
 }
 
+/// Allocate the same browser UUID used by the Session-owned project lifecycle.
+pub(crate) fn new_project_id() -> Result<String, String> {
+    browser_uuid()
+}
+
 pub struct Runtime {
     session: RefCell<Session>,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
