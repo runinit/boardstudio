@@ -35,6 +35,18 @@ pub struct CadScene {
     pub exact: bool,
     pub contours: Vec<boardstudio_core::model::Contour>,
 }
+
+#[cfg(test)]
+struct ProjectNamePersistGate {
+    entered: futures_channel::oneshot::Sender<()>,
+    release: futures_channel::oneshot::Receiver<()>,
+}
+
+#[cfg(test)]
+enum ProjectNamePersistTestBehavior {
+    Fail(String),
+    Gate(ProjectNamePersistGate),
+}
 use js_sys::{Array, Function, Reflect, Uint8Array};
 use std::{
     cell::{Cell, RefCell},
@@ -334,9 +346,19 @@ pub struct Runtime {
     firmware_export_test_events: RefCell<Vec<Event>>,
     #[cfg(test)]
     firmware_export_test_deliveries: RefCell<Vec<FirmwareTestDelivery>>,
+    #[cfg(test)]
+    project_name_test_core: RefCell<Option<boardstudio_core::CoreEngine>>,
+    #[cfg(test)]
+    project_name_persist_test_behavior: RefCell<Option<ProjectNamePersistTestBehavior>>,
+    #[cfg(test)]
+    project_name_test_effects: RefCell<Vec<Effect>>,
 }
 impl Runtime {
     pub fn new() -> Result<Rc<Self>, String> {
+        Self::new_with_restoration(true)
+    }
+
+    fn new_with_restoration(restore_active_project: bool) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new()),
@@ -387,10 +409,18 @@ impl Runtime {
             firmware_export_test_events: RefCell::new(Vec::new()),
             #[cfg(test)]
             firmware_export_test_deliveries: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            project_name_test_core: RefCell::new(None),
+            #[cfg(test)]
+            project_name_persist_test_behavior: RefCell::new(None),
+            #[cfg(test)]
+            project_name_test_effects: RefCell::new(Vec::new()),
         });
         // Reserve the startup open identity synchronously, before any explicit
         // open action can supersede restoration of the last durable project.
-        runtime.restore_active_project();
+        if restore_active_project {
+            runtime.restore_active_project();
+        }
         let weak = Rc::downgrade(&runtime);
         spawn_local(async move {
             if let Err(error) = boardstudio_web::host::register_offline(prefix).await
@@ -1012,6 +1042,11 @@ impl Runtime {
                 .extend(effects);
             return;
         }
+        #[cfg(test)]
+        if self.project_name_test_core.borrow().is_some() {
+            self.project_name_test_effects.borrow_mut().extend(effects);
+            return;
+        }
         self.drive(effects);
     }
 
@@ -1123,6 +1158,23 @@ impl Runtime {
                 request,
                 ..
             } => {
+                #[cfg(test)]
+                {
+                    let use_test_core = self.project_name_test_core.borrow().is_some();
+                    if use_test_core {
+                        let reply = self
+                            .project_name_test_core
+                            .borrow_mut()
+                            .as_mut()
+                            .expect("test CoreEngine was checked above")
+                            .handle(*request);
+                        return self.complete(Completion::Core {
+                            request_id,
+                            executor_epoch,
+                            reply: Box::new(reply),
+                        });
+                    }
+                }
                 let core = self.core.borrow().clone();
                 match core
                     .request(
@@ -1180,6 +1232,33 @@ impl Runtime {
                     .filter(|(hash, _)| document.assets.iter().any(|a| &a.sha256 == *hash))
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
+                #[cfg(test)]
+                let test_behavior = self.project_name_persist_test_behavior.borrow_mut().take();
+                #[cfg(test)]
+                let test_failure = match test_behavior {
+                    Some(ProjectNamePersistTestBehavior::Fail(reason)) => Some(reason),
+                    Some(ProjectNamePersistTestBehavior::Gate(gate)) => {
+                        let _ = gate.entered.send(());
+                        let _ = gate.release.await;
+                        None
+                    }
+                    None => None,
+                };
+                #[cfg(test)]
+                let result = if let Some(reason) = test_failure {
+                    SaveResult::Aborted(reason)
+                } else {
+                    match self.store.save_document(&document, &assets).await {
+                        Ok(()) => {
+                            for asset in &document.assets {
+                                self.assets.borrow_mut().remove(&asset.sha256);
+                            }
+                            SaveResult::Committed
+                        }
+                        Err(error) => SaveResult::Aborted(error.to_string()),
+                    }
+                };
+                #[cfg(not(test))]
                 let result = match self.store.save_document(&document, &assets).await {
                     Ok(()) => {
                         for asset in &document.assets {
@@ -4057,6 +4136,75 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
         let _ = Url::revoke_object_url(&url);
     }
     result
+}
+
+#[cfg(test)]
+pub(crate) mod project_name_test_support {
+    use super::*;
+
+    pub(crate) fn new_runtime() -> Rc<Runtime> {
+        Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
+    }
+
+    pub(crate) fn install(runtime: &Runtime, session: Session, core: boardstudio_core::CoreEngine) {
+        *runtime.session.borrow_mut() = session;
+        *runtime.project_name_test_core.borrow_mut() = Some(core);
+        runtime.changed();
+    }
+
+    pub(crate) fn replace_session(runtime: &Runtime, session: Session) {
+        *runtime.session.borrow_mut() = session;
+        runtime.changed();
+    }
+
+    pub(crate) fn fail_next_persist(runtime: &Runtime, reason: impl Into<String>) {
+        *runtime.project_name_persist_test_behavior.borrow_mut() =
+            Some(ProjectNamePersistTestBehavior::Fail(reason.into()));
+    }
+
+    pub(crate) fn gate_next_persist(
+        runtime: &Runtime,
+    ) -> (
+        futures_channel::oneshot::Receiver<()>,
+        futures_channel::oneshot::Sender<()>,
+    ) {
+        let (entered_tx, entered_rx) = futures_channel::oneshot::channel();
+        let (release_tx, release_rx) = futures_channel::oneshot::channel();
+        *runtime.project_name_persist_test_behavior.borrow_mut() = Some(
+            ProjectNamePersistTestBehavior::Gate(ProjectNamePersistGate {
+                entered: entered_tx,
+                release: release_rx,
+            }),
+        );
+        (entered_rx, release_tx)
+    }
+
+    pub(crate) fn observe(
+        runtime: &Runtime,
+        operation: OperationId,
+    ) -> crate::operation_outcomes::OutcomeSlot {
+        runtime.operation_outcomes.observe(operation)
+    }
+
+    pub(crate) fn observe_next(runtime: &Runtime) -> crate::operation_outcomes::OutcomeSlot {
+        runtime
+            .operation_outcomes
+            .observe(OperationId(runtime.next_operation.get()))
+    }
+
+    pub(crate) async fn run_pending(runtime: &Rc<Runtime>) {
+        let mut pending = VecDeque::from(std::mem::take(
+            &mut *runtime.project_name_test_effects.borrow_mut(),
+        ));
+        while let Some(effect) = pending.pop_front() {
+            pending.extend(runtime.run(effect).await);
+        }
+    }
+
+    pub(crate) fn drive_pending(runtime: &Rc<Runtime>) {
+        let effects = std::mem::take(&mut *runtime.project_name_test_effects.borrow_mut());
+        runtime.drive(effects);
+    }
 }
 
 #[cfg(test)]

@@ -381,8 +381,8 @@ pub(super) fn Library() -> Element {
         section { class: "m1-library", "aria-label": "Your keyboards",
             if has_current {
                 section { class: "m1-project-current", "aria-label": "Current project",
-                    h2 { "Current project" }
-                    label { "Project name"
+                    label { class: "m1-project-title",
+                        span { "Current project" }
                         input {
                             "aria-label": "Project name",
                             title: "Rename project",
@@ -563,6 +563,12 @@ mod mounted_tests {
         let seed = use_context::<Rc<Seed>>();
         let version = use_signal(|| 0_u64);
         *seed.state.borrow_mut() = Some(version);
+        let notify_version = version;
+        let runtime = use_context::<Rc<Runtime>>();
+        runtime.subscribe(Rc::new(move || {
+            let mut version = notify_version;
+            version.set(version() + 1);
+        }));
         let project_created = use_signal(|| None::<SetupGuideRequest>);
         let pending_new = use_signal(|| None::<PendingNewKeyboard>);
         let new_error = use_signal(String::new);
@@ -575,6 +581,39 @@ mod mounted_tests {
 
     async fn settle() {
         gloo_timers::future::TimeoutFuture::new(80).await;
+    }
+
+    async fn wait_outcome(
+        runtime: &Rc<Runtime>,
+        slot: &crate::operation_outcomes::OutcomeSlot,
+    ) -> boardstudio_application::TerminalOutcome {
+        for _ in 0..100 {
+            crate::runtime::project_name_test_support::run_pending(runtime).await;
+            if let Some(outcome) = slot.borrow().clone() {
+                return outcome;
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        panic!(
+            "operation did not settle; outcome={:?}, accepted_revision={:?}, status={}",
+            *slot.borrow(),
+            runtime
+                .model()
+                .accepted
+                .as_ref()
+                .map(|snapshot| snapshot.document.revision),
+            runtime.status()
+        );
+    }
+
+    fn submit(
+        runtime: &Rc<Runtime>,
+        event: impl FnOnce(OperationId) -> Event,
+    ) -> crate::operation_outcomes::OutcomeSlot {
+        let operation = runtime.operation();
+        let slot = crate::runtime::project_name_test_support::observe(runtime, operation);
+        runtime.submit(event(operation));
+        slot
     }
 
     fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
@@ -620,13 +659,15 @@ mod mounted_tests {
     }
 
     fn field() -> HtmlInputElement {
-        web_sys::window()
+        let fields = web_sys::window()
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#project-name-mounted-regression input[aria-label='Project name']")
-            .unwrap()
-            .unwrap()
+            .query_selector_all("input[aria-label='Project name']")
+            .unwrap();
+        fields
+            .item(fields.length().saturating_sub(1))
+            .expect("a mounted current project has a name field")
             .dyn_into()
             .unwrap()
     }
@@ -648,24 +689,13 @@ mod mounted_tests {
         input.dispatch_event(&event).unwrap();
     }
 
-    fn publish(
-        runtime: &Runtime,
-        seed: &Seed,
-        snapshot: boardstudio_application::AcceptedSnapshot,
-    ) {
-        runtime.set_definition_name_test_state(snapshot, None);
-        if let Some(mut version) = *seed.state.borrow() {
-            version.set(version() + 1);
-        }
-    }
-
     #[wasm_bindgen_test]
     async fn project_menu_name_draft_survives_unrelated_accepted_revision_and_commits_latest_document()
      {
-        let (mut session, mut core) = accepted(ProjectDoc::empty("menu-name", "Sofle v2"));
+        let (session, core) = accepted(ProjectDoc::empty("menu-name", "Sofle v2"));
         let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let runtime = Runtime::new().unwrap();
-        runtime.set_definition_name_test_state(snapshot.clone(), session.scope());
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
         });
@@ -694,6 +724,12 @@ mod mounted_tests {
         settle().await;
 
         assert_eq!(field().value(), "Sofle v2");
+        let label = field().parent_element().unwrap();
+        assert_eq!(
+            label.get_attribute("class").as_deref(),
+            Some("m1-project-title")
+        );
+        assert_eq!(label.text_content().unwrap().trim(), "Current project");
         type_value(&field(), "  My custom keyboard  ");
         settle().await;
 
@@ -701,8 +737,8 @@ mod mounted_tests {
         unrelated
             .parameters
             .insert("independent".into(), serde_json::json!(42));
-        let effects = session.submit(boardstudio_application::Event::Edit {
-            operation_id: OperationId(41),
+        let unrelated_slot = submit(&runtime, |operation_id| Event::Edit {
+            operation_id,
             command: EditCommand {
                 base_revision: snapshot.document.revision,
                 transaction_id: "project-name-unrelated-edit".into(),
@@ -713,12 +749,10 @@ mod mounted_tests {
                 },
             },
         });
-        advance(&mut session, &mut core, effects);
-        let latest = session.read_model().accepted.as_ref().unwrap().clone();
-        runtime.set_definition_name_test_state(latest.clone(), session.scope());
-        if let Some(mut version) = *seed.state.borrow() {
-            version.set(version() + 1);
-        }
+        assert_eq!(
+            wait_outcome(&runtime, &unrelated_slot).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
         settle().await;
 
         assert_eq!(
@@ -726,14 +760,15 @@ mod mounted_tests {
             "  My custom keyboard  ",
             "an unrelated accepted revision must not discard the menu's active name draft"
         );
+        let latest = runtime.model().accepted.unwrap();
+        let rename_slot = crate::runtime::project_name_test_support::observe_next(&runtime);
         let _ = field().blur();
+        assert_eq!(
+            wait_outcome(&runtime, &rename_slot).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
         settle().await;
-        let event = runtime
-            .take_definition_name_test_event()
-            .expect("the mounted blur submits through Runtime");
-        let effects = session.submit(event);
-        advance(&mut session, &mut core, effects);
-        let committed = session.read_model().accepted.as_ref().unwrap().clone();
+        let committed = runtime.model().accepted.unwrap();
         assert_eq!(committed.document.revision, latest.document.revision + 1);
         assert_eq!(committed.document.name, "My custom keyboard");
         assert_eq!(
@@ -741,46 +776,56 @@ mod mounted_tests {
             Some(&serde_json::json!(42)),
             "the latest accepted unrelated field must survive the rename"
         );
-        publish(&runtime, &seed, committed.clone());
-        settle().await;
         assert_eq!(field().value(), "My custom keyboard");
+        let stored = runtime
+            .store
+            .load_document("menu-name".into())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            stored.name, "My custom keyboard",
+            "the rename must reach durable browser storage"
+        );
+        assert_eq!(
+            stored.parameters.get("independent"),
+            Some(&serde_json::json!(42))
+        );
 
-        let effects = session.submit(boardstudio_application::Event::Undo {
-            operation_id: OperationId(42),
-        });
-        advance(&mut session, &mut core, effects);
-        let undone = session.read_model().accepted.as_ref().unwrap().clone();
+        let undo_slot = submit(&runtime, |operation_id| Event::Undo { operation_id });
+        assert_eq!(
+            wait_outcome(&runtime, &undo_slot).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        let undone = runtime.model().accepted.unwrap();
         assert_eq!(undone.document.name, "Sofle v2");
         assert_eq!(
             undone.document.parameters.get("independent"),
             Some(&serde_json::json!(42)),
             "Undoing the rename must leave the earlier unrelated edit accepted"
         );
-        publish(&runtime, &seed, undone);
         settle().await;
         assert_eq!(field().value(), "Sofle v2");
 
-        let effects = session.submit(boardstudio_application::Event::Redo {
-            operation_id: OperationId(43),
-        });
-        advance(&mut session, &mut core, effects);
-        let redone = session.read_model().accepted.as_ref().unwrap().clone();
+        let redo_slot = submit(&runtime, |operation_id| Event::Redo { operation_id });
+        assert_eq!(
+            wait_outcome(&runtime, &redo_slot).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        let redone = runtime.model().accepted.unwrap();
         assert_eq!(redone.document.name, "My custom keyboard");
-        publish(&runtime, &seed, redone);
         settle().await;
         assert_eq!(field().value(), "My custom keyboard");
 
         type_value(&field(), "Keyboard entered");
+        let enter_slot = crate::runtime::project_name_test_support::observe_next(&runtime);
         press(&field(), "Enter");
-        settle().await;
-        let event = runtime
-            .take_definition_name_test_event()
-            .expect("Enter blurs the field and submits the same rename event");
-        let effects = session.submit(event);
-        advance(&mut session, &mut core, effects);
-        let entered = session.read_model().accepted.as_ref().unwrap().clone();
+        assert_eq!(
+            wait_outcome(&runtime, &enter_slot).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        let entered = runtime.model().accepted.unwrap();
         assert_eq!(entered.document.name, "Keyboard entered");
-        publish(&runtime, &seed, entered);
         settle().await;
 
         type_value(&field(), "Canceled draft");
@@ -789,53 +834,186 @@ mod mounted_tests {
         assert_eq!(field().value(), "Keyboard entered");
         let _ = field().blur();
         settle().await;
-        assert!(runtime.take_definition_name_test_event().is_none());
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            entered.document.revision
+        );
 
         type_value(&field(), "   ");
         let _ = field().blur();
         settle().await;
         assert_eq!(field().value(), "Keyboard entered");
-        assert!(runtime.take_definition_name_test_event().is_none());
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            entered.document.revision
+        );
 
         type_value(&field(), "Keyboard entered");
         let _ = field().blur();
         settle().await;
-        assert!(runtime.take_definition_name_test_event().is_none());
-
-        type_value(&field(), "Draft from the prior project");
-        let (replacement_session, _) =
-            accepted(ProjectDoc::empty("replacement", "Replacement project"));
-        let replacement = replacement_session
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .clone();
-        publish(&runtime, &seed, replacement);
-        settle().await;
-        assert_eq!(field().value(), "Replacement project");
-        let _ = field().blur();
-        settle().await;
-        assert!(
-            runtime.take_definition_name_test_event().is_none(),
-            "a draft owned by the prior project must not be submitted for its replacement"
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            entered.document.revision
         );
 
         type_value(&field(), "Draft before same-project reopen");
-        let effects = session.submit(boardstudio_application::Event::Open {
-            operation_id: OperationId(44),
-            document: ProjectDoc::empty("menu-name", "Reopened same project"),
+        let reopen_slot = submit(&runtime, |operation_id| Event::Open {
+            operation_id,
+            document: ProjectDoc::empty("menu-name", "Sofle v2"),
         });
-        advance(&mut session, &mut core, effects);
-        let reopened = session.read_model().accepted.as_ref().unwrap().clone();
-        publish(&runtime, &seed, reopened);
+        assert_eq!(
+            wait_outcome(&runtime, &reopen_slot).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
         settle().await;
-        assert_eq!(field().value(), "Reopened same project");
+        assert_eq!(field().value(), "Sofle v2");
+        type_value(&field(), "Stale same-name epoch draft");
+        let same_name_reopen = submit(&runtime, |operation_id| Event::Open {
+            operation_id,
+            document: ProjectDoc::empty("menu-name", "Sofle v2"),
+        });
+        assert_eq!(
+            wait_outcome(&runtime, &same_name_reopen).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        settle().await;
+        assert_eq!(field().value(), "Sofle v2");
         let _ = field().blur();
         settle().await;
-        assert!(
-            runtime.take_definition_name_test_event().is_none(),
-            "a reopened project incarnation must not accept a draft from its previous session epoch"
+        assert_eq!(runtime.model().accepted.unwrap().document.revision, 0);
+        let _ = runtime.store.delete_project("menu-name".into()).await;
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
+    }
+
+    #[wasm_bindgen_test]
+    async fn project_menu_name_reports_real_persist_failure_without_accepting_the_rename() {
+        let (session, core) = accepted(ProjectDoc::empty("menu-name-failure", "Original"));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("project-name-failure-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
+        settle().await;
+
+        crate::runtime::project_name_test_support::fail_next_persist(
+            &runtime,
+            "injected durable write failure",
+        );
+        type_value(&field(), "Should not commit");
+        let slot = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let _ = field().blur();
+        assert_eq!(
+            wait_outcome(&runtime, &slot).await,
+            boardstudio_application::TerminalOutcome::PersistenceFailed(
+                "injected durable write failure".into()
+            )
+        );
+        assert_eq!(runtime.model().accepted.unwrap().document.name, "Original");
+        assert!(runtime.status().contains("injected durable write failure"));
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
+    }
+
+    #[wasm_bindgen_test]
+    async fn delayed_rename_persist_after_owner_replacement_cannot_update_new_project() {
+        let (session, core) = accepted(ProjectDoc::empty("menu-name-delayed", "Original"));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("project-name-delayed-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+
+        let (entered, release) =
+            crate::runtime::project_name_test_support::gate_next_persist(&runtime);
+        type_value(&field(), "Delayed old rename");
+        let slot = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let _ = field().blur();
+        crate::runtime::project_name_test_support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the actual Persist effect reaches the gate");
+        let (replacement, _replacement_core) =
+            accepted(ProjectDoc::empty("menu-name-replacement", "Replacement"));
+        crate::runtime::project_name_test_support::replace_session(&runtime, replacement);
+        settle().await;
+        assert_eq!(field().value(), "Replacement");
+        release.send(()).expect("release the captured old save");
+        settle().await;
+        assert!(
+            slot.borrow().is_none(),
+            "a completion owned by the prior session epoch is ignored"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Replacement"
+        );
+        assert!(!runtime.status().contains("Saved locally"));
+        let _ = runtime
+            .store
+            .delete_project("menu-name-delayed".into())
+            .await;
+        let _ = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .remove_child(&root);
     }
 }
