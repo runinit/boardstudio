@@ -476,21 +476,25 @@ fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
     (*operation_id, (**document).clone())
 }
 
-fn submitted_remap(probe: &Probe) -> (OperationId, ProjectDoc) {
+fn submitted_remap(probe: &Probe) -> (OperationId, u64, String, String) {
     let events = probe.runtime.events.borrow();
     let [
-        Event::Edit {
+        Event::ReviewElectricalRemap {
             operation_id,
-            command,
+            base_revision,
+            board_id,
+            expected_fingerprint,
         },
     ] = events.as_slice()
     else {
-        panic!("one protected-remap review must submit one Edit")
+        panic!("one protected-remap review must submit one Session review event")
     };
-    let EditOperation::ReplaceDocument { document } = &command.operation else {
-        panic!("protected-remap review must use ReplaceDocument")
-    };
-    (*operation_id, (**document).clone())
+    (
+        *operation_id,
+        *base_revision,
+        board_id.clone(),
+        expected_fingerprint.clone(),
+    )
 }
 
 fn protected_document() -> ProjectDoc {
@@ -1319,7 +1323,13 @@ fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revis
     let identity = actions.identity.clone().unwrap();
     actions.on_review.call(identity);
 
-    let (operation, mut proposal) = submitted_remap(&probe);
+    let (operation, base_revision, board_id, fingerprint) = submitted_remap(&probe);
+    assert_eq!(base_revision, document.revision);
+    assert_eq!(board_id, "left");
+    assert_eq!(fingerprint, "protected-fixture-fingerprint");
+    let mut proposal =
+        crate::pcb_wiring_remap_operation::propose_review_remap(&document, &board_id, &fingerprint)
+            .unwrap();
     let left = proposal
         .hardware
         .as_ref()
@@ -1407,7 +1417,7 @@ fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
                     .clone()
                     .unwrap(),
             );
-        let (operation, _) = submitted_remap(&probe);
+        let (operation, _, _, _) = submitted_remap(&probe);
         assert!(probe.runtime.settle(operation, outcome));
         tick(&probe, &mut dom);
         let accepted = probe.runtime.model.borrow();

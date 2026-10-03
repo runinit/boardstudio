@@ -161,6 +161,12 @@
           "evidence": ".scratch/dioxus-frontend-tranche-1/evidence/keymap-export-zmk-row-20261002/implementation-checks.md",
           "observation": "The bounded Export row adds an Editor composition seam, accepted wiring projection and Runtime report severity path across the same shared presentation/Runtime hotspot. The feature keeps a private row leaf and root-owned serial Editor mount; there is no measured performance claim or broader module extraction.",
           "status": "bounded feature implementation under source review; root integration, release build and paired browser acceptance remain open"
+        },
+        {
+          "source": "Issue 12 protected PCB remap correction; isolated source commit pending",
+          "evidence": ".scratch/dioxus-pcb-view/evidence/pcb-protected-remap-20261003/followup-core-session-correction.md",
+          "observation": "A normal Session ReplaceDocument cannot clear a protected handoff: CoreEngine::edit invokes electrical::preserve_handoff and restores the old baseline. The bounded action now dispatches Core's existing ReviewElectricalRemap request through a narrow Session event and keeps Session's normal persistence/history authority.",
+          "status": "required behavior correction; no duplicate document authority or general operation framework proposed"
         }
       ],
       "resumed_wave_20261002": "2026-10-02: App must retain New-project save outcomes beyond LibraryLanding unmount; six workbench private composition seams remain necessary. New owner source under independent review, not accepted.",
@@ -840,6 +846,12 @@
           "observation": "Exact-source review showed the empty request lock map passed during Core ApplyElectrical re-resolution does not drop persisted target-board locks: electrical::resolve initializes from the selected board configuration and then extends request locks. The gap is direct ApplyElectrical request-level coverage for persisted locks, not a confirmed behavior defect.",
           "current_mitigation": "The F5.2d draft consumes the exact accepted Current plan through the existing Core materializer and one strict-revision Session ReplaceDocument edit; Issue 09 adds direct request-level lock coverage. No Core defect or workaround is claimed.",
           "status": "Exact-source review corrected the initial audit assumption; direct persisted-lock ApplyElectrical coverage remains drafted and unexecuted."
+        },
+        {
+          "date": "2026-10-03",
+          "task": "Issue 12 protected PCB remap Session/Core correction",
+          "observation": "The first isolated Issue 12 packet proposed direct ReplaceDocument clearing, but actual Core settlement restored protection via preserve_handoff. Its direct-edit behavior is superseded and retained in history. The corrected receipt binds the dedicated Session event to the existing Core review request, actual saved revision, stale guards, and preserved lock/assignment data; prior evidence remains linked and unchanged.",
+          "current_mitigation": "Use the strict-revision Session review event and existing Core fingerprint/base-revision checks; keep paired candidate browser/history/reopen and all parent joins open."
         }
       ],
       "handoff_evidence": [

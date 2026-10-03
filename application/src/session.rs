@@ -169,6 +169,13 @@ pub enum Event {
         operation_id: OperationId,
         command: EditCommand,
     },
+    /// Explicitly review a protected PCB handoff before starting a remap revision.
+    ReviewElectricalRemap {
+        operation_id: OperationId,
+        base_revision: u64,
+        board_id: String,
+        expected_fingerprint: String,
+    },
     Undo {
         operation_id: OperationId,
     },
@@ -360,6 +367,11 @@ pub enum Effect {
 enum IntentKind {
     Open(Box<ProjectDoc>),
     Edit(EditCommand),
+    ReviewElectricalRemap {
+        base_revision: u64,
+        board_id: String,
+        expected_fingerprint: String,
+    },
     Undo,
     Redo,
     GesturePreview(EditCommand),
@@ -378,6 +390,7 @@ struct Intent {
 enum ActiveKind {
     Open,
     Commit,
+    ReviewElectricalRemap,
     Preview,
     Undo,
     Redo,
@@ -552,6 +565,21 @@ impl Session {
                 operation_id,
                 command,
             } => self.enqueue(operation_id, IntentKind::Edit(command), false, &mut effects),
+            Event::ReviewElectricalRemap {
+                operation_id,
+                base_revision,
+                board_id,
+                expected_fingerprint,
+            } => self.enqueue(
+                operation_id,
+                IntentKind::ReviewElectricalRemap {
+                    base_revision,
+                    board_id,
+                    expected_fingerprint,
+                },
+                true,
+                &mut effects,
+            ),
             Event::Undo { operation_id } => {
                 self.enqueue(operation_id, IntentKind::Undo, false, &mut effects)
             }
@@ -958,10 +986,16 @@ impl Session {
             return;
         }
         let epoch = self.epoch();
-        if let IntentKind::Edit(command) = &kind
-            && strict_revision
-            && command.base_revision != self.model.accepted.as_ref().unwrap().document.revision
-        {
+        let captured_revision = match &kind {
+            IntentKind::Edit(command) if strict_revision => Some(command.base_revision),
+            IntentKind::ReviewElectricalRemap { base_revision, .. } if strict_revision => {
+                Some(*base_revision)
+            }
+            _ => None,
+        };
+        if captured_revision.is_some_and(|revision| {
+            revision != self.model.accepted.as_ref().unwrap().document.revision
+        }) {
             self.settle(
                 operation_id,
                 TerminalOutcome::Rejected("captured edit revision is stale".into()),
@@ -1057,6 +1091,11 @@ impl Session {
                 {
                     Some(command.base_revision)
                 }
+                IntentKind::ReviewElectricalRemap { base_revision, .. }
+                    if intent.strict_revision =>
+                {
+                    Some(*base_revision)
+                }
                 _ => None,
             };
             if captured_revision.is_some_and(|revision| {
@@ -1105,6 +1144,20 @@ impl Session {
                         None,
                     )
                 }
+                IntentKind::ReviewElectricalRemap {
+                    base_revision,
+                    board_id,
+                    expected_fingerprint,
+                } => (
+                    CoreRequest::ReviewElectricalRemap {
+                        id: request_wire_id.clone(),
+                        base_revision,
+                        board_id,
+                        expected_fingerprint,
+                    },
+                    ActiveKind::ReviewElectricalRemap,
+                    None,
+                ),
                 IntentKind::Undo => (
                     CoreRequest::Undo {
                         id: request_wire_id.clone(),
@@ -1219,6 +1272,7 @@ impl Session {
             (
                 ActiveKind::Open
                 | ActiveKind::Commit
+                | ActiveKind::ReviewElectricalRemap
                 | ActiveKind::Undo
                 | ActiveKind::Redo
                 | ActiveKind::GestureCommit,
@@ -1857,6 +1911,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         | Event::GestureBegin { operation_id, .. }
         | Event::RecoverWithDocument { operation_id, .. }
         | Event::Edit { operation_id, .. }
+        | Event::ReviewElectricalRemap { operation_id, .. }
         | Event::Undo { operation_id }
         | Event::Redo { operation_id }
         | Event::RetrySave { operation_id }

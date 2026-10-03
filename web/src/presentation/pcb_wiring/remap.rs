@@ -6,7 +6,7 @@ use super::{
 use crate::pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Event, Lifecycle, TerminalOutcome};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc};
+use boardstudio_core::model::ProjectDoc;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -174,17 +174,11 @@ pub(in crate::presentation) fn use_protected_remap_review(
                 request_fingerprint: request.expected_fingerprint.clone(),
                 state: ProtectedRemapFeedback::Pending,
             }));
-            runtime.submit(Event::Edit {
+            runtime.submit(Event::ReviewElectricalRemap {
                 operation_id,
-                command: EditCommand {
-                    base_revision,
-                    transaction_id: format!("pcb-remap-review-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![request.wiring.plan.scope.board_id],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(proposal),
-                    },
-                },
+                base_revision,
+                board_id: request.wiring.plan.scope.board_id,
+                expected_fingerprint: request.expected_fingerprint,
             });
         }
     });

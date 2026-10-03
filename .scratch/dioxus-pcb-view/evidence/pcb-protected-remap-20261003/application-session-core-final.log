@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running tests/durable_session.rs (application/target/debug/deps/durable_session-7a3ca078a0cfcb76)
+
+running 2 tests
+test protected_handoff_review_rejects_a_stale_fingerprint_without_saving ... ok
+test protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.00s
+
