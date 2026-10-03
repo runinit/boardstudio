@@ -1215,7 +1215,7 @@
           }
         }
       ],
-      "phase": "qualifying",
+      "phase": "repairing",
       "unmet_start_conditions": [],
       "candidate_build_id": "frontend-parts-assembly-search-20261003",
       "source_commit": "fa275d839ad4b1ddad182895b185f9cf76e0c18e",
@@ -1224,7 +1224,8 @@
           "id": "assembly-query-filter",
           "scope": "Parts empty/all/matching/no-match query filters assembly rows and count while retaining selection; compare pinned TypeScript.",
           "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md",
-          "state": "pending"
+          "state": "failed",
+          "finding": "Assembly counts fixed but component-only empty status falsely says no parts for matching assemblies and duplicates global no-match. Remove local status, retain aggregate predicate."
         }
       ],
       "authority": "User confirmed Layout-ready candidate trigger and all five retro fixes on 2026-10-03",
@@ -1232,6 +1233,19 @@
       "review": {
         "profile": "sol-review",
         "state": "pending"
+      },
+      "next_scope": {
+        "id": "parts-search-feedback-20261003",
+        "streams": [
+          "Parts/Project"
+        ],
+        "journeys": [
+          {
+            "id": "assembly-query-feedback",
+            "scope": "Assembly-only query has matching rows and no no-match status; true no-match has zero rows and exactly one status. Retain verified filtering and selection behavior.",
+            "spec": ".scratch/dioxus-frontend-v1/issues/04-parts.md"
+          }
+        ]
       }
     },
     "delivery_priority": {

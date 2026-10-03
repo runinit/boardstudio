@@ -904,9 +904,7 @@ pub(super) fn PartsLibraryPanel(
             }
             if entries.is_empty() {
                 p { class: "m1-parts-empty", role: "status", "No component definitions are available." }
-            } else if groups.is_empty() {
-                p { class: "m1-parts-empty", role: "status", "No parts match this search." }
-            } else {
+            } else if !groups.is_empty() {
                 details { class: "m1-parts-catalogue-scroll", open: true,
                     summary { "Components" small { "{result_count}" } }
                     div { role: "listbox", "aria-label": "Footprint library",
