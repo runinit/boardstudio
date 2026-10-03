@@ -293,7 +293,9 @@ fn PcbMountedModuleInspector(
                 for (index, support) in draft().mount_supports.iter().enumerate() {
                     div { key: "{support.mount_id}", class: "m1-pcb-module-support-row",
                         span { "{support.mount_id} · OD {support.outer_diameter} / ID {support.hole_diameter} · Z {support.z} · height {support.height} mm" }
-                        button { r#type: "button", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| draft.with_mut(|value| value.mount_supports.remove(index)), "Remove" }
+                        button { r#type: "button", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
+                            draft.with_mut(|value| { value.mount_supports.remove(index); });
+                        }, "Remove" }
                     }
                 }
                 if !resolved_supports.is_empty() {
