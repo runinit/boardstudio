@@ -197,45 +197,67 @@ pub(super) async fn load_component_definition(
 pub(super) fn AddObjectComponentChooser(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
+    layout_target: Signal<Option<String>>,
     on_place: EventHandler<super::part_placement::ComponentPlacementAction>,
 ) -> Element {
     let catalogue = use_catalogue(&snapshot, &scope);
     let mut query = use_signal(String::new);
+    let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
+    let layouts = snapshot
+        .document
+        .layouts
+        .iter()
+        .filter(|layout| Some(layout.board_id.as_str()) == board_id)
+        .collect::<Vec<_>>();
+    let selected_layout = layout_target()
+        .filter(|id| layouts.iter().any(|layout| layout.id == *id))
+        .unwrap_or_default();
+    let search = query().trim().to_lowercase();
     let content = if let Some(entries) = catalogue.entries {
-        let search = query().trim().to_lowercase();
-        let groups = group_choices(&entries)
-            .iter()
-            .map(|group| {
-                let items = group
-                    .entries
-                    .iter()
-                    .copied()
-                    .filter(|entry| entry.matches(&search, group.label))
-                    .collect::<Vec<_>>();
-                (group.label, items)
-            })
-            .filter(|(_, items)| !items.is_empty())
-            .collect::<Vec<_>>();
         if entries.is_empty() {
             rsx! { p { class: "m1-parts-empty", role: "status", "No component definitions are available." } }
-        } else if groups.is_empty() {
-            rsx! { p { class: "m1-parts-empty", role: "status", "No parts match this search." } }
-        } else {
+        } else if search.is_empty() {
+            let groups = add_object_groups(&entries);
             rsx! {
-                label { class: "m1-parts-search-label", "Search parts"
-                    input {
-                        class: "m1-parts-search",
-                        type: "search",
-                        "aria-label": "Search parts to place",
-                        placeholder: "Name or category",
-                        value: "{query()}",
-                        oninput: move |event| query.set(event.value()),
+                for (label, items) in groups {
+                    details { key: "{label}", class: "m1-parts-category", open: label == "Components",
+                        summary { "{label}" }
+                        div { class: "m1-add-part-results",
+                            for entry in items {
+                                { let definition_id = entry.definition.id.clone();
+                                  let kind = entry.definition.kind.clone();
+                                  let label = preferred_label(&entry.definition);
+                                  rsx! {
+                                    button {
+                                        key: "{definition_id}",
+                                        class: "m1-parts-catalogue-choice",
+                                        r#type: "button",
+                                        onclick: move |_| on_place.call(
+                                            super::part_placement::ComponentPlacementAction::AddObject {
+                                                definition_id: definition_id.clone(),
+                                                kind: kind.clone(),
+                                            }
+                                        ),
+                                        "{label}"
+                                    }
+                                  }
+                                }
+                            }
+                        }
                     }
                 }
-                for (group, items) in groups {
-                    section { key: "{group}", class: "m1-parts-category", "aria-label": "{group}",
-                        h3 { "{group}" }
-                        for entry in items {
+            }
+        } else {
+            let results = entries
+                .iter()
+                .filter(|entry| entry.matches_library_search(&search))
+                .collect::<Vec<_>>();
+            if results.is_empty() {
+                rsx! { p { class: "m1-parts-empty", role: "status", "No parts match this search." } }
+            } else {
+                rsx! {
+                    div { class: "m1-add-part-results",
+                        for entry in results {
                             { let definition_id = entry.definition.id.clone();
                               let kind = entry.definition.kind.clone();
                               let label = preferred_label(&entry.definition);
@@ -264,7 +286,136 @@ pub(super) fn AddObjectComponentChooser(
     } else {
         rsx! { p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" } }
     };
-    rsx! { div { class: "m1-add-component-chooser", {content} } }
+    let mut workspace = use_context::<super::WorkspaceState>().0;
+    rsx! {
+        div { class: "m1-add-component-chooser",
+            if !layouts.is_empty() {
+                label { class: "m1-parts-placement-layout",
+                    "Place in"
+                    select {
+                        "aria-label": "Part placement layout",
+                        value: "{selected_layout}",
+                        onchange: move |event| {
+                            layout_target.set((!event.value().is_empty()).then(|| event.value()));
+                        },
+                        option { value: "", "Board / ungrouped" }
+                        for layout in layouts {
+                            option { key: "{layout.id}", value: "{layout.id}", "{layout.name}" }
+                        }
+                    }
+                }
+            }
+            label { class: "m1-parts-search-label", "Parts"
+                input {
+                    class: "m1-parts-search",
+                    type: "search",
+                    "aria-label": "Search parts",
+                    placeholder: "Find a part…",
+                    value: "{query()}",
+                    oninput: move |event| query.set(event.value()),
+                }
+            }
+            {content}
+            button {
+                class: "m1-add-browse",
+                r#type: "button",
+                onclick: move |_| workspace.set("Parts"),
+                "Browse all parts"
+            }
+        }
+    }
+}
+
+fn add_object_groups(entries: &[CatalogEntry]) -> Vec<(&'static str, Vec<&CatalogEntry>)> {
+    type GroupMatcher = fn(&CatalogEntry) -> bool;
+    let groups: [(&str, GroupMatcher); 4] = [
+        ("Components", |entry| {
+            let name = entry.definition.name.to_lowercase();
+            ["power", "reset", "battery"]
+                .iter()
+                .any(|needle| name.contains(needle))
+        }),
+        ("Controllers", |entry| {
+            matches!(
+                entry.definition.kind,
+                boardstudio_core::model::PartKind::Controller
+            )
+        }),
+        ("Displays", |entry| {
+            let name = entry.definition.name.to_lowercase();
+            ["display", "oled", "nice.view"]
+                .iter()
+                .any(|needle| name.contains(needle))
+        }),
+        ("Encoders", |entry| {
+            matches!(
+                entry.definition.kind,
+                boardstudio_core::model::PartKind::Encoder
+            ) || entry.definition.name.to_lowercase().contains("encoder")
+        }),
+    ];
+    groups
+        .into_iter()
+        .map(|(label, matches)| {
+            (
+                label,
+                entries.iter().filter(|entry| matches(entry)).collect(),
+            )
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod add_object_menu_tests {
+    use super::*;
+
+    fn entry(id: &str, name: &str, kind: &str) -> CatalogEntry {
+        CatalogEntry {
+            definition: Rc::new(
+                serde_json::from_value(serde_json::json!({
+                    "id": id,
+                    "name": name,
+                    "kind": kind,
+                    "courtyard": [{"x": -2.0, "y": -2.0}, {"x": 2.0, "y": -2.0}, {"x": 2.0, "y": 2.0}],
+                    "pads": []
+                }))
+                .unwrap(),
+            ),
+            source: catalogue::CatalogueSource::Imported,
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn add_menu_uses_the_four_reference_groups_for_available_definitions() {
+        let entries = vec![
+            entry("battery", "Battery connector", "connector"),
+            entry("controller", "nice!nano", "controller"),
+            entry("display", "OLED display", "custom"),
+            entry("encoder", "Rotary encoder EC11", "encoder"),
+            entry("stabilizer", "MX stabilizer", "custom"),
+        ];
+
+        let groups = add_object_groups(&entries);
+
+        assert_eq!(
+            groups.iter().map(|(label, _)| *label).collect::<Vec<_>>(),
+            ["Components", "Controllers", "Displays", "Encoders"]
+        );
+        let group_ids = |label: &str| {
+            groups
+                .iter()
+                .find(|(group, _)| *group == label)
+                .unwrap()
+                .1
+                .iter()
+                .map(|entry| entry.definition.id.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(group_ids("Components"), ["battery"]);
+        assert_eq!(group_ids("Controllers"), ["controller"]);
+        assert_eq!(group_ids("Displays"), ["display"]);
+        assert_eq!(group_ids("Encoders"), ["encoder"]);
+    }
 }
 
 /// Place inside the existing Objects panel when Parts is the active workspace.

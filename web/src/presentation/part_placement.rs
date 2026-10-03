@@ -227,6 +227,7 @@ pub(super) struct PartPlacementHost {
     pub(super) generation: Signal<u64>,
     pub(super) version: Signal<u64>,
     pub(super) adapter: SelectionAdapter,
+    pub(super) layout_selection_kind: Signal<objects::LayoutSelectionKind>,
     pub(super) guide_preferences: Signal<Option<SetupGuidePreferences>>,
     pub(super) parts_query: PartsQuery,
     pub(super) parts_selection: PartsSelection,
@@ -416,6 +417,7 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
         generation,
         version,
         adapter,
+        mut layout_selection_kind,
         guide_preferences,
         parts_query,
         parts_selection,
@@ -1166,13 +1168,26 @@ pub(super) fn use_controller_placement(host: PartPlacementHost) -> PartPlacement
                 );
                 committing.set(None);
                 if success && route_live {
-                    selected_context.set(None);
+                    let next_context = if owner.workflow == PlacementWorkflow::GeneralComponent {
+                        objects::context_for_part(&model, &owner.part_id).map(|context| {
+                            ScopedTreeContext {
+                                scope: owner.scope.clone(),
+                                context,
+                            }
+                        })
+                    } else {
+                        None
+                    };
+                    selected_context.set(next_context);
                     anchor_scope.set(None);
                     workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
                         "PCB"
                     } else {
                         "Layout"
                     });
+                    if owner.workflow == PlacementWorkflow::GeneralComponent {
+                        layout_selection_kind.set(objects::LayoutSelectionKind::Part);
+                    }
                     runtime.submit(Event::SelectParts {
                         operation_id: runtime.operation(),
                         part_ids: if owner.workflow == PlacementWorkflow::GeneralComponent {
@@ -1990,6 +2005,7 @@ mod tests {
         view_mode: Rc<RefCell<Option<EventHandler<bool>>>>,
         workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
         selected_context: Rc<RefCell<Option<Signal<Option<ScopedTreeContext>>>>>,
+        selection_kind: Rc<RefCell<Option<Signal<objects::LayoutSelectionKind>>>>,
         guide: Rc<RefCell<Option<Signal<Option<SetupGuidePreferences>>>>>,
         version: Rc<Cell<u64>>,
         loader_reply: Rc<RefCell<Option<Result<PartDefinition, String>>>>,
@@ -2029,6 +2045,8 @@ mod tests {
         *probe.guide.borrow_mut() = Some(guide);
         let selected_context = use_signal(|| None);
         *probe.selected_context.borrow_mut() = Some(selected_context);
+        let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
+        *probe.selection_kind.borrow_mut() = Some(layout_selection_kind);
         let anchor_scope = use_signal(|| None);
         let generation = use_signal(|| 4u64);
         let adapter = SelectionAdapter::new(selected_context, anchor_scope, generation);
@@ -2053,6 +2071,7 @@ mod tests {
             generation,
             version,
             adapter,
+            layout_selection_kind,
             guide_preferences: guide,
             parts_query: use_signal(String::new),
             parts_selection: use_signal(|| None),
@@ -2103,6 +2122,7 @@ mod tests {
             view_mode: Rc::default(),
             workspace: Rc::default(),
             selected_context: Rc::default(),
+            selection_kind: Rc::default(),
             guide: Rc::default(),
             version: Rc::new(Cell::new(0)),
             loader_reply: Rc::new(RefCell::new(None)),
@@ -2196,6 +2216,86 @@ mod tests {
         assert_eq!(placement.pending.part.reference, "J1");
         assert_eq!(placement.pending.definition.kind, PartKind::Passive);
         assert_eq!(workspace(&probe), "Layout");
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn accepted_general_placement_selects_the_component_and_part_tool_context() {
+        let (probe, mut dom) = hook_mounted();
+        let mut guide = *probe.guide.borrow().as_ref().unwrap();
+        guide.set(None);
+        flush_hook(&mut dom);
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::AddObject {
+                definition_id: "catalog:reset-switch".into(),
+                kind: PartKind::Passive,
+            });
+        resolve_loader(&probe, Ok(passive_definition("catalog:reset-switch")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let active = probe.latest.borrow().as_ref().unwrap().clone();
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        let (operation_id, edit) = submitted_edit(&probe);
+        let document = replacement(edit);
+        let part_id = document.parts.last().unwrap().id.clone();
+        let original = probe
+            .runtime
+            .model
+            .borrow()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .clone();
+        let mut scene = (*original.scene).clone();
+        scene.revision = document.revision + 1;
+        *probe.runtime.model.borrow_mut() = ReadModel {
+            lifecycle: Lifecycle::Ready,
+            durability: Durability::Saved {
+                revision: document.revision + 1,
+            },
+            accepted: Some(AcceptedSnapshot {
+                token: SnapshotToken(12),
+                session_epoch: original.session_epoch,
+                document: Arc::new(ProjectDoc {
+                    revision: document.revision + 1,
+                    ..document
+                }),
+                scene: Arc::new(scene),
+            }),
+            active_board_id: "board-main".into(),
+            ..ReadModel::default()
+        };
+        assert!(
+            probe
+                .runtime
+                .outcomes
+                .settle(operation_id, TerminalOutcome::Completed)
+        );
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        assert_eq!(workspace(&probe), "Layout");
+        assert_eq!(
+            probe.selection_kind.borrow().as_ref().unwrap()(),
+            objects::LayoutSelectionKind::Part
+        );
+        let selected = probe.selected_context.borrow().as_ref().unwrap()();
+        assert!(matches!(
+            selected,
+            Some(ScopedTreeContext {
+                context: TreeContext::Component { part_id: Some(id), .. },
+                ..
+            }) if id == part_id
+        ));
+        assert!(probe.runtime.events.borrow().iter().any(|event| matches!(
+            event,
+            SessionEvent::SelectParts { part_ids, .. }
+                if part_ids.len() == 1 && part_ids.first() == Some(&part_id)
+        )));
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

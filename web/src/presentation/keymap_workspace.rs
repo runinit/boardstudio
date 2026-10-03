@@ -43,6 +43,7 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
             mirrored_pair: None,
             pair_created: None,
             on_place_component: None,
+            layout_target: None,
             placement_error: None,
         }
     }

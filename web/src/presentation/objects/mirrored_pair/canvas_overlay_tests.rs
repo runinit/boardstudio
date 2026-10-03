@@ -89,6 +89,7 @@ fn composition() -> Element {
                 snapshot: snapshot(),
                 scope: Some(owner(1).scope),
                 on_place_component: EventHandler::default(),
+                layout_target: Signal::new(None),
                 matrix_setup: None,
                 mirrored_pair: Some(MirroredPairMount {
                     form: Some(current()),

@@ -118,6 +118,7 @@ pub(super) fn Objects(
     mirrored_pair: Option<MirroredPairMount>,
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
     on_place_component: Option<EventHandler<super::part_placement::ComponentPlacementAction>>,
+    layout_target: Option<Signal<Option<String>>>,
     placement_error: Option<String>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
@@ -206,6 +207,7 @@ pub(super) fn Objects(
             header { h2 { "Objects" } }
             if (matrix_setup.is_some() || mirrored_pair.is_some())
                 && let Some(on_place_component) = on_place_component
+                && let Some(layout_target) = layout_target
             {
                 LayoutAddObjectEntry {
                     matrix_setup,
@@ -213,6 +215,7 @@ pub(super) fn Objects(
                     snapshot: snapshot.clone(),
                     scope: active_scope.clone(),
                     on_place_component,
+                    layout_target,
                 }
             }
             if let Some(error) = placement_error {
@@ -408,6 +411,7 @@ fn LayoutAddObjectEntry(
     snapshot: AcceptedSnapshot,
     scope: Option<Scope>,
     on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
+    layout_target: Signal<Option<String>>,
 ) -> Element {
     let mut menu_open = use_signal(|| false);
     let open_menu = menu_open();
@@ -421,21 +425,19 @@ fn LayoutAddObjectEntry(
         div { class: "m1-layout-add-object",
             button {
                 r#type: "button",
+                class: "m1-layout-add-trigger",
                 aria_expanded: open_menu,
                 onclick: move |_| menu_open.set(!menu_open()),
+                svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16",
+                    path { d: "M8 3v10M3 8h10" }
+                }
                 "Add object"
             }
             if open_menu {
                 div { role: "dialog", "aria-label": "Add", class: "m1-layout-add-menu",
-                    section { "aria-label": "Components",
-                        h3 { "Components" }
-                        super::parts::AddObjectComponentChooser {
-                            snapshot,
-                            scope,
-                            on_place: EventHandler::new(move |action| {
-                                menu_open.set(false);
-                                on_place_component.call(action);
-                            }),
+                    if let Some(scope) = scope.as_ref() {
+                        if let Some(board) = snapshot.document.boards.iter().find(|board| board.id == scope.board_id) {
+                            strong { class: "m1-add-to-board-heading", "Add to {board.name}" }
                         }
                     }
                     section { "aria-label": "Layouts",
@@ -463,6 +465,17 @@ fn LayoutAddObjectEntry(
                                 "Matrix…"
                                 small { "Rows, columns & key assemblies" }
                             }
+                        }
+                    }
+                    section { "aria-label": "Parts",
+                        super::parts::AddObjectComponentChooser {
+                            snapshot,
+                            scope,
+                            layout_target,
+                            on_place: EventHandler::new(move |action| {
+                                menu_open.set(false);
+                                on_place_component.call(action);
+                            }),
                         }
                     }
                 }

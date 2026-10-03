@@ -9,6 +9,7 @@ pub(super) struct ObjectsInput {
     pub(super) mirrored_pair: objects::MirroredPairMount,
     pub(super) pair_created: Signal<Option<objects::MirroredPairCreated>>,
     pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
+    pub(super) layout_target: Signal<Option<String>>,
     pub(super) placement_error: Option<String>,
 }
 
@@ -52,6 +53,7 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 mirrored_pair: Some(input.mirrored_pair),
                 pair_created: Some(input.pair_created),
                 on_place_component: Some(input.on_place_component),
+                layout_target: Some(input.layout_target),
                 placement_error: input.placement_error,
             }
         }
