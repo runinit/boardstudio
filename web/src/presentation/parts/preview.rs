@@ -3,7 +3,7 @@ use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
 use crate::footprint_forms::{Graphic, Shape};
 use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{EnvelopeOrigin, PartDefinition, Side, Vec2};
+use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -997,6 +997,7 @@ mod tests {
     #[test]
     fn stale_async_result_cannot_reclaim_same_definition_after_selection_round_trip() {
         let input_a = PreviewInput {
+            selection_generation: 1,
             scope: Some(Scope {
                 session_epoch: SessionEpoch(4),
                 document_id: "doc-a".into(),

@@ -2,7 +2,7 @@
 //!
 //! Root owns the accepted-source controller and Runtime request. This leaf receives only a
 //! cheap accepted-document handle, board scope, active selection, and guarded edit actions.
-use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope};
+use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
     model::{Net, PartDefinition, PartKind, ProjectDoc},
