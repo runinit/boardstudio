@@ -6,7 +6,7 @@
 
 **Blocked by:** None (Issue 09's tree, selection and panel owners are already mounted; this is a composition follow-on).
 
-**Status:** ready-for-agent; implementation is in progress in the Case queue.
+**Status:** implementation integrated in `3a080e0e` and the changed shell route is paired-green on candidate `34767`. The bounded receipt verifies active Left assembly/PCB navigation, one component visibility toggle and restore, top Shaded/Wireframe modes, bottom Isometric camera control, Layers placement, and selected-part footer/Inspector retention. Full child acceptance remains open; see [candidate 34767 receipt](../evidence/case-shell-parity-34767/public-receipt.md).
 
 - [ ] Case Objects shows real assembly roots and only the active root's contextual authored/generated and PCB rows. Selecting or expanding another real root navigates through the existing accepted board/instance scope; duplicate generic board and physical-instance selectors do not occupy the tree.
 - [ ] Each represented assembly, layer, and component visibility control uses an eye affordance with an accessible Show/Hide name and the existing scoped Case display preference callback.
