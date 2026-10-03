@@ -136,8 +136,22 @@
       "id": "T1-12",
       "parent": "F3.1",
       "issue": "issues/12-rectangular-selection.md",
-      "status": "ready-for-agent",
-      "agent_profile": "astra-debug"
+      "status": "Focused Session and one paired anchored-rectangle journey passed; remaining modifier/scope acceptance and independent review are open.",
+      "agent_profile": "astra-debug",
+      "author_agent": "/root/layout_perimeter_canvas_delivery",
+      "worker_worktree": "/home/chris/.local/share/boardstudio/worktrees/layout-range-selection-20261003",
+      "baseline": "75e4007027409b5cef710c8094f00505d0669d93",
+      "source_commit": "9b8dd6bb01468087e964d812b0407c461cdab29f",
+      "integrated_source_commit": "bbd4da1b7cc0609dd4ae6d8ec0332031b0690ea1",
+      "evidence": [
+        "evidence/t12-range-selection-20261003/receipt.md",
+        "evidence/t12-range-selection-20261003/react-range-green.png",
+        "evidence/t12-range-selection-20261003/dioxus-range-green.png"
+      ],
+      "pending_acceptance": [
+        "Ctrl/Cmd toggling for keys/components, cross-board/cross-matrix invalidation and desktop/compact modifier path remain unexercised.",
+        "Independent T1-12 review and remaining shared F3.1/T1-10 acceptance remain open."
+      ]
     },
     {
       "id": "T2-13",
